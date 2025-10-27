@@ -250,10 +250,10 @@
 - [ ] 6.0 Testing & Integration
   - [x] 6.1 Run full backend test suite (`cd backend && source .venv/bin/activate && pytest tests/ -v --cov=app --cov-report=term-missing`)
   - [x] 6.2 Review coverage report and add tests to reach 80%+ coverage
-  - [ ] 6.3 Write integration test for portfolio CRUD flow (add account → add position → fetch analytics → delete position)
-  - [ ] 6.4 Write integration test for agent generation flow (trigger Discovery Agent → verify ideas stored → fetch ideas via API)
-  - [ ] 6.5 Write integration test for Portfolio Analyzer flow (add portfolio positions → trigger Portfolio Analyzer → verify personalized ideas)
-  - [ ] 6.6 Write integration test for price data fetching with yfinance primary and Polygon fallback
+  - [x] 6.3 Write integration test for portfolio CRUD flow (add account → add position → fetch analytics → delete position)
+  - [x] 6.4 Write integration test for agent generation flow (trigger Discovery Agent → verify ideas stored → fetch ideas via API)
+  - [x] 6.5 Write integration test for Portfolio Analyzer flow (add portfolio positions → trigger Portfolio Analyzer → verify personalized ideas)
+  - [x] 6.6 Write integration test for price data fetching with yfinance primary and Polygon fallback
   - [ ] 6.7 Manual testing: Start backend (`uvicorn app.main:app --reload`) and frontend (`npm run dev`)
   - [ ] 6.8 Manual testing: Add real portfolio positions via UI (test add account, add position, view analytics)
   - [ ] 6.9 Manual testing: Generate ideas via UI (test Discovery Agent, verify 5 general ideas appear)

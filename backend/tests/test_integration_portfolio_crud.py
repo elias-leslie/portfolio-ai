@@ -1,0 +1,214 @@
+"""Integration test for portfolio CRUD flow."""
+
+from __future__ import annotations
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app.main import app
+from app.storage import get_storage
+
+
+@pytest.fixture
+def client() -> TestClient:
+    """Create test client."""
+    return TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def cleanup_database():
+    """Clean up database before and after each test."""
+    storage = get_storage()
+
+    # Clean up before test
+    with storage.connection() as conn:
+        conn.execute("DELETE FROM portfolio_positions")
+        conn.execute("DELETE FROM portfolio_accounts")
+
+    yield
+
+    # Clean up after test
+    with storage.connection() as conn:
+        conn.execute("DELETE FROM portfolio_positions")
+        conn.execute("DELETE FROM portfolio_accounts")
+
+
+def test_portfolio_crud_integration_flow(client: TestClient):
+    """Test complete portfolio CRUD flow: add account → add position → fetch analytics → delete position."""
+
+    # Step 1: Create an account
+    account_response = client.post(
+        "/api/portfolio/account",
+        json={"name": "Test IRA", "account_type": "IRA"}
+    )
+    assert account_response.status_code == 200
+    account_data = account_response.json()
+    account_id = account_data["id"]
+    assert account_data["name"] == "Test IRA"
+    assert account_data["account_type"] == "IRA"
+
+    # Step 2: Add a position
+    position_response = client.post(
+        "/api/portfolio/position",
+        json={
+            "account_id": account_id,
+            "symbol": "AAPL",
+            "shares": 100,
+            "cost_basis": 150.00,
+            "position_type": "long"
+        }
+    )
+    assert position_response.status_code == 200
+    position_data = position_response.json()
+    position_id = position_data["id"]
+    assert position_data["symbol"] == "AAPL"
+    assert position_data["shares"] == 100
+    assert position_data["cost_basis"] == 150.00
+
+    # Step 3: Get portfolio (should include the position with current values)
+    portfolio_response = client.get("/api/portfolio/")
+    assert portfolio_response.status_code == 200
+    portfolio = portfolio_response.json()
+    assert len(portfolio["positions"]) == 1
+    assert portfolio["positions"][0]["symbol"] == "AAPL"
+    assert portfolio["positions"][0]["shares"] == 100
+    assert portfolio["total_cost_basis"] == 15000.00  # 100 * 150
+
+    # Step 4: Fetch analytics
+    analytics_response = client.get("/api/portfolio/analytics")
+    assert analytics_response.status_code == 200
+    analytics = analytics_response.json()
+    assert analytics["num_positions"] == 1
+    assert analytics["num_symbols"] == 1
+    assert analytics["portfolio_value"]["total_cost_basis"] == 15000.00
+    assert "portfolio_beta" in analytics
+    assert "sector_exposure" in analytics
+    assert "concentration_metrics" in analytics
+
+    # Step 5: Add a second position
+    position2_response = client.post(
+        "/api/portfolio/position",
+        json={
+            "account_id": account_id,
+            "symbol": "MSFT",
+            "shares": 50,
+            "cost_basis": 300.00,
+            "position_type": "long"
+        }
+    )
+    assert position2_response.status_code == 200
+
+    # Step 6: Verify portfolio now has 2 positions
+    portfolio_response = client.get("/api/portfolio/")
+    assert portfolio_response.status_code == 200
+    portfolio = portfolio_response.json()
+    assert len(portfolio["positions"]) == 2
+    # Verify we have both symbols
+    symbols = [p["symbol"] for p in portfolio["positions"]]
+    assert "AAPL" in symbols
+    assert "MSFT" in symbols
+
+    # Step 7: Delete the first position
+    delete_response = client.delete(f"/api/portfolio/position/{position_id}")
+    assert delete_response.status_code == 200
+    assert delete_response.json()["status"] == "deleted"
+
+    # Step 8: Verify portfolio now has 1 position
+    portfolio_response = client.get("/api/portfolio/")
+    assert portfolio_response.status_code == 200
+    portfolio = portfolio_response.json()
+    assert len(portfolio["positions"]) == 1
+    assert portfolio["positions"][0]["symbol"] == "MSFT"
+
+    # Step 9: Delete the second position
+    position2_id = position2_response.json()["id"]
+    delete_response = client.delete(f"/api/portfolio/position/{position2_id}")
+    assert delete_response.status_code == 200
+
+    # Step 10: Verify portfolio is now empty
+    portfolio_response = client.get("/api/portfolio/")
+    assert portfolio_response.status_code == 200
+    portfolio = portfolio_response.json()
+    assert len(portfolio["positions"]) == 0
+    assert portfolio["total_value"] == 0
+    assert portfolio["total_cost_basis"] == 0
+
+
+def test_portfolio_multiple_accounts_flow(client: TestClient):
+    """Test portfolio with multiple accounts."""
+
+    # Create two accounts
+    account1_response = client.post(
+        "/api/portfolio/account",
+        json={"name": "IRA Account", "account_type": "IRA"}
+    )
+    account1_id = account1_response.json()["id"]
+
+    account2_response = client.post(
+        "/api/portfolio/account",
+        json={"name": "Taxable Account", "account_type": "Taxable"}
+    )
+    account2_id = account2_response.json()["id"]
+
+    # Add positions to each account
+    client.post(
+        "/api/portfolio/position",
+        json={
+            "account_id": account1_id,
+            "symbol": "AAPL",
+            "shares": 100,
+            "cost_basis": 150.00,
+            "position_type": "long"
+        }
+    )
+
+    client.post(
+        "/api/portfolio/position",
+        json={
+            "account_id": account2_id,
+            "symbol": "GOOGL",
+            "shares": 50,
+            "cost_basis": 2000.00,
+            "position_type": "long"
+        }
+    )
+
+    # Verify portfolio aggregates both accounts
+    portfolio_response = client.get("/api/portfolio/")
+    assert portfolio_response.status_code == 200
+    portfolio = portfolio_response.json()
+    assert len(portfolio["positions"]) == 2
+
+    # Verify analytics includes both positions
+    analytics_response = client.get("/api/portfolio/analytics")
+    assert analytics_response.status_code == 200
+    analytics = analytics_response.json()
+    assert analytics["num_positions"] == 2
+    assert analytics["num_symbols"] == 2
+
+
+def test_portfolio_error_handling(client: TestClient):
+    """Test error handling in portfolio CRUD operations."""
+
+    # Try to add position with non-existent account
+    response = client.post(
+        "/api/portfolio/position",
+        json={
+            "account_id": "non-existent-id",
+            "symbol": "AAPL",
+            "shares": 100,
+            "cost_basis": 150.00,
+            "position_type": "long"
+        }
+    )
+    assert response.status_code == 404
+    assert "Account not found" in response.json()["detail"]
+
+    # Try to get analytics with no positions
+    response = client.get("/api/portfolio/analytics")
+    assert response.status_code == 404
+    assert "No positions in portfolio" in response.json()["detail"]
+
+    # Delete non-existent position (should be idempotent)
+    response = client.delete("/api/portfolio/position/non-existent-id")
+    assert response.status_code == 200
