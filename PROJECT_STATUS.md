@@ -16,7 +16,9 @@ All infrastructure and initial setup complete. Project is ready for development.
 
 ```
 portfolio-ai/
-├── .ai_dev_tasks/         ✅ AI workflow automation (5 slash commands)
+├── .claude/               ✅ Claude Code configuration
+│   ├── commands/         ✅ Slash commands (plan_it, task_it, do_it, next_it, doc_it)
+│   └── settings.local.json ✅ Project-specific permissions
 ├── .git/                  ✅ Git repository (main branch)
 ├── backend/               ✅ Python backend with venv and dependencies
 │   ├── app/              ✅ Module structure (storage, sources, portfolio, agents, api)
