@@ -267,7 +267,7 @@
   - [ ] 6.17 Fix any bugs discovered during testing
 
 - [ ] 7.0 Documentation & Deployment
-  - [ ] 7.1 Populate docs/core/ARCHITECTURE.md with portfolio-ai system design (components, data flow, tech stack)
+  - [x] 7.1 Populate docs/core/ARCHITECTURE.md with portfolio-ai system design (components, data flow, tech stack)
   - [ ] 7.2 Populate docs/core/DEVELOPMENT.md with development workflows (testing, linting, git conventions)
   - [ ] 7.3 Populate docs/core/SETUP.md with setup instructions (prerequisites, installation, running locally)
   - [ ] 7.4 Populate docs/core/OPERATIONS.md with deployment instructions (native execution, no Docker)
