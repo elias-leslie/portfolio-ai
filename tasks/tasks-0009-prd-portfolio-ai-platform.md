@@ -70,19 +70,27 @@
 
 ### Frontend Files (New)
 - `frontend/app/page.tsx` - Dashboard page (market + portfolio + ideas)
-- `frontend/app/portfolio/page.tsx` - Portfolio management page
-- `frontend/app/settings/page.tsx` - Settings page
-- `frontend/app/ideas/[id]/page.tsx` - Idea details page
-- `frontend/components/portfolio/PortfolioOverview.tsx` - Portfolio overview component
-- `frontend/components/portfolio/MarketConditions.tsx` - Market conditions component
+- `frontend/app/portfolio/page.tsx` - Portfolio management page with Add Position/Account dialogs
+- `frontend/app/settings/page.tsx` - Settings page with risk tolerance slider, position size limit, trade preferences
+- `frontend/app/ideas/[id]/page.tsx` - Idea details page with full thesis, action, impact, risks, status management
+- `frontend/components/portfolio/PortfolioOverview.tsx` - Portfolio overview component with analytics
+- `frontend/components/portfolio/MarketConditions.tsx` - Market conditions component (fixed TypeScript issue)
 - `frontend/components/portfolio/IdeaCard.tsx` - Idea card component
-- `frontend/components/portfolio/PositionTable.tsx` - Position table component
+- `frontend/components/portfolio/PositionTable.tsx` - Position table component with delete confirmation and toasts
+- `frontend/components/ErrorBoundary.tsx` - Error boundary component for error handling
+- `frontend/components/Navigation.tsx` - Navigation header with Dashboard, Portfolio, Settings links
 - `frontend/lib/api/portfolio.ts` - Portfolio API client
 - `frontend/lib/api/ideas.ts` - Ideas API client
 - `frontend/lib/api/market.ts` - Market data API client
-- `frontend/lib/hooks/usePortfolio.ts` - Portfolio React Query hooks
+- `frontend/lib/hooks/usePortfolio.ts` - Portfolio React Query hooks (15-min auto-refetch for prices)
 - `frontend/lib/hooks/useIdeas.ts` - Ideas React Query hooks
-- `frontend/package.json` - Node.js dependencies
+- `frontend/lib/hooks/usePreferences.ts` - Preferences React Query hooks
+- `frontend/lib/api/preferences.ts` - Preferences API client
+- `frontend/components/ui/dialog.tsx` - Dialog component (shadcn/ui)
+- `frontend/components/ui/label.tsx` - Label component (shadcn/ui)
+- `frontend/components/ui/select.tsx` - Select component (shadcn/ui)
+- `frontend/app/layout.tsx` - Root layout with Toaster provider
+- `frontend/package.json` - Node.js dependencies (added sonner for toasts)
 - `frontend/tsconfig.json` - TypeScript configuration
 
 ### Configuration Files (New)
@@ -208,7 +216,7 @@
   - [x] 4.25 Write API integration tests for market and preferences endpoints (tests/test_api_market.py - 10 tests, tests/test_api_preferences.py - 9 tests)
   - [x] 4.26 Test backend startup (run `uvicorn app.main:app --reload` and verify all endpoints accessible - all 13 endpoints working)
 
-- [ ] 5.0 Next.js UI (Dashboard + Portfolio + Settings)
+- [x] 5.0 Next.js UI (Dashboard + Portfolio + Settings)
   - [x] 5.1 Create frontend/lib/api/ directory for API client functions
   - [x] 5.2 Create frontend/lib/api/portfolio.ts with fetchPortfolio(), addPosition(), deletePosition(), fetchAnalytics()
   - [x] 5.3 Create frontend/lib/api/ideas.ts with fetchIdeas(), generateIdeas(), fetchIdeaDetails(), updateIdeaStatus()
@@ -226,18 +234,18 @@
   - [x] 5.15 Create frontend/components/portfolio/PositionTable.tsx (displays holdings with TanStack Table: symbol, shares, cost, current price, value, gain)
   - [x] 5.16 Build Dashboard page frontend/app/page.tsx (layout: MarketConditions + PortfolioOverview + top 5 IdeaCards)
   - [x] 5.17 Add "Generate New Ideas" button on Dashboard with loading state and agent type selector
-  - [ ] 5.18 Build Portfolio management page frontend/app/portfolio/page.tsx (PositionTable + analytics + add/edit/delete forms)
-  - [ ] 5.19 Add "Add Position" form modal (account selector, symbol input, shares, cost basis, position type dropdown)
-  - [ ] 5.20 Add "Add Account" form modal (name input, account type dropdown: IRA/Taxable/401k/Roth/HSA)
-  - [ ] 5.21 Build Settings page frontend/app/settings/page.tsx (risk tolerance slider 1-10, trade type checkboxes)
-  - [ ] 5.22 Build Idea details page frontend/app/ideas/[id]/page.tsx (full thesis, action, portfolio impact, data needed, risks)
-  - [ ] 5.23 Add loading states (skeleton screens) for all data fetching using React Query isLoading
-  - [ ] 5.24 Add error handling with error boundary components and toast notifications
-  - [ ] 5.25 Add form validation for position entry (symbol format regex, positive numbers for shares/cost)
-  - [ ] 5.26 Style all components with Tailwind CSS and shadcn/ui components (Card, Table, Button, Input, Slider, Checkbox)
-  - [ ] 5.27 Implement real-time price updates (poll /api/market/prices every 15 minutes, update PositionTable)
-  - [ ] 5.28 Add navigation header with links to Dashboard, Portfolio, Settings
-  - [ ] 5.29 Test frontend (run `npm run dev` and verify all pages render, API integration works)
+  - [x] 5.18 Build Portfolio management page frontend/app/portfolio/page.tsx (PositionTable + analytics + add/edit/delete forms)
+  - [x] 5.19 Add "Add Position" form modal (account selector, symbol input, shares, cost basis, position type dropdown)
+  - [x] 5.20 Add "Add Account" form modal (name input, account type dropdown: IRA/Taxable/401k/Roth/HSA)
+  - [x] 5.21 Build Settings page frontend/app/settings/page.tsx (risk tolerance slider 1-10, trade type checkboxes)
+  - [x] 5.22 Build Idea details page frontend/app/ideas/[id]/page.tsx (full thesis, action, portfolio impact, data needed, risks)
+  - [x] 5.23 Add loading states (skeleton screens) for all data fetching using React Query isLoading
+  - [x] 5.24 Add error handling with error boundary components and toast notifications
+  - [x] 5.25 Add form validation for position entry (symbol format regex, positive numbers for shares/cost)
+  - [x] 5.26 Style all components with Tailwind CSS and shadcn/ui components (Card, Table, Button, Input, Slider, Checkbox)
+  - [x] 5.27 Implement real-time price updates (poll /api/market/prices every 15 minutes, update PositionTable)
+  - [x] 5.28 Add navigation header with links to Dashboard, Portfolio, Settings
+  - [x] 5.29 Test frontend (run `npm run dev` and verify all pages render, API integration works)
 
 - [ ] 6.0 Testing & Integration
   - [ ] 6.1 Run full backend test suite (`cd backend && source .venv/bin/activate && pytest tests/ -v --cov=app --cov-report=term-missing`)
