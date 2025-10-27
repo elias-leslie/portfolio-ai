@@ -277,6 +277,17 @@
   - [ ] 7.15 Run `scripts/validate-commands.sh` to verify all slash commands work
   - [ ] 7.16 Create final git commit ("docs: complete documentation for portfolio-ai MVP")
 
+- [ ] 8.0 Remote Access & Backup Configuration
+  - [ ] 8.1 Configure Tailscale serve for portfolio-ai frontend (port 3000)
+  - [ ] 8.2 Configure Tailscale serve for portfolio-ai backend API (port 8000)
+  - [ ] 8.3 Test remote access from phone/other devices over Tailscale
+  - [ ] 8.4 Update restic backup script to include /home/kasadis/portfolio-ai/
+  - [ ] 8.5 Verify restic backup includes portfolio-ai data directory
+  - [ ] 8.6 Document Tailscale setup in docs/core/OPERATIONS.md
+  - [ ] 8.7 Document backup configuration in docs/core/OPERATIONS.md
+  - [ ] 8.8 Create troubleshooting guide for remote access issues
+  - [ ] 8.9 Test backup restoration for portfolio-ai files
+
 ---
 
 ## Notes
@@ -293,3 +304,5 @@
 - **Price data**: yfinance primary, Polygon backup, 15-minute cache
 - **File size guidelines**: 500 soft limit, 800 hard limit (from market-sim conventions)
 - **Type hints**: Mandatory for all Python functions (from market-sim conventions)
+- **Remote access**: Configure Tailscale serve for ports 3000 (frontend) and 8000 (backend API)
+- **Backup**: Add portfolio-ai folder to restic backup targets in ~/.local/bin/restic-backup.sh
