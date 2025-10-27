@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+.venv/
+venv/
+
+# Node / Next.js
+node_modules/
+.npm/
+.pnpm-store/
+web/.next/
+web/out/
+web/.turbo/
+
+# Project data / logs
+data/
+logs/
+
+# Environment & tooling
+.env
+.env.local
+.idea/
+.vscode/
+*.swp
+*.swo
+Thumbs.db
+.DS_Store
+
+# Ignore deb files
+*.deb
+*.rpm
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.lzma
+*.tar.lz
+*.tar.zst
+*.tar.zstd
+*.tar.zstd
+
+# References
+references/
+app/references/
+
+# API Keys
+api_keys.md
+
+# Claude
+.claude/
+
+# Playwright artifacts (replaced with Chrome DevTools MCP)
+.playwright-mcp/
+playwright-report/
+test-results/
+
+# Command validation state
+.validation-state.json
