@@ -268,20 +268,20 @@
 
 - [ ] 7.0 Documentation & Deployment
   - [x] 7.1 Populate docs/core/ARCHITECTURE.md with portfolio-ai system design (components, data flow, tech stack)
-  - [ ] 7.2 Populate docs/core/DEVELOPMENT.md with development workflows (testing, linting, git conventions)
-  - [ ] 7.3 Populate docs/core/SETUP.md with setup instructions (prerequisites, installation, running locally)
-  - [ ] 7.4 Populate docs/core/OPERATIONS.md with deployment instructions (native execution, no Docker)
-  - [ ] 7.5 Populate docs/core/API_REFERENCE.md with all API endpoints (portfolio, ideas, market, preferences)
-  - [ ] 7.6 Create docs/core/REFACTOR_STATUS.md for tracking future work and tech debt
-  - [ ] 7.7 Create docs/guides/portfolio-management.md user guide (how to add positions, interpret analytics)
-  - [ ] 7.8 Create docs/guides/agent-system.md guide (how agents work, system prompts, cost tracking)
-  - [ ] 7.9 Document agent system prompts in docs/agents/discovery-agent.md and docs/agents/portfolio-analyzer-agent.md
-  - [ ] 7.10 Update CLAUDE.md with portfolio-ai quick start commands (run backend, run frontend, run tests, run linting)
-  - [ ] 7.11 Create deployment instructions in docs/deployment/local-development.md (backend + frontend startup)
-  - [ ] 7.12 Add troubleshooting section to docs/core/OPERATIONS.md (common issues: price data failures, agent errors, database locks)
-  - [ ] 7.13 Create main reference document docs/PORTFOLIO_AI_PLATFORM.md (overview, features, architecture, getting started)
-  - [ ] 7.14 Update README.md with project overview, features, tech stack, quick start
-  - [ ] 7.15 Run `scripts/validate-commands.sh` to verify all slash commands work
+  - [x] 7.2 Populate docs/core/DEVELOPMENT.md with development workflows (testing, linting, git conventions)
+  - [x] 7.3 Populate docs/core/SETUP.md with setup instructions (prerequisites, installation, running locally)
+  - [x] 7.4 Populate docs/core/OPERATIONS.md with deployment instructions (native execution, no Docker)
+  - [x] 7.5 Populate docs/core/API_REFERENCE.md with all API endpoints (portfolio, ideas, market, preferences)
+  - [x] 7.6 Create docs/core/REFACTOR_STATUS.md for tracking future work and tech debt
+  - [ ] 7.7 Create docs/guides/portfolio-management.md user guide (how to add positions, interpret analytics) - DEFERRED
+  - [ ] 7.8 Create docs/guides/agent-system.md guide (how agents work, system prompts, cost tracking) - DEFERRED
+  - [ ] 7.9 Document agent system prompts in docs/agents/discovery-agent.md and docs/agents/portfolio-analyzer-agent.md - DEFERRED
+  - [x] 7.10 Update CLAUDE.md with portfolio-ai quick start commands (run backend, run frontend, run tests, run linting) - ALREADY COMPLETE
+  - [ ] 7.11 Create deployment instructions in docs/deployment/local-development.md (backend + frontend startup) - COVERED IN SETUP.md + OPERATIONS.md
+  - [x] 7.12 Add troubleshooting section to docs/core/OPERATIONS.md (common issues: price data failures, agent errors, database locks)
+  - [ ] 7.13 Create main reference document docs/PORTFOLIO_AI_PLATFORM.md (overview, features, architecture, getting started) - NOT NEEDED (README.md + ARCHITECTURE.md cover this)
+  - [x] 7.14 Update README.md with project overview, features, tech stack, quick start - ALREADY COMPLETE
+  - [x] 7.15 Run `scripts/validate-commands.sh` to verify all slash commands work
   - [ ] 7.16 Create final git commit ("docs: complete documentation for portfolio-ai MVP")
 
 - [ ] 8.0 Remote Access & Backup Configuration
