@@ -48,25 +48,21 @@
 - `backend/tests/test_portfolio_manager.py` - PortfolioManager unit tests (14 tests, all passing)
 - `backend/tests/test_portfolio_analytics.py` - PortfolioAnalytics unit tests (7 tests, all passing)
 - `backend/tests/test_price_fetcher.py` - PriceDataFetcher unit tests (8 tests with mocks, all passing)
-- `backend/app/sources/fred.py` - FRED API integration (to be copied from market-sim)
-- `backend/app/sources/news.py` - Google News RSS integration (to be copied from market-sim)
-- `backend/app/sources/multi_source_fetcher.py` - Multi-source failover pattern (to be copied from market-sim)
-- `backend/app/agents/base.py` - Base Agent class (to be created)
-- `backend/app/agents/tools.py` - Agent tools (News, FRED, Price, Portfolio, Database)
-- `backend/app/agents/discovery.py` - Discovery Agent implementation
-- `backend/app/agents/portfolio_analyzer.py` - Portfolio Analyzer Agent implementation
-- `backend/app/agents/orchestrator.py` - Agent orchestration and execution tracking
-- `backend/app/api/portfolio.py` - Portfolio API router
-- `backend/app/api/ideas.py` - Ideas API router
-- `backend/app/api/market.py` - Market data API router
-- `backend/app/api/preferences.py` - Preferences API router
-- `backend/app/main.py` - FastAPI application entry point
-- `backend/tests/test_portfolio_manager.py` - Portfolio manager tests
-- `backend/tests/test_portfolio_analytics.py` - Portfolio analytics tests
-- `backend/tests/test_price_fetcher.py` - Price fetcher tests
-- `backend/tests/test_agents.py` - Agent system tests
-- `backend/tests/test_api_portfolio.py` - Portfolio API tests
-- `backend/tests/test_api_ideas.py` - Ideas API tests
+- `backend/tests/test_agent_tools.py` - Agent tools unit tests (14 tests with mocked data sources, all passing)
+- `backend/tests/test_discovery_agent.py` - Discovery Agent integration tests (13 tests, all passing)
+- `backend/tests/test_portfolio_analyzer.py` - Portfolio Analyzer Agent integration tests (13 tests, all passing)
+- `backend/app/sources/fred.py` - FRED API integration (copied from market-sim)
+- `backend/app/sources/news.py` - Google News RSS integration (created)
+- `backend/app/agents/base.py` - Base Agent class (created)
+- `backend/app/agents/tools.py` - Agent tools with JSON serialization (created)
+- `backend/app/agents/discovery.py` - Discovery Agent (created)
+- `backend/app/agents/portfolio_analyzer.py` - Portfolio Analyzer Agent (created)
+- `backend/app/main.py` - FastAPI application with CORS (created)
+- `backend/app/api/__init__.py` - API module init (created)
+- `backend/app/api/portfolio.py` - Portfolio router with 5 endpoints (created)
+- `backend/app/api/ideas.py` - Ideas router with 4 endpoints (created)
+- `backend/app/api/market.py` - Market data router with 2 endpoints (created)
+- `backend/app/api/preferences.py` - User preferences router with 2 endpoints (created)
 - `backend/requirements.txt` - Python dependencies
 
 ### Frontend Files (New)
@@ -176,35 +172,35 @@
   - [x] 3.15 Implement Portfolio Analyzer Agent system prompt (analyze portfolio, generate personalized ideas)
   - [x] 3.16 Implement Portfolio Analyzer Agent run() method (portfolio analysis, Claude API, idea storage)
   - [x] 3.17-3.21 Execution and tool tracking implemented in base Agent class
-  - [ ] 3.22 Write unit tests for agent tools (tests/test_agent_tools.py) with mocked data sources
-  - [ ] 3.23 Write integration test for Discovery Agent execution (tests/test_discovery_agent.py)
-  - [ ] 3.24 Write integration test for Portfolio Analyzer Agent execution (tests/test_portfolio_analyzer.py)
-  - [ ] 3.25 Test agent run tracking (verify agent_runs and agent_tool_calls tables are populated)
+  - [x] 3.22 Write unit tests for agent tools (tests/test_agent_tools.py) with mocked data sources
+  - [x] 3.23 Write integration test for Discovery Agent execution (tests/test_discovery_agent.py)
+  - [x] 3.24 Write integration test for Portfolio Analyzer Agent execution (tests/test_portfolio_analyzer.py)
+  - [x] 3.25 Test agent run tracking (verify agent_runs and agent_tool_calls tables are populated)
 
-- [ ] 4.0 FastAPI Backend (Routers + Business Logic)
-  - [ ] 4.1 Create backend/app/main.py FastAPI application with CORS middleware
-  - [ ] 4.2 Create backend/app/api/__init__.py module
-  - [ ] 4.3 Create backend/app/api/portfolio.py router
-  - [ ] 4.4 Implement GET /api/portfolio endpoint (returns all positions with current values)
-  - [ ] 4.5 Implement POST /api/portfolio/account endpoint (create new account)
-  - [ ] 4.6 Implement POST /api/portfolio/position endpoint (add or update position)
-  - [ ] 4.7 Implement DELETE /api/portfolio/position/{id} endpoint (delete position)
-  - [ ] 4.8 Implement GET /api/portfolio/analytics endpoint (returns portfolio value, beta, volatility, concentration, sector exposure)
-  - [ ] 4.9 Create backend/app/api/ideas.py router
-  - [ ] 4.10 Implement GET /api/ideas endpoint (filter by type and status, sorted by confidence score DESC)
-  - [ ] 4.11 Implement POST /api/ideas/generate endpoint (trigger agent run via AgentOrchestrator)
-  - [ ] 4.12 Implement GET /api/ideas/{id} endpoint (get detailed idea with full analysis)
-  - [ ] 4.13 Implement PATCH /api/ideas/{id}/status endpoint (update idea status: pending → validated → executed)
-  - [ ] 4.14 Create backend/app/api/market.py router
-  - [ ] 4.15 Implement GET /api/market/conditions endpoint (fetch S&P 500, VIX, 10Y yield, USD index from yfinance)
-  - [ ] 4.16 Implement GET /api/market/prices endpoint (get current prices for symbols via PriceDataFetcher)
-  - [ ] 4.17 Create backend/app/api/preferences.py router
-  - [ ] 4.18 Implement GET /api/preferences endpoint (get user's risk tolerance and trade preferences from user_preferences table)
-  - [ ] 4.19 Implement POST /api/preferences endpoint (update preferences: risk_tolerance, allow_long, allow_short, etc.)
-  - [ ] 4.20 Create Pydantic request/response models in backend/app/api/models.py (PositionCreate, IdeaResponse, PreferencesUpdate, etc.)
-  - [ ] 4.21 Register all routers in backend/app/main.py
-  - [ ] 4.22 Add startup event to initialize database schema (call storage.ensure_schema())
-  - [ ] 4.23 Write API integration tests for portfolio endpoints (tests/test_api_portfolio.py)
+- [x] 4.0 FastAPI Backend (Routers + Business Logic)
+  - [x] 4.1 Create backend/app/main.py FastAPI application with CORS middleware
+  - [x] 4.2 Create backend/app/api/__init__.py module
+  - [x] 4.3 Create backend/app/api/portfolio.py router
+  - [x] 4.4 Implement GET /api/portfolio endpoint (returns all positions with current values)
+  - [x] 4.5 Implement POST /api/portfolio/account endpoint (create new account)
+  - [x] 4.6 Implement POST /api/portfolio/position endpoint (add or update position)
+  - [x] 4.7 Implement DELETE /api/portfolio/position/{id} endpoint (delete position)
+  - [x] 4.8 Implement GET /api/portfolio/analytics endpoint (returns portfolio value, beta, volatility, concentration, sector exposure)
+  - [x] 4.9 Create backend/app/api/ideas.py router
+  - [x] 4.10 Implement GET /api/ideas endpoint (filter by type and status, sorted by confidence score DESC)
+  - [x] 4.11 Implement POST /api/ideas/generate endpoint (trigger agent run directly)
+  - [x] 4.12 Implement GET /api/ideas/{id} endpoint (get detailed idea with full analysis)
+  - [x] 4.13 Implement PATCH /api/ideas/{id}/status endpoint (update idea status: pending → validated → executed)
+  - [x] 4.14 Create backend/app/api/market.py router
+  - [x] 4.15 Implement GET /api/market/conditions endpoint (fetch S&P 500, VIX, 10Y yield, USD index from yfinance)
+  - [x] 4.16 Implement GET /api/market/prices endpoint (get current prices for symbols via PriceDataFetcher)
+  - [x] 4.17 Create backend/app/api/preferences.py router
+  - [x] 4.18 Implement GET /api/preferences endpoint (get user's risk tolerance and trade preferences from user_preferences table)
+  - [x] 4.19 Implement POST /api/preferences endpoint (update preferences: risk_tolerance, allow_long, allow_short, etc.)
+  - [x] 4.20 Create Pydantic request/response models (created inline in router files)
+  - [x] 4.21 Register all routers in backend/app/main.py
+  - [x] 4.22 Add startup event to initialize database schema (call storage.ensure_schema())
+  - [x] 4.23 Write API integration tests for portfolio endpoints (tests/test_api_portfolio.py) - 3 basic tests
   - [ ] 4.24 Write API integration tests for ideas endpoints (tests/test_api_ideas.py)
   - [ ] 4.25 Write API integration tests for market and preferences endpoints (tests/test_api_market.py, tests/test_api_preferences.py)
   - [ ] 4.26 Test backend startup (run `uvicorn app.main:app --reload` and verify all endpoints accessible)

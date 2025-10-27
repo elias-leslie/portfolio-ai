@@ -187,8 +187,8 @@ class AgentTools:
         analytics = self.analytics.calculate_full_analytics(positions, price_data)
 
         return {
-            "positions": [p.model_dump() for p in positions],
-            "analytics": analytics.model_dump(),
+            "positions": [p.model_dump(mode='json') for p in positions],
+            "analytics": analytics.model_dump(mode='json'),
         }
 
     def execute_get_price_data(self, symbols: list[str]) -> dict[str, Any]:
@@ -196,7 +196,7 @@ class AgentTools:
         price_data = self.price_fetcher.fetch_price_data(symbols)
 
         return {
-            "prices": {sym: data.model_dump() for sym, data in price_data.items()},
+            "prices": {sym: data.model_dump(mode='json') for sym, data in price_data.items()},
             "count": len(price_data),
         }
 
