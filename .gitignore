@@ -47,8 +47,8 @@ app/references/
 # API Keys
 api_keys.md
 
-# Claude
-.claude/
+# Claude (ignore settings but track commands)
+.claude/settings.local.json
 
 # Playwright artifacts (replaced with Chrome DevTools MCP)
 .playwright-mcp/
