@@ -180,7 +180,7 @@
   - [x] 3.24 Write integration test for Portfolio Analyzer Agent execution (tests/test_portfolio_analyzer.py)
   - [x] 3.25 Test agent run tracking (verify agent_runs and agent_tool_calls tables are populated)
 
-- [x] 4.0 FastAPI Backend (Routers + Business Logic)
+- [x] 4.0 FastAPI Backend (Routers + Business Logic) - COMPLETED (38 API tests, 13 endpoints, 86% coverage)
   - [x] 4.1 Create backend/app/main.py FastAPI application with CORS middleware
   - [x] 4.2 Create backend/app/api/__init__.py module
   - [x] 4.3 Create backend/app/api/portfolio.py router
@@ -209,16 +209,16 @@
   - [x] 4.26 Test backend startup (run `uvicorn app.main:app --reload` and verify all endpoints accessible - all 13 endpoints working)
 
 - [ ] 5.0 Next.js UI (Dashboard + Portfolio + Settings)
-  - [ ] 5.1 Create frontend/lib/api/ directory for API client functions
-  - [ ] 5.2 Create frontend/lib/api/portfolio.ts with fetchPortfolio(), addPosition(), deletePosition(), fetchAnalytics()
-  - [ ] 5.3 Create frontend/lib/api/ideas.ts with fetchIdeas(), generateIdeas(), fetchIdeaDetails(), updateIdeaStatus()
-  - [ ] 5.4 Create frontend/lib/api/market.ts with fetchMarketConditions(), fetchPrices()
-  - [ ] 5.5 Create frontend/lib/api/preferences.ts with fetchPreferences(), updatePreferences()
-  - [ ] 5.6 Create frontend/lib/hooks/ directory for React Query hooks
-  - [ ] 5.7 Create frontend/lib/hooks/usePortfolio.ts with usePortfolio(), usePortfolioAnalytics(), useAddPosition(), useDeletePosition()
-  - [ ] 5.8 Create frontend/lib/hooks/useIdeas.ts with useIdeas(), useGenerateIdeas(), useIdeaDetails(), useUpdateIdeaStatus()
-  - [ ] 5.9 Create frontend/lib/hooks/useMarket.ts with useMarketConditions()
-  - [ ] 5.10 Create frontend/lib/hooks/usePreferences.ts with usePreferences(), useUpdatePreferences()
+  - [x] 5.1 Create frontend/lib/api/ directory for API client functions
+  - [x] 5.2 Create frontend/lib/api/portfolio.ts with fetchPortfolio(), addPosition(), deletePosition(), fetchAnalytics()
+  - [x] 5.3 Create frontend/lib/api/ideas.ts with fetchIdeas(), generateIdeas(), fetchIdeaDetails(), updateIdeaStatus()
+  - [x] 5.4 Create frontend/lib/api/market.ts with fetchMarketConditions(), fetchPrices()
+  - [x] 5.5 Create frontend/lib/api/preferences.ts with fetchPreferences(), updatePreferences()
+  - [x] 5.6 Create frontend/lib/hooks/ directory for React Query hooks
+  - [x] 5.7 Create frontend/lib/hooks/usePortfolio.ts with usePortfolio(), usePortfolioAnalytics(), useAddPosition(), useDeletePosition()
+  - [x] 5.8 Create frontend/lib/hooks/useIdeas.ts with useIdeas(), useGenerateIdeas(), useIdeaDetails(), useUpdateIdeaStatus()
+  - [x] 5.9 Create frontend/lib/hooks/useMarket.ts with useMarketConditions()
+  - [x] 5.10 Create frontend/lib/hooks/usePreferences.ts with usePreferences(), useUpdatePreferences()
   - [ ] 5.11 Create frontend/components/portfolio/ directory for portfolio components
   - [ ] 5.12 Create frontend/components/portfolio/PortfolioOverview.tsx (displays total value, P&L, beta, volatility, top holdings)
   - [ ] 5.13 Create frontend/components/portfolio/MarketConditions.tsx (displays S&P 500, VIX, yields, latest headlines)
