@@ -219,10 +219,10 @@
   - [x] 5.8 Create frontend/lib/hooks/useIdeas.ts with useIdeas(), useGenerateIdeas(), useIdeaDetails(), useUpdateIdeaStatus()
   - [x] 5.9 Create frontend/lib/hooks/useMarket.ts with useMarketConditions()
   - [x] 5.10 Create frontend/lib/hooks/usePreferences.ts with usePreferences(), useUpdatePreferences()
-  - [ ] 5.11 Create frontend/components/portfolio/ directory for portfolio components
-  - [ ] 5.12 Create frontend/components/portfolio/PortfolioOverview.tsx (displays total value, P&L, beta, volatility, top holdings)
-  - [ ] 5.13 Create frontend/components/portfolio/MarketConditions.tsx (displays S&P 500, VIX, yields, latest headlines)
-  - [ ] 5.14 Create frontend/components/portfolio/IdeaCard.tsx (displays single idea with confidence badge, risk level, reward estimate)
+  - [x] 5.11 Create frontend/components/portfolio/ directory for portfolio components
+  - [x] 5.12 Create frontend/components/portfolio/PortfolioOverview.tsx (displays total value, P&L, beta, volatility, top holdings)
+  - [x] 5.13 Create frontend/components/portfolio/MarketConditions.tsx (displays S&P 500, VIX, yields, latest headlines)
+  - [x] 5.14 Create frontend/components/portfolio/IdeaCard.tsx (displays single idea with confidence badge, risk level, reward estimate)
   - [ ] 5.15 Create frontend/components/portfolio/PositionTable.tsx (displays holdings with TanStack Table: symbol, shares, cost, current price, value, gain)
   - [ ] 5.16 Build Dashboard page frontend/app/page.tsx (layout: MarketConditions + PortfolioOverview + top 5 IdeaCards)
   - [ ] 5.17 Add "Generate New Ideas" button on Dashboard with loading state and agent type selector
