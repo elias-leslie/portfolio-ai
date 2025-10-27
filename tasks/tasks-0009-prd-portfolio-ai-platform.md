@@ -306,3 +306,17 @@
 - **Type hints**: Mandatory for all Python functions (from market-sim conventions)
 - **Remote access**: Configure Tailscale serve for ports 3000 (frontend) and 8000 (backend API)
 - **Backup**: Add portfolio-ai folder to restic backup targets in ~/.local/bin/restic-backup.sh
+
+## Session Progress (2025-10-27)
+
+**Completed in this session**:
+- ✅ Task 1.0: Storage Layer & Database Schema (8 tables, 5 managers, 11 tests)
+- ✅ Task 2.0: Portfolio Management Backend (4 modules, 94% coverage, 29 tests)
+- ✅ Task 3.0: AI Agent System (2 agents, 5 tools, base framework)
+
+**Status**: 3/8 major tasks complete (37.5%)
+**Total tests**: 40 passing
+**Coverage**: 85% overall
+**Commits**: 5333f3e, adf5ce9, 5ac5b1f, 0440673
+
+**Next session starts**: Task 4.0 (FastAPI Backend)
