@@ -223,9 +223,9 @@
   - [x] 5.12 Create frontend/components/portfolio/PortfolioOverview.tsx (displays total value, P&L, beta, volatility, top holdings)
   - [x] 5.13 Create frontend/components/portfolio/MarketConditions.tsx (displays S&P 500, VIX, yields, latest headlines)
   - [x] 5.14 Create frontend/components/portfolio/IdeaCard.tsx (displays single idea with confidence badge, risk level, reward estimate)
-  - [ ] 5.15 Create frontend/components/portfolio/PositionTable.tsx (displays holdings with TanStack Table: symbol, shares, cost, current price, value, gain)
-  - [ ] 5.16 Build Dashboard page frontend/app/page.tsx (layout: MarketConditions + PortfolioOverview + top 5 IdeaCards)
-  - [ ] 5.17 Add "Generate New Ideas" button on Dashboard with loading state and agent type selector
+  - [x] 5.15 Create frontend/components/portfolio/PositionTable.tsx (displays holdings with TanStack Table: symbol, shares, cost, current price, value, gain)
+  - [x] 5.16 Build Dashboard page frontend/app/page.tsx (layout: MarketConditions + PortfolioOverview + top 5 IdeaCards)
+  - [x] 5.17 Add "Generate New Ideas" button on Dashboard with loading state and agent type selector
   - [ ] 5.18 Build Portfolio management page frontend/app/portfolio/page.tsx (PositionTable + analytics + add/edit/delete forms)
   - [ ] 5.19 Add "Add Position" form modal (account selector, symbol input, shares, cost basis, position type dropdown)
   - [ ] 5.20 Add "Add Account" form modal (name input, account type dropdown: IRA/Taxable/401k/Roth/HSA)

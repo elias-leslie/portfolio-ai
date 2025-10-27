@@ -1,65 +1,108 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useState } from "react";
+import { MarketConditions } from "@/components/portfolio/MarketConditions";
+import { PortfolioOverview } from "@/components/portfolio/PortfolioOverview";
+import { IdeaCard } from "@/components/portfolio/IdeaCard";
+import { useIdeas, useGenerateIdeas } from "@/lib/hooks/useIdeas";
+import { Button } from "@/components/ui/button";
+
+export default function Dashboard() {
+  const { data: ideasData, isLoading: ideasLoading } = useIdeas({
+    status: "pending",
+    limit: 5,
+  });
+  const generateIdeas = useGenerateIdeas();
+  const [agentType, setAgentType] = useState<"discovery" | "portfolio_analyzer">(
+    "discovery"
+  );
+
+  const handleGenerateIdeas = () => {
+    generateIdeas.mutate({ agent_type: agentType });
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="min-h-screen bg-gray-50">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">
+            Portfolio AI Dashboard
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="mt-2 text-sm text-gray-600">
+            AI-powered portfolio intelligence and market insights
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        {/* Market Conditions */}
+        <div className="mb-8">
+          <MarketConditions />
         </div>
-      </main>
+
+        {/* Portfolio Overview */}
+        <div className="mb-8">
+          <h2 className="text-xl font-semibold mb-4">Portfolio Overview</h2>
+          <PortfolioOverview />
+        </div>
+
+        {/* Investment Ideas */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Investment Ideas</h2>
+            <div className="flex gap-2">
+              <select
+                value={agentType}
+                onChange={(e) =>
+                  setAgentType(e.target.value as "discovery" | "portfolio_analyzer")
+                }
+                className="px-3 py-2 border rounded-md text-sm"
+                disabled={generateIdeas.isPending}
+              >
+                <option value="discovery">General Market Ideas</option>
+                <option value="portfolio_analyzer">Portfolio-Specific Ideas</option>
+              </select>
+              <Button
+                onClick={handleGenerateIdeas}
+                disabled={generateIdeas.isPending}
+              >
+                {generateIdeas.isPending ? "Generating..." : "Generate New Ideas"}
+              </Button>
+            </div>
+          </div>
+
+          {ideasLoading ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {[...Array(3)].map((_, i) => (
+                <div
+                  key={i}
+                  className="h-48 animate-pulse bg-gray-200 rounded-lg"
+                />
+              ))}
+            </div>
+          ) : ideasData?.ideas.length ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {ideasData.ideas.map((idea) => (
+                <IdeaCard key={idea.id} idea={idea} />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12 bg-white rounded-lg border">
+              <p className="text-gray-500 mb-4">
+                No investment ideas yet. Generate some to get started!
+              </p>
+              <Button onClick={handleGenerateIdeas}>
+                Generate Your First Ideas
+              </Button>
+            </div>
+          )}
+
+          {generateIdeas.isError && (
+            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">
+              Error generating ideas. Please try again.
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
