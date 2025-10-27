@@ -291,5 +291,5 @@
 - **Frontend commands**: `cd frontend && npm run dev` (runs on localhost:3000)
 - **Agent costs**: Track in agent_runs.cost_usd, abort if exceeds $0.50 per run
 - **Price data**: yfinance primary, Polygon backup, 15-minute cache
-- **File size limit**: 300 lines per file (from market-sim conventions)
+- **File size guidelines**: 500 soft limit, 800 hard limit (from market-sim conventions)
 - **Type hints**: Mandatory for all Python functions (from market-sim conventions)
