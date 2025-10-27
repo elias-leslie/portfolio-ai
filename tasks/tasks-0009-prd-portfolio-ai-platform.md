@@ -266,7 +266,7 @@
   - [ ] 6.16 Performance testing: Measure API response times (should be < 500ms for portfolio endpoints)
   - [ ] 6.17 Fix any bugs discovered during testing
 
-- [ ] 7.0 Documentation & Deployment
+- [x] 7.0 Documentation & Deployment (core docs complete, user guides deferred)
   - [x] 7.1 Populate docs/core/ARCHITECTURE.md with portfolio-ai system design (components, data flow, tech stack)
   - [x] 7.2 Populate docs/core/DEVELOPMENT.md with development workflows (testing, linting, git conventions)
   - [x] 7.3 Populate docs/core/SETUP.md with setup instructions (prerequisites, installation, running locally)
@@ -282,7 +282,7 @@
   - [ ] 7.13 Create main reference document docs/PORTFOLIO_AI_PLATFORM.md (overview, features, architecture, getting started) - NOT NEEDED (README.md + ARCHITECTURE.md cover this)
   - [x] 7.14 Update README.md with project overview, features, tech stack, quick start - ALREADY COMPLETE
   - [x] 7.15 Run `scripts/validate-commands.sh` to verify all slash commands work
-  - [ ] 7.16 Create final git commit ("docs: complete documentation for portfolio-ai MVP")
+  - [x] 7.16 Create final git commit ("docs: complete documentation for portfolio-ai MVP")
 
 - [ ] 8.0 Remote Access & Backup Configuration
   - [ ] 8.1 Configure Tailscale serve for portfolio-ai frontend (port 3000)
