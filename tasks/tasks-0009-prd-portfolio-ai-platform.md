@@ -248,8 +248,8 @@
   - [x] 5.29 Test frontend (run `npm run dev` and verify all pages render, API integration works)
 
 - [ ] 6.0 Testing & Integration
-  - [ ] 6.1 Run full backend test suite (`cd backend && source .venv/bin/activate && pytest tests/ -v --cov=app --cov-report=term-missing`)
-  - [ ] 6.2 Review coverage report and add tests to reach 80%+ coverage
+  - [x] 6.1 Run full backend test suite (`cd backend && source .venv/bin/activate && pytest tests/ -v --cov=app --cov-report=term-missing`)
+  - [x] 6.2 Review coverage report and add tests to reach 80%+ coverage
   - [ ] 6.3 Write integration test for portfolio CRUD flow (add account → add position → fetch analytics → delete position)
   - [ ] 6.4 Write integration test for agent generation flow (trigger Discovery Agent → verify ideas stored → fetch ideas via API)
   - [ ] 6.5 Write integration test for Portfolio Analyzer flow (add portfolio positions → trigger Portfolio Analyzer → verify personalized ideas)
