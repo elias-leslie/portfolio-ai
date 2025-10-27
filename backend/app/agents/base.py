@@ -1,0 +1,288 @@
+"""Base agent class for portfolio-ai agents.
+
+This module provides the base Agent class that all agents inherit from.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import uuid
+from abc import ABC, abstractmethod
+from datetime import datetime
+from typing import Any
+
+from anthropic import Anthropic
+
+logger = logging.getLogger(__name__)
+
+
+class Agent(ABC):
+    """Base class for AI agents.
+
+    Provides common functionality for tool calling, execution tracking,
+    and interaction with Claude API.
+    """
+
+    def __init__(
+        self,
+        storage,
+        anthropic_client: Anthropic | None = None,
+        model: str = "claude-3-5-sonnet-20241022",
+    ) -> None:
+        """Initialize agent.
+
+        Args:
+            storage: DuckDBStorage instance
+            anthropic_client: Anthropic client (or create new one)
+            model: Claude model to use
+        """
+        self.storage = storage
+        self.client = anthropic_client or Anthropic()
+        self.model = model
+        self.agent_type = self.__class__.__name__
+
+    @abstractmethod
+    def get_system_prompt(self) -> str:
+        """Get the system prompt for this agent.
+
+        Returns:
+            System prompt string
+        """
+        pass
+
+    @abstractmethod
+    def get_tools(self) -> list[dict[str, Any]]:
+        """Get tool definitions for this agent.
+
+        Returns:
+            List of tool definition dicts for Claude API
+        """
+        pass
+
+    @abstractmethod
+    def execute_tool(self, tool_name: str, tool_input: dict[str, Any]) -> Any:
+        """Execute a tool call.
+
+        Args:
+            tool_name: Name of the tool to execute
+            tool_input: Tool parameters
+
+        Returns:
+            Tool execution result
+        """
+        pass
+
+    def run(self, user_prompt: str, max_iterations: int = 10) -> dict[str, Any]:
+        """Run the agent with a user prompt.
+
+        Args:
+            user_prompt: User's prompt/request
+            max_iterations: Maximum tool call iterations
+
+        Returns:
+            Dict with final response and metadata
+        """
+        run_id = str(uuid.uuid4())
+        started_at = datetime.now()
+
+        logger.info(f"Starting agent run {run_id} for {self.agent_type}")
+
+        # Record agent run
+        self._record_run_start(run_id, started_at)
+
+        try:
+            messages = [{"role": "user", "content": user_prompt}]
+            tool_calls_made = []
+
+            for iteration in range(max_iterations):
+                response = self.client.messages.create(
+                    model=self.model,
+                    max_tokens=4096,
+                    system=self.get_system_prompt(),
+                    tools=self.get_tools(),
+                    messages=messages,
+                )
+
+                # Check stop reason
+                if response.stop_reason == "end_turn":
+                    # Extract final response
+                    final_text = ""
+                    for block in response.content:
+                        if block.type == "text":
+                            final_text += block.text
+
+                    completed_at = datetime.now()
+                    self._record_run_complete(
+                        run_id,
+                        completed_at,
+                        "completed",
+                        len(tool_calls_made),
+                    )
+
+                    return {
+                        "status": "completed",
+                        "response": final_text,
+                        "tool_calls": tool_calls_made,
+                        "iterations": iteration + 1,
+                    }
+
+                elif response.stop_reason == "tool_use":
+                    # Process tool calls
+                    assistant_content = []
+                    tool_results = []
+
+                    for block in response.content:
+                        assistant_content.append(block)
+
+                        if block.type == "tool_use":
+                            tool_start = datetime.now()
+
+                            # Execute tool
+                            result = self.execute_tool(block.name, block.input)
+
+                            tool_end = datetime.now()
+                            duration_ms = int(
+                                (tool_end - tool_start).total_seconds() * 1000
+                            )
+
+                            # Record tool call
+                            self._record_tool_call(
+                                run_id,
+                                block.name,
+                                block.input,
+                                result,
+                                duration_ms,
+                            )
+
+                            tool_calls_made.append(
+                                {
+                                    "name": block.name,
+                                    "input": block.input,
+                                    "result": result,
+                                }
+                            )
+
+                            # Add tool result to conversation
+                            tool_results.append(
+                                {
+                                    "type": "tool_result",
+                                    "tool_use_id": block.id,
+                                    "content": json.dumps(result),
+                                }
+                            )
+
+                    # Continue conversation with tool results
+                    messages.append({"role": "assistant", "content": assistant_content})
+                    messages.append({"role": "user", "content": tool_results})
+
+                else:
+                    # Unexpected stop reason
+                    self._record_run_complete(
+                        run_id,
+                        datetime.now(),
+                        "error",
+                        len(tool_calls_made),
+                        f"Unexpected stop reason: {response.stop_reason}",
+                    )
+
+                    return {
+                        "status": "error",
+                        "error": f"Unexpected stop reason: {response.stop_reason}",
+                        "tool_calls": tool_calls_made,
+                    }
+
+            # Max iterations reached
+            self._record_run_complete(
+                run_id,
+                datetime.now(),
+                "max_iterations",
+                len(tool_calls_made),
+            )
+
+            return {
+                "status": "max_iterations",
+                "tool_calls": tool_calls_made,
+                "iterations": max_iterations,
+            }
+
+        except Exception as e:
+            logger.error(f"Agent run {run_id} failed: {e}")
+            self._record_run_complete(
+                run_id,
+                datetime.now(),
+                "error",
+                0,
+                str(e),
+            )
+
+            return {
+                "status": "error",
+                "error": str(e),
+            }
+
+    def _record_run_start(self, run_id: str, started_at: datetime) -> None:
+        """Record agent run start in database."""
+        self.storage.insert_dict(
+            "agent_runs",
+            {
+                "id": run_id,
+                "agent_type": self.agent_type,
+                "started_at": started_at,
+                "completed_at": None,
+                "status": "running",
+                "num_ideas": 0,
+                "cost_usd": 0.0,
+                "error_message": None,
+                "metadata": None,
+            },
+        )
+
+    def _record_run_complete(
+        self,
+        run_id: str,
+        completed_at: datetime,
+        status: str,
+        num_ideas: int,
+        error_message: str | None = None,
+    ) -> None:
+        """Record agent run completion in database."""
+        with self.storage.connection() as conn:
+            conn.execute(
+                """
+                UPDATE agent_runs
+                SET completed_at = ?,
+                    status = ?,
+                    num_ideas = ?,
+                    error_message = ?
+                WHERE id = ?
+                """,
+                [completed_at, status, num_ideas, error_message, run_id],
+            )
+
+    def _record_tool_call(
+        self,
+        run_id: str,
+        tool_name: str,
+        parameters: dict[str, Any],
+        result: Any,
+        duration_ms: int,
+    ) -> None:
+        """Record tool call in database."""
+        tool_call_id = str(uuid.uuid4())
+
+        # Summarize result
+        result_summary = str(result)[:500]
+
+        self.storage.insert_dict(
+            "agent_tool_calls",
+            {
+                "id": tool_call_id,
+                "agent_run_id": run_id,
+                "tool_name": tool_name,
+                "parameters": json.dumps(parameters),
+                "response_summary": result_summary,
+                "duration_ms": duration_ms,
+                "called_at": datetime.now(),
+            },
+        )
