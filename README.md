@@ -1,198 +1,184 @@
 # Portfolio AI Platform
 
-An AI-led investment intelligence system that combines portfolio analytics with autonomous agent-driven market insights.
+AI-led investment intelligence platform combining portfolio analytics with autonomous agent-driven market insights.
 
-## Overview
+## 🎯 Project Status
 
-Portfolio AI Platform helps investors make better decisions by:
+**Last Updated**: 2025-10-27  
+**Development Phase**: MVP Complete - Ready for Manual Testing
 
-- **Portfolio Management**: Track positions across multiple accounts with real-time analytics
-- **AI-Driven Insights**: Autonomous agents discover market opportunities and generate personalized investment ideas
-- **Multi-Source Intelligence**: Integrates market data, economic indicators, news sentiment, and portfolio analysis
-- **Cost-Controlled**: Agent runs tracked and limited to $0.50 per execution
+### ✅ What's Done (Automated)
+- Full-stack application (FastAPI + Next.js)
+- Portfolio management with real-time analytics
+- AI agent system (Discovery Agent + Portfolio Analyzer)
+- 121 tests passing, 86% coverage
+- Complete UI with navigation, forms, error handling
 
-## Key Features
+### 🧪 What's Next (Manual Testing Required)
+See **[HANDOFF_NOTES.md](./HANDOFF_NOTES.md)** for detailed testing checklist.
 
-### Portfolio Analytics
-- Real-time portfolio valuation and P&L tracking
-- Risk metrics: beta, volatility, concentration analysis
-- Sector exposure breakdown
-- Multi-account support (IRA, Taxable, 401k, Roth, HSA)
-
-### AI Agent System
-- **Discovery Agent**: Scans news and economic data to generate general investment ideas
-- **Portfolio Analyzer Agent**: Analyzes your holdings to generate personalized recommendations
-- Full execution tracking with tool call logging
-- Cost tracking and safety limits
-
-### Market Intelligence
-- Multi-source price data (yfinance primary, Polygon backup)
-- FRED economic indicators
-- Google News RSS sentiment analysis
-- 15-minute price caching for performance
-
-## Tech Stack
-
-**Backend**:
-- Python 3.11+
-- FastAPI for REST API
-- DuckDB for storage
-- Anthropic Claude API for AI agents
-- yfinance + Polygon for market data
-
-**Frontend**:
-- Next.js 14 (App Router)
-- TypeScript
-- TanStack Query for data fetching
-- TanStack Table for data grids
-- shadcn/ui components
-- Tailwind CSS
-
-## Quick Start
+## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.11 or higher
-- Node.js 18 or higher
-- Git
+- Python 3.11+
+- Node.js 18+
+- Anthropic API key (for AI agents)
 
-### Installation
-
-1. **Clone the repository**
-```bash
-git clone <repository-url>
-cd portfolio-ai
-```
-
-2. **Backend setup**
+### Backend Setup
 ```bash
 cd backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+
+# Create .env file with your API key
+echo "ANTHROPIC_API_KEY=your-key-here" > .env
+
+# Start backend
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-3. **Frontend setup**
+### Frontend Setup
 ```bash
 cd frontend
 npm install
-```
-
-4. **Environment configuration**
-```bash
-# Create .env file in backend/
-cp backend/.env.example backend/.env
-# Add your API keys (Anthropic, Polygon, etc.)
-```
-
-### Running the Application
-
-**Start the backend** (in `backend/` directory):
-```bash
-source .venv/bin/activate
-uvicorn app.main:app --reload
-```
-Backend runs on http://localhost:8000
-
-**Start the frontend** (in `frontend/` directory):
-```bash
 npm run dev
 ```
-Frontend runs on http://localhost:3000
 
-## Development
+### Access
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8000
+- **API Docs**: http://localhost:8000/docs
 
-### Code Quality
+## 📱 Remote Access (Tailscale)
+
+For testing on your phone:
+
 ```bash
-# Run linting (requires activated venv)
-./scripts/lint.sh
+# Terminal 1: Start backend
+cd backend && source .venv/bin/activate && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-# Run tests with coverage
+# Terminal 2: Start frontend  
+cd frontend && npm run dev
+
+# Terminal 3: Configure Tailscale
+tailscale serve --bg 3000
+tailscale serve --bg 8000
+
+# Get your URL
+tailscale status
+```
+
+Then open `https://<your-machine>.tail-scale.net` on your phone.
+
+## 🏗️ Architecture
+
+See **[docs/core/ARCHITECTURE.md](./docs/core/ARCHITECTURE.md)** for comprehensive system design.
+
+**High-level stack**:
+- **Frontend**: Next.js 14, React Query, shadcn/ui, Tailwind CSS
+- **Backend**: FastAPI, DuckDB, Pydantic
+- **AI**: Anthropic Claude API
+- **Data**: yfinance, FRED, Google News RSS
+
+## 📊 Key Features
+
+### Portfolio Management
+- Multi-account support (IRA, Taxable, 401k, Roth, HSA)
+- Real-time position tracking
+- Analytics: beta, volatility, concentration, sector exposure
+- Automatic price updates (15-min refresh)
+
+### AI-Powered Ideas
+- **Discovery Agent**: Scans news/economic data for general market opportunities
+- **Portfolio Analyzer**: Generates personalized ideas based on your holdings
+- Confidence scoring and risk assessment
+- Idea status workflow (pending → validated → executed → rejected)
+
+### User Experience
+- Responsive UI with navigation
+- Toast notifications for all actions
+- Error handling and loading states
+- Form validation
+- Real-time data updates
+
+## 🧪 Testing
+
+```bash
+# Backend tests (86% coverage)
 cd backend
 source .venv/bin/activate
 pytest tests/ -v --cov=app --cov-report=term-missing
+
+# Frontend build
+cd frontend
+npm run build
 ```
 
-### Project Structure
+## 📁 Project Structure
+
 ```
 portfolio-ai/
-├── backend/           # Python FastAPI application
+├── backend/              # Python FastAPI application
 │   ├── app/
-│   │   ├── storage/   # DuckDB storage layer
-│   │   ├── portfolio/ # Portfolio CRUD & analytics
-│   │   ├── agents/    # AI agent system
-│   │   ├── api/       # FastAPI routers
-│   │   └── main.py    # Application entry point
-│   └── tests/         # Unit & integration tests
-├── frontend/          # Next.js dashboard
-│   ├── app/           # App router pages
-│   ├── components/    # React components
-│   └── lib/           # API clients & hooks
-├── config/            # YAML seed data
-├── data/              # DuckDB database
-├── docs/              # Documentation
-└── scripts/           # Build & validation scripts
+│   │   ├── agents/       # AI agent system
+│   │   ├── api/          # API routers
+│   │   ├── portfolio/    # Portfolio management
+│   │   ├── sources/      # Data sources (yfinance, FRED, News)
+│   │   └── storage/      # DuckDB storage layer
+│   └── tests/            # 121 tests
+├── frontend/             # Next.js 14 application
+│   ├── app/              # Pages (dashboard, portfolio, settings, ideas)
+│   ├── components/       # React components
+│   └── lib/              # API clients & hooks
+├── data/                 # DuckDB database (auto-created)
+├── docs/core/            # Documentation
+└── tasks/                # PRDs and task lists
 ```
 
-## Documentation
+## 📚 Documentation
 
-- **[ARCHITECTURE.md](docs/core/ARCHITECTURE.md)**: System design and technical decisions
-- **[SETUP.md](docs/core/SETUP.md)**: Detailed installation guide
-- **[DEVELOPMENT.md](docs/core/DEVELOPMENT.md)**: Development workflows and standards
-- **[API_REFERENCE.md](docs/core/API_REFERENCE.md)**: API endpoint documentation
-- **[CLAUDE.md](CLAUDE.md)**: Quick reference for Claude Code AI assistant
+- **[ARCHITECTURE.md](./docs/core/ARCHITECTURE.md)** - System design and components
+- **[HANDOFF_NOTES.md](./HANDOFF_NOTES.md)** - Manual testing checklist
+- **[CLAUDE.md](./CLAUDE.md)** - Project governance and commands
+- **[tasks/](./tasks/)** - PRD and detailed task breakdowns
 
-## API Endpoints
+## 🔧 Development Workflow
 
-### Portfolio
-- `GET /api/portfolio` - Get all positions with current values
-- `POST /api/portfolio/account` - Create new account
-- `POST /api/portfolio/position` - Add or update position
-- `DELETE /api/portfolio/position/{id}` - Delete position
-- `GET /api/portfolio/analytics` - Get portfolio analytics
-
-### Ideas
-- `GET /api/ideas` - List investment ideas (filterable)
-- `POST /api/ideas/generate` - Trigger agent to generate new ideas
-- `GET /api/ideas/{id}` - Get idea details
-- `PATCH /api/ideas/{id}/status` - Update idea status
-
-### Market Data
-- `GET /api/market/conditions` - Current market conditions (S&P 500, VIX, yields)
-- `GET /api/market/prices` - Get current prices for symbols
-
-### Preferences
-- `GET /api/preferences` - Get user preferences
-- `POST /api/preferences` - Update risk tolerance and trade preferences
-
-## Testing
+See **[CLAUDE.md](./CLAUDE.md#-command-quick-reference)** for complete commands.
 
 ```bash
-cd backend
-source .venv/bin/activate
+# Run tests
+pytest tests/ -v --cov=app
 
-# Run all tests
-pytest tests/ -v
+# Linting
+./scripts/lint.sh
 
-# Run with coverage report
-pytest tests/ -v --cov=app --cov-report=term-missing
+# Type checking
+mypy app/ --strict
 
-# Run specific test file
-pytest tests/test_portfolio_manager.py -v
+# Validate slash commands
+./scripts/validate-commands.sh
 ```
 
-Target: 80%+ test coverage
+## 🎯 Next Steps
 
-## Contributing
+1. **Manual Testing** - Test app via Tailscale on phone (see HANDOFF_NOTES.md)
+2. **Documentation** - Complete remaining docs (SETUP, DEVELOPMENT, OPERATIONS, API_REFERENCE)
+3. **Remote Access** - Configure permanent Tailscale serve
+4. **Backup** - Add to restic backup configuration
 
-1. Read [ARCHITECTURE.md](docs/core/ARCHITECTURE.md) and [DEVELOPMENT.md](docs/core/DEVELOPMENT.md)
-2. Follow the AI Dev Tasks workflow (see `.ai_dev_tasks/README.md`)
-3. Ensure all tests pass and linting succeeds before committing
-4. Use conventional commit messages (`feat:`, `fix:`, `refactor:`, etc.)
+## 💡 Tips
 
-## License
+- Agents cost money - each run uses Claude API
+- Price data requires internet (yfinance)
+- Database auto-created on first backend startup
+- Use `/do_it tasks/tasks-0009-prd-portfolio-ai-platform.md` to continue development
 
-[License information to be added]
+## 📝 License
 
-## Contact
+Private project - All rights reserved
 
-[Contact information to be added]
+---
+
+**Built with Claude Code** 🤖
