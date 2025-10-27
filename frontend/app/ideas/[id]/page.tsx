@@ -3,6 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useIdeaDetails, useUpdateIdeaStatus } from "@/lib/hooks/useIdeas";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import {
   Card,
   CardContent,
@@ -23,7 +24,17 @@ export default function IdeaDetailsPage() {
   const handleStatusChange = (
     status: "pending" | "validated" | "executed" | "rejected"
   ) => {
-    updateStatus.mutate({ ideaId, data: { status } });
+    updateStatus.mutate(
+      { ideaId, data: { status } },
+      {
+        onSuccess: () => {
+          toast.success(`Status updated to ${status}!`);
+        },
+        onError: (error) => {
+          toast.error(`Failed to update status: ${error.message}`);
+        },
+      }
+    );
   };
 
   const getRiskColor = (risk: string) => {
@@ -289,11 +300,6 @@ export default function IdeaDetailsPage() {
                   Rejected
                 </Button>
               </div>
-              {updateStatus.isSuccess && (
-                <p className="mt-3 text-sm text-green-600">
-                  Status updated successfully!
-                </p>
-              )}
             </CardContent>
           </Card>
 

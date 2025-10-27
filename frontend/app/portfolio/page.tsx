@@ -4,6 +4,7 @@ import { useState } from "react";
 import { PositionTable } from "@/components/portfolio/PositionTable";
 import { PortfolioOverview } from "@/components/portfolio/PortfolioOverview";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -86,6 +87,10 @@ export default function PortfolioPage() {
           setCostBasis("");
           setPositionType("long");
           setPositionOpen(false);
+          toast.success("Position added successfully!");
+        },
+        onError: (error) => {
+          toast.error(`Failed to add position: ${error.message}`);
         },
       }
     );
@@ -106,6 +111,10 @@ export default function PortfolioPage() {
           setAccountName("");
           setAccountType("Taxable");
           setAccountOpen(false);
+          toast.success("Account created successfully!");
+        },
+        onError: (error) => {
+          toast.error(`Failed to create account: ${error.message}`);
         },
       }
     );

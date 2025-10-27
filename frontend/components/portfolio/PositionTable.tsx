@@ -11,6 +11,7 @@ import {
 } from "@tanstack/react-table";
 import { usePortfolio, useDeletePosition } from "@/lib/hooks/usePortfolio";
 import { PositionWithValue } from "@/lib/api/portfolio";
+import { toast } from "sonner";
 import {
   Table,
   TableBody,
@@ -117,7 +118,14 @@ export function PositionTable() {
           size="sm"
           onClick={() => {
             if (confirm("Are you sure you want to delete this position?")) {
-              deletePosition.mutate(row.original.id);
+              deletePosition.mutate(row.original.id, {
+                onSuccess: () => {
+                  toast.success("Position deleted successfully!");
+                },
+                onError: (error) => {
+                  toast.error(`Failed to delete position: ${error.message}`);
+                },
+              });
             }
           }}
           disabled={deletePosition.isPending}

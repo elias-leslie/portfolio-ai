@@ -6,6 +6,7 @@ import { PortfolioOverview } from "@/components/portfolio/PortfolioOverview";
 import { IdeaCard } from "@/components/portfolio/IdeaCard";
 import { useIdeas, useGenerateIdeas } from "@/lib/hooks/useIdeas";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 export default function Dashboard() {
   const { data: ideasData, isLoading: ideasLoading } = useIdeas({
@@ -18,7 +19,19 @@ export default function Dashboard() {
   );
 
   const handleGenerateIdeas = () => {
-    generateIdeas.mutate({ agent_type: agentType });
+    generateIdeas.mutate(
+      { agent_type: agentType },
+      {
+        onSuccess: (data) => {
+          toast.success(
+            `Successfully generated ${data.num_ideas} new ideas!`
+          );
+        },
+        onError: (error) => {
+          toast.error(`Failed to generate ideas: ${error.message}`);
+        },
+      }
+    );
   };
 
   return (
@@ -96,11 +109,6 @@ export default function Dashboard() {
             </div>
           )}
 
-          {generateIdeas.isError && (
-            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">
-              Error generating ideas. Please try again.
-            </div>
-          )}
         </div>
       </div>
     </div>

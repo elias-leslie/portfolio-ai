@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { usePreferences, useUpdatePreferences } from "@/lib/hooks/usePreferences";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import {
   Card,
   CardContent,
@@ -43,15 +44,25 @@ export default function SettingsPage() {
 
   // Handle form submit
   const handleSave = () => {
-    updatePreferences.mutate({
-      risk_tolerance: riskTolerance,
-      allow_long: allowLong,
-      allow_short: allowShort,
-      allow_options: allowOptions,
-      allow_crypto: allowCrypto,
-      allow_futures: allowFutures,
-      max_position_size_pct: parseFloat(maxPositionSizePct),
-    });
+    updatePreferences.mutate(
+      {
+        risk_tolerance: riskTolerance,
+        allow_long: allowLong,
+        allow_short: allowShort,
+        allow_options: allowOptions,
+        allow_crypto: allowCrypto,
+        allow_futures: allowFutures,
+        max_position_size_pct: parseFloat(maxPositionSizePct),
+      },
+      {
+        onSuccess: () => {
+          toast.success("Settings saved successfully!");
+        },
+        onError: (error) => {
+          toast.error(`Failed to save settings: ${error.message}`);
+        },
+      }
+    );
   };
 
   // Check if form has changed from saved preferences
@@ -299,20 +310,6 @@ export default function SettingsPage() {
               {updatePreferences.isPending ? "Saving..." : "Save Changes"}
             </Button>
           </div>
-
-          {/* Success Message */}
-          {updatePreferences.isSuccess && (
-            <div className="rounded-lg bg-green-50 border border-green-200 p-4 text-sm text-green-800">
-              Settings saved successfully!
-            </div>
-          )}
-
-          {/* Error Message */}
-          {updatePreferences.isError && (
-            <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-800">
-              Error saving settings. Please try again.
-            </div>
-          )}
         </div>
       </div>
     </div>
