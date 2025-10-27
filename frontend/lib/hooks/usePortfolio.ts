@@ -17,25 +17,27 @@ import {
 
 /**
  * Hook to fetch portfolio positions with current values
+ * Automatically refetches every 15 minutes to update prices
  */
 export function usePortfolio() {
   return useQuery({
     queryKey: ["portfolio"],
     queryFn: fetchPortfolio,
-    staleTime: 1000 * 60 * 1, // 1 minute
-    refetchInterval: 1000 * 60 * 5, // Refetch every 5 minutes
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    refetchInterval: 1000 * 60 * 15, // Refetch every 15 minutes for price updates
   });
 }
 
 /**
  * Hook to fetch portfolio analytics
+ * Automatically refetches every 15 minutes to update with latest prices
  */
 export function usePortfolioAnalytics() {
   return useQuery({
     queryKey: ["portfolio", "analytics"],
     queryFn: fetchAnalytics,
-    staleTime: 1000 * 60 * 1, // 1 minute
-    refetchInterval: 1000 * 60 * 5, // Refetch every 5 minutes
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    refetchInterval: 1000 * 60 * 15, // Refetch every 15 minutes for price updates
   });
 }
 
