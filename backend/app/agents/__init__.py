@@ -10,7 +10,7 @@ from .tools import AgentTools
 
 __all__ = [
     "Agent",
+    "AgentTools",
     "DiscoveryAgent",
     "PortfolioAnalyzerAgent",
-    "AgentTools",
 ]

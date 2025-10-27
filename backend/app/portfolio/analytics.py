@@ -11,10 +11,12 @@ from collections import defaultdict
 
 from .models import (
     ConcentrationMetrics,
-    Position,
-    PortfolioAnalytics as PortfolioAnalyticsModel,
     PortfolioValue,
+    Position,
     PriceData,
+)
+from .models import (
+    PortfolioAnalytics as PortfolioAnalyticsModel,
 )
 
 logger = logging.getLogger(__name__)

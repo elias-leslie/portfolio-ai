@@ -62,7 +62,10 @@
 - `backend/app/api/portfolio.py` - Portfolio router with 5 endpoints (created)
 - `backend/app/api/ideas.py` - Ideas router with 4 endpoints (created)
 - `backend/app/api/market.py` - Market data router with 2 endpoints (created)
-- `backend/app/api/preferences.py` - User preferences router with 2 endpoints (created)
+- `backend/app/api/preferences.py` - User preferences router with 2 endpoints (created, updated to match schema)
+- `backend/tests/test_api_ideas.py` - Ideas API integration tests (16 tests, all passing)
+- `backend/tests/test_api_market.py` - Market API integration tests (10 tests, all passing)
+- `backend/tests/test_api_preferences.py` - Preferences API integration tests (9 tests, all passing)
 - `backend/requirements.txt` - Python dependencies
 
 ### Frontend Files (New)
@@ -201,9 +204,9 @@
   - [x] 4.21 Register all routers in backend/app/main.py
   - [x] 4.22 Add startup event to initialize database schema (call storage.ensure_schema())
   - [x] 4.23 Write API integration tests for portfolio endpoints (tests/test_api_portfolio.py) - 3 basic tests
-  - [ ] 4.24 Write API integration tests for ideas endpoints (tests/test_api_ideas.py)
-  - [ ] 4.25 Write API integration tests for market and preferences endpoints (tests/test_api_market.py, tests/test_api_preferences.py)
-  - [ ] 4.26 Test backend startup (run `uvicorn app.main:app --reload` and verify all endpoints accessible)
+  - [x] 4.24 Write API integration tests for ideas endpoints (tests/test_api_ideas.py) - 16 tests
+  - [x] 4.25 Write API integration tests for market and preferences endpoints (tests/test_api_market.py - 10 tests, tests/test_api_preferences.py - 9 tests)
+  - [x] 4.26 Test backend startup (run `uvicorn app.main:app --reload` and verify all endpoints accessible - all 13 endpoints working)
 
 - [ ] 5.0 Next.js UI (Dashboard + Portfolio + Settings)
   - [ ] 5.1 Create frontend/lib/api/ directory for API client functions

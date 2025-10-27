@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException
@@ -230,8 +231,6 @@ async def update_idea_status(
         raise HTTPException(status_code=404, detail="Idea not found")
 
     # Update status
-    from datetime import datetime
-
     with storage.connection() as conn:
         conn.execute(
             "UPDATE agent_ideas SET status = ?, updated_at = ? WHERE id = ?",

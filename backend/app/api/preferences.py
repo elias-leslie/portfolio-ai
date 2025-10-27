@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from app.storage import get_storage
@@ -23,11 +24,11 @@ class PreferencesResponse(BaseModel):
     allow_long: bool = Field(..., description="Allow long positions")
     allow_short: bool = Field(..., description="Allow short positions")
     allow_options: bool = Field(..., description="Allow options trading")
+    allow_crypto: bool = Field(..., description="Allow crypto trading")
+    allow_futures: bool = Field(..., description="Allow futures trading")
     max_position_size_pct: float = Field(
         ..., description="Maximum position size as % of portfolio"
     )
-    preferred_sectors: list[str] = Field(..., description="Preferred sectors")
-    excluded_sectors: list[str] = Field(..., description="Excluded sectors")
 
 
 class PreferencesUpdate(BaseModel):
@@ -37,11 +38,11 @@ class PreferencesUpdate(BaseModel):
     allow_long: bool | None = Field(None, description="Allow long positions")
     allow_short: bool | None = Field(None, description="Allow short positions")
     allow_options: bool | None = Field(None, description="Allow options trading")
+    allow_crypto: bool | None = Field(None, description="Allow crypto trading")
+    allow_futures: bool | None = Field(None, description="Allow futures trading")
     max_position_size_pct: float | None = Field(
         None, gt=0, le=100, description="Maximum position size as % of portfolio"
     )
-    preferred_sectors: list[str] | None = Field(None, description="Preferred sectors")
-    excluded_sectors: list[str] | None = Field(None, description="Excluded sectors")
 
 
 def _get_or_create_preferences() -> dict:
@@ -53,42 +54,55 @@ def _get_or_create_preferences() -> dict:
 
     if result:
         return {
-            "user_id": result[0],
+            "id": result[0],
             "risk_tolerance": result[1],
             "allow_long": result[2],
             "allow_short": result[3],
             "allow_options": result[4],
-            "max_position_size_pct": result[5],
-            "preferred_sectors": result[6].split(",") if result[6] else [],
-            "excluded_sectors": result[7].split(",") if result[7] else [],
+            "allow_crypto": result[5],
+            "allow_futures": result[6],
+            "max_position_size_pct": result[7],
             "created_at": result[8],
             "updated_at": result[9],
         }
 
     # Create default preferences
-    import uuid
-
     user_id = str(uuid.uuid4())
-    default_prefs = {
-        "user_id": user_id,
+
+    with storage.connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO user_preferences (
+                id, risk_tolerance, allow_long, allow_short, allow_options,
+                allow_crypto, allow_futures, max_position_size_pct,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                user_id,
+                5,
+                True,
+                False,
+                False,
+                False,
+                False,
+                10.0,
+                datetime.now(),
+                datetime.now(),
+            ],
+        )
+
+    return {
+        "id": user_id,
         "risk_tolerance": 5,
         "allow_long": True,
         "allow_short": False,
         "allow_options": False,
+        "allow_crypto": False,
+        "allow_futures": False,
         "max_position_size_pct": 10.0,
-        "preferred_sectors": "",
-        "excluded_sectors": "",
         "created_at": datetime.now(),
         "updated_at": datetime.now(),
-    }
-
-    storage.insert_dict("user_preferences", default_prefs)
-
-    # Return as expected format
-    return {
-        **default_prefs,
-        "preferred_sectors": [],
-        "excluded_sectors": [],
     }
 
 
@@ -102,9 +116,9 @@ async def get_preferences() -> PreferencesResponse:
         allow_long=prefs["allow_long"],
         allow_short=prefs["allow_short"],
         allow_options=prefs["allow_options"],
+        allow_crypto=prefs["allow_crypto"],
+        allow_futures=prefs["allow_futures"],
         max_position_size_pct=prefs["max_position_size_pct"],
-        preferred_sectors=prefs["preferred_sectors"],
-        excluded_sectors=prefs["excluded_sectors"],
     )
 
 
@@ -123,12 +137,12 @@ async def update_preferences(update: PreferencesUpdate) -> PreferencesResponse:
         current["allow_short"] = update.allow_short
     if update.allow_options is not None:
         current["allow_options"] = update.allow_options
+    if update.allow_crypto is not None:
+        current["allow_crypto"] = update.allow_crypto
+    if update.allow_futures is not None:
+        current["allow_futures"] = update.allow_futures
     if update.max_position_size_pct is not None:
         current["max_position_size_pct"] = update.max_position_size_pct
-    if update.preferred_sectors is not None:
-        current["preferred_sectors"] = update.preferred_sectors
-    if update.excluded_sectors is not None:
-        current["excluded_sectors"] = update.excluded_sectors
 
     # Save to database
     with storage.connection() as conn:
@@ -139,22 +153,22 @@ async def update_preferences(update: PreferencesUpdate) -> PreferencesResponse:
                 allow_long = ?,
                 allow_short = ?,
                 allow_options = ?,
+                allow_crypto = ?,
+                allow_futures = ?,
                 max_position_size_pct = ?,
-                preferred_sectors = ?,
-                excluded_sectors = ?,
                 updated_at = ?
-            WHERE user_id = ?
+            WHERE id = ?
             """,
             [
                 current["risk_tolerance"],
                 current["allow_long"],
                 current["allow_short"],
                 current["allow_options"],
+                current["allow_crypto"],
+                current["allow_futures"],
                 current["max_position_size_pct"],
-                ",".join(current["preferred_sectors"]),
-                ",".join(current["excluded_sectors"]),
                 datetime.now(),
-                current["user_id"],
+                current["id"],
             ],
         )
 
@@ -163,7 +177,7 @@ async def update_preferences(update: PreferencesUpdate) -> PreferencesResponse:
         allow_long=current["allow_long"],
         allow_short=current["allow_short"],
         allow_options=current["allow_options"],
+        allow_crypto=current["allow_crypto"],
+        allow_futures=current["allow_futures"],
         max_position_size_pct=current["max_position_size_pct"],
-        preferred_sectors=current["preferred_sectors"],
-        excluded_sectors=current["excluded_sectors"],
     )

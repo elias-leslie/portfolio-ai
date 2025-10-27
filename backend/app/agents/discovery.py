@@ -81,16 +81,15 @@ Generate exactly 5 ideas, then stop."""
         if tool_name == "get_news":
             return self.tools.execute_get_news(**tool_input)
 
-        elif tool_name == "get_economic_data":
+        if tool_name == "get_economic_data":
             return self.tools.execute_get_economic_data(**tool_input)
 
-        elif tool_name == "store_idea":
+        if tool_name == "store_idea":
             if not self.current_run_id:
                 raise ValueError("No active run_id for storing ideas")
             return self.tools.execute_store_idea(self.current_run_id, **tool_input)
 
-        else:
-            raise ValueError(f"Unknown tool: {tool_name}")
+        raise ValueError(f"Unknown tool: {tool_name}")
 
     def run(self, **kwargs) -> dict[str, Any]:
         """Run Discovery Agent with default prompt."""

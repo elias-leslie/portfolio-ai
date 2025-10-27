@@ -127,7 +127,7 @@ class Agent(ABC):
                         "iterations": iteration + 1,
                     }
 
-                elif response.stop_reason == "tool_use":
+                if response.stop_reason == "tool_use":
                     # Process tool calls
                     assistant_content = []
                     tool_results = []

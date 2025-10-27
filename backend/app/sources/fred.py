@@ -5,7 +5,6 @@ Simplified FRED API integration for fetching economic indicators.
 
 from __future__ import annotations
 
-import datetime as dt
 import logging
 import os
 from typing import Any
@@ -78,7 +77,7 @@ class FREDSource:
             response.raise_for_status()
 
             data = response.json()
-            if "observations" in data and data["observations"]:
+            if data.get("observations"):
                 obs = data["observations"][0]
                 return {
                     "indicator": indicator,
