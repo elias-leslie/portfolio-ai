@@ -52,7 +52,7 @@ export function MarketConditions() {
                 ? `${indicator.value.toFixed(2)}${indicator.suffix || ""}`
                 : "—"}
             </div>
-            {indicator.change !== null && (
+            {indicator.change !== null && indicator.change !== undefined && (
               <div
                 className={`text-xs ${
                   indicator.change >= 0 ? "text-green-600" : "text-red-600"
