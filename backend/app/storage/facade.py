@@ -1,0 +1,120 @@
+"""DuckDB storage facade integrating all manager classes.
+
+This module provides the main DuckDBStorage class that delegates operations
+to specialized managers while maintaining a unified API.
+"""
+
+from __future__ import annotations
+
+import logging
+from pathlib import Path
+
+from .connection import get_connection_manager
+from .ingestion import IngestionManager
+from .metadata import MetadataManager
+from .queries import QueryManager
+from .schema import SchemaManager
+
+logger = logging.getLogger(__name__)
+
+
+class DuckDBStorage:
+    """DuckDB storage facade with modular manager delegation.
+
+    This class provides a unified interface for database operations while
+    delegating to specialized managers:
+    - ConnectionManager: Connection pooling and lifecycle
+    - SchemaManager: Schema creation and migrations
+    - IngestionManager: Data insertion operations
+    - MetadataManager: Table metadata tracking
+    - QueryManager: Query operations
+    """
+
+    def __init__(self, db_path: str | Path | None = None) -> None:
+        """Initialize DuckDB storage with all managers.
+
+        Args:
+            db_path: Path to DuckDB database file. If None, uses default path.
+        """
+        # Initialize connection manager (singleton)
+        self.connection_mgr = get_connection_manager(db_path)
+
+        # Initialize specialized managers
+        self.schema_mgr = SchemaManager(self.connection_mgr)
+        self.metadata_mgr = MetadataManager(self.connection_mgr)
+        self.ingestion_mgr = IngestionManager(self.connection_mgr, self.metadata_mgr)
+        self.query_mgr = QueryManager(self.connection_mgr)
+
+        # Ensure schema is initialized
+        self.schema_mgr.ensure_schema()
+
+        logger.info("DuckDBStorage initialized with modular managers")
+
+    # Expose connection manager's connection method
+    def connection(self):
+        """Context manager for DuckDB connections.
+
+        Yields:
+            duckdb.DuckDBPyConnection: Active database connection.
+        """
+        return self.connection_mgr.connection()
+
+    # Schema methods
+    def ensure_schema(self) -> None:
+        """Ensure database schema is initialized."""
+        return self.schema_mgr.ensure_schema()
+
+    # Ingestion methods (delegate to IngestionManager)
+    def insert_dataframe(self, table_name, df, mode="append"):
+        """Insert a Polars DataFrame into a table."""
+        return self.ingestion_mgr.insert_dataframe(table_name, df, mode)
+
+    def upsert_by_id(self, table_name, df, id_column="id"):
+        """Upsert data by primary key (delete + insert)."""
+        return self.ingestion_mgr.upsert_by_id(table_name, df, id_column)
+
+    def insert_dict(self, table_name, data):
+        """Insert a single dictionary as a row."""
+        return self.ingestion_mgr.insert_dict(table_name, data)
+
+    def bulk_insert(self, table_name, rows):
+        """Insert multiple rows from list of dictionaries."""
+        return self.ingestion_mgr.bulk_insert(table_name, rows)
+
+    # Metadata methods (delegate to MetadataManager)
+    def _update_table_metadata(self, conn, table_name):
+        """Update table_registry metadata after data write."""
+        return self.metadata_mgr.update_table_metadata(conn, table_name)
+
+    def get_table_counts(self):
+        """Get row counts for all tables."""
+        return self.metadata_mgr.get_table_counts()
+
+    def print_status(self, prefix="[duckdb]"):
+        """Print current database status with row counts."""
+        return self.metadata_mgr.print_status(prefix)
+
+    # Query methods (delegate to QueryManager)
+    def query(self, sql, params=None):
+        """Execute a SQL query and return results as a Polars DataFrame."""
+        return self.query_mgr.query(sql, params)
+
+
+# Singleton instance
+_storage: DuckDBStorage | None = None
+
+
+def get_storage(db_path: str | Path | None = None) -> DuckDBStorage:
+    """Get or create the singleton DuckDB storage instance.
+
+    Args:
+        db_path: Optional path to DuckDB database file
+
+    Returns:
+        DuckDBStorage instance
+    """
+    global _storage  # noqa: PLW0603
+    if _storage is None:
+        _storage = DuckDBStorage(db_path=db_path)
+        logger.info("Created new DuckDBStorage singleton")
+    return _storage

@@ -30,12 +30,16 @@
 - `.gitignore` - Git ignore patterns
 
 ### Backend Files (New + Copied)
+- `backend/app/constants.py` - Application-wide constants (created for portfolio-ai)
+- `backend/app/storage/__init__.py` - Storage module exports (created)
 - `backend/app/storage/connection.py` - DuckDB connection manager (copied from market-sim)
-- `backend/app/storage/schema.py` - Schema manager with portfolio tables (adapted from market-sim)
-- `backend/app/storage/ingestion.py` - Ingestion manager (copied from market-sim)
-- `backend/app/storage/metadata.py` - Metadata manager (copied from market-sim)
-- `backend/app/storage/queries.py` - Query manager (copied from market-sim)
+- `backend/app/storage/schema.py` - Schema manager with 8 portfolio tables (created from scratch)
+- `backend/app/storage/ingestion.py` - Ingestion manager (simplified from market-sim)
+- `backend/app/storage/metadata.py` - Metadata manager (adapted for portfolio tables)
+- `backend/app/storage/queries.py` - Query manager (simplified from market-sim)
 - `backend/app/storage/facade.py` - Storage facade (adapted from market-sim)
+- `backend/tests/__init__.py` - Test module (created)
+- `backend/tests/test_storage_schema.py` - Schema creation unit tests (11 tests, all passing)
 - `backend/app/sources/fred.py` - FRED API integration (copied from market-sim)
 - `backend/app/sources/news.py` - Google News RSS integration (copied from market-sim)
 - `backend/app/sources/multi_source_fetcher.py` - Multi-source failover pattern (copied from market-sim)
@@ -108,25 +112,25 @@
   - [x] 0.19 Run `scripts/validate-commands.sh` to verify slash commands work
   - [x] 0.20 Create initial git commit ("feat: project bootstrap with infrastructure from market-sim")
 
-- [ ] 1.0 Storage Layer & Database Schema
-  - [ ] 1.1 Copy `app/storage/connection.py` from market-sim to backend/app/storage/ (no changes needed)
-  - [ ] 1.2 Copy `app/storage/metadata.py` from market-sim to backend/app/storage/ (no changes needed)
-  - [ ] 1.3 Copy `app/storage/queries.py` from market-sim to backend/app/storage/ (no changes needed)
-  - [ ] 1.4 Copy `app/storage/ingestion.py` from market-sim to backend/app/storage/ (adapt for portfolio data if needed)
-  - [ ] 1.5 Copy `app/storage/schema.py` from market-sim to backend/app/storage/ and add portfolio table schemas
-  - [ ] 1.6 Add portfolio_accounts table schema to SchemaManager._create_config_tables()
-  - [ ] 1.7 Add portfolio_positions table schema to SchemaManager._create_config_tables()
-  - [ ] 1.8 Add user_preferences table schema to SchemaManager._create_config_tables()
-  - [ ] 1.9 Add price_cache table schema to SchemaManager._create_timeseries_tables()
-  - [ ] 1.10 Add agent_runs table schema to SchemaManager._create_metadata_tables()
-  - [ ] 1.11 Add agent_ideas table schema to SchemaManager._create_metadata_tables()
-  - [ ] 1.12 Add agent_tool_calls table schema to SchemaManager._create_metadata_tables()
-  - [ ] 1.13 Add validation_results table schema to SchemaManager._create_metadata_tables()
-  - [ ] 1.14 Update table registry metadata in _populate_registry_metadata() for new tables
-  - [ ] 1.15 Copy `app/storage/facade.py` from market-sim to backend/app/storage/ (adapt for portfolio-ai)
-  - [ ] 1.16 Create backend/app/storage/__init__.py to export DuckDBStorage and get_storage
-  - [ ] 1.17 Write unit tests for schema creation (tests/test_storage_schema.py)
-  - [ ] 1.18 Test database initialization (verify all 8 tables are created)
+- [x] 1.0 Storage Layer & Database Schema
+  - [x] 1.1 Copy `app/storage/connection.py` from market-sim to backend/app/storage/ (no changes needed)
+  - [x] 1.2 Copy `app/storage/metadata.py` from market-sim to backend/app/storage/ (adapted for portfolio tables)
+  - [x] 1.3 Copy `app/storage/queries.py` from market-sim to backend/app/storage/ (simplified for portfolio-ai)
+  - [x] 1.4 Copy `app/storage/ingestion.py` from market-sim to backend/app/storage/ (simplified for portfolio data)
+  - [x] 1.5 Copy `app/storage/schema.py` from market-sim to backend/app/storage/ and add portfolio table schemas
+  - [x] 1.6 Add portfolio_accounts table schema to SchemaManager._create_config_tables()
+  - [x] 1.7 Add portfolio_positions table schema to SchemaManager._create_config_tables()
+  - [x] 1.8 Add user_preferences table schema to SchemaManager._create_config_tables()
+  - [x] 1.9 Add price_cache table schema to SchemaManager._create_timeseries_tables()
+  - [x] 1.10 Add agent_runs table schema to SchemaManager._create_metadata_tables()
+  - [x] 1.11 Add agent_ideas table schema to SchemaManager._create_metadata_tables()
+  - [x] 1.12 Add agent_tool_calls table schema to SchemaManager._create_metadata_tables()
+  - [x] 1.13 Add validation_results table schema to SchemaManager._create_metadata_tables()
+  - [x] 1.14 Update table registry metadata in _populate_registry_metadata() for new tables
+  - [x] 1.15 Copy `app/storage/facade.py` from market-sim to backend/app/storage/ (adapted for portfolio-ai)
+  - [x] 1.16 Create backend/app/storage/__init__.py to export DuckDBStorage and get_storage
+  - [x] 1.17 Write unit tests for schema creation (tests/test_storage_schema.py)
+  - [x] 1.18 Test database initialization (verify all 8 tables are created)
 
 - [ ] 2.0 Portfolio Management Backend (CRUD + Analytics)
   - [ ] 2.1 Create backend/app/portfolio/__init__.py module
