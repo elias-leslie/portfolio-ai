@@ -2,7 +2,7 @@
  * Portfolio API client functions
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
 // Types matching backend Pydantic models
 export interface Account {
