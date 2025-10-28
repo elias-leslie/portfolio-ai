@@ -6,6 +6,9 @@ __pycache__/
 .venv/
 venv/
 
+# Pip artifacts (from pip install package>=version)
+=*
+
 # Node / Next.js
 node_modules/
 .npm/
