@@ -1,9 +1,9 @@
 # Task List: Multi-Source Data Infrastructure & Trading Intelligence System
 
 **PRD**: `0011-prd-multi-source-data-trading-intelligence.md`
-**Status**: Phase 1.0 Complete, Phase 2.0 In Progress
-**Completion**: 52% (Phase 1.0 + All Source Adapters + Historical Backfill + RVOL Calculator complete)
-**Effort to Complete**: HIGH (~2-3 weeks remaining, 48% of work)
+**Status**: Phase 1.0 Complete, Phase 2.0 Complete
+**Completion**: 58% (Phase 1.0 + Phase 2.0 complete: All Source Adapters + Analytics Infrastructure)
+**Effort to Complete**: HIGH (~2-3 weeks remaining, 42% of work)
 **Last Updated**: 2025-10-28
 
 **Note on Effort Levels**:
@@ -36,22 +36,25 @@
 - Task 2.5: Create Alpha Vantage adapter (430 lines + 58 test lines) ✅
 
 **⚠️ NEXT STEPS:**
-1. Task 2.8: Create sector rotation analyzer
-2. Task 2.9: Create peer comparison engine
-3. Task 2.10: Expose analytics via API
-4. Continue with technical indicators tasks (Phase 3.0)
+1. Task 3.0: Technical Indicators Library & Caching
+2. Task 4.0: Paper Trading & Agent Performance Tracking
+3. Task 5.0: Risk Management Suite
+4. Task 6.0: News Sentiment Scoring & Local AI Models
 
-**EFFORT TO COMPLETE:** HIGH (3-4 weeks, ~55% remaining)
+**EFFORT TO COMPLETE:** HIGH (~2-3 weeks, ~42% remaining)
 
-**Session Summary (2025-10-28 - Historical Backfill & RVOL Complete):**
-- ✅ Completed Tasks 2.6.1, 2.7 (Historical backfill + RVOL calculator)
-- ✅ Added: `ingest_historical_ohlcv` Celery task for multi-source backfill
-- ✅ Created analytics module with RVOL calculator
-- ✅ 11 new tests for volume analytics, all passing
-- 📝 2 commits made with conventional format
-- 📊 ~650 lines added (3 files: analytics + task + tests)
+**Session Summary (2025-10-28 - Phase 2.0 Analytics Complete):**
+- ✅ Completed Tasks 2.6-2.10 (Historical backfill + Analytics Infrastructure)
+- ✅ Task 2.6: `ingest_historical_ohlcv` Celery task for multi-source backfill
+- ✅ Task 2.7: RVOL calculator with historical analysis
+- ✅ Task 2.8: Sector rotation analyzer with momentum calculation (337 lines, 8 tests)
+- ✅ Task 2.9: Peer comparison engine with ranking (475 lines, 13 tests)
+- ✅ Task 2.10: Analytics REST API with 4 endpoints (428 lines, 11 tests)
+- 📝 5 commits made with conventional format
+- 📊 ~2,600 lines added (9 files total: 6 implementation + 3 test files)
+- ✅ 32 new tests for analytics, all passing
 - ✅ Full type safety, linting clean, comprehensive error handling
-- ✅ Previous session: All 6 source adapters operational
+- ✅ Phase 2.0 is now COMPLETE
 
 **Context from Current Codebase:**
 - ✅ BaseSource class exists with full multi-source support
@@ -61,6 +64,7 @@
 - ✅ Health endpoint tracks all sources via source_performance table
 - ✅ Six source adapters complete: YFinance (1), Twelve Data (2), FMP (3), Polygon (10), Finnhub (10), Alpha Vantage (30)
 - ✅ All planned source adapters implemented
+- ✅ Analytics infrastructure complete: RVOL, sector rotation, peer comparison with REST API
 - ⚠️ Still missing: Technical indicators, paper trading, risk management, sentiment analysis
 
 ---
@@ -85,16 +89,21 @@
 - ✅ `backend/tests/test_finnhub_source.py` (392 lines) - Comprehensive test suite with 13 passing tests
 
 **Analytics & Trading Intelligence:**
+- ✅ `backend/app/analytics/volume.py` (102 lines) - RVOL calculator with historical volume analysis
+- ✅ `backend/tests/test_volume.py` (195 lines) - Comprehensive test suite with 11 passing tests
 - ✅ `backend/app/analytics/sectors.py` (337 lines) - Sector rotation analyzer with momentum calculation
 - ✅ `backend/tests/test_sectors.py` (213 lines) - Comprehensive test suite with 8 passing tests
 - ✅ `backend/app/analytics/peers.py` (475 lines) - Peer comparison engine with ranking and percentiles
 - ✅ `backend/tests/test_peers.py` (405 lines) - Comprehensive test suite with 13 passing tests
 
+**Celery Tasks:**
+- ✅ `backend/app/tasks/agent_tasks.py` (updated) - Added `ingest_historical_ohlcv` task for multi-source backfill
+
 **API Endpoints:**
 - ✅ `backend/app/api/analytics.py` (428 lines) - Analytics API router with RVOL, sector rotation, and peer comparison endpoints
 - ✅ `backend/tests/test_api_analytics.py` (258 lines) - Comprehensive API test suite with 11 passing tests
 
-### Files to Create (13 remaining files)
+### Files to Create (10 remaining files)
 
 **Analytics & Trading Intelligence:**
 - `backend/app/analytics/indicators.py` (~300 lines) - Technical indicators wrapper (pandas_ta)
@@ -108,7 +117,6 @@
 - `backend/app/ai/sentiment.py` (~150 lines) - Sentiment scoring service
 
 **API Endpoints:**
-- `backend/app/api/analytics.py` (~300 lines) - Analytics API endpoints (RVOL, sectors, peers)
 - `backend/app/api/risk.py` (~250 lines) - Risk management endpoints
 - `backend/app/api/sentiment.py` (~150 lines) - Sentiment endpoints
 - `backend/app/api/indicators.py` (~200 lines) - Technical indicators endpoints
@@ -129,7 +137,7 @@
 - ✅ `backend/app/portfolio/price_fetcher.py` - Refactored to use MultiSourceFetcher with YFinance+Polygon (Task 1.3 complete)
 - ✅ `backend/app/storage/schema.py` - Added 3 new tables: source_performance, day_bars, minute_bars (Task 1.2 complete)
 - `backend/app/api/health.py` - Add multi-source health checks
-- `backend/requirements.txt` - Add pandas_ta, transformers, torch, sentencepiece
+- ✅ `backend/requirements.txt` - Added pandas-ta>=0.3.14b (Task 3.1 complete)
 - `backend/app/agents/tools.py` - Integrate technical indicators into agent tools
 - `backend/app/tasks/agent_tasks.py` - Add Celery tasks for data ingestion and paper trading
 - `docs/core/ARCHITECTURE.md` - Document multi-source architecture and local AI strategy
@@ -228,7 +236,7 @@
       - [x] Use pytest fixtures for mocking sources and storage
       - Note: All 9 tests pass. Old price_fetcher tests still need updating (3 tests fail)
 
-- [ ] 2.0 Historical Data Pipelines & Source Adapters
+- [x] 2.0 Historical Data Pipelines & Source Adapters ✅ COMPLETE
   - [x] 2.1 Create YFinance adapter (FR-2.1)
     - [x] 2.1.1 Create `backend/app/sources/yfinance_source.py` (~200 lines)
       - [x] Implement `YFinanceSource(BaseSource)` wrapping yfinance library
@@ -318,10 +326,10 @@
       - [x] 11 API tests created, all passing
 
 - [ ] 3.0 Technical Indicators Library & Caching
-  - [ ] 3.1 Add dependencies (FR-3.1)
-    - [ ] 3.1.1 Update `backend/requirements.txt`
-      - [ ] Add `pandas_ta>=0.3.14b`
-      - [ ] Run `pip install -r requirements.txt` to verify installation
+  - [x] 3.1 Add dependencies (FR-3.1) ✅
+    - [x] 3.1.1 Update `backend/requirements.txt`
+      - [x] Add `pandas_ta>=0.3.14b`
+      - [x] Run `pip install -r requirements.txt` to verify installation
   - [ ] 3.2 Create indicator calculation wrapper (FR-3.2)
     - [ ] 3.2.1 Create `backend/app/analytics/indicators.py` (~300 lines)
       - [ ] Add function: `calculate_indicators(ticker: str, indicators: list[str]) -> dict`
