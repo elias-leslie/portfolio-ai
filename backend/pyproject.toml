@@ -2,7 +2,7 @@
 name = "portfolio-ai"
 version = "0.1.0"
 description = "AI-Led Portfolio Intelligence Platform"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 dependencies = [
     "fastapi==0.111.0",
     "uvicorn[standard]==0.29.0",
@@ -39,7 +39,7 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py313"
 line-length = 100
 src = ["app"]
 
@@ -83,7 +83,7 @@ ignore = [
 known-first-party = ["app"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.13"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
