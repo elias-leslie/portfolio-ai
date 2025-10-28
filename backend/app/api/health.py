@@ -1,16 +1,15 @@
 """Health check endpoints for portfolio-ai.
 
 This module provides comprehensive health checks for monitoring
-system status, dependencies, and service availability.
+system status, dependencies, and service availability including multi-source data fetching.
 """
 
 from __future__ import annotations
 
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Literal
 
-import yfinance as yf
 from fastapi import APIRouter, Response
 from pydantic import BaseModel, Field
 
@@ -23,6 +22,18 @@ router = APIRouter(prefix="/health", tags=["health"])
 
 # Track application start time for uptime calculation
 APP_START_TIME = datetime.now()
+
+
+class SourceHealthCheck(BaseModel):
+    """Health check for individual data source."""
+
+    status: Literal["ok", "degraded", "down"]
+    last_success: datetime | None = None
+    success_rate: float | None = None
+    avg_latency_ms: int | None = None
+    rate_limit_hits: int = 0
+    in_cooldown: bool = False
+    cooldown_remaining_seconds: int = 0
 
 
 class CheckResult(BaseModel):
@@ -59,6 +70,7 @@ class HealthCheckResponse(BaseModel):
     version: str = "1.0.0"
     uptime_seconds: int
     checks: dict[str, CheckResult]
+    sources: dict[str, SourceHealthCheck] = Field(default_factory=dict)
     cache_stats: CacheStats | None = None
     agent_stats: AgentStats | None = None
 
@@ -104,42 +116,79 @@ class HealthCheckService:
                 message=f"Database error: {e!s}",
             )
 
-    def check_yfinance(self) -> CheckResult:
-        """Check yfinance API availability.
+    def check_sources(self) -> dict[str, SourceHealthCheck]:
+        """Check health of all data sources from source_performance table.
 
         Returns:
-            CheckResult with yfinance health status
+            Dict mapping source name to SourceHealthCheck
         """
+        sources: dict[str, SourceHealthCheck] = {}
+
         try:
-            start = time.time()
+            df = self.storage.query(
+                """
+                SELECT
+                    source_name,
+                    success_count,
+                    failure_count,
+                    total_latency_ms,
+                    rate_limit_hits,
+                    last_success_at
+                FROM source_performance
+                """,
+                [],
+            )
 
-            # Try to fetch AAPL price as a health check
-            ticker = yf.Ticker("AAPL")
-            info = ticker.info
-            price = info.get("currentPrice") or info.get("regularMarketPrice")
+            if df.is_empty():
+                # No source data yet - return empty dict
+                return sources
 
-            latency_ms = int((time.time() - start) * 1000)
+            for row in df.iter_rows(named=True):
+                source_name = row["source_name"]
+                success_count = row["success_count"] or 0
+                failure_count = row["failure_count"] or 0
+                total_latency_ms = row["total_latency_ms"] or 0
+                rate_limit_hits = row["rate_limit_hits"] or 0
+                last_success_at = row.get("last_success_at")
 
-            if not price:
-                return CheckResult(
-                    status="degraded",
-                    latency_ms=latency_ms,
-                    message="yfinance returned no price data",
+                # Calculate success rate
+                total_requests = success_count + failure_count
+                success_rate = (success_count / total_requests * 100) if total_requests > 0 else 0.0
+
+                # Calculate average latency
+                avg_latency_ms = int(total_latency_ms / success_count) if success_count > 0 else None
+
+                # Determine status based on last success and success rate
+                if last_success_at:
+                    time_since_success = datetime.now() - last_success_at
+                    if time_since_success < timedelta(minutes=15):
+                        if success_rate >= 80:
+                            status: Literal["ok", "degraded", "down"] = "ok"
+                        elif success_rate >= 50:
+                            status = "degraded"
+                        else:
+                            status = "down"
+                    elif time_since_success < timedelta(hours=1):
+                        status = "degraded"  # Stale but not completely down
+                    else:
+                        status = "down"  # Very stale
+                else:
+                    status = "down"  # Never succeeded
+
+                sources[source_name] = SourceHealthCheck(
+                    status=status,
+                    last_success=last_success_at,
+                    success_rate=round(success_rate, 1),
+                    avg_latency_ms=avg_latency_ms,
+                    rate_limit_hits=rate_limit_hits,
+                    in_cooldown=False,  # Would need real-time data from MultiSourceFetcher
+                    cooldown_remaining_seconds=0,
                 )
 
-            return CheckResult(
-                status="ok",
-                latency_ms=latency_ms,
-                last_success=datetime.now(),
-                message=f"AAPL: ${price}",
-            )
-
         except Exception as e:
-            logger.warning("yfinance_health_check_failed", error=str(e))
-            return CheckResult(
-                status="degraded",
-                message=f"yfinance error: {e!s}",
-            )
+            logger.error("check_sources_failed", error=str(e))
+
+        return sources
 
     def get_last_price_fetch(self) -> datetime | None:
         """Get timestamp of last successful price fetch.
@@ -252,7 +301,7 @@ class HealthCheckService:
             )
 
     def perform_health_check(self) -> HealthCheckResponse:
-        """Perform all health checks.
+        """Perform all health checks including multi-source data fetching.
 
         Returns:
             HealthCheckResponse with all check results
@@ -261,13 +310,21 @@ class HealthCheckService:
 
         # Critical checks
         checks["database"] = self.check_database()
-        checks["yfinance"] = self.check_yfinance()
+
+        # Data source checks (from source_performance table)
+        sources = self.check_sources()
 
         # Determine overall status
         if checks["database"].status == "down":
             overall_status: Literal["healthy", "degraded", "down"] = "down"
         elif any(check.status == "degraded" for check in checks.values()):
             overall_status = "degraded"
+        elif any(source.status == "down" for source in sources.values()):
+            # If all sources are down, we're degraded (not completely down)
+            if all(source.status == "down" for source in sources.values()) and sources:
+                overall_status = "degraded"
+            else:
+                overall_status = "healthy"
         else:
             overall_status = "healthy"
 
@@ -282,6 +339,7 @@ class HealthCheckService:
             status=overall_status,
             uptime_seconds=uptime_seconds,
             checks=checks,
+            sources=sources,
             cache_stats=cache_stats,
             agent_stats=agent_stats,
         )
@@ -295,7 +353,8 @@ health_service = HealthCheckService()
 async def health_check(response: Response) -> HealthCheckResponse:
     """Comprehensive health check endpoint.
 
-    Returns health status, uptime, and metrics for all system components.
+    Returns health status, uptime, and metrics for all system components including
+    multi-source data fetching health (yfinance, polygon, etc).
     Returns HTTP 503 if database is down, HTTP 200 otherwise.
     """
     result = health_service.perform_health_check()
@@ -304,12 +363,16 @@ async def health_check(response: Response) -> HealthCheckResponse:
     if result.status == "down":
         response.status_code = 503
 
+    # Build source status summary for logging
+    source_status_summary = {name: src.status for name, src in result.sources.items()}
+
     logger.info(
         "health_check_performed",
         status=result.status,
         uptime_seconds=result.uptime_seconds,
         database_status=result.checks["database"].status,
-        yfinance_status=result.checks["yfinance"].status,
+        sources=source_status_summary,
+        num_sources=len(result.sources),
     )
 
     return result

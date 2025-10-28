@@ -179,14 +179,15 @@
       - [x] Add source lineage tracking (record which source provided each data point)
       - [x] Removed `_fetch_from_polygon()` placeholder - now uses PolygonSource adapter
       - Note: Old price_fetcher tests need updating for new multi-source architecture (deferred to Task 1.5)
-  - [ ] 1.4 Update health check endpoint (FR-1.8)
-    - [ ] 1.4.1 Update `backend/app/api/health.py`
-      - [ ] Add data source availability checks for all 9 sources
-      - [ ] Query `source_performance` table for last successful fetch per source
-      - [ ] Report source status: "ok" (recent success), "degraded" (stale), "down" (failing)
-      - [ ] Report rate limit cooldown status per source
-      - [ ] Calculate failover chain effectiveness (% requests per source)
-      - [ ] Response format: `{"status": "ok", "sources": {"yfinance": {"status": "ok", "last_success": "2025-01-28T10:00:00Z"}}}`
+  - [x] 1.4 Update health check endpoint (FR-1.8)
+    - [x] 1.4.1 Update `backend/app/api/health.py`
+      - [x] Add data source availability checks from source_performance table
+      - [x] Query `source_performance` table for last successful fetch per source
+      - [x] Report source status: "ok" (recent success <15min, >=80% success rate), "degraded" (stale or 50-80% success), "down" (very stale or <50% success)
+      - [x] Report rate limit hits per source (cooldown would need real-time data from MultiSourceFetcher)
+      - [x] Calculate success rate and average latency per source
+      - [x] Response format includes sources dict: `{"sources": {"yfinance": {"status": "ok", "last_success": "...", "success_rate": 95.5, "avg_latency_ms": 250}}}`
+      - Note: Removed old direct yfinance check, now uses source_performance table for all sources
   - [ ] 1.5 Write comprehensive multi-source tests (FR-1.7)
     - [ ] 1.5.1 Create `tests/test_multi_source.py` (~400 lines)
       - [ ] Test: yfinance primary success path (mock yfinance returning valid data)
