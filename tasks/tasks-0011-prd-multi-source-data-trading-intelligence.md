@@ -276,16 +276,16 @@
       - [x] Store results in `day_bars` table with source lineage
       - [x] Log progress: "Backfilled 252 days for 10 tickers in 2m 15s"
       - [x] Add error handling: If all sources fail, log error but don't crash
-  - [ ] 2.7 Create RVOL calculator (FR-2.6)
-    - [ ] 2.7.1 Create `backend/app/analytics/volume.py` (~100 lines)
-      - [ ] Add function: `calculate_rvol(ticker: str, date: str, lookback_days: int = 20) -> float`
-      - [ ] Formula: `current_volume / avg(volume, lookback_days)`
-      - [ ] SQL query from `day_bars` table:
+  - [x] 2.7 Create RVOL calculator (FR-2.6)
+    - [x] 2.7.1 Create `backend/app/analytics/volume.py` (~100 lines)
+      - [x] Add function: `calculate_rvol(ticker: str, date: str, lookback_days: int = 20) -> float`
+      - [x] Formula: `current_volume / avg(volume, lookback_days)`
+      - [x] SQL query from `day_bars` table:
         ```sql
         SELECT AVG(volume) FROM day_bars WHERE ticker = ? AND date BETWEEN ? AND ?
         ```
-      - [ ] Return: RVOL value (2.0 = 2x normal volume)
-      - [ ] Add type hints and docstrings
+      - [x] Return: RVOL value (2.0 = 2x normal volume)
+      - [x] Add type hints and docstrings
   - [ ] 2.8 Create sector rotation analyzer (FR-2.7)
     - [ ] 2.8.1 Create `backend/app/analytics/sectors.py` (~150 lines)
       - [ ] Add function: `get_sector_rotation(date: str, lookback_days: int = 20) -> pl.DataFrame`
