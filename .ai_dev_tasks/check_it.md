@@ -48,31 +48,36 @@ Invoke this workflow by using `/check_it` in these scenarios:
 
 **Construction of Analysis Prompt**:
 
+Use **broad wildcard patterns** to capture entire codebase sections. Gemini's 2M+ token context window can handle full directories.
+
 ```
 Analyze the following codebase for solution alignment across multiple dimensions.
 
 PROJECT DOCUMENTATION:
-@README.md
-@CLAUDE.md (if exists)
-@docs/ (entire directory)
+@**/*.md (all markdown files including README, CLAUDE.md, etc.)
+@docs/**/* (entire docs directory tree)
 
-CONFIGURATION:
-@pyproject.toml OR @package.json OR @Cargo.toml (detect based on tech stack)
-@tsconfig.json (if TypeScript)
-@.pre-commit-config.yaml OR @.eslintrc (if exists)
-@.github/ (if exists)
+CONFIGURATION FILES:
+@**/pyproject.toml @**/package.json @**/tsconfig.json
+@**/.pre-commit-config.yaml @**/.eslintrc* @**/pytest.ini
+@.github/**/* (CI/CD workflows and configs)
+@**/Cargo.toml @**/go.mod (if Rust/Go projects)
 
-CODE STRUCTURE (sample representative files from each major module):
-@backend/app/main.py OR @src/index.ts OR @main.go (entry point)
-@backend/app/storage/ OR @src/database/ (data layer, if exists)
-@frontend/app/layout.tsx OR @src/App.tsx (frontend root, if exists)
-[Add 3-5 representative files from major modules]
+COMPLETE CODE STRUCTURE:
+@backend/**/*.py (all Python backend code)
+@frontend/**/*.{ts,tsx,js,jsx} (all frontend code)
+@app/**/*.py (alternative app structure)
+@src/**/*.{ts,tsx,js,jsx} (alternative src structure)
+@lib/**/* @pkg/**/* (additional code directories)
+@scripts/**/* (build/utility scripts)
 
-TESTS (sample):
-@tests/ OR @test/ OR @__tests__/ (sample 2-3 test files)
+COMPLETE TEST SUITE:
+@tests/**/*.py @test/**/*.py (Python tests)
+@**/*.test.{ts,tsx,js,jsx} @**/*.spec.{ts,tsx,js,jsx} (JS/TS tests)
+@__tests__/**/* (Jest tests)
 
-PLANNING (if exists):
-@tasks/ OR @.ai_dev_tasks/
+PLANNING & TASKS:
+@tasks/**/* @.ai_dev_tasks/**/* @docs/planning/**/*
 
 Evaluate alignment across these dimensions:
 
@@ -145,10 +150,42 @@ PRIORITIZED ACTION ITEMS (top 10-15):
 ```
 
 **Execute the Gemini Analysis**:
-- Use `mcp__gemini-cli__ask-gemini` with the constructed prompt
-- Use `@` syntax for efficient file/directory inclusion
-- Model parameter: Use `gemini-2.5-pro` (default) for comprehensive analysis
-- Do NOT use sandbox mode (read-only analysis)
+
+**Key Principle**: **Breadth over Sampling** - Load entire directories rather than sampling files.
+
+**Why This Approach**:
+- ✅ Gemini's 2M+ token context can handle 10,000+ lines of code easily
+- ✅ Prevents missing critical misalignments in non-sampled files
+- ✅ Allows Gemini to detect patterns across entire modules
+- ✅ More accurate percentage scores (based on full codebase, not samples)
+
+**Implementation**:
+1. **Auto-discover** the project structure using Glob tool:
+   ```
+   - Use Glob to find all *.py files → confirms Python project
+   - Use Glob to find all *.{ts,tsx} files → confirms TypeScript/React
+   - Use Glob to find docs/**/* → maps documentation
+   ```
+
+2. **Construct comprehensive prompt** using wildcard `@` syntax:
+   ```
+   Prompt should include:
+   @backend/**/*.py @frontend/**/*.{ts,tsx} @docs/**/* @tests/**/*
+   ```
+
+3. **Call Gemini MCP tool**:
+   ```
+   mcp__gemini-cli__ask-gemini with:
+   - prompt: [Full analysis request with @ includes]
+   - model: "gemini-2.5-pro" (default, best for comprehensive analysis)
+   - sandbox: false (read-only analysis, no code execution needed)
+   - changeMode: false (we want analysis, not code changes)
+   ```
+
+**Context Size Management**:
+- For portfolio-ai size projects (~50-100 files): Load everything
+- For very large projects (1000+ files): Use directory-level wildcards but load ALL directories
+- Gemini will handle the context; prioritize completeness over artificial limits
 
 ### Phase 3: Generate Report
 
@@ -266,11 +303,13 @@ Priority ranking based on impact and effort:
 **Analysis Date**: [ISO timestamp]
 **Tool**: Gemini MCP (`mcp__gemini-cli__ask-gemini`)
 **Model**: gemini-2.5-pro
-**Context Loaded**:
-- Documentation: [list of @ includes]
-- Configuration: [list of @ includes]
-- Code Samples: [list of @ includes]
-- Tests: [list of @ includes]
+**Context Loaded** (complete codebase, not samples):
+- Documentation: [N files via @**/*.md, @docs/**/*]
+- Configuration: [N files via @**/pyproject.toml, @**/package.json, etc.]
+- Backend Code: [N files via @backend/**/*.py]
+- Frontend Code: [N files via @frontend/**/*.{ts,tsx}]
+- Tests: [N files via @tests/**/*.py, @**/*.test.ts]
+- Total: [N files, ~X lines of code analyzed]
 
 **Scoring Method**:
 - Each category scored 0-100% based on alignment with documented standards
@@ -338,11 +377,13 @@ Assume the primary readers are:
 
 - ❌ Running analysis without discovering project structure first
 - ❌ Hardcoding file paths (must be generic and auto-discover)
-- ❌ Analyzing every single file (use representative samples for large projects)
+- ❌ **Using file sampling instead of wildcards** - Leverage Gemini's 2M+ token context to load ENTIRE directories
+- ❌ **Being too specific with file selection** - Use `@backend/**/*.py` not `@backend/app/main.py`
 - ❌ Ignoring existing standards documentation
 - ❌ Creating alignment categories that don't match the project type
 - ❌ Failing to provide file:line references for issues
 - ❌ Not tracking trends over time
+- ❌ Missing code in subdirectories due to narrow patterns
 
 ## Success Criteria
 
@@ -377,13 +418,16 @@ The AI will:
 
 ```
 🔍 Discovering project structure...
-   ✓ Found docs in: docs/core/
+   ✓ Found 47 Python files in backend/
+   ✓ Found 31 TypeScript/React files in frontend/
+   ✓ Found 12 markdown docs in docs/
    ✓ Detected tech stack: Python 3.11 + FastAPI + Next.js 14
    ✓ Found config: pyproject.toml, package.json, tsconfig.json
-   ✓ Found tests: 25 test files in backend/tests/
+   ✓ Found 25 test files across tests/ and frontend/
 
-📊 Analyzing with Gemini (this may take 30-60 seconds)...
-   ✓ Context loaded: 15 docs, 8 configs, 12 code samples
+📊 Analyzing COMPLETE codebase with Gemini (this may take 30-90 seconds)...
+   ✓ Context loaded: 47 backend files, 31 frontend files, 12 docs, 8 configs, 25 tests
+   ✓ Total: 123 files, ~15,000 lines of code
    ✓ Analysis complete
 
 📝 Generating report...
