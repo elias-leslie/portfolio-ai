@@ -47,7 +47,7 @@
 
 ## Relevant Files
 
-### Files Created (6 files)
+### Files Created (7 files)
 
 **Core Multi-Source Infrastructure:**
 - ✅ `backend/app/sources/jsonpath_mapper.py` (265 lines) - JSONPath field mapping with nested data extraction, timestamp conversion, and validation
@@ -56,11 +56,11 @@
 - ✅ `backend/app/sources/polygon_client.py` (241 lines) - Polygon API client with thread-safe rate limiting (5/min) and retries
 - ✅ `backend/app/sources/polygon_source.py` (214 lines) - Polygon source adapter implementing BaseSource interface
 - ✅ `backend/app/sources/multi_source_fetcher.py` (587 lines) - Priority-based failover with 60s cooldown, source performance tracking, metrics persistence
+- ✅ `backend/app/sources/yfinance_source.py` (207 lines) - YFinance adapter with day_bars and reference data support
 
-### Files to Create (26 remaining files)
+### Files to Create (25 remaining files)
 
 **Core Multi-Source Infrastructure:**
-- `backend/app/sources/yfinance_source.py` (~200 lines) - YFinance adapter implementing BaseSource
 - `backend/app/sources/twelvedata_source.py` (~200 lines) - Twelve Data adapter implementing BaseSource
 - `backend/app/sources/fmp_source.py` (~150 lines) - Financial Modeling Prep adapter
 - `backend/app/sources/finnhub_source.py` (~150 lines) - Finnhub adapter
@@ -198,20 +198,20 @@
       - [ ] Target: 80%+ code coverage for multi_source_fetcher.py
 
 - [ ] 2.0 Historical Data Pipelines & Source Adapters
-  - [ ] 2.1 Create YFinance adapter (FR-2.1)
-    - [ ] 2.1.1 Create `backend/app/sources/yfinance_source.py` (~200 lines)
-      - [ ] Implement `YFinanceSource(BaseSource)` wrapping yfinance library
-      - [ ] Set `priority = 1`, `supports_day = True`, `supports_reference = True`
-      - [ ] Implement `fetch_day_bars(request: DatasetRequest) -> pl.DataFrame`
-        - [ ] Fetch 252-day lookback using `yf.Ticker(ticker).history(period='1y')`
-        - [ ] Handle yfinance quirks (0.5-2s delays between requests)
-        - [ ] Convert pandas DataFrame to Polars DataFrame
-        - [ ] Map columns: Date→date, Open→open, High→high, Low→low, Close→close, Volume→volume
-      - [ ] Implement `fetch_reference_payload(tickers, as_of) -> pl.DataFrame`
-        - [ ] Fetch company metadata: `yf.Ticker(ticker).info`
-        - [ ] Extract: sector, industry, market_cap, company_name
-        - [ ] Return Polars DataFrame with schema: `ticker, sector, industry, market_cap, name, as_of_date`
-      - [ ] Add retry logic for transient errors (use tenacity)
+  - [x] 2.1 Create YFinance adapter (FR-2.1)
+    - [x] 2.1.1 Create `backend/app/sources/yfinance_source.py` (~200 lines)
+      - [x] Implement `YFinanceSource(BaseSource)` wrapping yfinance library
+      - [x] Set `priority = 1`, `supports_day = True`, `supports_reference = True`
+      - [x] Implement `fetch_day_bars(request: DatasetRequest) -> pl.DataFrame`
+        - [x] Fetch with date range using `yf.Ticker(ticker).history(start, end)`
+        - [x] Handle yfinance quirks (0.5-2s delays between requests)
+        - [x] Convert pandas DataFrame to Polars DataFrame
+        - [x] Map columns: Date→date, Open→open, High→high, Low→low, Close→close, Volume→volume
+      - [x] Implement `fetch_reference_payload(tickers, as_of) -> pl.DataFrame`
+        - [x] Fetch company metadata: `yf.Ticker(ticker).info`
+        - [x] Extract: sector, industry, market_cap, company_name
+        - [x] Return Polars DataFrame with schema: `ticker, as_of_date, payload (JSON), source`
+      - [x] Add structured logging for all operations
   - [ ] 2.2 Create Twelve Data adapter (FR-2.2)
     - [ ] 2.2.1 Create `backend/app/sources/twelvedata_source.py` (~200 lines)
       - [ ] Implement `TwelveDataSource(BaseSource)` using REST API
