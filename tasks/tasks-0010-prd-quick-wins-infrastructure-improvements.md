@@ -154,13 +154,13 @@ Based on PRD #0010, here are the main implementation phases:
     - [x] 1.1.4 Add placeholder for shutdown logic (yield statement)
     - [x] 1.1.5 Update `FastAPI(lifespan=lifespan)` initialization
     - [x] 1.1.6 Remove `@app.on_event("startup")` decorator
-  - [ ] 1.2 Verify no deprecation warnings
-    - [ ] 1.2.1 Start backend: `uvicorn app.main:app --reload`
-    - [ ] 1.2.2 Check logs for deprecation warnings (should be zero)
-    - [ ] 1.2.3 Test GET /health endpoint works
-  - [ ] 1.3 Update tests if needed
-    - [ ] 1.3.1 Check if any tests depend on startup event
-    - [ ] 1.3.2 Update test fixtures to use lifespan if needed
+  - [x] 1.2 Verify no deprecation warnings
+    - [x] 1.2.1 Start backend: `uvicorn app.main:app --reload`
+    - [x] 1.2.2 Check logs for deprecation warnings (should be zero)
+    - [x] 1.2.3 Test GET /health endpoint works
+  - [x] 1.3 Update tests if needed
+    - [x] 1.3.1 Check if any tests depend on startup event
+    - [x] 1.3.2 Update test fixtures to use lifespan if needed
 
 - [ ] **2.0 Add Comprehensive Error Handling to Price Fetcher** (P1 - High value, 1 hour)
   - [ ] 2.1 Add error field to PriceData model
