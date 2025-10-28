@@ -6,7 +6,10 @@ Scans market news and economic data to generate general investment ideas.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from app.storage.facade import DuckDBStorage
 
 from .base import Agent
 from .tools import (
@@ -26,7 +29,7 @@ class DiscoveryAgent(Agent):
     broad market opportunities without reference to user's portfolio.
     """
 
-    def __init__(self, storage, tools: AgentTools, **kwargs):
+    def __init__(self, storage: DuckDBStorage, tools: AgentTools, **kwargs: Any) -> None:
         """Initialize Discovery Agent.
 
         Args:
@@ -36,7 +39,7 @@ class DiscoveryAgent(Agent):
         """
         super().__init__(storage, **kwargs)
         self.tools = tools
-        self.current_run_id = None
+        self.current_run_id: str | None = None
 
     def get_system_prompt(self) -> str:
         """Get system prompt for Discovery Agent."""
@@ -91,16 +94,25 @@ Generate exactly 5 ideas, then stop."""
 
         raise ValueError(f"Unknown tool: {tool_name}")
 
-    def run(self, **kwargs) -> dict[str, Any]:
-        """Run Discovery Agent with default prompt."""
-        prompt = "Analyze current market conditions and generate 5 investment ideas."
+    def run(self, user_prompt: str = "", max_iterations: int = 10) -> dict[str, Any]:
+        """Run Discovery Agent with default prompt.
+
+        Args:
+            user_prompt: Optional custom prompt (defaults to market analysis)
+            max_iterations: Maximum number of iterations (default: 10)
+
+        Returns:
+            dict containing status, response, and metadata
+        """
+        if not user_prompt:
+            user_prompt = "Analyze current market conditions and generate 5 investment ideas."
 
         # Set run_id for this execution
         import uuid
 
         self.current_run_id = str(uuid.uuid4())
 
-        result = super().run(prompt, **kwargs)
+        result = super().run(user_prompt, max_iterations=max_iterations)
 
         # Clear run_id after execution
         self.current_run_id = None

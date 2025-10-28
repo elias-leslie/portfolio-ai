@@ -1,9 +1,9 @@
 # Task List: Multi-Source Data Infrastructure & Trading Intelligence System
 
 **PRD**: `0011-prd-multi-source-data-trading-intelligence.md`
-**Status**: Phase 1.0 Complete, Phase 2.0 Complete
-**Completion**: 58% (Phase 1.0 + Phase 2.0 complete: All Source Adapters + Analytics Infrastructure)
-**Effort to Complete**: HIGH (~2-3 weeks remaining, 42% of work)
+**Status**: Phase 1.0 Complete, Phase 2.0 Complete, Phase 3.0 In Progress (Tasks 3.1-3.4 Complete, blocked on commit)
+**Completion**: 61% (Phase 1.0 + Phase 2.0 + Tasks 3.1-3.4 complete, blocked on pre-existing mypy errors)
+**Effort to Complete**: HIGH (~2-3 weeks remaining, 39% of work)
 **Last Updated**: 2025-10-28
 
 **Note on Effort Levels**:
@@ -35,13 +35,62 @@
 - Task 2.4: Create Finnhub adapter (503 lines + 392 test lines) ✅
 - Task 2.5: Create Alpha Vantage adapter (430 lines + 58 test lines) ✅
 
-**⚠️ NEXT STEPS:**
-1. Task 3.0: Technical Indicators Library & Caching
-2. Task 4.0: Paper Trading & Agent Performance Tracking
-3. Task 5.0: Risk Management Suite
-4. Task 6.0: News Sentiment Scoring & Local AI Models
+**🚨 BLOCKED - MUST FIX FIRST:**
+**Pre-existing mypy errors blocking commit of Task 3.4** - 19 errors in 5 files that must be fixed before proceeding:
 
-**EFFORT TO COMPLETE:** HIGH (~2-3 weeks, ~42% remaining)
+1. **backend/app/portfolio/models.py** (6 errors):
+   - Lines 14, 24, 37, 50, 59, 68: `Class cannot subclass "BaseModel" (has type "Any")`
+   - Fix: Add proper type imports for Pydantic BaseModel
+
+2. **backend/app/agents/tools.py** (1 error):
+   - Line 146: `Function is missing a type annotation`
+   - Fix: Add return type annotation
+
+3. **backend/app/agents/base.py** (5 errors):
+   - Line 28: `Function is missing a type annotation for one or more arguments`
+   - Line 103: `Need type annotation for "tool_calls_made"`
+   - Lines 193-194: Dict type incompatibility
+   - Fix: Add missing type annotations
+
+4. **backend/app/agents/portfolio_analyzer.py** (4 errors):
+   - Lines 31, 106: Missing type annotations
+   - Line 106: `Signature of "run" incompatible with supertype "Agent"`
+   - Line 113: `Incompatible types in assignment`
+   - Fix: Add type annotations, fix run() signature
+
+5. **backend/app/agents/discovery.py** (3 errors):
+   - Lines 29, 94: Missing type annotations
+   - Line 94: `Signature of "run" incompatible with supertype "Agent"`
+   - Line 101: `Incompatible types in assignment`
+   - Fix: Add type annotations, fix run() signature
+
+**Files ready to commit (once mypy errors fixed):**
+- ✅ `backend/app/analytics/indicators.py` (324 lines, Task 3.2)
+- ✅ `backend/app/storage/schema.py` (updated with technical_indicators table, Task 3.3)
+- ✅ `backend/app/tasks/agent_tasks.py` (updated with update_technical_indicators task, Task 3.4)
+- ✅ All changes are linted, formatted, and have zero mypy errors in modified code
+- ✅ 220 tests passing, no new failures introduced
+
+**⚠️ NEXT STEPS (after fixing mypy errors):**
+1. **FIRST**: Fix 19 pre-existing mypy errors in 5 files listed above
+2. Commit Tasks 3.2-3.4 (indicators.py + schema + celery task)
+3. Continue with Task 3.5: Expose indicators via API
+4. Task 4.0: Paper Trading & Agent Performance Tracking
+5. Task 5.0: Risk Management Suite
+6. Task 6.0: News Sentiment Scoring & Local AI Models
+
+**EFFORT TO COMPLETE:** HIGH (~2-3 weeks, ~39% remaining)
+
+**Session Summary (2025-10-28 - Phase 3.0 Tasks 3.1-3.4 Complete, Blocked):**
+- ✅ Task 3.1: Added pandas-ta>=0.3.14b dependency (committed: 7edef6d)
+- ✅ Task 3.2: Created indicators.py with technical indicator calculations (committed: f61570a, 324 lines)
+- ✅ Task 3.3: Added technical_indicators table to schema (committed: 0c7967d, 19 columns)
+- ✅ Task 3.4: Created update_technical_indicators Celery task (READY TO COMMIT, 156 lines)
+- 🚨 **BLOCKED**: Pre-commit hook failing on 19 pre-existing mypy errors in agent files
+- 📝 3 commits successfully made, 1 blocked
+- 📊 ~480 lines added (indicators.py + agent_tasks.py update)
+- ✅ All new code: zero mypy errors, full type safety, linting clean
+- ✅ 220 tests passing, no new failures
 
 **Session Summary (2025-10-28 - Phase 2.0 Analytics Complete):**
 - ✅ Completed Tasks 2.6-2.10 (Historical backfill + Analytics Infrastructure)
@@ -155,6 +204,33 @@
 ---
 
 ## Tasks
+
+- [ ] 0.0 **URGENT: Fix Pre-Existing Mypy Errors** (Blocking Task 3.4 commit)
+  - [ ] 0.1 Fix backend/app/portfolio/models.py (6 errors)
+    - [ ] Lines 14, 24, 37, 50, 59, 68: Fix Pydantic BaseModel type imports
+    - [ ] Verify: `mypy app/portfolio/models.py --strict` passes
+  - [ ] 0.2 Fix backend/app/agents/tools.py (1 error)
+    - [ ] Line 146: Add return type annotation to function
+    - [ ] Verify: `mypy app/agents/tools.py --strict` passes
+  - [ ] 0.3 Fix backend/app/agents/base.py (5 errors)
+    - [ ] Line 28: Add type annotations for function arguments
+    - [ ] Line 103: Add type annotation for "tool_calls_made" variable
+    - [ ] Lines 193-194: Fix dict type incompatibility
+    - [ ] Verify: `mypy app/agents/base.py --strict` passes
+  - [ ] 0.4 Fix backend/app/agents/portfolio_analyzer.py (4 errors)
+    - [ ] Lines 31, 106: Add missing type annotations
+    - [ ] Line 106: Fix run() method signature to match supertype Agent
+    - [ ] Line 113: Fix incompatible assignment type
+    - [ ] Verify: `mypy app/agents/portfolio_analyzer.py --strict` passes
+  - [ ] 0.5 Fix backend/app/agents/discovery.py (3 errors)
+    - [ ] Lines 29, 94: Add missing type annotations
+    - [ ] Line 94: Fix run() method signature to match supertype Agent
+    - [ ] Line 101: Fix incompatible assignment type
+    - [ ] Verify: `mypy app/agents/discovery.py --strict` passes
+  - [ ] 0.6 Commit Task 3.4 (blocked files)
+    - [ ] Commit: indicators.py, schema.py, agent_tasks.py changes
+    - [ ] Update task list marking Tasks 3.2-3.4 committed
+    - [ ] Verify: Pre-commit hooks pass without errors
 
 - [x] 1.0 Multi-Source Infrastructure Foundation (Port from market-sim) ✅ COMPLETE
   - [x] 1.1 Port core source infrastructure files from market-sim (FR-1.1)
@@ -351,12 +427,13 @@
       - [x] Schema: Added with 17 columns (ticker, date, all indicators, calculated_at)
       - [x] Add to `_create_timeseries_tables()` method
       - [x] Create index: `CREATE INDEX idx_indicators_ticker ON technical_indicators(ticker, date)`
-  - [ ] 3.4 Cache calculated indicators (FR-3.4)
-    - [ ] 3.4.1 Add Celery task: `update_technical_indicators(tickers: list[str])` in `backend/app/tasks/agent_tasks.py`
-      - [ ] Calculate indicators for each ticker using latest 200 days of OHLCV
-      - [ ] Store in `technical_indicators` table
-      - [ ] Schedule: Daily at market close + 30 minutes (4:30 PM ET)
-      - [ ] Use Celery beat for scheduling
+  - [x] 3.4 Cache calculated indicators (FR-3.4) ✅
+    - [x] 3.4.1 Add Celery task: `update_technical_indicators(tickers: list[str])` in `backend/app/tasks/agent_tasks.py`
+      - [x] Calculate indicators for each ticker using latest 200 days of OHLCV
+      - [x] Store in `technical_indicators` table using INSERT OR REPLACE
+      - [x] Returns dict with success/failed/tickers_processed counts
+      - [x] Continues on error for individual tickers (doesn't fail entire task)
+      - [ ] Schedule: Daily at market close + 30 minutes (4:30 PM ET) - Celery beat configuration not yet implemented
   - [ ] 3.5 Expose indicators via API (FR-3.5)
     - [ ] 3.5.1 Create `backend/app/api/indicators.py` (~200 lines)
       - [ ] Add endpoint: `GET /api/symbols/{ticker}/indicators` - All indicators for latest date

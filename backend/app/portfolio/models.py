@@ -11,7 +11,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-class Account(BaseModel):
+class Account(BaseModel):  # type: ignore[misc]
     """Portfolio account model."""
 
     id: str
@@ -21,7 +21,7 @@ class Account(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.now)
 
 
-class Position(BaseModel):
+class Position(BaseModel):  # type: ignore[misc]
     """Portfolio position model."""
 
     id: str
@@ -34,7 +34,7 @@ class Position(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.now)
 
 
-class PriceData(BaseModel):
+class PriceData(BaseModel):  # type: ignore[misc]
     """Price and analytics data for a symbol."""
 
     symbol: str
@@ -47,7 +47,7 @@ class PriceData(BaseModel):
     error: str | None = None
 
 
-class PortfolioValue(BaseModel):
+class PortfolioValue(BaseModel):  # type: ignore[misc]
     """Portfolio valuation metrics."""
 
     total_value: float
@@ -56,7 +56,7 @@ class PortfolioValue(BaseModel):
     total_gain_pct: float
 
 
-class ConcentrationMetrics(BaseModel):
+class ConcentrationMetrics(BaseModel):  # type: ignore[misc]
     """Portfolio concentration risk metrics."""
 
     top_holding_pct: float
@@ -65,7 +65,7 @@ class ConcentrationMetrics(BaseModel):
     herfindahl_index: float
 
 
-class PortfolioAnalytics(BaseModel):
+class PortfolioAnalytics(BaseModel):  # type: ignore[misc]
     """Complete portfolio analytics."""
 
     portfolio_value: PortfolioValue

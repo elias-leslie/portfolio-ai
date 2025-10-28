@@ -8,7 +8,15 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from app.portfolio.analytics import PortfolioAnalytics
+    from app.portfolio.manager import PortfolioManager
+    from app.portfolio.price_fetcher import PriceDataFetcher
+    from app.sources.fred import FREDSource
+    from app.sources.news import GoogleNewsSource
+    from app.storage.facade import DuckDBStorage
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +151,15 @@ def get_store_idea_tool_definition() -> dict[str, Any]:
 class AgentTools:
     """Execute agent tools with access to data sources and storage."""
 
-    def __init__(self, storage, news_source, fred_source, price_fetcher, portfolio_mgr, analytics):
+    def __init__(
+        self,
+        storage: DuckDBStorage,
+        news_source: GoogleNewsSource,
+        fred_source: FREDSource,
+        price_fetcher: PriceDataFetcher,
+        portfolio_mgr: PortfolioManager,
+        analytics: PortfolioAnalytics,
+    ) -> None:
         """Initialize agent tools.
 
         Args:

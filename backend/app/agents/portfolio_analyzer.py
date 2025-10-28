@@ -6,7 +6,10 @@ Analyzes user's portfolio to generate personalized investment ideas.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from app.storage.facade import DuckDBStorage
 
 from .base import Agent
 from .tools import (
@@ -28,7 +31,7 @@ class PortfolioAnalyzerAgent(Agent):
     tailored to their holdings, risk profile, and market conditions.
     """
 
-    def __init__(self, storage, tools: AgentTools, **kwargs):
+    def __init__(self, storage: DuckDBStorage, tools: AgentTools, **kwargs: Any) -> None:
         """Initialize Portfolio Analyzer Agent.
 
         Args:
@@ -38,7 +41,7 @@ class PortfolioAnalyzerAgent(Agent):
         """
         super().__init__(storage, **kwargs)
         self.tools = tools
-        self.current_run_id = None
+        self.current_run_id: str | None = None
 
     def get_system_prompt(self) -> str:
         """Get system prompt for Portfolio Analyzer Agent."""
@@ -103,16 +106,25 @@ Generate exactly 5 ideas that are specifically tailored to this portfolio, then 
 
         raise ValueError(f"Unknown tool: {tool_name}")
 
-    def run(self, **kwargs) -> dict[str, Any]:
-        """Run Portfolio Analyzer Agent with default prompt."""
-        prompt = "Analyze my portfolio and generate 5 personalized investment ideas."
+    def run(self, user_prompt: str = "", max_iterations: int = 10) -> dict[str, Any]:
+        """Run Portfolio Analyzer Agent with default prompt.
+
+        Args:
+            user_prompt: Optional custom prompt (defaults to portfolio analysis)
+            max_iterations: Maximum number of iterations (default: 10)
+
+        Returns:
+            dict containing status, response, and metadata
+        """
+        if not user_prompt:
+            user_prompt = "Analyze my portfolio and generate 5 personalized investment ideas."
 
         # Set run_id for this execution
         import uuid
 
         self.current_run_id = str(uuid.uuid4())
 
-        result = super().run(prompt, **kwargs)
+        result = super().run(user_prompt, max_iterations=max_iterations)
 
         # Clear run_id after execution
         self.current_run_id = None

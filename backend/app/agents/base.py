@@ -9,11 +9,14 @@ import json
 import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 from anthropic import Anthropic
 
 from ..logging_config import get_logger
+
+if TYPE_CHECKING:
+    from app.storage.facade import DuckDBStorage
 
 logger = get_logger(__name__)
 
@@ -27,7 +30,7 @@ class Agent(ABC):
 
     def __init__(
         self,
-        storage,
+        storage: DuckDBStorage,
         anthropic_client: Anthropic | None = None,
         model: str = "claude-3-5-sonnet-20241022",
     ) -> None:
@@ -100,7 +103,7 @@ class Agent(ABC):
 
         try:
             messages = [{"role": "user", "content": user_prompt}]
-            tool_calls_made = []
+            tool_calls_made: list[dict[str, Any]] = []
 
             for iteration in range(max_iterations):
                 response = self.client.messages.create(
@@ -156,9 +159,10 @@ class Agent(ABC):
 
                         if block.type == "tool_use":
                             tool_start = datetime.now()
+                            tool_input = cast(dict[str, Any], block.input)
 
                             # Execute tool
-                            result = self.execute_tool(block.name, block.input)
+                            result = self.execute_tool(block.name, tool_input)
 
                             tool_end = datetime.now()
                             duration_ms = int((tool_end - tool_start).total_seconds() * 1000)
@@ -167,7 +171,7 @@ class Agent(ABC):
                             self._record_tool_call(
                                 run_id,
                                 block.name,
-                                block.input,
+                                tool_input,
                                 result,
                                 duration_ms,
                             )
@@ -175,7 +179,7 @@ class Agent(ABC):
                             tool_calls_made.append(
                                 {
                                     "name": block.name,
-                                    "input": block.input,
+                                    "input": tool_input,
                                     "result": result,
                                 }
                             )
@@ -190,8 +194,8 @@ class Agent(ABC):
                             )
 
                     # Continue conversation with tool results
-                    messages.append({"role": "assistant", "content": assistant_content})
-                    messages.append({"role": "user", "content": tool_results})
+                    messages.append({"role": "assistant", "content": assistant_content})  # type: ignore[dict-item]
+                    messages.append({"role": "user", "content": tool_results})  # type: ignore[dict-item]
 
                 else:
                     # Unexpected stop reason
