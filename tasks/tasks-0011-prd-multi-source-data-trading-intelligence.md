@@ -1,9 +1,9 @@
 # Task List: Multi-Source Data Infrastructure & Trading Intelligence System
 
 **PRD**: `0011-prd-multi-source-data-trading-intelligence.md`
-**Status**: Phase 1.0 Complete, Phase 2.0+ In Progress
-**Completion**: 50% (Phase 1.0 + All Source Adapters complete)
-**Effort to Complete**: HIGH (~2-3 weeks remaining, 55% of work)
+**Status**: Phase 1.0 Complete, Phase 2.0 In Progress
+**Completion**: 52% (Phase 1.0 + All Source Adapters + Historical Backfill + RVOL Calculator complete)
+**Effort to Complete**: HIGH (~2-3 weeks remaining, 48% of work)
 **Last Updated**: 2025-10-28
 
 **Note on Effort Levels**:
@@ -36,21 +36,22 @@
 - Task 2.5: Create Alpha Vantage adapter (430 lines + 58 test lines) ✅
 
 **⚠️ NEXT STEPS:**
-1. Task 2.6: Implement historical backfill pipeline (defer - requires Celery setup)
-2. Task 2.6: Implement historical backfill pipeline
-3. Task 2.7: Create RVOL calculator
-4. Continue with analytics and technical indicators tasks
+1. Task 2.8: Create sector rotation analyzer
+2. Task 2.9: Create peer comparison engine
+3. Task 2.10: Expose analytics via API
+4. Continue with technical indicators tasks (Phase 3.0)
 
 **EFFORT TO COMPLETE:** HIGH (3-4 weeks, ~55% remaining)
 
-**Session Summary (2025-10-28 - Source Adapters Complete):**
-- ✅ Completed Tasks 2.2, 2.3, 2.4, 2.5 (Four new source adapters)
-- ✅ Added: Twelve Data, FMP, Finnhub, Alpha Vantage adapters
-- ✅ All 6 source adapters now operational with priority-based failover
-- ✅ 37 new tests added across 4 test files, all passing
-- 📝 4 commits made with conventional format
-- 📊 3,090 lines added (8 files: 4 sources + 4 test files)
+**Session Summary (2025-10-28 - Historical Backfill & RVOL Complete):**
+- ✅ Completed Tasks 2.6.1, 2.7 (Historical backfill + RVOL calculator)
+- ✅ Added: `ingest_historical_ohlcv` Celery task for multi-source backfill
+- ✅ Created analytics module with RVOL calculator
+- ✅ 11 new tests for volume analytics, all passing
+- 📝 2 commits made with conventional format
+- 📊 ~650 lines added (3 files: analytics + task + tests)
 - ✅ Full type safety, linting clean, comprehensive error handling
+- ✅ Previous session: All 6 source adapters operational
 
 **Context from Current Codebase:**
 - ✅ BaseSource class exists with full multi-source support
@@ -269,7 +270,7 @@
       - [x] Set `priority = 30`, `supports_day = True`
       - [x] Track 25/day and 5/min rate limits
       - [x] Read API key from environment: `ALPHAVANTAGE_API_KEY`
-  - [ ] 2.6 Implement historical backfill pipeline (FR-2.3)
+  - [x] 2.6 Implement historical backfill pipeline (FR-2.3)
     - [x] 2.6.1 Create Celery task in `backend/app/tasks/agent_tasks.py`
       - [x] Add task: `ingest_historical_ohlcv(tickers: list[str], days: int = 252) -> None`
       - [x] Use MultiSourceFetcher with DatasetRequest(dataset='day', tickers, start, end)
