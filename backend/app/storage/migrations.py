@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 from ..logging_config import get_logger
 
 if TYPE_CHECKING:
-    from .facade import DuckDBStorage
+    from .connection import ConnectionManager
 
 logger = get_logger(__name__)
 
@@ -26,7 +26,7 @@ class MigrationManager:
     pending migrations in version order.
     """
 
-    def __init__(self, connection_mgr) -> None:
+    def __init__(self, connection_mgr: ConnectionManager) -> None:
         """Initialize migration manager.
 
         Args:
@@ -153,9 +153,7 @@ class MigrationManager:
         applied_versions = self._get_applied_migrations()
 
         # Filter to pending migrations
-        pending_migrations = [
-            m for m in all_migrations if m[0] not in applied_versions
-        ]
+        pending_migrations = [m for m in all_migrations if m[0] not in applied_versions]
 
         if not pending_migrations:
             logger.info(

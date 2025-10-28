@@ -7,7 +7,12 @@ to specialized managers while maintaining a unified API.
 from __future__ import annotations
 
 import logging
+from contextlib import AbstractContextManager
 from pathlib import Path
+from typing import Any
+
+import duckdb
+import polars as pl
 
 from .connection import get_connection_manager
 from .ingestion import IngestionManager
@@ -51,7 +56,7 @@ class DuckDBStorage:
         logger.info("DuckDBStorage initialized with modular managers")
 
     # Expose connection manager's connection method
-    def connection(self):
+    def connection(self) -> AbstractContextManager[duckdb.DuckDBPyConnection]:
         """Context manager for DuckDB connections.
 
         Yields:
@@ -65,37 +70,37 @@ class DuckDBStorage:
         return self.schema_mgr.ensure_schema()
 
     # Ingestion methods (delegate to IngestionManager)
-    def insert_dataframe(self, table_name, df, mode="append"):
+    def insert_dataframe(self, table_name: str, df: pl.DataFrame, mode: str = "append") -> int:
         """Insert a Polars DataFrame into a table."""
         return self.ingestion_mgr.insert_dataframe(table_name, df, mode)
 
-    def upsert_by_id(self, table_name, df, id_column="id"):
+    def upsert_by_id(self, table_name: str, df: pl.DataFrame, id_column: str = "id") -> int:
         """Upsert data by primary key (delete + insert)."""
         return self.ingestion_mgr.upsert_by_id(table_name, df, id_column)
 
-    def insert_dict(self, table_name, data):
+    def insert_dict(self, table_name: str, data: dict[str, Any]) -> None:
         """Insert a single dictionary as a row."""
         return self.ingestion_mgr.insert_dict(table_name, data)
 
-    def bulk_insert(self, table_name, rows):
+    def bulk_insert(self, table_name: str, rows: list[dict[str, Any]]) -> int:
         """Insert multiple rows from list of dictionaries."""
         return self.ingestion_mgr.bulk_insert(table_name, rows)
 
     # Metadata methods (delegate to MetadataManager)
-    def _update_table_metadata(self, conn, table_name):
+    def _update_table_metadata(self, conn: duckdb.DuckDBPyConnection, table_name: str) -> None:
         """Update table_registry metadata after data write."""
         return self.metadata_mgr.update_table_metadata(conn, table_name)
 
-    def get_table_counts(self):
+    def get_table_counts(self) -> dict[str, int]:
         """Get row counts for all tables."""
         return self.metadata_mgr.get_table_counts()
 
-    def print_status(self, prefix="[duckdb]"):
+    def print_status(self, prefix: str = "[duckdb]") -> None:
         """Print current database status with row counts."""
         return self.metadata_mgr.print_status(prefix)
 
     # Query methods (delegate to QueryManager)
-    def query(self, sql, params=None):
+    def query(self, sql: str, params: list[Any] | None = None) -> pl.DataFrame:
         """Execute a SQL query and return results as a Polars DataFrame."""
         return self.query_mgr.query(sql, params)
 

@@ -6,8 +6,14 @@ This module manages database schema creation and table registry metadata.
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
+
+import duckdb
 
 from .migrations import MigrationManager
+
+if TYPE_CHECKING:
+    from .connection import ConnectionManager
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +27,7 @@ class SchemaManager:
     Handles schema creation for all 11 tables and table registry metadata.
     """
 
-    def __init__(self, connection_mgr) -> None:
+    def __init__(self, connection_mgr: ConnectionManager) -> None:
         """Initialize schema manager.
 
         Args:
@@ -59,7 +65,7 @@ class SchemaManager:
                 logger.error(f"Schema initialization failed, rolled back: {e}")
                 raise
 
-    def _create_config_tables(self, conn) -> None:
+    def _create_config_tables(self, conn: duckdb.DuckDBPyConnection) -> None:
         """Create configuration tables (6 tables)."""
         # source_registry - Data source definitions
         conn.execute("""
@@ -152,7 +158,7 @@ class SchemaManager:
             )
         """)
 
-    def _create_timeseries_tables(self, conn) -> None:
+    def _create_timeseries_tables(self, conn: duckdb.DuckDBPyConnection) -> None:
         """Create time-series data tables (1 table)."""
         # price_cache
         conn.execute("""
@@ -169,7 +175,7 @@ class SchemaManager:
             )
         """)
 
-    def _create_metadata_tables(self, conn) -> None:
+    def _create_metadata_tables(self, conn: duckdb.DuckDBPyConnection) -> None:
         """Create metadata and tracking tables (4 tables)."""
         # agent_runs
         conn.execute("""
@@ -248,7 +254,7 @@ class SchemaManager:
             )
         """)
 
-    def _apply_migrations(self, conn) -> None:
+    def _apply_migrations(self, conn: duckdb.DuckDBPyConnection) -> None:
         """Apply backward-compatible schema migrations.
 
         Uses ADD COLUMN IF NOT EXISTS to allow safe re-runs.
@@ -260,7 +266,7 @@ class SchemaManager:
             except Exception as e:
                 logger.warning(f"Migration {version} failed (may already exist): {e}")
 
-    def _populate_registry_metadata(self, conn) -> None:
+    def _populate_registry_metadata(self, conn: duckdb.DuckDBPyConnection) -> None:
         """Populate table_registry with metadata for all tables."""
         registry_entries = [
             ("source_registry", "config", "Data source definitions"),

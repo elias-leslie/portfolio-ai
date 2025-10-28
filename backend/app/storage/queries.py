@@ -6,9 +6,12 @@ This module provides preset query methods and raw SQL execution capabilities.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import polars as pl
+
+if TYPE_CHECKING:
+    from .connection import ConnectionManager
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +22,7 @@ class QueryManager:
     Provides preset query methods for common use cases and raw SQL execution.
     """
 
-    def __init__(self, connection_mgr) -> None:
+    def __init__(self, connection_mgr: ConnectionManager) -> None:
         """Initialize query manager.
 
         Args:

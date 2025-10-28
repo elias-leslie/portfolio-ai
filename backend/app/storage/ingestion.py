@@ -6,9 +6,13 @@ This module handles data insertion and upserting operations for portfolio tables
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import polars as pl
+
+if TYPE_CHECKING:
+    from .connection import ConnectionManager
+    from .metadata import MetadataManager
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +23,9 @@ class IngestionManager:
     Handles insertion of portfolio positions, accounts, agent runs, and ideas.
     """
 
-    def __init__(self, connection_mgr, metadata_mgr=None) -> None:
+    def __init__(
+        self, connection_mgr: ConnectionManager, metadata_mgr: MetadataManager | None = None
+    ) -> None:
         """Initialize ingestion manager.
 
         Args:
@@ -50,7 +56,7 @@ class IngestionManager:
 
         with self.connection_mgr.connection() as conn:
             # Convert polars to pandas for DuckDB
-            pandas_df = df.to_pandas()
+            pandas_df = df.to_pandas()  # noqa: F841 - DuckDB uses this variable in SQL
 
             if mode == "replace":
                 conn.execute(f"DELETE FROM {table_name}")
@@ -99,7 +105,7 @@ class IngestionManager:
             )
 
             # Insert new rows
-            pandas_df = df.to_pandas()
+            pandas_df = df.to_pandas()  # noqa: F841 - DuckDB uses this variable in SQL
             conn.execute(
                 f"INSERT INTO {table_name} SELECT * FROM pandas_df",
             )

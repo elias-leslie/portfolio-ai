@@ -6,8 +6,12 @@ This module handles table metadata tracking and database status operations.
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 import duckdb
+
+if TYPE_CHECKING:
+    from .connection import ConnectionManager
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +22,7 @@ class MetadataManager:
     Handles table_registry updates, row count tracking, and status reporting.
     """
 
-    def __init__(self, connection_mgr) -> None:
+    def __init__(self, connection_mgr: ConnectionManager) -> None:
         """Initialize metadata manager.
 
         Args:

@@ -16,21 +16,20 @@
 ## Summary
 
 **✅ COMPLETE:**
-- Task 1.1.1: jsonpath_mapper.py (265 lines + 242 test lines)
-- Task 1.1.2: rest_api_source.py (532 lines)
-- Task 1.1.3: polygon_client.py (241 lines)
-- Task 1.1.4: polygon_source.py (214 lines)
-
-**🔄 IN PROGRESS:**
-- Task 1.1: Port core source infrastructure files (4 of 6 subtasks complete)
+- Task 1.1: Port core source infrastructure files (5 of 5 subtasks complete)
+  - Task 1.1.1: jsonpath_mapper.py (265 lines + 242 test lines)
+  - Task 1.1.2: rest_api_source.py (532 lines)
+  - Task 1.1.3: polygon_client.py (241 lines)
+  - Task 1.1.4: polygon_source.py (214 lines)
+  - Task 1.1.5: multi_source_fetcher.py (587 lines)
 
 **⚠️ NEXT STEPS:**
-1. Task 1.1.5: Create multi_source_fetcher.py (~587 lines) - Core failover orchestrator
-2. Task 1.2: Update database schema for source tracking
-3. Task 1.3: Refactor price_fetcher.py to use MultiSourceFetcher
+1. Task 1.2: Update database schema for source tracking
+2. Task 1.3: Refactor price_fetcher.py to use MultiSourceFetcher
+3. Task 1.4: Update health check endpoint
 4. Continue with remaining tasks sequentially
 
-**EFFORT TO COMPLETE:** HIGH (3-4 weeks, ~80% remaining)
+**EFFORT TO COMPLETE:** HIGH (3-4 weeks, ~75% remaining)
 
 **Context from Current Codebase:**
 - ✅ BaseSource class exists (`backend/app/sources/base.py`) - adapted from market-sim
@@ -44,7 +43,7 @@
 
 ## Relevant Files
 
-### Files Created (5 files)
+### Files Created (6 files)
 
 **Core Multi-Source Infrastructure:**
 - ✅ `backend/app/sources/jsonpath_mapper.py` (265 lines) - JSONPath field mapping with nested data extraction, timestamp conversion, and validation
@@ -52,11 +51,11 @@
 - ✅ `backend/app/sources/rest_api_source.py` (532 lines) - Dynamic REST API source adapter with auth, rate limiting, structured logging
 - ✅ `backend/app/sources/polygon_client.py` (241 lines) - Polygon API client with thread-safe rate limiting (5/min) and retries
 - ✅ `backend/app/sources/polygon_source.py` (214 lines) - Polygon source adapter implementing BaseSource interface
+- ✅ `backend/app/sources/multi_source_fetcher.py` (587 lines) - Priority-based failover with 60s cooldown, source performance tracking, metrics persistence
 
-### Files to Create (27 remaining files)
+### Files to Create (26 remaining files)
 
 **Core Multi-Source Infrastructure:**
-- `backend/app/sources/multi_source_fetcher.py` (~587 lines) - Priority-based failover with cooldown management
 - `backend/app/sources/yfinance_source.py` (~200 lines) - YFinance adapter implementing BaseSource
 - `backend/app/sources/twelvedata_source.py` (~200 lines) - Twelve Data adapter implementing BaseSource
 - `backend/app/sources/fmp_source.py` (~150 lines) - Financial Modeling Prep adapter
@@ -120,7 +119,7 @@
 ## Tasks
 
 - [ ] 1.0 Multi-Source Infrastructure Foundation (Port from market-sim)
-  - [ ] 1.1 Port core source infrastructure files from market-sim (FR-1.1)
+  - [x] 1.1 Port core source infrastructure files from market-sim (FR-1.1)
     - [x] 1.1.1 Create `backend/app/sources/jsonpath_mapper.py` (~100 lines)
       - [x] Port JSONPath field mapping logic from market-sim
       - [x] Add type hints for all functions
@@ -148,14 +147,14 @@
       - [x] Implement `fetch_reference_payload()` returning company info
       - [x] Map Polygon response fields to portfolio-ai schema using jsonpath_mapper
       - [x] Add structured logging: "polygon_fetch_success", "polygon_rate_limit_hit"
-    - [ ] 1.1.5 Create `backend/app/sources/multi_source_fetcher.py` (~587 lines)
-      - [ ] Port MultiSourceFetcher from market-sim
-      - [ ] Implement priority-based failover chain (FR-1.4)
-      - [ ] Add 60-second rate limit cooldown on HTTP 429 (FR-1.5)
-      - [ ] Track source performance metrics (success rate, latency, rate limit hits) (FR-1.6)
-      - [ ] Store metrics in `source_performance` table (need schema update)
-      - [ ] Add method: `fetch_with_fallback(request: DatasetRequest) -> pl.DataFrame | None`
-      - [ ] Log all failover events with structured logging
+    - [x] 1.1.5 Create `backend/app/sources/multi_source_fetcher.py` (~587 lines)
+      - [x] Port MultiSourceFetcher from market-sim
+      - [x] Implement priority-based failover chain (FR-1.4)
+      - [x] Add 60-second rate limit cooldown on HTTP 429 (FR-1.5)
+      - [x] Track source performance metrics (success rate, latency, rate limit hits) (FR-1.6)
+      - [x] Store metrics in `source_performance` table (need schema update)
+      - [x] Add method: `fetch_with_fallback(request: DatasetRequest) -> pl.DataFrame | None`
+      - [x] Log all failover events with structured logging
   - [ ] 1.2 Update database schema for source tracking (FR-1.6, FR-2.3)
     - [ ] 1.2.1 Add `source_performance` table to `backend/app/storage/schema.py`
       - [ ] Schema: `source_name TEXT PRIMARY KEY, success_count INTEGER, failure_count INTEGER, total_latency_ms BIGINT, rate_limit_hits INTEGER, last_success_at TIMESTAMP`
