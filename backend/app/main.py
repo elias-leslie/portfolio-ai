@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import ideas, market, portfolio, preferences
+from app.api import health, ideas, market, portfolio, preferences
 from app.logging_config import configure_logging, get_logger
 from app.storage import get_storage
 
@@ -57,6 +57,7 @@ app.add_middleware(
 )
 
 # Register routers
+app.include_router(health.router)
 app.include_router(portfolio.router)
 app.include_router(ideas.router)
 app.include_router(market.router)
@@ -71,9 +72,3 @@ async def root() -> dict[str, str]:
         "version": "1.0.0",
         "docs": "/docs",
     }
-
-
-@app.get("/health")
-async def health() -> dict[str, str]:
-    """Health check endpoint."""
-    return {"status": "healthy"}

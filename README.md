@@ -4,7 +4,7 @@ AI-led investment intelligence platform combining portfolio analytics with auton
 
 ## 🎯 Project Status
 
-**Last Updated**: 2025-10-27  
+**Last Updated**: 2025-10-27
 **Development Phase**: MVP Complete - Ready for Manual Testing
 
 ### ✅ What's Done (Automated)
@@ -58,7 +58,7 @@ For testing on your phone:
 # Terminal 1: Start backend
 cd backend && source .venv/bin/activate && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-# Terminal 2: Start frontend  
+# Terminal 2: Start frontend
 cd frontend && npm run dev
 
 # Terminal 3: Configure Tailscale

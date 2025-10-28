@@ -161,9 +161,7 @@ class Agent(ABC):
                             result = self.execute_tool(block.name, block.input)
 
                             tool_end = datetime.now()
-                            duration_ms = int(
-                                (tool_end - tool_start).total_seconds() * 1000
-                            )
+                            duration_ms = int((tool_end - tool_start).total_seconds() * 1000)
 
                             # Record tool call
                             self._record_tool_call(

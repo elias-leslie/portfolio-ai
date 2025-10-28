@@ -123,9 +123,7 @@ class PortfolioManager:
             position.model_dump(),
         )
 
-        logger.info(
-            f"Created position {position_id}: {shares} shares of {symbol} at ${cost_basis}"
-        )
+        logger.info(f"Created position {position_id}: {shares} shares of {symbol} at ${cost_basis}")
         return position
 
     def update_position(
@@ -203,9 +201,7 @@ class PortfolioManager:
                 [account_id],
             )
         else:
-            df = self.storage.query(
-                "SELECT * FROM portfolio_positions ORDER BY symbol"
-            )
+            df = self.storage.query("SELECT * FROM portfolio_positions ORDER BY symbol")
 
         if df.is_empty():
             return []

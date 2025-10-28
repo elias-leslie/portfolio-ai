@@ -50,8 +50,9 @@ def test_storage() -> DuckDBStorage:
 def client(test_storage: DuckDBStorage) -> TestClient:
     """Create a test client with patched storage."""
     # Patch storage at multiple import points
-    with patch("app.api.ideas.storage", test_storage), patch(
-        "app.api.ideas.get_storage", return_value=test_storage
+    with (
+        patch("app.api.ideas.storage", test_storage),
+        patch("app.api.ideas.get_storage", return_value=test_storage),
     ):
         yield TestClient(app)
 
@@ -95,9 +96,7 @@ def _insert_test_idea(
     """Helper to insert a test idea and return its ID."""
     # Ensure agent run exists (idempotent)
     with storage.connection() as conn:
-        existing = conn.execute(
-            "SELECT id FROM agent_runs WHERE id = ?", [agent_run_id]
-        ).fetchone()
+        existing = conn.execute("SELECT id FROM agent_runs WHERE id = ?", [agent_run_id]).fetchone()
         if not existing:
             _insert_test_agent_run(storage, run_id=agent_run_id)
 
@@ -144,9 +143,7 @@ def test_get_ideas_empty(client: TestClient) -> None:
     assert data["ideas"] == []
 
 
-def test_get_ideas_with_data(
-    client: TestClient, test_storage: DuckDBStorage
-) -> None:
+def test_get_ideas_with_data(client: TestClient, test_storage: DuckDBStorage) -> None:
     """Test GET /api/ideas returns ideas sorted by confidence score."""
     # Insert test ideas with different confidence scores
     _insert_test_idea(
@@ -182,9 +179,7 @@ def test_get_ideas_with_data(
     assert data["ideas"][2]["title"] == "Low Confidence Idea"
 
 
-def test_get_ideas_filter_by_type(
-    client: TestClient, test_storage: DuckDBStorage
-) -> None:
+def test_get_ideas_filter_by_type(client: TestClient, test_storage: DuckDBStorage) -> None:
     """Test GET /api/ideas with idea_type filter."""
     _insert_test_idea(test_storage, idea_type="long", title="Long Idea")
     _insert_test_idea(test_storage, idea_type="short", title="Short Idea")
@@ -198,9 +193,7 @@ def test_get_ideas_filter_by_type(
     assert all(idea["idea_type"] == "long" for idea in data["ideas"])
 
 
-def test_get_ideas_filter_by_status(
-    client: TestClient, test_storage: DuckDBStorage
-) -> None:
+def test_get_ideas_filter_by_status(client: TestClient, test_storage: DuckDBStorage) -> None:
     """Test GET /api/ideas with status filter."""
     _insert_test_idea(test_storage, title="Pending Idea", status="pending")
     _insert_test_idea(test_storage, title="Validated Idea", status="validated")
@@ -218,15 +211,9 @@ def test_get_ideas_filter_by_type_and_status(
     client: TestClient, test_storage: DuckDBStorage
 ) -> None:
     """Test GET /api/ideas with multiple filters."""
-    _insert_test_idea(
-        test_storage, idea_type="long", title="Long Pending", status="pending"
-    )
-    _insert_test_idea(
-        test_storage, idea_type="long", title="Long Validated", status="validated"
-    )
-    _insert_test_idea(
-        test_storage, idea_type="short", title="Short Pending", status="pending"
-    )
+    _insert_test_idea(test_storage, idea_type="long", title="Long Pending", status="pending")
+    _insert_test_idea(test_storage, idea_type="long", title="Long Validated", status="validated")
+    _insert_test_idea(test_storage, idea_type="short", title="Short Pending", status="pending")
 
     response = client.get("/api/ideas?idea_type=long&status=pending")
 
@@ -236,9 +223,7 @@ def test_get_ideas_filter_by_type_and_status(
     assert data["ideas"][0]["title"] == "Long Pending"
 
 
-def test_get_ideas_with_limit(
-    client: TestClient, test_storage: DuckDBStorage
-) -> None:
+def test_get_ideas_with_limit(client: TestClient, test_storage: DuckDBStorage) -> None:
     """Test GET /api/ideas with limit parameter."""
     for i in range(10):
         _insert_test_idea(test_storage, title=f"Idea {i}")
@@ -251,13 +236,9 @@ def test_get_ideas_with_limit(
     assert len(data["ideas"]) == 5
 
 
-def test_get_idea_details_success(
-    client: TestClient, test_storage: DuckDBStorage
-) -> None:
+def test_get_idea_details_success(client: TestClient, test_storage: DuckDBStorage) -> None:
     """Test GET /api/ideas/{id} returns idea details."""
-    idea_id = _insert_test_idea(
-        test_storage, title="Detailed Test Idea", confidence_score=0.85
-    )
+    idea_id = _insert_test_idea(test_storage, title="Detailed Test Idea", confidence_score=0.85)
 
     response = client.get(f"/api/ideas/{idea_id}")
 
@@ -280,15 +261,11 @@ def test_get_idea_details_not_found(client: TestClient) -> None:
     assert response.json()["detail"] == "Idea not found"
 
 
-def test_update_idea_status_success(
-    client: TestClient, test_storage: DuckDBStorage
-) -> None:
+def test_update_idea_status_success(client: TestClient, test_storage: DuckDBStorage) -> None:
     """Test PATCH /api/ideas/{id}/status updates status."""
     idea_id = _insert_test_idea(test_storage, status="pending")
 
-    response = client.patch(
-        f"/api/ideas/{idea_id}/status", json={"status": "validated"}
-    )
+    response = client.patch(f"/api/ideas/{idea_id}/status", json={"status": "validated"})
 
     assert response.status_code == 200
     data = response.json()
@@ -297,9 +274,7 @@ def test_update_idea_status_success(
 
     # Verify in database
     with test_storage.connection() as conn:
-        result = conn.execute(
-            "SELECT status FROM agent_ideas WHERE id = ?", [idea_id]
-        ).fetchone()
+        result = conn.execute("SELECT status FROM agent_ideas WHERE id = ?", [idea_id]).fetchone()
         assert result[0] == "validated"
 
 
@@ -310,32 +285,24 @@ def test_update_idea_status_all_transitions(
     idea_id = _insert_test_idea(test_storage, status="pending")
 
     # pending -> validated
-    response = client.patch(
-        f"/api/ideas/{idea_id}/status", json={"status": "validated"}
-    )
+    response = client.patch(f"/api/ideas/{idea_id}/status", json={"status": "validated"})
     assert response.status_code == 200
     assert response.json()["status"] == "validated"
 
     # validated -> executed
-    response = client.patch(
-        f"/api/ideas/{idea_id}/status", json={"status": "executed"}
-    )
+    response = client.patch(f"/api/ideas/{idea_id}/status", json={"status": "executed"})
     assert response.status_code == 200
     assert response.json()["status"] == "executed"
 
     # executed -> rejected (edge case)
-    response = client.patch(
-        f"/api/ideas/{idea_id}/status", json={"status": "rejected"}
-    )
+    response = client.patch(f"/api/ideas/{idea_id}/status", json={"status": "rejected"})
     assert response.status_code == 200
     assert response.json()["status"] == "rejected"
 
 
 def test_update_idea_status_not_found(client: TestClient) -> None:
     """Test PATCH /api/ideas/{id}/status with non-existent ID."""
-    response = client.patch(
-        "/api/ideas/non-existent-id/status", json={"status": "validated"}
-    )
+    response = client.patch("/api/ideas/non-existent-id/status", json={"status": "validated"})
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Idea not found"
@@ -352,9 +319,7 @@ def test_generate_ideas_discovery_agent(
 
     # The run() method will insert the agent_run record into the database
     def mock_run() -> dict:
-        _insert_test_agent_run(
-            test_storage, run_id="run-123", agent_type="discovery", num_ideas=5
-        )
+        _insert_test_agent_run(test_storage, run_id="run-123", agent_type="discovery", num_ideas=5)
         return {
             "status": "completed",
             "run_id": "run-123",
@@ -403,9 +368,7 @@ def test_generate_ideas_portfolio_analyzer_agent(
     mock_agent.run = mock_run
     mock_agent_class.return_value = mock_agent
 
-    response = client.post(
-        "/api/ideas/generate", json={"agent_type": "portfolio_analyzer"}
-    )
+    response = client.post("/api/ideas/generate", json={"agent_type": "portfolio_analyzer"})
 
     assert response.status_code == 200
     data = response.json()
@@ -419,9 +382,7 @@ def test_generate_ideas_portfolio_analyzer_agent(
 
 
 @patch("app.api.ideas.DiscoveryAgent")
-def test_generate_ideas_agent_failure(
-    mock_agent_class: Mock, client: TestClient
-) -> None:
+def test_generate_ideas_agent_failure(mock_agent_class: Mock, client: TestClient) -> None:
     """Test POST /api/ideas/generate when agent fails."""
     # Mock agent instance with failed run
     mock_agent = Mock()
@@ -445,9 +406,7 @@ def test_generate_ideas_invalid_agent_type(client: TestClient) -> None:
     assert response.status_code == 422  # Validation error
 
 
-def test_ideas_api_fields_completeness(
-    client: TestClient, test_storage: DuckDBStorage
-) -> None:
+def test_ideas_api_fields_completeness(client: TestClient, test_storage: DuckDBStorage) -> None:
     """Test that all idea fields are present in API responses."""
     idea_id = _insert_test_idea(test_storage)
 

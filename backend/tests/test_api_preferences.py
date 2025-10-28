@@ -48,15 +48,14 @@ def test_storage() -> DuckDBStorage:
 def client(test_storage: DuckDBStorage) -> TestClient:
     """Create a test client with patched storage."""
     # Patch storage at multiple import points
-    with patch("app.api.preferences.storage", test_storage), patch(
-        "app.api.preferences.get_storage", return_value=test_storage
+    with (
+        patch("app.api.preferences.storage", test_storage),
+        patch("app.api.preferences.get_storage", return_value=test_storage),
     ):
         yield TestClient(app)
 
 
-def test_get_preferences_creates_defaults(
-    client: TestClient, test_storage: DuckDBStorage
-) -> None:
+def test_get_preferences_creates_defaults(client: TestClient, test_storage: DuckDBStorage) -> None:
     """Test GET /api/preferences creates default preferences if none exist."""
     # Verify no preferences exist
     with test_storage.connection() as conn:
@@ -83,9 +82,7 @@ def test_get_preferences_creates_defaults(
         assert result[0] == 1
 
 
-def test_get_preferences_returns_existing(
-    client: TestClient, test_storage: DuckDBStorage
-) -> None:
+def test_get_preferences_returns_existing(client: TestClient, test_storage: DuckDBStorage) -> None:
     """Test GET /api/preferences returns existing preferences."""
     import uuid
     from datetime import datetime
@@ -129,9 +126,7 @@ def test_get_preferences_returns_existing(
     assert data["max_position_size_pct"] == 20.0
 
 
-def test_update_preferences_all_fields(
-    client: TestClient, test_storage: DuckDBStorage
-) -> None:
+def test_update_preferences_all_fields(client: TestClient, test_storage: DuckDBStorage) -> None:
     """Test POST /api/preferences updates all fields."""
     # First get/create defaults
     client.get("/api/preferences")
@@ -169,9 +164,7 @@ def test_update_preferences_all_fields(
         assert result[1] == 15.0
 
 
-def test_update_preferences_partial_update(
-    client: TestClient, test_storage: DuckDBStorage
-) -> None:
+def test_update_preferences_partial_update(client: TestClient, test_storage: DuckDBStorage) -> None:
     """Test POST /api/preferences with partial update (only some fields)."""
     # Create defaults first
     client.get("/api/preferences")
@@ -248,32 +241,22 @@ def test_update_preferences_max_position_size_validation(
     client.get("/api/preferences")
 
     # Try to set negative value
-    response = client.post(
-        "/api/preferences", json={"max_position_size_pct": -5.0}
-    )
+    response = client.post("/api/preferences", json={"max_position_size_pct": -5.0})
     assert response.status_code == 422
 
     # Try to set value over 100
-    response = client.post(
-        "/api/preferences", json={"max_position_size_pct": 150.0}
-    )
+    response = client.post("/api/preferences", json={"max_position_size_pct": 150.0})
     assert response.status_code == 422
 
     # Valid values should work
-    response = client.post(
-        "/api/preferences", json={"max_position_size_pct": 0.1}
-    )
+    response = client.post("/api/preferences", json={"max_position_size_pct": 0.1})
     assert response.status_code == 200
 
-    response = client.post(
-        "/api/preferences", json={"max_position_size_pct": 100.0}
-    )
+    response = client.post("/api/preferences", json={"max_position_size_pct": 100.0})
     assert response.status_code == 200
 
 
-def test_update_preferences_boolean_fields(
-    client: TestClient, test_storage: DuckDBStorage
-) -> None:
+def test_update_preferences_boolean_fields(client: TestClient, test_storage: DuckDBStorage) -> None:
     """Test POST /api/preferences updates boolean fields correctly."""
     # Create defaults
     client.get("/api/preferences")
@@ -313,9 +296,7 @@ def test_update_preferences_boolean_fields(
     assert data["allow_futures"] is True  # Should remain True
 
 
-def test_preferences_response_structure(
-    client: TestClient, test_storage: DuckDBStorage
-) -> None:
+def test_preferences_response_structure(client: TestClient, test_storage: DuckDBStorage) -> None:
     """Test that preferences responses have correct structure and field types."""
     response = client.get("/api/preferences")
 

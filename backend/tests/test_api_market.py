@@ -49,16 +49,15 @@ def test_storage() -> DuckDBStorage:
 def client(test_storage: DuckDBStorage) -> TestClient:
     """Create a test client with patched storage."""
     # Patch storage at multiple import points
-    with patch("app.api.market.storage", test_storage), patch(
-        "app.api.market.get_storage", return_value=test_storage
+    with (
+        patch("app.api.market.storage", test_storage),
+        patch("app.api.market.get_storage", return_value=test_storage),
     ):
         yield TestClient(app)
 
 
 @patch("app.api.market.price_fetcher.fetch_price_data")
-def test_get_market_conditions_success(
-    mock_fetch: Mock, client: TestClient
-) -> None:
+def test_get_market_conditions_success(mock_fetch: Mock, client: TestClient) -> None:
     """Test GET /api/market/conditions with successful data fetch."""
     # Mock price data for market indicators
     mock_fetch.return_value = {
@@ -69,12 +68,8 @@ def test_get_market_conditions_success(
             volatility=None,
             sector=None,
         ),
-        "^VIX": PriceData(
-            symbol="^VIX", price=18.5, beta=None, volatility=None, sector=None
-        ),
-        "^TNX": PriceData(
-            symbol="^TNX", price=4.25, beta=None, volatility=None, sector=None
-        ),
+        "^VIX": PriceData(symbol="^VIX", price=18.5, beta=None, volatility=None, sector=None),
+        "^TNX": PriceData(symbol="^TNX", price=4.25, beta=None, volatility=None, sector=None),
         "DX-Y.NYB": PriceData(
             symbol="DX-Y.NYB", price=103.5, beta=None, volatility=None, sector=None
         ),
@@ -103,18 +98,12 @@ def test_get_market_conditions_success(
 
 
 @patch("app.api.market.price_fetcher.fetch_price_data")
-def test_get_market_conditions_partial_data(
-    mock_fetch: Mock, client: TestClient
-) -> None:
+def test_get_market_conditions_partial_data(mock_fetch: Mock, client: TestClient) -> None:
     """Test GET /api/market/conditions when some data is missing."""
     # Mock with only S&P 500 and VIX available
     mock_fetch.return_value = {
-        "^GSPC": PriceData(
-            symbol="^GSPC", price=4500.50, beta=None, volatility=None, sector=None
-        ),
-        "^VIX": PriceData(
-            symbol="^VIX", price=18.5, beta=None, volatility=None, sector=None
-        ),
+        "^GSPC": PriceData(symbol="^GSPC", price=4500.50, beta=None, volatility=None, sector=None),
+        "^VIX": PriceData(symbol="^VIX", price=18.5, beta=None, volatility=None, sector=None),
     }
 
     response = client.get("/api/market/conditions")
@@ -132,9 +121,7 @@ def test_get_market_conditions_partial_data(
 
 
 @patch("app.api.market.price_fetcher.fetch_price_data")
-def test_get_market_conditions_empty_data(
-    mock_fetch: Mock, client: TestClient
-) -> None:
+def test_get_market_conditions_empty_data(mock_fetch: Mock, client: TestClient) -> None:
     """Test GET /api/market/conditions when no data is available."""
     mock_fetch.return_value = {}
 
@@ -259,9 +246,7 @@ def test_get_prices_with_whitespace(mock_fetch: Mock, client: TestClient) -> Non
 
 
 @patch("app.api.market.price_fetcher.fetch_price_data")
-def test_get_prices_with_optional_fields_none(
-    mock_fetch: Mock, client: TestClient
-) -> None:
+def test_get_prices_with_optional_fields_none(mock_fetch: Mock, client: TestClient) -> None:
     """Test GET /api/market/prices when optional fields are None."""
     mock_fetch.return_value = {
         "AAPL": PriceData(

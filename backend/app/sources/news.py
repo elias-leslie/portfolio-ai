@@ -59,9 +59,7 @@ class GoogleNewsSource:
                 "gl": "US",
                 "ceid": "US:en",
             }
-            url = f"{self.BASE_URL}?" + "&".join(
-                f"{k}={v}" for k, v in params.items()
-            )
+            url = f"{self.BASE_URL}?" + "&".join(f"{k}={v}" for k, v in params.items())
 
             # Fetch and parse RSS feed
             feed = feedparser.parse(url)

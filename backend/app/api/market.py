@@ -75,7 +75,7 @@ async def get_market_conditions() -> MarketConditionsResponse:
 
 @router.get("/prices", response_model=PricesResponse)
 async def get_prices(
-    symbols: str = Query(..., description="Comma-separated symbols")
+    symbols: str = Query(..., description="Comma-separated symbols"),
 ) -> PricesResponse:
     """Get current prices for stock symbols."""
     # Parse symbols

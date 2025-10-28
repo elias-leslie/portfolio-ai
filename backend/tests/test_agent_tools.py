@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock
 
 import pytest
 
@@ -18,9 +18,9 @@ from app.agents.tools import (
 from app.portfolio.models import (
     ConcentrationMetrics,
     PortfolioAnalytics,
+    PortfolioValue,
     Position,
     PriceData,
-    PortfolioValue,
 )
 
 
@@ -182,9 +182,7 @@ def test_execute_get_news_default_max_results(
     mock_news_source.fetch_headlines.assert_called_once_with("technology", 10)
 
 
-def test_execute_get_economic_data(
-    agent_tools: AgentTools, mock_fred_source: Mock
-) -> None:
+def test_execute_get_economic_data(agent_tools: AgentTools, mock_fred_source: Mock) -> None:
     """Test executing get_economic_data tool."""
     # Setup mock
     mock_data = {
@@ -308,9 +306,7 @@ def test_execute_get_portfolio_data_with_positions(
     mock_analytics.calculate_full_analytics.assert_called_once()
 
 
-def test_execute_get_price_data(
-    agent_tools: AgentTools, mock_price_fetcher: Mock
-) -> None:
+def test_execute_get_price_data(agent_tools: AgentTools, mock_price_fetcher: Mock) -> None:
     """Test executing get_price_data tool."""
     # Setup mock
     price_data = {
@@ -385,9 +381,7 @@ def test_execute_store_idea(agent_tools: AgentTools, mock_storage: Mock) -> None
     assert "updated_at" in stored_data
 
 
-def test_execute_store_idea_minimal_fields(
-    agent_tools: AgentTools, mock_storage: Mock
-) -> None:
+def test_execute_store_idea_minimal_fields(agent_tools: AgentTools, mock_storage: Mock) -> None:
     """Test store_idea with only required fields."""
     run_id = "test-run-id"
     idea_data = {

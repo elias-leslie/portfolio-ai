@@ -74,9 +74,7 @@ class PortfolioAnalytics:
             total_cost_basis += position_cost
 
         total_gain = total_value - total_cost_basis
-        total_gain_pct = (
-            (total_gain / total_cost_basis * 100) if total_cost_basis != 0 else 0.0
-        )
+        total_gain_pct = (total_gain / total_cost_basis * 100) if total_cost_basis != 0 else 0.0
 
         return PortfolioValue(
             total_value=total_value,
@@ -238,9 +236,7 @@ class PortfolioAnalytics:
 
         # Calculate Herfindahl-Hirschman Index (HHI)
         # Sum of squared market shares (0-10000 scale)
-        herfindahl_index = sum(
-            ((value / total_value * 100) ** 2) for _, value in position_values
-        )
+        herfindahl_index = sum(((value / total_value * 100) ** 2) for _, value in position_values)
 
         return ConcentrationMetrics(
             top_holding_pct=top_holding_pct,

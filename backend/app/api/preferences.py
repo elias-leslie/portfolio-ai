@@ -26,9 +26,7 @@ class PreferencesResponse(BaseModel):
     allow_options: bool = Field(..., description="Allow options trading")
     allow_crypto: bool = Field(..., description="Allow crypto trading")
     allow_futures: bool = Field(..., description="Allow futures trading")
-    max_position_size_pct: float = Field(
-        ..., description="Maximum position size as % of portfolio"
-    )
+    max_position_size_pct: float = Field(..., description="Maximum position size as % of portfolio")
 
 
 class PreferencesUpdate(BaseModel):

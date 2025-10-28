@@ -26,10 +26,10 @@ def storage() -> DuckDBStorage:
 
     # Create fresh storage instance (bypass singleton)
     from app.storage.connection import ConnectionManager
-    from app.storage.schema import SchemaManager
-    from app.storage.metadata import MetadataManager
     from app.storage.ingestion import IngestionManager
+    from app.storage.metadata import MetadataManager
     from app.storage.queries import QueryManager
+    from app.storage.schema import SchemaManager
 
     storage_inst = DuckDBStorage.__new__(DuckDBStorage)
     storage_inst.connection_mgr = ConnectionManager(db_path=db_path)
@@ -175,9 +175,7 @@ def mock_anthropic_client() -> Mock:
     return mock
 
 
-def test_discovery_agent_initialization(
-    storage: DuckDBStorage, agent_tools: AgentTools
-) -> None:
+def test_discovery_agent_initialization(storage: DuckDBStorage, agent_tools: AgentTools) -> None:
     """Test Discovery Agent initialization."""
     agent = DiscoveryAgent(storage=storage, tools=agent_tools)
 
@@ -187,9 +185,7 @@ def test_discovery_agent_initialization(
     assert agent.current_run_id is None
 
 
-def test_discovery_agent_system_prompt(
-    storage: DuckDBStorage, agent_tools: AgentTools
-) -> None:
+def test_discovery_agent_system_prompt(storage: DuckDBStorage, agent_tools: AgentTools) -> None:
     """Test Discovery Agent system prompt."""
     agent = DiscoveryAgent(storage=storage, tools=agent_tools)
     prompt = agent.get_system_prompt()
@@ -201,9 +197,7 @@ def test_discovery_agent_system_prompt(
     assert "store_idea" in prompt
 
 
-def test_discovery_agent_tools(
-    storage: DuckDBStorage, agent_tools: AgentTools
-) -> None:
+def test_discovery_agent_tools(storage: DuckDBStorage, agent_tools: AgentTools) -> None:
     """Test Discovery Agent tool definitions."""
     agent = DiscoveryAgent(storage=storage, tools=agent_tools)
     tools = agent.get_tools()
@@ -236,9 +230,7 @@ def test_discovery_agent_execute_tool_get_economic_data(
     """Test executing get_economic_data tool."""
     agent = DiscoveryAgent(storage=storage, tools=agent_tools)
 
-    result = agent.execute_tool(
-        "get_economic_data", {"indicators": ["VIX", "FEDFUNDS"]}
-    )
+    result = agent.execute_tool("get_economic_data", {"indicators": ["VIX", "FEDFUNDS"]})
 
     assert "indicators" in result
     assert "count" in result
@@ -484,9 +476,7 @@ def test_discovery_agent_handles_max_iterations(
     response.content = [block]
     mock_client.messages.create.return_value = response
 
-    agent = DiscoveryAgent(
-        storage=storage, tools=agent_tools, anthropic_client=mock_client
-    )
+    agent = DiscoveryAgent(storage=storage, tools=agent_tools, anthropic_client=mock_client)
 
     # Run with max_iterations=3
     result = agent.run(max_iterations=3)
@@ -495,17 +485,13 @@ def test_discovery_agent_handles_max_iterations(
     assert result["iterations"] == 3
 
 
-def test_discovery_agent_handles_api_error(
-    storage: DuckDBStorage, agent_tools: AgentTools
-) -> None:
+def test_discovery_agent_handles_api_error(storage: DuckDBStorage, agent_tools: AgentTools) -> None:
     """Test agent handles API errors gracefully."""
     # Create mock that raises exception
     mock_client = Mock()
     mock_client.messages.create.side_effect = Exception("API Error")
 
-    agent = DiscoveryAgent(
-        storage=storage, tools=agent_tools, anthropic_client=mock_client
-    )
+    agent = DiscoveryAgent(storage=storage, tools=agent_tools, anthropic_client=mock_client)
 
     result = agent.run()
 

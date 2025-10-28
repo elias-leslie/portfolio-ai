@@ -190,9 +190,7 @@ async def generate_ideas(request: GenerateIdeasRequest) -> GenerateIdeasResponse
 async def get_idea_details(idea_id: str) -> IdeaResponse:
     """Get detailed information about a specific idea."""
     with storage.connection() as conn:
-        result = conn.execute(
-            "SELECT * FROM agent_ideas WHERE id = ?", [idea_id]
-        ).fetchone()
+        result = conn.execute("SELECT * FROM agent_ideas WHERE id = ?", [idea_id]).fetchone()
 
     if not result:
         raise HTTPException(status_code=404, detail="Idea not found")
@@ -217,15 +215,11 @@ async def get_idea_details(idea_id: str) -> IdeaResponse:
 
 
 @router.patch("/{idea_id}/status")
-async def update_idea_status(
-    idea_id: str, request: UpdateIdeaStatusRequest
-) -> IdeaResponse:
+async def update_idea_status(idea_id: str, request: UpdateIdeaStatusRequest) -> IdeaResponse:
     """Update the status of an investment idea."""
     # Check if idea exists
     with storage.connection() as conn:
-        existing = conn.execute(
-            "SELECT * FROM agent_ideas WHERE id = ?", [idea_id]
-        ).fetchone()
+        existing = conn.execute("SELECT * FROM agent_ideas WHERE id = ?", [idea_id]).fetchone()
 
     if not existing:
         raise HTTPException(status_code=404, detail="Idea not found")
@@ -239,9 +233,7 @@ async def update_idea_status(
 
     # Return updated idea
     with storage.connection() as conn:
-        result = conn.execute(
-            "SELECT * FROM agent_ideas WHERE id = ?", [idea_id]
-        ).fetchone()
+        result = conn.execute("SELECT * FROM agent_ideas WHERE id = ?", [idea_id]).fetchone()
 
     return IdeaResponse(
         id=result[0],

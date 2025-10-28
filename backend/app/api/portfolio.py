@@ -48,9 +48,7 @@ class PositionCreate(BaseModel):
     symbol: str = Field(..., description="Stock symbol (e.g., AAPL)")
     shares: float = Field(..., description="Number of shares", gt=0)
     cost_basis: float = Field(..., description="Cost basis per share", gt=0)
-    position_type: Literal["long", "short"] = Field(
-        default="long", description="Position type"
-    )
+    position_type: Literal["long", "short"] = Field(default="long", description="Position type")
 
 
 class PositionResponse(BaseModel):

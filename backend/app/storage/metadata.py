@@ -94,9 +94,8 @@ class MetadataManager:
             if count > 0:
                 print(f"{prefix}   {table}: {count:,} rows")
 
-        total_portfolio_rows = (
-            counts.get("portfolio_accounts", 0)
-            + counts.get("portfolio_positions", 0)
+        total_portfolio_rows = counts.get("portfolio_accounts", 0) + counts.get(
+            "portfolio_positions", 0
         )
         total_agent_rows = (
             counts.get("agent_runs", 0)

@@ -9,7 +9,7 @@ import os
 from datetime import datetime, timedelta
 from http.client import RemoteDisconnected
 from json import JSONDecodeError
-from urllib.error import HTTPError, URLError
+from urllib.error import HTTPError
 
 import polars as pl
 import yfinance as yf
@@ -99,7 +99,7 @@ class PriceDataFetcher:
               AND cached_at >= ?
             ORDER BY symbol, cached_at DESC
             """,
-            symbols + [cutoff_time],
+            [*symbols, cutoff_time],
         )
 
         if df.is_empty():
@@ -184,9 +184,8 @@ class PriceDataFetcher:
                         error=cached_error,
                     )
                     continue
-                else:
-                    # Error cache expired, remove it
-                    del self._error_cache[symbol]
+                # Error cache expired, remove it
+                del self._error_cache[symbol]
 
             # Try to fetch with retry logic
             price_data = self._fetch_single_symbol_with_retry(symbol)
@@ -200,7 +199,7 @@ class PriceDataFetcher:
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
     )
-    def _fetch_single_symbol_with_retry(self, symbol: str) -> PriceData | None:
+    def _fetch_single_symbol_with_retry(self, symbol: str) -> PriceData | None:  # noqa: PLR0911
         """Fetch a single symbol with retry logic for transient errors.
 
         Args:
@@ -270,7 +269,7 @@ class PriceDataFetcher:
             # HTTP errors - check status code
             status_code = getattr(e, "code", None)
             if status_code == 404:
-                error_msg = f"Symbol not found (404)"
+                error_msg = "Symbol not found (404)"
                 logger.warning(
                     "price_fetch_http_error",
                     symbol=symbol,
@@ -286,8 +285,8 @@ class PriceDataFetcher:
                     source="yfinance",
                     error=error_msg,
                 )
-            elif status_code == 429:
-                error_msg = f"Rate limit exceeded (429)"
+            if status_code == 429:
+                error_msg = "Rate limit exceeded (429)"
                 logger.warning(
                     "price_fetch_rate_limit",
                     symbol=symbol,
@@ -298,22 +297,21 @@ class PriceDataFetcher:
                 )
                 # Don't cache - let retry logic handle it
                 raise  # Retry on rate limits
-            else:
-                error_msg = f"HTTP error {status_code}"
-                logger.warning(
-                    "price_fetch_http_error",
-                    symbol=symbol,
-                    error=error_msg,
-                    status_code=status_code,
-                    source="yfinance",
-                )
-                self._error_cache[symbol] = (error_msg, datetime.now())
-                return PriceData(
-                    symbol=symbol,
-                    price=0.0,
-                    source="yfinance",
-                    error=error_msg,
-                )
+            error_msg = f"HTTP error {status_code}"
+            logger.warning(
+                "price_fetch_http_error",
+                symbol=symbol,
+                error=error_msg,
+                status_code=status_code,
+                source="yfinance",
+            )
+            self._error_cache[symbol] = (error_msg, datetime.now())
+            return PriceData(
+                symbol=symbol,
+                price=0.0,
+                source="yfinance",
+                error=error_msg,
+            )
 
         except (Timeout, ReadTimeout, ConnectionError, RemoteDisconnected) as e:
             # Transient network errors - retry
@@ -328,7 +326,7 @@ class PriceDataFetcher:
             )
             raise  # Retry these errors
 
-        except JSONDecodeError as e:
+        except JSONDecodeError:
             # Malformed response
             error_msg = "Invalid JSON response"
             logger.warning(
@@ -365,7 +363,7 @@ class PriceDataFetcher:
 
         except Exception as e:
             # Catch-all for unexpected errors
-            error_msg = f"Unexpected error: {type(e).__name__}: {str(e)}"
+            error_msg = f"Unexpected error: {type(e).__name__}: {e!s}"
             logger.error(
                 "price_fetch_unexpected_error",
                 symbol=symbol,
@@ -410,7 +408,7 @@ class PriceDataFetcher:
             return
 
         rows = []
-        for symbol, data in price_data.items():
+        for _symbol, data in price_data.items():
             rows.append(data.model_dump())
 
         df = pl.DataFrame(rows)

@@ -19,16 +19,18 @@ def storage() -> DuckDBStorage:
 
     # Create fresh storage instance (bypass singleton)
     from app.storage.connection import ConnectionManager
-    from app.storage.schema import SchemaManager
-    from app.storage.metadata import MetadataManager
     from app.storage.ingestion import IngestionManager
+    from app.storage.metadata import MetadataManager
     from app.storage.queries import QueryManager
+    from app.storage.schema import SchemaManager
 
     storage_inst = DuckDBStorage.__new__(DuckDBStorage)
     storage_inst.connection_mgr = ConnectionManager(db_path=db_path)
     storage_inst.schema_mgr = SchemaManager(storage_inst.connection_mgr)
     storage_inst.metadata_mgr = MetadataManager(storage_inst.connection_mgr)
-    storage_inst.ingestion_mgr = IngestionManager(storage_inst.connection_mgr, storage_inst.metadata_mgr)
+    storage_inst.ingestion_mgr = IngestionManager(
+        storage_inst.connection_mgr, storage_inst.metadata_mgr
+    )
     storage_inst.query_mgr = QueryManager(storage_inst.connection_mgr)
     storage_inst.schema_mgr.ensure_schema()
 

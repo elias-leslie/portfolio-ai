@@ -38,8 +38,7 @@ def test_portfolio_crud_integration_flow(client: TestClient):
 
     # Step 1: Create an account
     account_response = client.post(
-        "/api/portfolio/account",
-        json={"name": "Test IRA", "account_type": "IRA"}
+        "/api/portfolio/account", json={"name": "Test IRA", "account_type": "IRA"}
     )
     assert account_response.status_code == 200
     account_data = account_response.json()
@@ -55,8 +54,8 @@ def test_portfolio_crud_integration_flow(client: TestClient):
             "symbol": "AAPL",
             "shares": 100,
             "cost_basis": 150.00,
-            "position_type": "long"
-        }
+            "position_type": "long",
+        },
     )
     assert position_response.status_code == 200
     position_data = position_response.json()
@@ -93,8 +92,8 @@ def test_portfolio_crud_integration_flow(client: TestClient):
             "symbol": "MSFT",
             "shares": 50,
             "cost_basis": 300.00,
-            "position_type": "long"
-        }
+            "position_type": "long",
+        },
     )
     assert position2_response.status_code == 200
 
@@ -139,14 +138,12 @@ def test_portfolio_multiple_accounts_flow(client: TestClient):
 
     # Create two accounts
     account1_response = client.post(
-        "/api/portfolio/account",
-        json={"name": "IRA Account", "account_type": "IRA"}
+        "/api/portfolio/account", json={"name": "IRA Account", "account_type": "IRA"}
     )
     account1_id = account1_response.json()["id"]
 
     account2_response = client.post(
-        "/api/portfolio/account",
-        json={"name": "Taxable Account", "account_type": "Taxable"}
+        "/api/portfolio/account", json={"name": "Taxable Account", "account_type": "Taxable"}
     )
     account2_id = account2_response.json()["id"]
 
@@ -158,8 +155,8 @@ def test_portfolio_multiple_accounts_flow(client: TestClient):
             "symbol": "AAPL",
             "shares": 100,
             "cost_basis": 150.00,
-            "position_type": "long"
-        }
+            "position_type": "long",
+        },
     )
 
     client.post(
@@ -169,8 +166,8 @@ def test_portfolio_multiple_accounts_flow(client: TestClient):
             "symbol": "GOOGL",
             "shares": 50,
             "cost_basis": 2000.00,
-            "position_type": "long"
-        }
+            "position_type": "long",
+        },
     )
 
     # Verify portfolio aggregates both accounts
@@ -198,8 +195,8 @@ def test_portfolio_error_handling(client: TestClient):
             "symbol": "AAPL",
             "shares": 100,
             "cost_basis": 150.00,
-            "position_type": "long"
-        }
+            "position_type": "long",
+        },
     )
     assert response.status_code == 404
     assert "Account not found" in response.json()["detail"]

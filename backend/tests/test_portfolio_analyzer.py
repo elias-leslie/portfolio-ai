@@ -14,9 +14,6 @@ from app.agents.tools import AgentTools
 from app.portfolio.analytics import PortfolioAnalytics
 from app.portfolio.manager import PortfolioManager
 from app.portfolio.models import (
-    ConcentrationMetrics,
-    PortfolioAnalytics as PortfolioAnalyticsModel,
-    PortfolioValue,
     PriceData,
 )
 from app.portfolio.price_fetcher import PriceDataFetcher
@@ -213,7 +210,7 @@ def mock_anthropic_client() -> Mock:
             "confidence_score": 65 + i * 5,
             "risk_level": "medium",
             "reward_estimate": "8-12%",
-            "portfolio_impact": f"Reduces tech concentration, adds diversification",
+            "portfolio_impact": "Reduces tech concentration, adds diversification",
             "risks": "Market volatility, sector rotation",
         }
         ideas.append(block)
@@ -224,9 +221,7 @@ def mock_anthropic_client() -> Mock:
     response5.stop_reason = "end_turn"
     final_block = Mock()
     final_block.type = "text"
-    final_block.text = (
-        "I have analyzed your portfolio and generated 5 personalized ideas."
-    )
+    final_block.text = "I have analyzed your portfolio and generated 5 personalized ideas."
     response5.content = [final_block]
 
     # Set up mock to return responses in sequence
@@ -241,9 +236,7 @@ def mock_anthropic_client() -> Mock:
     return mock
 
 
-def test_portfolio_analyzer_initialization(
-    storage: DuckDBStorage, agent_tools: AgentTools
-) -> None:
+def test_portfolio_analyzer_initialization(storage: DuckDBStorage, agent_tools: AgentTools) -> None:
     """Test Portfolio Analyzer Agent initialization."""
     agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools)
 
@@ -253,9 +246,7 @@ def test_portfolio_analyzer_initialization(
     assert agent.current_run_id is None
 
 
-def test_portfolio_analyzer_system_prompt(
-    storage: DuckDBStorage, agent_tools: AgentTools
-) -> None:
+def test_portfolio_analyzer_system_prompt(storage: DuckDBStorage, agent_tools: AgentTools) -> None:
     """Test Portfolio Analyzer Agent system prompt."""
     agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools)
     prompt = agent.get_system_prompt()
@@ -267,9 +258,7 @@ def test_portfolio_analyzer_system_prompt(
     assert "store_idea" in prompt
 
 
-def test_portfolio_analyzer_tools(
-    storage: DuckDBStorage, agent_tools: AgentTools
-) -> None:
+def test_portfolio_analyzer_tools(storage: DuckDBStorage, agent_tools: AgentTools) -> None:
     """Test Portfolio Analyzer Agent tool definitions."""
     agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools)
     tools = agent.get_tools()
@@ -534,9 +523,7 @@ def test_portfolio_analyzer_handles_max_iterations(
     response.content = [block]
     mock_client.messages.create.return_value = response
 
-    agent = PortfolioAnalyzerAgent(
-        storage=storage, tools=agent_tools, anthropic_client=mock_client
-    )
+    agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools, anthropic_client=mock_client)
 
     # Run with max_iterations=3
     result = agent.run(max_iterations=3)
@@ -553,9 +540,7 @@ def test_portfolio_analyzer_handles_api_error(
     mock_client = Mock()
     mock_client.messages.create.side_effect = Exception("API Error")
 
-    agent = PortfolioAnalyzerAgent(
-        storage=storage, tools=agent_tools, anthropic_client=mock_client
-    )
+    agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools, anthropic_client=mock_client)
 
     result = agent.run()
 
