@@ -1,0 +1,52 @@
+# Pre-commit hooks for portfolio-ai
+# See https://pre-commit.com for more information
+
+repos:
+  # Ruff formatter - auto-fix formatting issues
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.0
+    hooks:
+      - id: ruff-format
+        name: ruff format
+        description: Auto-format Python files with ruff
+        types_or: [python, pyi]
+        args: []
+
+  # Ruff linter - catch linting errors
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.0
+    hooks:
+      - id: ruff
+        name: ruff check
+        description: Run ruff linter on Python files
+        types_or: [python, pyi]
+        args: [--fix, --exit-non-zero-on-fix]
+
+  # Mypy type checking
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.11.0
+    hooks:
+      - id: mypy
+        name: mypy type check
+        description: Run mypy type checker
+        files: ^backend/app/
+        args: [--strict, --ignore-missing-imports]
+        additional_dependencies:
+          - types-requests
+          - types-PyYAML
+
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+        name: trim trailing whitespace
+      - id: end-of-file-fixer
+        name: fix end of files
+      - id: check-yaml
+        name: check yaml syntax
+      - id: check-added-large-files
+        name: check for large files
+        args: [--maxkb=500]
+      - id: check-merge-conflict
+        name: check for merge conflicts
