@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from celery.result import AsyncResult
+from celery.result import AsyncResult  # type: ignore[import-untyped]
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
@@ -92,7 +92,7 @@ async def get_ideas(
 
     # Build query
     where_clauses = []
-    params = []
+    params: list[str | int] = []
 
     if idea_type:
         where_clauses.append("idea_type = ?")
@@ -299,6 +299,9 @@ async def update_idea_status(idea_id: str, request: UpdateIdeaStatusRequest) -> 
     # Return updated idea
     with storage.connection() as conn:
         result = conn.execute("SELECT * FROM agent_ideas WHERE id = ?", [idea_id]).fetchone()
+
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Idea {idea_id} not found")
 
     return IdeaResponse(
         id=result[0],

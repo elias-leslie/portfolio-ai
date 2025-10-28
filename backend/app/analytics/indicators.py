@@ -117,7 +117,7 @@ def calculate_indicators(
             }
 
     if "bbands" in indicators:
-        bbands_df = ta.bbands(df["close"], length=20, std=2)
+        bbands_df = ta.bbands(df["close"], length=20, lower_std=2.0, upper_std=2.0)
         if bbands_df is not None and not bbands_df.empty:
             indicator_values["bbands_20_2"] = {
                 "upper": float(bbands_df["BBU_20_2.0"].iloc[-1]),

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 
-from celery import Celery
+from celery import Celery  # type: ignore[import-untyped]  # celery doesn't ship type stubs
 
 # Get Redis URL from environment or use default
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")

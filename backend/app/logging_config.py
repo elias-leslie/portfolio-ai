@@ -30,7 +30,7 @@ def configure_logging(log_dir: str = "logs", log_file: str = "portfolio-ai.log")
     log_file_path = log_path / log_file
 
     # JSON formatter for file output
-    json_formatter = jsonlogger.JsonFormatter(
+    json_formatter = jsonlogger.JsonFormatter(  # type: ignore[attr-defined]  # pythonjsonlogger typing incomplete
         "%(timestamp)s %(level)s %(name)s %(message)s %(pathname)s %(lineno)d",
         rename_fields={
             "levelname": "level",
@@ -93,4 +93,4 @@ def get_logger(name: str) -> structlog.stdlib.BoundLogger:
     Returns:
         Structured logger instance
     """
-    return structlog.get_logger(name)
+    return structlog.get_logger(name)  # type: ignore[no-any-return]  # structlog returns Any-typed logger

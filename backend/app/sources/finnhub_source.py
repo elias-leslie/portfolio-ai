@@ -117,7 +117,7 @@ class FinnhubClient:
 
             self._last_request_times.append(now)
 
-    @retry(  # type: ignore[misc]
+    @retry(
         stop=stop_after_attempt(5),
         wait=wait_exponential(multiplier=1, max=30),
         retry=retry_if_exception(_should_retry_exception),

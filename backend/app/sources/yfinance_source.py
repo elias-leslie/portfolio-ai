@@ -11,7 +11,7 @@ import json
 from collections.abc import Iterable
 
 import polars as pl
-import yfinance as yf
+import yfinance as yf  # type: ignore[import-untyped]  # yfinance doesn't ship type stubs
 
 from ..logging_config import get_logger
 from .base import BaseSource, DatasetRequest

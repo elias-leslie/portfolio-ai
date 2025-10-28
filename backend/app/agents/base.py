@@ -106,12 +106,14 @@ class Agent(ABC):
             tool_calls_made: list[dict[str, Any]] = []
 
             for iteration in range(max_iterations):
+                # Anthropic SDK expects specific ToolParam types but we build tools/messages
+                # dynamically as dicts. Safe at runtime but mypy can't verify dict structure.
                 response = self.client.messages.create(
                     model=self.model,
                     max_tokens=4096,
                     system=self.get_system_prompt(),
-                    tools=self.get_tools(),
-                    messages=messages,
+                    tools=self.get_tools(),  # type: ignore[arg-type]
+                    messages=messages,  # type: ignore[arg-type]
                 )
 
                 # Check stop reason

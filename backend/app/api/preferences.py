@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any, cast
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
@@ -43,7 +44,7 @@ class PreferencesUpdate(BaseModel):
     )
 
 
-def _get_or_create_preferences() -> dict:
+def _get_or_create_preferences() -> dict[str, object]:
     """Get existing preferences or create default ones."""
     with storage.connection() as conn:
         result = conn.execute(
@@ -110,13 +111,13 @@ async def get_preferences() -> PreferencesResponse:
     prefs = _get_or_create_preferences()
 
     return PreferencesResponse(
-        risk_tolerance=prefs["risk_tolerance"],
-        allow_long=prefs["allow_long"],
-        allow_short=prefs["allow_short"],
-        allow_options=prefs["allow_options"],
-        allow_crypto=prefs["allow_crypto"],
-        allow_futures=prefs["allow_futures"],
-        max_position_size_pct=prefs["max_position_size_pct"],
+        risk_tolerance=cast(int, prefs["risk_tolerance"]),
+        allow_long=cast(bool, prefs["allow_long"]),
+        allow_short=cast(bool, prefs["allow_short"]),
+        allow_options=cast(bool, prefs["allow_options"]),
+        allow_crypto=cast(bool, prefs["allow_crypto"]),
+        allow_futures=cast(bool, prefs["allow_futures"]),
+        max_position_size_pct=cast(float, prefs["max_position_size_pct"]),
     )
 
 
@@ -171,11 +172,11 @@ async def update_preferences(update: PreferencesUpdate) -> PreferencesResponse:
         )
 
     return PreferencesResponse(
-        risk_tolerance=current["risk_tolerance"],
-        allow_long=current["allow_long"],
-        allow_short=current["allow_short"],
-        allow_options=current["allow_options"],
-        allow_crypto=current["allow_crypto"],
-        allow_futures=current["allow_futures"],
-        max_position_size_pct=current["max_position_size_pct"],
+        risk_tolerance=cast(int, current["risk_tolerance"]),
+        allow_long=cast(bool, current["allow_long"]),
+        allow_short=cast(bool, current["allow_short"]),
+        allow_options=cast(bool, current["allow_options"]),
+        allow_crypto=cast(bool, current["allow_crypto"]),
+        allow_futures=cast(bool, current["allow_futures"]),
+        max_position_size_pct=cast(float, current["max_position_size_pct"]),
     )

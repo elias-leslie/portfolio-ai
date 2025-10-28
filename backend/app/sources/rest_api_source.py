@@ -230,7 +230,9 @@ class RestApiSource(BaseSource):
         start_time = time.time()
 
         # Execute request
-        response = self.client.request(url=path, **request_kwargs)
+        # httpx.Client.request() has strict typed kwargs but we build them dynamically.
+        # dict[str, object] is correct at runtime but mypy can't verify it matches httpx types.
+        response = self.client.request(url=path, **request_kwargs)  # type: ignore[arg-type]
         response.raise_for_status()
 
         duration_ms = int((time.time() - start_time) * 1000)

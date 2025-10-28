@@ -9,7 +9,7 @@ import logging
 import time
 from typing import Any
 
-import feedparser
+import feedparser  # type: ignore[import-untyped]  # feedparser doesn't ship type stubs
 
 logger = logging.getLogger(__name__)
 

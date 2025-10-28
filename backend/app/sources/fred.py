@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any
+from typing import Any, ClassVar
 
 import httpx
 
@@ -20,7 +20,7 @@ class FREDSource:
     BASE_URL = "https://api.stlouisfed.org/fred/series/observations"
 
     # Key economic indicators
-    INDICATORS = {
+    INDICATORS: ClassVar[dict[str, str]] = {
         "VIX": "VIXCLS",  # Volatility Index
         "DXY": "DTWEXBGS",  # US Dollar Index
         "TNX": "GS10",  # 10-Year Treasury Rate
@@ -71,7 +71,7 @@ class FREDSource:
 
             response = httpx.get(
                 self.BASE_URL,
-                params=params,
+                params=params,  # type: ignore[arg-type]  # httpx params typing - dict[str, object] is valid at runtime
                 timeout=self.timeout,
             )
             response.raise_for_status()

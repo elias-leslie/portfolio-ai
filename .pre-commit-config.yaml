@@ -30,10 +30,20 @@ repos:
         name: mypy type check
         description: Run mypy type checker
         files: ^backend/app/
-        args: [--strict, --ignore-missing-imports]
+        args: [--strict]
         additional_dependencies:
           - types-requests
           - types-PyYAML
+          - pandas-stubs
+          - anthropic
+          - httpx
+          - polars
+          - pydantic
+          - fastapi
+          - structlog
+          - python-json-logger
+          - pandas-ta
+          - tenacity
 
   # General file checks
   - repo: https://github.com/pre-commit/pre-commit-hooks

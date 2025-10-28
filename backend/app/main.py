@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
 import structlog
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.api import analytics, health, ideas, market, portfolio, preferences
+from app.api import analytics, health, ideas, indicators, market, portfolio, preferences
 from app.logging_config import configure_logging, get_logger
 from app.storage import get_storage
 
@@ -24,7 +24,9 @@ logger = get_logger(__name__)
 class RequestIDMiddleware(BaseHTTPMiddleware):
     """Middleware to inject request_id into each request for structured logging."""
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """Process request and add request_id to context."""
         request_id = str(uuid.uuid4())
 
@@ -91,6 +93,7 @@ app.include_router(ideas.router)
 app.include_router(market.router)
 app.include_router(preferences.router)
 app.include_router(analytics.router)
+app.include_router(indicators.router)
 
 
 @app.get("/")
