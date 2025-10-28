@@ -8,7 +8,8 @@ argument-hint: [task list filename]
 Guidelines for managing task lists in markdown files to track progress on completing a PRD
 
 ## Task Implementation
-- **One sub-task at a time:** Do **NOT** start the next sub‑task until you ask the user for permission and they say "yes" or "y"
+- **Work autonomously:** Execute tasks continuously unless explicitly instructed otherwise or blocked by technical issues
+- **User can request autonomous mode:** If user says "continue autonomously" or "y, continue", work through all remaining tasks without pausing
 - **Completion protocol:**
   1. When you finish a **sub‑task**, immediately mark it as completed by changing `[ ]` to `[x]`.
   2. If **all** subtasks underneath a parent task are now `[x]`, follow this sequence:
@@ -26,7 +27,7 @@ Guidelines for managing task lists in markdown files to track progress on comple
         git commit -m "feat: add payment validation logic" -m "- Validates card type and expiry" -m "- Adds unit tests for edge cases" -m "Related to T123 in PRD"
         ```
   3. Once all the subtasks are marked completed and changes have been committed, mark the **parent task** as completed.
-- Stop after each sub‑task and wait for the user's go‑ahead.
+- **Default behavior:** Ask for permission before each sub-task UNLESS user has requested autonomous execution
 
 ## Task List Maintenance
 
@@ -49,7 +50,16 @@ When working with task lists, the AI must:
 3. Add newly discovered tasks.
 4. Keep "Relevant Files" accurate and up to date.
 5. Before starting work, check which sub‑task is next.
-6. After implementing a sub‑task, update the file and then pause for user approval.
+6. **Execution mode:**
+   - If user says "continue autonomously", "y, continue", or similar: work through all tasks without pausing
+   - Otherwise: ask permission before each sub-task
+7. **Progress reporting:**
+   - Use complexity levels: LOW/MEDIUM/HIGH
+   - Use percentages for progress (e.g., "13% complete")
+   - Avoid time estimates (hours/days/minutes)
+8. **When to pause:**
+   - Only pause if technically blocked (missing info, external dependency, ambiguous requirements)
+   - Otherwise continue working through tasks
 
 ---
 
@@ -68,23 +78,37 @@ When working with task lists, the AI must:
 The AI will:
 1. Read the task list
 2. Identify the next uncompleted sub-task
-3. Ask permission to start
-4. Implement the sub-task
-5. Mark it complete
-6. Run tests and commit if parent task is complete
-7. Ask permission for the next sub-task
+3. Determine execution mode (autonomous or ask permission)
+4. Implement the sub-task(s)
+5. Mark completed tasks as `[x]`
+6. Run tests and commit when parent task is complete
+7. Continue or ask for next direction
 
-## Example Flow
+## Example Flow (Autonomous Mode)
+
+```
+User: "y, please continue autonomously until done"
+AI: [reads task list]
+AI: "Working on 7.1-7.4 (MEDIUM complexity, ~13% of feature)"
+AI: [implements 7.1.1-7.1.5, marks complete]
+AI: [implements 7.2.1-7.2.5, marks complete]
+AI: [implements 7.3.1-7.3.5, marks complete]
+AI: [implements 7.4.1-7.4.4, marks complete]
+AI: "Tasks 7.1-7.4 complete. Running tests..."
+AI: [runs pytest, all pass]
+AI: [creates commit]
+AI: "Foundation complete (13%). Remaining: 7.5-7.9 (HIGH complexity, 87%)."
+```
+
+## Example Flow (Interactive Mode)
 
 ```
 AI: "Next task is 1.1: Create app/source_cache.py with LRU cache. Ready to start? (yes/y)"
 User: "y"
 AI: [implements task, marks complete]
 AI: "Task 1.1 complete. Next is 1.2: Add unit tests. Ready? (yes/y)"
-User: "y"
-AI: [implements task, marks complete]
-AI: "All subtasks for Task 1.0 complete. Running tests..."
-AI: [runs pytest, all pass]
-AI: [creates commit with conventional format]
-AI: "Task 1.0 complete. Next parent task is 2.0. Ready? (yes/y)"
+User: "y, continue autonomously"
+AI: [implements all remaining tasks without pausing]
+AI: [commits after each parent task completion]
+AI: "All tasks complete."
 ```
