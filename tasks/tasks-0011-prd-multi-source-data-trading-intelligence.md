@@ -131,12 +131,12 @@
       - [x] Implement `fetch_day_bars()`, `fetch_reference_payload()`, `fetch_news_payload()`
       - [x] Add rate limit tracking per endpoint (via structured logging)
       - [x] Add HTTP timeout handling (30s default)
-    - [ ] 1.1.3 Create `backend/app/sources/polygon_client.py` (~100 lines)
-      - [ ] Implement Polygon API client with 5/min rate limit tracking
-      - [ ] Add class `PolygonClient` with methods: `get_day_bars()`, `get_ticker_details()`
-      - [ ] Track rate limit state: `last_request_times: deque[datetime]` (5 items max)
-      - [ ] Add backoff delay if rate limit approached (sleep until slot available)
-      - [ ] Read API key from environment: `POLYGON_API_KEY`
+    - [x] 1.1.3 Create `backend/app/sources/polygon_client.py` (~100 lines)
+      - [x] Implement Polygon API client with 5/min rate limit tracking
+      - [x] Add class `PolygonClient` with methods: `get_day_bars()`, `get_ticker_details()`
+      - [x] Track rate limit state: `last_request_times: deque[datetime]` (5 items max)
+      - [x] Add backoff delay if rate limit approached (sleep until slot available)
+      - [x] Read API key from environment: `POLYGON_API_KEY`
     - [ ] 1.1.4 Create `backend/app/sources/polygon_source.py` (~150 lines)
       - [ ] Implement `PolygonSource(BaseSource)` using `PolygonClient`
       - [ ] Set `priority = 10`, `supports_day = True`, `supports_reference = True`
