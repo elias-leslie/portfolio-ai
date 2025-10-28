@@ -16,17 +16,21 @@
 ## Summary
 
 **✅ COMPLETE:**
-- (None yet)
+- Task 1.1.1: jsonpath_mapper.py (265 lines + 242 test lines)
+- Task 1.1.2: rest_api_source.py (532 lines)
+- Task 1.1.3: polygon_client.py (241 lines)
+- Task 1.1.4: polygon_source.py (214 lines)
 
 **🔄 IN PROGRESS:**
-- (Not started)
+- Task 1.1: Port core source infrastructure files (4 of 6 subtasks complete)
 
 **⚠️ NEXT STEPS:**
-1. Begin with Task 1.0 (Multi-Source Infrastructure Foundation)
-2. Follow checklist sequentially
-3. Update this summary as work progresses
+1. Task 1.1.5: Create multi_source_fetcher.py (~587 lines) - Core failover orchestrator
+2. Task 1.2: Update database schema for source tracking
+3. Task 1.3: Refactor price_fetcher.py to use MultiSourceFetcher
+4. Continue with remaining tasks sequentially
 
-**EFFORT TO COMPLETE:** HIGH (3-4 weeks, ~85% estimated)
+**EFFORT TO COMPLETE:** HIGH (3-4 weeks, ~80% remaining)
 
 **Context from Current Codebase:**
 - ✅ BaseSource class exists (`backend/app/sources/base.py`) - adapted from market-sim
@@ -40,18 +44,18 @@
 
 ## Relevant Files
 
-### Files Created (1 file)
+### Files Created (5 files)
 
 **Core Multi-Source Infrastructure:**
 - ✅ `backend/app/sources/jsonpath_mapper.py` (265 lines) - JSONPath field mapping with nested data extraction, timestamp conversion, and validation
 - ✅ `backend/tests/test_jsonpath_mapper.py` (242 lines) - Comprehensive test suite with 24 passing tests
+- ✅ `backend/app/sources/rest_api_source.py` (532 lines) - Dynamic REST API source adapter with auth, rate limiting, structured logging
+- ✅ `backend/app/sources/polygon_client.py` (241 lines) - Polygon API client with thread-safe rate limiting (5/min) and retries
+- ✅ `backend/app/sources/polygon_source.py` (214 lines) - Polygon source adapter implementing BaseSource interface
 
-### Files to Create (31 remaining files)
+### Files to Create (27 remaining files)
 
 **Core Multi-Source Infrastructure:**
-- `backend/app/sources/rest_api_source.py` (~740 lines) - Dynamic REST endpoint execution from YAML configs
-- `backend/app/sources/polygon_source.py` (~150 lines) - Polygon API integration with rate limiting
-- `backend/app/sources/polygon_client.py` (~100 lines) - Polygon API client with 5/min rate limit tracking
 - `backend/app/sources/multi_source_fetcher.py` (~587 lines) - Priority-based failover with cooldown management
 - `backend/app/sources/yfinance_source.py` (~200 lines) - YFinance adapter implementing BaseSource
 - `backend/app/sources/twelvedata_source.py` (~200 lines) - Twelve Data adapter implementing BaseSource
