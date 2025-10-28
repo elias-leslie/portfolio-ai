@@ -36,20 +36,9 @@ def test_calculate_portfolio_value() -> None:
 
     portfolio_value = analytics.calculate_portfolio_value(positions, price_data)
 
-    # AAPL: 100 * 180 = 18,000
-    # GOOGL: 50 * 2500 = 125,000
-    # Total: 143,000
     assert portfolio_value.total_value == 143000.0
-
-    # AAPL cost: 100 * 150 = 15,000
-    # GOOGL cost: 50 * 2000 = 100,000
-    # Total cost: 115,000
     assert portfolio_value.total_cost_basis == 115000.0
-
-    # Gain: 143,000 - 115,000 = 28,000
     assert portfolio_value.total_gain == 28000.0
-
-    # Gain %: 28,000 / 115,000 * 100 = 24.35%
     assert abs(portfolio_value.total_gain_pct - 24.35) < 0.01
 
 
@@ -185,13 +174,6 @@ def test_calculate_sector_exposure() -> None:
 
     sector_exposure = analytics.calculate_sector_exposure(positions, price_data)
 
-    # AAPL: 100 * 180 = 18,000 (Tech)
-    # GOOGL: 50 * 2500 = 125,000 (Tech)
-    # JPM: 200 * 150 = 30,000 (Financials)
-    # Total: 173,000
-    # Tech: 143,000 / 173,000 = 82.66%
-    # Financials: 30,000 / 173,000 = 17.34%
-
     assert "Technology" in sector_exposure
     assert "Financials" in sector_exposure
     assert abs(sector_exposure["Technology"] - 82.66) < 0.01
@@ -287,3 +269,157 @@ def test_calculate_full_analytics() -> None:
     assert full_analytics.num_positions == 2
     assert full_analytics.num_symbols == 2
     assert "Technology" in full_analytics.sector_exposure
+
+
+def test_calculate_portfolio_value_with_price_errors() -> None:
+    """Test portfolio value calculation skips positions with price errors."""
+    analytics = PortfolioAnalytics()
+
+    positions = [
+        Position(
+            id="1",
+            account_id="acc1",
+            symbol="AAPL",
+            shares=100.0,
+            cost_basis=150.0,
+            position_type="long",
+        ),
+        Position(
+            id="2",
+            account_id="acc1",
+            symbol="INVALID",
+            shares=50.0,
+            cost_basis=100.0,
+            position_type="long",
+        ),
+    ]
+
+    price_data = {
+        "AAPL": PriceData(symbol="AAPL", price=180.0),
+        "INVALID": PriceData(symbol="INVALID", price=0.0, error="Symbol not found"),
+    }
+
+    portfolio_value = analytics.calculate_portfolio_value(positions, price_data)
+
+    # Should only include AAPL, skip INVALID
+    assert portfolio_value.total_value == 18000.0
+    assert portfolio_value.total_cost_basis == 15000.0
+
+
+def test_calculate_portfolio_beta_with_price_errors() -> None:
+    """Test beta calculation skips positions with price errors."""
+    analytics = PortfolioAnalytics()
+
+    positions = [
+        Position(
+            id="1",
+            account_id="acc1",
+            symbol="AAPL",
+            shares=100.0,
+            cost_basis=150.0,
+            position_type="long",
+        ),
+        Position(
+            id="2",
+            account_id="acc1",
+            symbol="INVALID",
+            shares=50.0,
+            cost_basis=100.0,
+            position_type="long",
+        ),
+    ]
+
+    price_data = {
+        "AAPL": PriceData(symbol="AAPL", price=180.0, beta=1.2),
+        "INVALID": PriceData(symbol="INVALID", price=0.0, beta=1.0, error="Symbol not found"),
+    }
+
+    portfolio_beta = analytics.calculate_portfolio_beta(positions, price_data)
+
+    # Should only include AAPL, skip INVALID
+    assert portfolio_beta == 1.2
+
+
+def test_calculate_sector_exposure_with_price_errors() -> None:
+    """Test sector exposure calculation skips positions with price errors."""
+    analytics = PortfolioAnalytics()
+
+    positions = [
+        Position(
+            id="1",
+            account_id="acc1",
+            symbol="AAPL",
+            shares=100.0,
+            cost_basis=150.0,
+            position_type="long",
+        ),
+        Position(
+            id="2",
+            account_id="acc1",
+            symbol="INVALID",
+            shares=50.0,
+            cost_basis=100.0,
+            position_type="long",
+        ),
+    ]
+
+    price_data = {
+        "AAPL": PriceData(symbol="AAPL", price=180.0, sector="Technology"),
+        "INVALID": PriceData(
+            symbol="INVALID", price=0.0, sector="Unknown", error="Symbol not found"
+        ),
+    }
+
+    sector_exposure = analytics.calculate_sector_exposure(positions, price_data)
+
+    # Should only include AAPL, skip INVALID
+    assert "Technology" in sector_exposure
+    assert sector_exposure["Technology"] == 100.0
+    assert "Unknown" not in sector_exposure
+
+
+def test_calculate_concentration_risk_with_price_errors() -> None:
+    """Test concentration risk calculation skips positions with price errors."""
+    analytics = PortfolioAnalytics()
+
+    positions = [
+        Position(
+            id="1",
+            account_id="acc1",
+            symbol="AAPL",
+            shares=100.0,
+            cost_basis=150.0,
+            position_type="long",
+        ),
+        Position(
+            id="2",
+            account_id="acc1",
+            symbol="GOOGL",
+            shares=50.0,
+            cost_basis=2000.0,
+            position_type="long",
+        ),
+        Position(
+            id="3",
+            account_id="acc1",
+            symbol="INVALID",
+            shares=1000.0,
+            cost_basis=100.0,
+            position_type="long",
+        ),
+    ]
+
+    price_data = {
+        "AAPL": PriceData(symbol="AAPL", price=180.0),
+        "GOOGL": PriceData(symbol="GOOGL", price=2500.0),
+        "INVALID": PriceData(symbol="INVALID", price=0.0, error="Symbol not found"),
+    }
+
+    concentration = analytics.calculate_concentration_risk(positions, price_data)
+
+    # Should only include AAPL and GOOGL, skip INVALID
+    # GOOGL: 125,000 (largest)
+    # AAPL: 18,000
+    # Total: 143,000
+    # Top holding: 125,000 / 143,000 = 87.41%
+    assert abs(concentration.top_holding_pct - 87.41) < 0.01

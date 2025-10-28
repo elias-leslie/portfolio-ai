@@ -15,8 +15,9 @@ import polars as pl
 import yfinance as yf
 from requests.exceptions import ConnectionError, ReadTimeout, Timeout
 from tenacity import (
+    RetryError,
     retry,
-    retry_if_exception_type,
+    retry_if_exception,
     stop_after_attempt,
     wait_exponential,
 )
@@ -27,6 +28,24 @@ from ..storage import DuckDBStorage
 from .models import PriceData
 
 logger = get_logger(__name__)
+
+
+def _should_retry_exception(exception: BaseException) -> bool:
+    """Determine if an exception should trigger a retry.
+
+    Args:
+        exception: The exception to check
+
+    Returns:
+        True if should retry, False otherwise
+    """
+    # Retry transient network errors
+    if isinstance(exception, Timeout | ReadTimeout | ConnectionError | RemoteDisconnected):
+        return True
+    # Retry rate limit errors (429)
+    if isinstance(exception, HTTPError):
+        return getattr(exception, "code", None) == 429
+    return False
 
 
 class PriceDataFetcher:
@@ -188,14 +207,25 @@ class PriceDataFetcher:
                 del self._error_cache[symbol]
 
             # Try to fetch with retry logic
-            price_data = self._fetch_single_symbol_with_retry(symbol)
-            if price_data:
-                result[symbol] = price_data
+            try:
+                price_data = self._fetch_single_symbol_with_retry(symbol)
+                if price_data:
+                    result[symbol] = price_data
+            except RetryError:
+                # Retry exhausted for transient errors (429, timeout, etc)
+                # Log and skip this symbol (will try Polygon if available)
+                logger.warning(
+                    "price_fetch_retry_exhausted",
+                    symbol=symbol,
+                    source="yfinance",
+                    retries=3,
+                )
+                # Don't add to result - let failover to Polygon handle it
 
         return result
 
-    @retry(
-        retry=retry_if_exception_type((Timeout, ReadTimeout, ConnectionError, RemoteDisconnected)),
+    @retry(  # type: ignore[misc]
+        retry=retry_if_exception(_should_retry_exception),
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
     )

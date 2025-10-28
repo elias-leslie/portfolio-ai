@@ -35,7 +35,7 @@
 Based on PRD #0010, here are the main implementation phases:
 
 - [x] **1.0 Migrate to FastAPI Lifespan Handlers** (P0 - Critical, 10 min)
-- [ ] **2.0 Add Comprehensive Error Handling to Price Fetcher** (P1 - High value, 1 hour)
+- [x] **2.0 Add Comprehensive Error Handling to Price Fetcher** (P1 - High value, 1 hour)
 - [ ] **3.0 Implement Structured JSON Logging with structlog** (P2 - Enables debugging, 2 hours)
 - [ ] **4.0 Add Pre-commit Hooks for Code Quality** (P2 - Prevents issues, 1 hour)
 - [ ] **5.0 Implement Database Migration System** (P2 - Important but can defer, 3 hours)
@@ -163,35 +163,35 @@ Based on PRD #0010, here are the main implementation phases:
     - [x] 1.3.2 Update test fixtures to use lifespan if needed
 
 - [ ] **2.0 Add Comprehensive Error Handling to Price Fetcher** (P1 - High value, 1 hour)
-  - [ ] 2.1 Add error field to PriceData model
-    - [ ] 2.1.1 Edit `backend/app/portfolio/models.py`
-    - [ ] 2.1.2 Add `error: str | None = None` field to PriceData class
-  - [ ] 2.2 Wrap yfinance API calls in try/except
-    - [ ] 2.2.1 Edit `backend/app/portfolio/price_fetcher.py`
-    - [ ] 2.2.2 Add try/except around `yf.Ticker(symbol).info` in `_fetch_fresh_prices()`
-    - [ ] 2.2.3 Handle specific exceptions: HTTPError, Timeout, JSONDecodeError, KeyError
-    - [ ] 2.2.4 Log specific error types with structured logging (after Feature 3)
-    - [ ] 2.2.5 Return PriceData with error field set instead of crashing
-  - [ ] 2.3 Add retry logic with exponential backoff
-    - [ ] 2.3.1 Import `tenacity` library (add to requirements.txt)
-    - [ ] 2.3.2 Add `@retry` decorator to `_fetch_fresh_prices()`: 3 attempts, exponential backoff
-    - [ ] 2.3.3 Retry only on transient errors (Timeout, 503, 429)
-    - [ ] 2.3.4 Don't retry on permanent errors (404, invalid symbol)
-  - [ ] 2.4 Cache failures to avoid retry storms
-    - [ ] 2.4.1 Cache failed fetches with 5-minute TTL
-    - [ ] 2.4.2 Return cached error instead of retrying immediately
-  - [ ] 2.5 Update analytics to handle missing price data
-    - [ ] 2.5.1 Edit `backend/app/portfolio/analytics.py`
-    - [ ] 2.5.2 Skip positions with PriceData.error set in calculations
-    - [ ] 2.5.3 Log warning when skipping positions due to price errors
-    - [ ] 2.5.4 Don't crash calculations if some prices missing
-  - [ ] 2.6 Write tests for error handling
-    - [ ] 2.6.1 Create `backend/tests/test_price_fetcher_errors.py`
-    - [ ] 2.6.2 Test yfinance HTTP 429 (rate limit) handling
-    - [ ] 2.6.3 Test yfinance timeout handling
-    - [ ] 2.6.4 Test invalid symbol (404) handling
-    - [ ] 2.6.5 Test partial success (some symbols succeed, some fail)
-    - [ ] 2.6.6 Test analytics with missing price data
+  - [x] 2.1 Add error field to PriceData model
+    - [x] 2.1.1 Edit `backend/app/portfolio/models.py`
+    - [x] 2.1.2 Add `error: str | None = None` field to PriceData class
+  - [x] 2.2 Wrap yfinance API calls in try/except
+    - [x] 2.2.1 Edit `backend/app/portfolio/price_fetcher.py`
+    - [x] 2.2.2 Add try/except around `yf.Ticker(symbol).info` in `_fetch_fresh_prices()`
+    - [x] 2.2.3 Handle specific exceptions: HTTPError, Timeout, JSONDecodeError, KeyError
+    - [x] 2.2.4 Log specific error types with structured logging (after Feature 3)
+    - [x] 2.2.5 Return PriceData with error field set instead of crashing
+  - [x] 2.3 Add retry logic with exponential backoff
+    - [x] 2.3.1 Import `tenacity` library (add to requirements.txt)
+    - [x] 2.3.2 Add `@retry` decorator to `_fetch_fresh_prices()`: 3 attempts, exponential backoff
+    - [x] 2.3.3 Retry only on transient errors (Timeout, 503, 429)
+    - [x] 2.3.4 Don't retry on permanent errors (404, invalid symbol)
+  - [x] 2.4 Cache failures to avoid retry storms
+    - [x] 2.4.1 Cache failed fetches with 5-minute TTL
+    - [x] 2.4.2 Return cached error instead of retrying immediately
+  - [x] 2.5 Update analytics to handle missing price data
+    - [x] 2.5.1 Edit `backend/app/portfolio/analytics.py`
+    - [x] 2.5.2 Skip positions with PriceData.error set in calculations
+    - [x] 2.5.3 Log warning when skipping positions due to price errors
+    - [x] 2.5.4 Don't crash calculations if some prices missing
+  - [x] 2.6 Write tests for error handling
+    - [x] 2.6.1 Add tests to `backend/tests/test_price_fetcher.py`
+    - [x] 2.6.2 Test yfinance HTTP 429 (rate limit) handling
+    - [x] 2.6.3 Test yfinance timeout handling
+    - [x] 2.6.4 Test invalid symbol (404) handling
+    - [x] 2.6.5 Test partial success (some symbols succeed, some fail)
+    - [x] 2.6.6 Test analytics with missing price data
 
 - [ ] **3.0 Implement Structured JSON Logging with structlog** (P2 - Enables debugging, 2 hours)
   - [ ] 3.1 Add structlog dependency
