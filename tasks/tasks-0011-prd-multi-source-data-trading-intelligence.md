@@ -137,13 +137,13 @@
       - [x] Track rate limit state: `last_request_times: deque[datetime]` (5 items max)
       - [x] Add backoff delay if rate limit approached (sleep until slot available)
       - [x] Read API key from environment: `POLYGON_API_KEY`
-    - [ ] 1.1.4 Create `backend/app/sources/polygon_source.py` (~150 lines)
-      - [ ] Implement `PolygonSource(BaseSource)` using `PolygonClient`
-      - [ ] Set `priority = 10`, `supports_day = True`, `supports_reference = True`
-      - [ ] Implement `fetch_day_bars()` returning Polars DataFrame
-      - [ ] Implement `fetch_reference_payload()` returning company info
-      - [ ] Map Polygon response fields to portfolio-ai schema using jsonpath_mapper
-      - [ ] Add structured logging: "polygon_fetch_success", "polygon_rate_limit_hit"
+    - [x] 1.1.4 Create `backend/app/sources/polygon_source.py` (~150 lines)
+      - [x] Implement `PolygonSource(BaseSource)` using `PolygonClient`
+      - [x] Set `priority = 10`, `supports_day = True`, `supports_reference = True`
+      - [x] Implement `fetch_day_bars()` returning Polars DataFrame
+      - [x] Implement `fetch_reference_payload()` returning company info
+      - [x] Map Polygon response fields to portfolio-ai schema using jsonpath_mapper
+      - [x] Add structured logging: "polygon_fetch_success", "polygon_rate_limit_hit"
     - [ ] 1.1.5 Create `backend/app/sources/multi_source_fetcher.py` (~587 lines)
       - [ ] Port MultiSourceFetcher from market-sim
       - [ ] Implement priority-based failover chain (FR-1.4)
