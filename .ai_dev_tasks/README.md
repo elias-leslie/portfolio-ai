@@ -417,8 +417,19 @@ If your project uses these commands, document them in:
 1. **Start with `/next_it`** - Don't guess what to work on
 2. **Complete the PRD** - Good planning = better implementation
 3. **Review each task** - Don't blindly approve
-4. **Keep docs current** - Run `/doc_it` after major milestones
-5. **Commit frequently** - Atomic commits make debugging easier
+4. **Never defer tasks** - AI must complete ALL tasks or ask for help, never defer without approval
+5. **Keep docs current** - Run `/doc_it` after major milestones
+6. **Commit frequently** - Atomic commits make debugging easier
+
+### CRITICAL: Task Deferral Policy
+
+**AI agents must NEVER defer tasks without explicit user approval.**
+
+- Complete ALL tasks in the task list
+- If blocked or stuck, ASK the user for guidance
+- Do NOT skip, defer, or postpone tasks
+- Task complexity is NOT a reason to defer
+- If uncertain, implement and ask for review - do NOT defer
 
 ### Community
 
