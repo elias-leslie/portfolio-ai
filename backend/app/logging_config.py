@@ -7,6 +7,7 @@ formatters, and file rotation for production observability.
 from __future__ import annotations
 
 import logging
+import logging.handlers
 import sys
 from pathlib import Path
 
@@ -39,8 +40,14 @@ def configure_logging(log_dir: str = "logs", log_file: str = "portfolio-ai.log")
         },
     )
 
-    # File handler with rotation (will implement proper rotation later if needed)
-    file_handler = logging.FileHandler(log_file_path)
+    # File handler with daily rotation (keep 30 days)
+    file_handler = logging.handlers.TimedRotatingFileHandler(
+        filename=str(log_file_path),
+        when="midnight",
+        interval=1,
+        backupCount=30,
+        encoding="utf-8",
+    )
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(json_formatter)
 

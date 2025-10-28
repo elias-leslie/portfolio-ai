@@ -200,39 +200,39 @@ Based on PRD #0010, here are the main implementation phases:
     - [x] 2.6.5 Test partial success (some symbols succeed, some fail)
     - [x] 2.6.6 Test analytics with missing price data
 
-- [ ] **3.0 Implement Structured JSON Logging with structlog** (P2 - Enables debugging, 2 hours)
-  - [ ] 3.1 Add structlog dependency
-    - [ ] 3.1.1 Add `structlog>=24.1.0` to `backend/requirements.txt`
-    - [ ] 3.1.2 Add `python-json-logger>=2.0.7` to requirements.txt
-    - [ ] 3.1.3 Run `pip install -r backend/requirements.txt`
-  - [ ] 3.2 Create logging configuration module
-    - [ ] 3.2.1 Create `backend/app/logging_config.py`
-    - [ ] 3.2.2 Configure structlog with JSON processor
-    - [ ] 3.2.3 Add processors: timestamp, log level, logger name, thread ID
-    - [ ] 3.2.4 Configure output to stdout (JSON) + file (`logs/portfolio-ai.log`)
-    - [ ] 3.2.5 Add daily log rotation (keep 30 days)
-  - [ ] 3.3 Create logs directory
-    - [ ] 3.3.1 Create `backend/logs/` directory
-    - [ ] 3.3.2 Add `backend/logs/.gitkeep` to track directory
-    - [ ] 3.3.3 Add `backend/logs/*.log` to `.gitignore`
-  - [ ] 3.4 Add request ID middleware to FastAPI
-    - [ ] 3.4.1 Edit `backend/app/main.py`
-    - [ ] 3.4.2 Add middleware to inject request_id into each request
-    - [ ] 3.4.3 Store request_id in contextvars for access in all logs
-  - [ ] 3.5 Replace logging calls with structured logging
-    - [ ] 3.5.1 Update `backend/app/portfolio/price_fetcher.py`:
-      - [ ] 3.5.1.1 Replace logger.info() with structured fields (symbol, source, cache_hit, duration_ms)
-    - [ ] 3.5.2 Update `backend/app/agents/base.py`:
-      - [ ] 3.5.2.1 Add structured logging for agent runs (agent_type, run_id, num_ideas, cost_usd, duration_s)
-    - [ ] 3.5.3 Update `backend/app/api/ideas.py`:
-      - [ ] 3.5.3.1 Add structured logging for API requests (method, path, status_code, duration_ms)
-    - [ ] 3.5.4 Update `backend/app/main.py`:
-      - [ ] 3.5.4.1 Replace basic logging.basicConfig with structlog setup
-  - [ ] 3.6 Write tests for structured logging
-    - [ ] 3.6.1 Create `backend/tests/test_logging_config.py`
-    - [ ] 3.6.2 Test JSON output format
-    - [ ] 3.6.3 Test log fields (timestamp, level, event, request_id)
-    - [ ] 3.6.4 Test log rotation configuration
+- [x] **3.0 Implement Structured JSON Logging with structlog** (P2 - Enables debugging, 2 hours)
+  - [x] 3.1 Add structlog dependency
+    - [x] 3.1.1 Add `structlog>=24.1.0` to `backend/requirements.txt`
+    - [x] 3.1.2 Add `python-json-logger>=2.0.7` to requirements.txt
+    - [x] 3.1.3 Run `pip install -r backend/requirements.txt`
+  - [x] 3.2 Create logging configuration module
+    - [x] 3.2.1 Create `backend/app/logging_config.py`
+    - [x] 3.2.2 Configure structlog with JSON processor
+    - [x] 3.2.3 Add processors: timestamp, log level, logger name, thread ID
+    - [x] 3.2.4 Configure output to stdout (JSON) + file (`logs/portfolio-ai.log`)
+    - [x] 3.2.5 Add daily log rotation (keep 30 days)
+  - [x] 3.3 Create logs directory
+    - [x] 3.3.1 Create `backend/logs/` directory
+    - [x] 3.3.2 Add `backend/logs/.gitkeep` to track directory
+    - [x] 3.3.3 Add `backend/logs/*.log` to `.gitignore`
+  - [x] 3.4 Add request ID middleware to FastAPI
+    - [x] 3.4.1 Edit `backend/app/main.py`
+    - [x] 3.4.2 Add middleware to inject request_id into each request
+    - [x] 3.4.3 Store request_id in contextvars for access in all logs
+  - [x] 3.5 Replace logging calls with structured logging
+    - [x] 3.5.1 Update `backend/app/portfolio/price_fetcher.py`:
+      - [x] 3.5.1.1 Replace logger.info() with structured fields (symbol, source, cache_hit, duration_ms)
+    - [x] 3.5.2 Update `backend/app/agents/base.py`:
+      - [x] 3.5.2.1 Add structured logging for agent runs (agent_type, run_id, num_ideas, cost_usd, duration_s)
+    - [x] 3.5.3 Update `backend/app/api/ideas.py`:
+      - [x] 3.5.3.1 Add structured logging for API requests (method, path, status_code, duration_ms)
+    - [x] 3.5.4 Update `backend/app/main.py`:
+      - [x] 3.5.4.1 Replace basic logging.basicConfig with structlog setup
+  - [x] 3.6 Write tests for structured logging
+    - [x] 3.6.1 Create `backend/tests/test_logging_config.py`
+    - [x] 3.6.2 Test JSON output format
+    - [x] 3.6.3 Test log fields (timestamp, level, event, request_id)
+    - [x] 3.6.4 Test log rotation configuration
 
 - [ ] **4.0 Add Pre-commit Hooks for Code Quality** (P2 - Prevents issues, 1 hour)
   - [ ] 4.1 Add pre-commit dependency

@@ -10,8 +10,11 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from app.celery_app import celery_app
+from app.logging_config import get_logger
 from app.storage import get_storage
 from app.tasks.agent_tasks import run_discovery_agent, run_portfolio_analyzer
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/ideas", tags=["ideas"])
 
@@ -80,6 +83,13 @@ async def get_ideas(
     limit: int = 50,
 ) -> IdeasListResponse:
     """Get investment ideas with optional filtering."""
+    logger.info(
+        "get_ideas_request",
+        idea_type=idea_type,
+        status=status,
+        limit=limit,
+    )
+
     # Build query
     where_clauses = []
     params = []
@@ -128,12 +138,24 @@ async def get_ideas(
             )
         )
 
+    logger.info(
+        "get_ideas_response",
+        count=len(ideas),
+        idea_type=idea_type,
+        status=status,
+    )
+
     return IdeasListResponse(ideas=ideas, count=len(ideas))
 
 
 @router.post("/generate", response_model=GenerateIdeasResponse)
 async def generate_ideas(request: GenerateIdeasRequest) -> GenerateIdeasResponse:
     """Generate new investment ideas by running an agent in the background."""
+    logger.info(
+        "generate_ideas_request",
+        agent_type=request.agent_type,
+    )
+
     # Dispatch task to Celery
     if request.agent_type == "discovery":
         task = run_discovery_agent.apply_async()
@@ -141,6 +163,12 @@ async def generate_ideas(request: GenerateIdeasRequest) -> GenerateIdeasResponse
         task = run_portfolio_analyzer.apply_async()
     else:
         raise HTTPException(status_code=400, detail="Invalid agent type")
+
+    logger.info(
+        "generate_ideas_dispatched",
+        agent_type=request.agent_type,
+        task_id=task.id,
+    )
 
     return GenerateIdeasResponse(
         status="running",
@@ -161,8 +189,19 @@ class AgentRunStatusResponse(BaseModel):
 @router.get("/runs/{task_id}/status", response_model=AgentRunStatusResponse)
 async def get_agent_run_status(task_id: str) -> AgentRunStatusResponse:
     """Get the status of a running agent task."""
+    logger.debug(
+        "get_agent_run_status_request",
+        task_id=task_id,
+    )
+
     # Get Celery task status
     task_result = AsyncResult(task_id, app=celery_app)
+
+    logger.info(
+        "agent_task_status",
+        task_id=task_id,
+        state=task_result.state,
+    )
 
     if task_result.state == "PENDING":
         return AgentRunStatusResponse(status="PENDING")
@@ -180,6 +219,12 @@ async def get_agent_run_status(task_id: str) -> AgentRunStatusResponse:
             ).fetchone()
 
         if result:
+            logger.info(
+                "agent_run_completed",
+                task_id=task_id,
+                run_id=run_id,
+                num_ideas=result[0],
+            )
             return AgentRunStatusResponse(
                 status="SUCCESS",
                 run_id=run_id,
@@ -191,6 +236,11 @@ async def get_agent_run_status(task_id: str) -> AgentRunStatusResponse:
         )
     if task_result.state == "FAILURE":
         error_msg = str(task_result.info) if task_result.info else "Unknown error"
+        logger.error(
+            "agent_task_failed",
+            task_id=task_id,
+            error=error_msg,
+        )
         return AgentRunStatusResponse(
             status="FAILURE",
             error=error_msg,

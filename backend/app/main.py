@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+import structlog
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api import health, ideas, market, portfolio, preferences
 from app.logging_config import configure_logging, get_logger
@@ -16,6 +19,28 @@ from app.storage import get_storage
 configure_logging()
 
 logger = get_logger(__name__)
+
+
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    """Middleware to inject request_id into each request for structured logging."""
+
+    async def dispatch(self, request: Request, call_next):
+        """Process request and add request_id to context."""
+        request_id = str(uuid.uuid4())
+
+        # Bind request_id to structlog context for this request
+        structlog.contextvars.clear_contextvars()
+        structlog.contextvars.bind_contextvars(request_id=request_id)
+
+        # Add request_id to request state for access in endpoints
+        request.state.request_id = request_id
+
+        response = await call_next(request)
+
+        # Add request_id to response headers for tracing
+        response.headers["X-Request-ID"] = request_id
+
+        return response
 
 
 @asynccontextmanager
@@ -55,6 +80,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add request ID middleware for structured logging
+app.add_middleware(RequestIDMiddleware)
 
 # Register routers
 app.include_router(health.router)
