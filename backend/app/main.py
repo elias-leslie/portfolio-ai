@@ -11,7 +11,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.api import health, ideas, market, portfolio, preferences
+from app.api import analytics, health, ideas, market, portfolio, preferences
 from app.logging_config import configure_logging, get_logger
 from app.storage import get_storage
 
@@ -90,6 +90,7 @@ app.include_router(portfolio.router)
 app.include_router(ideas.router)
 app.include_router(market.router)
 app.include_router(preferences.router)
+app.include_router(analytics.router)
 
 
 @app.get("/")

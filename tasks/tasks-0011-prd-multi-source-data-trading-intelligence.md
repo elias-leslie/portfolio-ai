@@ -67,7 +67,7 @@
 
 ## Relevant Files
 
-### Files Created (17 files)
+### Files Created (19 files)
 
 **Core Multi-Source Infrastructure:**
 - ✅ `backend/app/sources/jsonpath_mapper.py` (265 lines) - JSONPath field mapping with nested data extraction, timestamp conversion, and validation
@@ -88,9 +88,13 @@
 - ✅ `backend/app/analytics/sectors.py` (337 lines) - Sector rotation analyzer with momentum calculation
 - ✅ `backend/tests/test_sectors.py` (213 lines) - Comprehensive test suite with 8 passing tests
 - ✅ `backend/app/analytics/peers.py` (475 lines) - Peer comparison engine with ranking and percentiles
-- ✅ `backend/tests/test_peers.py` (351 lines) - Comprehensive test suite with 13 passing tests
+- ✅ `backend/tests/test_peers.py` (405 lines) - Comprehensive test suite with 13 passing tests
 
-### Files to Create (15 remaining files)
+**API Endpoints:**
+- ✅ `backend/app/api/analytics.py` (428 lines) - Analytics API router with RVOL, sector rotation, and peer comparison endpoints
+- ✅ `backend/tests/test_api_analytics.py` (258 lines) - Comprehensive API test suite with 11 passing tests
+
+### Files to Create (13 remaining files)
 
 **Analytics & Trading Intelligence:**
 - `backend/app/analytics/indicators.py` (~300 lines) - Technical indicators wrapper (pandas_ta)
@@ -302,15 +306,16 @@
       - [x] Return: DataFrame showing ticker's rank within peer group (peer_rank, percentile)
       - [x] Add bonus function: `get_peer_group_detail()` for detailed peer ranking
       - [x] 13 tests created, all passing
-  - [ ] 2.10 Expose analytics via API (FR-2.9)
-    - [ ] 2.10.1 Create `backend/app/api/analytics.py` (~300 lines)
-      - [ ] Add endpoint: `GET /api/analytics/rvol/{ticker}` - Current RVOL
-      - [ ] Add endpoint: `GET /api/analytics/rvol/{ticker}?date=2025-01-15` - Historical RVOL
-      - [ ] Add endpoint: `GET /api/analytics/sectors/rotation` - Current sector momentum
-      - [ ] Add endpoint: `GET /api/analytics/peers/{ticker}` - Peer comparison
-      - [ ] Use FastAPI dependency injection for storage
-      - [ ] Add Pydantic response models for each endpoint
-      - [ ] Register router in `backend/app/main.py`
+  - [x] 2.10 Expose analytics via API (FR-2.9) ✅
+    - [x] 2.10.1 Create `backend/app/api/analytics.py` (428 lines)
+      - [x] Add endpoint: `GET /api/analytics/rvol/{ticker}` - Current and historical RVOL
+      - [x] Add endpoint: `GET /api/analytics/sectors/rotation` - Sector momentum analysis
+      - [x] Add endpoint: `GET /api/analytics/peers/{ticker}` - Peer comparison with ranking
+      - [x] Add endpoint: `GET /api/analytics/peers/{ticker}/detail` - Detailed peer group rankings
+      - [x] Use FastAPI dependency injection for storage
+      - [x] Add Pydantic response models for each endpoint (8 models)
+      - [x] Register router in `backend/app/main.py`
+      - [x] 11 API tests created, all passing
 
 - [ ] 3.0 Technical Indicators Library & Caching
   - [ ] 3.1 Add dependencies (FR-3.1)
