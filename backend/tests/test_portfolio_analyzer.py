@@ -371,7 +371,7 @@ def test_portfolio_analyzer_run_full_execution(
     unique_uuids = [uuid_module.uuid4() for _ in range(20)]
 
     with patch("uuid.uuid4") as mock_uuid:
-        mock_uuid.side_effect = [shared_uuid, shared_uuid] + unique_uuids
+        mock_uuid.side_effect = [shared_uuid, shared_uuid, *unique_uuids]
 
         agent = PortfolioAnalyzerAgent(
             storage=storage, tools=agent_tools, anthropic_client=mock_anthropic_client
@@ -460,13 +460,13 @@ def test_portfolio_analyzer_run_records_tool_calls(
     unique_uuids = [uuid_module.uuid4() for _ in range(20)]
 
     with patch("uuid.uuid4") as mock_uuid:
-        mock_uuid.side_effect = [shared_uuid, shared_uuid] + unique_uuids
+        mock_uuid.side_effect = [shared_uuid, shared_uuid, *unique_uuids]
 
         agent = PortfolioAnalyzerAgent(
             storage=storage, tools=agent_tools, anthropic_client=mock_anthropic_client
         )
 
-        result = agent.run()
+        agent.run()
 
     # Verify agent_tool_calls table
     with storage.connection() as conn:
@@ -501,7 +501,7 @@ def test_portfolio_analyzer_run_clears_run_id_after_execution(
     unique_uuids = [uuid_module.uuid4() for _ in range(20)]
 
     with patch("uuid.uuid4") as mock_uuid:
-        mock_uuid.side_effect = [shared_uuid, shared_uuid] + unique_uuids
+        mock_uuid.side_effect = [shared_uuid, shared_uuid, *unique_uuids]
         agent.run()
 
     # After run

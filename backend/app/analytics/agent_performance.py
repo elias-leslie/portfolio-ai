@@ -111,10 +111,14 @@ def get_agent_performance(
             days=days,
             total_ideas=total_ideas,
         )
-        return _empty_performance_metrics(agent_type, days, total_ideas=total_ideas, open_ideas=open_ideas)
+        return _empty_performance_metrics(
+            agent_type, days, total_ideas=total_ideas, open_ideas=open_ideas
+        )
 
     # Extract realized returns
-    returns = [t["realized_return_pct"] for t in closed_trades if t["realized_return_pct"] is not None]
+    returns = [
+        t["realized_return_pct"] for t in closed_trades if t["realized_return_pct"] is not None
+    ]
 
     if not returns:
         logger.warning(
@@ -143,7 +147,7 @@ def get_agent_performance(
     if losers and average_loser != 0:
         win_loss_ratio = average_winner / abs(average_loser)
     else:
-        win_loss_ratio = float('inf') if winners else 0.0
+        win_loss_ratio = float("inf") if winners else 0.0
 
     # Find best and worst trades
     best_trade_data = max(closed_trades, key=lambda t: t["realized_return_pct"] or 0.0)
@@ -160,7 +164,9 @@ def get_agent_performance(
     worst_trade = {
         "ticker": worst_trade_data["ticker"],
         "return": round(worst_trade_data["realized_return_pct"] or 0.0, 2),
-        "entry_date": str(worst_trade_data["entry_date"]) if worst_trade_data["entry_date"] else None,
+        "entry_date": str(worst_trade_data["entry_date"])
+        if worst_trade_data["entry_date"]
+        else None,
         "exit_date": str(worst_trade_data["exit_date"]) if worst_trade_data["exit_date"] else None,
         "holding_days": worst_trade_data["holding_days"],
     }
@@ -170,7 +176,7 @@ def get_agent_performance(
         "average_return": round(average_return, 2),
         "average_winner": round(average_winner, 2),
         "average_loser": round(average_loser, 2),
-        "win_loss_ratio": round(win_loss_ratio, 2) if win_loss_ratio != float('inf') else None,
+        "win_loss_ratio": round(win_loss_ratio, 2) if win_loss_ratio != float("inf") else None,
         "total_ideas": total_ideas,
         "open_ideas": open_ideas,
         "closed_ideas": closed_ideas,
@@ -280,10 +286,12 @@ def get_agent_performance_summary(storage: DuckDBStorage, days: int = 30) -> dic
     agents_performance = []
     for agent_type in agent_types:
         perf = get_agent_performance(storage, agent_type, days=days)
-        agents_performance.append({
-            "agent_type": agent_type,
-            **perf["metrics"],
-        })
+        agents_performance.append(
+            {
+                "agent_type": agent_type,
+                **perf["metrics"],
+            }
+        )
 
     return {
         "agents": agents_performance,

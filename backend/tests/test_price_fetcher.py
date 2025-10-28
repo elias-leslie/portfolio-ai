@@ -7,13 +7,12 @@ import json
 import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import patch
 
 import polars as pl
 import pytest
 
 from app.portfolio.price_fetcher import PriceDataFetcher
-from app.sources.base import DATASET_REFERENCE, DatasetRequest
 from app.storage import DuckDBStorage
 
 
@@ -201,9 +200,7 @@ def test_fetch_price_data_with_cache_hit(
     price_fetcher._cache_prices(price_data)
 
     # Mock the fetch_with_fallback to ensure it's NOT called
-    with patch.object(
-        price_fetcher.multi_source_fetcher, "fetch_with_fallback"
-    ) as mock_fetch:
+    with patch.object(price_fetcher.multi_source_fetcher, "fetch_with_fallback") as mock_fetch:
         # Fetch (should use cache, not call fetch_with_fallback)
         result = price_fetcher.fetch_price_data(["AAPL"])
 

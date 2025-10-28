@@ -177,7 +177,7 @@ def test_execute_get_news_default_max_results(
     """Test get_news with default max_results."""
     mock_news_source.fetch_headlines.return_value = []
 
-    result = agent_tools.execute_get_news("technology")
+    agent_tools.execute_get_news("technology")
 
     mock_news_source.fetch_headlines.assert_called_once_with("technology", 10)
 

@@ -6,6 +6,7 @@ Scans market news and economic data to generate general investment ideas.
 from __future__ import annotations
 
 import logging
+import uuid
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -108,8 +109,6 @@ Generate exactly 5 ideas, then stop."""
             user_prompt = "Analyze current market conditions and generate 5 investment ideas."
 
         # Set run_id for this execution
-        import uuid
-
         self.current_run_id = str(uuid.uuid4())
 
         result = super().run(user_prompt, max_iterations=max_iterations)

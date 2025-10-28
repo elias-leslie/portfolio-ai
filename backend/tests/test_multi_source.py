@@ -6,18 +6,17 @@ This module tests the MultiSourceFetcher class and source adapters.
 from __future__ import annotations
 
 import datetime as dt
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock
 
 import polars as pl
 import pytest
 from httpx import HTTPStatusError, Response
 
-from app.sources.base import DATASET_REFERENCE, BaseSource, DatasetRequest
-from app.sources.multi_source_fetcher import MultiSourceFetcher, SourceMetrics
+from app.sources.base import DATASET_REFERENCE, DatasetRequest
+from app.sources.multi_source_fetcher import MultiSourceFetcher
 from app.sources.polygon_source import PolygonSource
 from app.sources.yfinance_source import YFinanceSource
 from app.storage import DuckDBStorage
-
 
 # Fixtures
 
@@ -83,9 +82,7 @@ def test_multi_source_fetcher_initialization(
     mock_yfinance_source: Mock, mock_polygon_source: Mock, mock_storage: DuckDBStorage
 ) -> None:
     """Test MultiSourceFetcher initializes with sources sorted by priority."""
-    fetcher = MultiSourceFetcher(
-        [mock_polygon_source, mock_yfinance_source], storage=mock_storage
-    )
+    fetcher = MultiSourceFetcher([mock_polygon_source, mock_yfinance_source], storage=mock_storage)
 
     # Should be sorted by priority (yfinance=1, polygon=10)
     assert len(fetcher.sources) == 2
@@ -111,11 +108,9 @@ def test_yfinance_primary_success(
     )
     mock_yfinance_source.fetch_reference_payload.return_value = mock_data
 
-    fetcher = MultiSourceFetcher(
-        [mock_yfinance_source, mock_polygon_source], storage=mock_storage
-    )
+    fetcher = MultiSourceFetcher([mock_yfinance_source, mock_polygon_source], storage=mock_storage)
 
-    df, errors = fetcher.fetch_with_fallback(sample_request)
+    df, _errors = fetcher.fetch_with_fallback(sample_request)
 
     # Should succeed with yfinance
     assert df is not None
@@ -156,11 +151,9 @@ def test_polygon_failover_on_yfinance_429(
     )
     mock_polygon_source.fetch_reference_payload.return_value = mock_data
 
-    fetcher = MultiSourceFetcher(
-        [mock_yfinance_source, mock_polygon_source], storage=mock_storage
-    )
+    fetcher = MultiSourceFetcher([mock_yfinance_source, mock_polygon_source], storage=mock_storage)
 
-    df, errors = fetcher.fetch_with_fallback(sample_request)
+    df, _errors = fetcher.fetch_with_fallback(sample_request)
 
     # Should succeed with Polygon
     assert df is not None
@@ -189,9 +182,7 @@ def test_polygon_failover_on_yfinance_timeout(
 ) -> None:
     """Test failover to Polygon when yfinance times out."""
     # Mock yfinance timing out
-    mock_yfinance_source.fetch_reference_payload.side_effect = TimeoutError(
-        "Request timeout"
-    )
+    mock_yfinance_source.fetch_reference_payload.side_effect = TimeoutError("Request timeout")
 
     # Mock Polygon returning valid data
     mock_data = pl.DataFrame(
@@ -204,11 +195,9 @@ def test_polygon_failover_on_yfinance_timeout(
     )
     mock_polygon_source.fetch_reference_payload.return_value = mock_data
 
-    fetcher = MultiSourceFetcher(
-        [mock_yfinance_source, mock_polygon_source], storage=mock_storage
-    )
+    fetcher = MultiSourceFetcher([mock_yfinance_source, mock_polygon_source], storage=mock_storage)
 
-    df, errors = fetcher.fetch_with_fallback(sample_request)
+    df, _errors = fetcher.fetch_with_fallback(sample_request)
 
     # Should succeed with Polygon
     assert df is not None
@@ -227,14 +216,10 @@ def test_all_sources_fail(
 ) -> None:
     """Test all sources failing returns None with error details."""
     # Mock both sources failing
-    mock_yfinance_source.fetch_reference_payload.side_effect = Exception(
-        "YFinance error"
-    )
+    mock_yfinance_source.fetch_reference_payload.side_effect = Exception("YFinance error")
     mock_polygon_source.fetch_reference_payload.side_effect = Exception("Polygon error")
 
-    fetcher = MultiSourceFetcher(
-        [mock_yfinance_source, mock_polygon_source], storage=mock_storage
-    )
+    fetcher = MultiSourceFetcher([mock_yfinance_source, mock_polygon_source], storage=mock_storage)
 
     df, errors = fetcher.fetch_with_fallback(sample_request)
 
@@ -256,9 +241,7 @@ def test_rate_limit_cooldown_skips_source(
 ) -> None:
     """Test that source in cooldown is skipped."""
     # Create fetcher and manually set yfinance to cooldown
-    fetcher = MultiSourceFetcher(
-        [mock_yfinance_source, mock_polygon_source], storage=mock_storage
-    )
+    fetcher = MultiSourceFetcher([mock_yfinance_source, mock_polygon_source], storage=mock_storage)
 
     # Manually set yfinance in rate limit cooldown
     fetcher._metrics["yfinance"].rate_limit_hits = 1
@@ -275,7 +258,7 @@ def test_rate_limit_cooldown_skips_source(
     )
     mock_polygon_source.fetch_reference_payload.return_value = mock_data
 
-    df, errors = fetcher.fetch_with_fallback(sample_request)
+    df, _errors = fetcher.fetch_with_fallback(sample_request)
 
     # Should succeed with Polygon only
     assert df is not None

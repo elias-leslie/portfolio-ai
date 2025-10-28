@@ -429,6 +429,5 @@ class AgentTools:
                 "paper_trade_created": True,
                 "ticker": paper_trade["ticker"],
             }
-        else:
-            logger.warning(f"Failed to create paper trade for idea {idea_id}")
-            return {"idea_id": idea_id, "status": "stored", "paper_trade_created": False}
+        logger.warning(f"Failed to create paper trade for idea {idea_id}")
+        return {"idea_id": idea_id, "status": "stored", "paper_trade_created": False}

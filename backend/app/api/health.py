@@ -156,7 +156,9 @@ class HealthCheckService:
                 success_rate = (success_count / total_requests * 100) if total_requests > 0 else 0.0
 
                 # Calculate average latency
-                avg_latency_ms = int(total_latency_ms / success_count) if success_count > 0 else None
+                avg_latency_ms = (
+                    int(total_latency_ms / success_count) if success_count > 0 else None
+                )
 
                 # Determine status based on last success and success rate
                 if last_success_at:

@@ -7,6 +7,7 @@ to track the real-world performance of AI agent investment ideas.
 from __future__ import annotations
 
 import datetime as dt
+import re
 from datetime import datetime
 from typing import Any
 
@@ -395,8 +396,6 @@ def _extract_ticker_from_title(title: str) -> str | None:
     Returns:
         Ticker symbol in uppercase, or None if not found
     """
-    import re
-
     # Look for 1-5 uppercase letter sequences (typical ticker format)
     # Match standalone tickers or tickers followed by colon/space
     pattern = r"\b([A-Z]{1,5})\b"
@@ -483,8 +482,6 @@ def _extract_target_price_from_thesis(thesis: str, entry_price: float) -> float 
     Returns:
         Target price if found, or estimated target (entry + 10%) if not found
     """
-    import re
-
     # Look for "target" followed by dollar amount or number
     patterns = [
         r"target\s+\$?(\d+\.?\d*)",

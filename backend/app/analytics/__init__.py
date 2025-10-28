@@ -16,8 +16,8 @@ from .volume import calculate_rvol, get_high_volume_tickers
 __all__ = [
     "calculate_rvol",
     "get_high_volume_tickers",
-    "get_sector_rotation",
-    "get_sector_performance_detail",
     "get_peer_comparison",
     "get_peer_group_detail",
+    "get_sector_performance_detail",
+    "get_sector_rotation",
 ]

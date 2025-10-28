@@ -120,8 +120,8 @@ def test_get_positions(portfolio_mgr: PortfolioManager) -> None:
     """Test getting all positions."""
     account = portfolio_mgr.add_account("Test Account", "Taxable")
 
-    pos1 = portfolio_mgr.add_position(account.id, "AAPL", 100.0, 150.0)
-    pos2 = portfolio_mgr.add_position(account.id, "GOOGL", 50.0, 2000.0)
+    portfolio_mgr.add_position(account.id, "AAPL", 100.0, 150.0)
+    portfolio_mgr.add_position(account.id, "GOOGL", 50.0, 2000.0)
 
     positions = portfolio_mgr.get_positions()
 

@@ -89,12 +89,9 @@ class SourceManager:
         filtered: list[BaseSource] = []
         for source in self._sources:
             if (
-                dataset == DATASET_DAY
-                and source.supports_day
-                or dataset == DATASET_REFERENCE
-                and source.supports_reference
-                or dataset == DATASET_NEWS
-                and source.supports_news
+                (dataset == DATASET_DAY and source.supports_day)
+                or (dataset == DATASET_REFERENCE and source.supports_reference)
+                or (dataset == DATASET_NEWS and source.supports_news)
             ):
                 filtered.append(source)
         return filtered

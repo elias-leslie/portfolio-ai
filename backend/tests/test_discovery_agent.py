@@ -340,7 +340,7 @@ def test_discovery_agent_run_full_execution(
     with patch("uuid.uuid4") as mock_uuid:
         # Return the same UUID object for the first two calls (Discovery and base Agent)
         # Then return unique UUIDs for idea IDs and tool call IDs
-        mock_uuid.side_effect = [shared_uuid, shared_uuid] + unique_uuids
+        mock_uuid.side_effect = [shared_uuid, shared_uuid, *unique_uuids]
 
         agent = DiscoveryAgent(
             storage=storage, tools=agent_tools, anthropic_client=mock_anthropic_client
@@ -400,13 +400,13 @@ def test_discovery_agent_run_records_tool_calls(
     with patch("uuid.uuid4") as mock_uuid:
         # Return the same UUID object for the first two calls
         # Then return unique UUIDs for idea IDs and tool call IDs
-        mock_uuid.side_effect = [shared_uuid, shared_uuid] + unique_uuids
+        mock_uuid.side_effect = [shared_uuid, shared_uuid, *unique_uuids]
 
         agent = DiscoveryAgent(
             storage=storage, tools=agent_tools, anthropic_client=mock_anthropic_client
         )
 
-        result = agent.run()
+        agent.run()
 
     # Verify agent_tool_calls table
     with storage.connection() as conn:
@@ -453,7 +453,7 @@ def test_discovery_agent_run_clears_run_id_after_execution(
     unique_uuids = [uuid_module.uuid4() for _ in range(20)]
 
     with patch("uuid.uuid4") as mock_uuid:
-        mock_uuid.side_effect = [shared_uuid, shared_uuid] + unique_uuids
+        mock_uuid.side_effect = [shared_uuid, shared_uuid, *unique_uuids]
         # Run
         agent.run()
 

@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import datetime as dt
-import json
 from unittest.mock import patch
 
-import polars as pl
 import pytest
 from fastapi.testclient import TestClient
 
