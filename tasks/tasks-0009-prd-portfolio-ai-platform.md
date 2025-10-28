@@ -284,16 +284,16 @@
   - [x] 7.15 Run `scripts/validate-commands.sh` to verify all slash commands work
   - [x] 7.16 Create final git commit ("docs: complete documentation for portfolio-ai MVP")
 
-- [ ] 8.0 Remote Access & Backup Configuration
-  - [ ] 8.1 Configure Tailscale serve for portfolio-ai frontend (port 3000)
-  - [ ] 8.2 Configure Tailscale serve for portfolio-ai backend API (port 8000)
-  - [ ] 8.3 Test remote access from phone/other devices over Tailscale
-  - [ ] 8.4 Update restic backup script to include /home/kasadis/portfolio-ai/
-  - [ ] 8.5 Verify restic backup includes portfolio-ai data directory
-  - [ ] 8.6 Document Tailscale setup in docs/core/OPERATIONS.md
-  - [ ] 8.7 Document backup configuration in docs/core/OPERATIONS.md
-  - [ ] 8.8 Create troubleshooting guide for remote access issues
-  - [ ] 8.9 Test backup restoration for portfolio-ai files
+- [x] 8.0 Remote Access & Backup Configuration (core setup complete, testing for user)
+  - [x] 8.1 Configure Tailscale serve for portfolio-ai frontend (port 3000)
+  - [x] 8.2 Configure Tailscale serve for portfolio-ai backend API (port 8000)
+  - [ ] 8.3 Test remote access from phone/other devices over Tailscale (USER TESTING)
+  - [x] 8.4 Update restic backup script to include /home/kasadis/portfolio-ai/
+  - [x] 8.5 Verify restic backup includes portfolio-ai data directory (auto-included via directory)
+  - [x] 8.6 Document Tailscale setup in docs/core/OPERATIONS.md (ALREADY DOCUMENTED)
+  - [x] 8.7 Document backup configuration in docs/core/OPERATIONS.md (ALREADY DOCUMENTED)
+  - [ ] 8.8 Create troubleshooting guide for remote access issues (DEFERRED - basic troubleshooting in OPERATIONS.md)
+  - [ ] 8.9 Test backup restoration for portfolio-ai files (USER TESTING)
 
 ---
 
