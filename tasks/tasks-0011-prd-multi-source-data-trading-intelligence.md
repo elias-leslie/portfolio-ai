@@ -346,11 +346,11 @@
       - [x] Calculate all requested indicators
       - [x] Add interpretations: "oversold" (RSI < 30), "overbought" (RSI > 70), "bullish_cross" (MACD > signal)
       - [x] Return: Dict with indicator values and interpretations
-  - [ ] 3.3 Update database schema for indicator caching (FR-3.3)
-    - [ ] 3.3.1 Add `technical_indicators` table to `backend/app/storage/schema.py`
-      - [ ] Schema: See PRD FR-3.3 for full schema (17 columns)
-      - [ ] Add to `_create_timeseries_tables()` method
-      - [ ] Create index: `CREATE INDEX idx_indicators_ticker ON technical_indicators(ticker, date)`
+  - [x] 3.3 Update database schema for indicator caching (FR-3.3) ✅
+    - [x] 3.3.1 Add `technical_indicators` table to `backend/app/storage/schema.py`
+      - [x] Schema: Added with 17 columns (ticker, date, all indicators, calculated_at)
+      - [x] Add to `_create_timeseries_tables()` method
+      - [x] Create index: `CREATE INDEX idx_indicators_ticker ON technical_indicators(ticker, date)`
   - [ ] 3.4 Cache calculated indicators (FR-3.4)
     - [ ] 3.4.1 Add Celery task: `update_technical_indicators(tickers: list[str])` in `backend/app/tasks/agent_tasks.py`
       - [ ] Calculate indicators for each ticker using latest 200 days of OHLCV

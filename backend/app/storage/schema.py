@@ -24,7 +24,7 @@ MIGRATIONS: list[tuple[str, str]] = []
 class SchemaManager:
     """Manages DuckDB schema creation for portfolio-ai.
 
-    Handles schema creation for all 14 tables and table registry metadata.
+    Handles schema creation for all 15 tables and table registry metadata.
     """
 
     def __init__(self, connection_mgr: ConnectionManager) -> None:
@@ -36,7 +36,7 @@ class SchemaManager:
         self.connection_mgr = connection_mgr
 
     def ensure_schema(self) -> None:
-        """Create all 14 database tables in a single transaction.
+        """Create all 15 database tables in a single transaction.
 
         Creates tables in dependency order with transaction wrapper for atomicity.
         Also applies any pending migrations from migrations/ directory.
@@ -58,7 +58,7 @@ class SchemaManager:
                 self._populate_registry_metadata(conn)
 
                 conn.execute("COMMIT")
-                logger.info("Schema initialization completed successfully (14 tables)")
+                logger.info("Schema initialization completed successfully (15 tables)")
 
             except Exception as e:
                 conn.execute("ROLLBACK")
@@ -159,7 +159,7 @@ class SchemaManager:
         """)
 
     def _create_timeseries_tables(self, conn: duckdb.DuckDBPyConnection) -> None:
-        """Create time-series data tables (3 tables)."""
+        """Create time-series data tables (4 tables)."""
         # price_cache
         conn.execute("""
             CREATE TABLE IF NOT EXISTS price_cache (
@@ -211,6 +211,37 @@ class SchemaManager:
                 source                 TEXT NOT NULL,
                 PRIMARY KEY (ticker, ts_utc)
             )
+        """)
+
+        # technical_indicators (cached technical indicator values)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS technical_indicators (
+                ticker                 TEXT NOT NULL,
+                date                   DATE NOT NULL,
+                rsi_14                 DOUBLE,
+                macd                   DOUBLE,
+                macd_signal            DOUBLE,
+                macd_histogram         DOUBLE,
+                bb_upper               DOUBLE,
+                bb_middle              DOUBLE,
+                bb_lower               DOUBLE,
+                sma_20                 DOUBLE,
+                sma_50                 DOUBLE,
+                sma_200                DOUBLE,
+                ema_20                 DOUBLE,
+                ema_50                 DOUBLE,
+                ema_200                DOUBLE,
+                atr_14                 DOUBLE,
+                stoch_k                DOUBLE,
+                stoch_d                DOUBLE,
+                calculated_at          TIMESTAMP NOT NULL,
+                PRIMARY KEY (ticker, date)
+            )
+        """)
+
+        # Create index for technical_indicators ticker lookups
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_indicators_ticker ON technical_indicators(ticker, date)
         """)
 
     def _create_metadata_tables(self, conn: duckdb.DuckDBPyConnection) -> None:
