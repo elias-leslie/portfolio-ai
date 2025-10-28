@@ -7,9 +7,11 @@ from __future__ import annotations
 
 import logging
 
+from .migrations import MigrationManager
+
 logger = logging.getLogger(__name__)
 
-# Schema version migrations (version, SQL)
+# Schema version migrations (version, SQL) - Deprecated, use migrations/ directory
 MIGRATIONS: list[tuple[str, str]] = []
 
 
@@ -31,7 +33,12 @@ class SchemaManager:
         """Create all 8 database tables in a single transaction.
 
         Creates tables in dependency order with transaction wrapper for atomicity.
+        Also applies any pending migrations from migrations/ directory.
         """
+        # Apply migrations first (before schema creation for flexibility)
+        migration_mgr = MigrationManager(self.connection_mgr)
+        migration_mgr.apply_migrations()
+
         with self.connection_mgr.connection() as conn:
             try:
                 conn.execute("BEGIN TRANSACTION")
@@ -40,7 +47,7 @@ class SchemaManager:
                 self._create_timeseries_tables(conn)
                 self._create_metadata_tables(conn)
 
-                # Apply migrations and populate registry
+                # Apply legacy migrations and populate registry
                 self._apply_migrations(conn)
                 self._populate_registry_metadata(conn)
 
