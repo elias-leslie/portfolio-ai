@@ -67,7 +67,7 @@
 
 ## Relevant Files
 
-### Files Created (15 files)
+### Files Created (17 files)
 
 **Core Multi-Source Infrastructure:**
 - ✅ `backend/app/sources/jsonpath_mapper.py` (265 lines) - JSONPath field mapping with nested data extraction, timestamp conversion, and validation
@@ -86,12 +86,13 @@
 
 **Analytics & Trading Intelligence:**
 - ✅ `backend/app/analytics/sectors.py` (337 lines) - Sector rotation analyzer with momentum calculation
-- ✅ `backend/tests/test_sectors.py` (190 lines) - Comprehensive test suite with 8 passing tests
+- ✅ `backend/tests/test_sectors.py` (213 lines) - Comprehensive test suite with 8 passing tests
+- ✅ `backend/app/analytics/peers.py` (475 lines) - Peer comparison engine with ranking and percentiles
+- ✅ `backend/tests/test_peers.py` (351 lines) - Comprehensive test suite with 13 passing tests
 
-### Files to Create (17 remaining files)
+### Files to Create (15 remaining files)
 
 **Analytics & Trading Intelligence:**
-- `backend/app/analytics/peers.py` (~150 lines) - Peer comparison engine
 - `backend/app/analytics/indicators.py` (~300 lines) - Technical indicators wrapper (pandas_ta)
 - `backend/app/analytics/paper_trading.py` (~250 lines) - Paper trade tracker
 - `backend/app/analytics/agent_performance.py` (~200 lines) - Agent performance metrics
@@ -293,12 +294,14 @@
       - [x] Return: DataFrame with sectors ranked by momentum (columns: sector, momentum_5d, momentum_20d, num_stocks, avg_volume)
       - [x] Add bonus function: `get_sector_performance_detail()` for detailed sector analysis
       - [x] 8 tests created, all passing
-  - [ ] 2.9 Create peer comparison engine (FR-2.8)
-    - [ ] 2.9.1 Create `backend/app/analytics/peers.py` (~150 lines)
-      - [ ] Add function: `get_peer_comparison(ticker: str, date: str) -> pl.DataFrame`
-      - [ ] Group tickers by sector/industry (from reference data)
-      - [ ] Calculate relative performance: `(ticker_return - sector_avg_return)`
-      - [ ] Return: DataFrame showing ticker's rank within peer group
+  - [x] 2.9 Create peer comparison engine (FR-2.8) ✅
+    - [x] 2.9.1 Create `backend/app/analytics/peers.py` (475 lines)
+      - [x] Add function: `get_peer_comparison(ticker: str, date: str) -> pl.DataFrame`
+      - [x] Group tickers by sector/industry (from reference data)
+      - [x] Calculate relative performance: `(ticker_return - sector_avg_return)`
+      - [x] Return: DataFrame showing ticker's rank within peer group (peer_rank, percentile)
+      - [x] Add bonus function: `get_peer_group_detail()` for detailed peer ranking
+      - [x] 13 tests created, all passing
   - [ ] 2.10 Expose analytics via API (FR-2.9)
     - [ ] 2.10.1 Create `backend/app/api/analytics.py` (~300 lines)
       - [ ] Add endpoint: `GET /api/analytics/rvol/{ticker}` - Current RVOL
