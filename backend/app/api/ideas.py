@@ -5,18 +5,13 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
+from celery.result import AsyncResult
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from app.agents.discovery import DiscoveryAgent
-from app.agents.portfolio_analyzer import PortfolioAnalyzerAgent
-from app.agents.tools import AgentTools
-from app.portfolio.analytics import PortfolioAnalytics
-from app.portfolio.manager import PortfolioManager
-from app.portfolio.price_fetcher import PriceDataFetcher
-from app.sources.fred import FREDSource
-from app.sources.news import GoogleNewsSource
+from app.celery_app import celery_app
 from app.storage import get_storage
+from app.tasks.agent_tasks import run_discovery_agent, run_portfolio_analyzer
 
 router = APIRouter(prefix="/api/ideas", tags=["ideas"])
 
@@ -64,8 +59,9 @@ class GenerateIdeasResponse(BaseModel):
     """Response model for generate ideas."""
 
     status: str
-    agent_run_id: str
-    num_ideas: int
+    run_id: str | None = None
+    task_id: str | None = None
+    num_ideas: int | None = None
     agent_type: str
 
 
@@ -137,52 +133,71 @@ async def get_ideas(
 
 @router.post("/generate", response_model=GenerateIdeasResponse)
 async def generate_ideas(request: GenerateIdeasRequest) -> GenerateIdeasResponse:
-    """Generate new investment ideas by running an agent."""
-    # Initialize agent tools
-    news_source = GoogleNewsSource()
-    fred_source = FREDSource()
-    price_fetcher = PriceDataFetcher(storage)
-    portfolio_mgr = PortfolioManager(storage)
-    analytics = PortfolioAnalytics()
-
-    agent_tools = AgentTools(
-        storage=storage,
-        news_source=news_source,
-        fred_source=fred_source,
-        price_fetcher=price_fetcher,
-        portfolio_mgr=portfolio_mgr,
-        analytics=analytics,
-    )
-
-    # Create and run agent
+    """Generate new investment ideas by running an agent in the background."""
+    # Dispatch task to Celery
     if request.agent_type == "discovery":
-        agent = DiscoveryAgent(storage=storage, tools=agent_tools)
+        task = run_discovery_agent.apply_async()
     elif request.agent_type == "portfolio_analyzer":
-        agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools)
+        task = run_portfolio_analyzer.apply_async()
     else:
         raise HTTPException(status_code=400, detail="Invalid agent type")
 
-    # Run agent
-    result = agent.run()
-
-    if result["status"] != "completed":
-        raise HTTPException(
-            status_code=500,
-            detail=f"Agent run failed: {result.get('error', 'Unknown error')}",
-        )
-
-    # Get run info from database
-    with storage.connection() as conn:
-        run_info = conn.execute(
-            "SELECT id, num_ideas FROM agent_runs WHERE agent_type = ? ORDER BY started_at DESC LIMIT 1",
-            [agent.agent_type],
-        ).fetchone()
-
     return GenerateIdeasResponse(
-        status="completed",
-        agent_run_id=run_info[0],
-        num_ideas=run_info[1],
+        status="running",
+        task_id=task.id,
         agent_type=request.agent_type,
+    )
+
+
+class AgentRunStatusResponse(BaseModel):
+    """Response model for agent run status."""
+
+    status: Literal["PENDING", "STARTED", "SUCCESS", "FAILURE"]
+    run_id: str | None = None
+    num_ideas: int | None = None
+    error: str | None = None
+
+
+@router.get("/runs/{task_id}/status", response_model=AgentRunStatusResponse)
+async def get_agent_run_status(task_id: str) -> AgentRunStatusResponse:
+    """Get the status of a running agent task."""
+    # Get Celery task status
+    task_result = AsyncResult(task_id, app=celery_app)
+
+    if task_result.state == "PENDING":
+        return AgentRunStatusResponse(status="PENDING")
+    if task_result.state == "STARTED":
+        return AgentRunStatusResponse(status="STARTED")
+    if task_result.state == "SUCCESS":
+        # Task completed - get run_id from result
+        run_id = task_result.result
+
+        # Query agent_runs for details
+        with storage.connection() as conn:
+            result = conn.execute(
+                "SELECT num_ideas FROM agent_runs WHERE id = ?",
+                [run_id],
+            ).fetchone()
+
+        if result:
+            return AgentRunStatusResponse(
+                status="SUCCESS",
+                run_id=run_id,
+                num_ideas=result[0],
+            )
+        return AgentRunStatusResponse(
+            status="SUCCESS",
+            run_id=run_id,
+        )
+    if task_result.state == "FAILURE":
+        error_msg = str(task_result.info) if task_result.info else "Unknown error"
+        return AgentRunStatusResponse(
+            status="FAILURE",
+            error=error_msg,
+        )
+    return AgentRunStatusResponse(
+        status="PENDING",
+        error=f"Unknown task state: {task_result.state}",
     )
 
 
