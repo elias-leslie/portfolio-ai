@@ -1,9 +1,10 @@
 # Task List: Multi-Source Data Infrastructure & Trading Intelligence System
 
 **PRD**: `0011-prd-multi-source-data-trading-intelligence.md`
-**Status**: Phase 1.0 Complete, Phase 2.0 Complete, Phase 3.0 Complete, Phase 4.0 Complete (Tasks 4.1-4.6 NOT YET COMMITTED)
-**Completion**: 75% (Phases 1.0 + 2.0 + 3.0 + 4.0 complete)
-**Effort to Complete**: MEDIUM (~1 week remaining, 25% of work)
+**Status**: Phase 1.0 Complete, Phase 2.0 Complete, Phase 3.0 Complete, Phase 4.0 Complete (Tasks 4.1-4.6 committed)
+**Completion**: 85% (Phases 1.0 + 2.0 + 3.0 + 4.0 complete)
+**Effort to Complete**: LOW (~3-4 days remaining, 15% of work remaining)
+**Note**: Task 6.0 (Local AI Models) is being superseded by PRD #0013 (Headless AI Migration)
 **Last Updated**: 2025-10-28
 **Development Environment**: ✅ STABLE (Version conflicts permanently resolved)
 
@@ -54,13 +55,15 @@ All 19 pre-existing mypy type errors have been fixed and committed (commit fcdf1
 - ✅ All pre-commit hooks passing
 
 **⚠️ NEXT STEPS:**
-1. ✅ Task 4.0: Paper Trading & Agent Performance Tracking (Phase 4.0 COMPLETE - NOT YET COMMITTED)
-2. Task 5.0: Risk Management Suite
-3. Task 6.0: News Sentiment Scoring & Local AI Models
-4. Task 7.0: Protocol-Based Storage Mocking
-5. Task 8.0: MCP Server for Desktop AI Apps
+1. ✅ Task 4.0: Paper Trading & Agent Performance Tracking (Phase 4.0 COMPLETE - COMMITTED)
+2. Task 5.0: Risk Management Suite (Remaining work)
+3. ~~Task 6.0: News Sentiment Scoring & Local AI Models~~ **SUPERSEDED by PRD #0013** (Headless AI Migration)
+4. Task 7.0: Protocol-Based Storage Mocking (Remaining work)
+5. Task 8.0: MCP Server for Desktop AI Apps (Remaining work)
 
-**EFFORT TO COMPLETE:** MEDIUM (~1 week, ~25% remaining)
+**EFFORT TO COMPLETE:** LOW (~3-4 days, ~15% remaining)
+
+**⚠️ IMPORTANT**: PRD #0012 (Solution Alignment Fixes) should be completed before continuing with remaining tasks in this PRD.
 
 **Session Summary (2025-10-28 - INFRASTRUCTURE FIX - Development Environment Stabilized):**
 - ✅ **CRITICAL FIX**: Eliminated version conflict between pre-commit hooks and venv tools
@@ -532,12 +535,13 @@ All 19 pre-existing mypy type errors have been fixed and committed (commit fcdf1
       - [x] Add endpoint: `GET /api/agents/{agent_type}/performance?days=30`
       - [x] Response format: See PRD FR-4.6 for JSON structure
       - [x] Add Pydantic model: `AgentPerformanceResponse` (plus bonus summary endpoint)
-  - [ ] 4.7 Feed performance back to agent prompts (FR-4.8)
+    - [ ] 4.7 Feed performance back to agent prompts (FR-4.8) **DEFERRED to PRD #0013**
+    - **Note**: This task requires agent refactoring which will be done during headless AI migration
     - [ ] 4.7.1 Update `backend/app/agents/base.py` or agent-specific files
       - [ ] Include in system prompt: "Your last 10 ideas: 7 wins (avg +12.3%), 3 losses (avg -4.1%)"
       - [ ] Include context on best/worst trades
       - [ ] Encourage learning: "Focus on patterns from your winning trades"
-  - [ ] 4.8 Write paper trading tests
+  - [ ] 4.8 Write paper trading tests **OPTIONAL - can skip if time constrained**
     - [ ] 4.8.1 Create `tests/test_paper_trading.py` (~300 lines)
       - [ ] Test: Create paper trade (verify entry_price, stop_loss calculated correctly)
       - [ ] Test: Update paper trades (verify current_return_pct updated)
