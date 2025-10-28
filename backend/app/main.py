@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,11 +20,31 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Lifespan context manager for startup and shutdown events."""
+    # Startup
+    logger.info("Starting Portfolio AI Platform")
+
+    # Initialize storage and ensure schema exists
+    storage = get_storage()
+    storage.ensure_schema()
+
+    logger.info("Database schema initialized")
+
+    yield
+
+    # Shutdown (placeholder for future cleanup logic)
+    logger.info("Shutting down Portfolio AI Platform")
+
+
 # Create FastAPI app
 app = FastAPI(
     title="Portfolio AI Platform",
     description="AI-led investment intelligence platform with portfolio analytics and autonomous agents",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # Configure CORS
@@ -42,18 +64,6 @@ app.include_router(portfolio.router)
 app.include_router(ideas.router)
 app.include_router(market.router)
 app.include_router(preferences.router)
-
-
-@app.on_event("startup")
-async def startup_event() -> None:
-    """Initialize database schema on startup."""
-    logger.info("Starting Portfolio AI Platform")
-
-    # Initialize storage and ensure schema exists
-    storage = get_storage()
-    storage.ensure_schema()
-
-    logger.info("Database schema initialized")
 
 
 @app.get("/")

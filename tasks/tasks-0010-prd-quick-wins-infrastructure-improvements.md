@@ -147,13 +147,13 @@ Based on PRD #0010, here are the main implementation phases:
 ## Tasks
 
 - [ ] **1.0 Migrate to FastAPI Lifespan Handlers** (P0 - Critical, 10 min)
-  - [ ] 1.1 Replace deprecated on_event with lifespan context manager
-    - [ ] 1.1.1 Import `contextlib.asynccontextmanager` in `backend/app/main.py`
-    - [ ] 1.1.2 Create `lifespan()` async context manager function
-    - [ ] 1.1.3 Move `storage = get_storage()` and `storage.ensure_schema()` into lifespan startup
-    - [ ] 1.1.4 Add placeholder for shutdown logic (yield statement)
-    - [ ] 1.1.5 Update `FastAPI(lifespan=lifespan)` initialization
-    - [ ] 1.1.6 Remove `@app.on_event("startup")` decorator
+  - [x] 1.1 Replace deprecated on_event with lifespan context manager
+    - [x] 1.1.1 Import `contextlib.asynccontextmanager` in `backend/app/main.py`
+    - [x] 1.1.2 Create `lifespan()` async context manager function
+    - [x] 1.1.3 Move `storage = get_storage()` and `storage.ensure_schema()` into lifespan startup
+    - [x] 1.1.4 Add placeholder for shutdown logic (yield statement)
+    - [x] 1.1.5 Update `FastAPI(lifespan=lifespan)` initialization
+    - [x] 1.1.6 Remove `@app.on_event("startup")` decorator
   - [ ] 1.2 Verify no deprecation warnings
     - [ ] 1.2.1 Start backend: `uvicorn app.main:app --reload`
     - [ ] 1.2.2 Check logs for deprecation warnings (should be zero)
