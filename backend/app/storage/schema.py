@@ -100,9 +100,15 @@ class SchemaManager:
         """)
 
         # Indexes for efficient lookups
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_source_priority ON source_registry(priority, enabled)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_endpoint_source ON endpoint_catalog(source_id)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_endpoint_target ON endpoint_catalog(target_table)")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_source_priority ON source_registry(priority, enabled)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_endpoint_source ON endpoint_catalog(source_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_endpoint_target ON endpoint_catalog(target_table)"
+        )
 
         # portfolio_accounts
         conn.execute("""

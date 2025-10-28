@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import json
 import logging
-import uuid
 from pathlib import Path
 from typing import Any
 
@@ -25,7 +24,8 @@ def load_source_config(yaml_path: str) -> dict[str, Any]:
     Returns:
         Dictionary with source metadata, definition, and field mappings.
     """
-    with open(yaml_path, "r") as f:
+    yaml_file = Path(yaml_path)
+    with yaml_file.open() as f:
         config = yaml.safe_load(f)
 
     # Extract source metadata
@@ -63,7 +63,7 @@ def load_source_config(yaml_path: str) -> dict[str, Any]:
     }
 
 
-def insert_source_to_db(source_config: dict[str, Any], storage) -> None:
+def insert_source_to_db(source_config: dict[str, Any], storage: Any) -> None:
     """Insert source configuration into DuckDB tables.
 
     Args:
@@ -93,12 +93,11 @@ def insert_source_to_db(source_config: dict[str, Any], storage) -> None:
         )
 
         # Extract credentials from definition
-        auth_config = source_config["definition"].get("auth", {})
         connection_params = source_config["definition"].get("connection", {}).get("params", {})
 
         # Look for {{secret:source:field}} placeholders
         credentials = {}
-        for key, value in connection_params.items():
+        for _key, value in connection_params.items():
             if isinstance(value, str) and value.startswith("{{secret:"):
                 # Extract field name from {{secret:source:field}}
                 parts = value.strip("{}").split(":")
@@ -152,7 +151,7 @@ def insert_source_to_db(source_config: dict[str, Any], storage) -> None:
         )
 
 
-def load_all_sources(storage, sources_dir: str = "config/sources") -> None:
+def load_all_sources(storage: Any, sources_dir: str = "config/sources") -> None:
     """Load all YAML source configurations from directory.
 
     Args:
