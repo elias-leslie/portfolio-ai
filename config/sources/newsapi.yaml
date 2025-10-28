@@ -1,0 +1,61 @@
+# NewsAPI.org REST API Source Configuration
+# Global news articles with query search
+
+source_id: newsapi
+display_name: Newsapi
+type: rest_api
+priority: 25
+enabled: true
+
+target_tables:
+  - news_cache
+
+connection:
+  base_url: https://newsapi.org/v2
+  method: GET
+  timeout: 10
+  headers: {}
+  params:
+    apiKey: "{{secret:newsapi:apiKey}}"
+  sample_path: "/everything?q=tesla&from=2025-10-20&sortBy=publishedAt"
+
+auth:
+  type: query
+  query_param: apiKey
+  value: "{{secret:newsapi:apiKey}}"
+
+field_mapping:
+  news_cache:
+    headline: $.articles[*].title
+    url: $.articles[*].url
+    published_at: $.articles[*].publishedAt
+    news_source_name: $.articles[*].source.name
+    description: $.articles[*].description
+    author: $.articles[*].author
+    image_url: $.articles[*].urlToImage
+
+transforms:
+  published_at: parse_iso8601
+
+capabilities:
+  news: true
+  everything: true
+  top_headlines: true
+
+rate_limit: "100 req/day (free tier)"
+rate_limit_config:
+  requests_per_day: 100
+
+consumers: []
+
+notes: "NewsAPI.org - Global news articles with query search. Free tier: 100 requests/day."
+category: news
+
+validation:
+  required_env_vars:
+    - NEWSAPI_API_KEY
+  test_ticker: AAPL
+  expected_fields:
+    - status
+    - totalResults
+    - articles

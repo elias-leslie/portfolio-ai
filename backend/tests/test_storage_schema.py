@@ -43,7 +43,7 @@ def test_schema_manager_initialization(schema_mgr: SchemaManager) -> None:
 
 
 def test_ensure_schema_creates_all_tables(schema_mgr: SchemaManager) -> None:
-    """Test that ensure_schema creates all 8 expected tables."""
+    """Test that ensure_schema creates all 11 expected tables."""
     schema_mgr.ensure_schema()
 
     # Verify all tables exist
@@ -52,6 +52,9 @@ def test_ensure_schema_creates_all_tables(schema_mgr: SchemaManager) -> None:
         table_names = {t[0] for t in tables}
 
         expected_tables = {
+            "source_registry",
+            "source_credentials",
+            "endpoint_catalog",
             "portfolio_accounts",
             "portfolio_positions",
             "user_preferences",
@@ -172,7 +175,7 @@ def test_table_registry_populated(schema_mgr: SchemaManager) -> None:
 
     with schema_mgr.connection_mgr.connection() as conn:
         result = conn.execute("SELECT COUNT(*) FROM table_registry").fetchone()
-        assert result[0] >= 8, "table_registry should have at least 8 entries"
+        assert result[0] >= 11, "table_registry should have at least 11 entries"
 
 
 def test_schema_idempotent(schema_mgr: SchemaManager) -> None:

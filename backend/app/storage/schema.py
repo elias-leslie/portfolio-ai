@@ -18,7 +18,7 @@ MIGRATIONS: list[tuple[str, str]] = []
 class SchemaManager:
     """Manages DuckDB schema creation for portfolio-ai.
 
-    Handles schema creation for all 8 tables and table registry metadata.
+    Handles schema creation for all 11 tables and table registry metadata.
     """
 
     def __init__(self, connection_mgr) -> None:
@@ -30,7 +30,7 @@ class SchemaManager:
         self.connection_mgr = connection_mgr
 
     def ensure_schema(self) -> None:
-        """Create all 8 database tables in a single transaction.
+        """Create all 11 database tables in a single transaction.
 
         Creates tables in dependency order with transaction wrapper for atomicity.
         Also applies any pending migrations from migrations/ directory.
@@ -52,7 +52,7 @@ class SchemaManager:
                 self._populate_registry_metadata(conn)
 
                 conn.execute("COMMIT")
-                logger.info("Schema initialization completed successfully (8 tables)")
+                logger.info("Schema initialization completed successfully (11 tables)")
 
             except Exception as e:
                 conn.execute("ROLLBACK")
@@ -60,7 +60,50 @@ class SchemaManager:
                 raise
 
     def _create_config_tables(self, conn) -> None:
-        """Create configuration tables (3 tables)."""
+        """Create configuration tables (6 tables)."""
+        # source_registry - Data source definitions
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS source_registry (
+                source_id              TEXT PRIMARY KEY,
+                display_name           TEXT NOT NULL,
+                priority               INTEGER NOT NULL,
+                enabled                BOOLEAN DEFAULT true,
+                definition             JSON NOT NULL,
+                created_at             TIMESTAMP DEFAULT now(),
+                updated_at             TIMESTAMP DEFAULT now()
+            )
+        """)
+
+        # source_credentials - API keys and secrets
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS source_credentials (
+                source_id              TEXT NOT NULL,
+                field                  TEXT NOT NULL,
+                value                  TEXT NOT NULL,
+                updated_at             TIMESTAMP DEFAULT now(),
+                PRIMARY KEY (source_id, field)
+            )
+        """)
+
+        # endpoint_catalog - API endpoint definitions
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS endpoint_catalog (
+                id                     TEXT PRIMARY KEY,
+                source_id              TEXT NOT NULL,
+                endpoint_key           TEXT NOT NULL,
+                target_table           TEXT NOT NULL,
+                path_template          TEXT NOT NULL,
+                field_mapping          JSON NOT NULL,
+                created_at             TIMESTAMP DEFAULT now(),
+                FOREIGN KEY (source_id) REFERENCES source_registry(source_id)
+            )
+        """)
+
+        # Indexes for efficient lookups
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_source_priority ON source_registry(priority, enabled)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_endpoint_source ON endpoint_catalog(source_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_endpoint_target ON endpoint_catalog(target_table)")
+
         # portfolio_accounts
         conn.execute("""
             CREATE TABLE IF NOT EXISTS portfolio_accounts (
@@ -133,7 +176,8 @@ class SchemaManager:
                 num_ideas              INTEGER DEFAULT 0,
                 cost_usd               DOUBLE DEFAULT 0.0,
                 error_message          TEXT,
-                metadata               JSON
+                metadata               JSON,
+                celery_task_id         TEXT
             )
         """)
 
@@ -213,6 +257,9 @@ class SchemaManager:
     def _populate_registry_metadata(self, conn) -> None:
         """Populate table_registry with metadata for all tables."""
         registry_entries = [
+            ("source_registry", "config", "Data source definitions"),
+            ("source_credentials", "config", "API keys and secrets for data sources"),
+            ("endpoint_catalog", "config", "API endpoint definitions and field mappings"),
             ("portfolio_accounts", "config", "Portfolio account definitions"),
             ("portfolio_positions", "config", "Portfolio position holdings"),
             ("user_preferences", "config", "User risk tolerance and trade preferences"),
@@ -235,4 +282,4 @@ class SchemaManager:
                 [table_name, table_type, description],
             )
 
-        logger.debug("Populated table_registry with 8 entries")
+        logger.debug("Populated table_registry with 11 entries")

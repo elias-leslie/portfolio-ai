@@ -1,0 +1,76 @@
+# Finnhub REST API Source Configuration
+# News and company metadata
+
+source_id: finnhub
+display_name: Finnhub
+type: rest_api
+priority: 10
+enabled: true
+
+target_tables:
+  - reference_cache
+  - news_cache
+
+connection:
+  base_url: https://finnhub.io/api/v1
+  method: GET
+  timeout: 10
+  headers: {}
+  params:
+    token: "{{secret:finnhub:token}}"
+  sample_path: "/stock/profile2?symbol=AAPL"
+
+auth:
+  type: query
+  query_param: token
+  value: "{{secret:finnhub:token}}"
+
+field_mapping:
+  reference_cache:
+    ticker_name: $.name
+    market_cap: $.marketCapitalization
+    shares_outstanding: $.shareOutstanding
+    sector: $.finnhubIndustry
+    industry: $.finnhubIndustry
+    exchange: $.exchange
+    description: $.description
+    country: $.country
+    ipo_date: $.ipo
+    website: $.weburl
+
+  news_cache:
+    headline: $.news[*].headline
+    url: $.news[*].url
+    published_at: $.news[*].datetime
+    news_source_name: $.news[*].source
+    description: $.news[*].summary
+    image_url: $.news[*].image
+
+transforms:
+  published_at: timestamp_sec
+  market_cap: multiply_millions
+
+capabilities:
+  reference: true
+  news: true
+
+rate_limit: "60 req/min (free tier)"
+rate_limit_config:
+  requests_per_minute: 60
+
+consumers:
+  - /api/market-context
+  - Reference enrichment
+
+notes: "News and company metadata"
+category: company_meta
+
+validation:
+  required_env_vars:
+    - FINNHUB_API_KEY
+  test_ticker: AAPL
+  expected_fields:
+    - country
+    - currency
+    - exchange
+    - name

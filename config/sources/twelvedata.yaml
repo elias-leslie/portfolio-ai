@@ -1,0 +1,82 @@
+# Twelve Data API Source Configuration
+# Real-time and historical stock data with technical indicators
+
+source_id: twelvedata
+display_name: Twelve Data
+type: rest_api
+priority: 2
+enabled: true
+
+target_tables:
+  - minute_bars
+  - day_bars
+  - reference_cache
+
+connection:
+  base_url: https://api.twelvedata.com
+  method: GET
+  timeout: 15
+  headers: {}
+  params:
+    apikey: "{{secret:twelvedata:apikey}}"
+  sample_path: /time_series?symbol=AAPL&interval=1day&outputsize=5&apikey={{secret:twelvedata:apikey}}
+
+auth:
+  type: query
+  query_param: apikey
+
+# Field mappings: API response field → DuckDB column
+field_mapping:
+  minute_bars:
+    ts_utc: $.values[*].datetime
+    open: $.values[*].open
+    high: $.values[*].high
+    low: $.values[*].low
+    close: $.values[*].close
+    volume: $.values[*].volume
+
+  day_bars:
+    date: $.values[*].datetime
+    open: $.values[*].open
+    high: $.values[*].high
+    low: $.values[*].low
+    close: $.values[*].close
+    volume: $.values[*].volume
+
+  reference_cache:
+    ticker_name: $.meta.symbol
+    exchange: $.meta.exchange
+    currency: $.meta.currency
+    type: $.meta.type
+
+transforms:
+  ts_utc: timestamp_iso
+  date: date_iso
+
+capabilities:
+  minute: true
+  day: true
+  reference: true
+  realtime: true
+  fundamentals: true
+
+rate_limit: "8 API calls/min, 800 calls/day (free Basic tier)"
+rate_limit_config:
+  requests_per_minute: 8
+  requests_per_day: 800
+
+consumers:
+  - /api/market-context
+  - /api/screen
+
+notes: "SECONDARY OHLCV source (score: 90.02/100). Free Basic plan: 8 calls/min, 800/day sufficient for 50-ticker universe. Supports 1min to 1month intervals, technical indicators, fundamentals. 4/5 data types supported (missing news). Profiled Oct 2025."
+category: price_volume
+
+validation:
+  required_env_vars:
+    - TWELVEDATA_API_KEY
+  test_ticker: AAPL
+  expected_fields:
+    - meta
+    - values
+    - status

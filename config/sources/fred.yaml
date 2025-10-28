@@ -1,0 +1,58 @@
+# Federal Reserve Economic Data (FRED) REST API Source Configuration
+# Macroeconomic indicators
+
+source_id: fred
+display_name: FRED
+type: rest_api
+priority: 5
+enabled: true
+
+target_tables:
+  - macro_indicators
+
+connection:
+  base_url: https://api.stlouisfed.org/fred
+  method: GET
+  timeout: 10
+  headers: {}
+  params:
+    file_type: json
+    api_key: "{{secret:fred:api_key}}"
+    series_id: VIXCLS
+  sample_path: "/series/observations?series_id=VIXCLS&file_type=json&api_key={{secret:fred:api_key}}"
+
+auth:
+  type: query
+  query_param: api_key
+
+field_mapping:
+  macro_indicators:
+    indicator_name: $.seriess[*].id
+    value: $.observations[*].value
+    frequency: $.seriess[*].frequency
+    unit: $.seriess[*].units
+
+transforms:
+  value: parse_number
+
+capabilities:
+  macro: true
+
+rate_limit: "Unlimited (per FRED policy)"
+rate_limit_config:
+  requests_per_minute: 120
+
+consumers:
+  - /api/market-context
+
+notes: "Macro indicators via Federal Reserve Economic Data"
+category: macro
+
+validation:
+  required_env_vars:
+    - FRED_API_KEY
+  test_ticker: null
+  expected_fields:
+    - realtime_start
+    - realtime_end
+    - observations

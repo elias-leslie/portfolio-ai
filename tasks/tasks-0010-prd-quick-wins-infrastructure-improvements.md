@@ -131,6 +131,9 @@ Based on PRD #0010, here are the main implementation phases:
 **Dependencies:**
 - `backend/requirements.txt` - Add structlog, pre-commit, celery, redis
 
+**Environment:**
+- `.env` - API keys for 7 data sources (Polygon, TwelveData, FMP, Finnhub, NewsAPI, AlphaVantage, FRED)
+
 **Documentation:**
 - `docs/core/DEVELOPMENT.md` - Add pre-commit setup, migration workflow
 - `docs/core/OPERATIONS.md` - Add Redis setup, Celery worker startup
@@ -349,55 +352,55 @@ Based on PRD #0010, here are the main implementation phases:
     - [ ] 6.7.4 Document status codes (200, 503)
 
 - [ ] **7.0 Implement Multi-Source Price Data with Polygon Backup** (P1 - Critical resilience, 8 hours)
-  - [ ] 7.1 Extract ALL API keys from market-sim (9 sources need keys)
-    - [ ] 7.1.1 Start market-sim Docker container: `cd ~/market-sim && docker-compose up -d`
-    - [ ] 7.1.2 Extract ALL API keys: `docker exec market-sim-app env | grep -E "POLYGON|FINNHUB|TWELVEDATA|FMP|NEWSAPI|ALPHAVANTAGE|FRED"`
-    - [ ] 7.1.3 Save to portfolio-ai .env file:
-      - [ ] 7.1.3.1 POLYGON_API_KEY (priority 10, 5 req/min)
-      - [ ] 7.1.3.2 TWELVEDATA_API_KEY (priority 2, 8 req/min, 800/day)
-      - [ ] 7.1.3.3 FMP_API_KEY (priority 3, 250/day)
-      - [ ] 7.1.3.4 FINNHUB_API_KEY (priority 10, 60 req/min)
-      - [ ] 7.1.3.5 NEWSAPI_API_KEY (priority 25, 100/day)
-      - [ ] 7.1.3.6 ALPHAVANTAGE_API_KEY (priority 30, 5 req/min, 500/day)
-      - [ ] 7.1.3.7 FRED_API_KEY (free, economic data)
-    - [ ] 7.1.4 yfinance and google_news require NO API keys (free)
-    - [ ] 7.1.5 Optional: Extract source_credentials from DuckDB if keys stored there
-  - [ ] 7.2 Copy ALL 9 enabled YAML source configurations from market-sim
-    - [ ] 7.2.1 Create `config/sources/` directory in portfolio-ai
-    - [ ] 7.2.2 Copy ALL enabled sources: `cp ~/market-sim/config/sources/{yfinance,twelvedata,fmp,polygon,finnhub,newsapi,alphavantage,fred,google_news}.yaml config/sources/`
-    - [ ] 7.2.3 Review each YAML for portfolio-ai compatibility:
-      - [ ] 7.2.3.1 yfinance.yaml (priority 1) - No changes needed
-      - [ ] 7.2.3.2 twelvedata.yaml (priority 2) - Verify rate limits 8/min, 800/day
-      - [ ] 7.2.3.3 fmp.yaml (priority 3) - Note 250/day limit, EOD only
-      - [ ] 7.2.3.4 polygon.yaml (priority 10) - Verify 5/min limit
-      - [ ] 7.2.3.5 finnhub.yaml (priority 10) - Verify 60/min limit
-      - [ ] 7.2.3.6 newsapi.yaml (priority 25) - Note 100/day limit
-      - [ ] 7.2.3.7 alphavantage.yaml (priority 30) - Verify 5/min, 500/day limits
-      - [ ] 7.2.3.8 fred.yaml - No changes needed
-      - [ ] 7.2.3.9 google_news.yaml - No changes needed
-    - [ ] 7.2.4 Do NOT copy disabled sources (alpaca, stockdata - not viable on free tier)
-    - [ ] 7.2.5 Update rate_limit_config in each YAML to match current free tier limits
-  - [ ] 7.3 Add DuckDB tables for source configuration
-    - [ ] 7.3.1 Edit `backend/app/storage/schema.py`
-    - [ ] 7.3.2 Add `source_registry` table (source_id, display_name, priority, enabled, definition JSON)
-    - [ ] 7.3.3 Add `source_credentials` table (source_id, field, value)
-    - [ ] 7.3.4 Add `endpoint_catalog` table (source_id, endpoint_key, target_table, path_template, field_mapping JSON)
-    - [ ] 7.3.5 Add indexes for efficient lookups
-  - [ ] 7.4 Create YAML loader to populate source tables
-    - [ ] 7.4.1 Create `backend/app/storage/yaml_loader.py`
-    - [ ] 7.4.2 Implement `load_source_config(yaml_path: str) -> dict`
-      - [ ] 7.4.2.1 Parse YAML file with pyyaml
-      - [ ] 7.4.2.2 Extract source metadata (source_id, priority, enabled)
-      - [ ] 7.4.2.3 Extract definition (connection, auth, rate_limits)
-      - [ ] 7.4.2.4 Extract field_mapping for each target_table
-    - [ ] 7.4.3 Implement `insert_source_to_db(source_config: dict, storage: DuckDBStorage)`
-      - [ ] 7.4.3.1 Insert into source_registry
-      - [ ] 7.4.3.2 Insert credentials into source_credentials
-      - [ ] 7.4.3.3 Insert endpoints into endpoint_catalog
-    - [ ] 7.4.4 Implement `load_all_sources(storage: DuckDBStorage)`
-      - [ ] 7.4.4.1 Scan `config/sources/*.yaml`
-      - [ ] 7.4.4.2 Load each YAML and insert to DB
-      - [ ] 7.4.4.3 Run on first startup or via CLI command
+  - [x] 7.1 Extract ALL API keys from market-sim (9 sources need keys)
+    - [x] 7.1.1 Start market-sim Docker container: `cd ~/market-sim && docker-compose up -d`
+    - [x] 7.1.2 Extract ALL API keys: `docker exec market-sim-app env | grep -E "POLYGON|FINNHUB|TWELVEDATA|FMP|NEWSAPI|ALPHAVANTAGE|FRED"`
+    - [x] 7.1.3 Save to portfolio-ai .env file:
+      - [x] 7.1.3.1 POLYGON_API_KEY (priority 10, 5 req/min)
+      - [x] 7.1.3.2 TWELVEDATA_API_KEY (priority 2, 8 req/min, 800/day)
+      - [x] 7.1.3.3 FMP_API_KEY (priority 3, 250/day)
+      - [x] 7.1.3.4 FINNHUB_API_KEY (priority 10, 60 req/min)
+      - [x] 7.1.3.5 NEWSAPI_API_KEY (priority 25, 100/day)
+      - [x] 7.1.3.6 ALPHAVANTAGE_API_KEY (priority 30, 5 req/min, 500/day)
+      - [x] 7.1.3.7 FRED_API_KEY (free, economic data)
+    - [x] 7.1.4 yfinance and google_news require NO API keys (free)
+    - [x] 7.1.5 Optional: Extract source_credentials from DuckDB if keys stored there
+  - [x] 7.2 Copy ALL 9 enabled YAML source configurations from market-sim
+    - [x] 7.2.1 Create `config/sources/` directory in portfolio-ai
+    - [x] 7.2.2 Copy ALL enabled sources: `cp ~/market-sim/config/sources/{yfinance,twelvedata,fmp,polygon,finnhub,newsapi,alphavantage,fred,google_news}.yaml config/sources/`
+    - [x] 7.2.3 Review each YAML for portfolio-ai compatibility:
+      - [x] 7.2.3.1 yfinance.yaml (priority 1) - No changes needed
+      - [x] 7.2.3.2 twelvedata.yaml (priority 2) - Verify rate limits 8/min, 800/day
+      - [x] 7.2.3.3 fmp.yaml (priority 3) - Note 250/day limit, EOD only
+      - [x] 7.2.3.4 polygon.yaml (priority 10) - Verify 5/min limit
+      - [x] 7.2.3.5 finnhub.yaml (priority 10) - Verify 60/min limit
+      - [x] 7.2.3.6 newsapi.yaml (priority 25) - Note 100/day limit
+      - [x] 7.2.3.7 alphavantage.yaml (priority 30) - Verify 5/min, 500/day limits
+      - [x] 7.2.3.8 fred.yaml - No changes needed
+      - [x] 7.2.3.9 google_news.yaml - No changes needed
+    - [x] 7.2.4 Do NOT copy disabled sources (alpaca, stockdata - not viable on free tier)
+    - [x] 7.2.5 Update rate_limit_config in each YAML to match current free tier limits
+  - [x] 7.3 Add DuckDB tables for source configuration
+    - [x] 7.3.1 Edit `backend/app/storage/schema.py`
+    - [x] 7.3.2 Add `source_registry` table (source_id, display_name, priority, enabled, definition JSON)
+    - [x] 7.3.3 Add `source_credentials` table (source_id, field, value)
+    - [x] 7.3.4 Add `endpoint_catalog` table (source_id, endpoint_key, target_table, path_template, field_mapping JSON)
+    - [x] 7.3.5 Add indexes for efficient lookups
+  - [x] 7.4 Create YAML loader to populate source tables
+    - [x] 7.4.1 Create `backend/app/storage/yaml_loader.py`
+    - [x] 7.4.2 Implement `load_source_config(yaml_path: str) -> dict`
+      - [x] 7.4.2.1 Parse YAML file with pyyaml
+      - [x] 7.4.2.2 Extract source metadata (source_id, priority, enabled)
+      - [x] 7.4.2.3 Extract definition (connection, auth, rate_limits)
+      - [x] 7.4.2.4 Extract field_mapping for each target_table
+    - [x] 7.4.3 Implement `insert_source_to_db(source_config: dict, storage: DuckDBStorage)`
+      - [x] 7.4.3.1 Insert into source_registry
+      - [x] 7.4.3.2 Insert credentials into source_credentials
+      - [x] 7.4.3.3 Insert endpoints into endpoint_catalog
+    - [x] 7.4.4 Implement `load_all_sources(storage: DuckDBStorage)`
+      - [x] 7.4.4.1 Scan `config/sources/*.yaml`
+      - [x] 7.4.4.2 Load each YAML and insert to DB
+      - [x] 7.4.4.3 Run on first startup or via CLI command
   - [ ] 7.5 Port market-sim source infrastructure
     - [ ] 7.5.1 Copy `~/market-sim/app/sources/base.py` to `backend/app/sources/base.py`
       - [ ] 7.5.1.1 Adapt imports for portfolio-ai (no perf_profiler)

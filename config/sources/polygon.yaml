@@ -1,0 +1,103 @@
+# Polygon.io REST API Source Configuration
+# Primary OHLCV data provider with minute/daily bars, reference data, and news
+
+source_id: polygon
+display_name: Polygon
+type: rest_api
+priority: 10
+enabled: true
+
+target_tables:
+  - minute_bars
+  - day_bars
+  - reference_cache
+  - news_cache
+
+connection:
+  base_url: https://api.polygon.io
+  method: GET
+  timeout: 15
+  headers: {}
+  params:
+    apiKey: "{{secret:polygon:apiKey}}"
+  sample_path: /v2/aggs/ticker/AAPL/range/1/day/{{date:5_days_ago}}/{{date:today}}
+
+auth:
+  type: query
+  query_param: apiKey
+  value: "{{secret:polygon:apiKey}}"
+
+# Field mappings: API response field → DuckDB column
+# Note: ticker, profile, source, ingest_run_id are auto-added by adapter
+field_mapping:
+  minute_bars:
+    ts_utc: $.results[*].t
+    open: $.results[*].o
+    high: $.results[*].h
+    low: $.results[*].l
+    close: $.results[*].c
+    volume: $.results[*].v
+    vwap: $.results[*].vw
+    trade_count: $.results[*].n
+
+  day_bars:
+    date: $.results[*].t
+    open: $.results[*].o
+    high: $.results[*].h
+    low: $.results[*].l
+    close: $.results[*].c
+    volume: $.results[*].v
+    vwap: $.results[*].vw
+    trade_count: $.results[*].n
+
+  reference_cache:
+    ticker_name: $.results.name
+    market_cap: $.results.market_cap
+    shares_outstanding: $.results.share_class_shares_outstanding
+    sector: $.results.sic_description
+    industry: $.results.sic_description
+    exchange: $.results.primary_exchange
+    description: $.results.description
+    country: $.results.locale
+    website: $.results.homepage_url
+
+  news_cache:
+    headline: $.results[*].title
+    url: $.results[*].article_url
+    published_at: $.results[*].published_utc
+    news_source_name: $.results[*].publisher.name
+    description: $.results[*].description
+    author: $.results[*].author
+    image_url: $.results[*].image_url
+
+transforms:
+  ts_utc: timestamp_ms
+  date: timestamp_ms_to_date
+
+capabilities:
+  minute: true
+  day: true
+  reference: true
+  news: true
+
+rate_limit: "5 req/min (free tier)"
+rate_limit_config:
+  requests_per_minute: 5
+  requests_per_day: 7200
+
+consumers:
+  - /api/market-context
+  - /api/screen
+  - News enrichment pipeline
+
+notes: Primary OHLCV provider - Rate limit 5 req/min (free tier)
+category: price_volume
+
+validation:
+  required_env_vars:
+    - POLYGON_API_KEY
+  test_ticker: AAPL
+  expected_fields:
+    - results
+    - ticker
+    - queryCount
