@@ -1,9 +1,9 @@
 # Task List: Multi-Source Data Infrastructure & Trading Intelligence System
 
 **PRD**: `0011-prd-multi-source-data-trading-intelligence.md`
-**Status**: Phase 1.0 Complete, Phase 2.0 Complete, Phase 3.0 In Progress (Tasks 3.1-3.4 COMMITTED)
-**Completion**: 63% (Phase 1.0 + Phase 2.0 + Tasks 3.1-3.4 committed, mypy errors resolved)
-**Effort to Complete**: HIGH (~2-3 weeks remaining, 37% of work)
+**Status**: Phase 1.0 Complete, Phase 2.0 Complete, Phase 3.0 Complete (Tasks 3.1-3.7 COMMITTED)
+**Completion**: 70% (Phase 1.0 + Phase 2.0 + Phase 3.0 complete)
+**Effort to Complete**: HIGH (~2 weeks remaining, 30% of work)
 **Last Updated**: 2025-10-28
 
 **Note on Effort Levels**:
@@ -53,23 +53,25 @@ All 19 pre-existing mypy type errors have been fixed and committed (commit fcdf1
 - ✅ All pre-commit hooks passing
 
 **⚠️ NEXT STEPS:**
-1. Task 3.5: Expose indicators via API
-2. Task 4.0: Paper Trading & Agent Performance Tracking
-3. Task 5.0: Risk Management Suite
-4. Task 6.0: News Sentiment Scoring & Local AI Models
+1. Task 4.0: Paper Trading & Agent Performance Tracking
+2. Task 5.0: Risk Management Suite
+3. Task 6.0: News Sentiment Scoring & Local AI Models
 
-**EFFORT TO COMPLETE:** HIGH (~2-3 weeks, ~37% remaining)
+**EFFORT TO COMPLETE:** HIGH (~2 weeks, ~30% remaining)
 
-**Session Summary (2025-10-28 - Phase 3.0 Tasks 3.1-3.4 COMMITTED + Mypy Fixes):**
+**Session Summary (2025-10-28 - Phase 3.0 COMPLETE - Tasks 3.1-3.7 COMMITTED):**
 - ✅ Task 3.1: Added pandas-ta>=0.3.14b dependency (committed: 7edef6d)
 - ✅ Task 3.2: Created indicators.py with technical indicator calculations (committed: f61570a, 324 lines)
 - ✅ Task 3.3: Added technical_indicators table to schema (committed: 0c7967d, 19 columns)
 - ✅ Task 3.4: Created update_technical_indicators Celery task (committed: fcdf14a, 156 lines)
-- ✅ **UNBLOCKED**: Fixed all 19 pre-existing mypy errors in agent files (committed: fcdf14a)
-- 📝 4 commits successfully made (3 for Tasks 3.1-3.3, 1 combined for Task 3.4 + mypy fixes)
-- 📊 ~800 lines added/modified (indicators.py + agent_tasks.py + 5 agent files with type fixes)
+- ✅ Task 3.5: Exposed indicators via REST API (committed: c7cb485 + 4234434, 340 lines, 2 endpoints)
+- ✅ Task 3.6: Integrated technical indicators into AI agent tools (committed: 38a4490, 175 lines added to tools.py)
+- ✅ Task 3.7: Created comprehensive test suite for indicators (committed: 35be844, 517 lines, 18 tests - 16 passing, 2 skipped)
+- ✅ **UNBLOCKED**: Fixed all pre-existing mypy errors + pre-commit dependency issues
+- 📝 7 commits successfully made for Phase 3.0
+- 📊 ~2,100 lines added/modified across Phase 3.0
 - ✅ All code: zero mypy errors, full type safety, linting clean, pre-commit hooks passing
-- ✅ 220 tests passing, no new failures
+- ✅ 236 tests passing (220 + 16 new indicator tests), 2 skipped (pandas_ta version dependencies)
 
 **Session Summary (2025-10-28 - Phase 2.0 Analytics Complete):**
 - ✅ Completed Tasks 2.6-2.10 (Historical backfill + Analytics Infrastructure)
@@ -99,7 +101,7 @@ All 19 pre-existing mypy type errors have been fixed and committed (commit fcdf1
 
 ## Relevant Files
 
-### Files Created (19 files)
+### Files Created (22 files)
 
 **Core Multi-Source Infrastructure:**
 - ✅ `backend/app/sources/jsonpath_mapper.py` (265 lines) - JSONPath field mapping with nested data extraction, timestamp conversion, and validation
@@ -130,6 +132,11 @@ All 19 pre-existing mypy type errors have been fixed and committed (commit fcdf1
 **API Endpoints:**
 - ✅ `backend/app/api/analytics.py` (428 lines) - Analytics API router with RVOL, sector rotation, and peer comparison endpoints
 - ✅ `backend/tests/test_api_analytics.py` (258 lines) - Comprehensive API test suite with 11 passing tests
+- ✅ `backend/app/api/indicators.py` (340 lines) - Technical indicators API with 2 endpoints (single ticker, historical)
+
+**Technical Indicators:**
+- ✅ `backend/app/analytics/indicators.py` (324 lines) - Technical indicator calculations using pandas-ta
+- ✅ `backend/tests/test_indicators.py` (517 lines) - Comprehensive test suite with 18 tests (16 passing, 2 skipped)
 
 ### Files to Create (10 remaining files)
 
@@ -380,7 +387,7 @@ All 19 pre-existing mypy type errors have been fixed and committed (commit fcdf1
       - [x] Register router in `backend/app/main.py`
       - [x] 11 API tests created, all passing
 
-- [ ] 3.0 Technical Indicators Library & Caching
+- [x] 3.0 Technical Indicators Library & Caching ✅ COMPLETE
   - [x] 3.1 Add dependencies (FR-3.1) ✅
     - [x] 3.1.1 Update `backend/requirements.txt`
       - [x] Add `pandas_ta>=0.3.14b`
