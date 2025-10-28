@@ -1,15 +1,15 @@
 # Task List: PRD #0010 - Quick Wins & Infrastructure Improvements
 
 **PRD**: `0010-prd-quick-wins-infrastructure-improvements.md`
-**Status**: Ready for Implementation
-**Completion**: 0% (Not started)
-**Effort to Complete**: High
+**Status**: Partially Complete
+**Completion**: 7/8 features (87.5%)
+**Remaining Complexity**: HIGH (Task 7.0 foundation at 13%, remaining 87% deferred)
 **Last Updated**: 2025-10-27
 
-**Note on Effort Levels**:
-- **Low**: 1-2 hours of straightforward work
-- **Medium**: Half day of work with some complexity
-- **High**: Full day or more, significant complexity
+**Note on Complexity Levels**:
+- **LOW**: Simple, straightforward work
+- **MEDIUM**: Moderate complexity
+- **HIGH**: Significant complexity
 
 ---
 
@@ -25,12 +25,12 @@
 - Task 8.0: Convert Agent Runs to Background Tasks (Celery) ✅
 
 **🔄 IN PROGRESS:**
-- (None)
+- Task 7.0: Multi-Source Price Data (Foundation complete: 13%, Remaining: 87% HIGH complexity)
 
 **⚠️ REMAINING TASKS:**
-1. Task 7.0: Multi-Source Price Data with Polygon Backup (P1 - Critical, 8 hours) - **ONLY REMAINING TASK**
+1. Task 7.0: Complete multi-source infrastructure (Tasks 7.5-7.9) - **Deferred for focused sprint**
 
-**EFFORT TO COMPLETE:** High (~21 hours total across 8 features)
+**REMAINING COMPLEXITY:** HIGH (87% of Task 7.0 - requires porting market-sim infrastructure)
 
 ---
 
@@ -43,9 +43,9 @@ Based on PRD #0010, here are the main implementation phases:
 - [x] **3.0 Implement Structured JSON Logging with structlog** (P2 - Enables debugging, 2 hours) - *Mostly complete, missing request ID middleware and tests*
 - [x] **4.0 Add Pre-commit Hooks for Code Quality** (P2 - Prevents issues, 1 hour)
 - [x] **5.0 Implement Database Migration System** (P2 - Important but can defer, 3 hours)
-- [x] **6.0 Add Health Check Dashboard Endpoint** (P3 - Nice to have, 2 hours)
-- [ ] **7.0 Implement Multi-Source Price Data with Polygon Backup** (P1 - Critical resilience, 8 hours)
-- [x] **8.0 Convert Agent Runs to Background Tasks (Celery)** (P1 - UX improvement, 4 hours)
+- [x] **6.0 Add Health Check Dashboard Endpoint** (P3 - Nice to have, MEDIUM complexity)
+- [ ] **7.0 Implement Multi-Source Price Data with Polygon Backup** (P1 - Critical resilience, HIGH complexity) - **Foundation 13% complete, remaining 87% deferred**
+- [x] **8.0 Convert Agent Runs to Background Tasks (Celery)** (P1 - UX improvement, MEDIUM complexity)
 
 ---
 
