@@ -123,14 +123,14 @@
       - [x] Add function: `map_response_to_schema(response: dict, mapping_config: dict) -> dict`
       - [x] Support nested field access (e.g., `data.quotes[0].price`)
       - [x] Add structured logging for mapping errors
-    - [ ] 1.1.2 Create `backend/app/sources/rest_api_source.py` (~740 lines)
-      - [ ] Port REST API source from market-sim with adaptations
-      - [ ] Replace `perf_profiler` with `time.time()` for duration tracking
-      - [ ] Remove `job_queue` dependency, use Celery directly
-      - [ ] Use `logging_config.get_logger()` from portfolio-ai
-      - [ ] Implement `fetch_day_bars()`, `fetch_reference_payload()`, `fetch_news_payload()`
-      - [ ] Add rate limit tracking per endpoint
-      - [ ] Add HTTP timeout handling (30s default)
+    - [x] 1.1.2 Create `backend/app/sources/rest_api_source.py` (~740 lines)
+      - [x] Port REST API source from market-sim with adaptations
+      - [x] Replace `perf_profiler` with `time.time()` for duration tracking
+      - [x] Remove `job_queue` dependency, use Celery directly
+      - [x] Use `logging_config.get_logger()` from portfolio-ai
+      - [x] Implement `fetch_day_bars()`, `fetch_reference_payload()`, `fetch_news_payload()`
+      - [x] Add rate limit tracking per endpoint (via structured logging)
+      - [x] Add HTTP timeout handling (30s default)
     - [ ] 1.1.3 Create `backend/app/sources/polygon_client.py` (~100 lines)
       - [ ] Implement Polygon API client with 5/min rate limit tracking
       - [ ] Add class `PolygonClient` with methods: `get_day_bars()`, `get_ticker_details()`
