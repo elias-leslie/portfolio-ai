@@ -270,12 +270,12 @@
       - [x] Track 25/day and 5/min rate limits
       - [x] Read API key from environment: `ALPHAVANTAGE_API_KEY`
   - [ ] 2.6 Implement historical backfill pipeline (FR-2.3)
-    - [ ] 2.6.1 Create Celery task in `backend/app/tasks/agent_tasks.py`
-      - [ ] Add task: `ingest_historical_ohlcv(tickers: list[str], days: int = 252) -> None`
-      - [ ] Use MultiSourceFetcher with DatasetRequest(dataset='day', tickers, start, end)
-      - [ ] Store results in `day_bars` table with source lineage
-      - [ ] Log progress: "Backfilled 252 days for 10 tickers in 2m 15s"
-      - [ ] Add error handling: If all sources fail, log error but don't crash
+    - [x] 2.6.1 Create Celery task in `backend/app/tasks/agent_tasks.py`
+      - [x] Add task: `ingest_historical_ohlcv(tickers: list[str], days: int = 252) -> None`
+      - [x] Use MultiSourceFetcher with DatasetRequest(dataset='day', tickers, start, end)
+      - [x] Store results in `day_bars` table with source lineage
+      - [x] Log progress: "Backfilled 252 days for 10 tickers in 2m 15s"
+      - [x] Add error handling: If all sources fail, log error but don't crash
   - [ ] 2.7 Create RVOL calculator (FR-2.6)
     - [ ] 2.7.1 Create `backend/app/analytics/volume.py` (~100 lines)
       - [ ] Add function: `calculate_rvol(ticker: str, date: str, lookback_days: int = 20) -> float`
