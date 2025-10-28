@@ -402,9 +402,9 @@ Based on PRD #0010, here are the main implementation phases:
       - [x] 7.4.4.2 Load each YAML and insert to DB
       - [x] 7.4.4.3 Run on first startup or via CLI command
   - [ ] 7.5 Port market-sim source infrastructure
-    - [ ] 7.5.1 Copy `~/market-sim/app/sources/base.py` to `backend/app/sources/base.py`
-      - [ ] 7.5.1.1 Adapt imports for portfolio-ai (no perf_profiler)
-      - [ ] 7.5.1.2 Keep BaseSource, SourceManager, DatasetRequest
+    - [x] 7.5.1 Copy `~/market-sim/app/sources/base.py` to `backend/app/sources/base.py`
+      - [x] 7.5.1.1 Adapt imports for portfolio-ai (no perf_profiler)
+      - [x] 7.5.1.2 Keep BaseSource, SourceManager, DatasetRequest
     - [ ] 7.5.2 Copy `~/market-sim/app/sources/rest_api_source.py` to `backend/app/sources/rest_api_source.py`
       - [ ] 7.5.2.1 Adapt imports (use portfolio-ai's storage)
       - [ ] 7.5.2.2 Keep RestApiSource class
