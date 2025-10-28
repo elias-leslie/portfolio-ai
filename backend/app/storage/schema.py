@@ -108,6 +108,7 @@ class SchemaManager:
                 sector                 TEXT,
                 cached_at              TIMESTAMP NOT NULL,
                 source                 TEXT NOT NULL,
+                error                  TEXT,
                 PRIMARY KEY (symbol, cached_at)
             )
         """)

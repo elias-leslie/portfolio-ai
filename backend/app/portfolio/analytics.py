@@ -54,6 +54,13 @@ class PortfolioAnalytics:
                 )
                 continue
 
+            # Skip positions with price errors
+            if price.error:
+                logger.warning(
+                    f"Price error for {position.symbol}: {price.error}, skipping from value calculation"
+                )
+                continue
+
             # Calculate position value
             position_value = position.shares * price.price
             position_cost = position.shares * position.cost_basis
@@ -97,7 +104,7 @@ class PortfolioAnalytics:
 
         for position in positions:
             price = price_data.get(position.symbol)
-            if not price or price.beta is None:
+            if not price or price.beta is None or price.error:
                 continue
 
             position_value = position.shares * price.price
@@ -128,7 +135,7 @@ class PortfolioAnalytics:
 
         for position in positions:
             price = price_data.get(position.symbol)
-            if not price or price.volatility is None:
+            if not price or price.volatility is None or price.error:
                 continue
 
             position_value = position.shares * price.price
@@ -159,7 +166,7 @@ class PortfolioAnalytics:
 
         for position in positions:
             price = price_data.get(position.symbol)
-            if not price:
+            if not price or price.error:
                 continue
 
             position_value = position.shares * price.price
@@ -198,7 +205,7 @@ class PortfolioAnalytics:
 
         for position in positions:
             price = price_data.get(position.symbol)
-            if not price:
+            if not price or price.error:
                 continue
 
             position_value = position.shares * price.price

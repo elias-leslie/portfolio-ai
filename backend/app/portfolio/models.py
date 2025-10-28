@@ -44,6 +44,7 @@ class PriceData(BaseModel):
     sector: str | None = None
     cached_at: datetime = Field(default_factory=datetime.now)
     source: str = "yfinance"
+    error: str | None = None
 
 
 class PortfolioValue(BaseModel):

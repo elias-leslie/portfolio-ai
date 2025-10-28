@@ -101,6 +101,7 @@ def test_get_cached_prices_expired(price_fetcher: PriceDataFetcher) -> None:
                 "sector": "Technology",
                 "cached_at": old_time,
                 "source": "yfinance",
+                "error": None,
             }
         ]
     )
@@ -148,7 +149,10 @@ def test_fetch_from_yfinance_no_price(
 
     result = price_fetcher._fetch_from_yfinance(["AAPL"])
 
-    assert "AAPL" not in result
+    # Now returns PriceData with error set
+    assert "AAPL" in result
+    assert result["AAPL"].error == "No price data available"
+    assert result["AAPL"].price == 0.0
 
 
 @patch("app.portfolio.price_fetcher.yf.Ticker")
@@ -162,7 +166,11 @@ def test_fetch_from_yfinance_exception(
 
     result = price_fetcher._fetch_from_yfinance(["AAPL"])
 
-    assert "AAPL" not in result
+    # Now returns PriceData with error set
+    assert "AAPL" in result
+    assert result["AAPL"].error is not None
+    assert "API error" in result["AAPL"].error
+    assert result["AAPL"].price == 0.0
 
 
 @patch("app.portfolio.price_fetcher.yf.Ticker")

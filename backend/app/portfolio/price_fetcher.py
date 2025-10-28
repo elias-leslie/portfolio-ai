@@ -8,9 +8,19 @@ from __future__ import annotations
 import logging
 import os
 from datetime import datetime, timedelta
+from http.client import RemoteDisconnected
+from json import JSONDecodeError
+from urllib.error import HTTPError, URLError
 
 import polars as pl
 import yfinance as yf
+from requests.exceptions import ConnectionError, ReadTimeout, Timeout
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from ..constants import DEFAULT_PRICE_CACHE_TTL_MINUTES
 from ..storage import DuckDBStorage
@@ -35,6 +45,8 @@ class PriceDataFetcher:
         self.storage = storage
         self.cache_ttl_minutes = DEFAULT_PRICE_CACHE_TTL_MINUTES
         self.polygon_api_key = os.getenv("POLYGON_API_KEY")
+        self._error_cache: dict[str, tuple[str, datetime]] = {}  # symbol -> (error, timestamp)
+        self._error_cache_ttl_minutes = 5
 
     def fetch_price_data(self, symbols: list[str]) -> dict[str, PriceData]:
         """Fetch price data for multiple symbols with caching.
@@ -81,7 +93,7 @@ class PriceDataFetcher:
 
         df = self.storage.query(
             f"""
-            SELECT symbol, price, beta, volatility, sector, cached_at, source
+            SELECT symbol, price, beta, volatility, sector, cached_at, source, error
             FROM price_cache
             WHERE symbol IN ({placeholders})
               AND cached_at >= ?
@@ -145,46 +157,158 @@ class PriceDataFetcher:
         result = {}
 
         for symbol in symbols:
-            try:
-                ticker = yf.Ticker(symbol)
-                info = ticker.info
-
-                # Get current price
-                price = info.get("currentPrice") or info.get("regularMarketPrice")
-                if not price:
-                    logger.warning(f"No price available for {symbol} from yfinance")
+            # Check error cache first to avoid retry storms
+            if symbol in self._error_cache:
+                cached_error, cached_at = self._error_cache[symbol]
+                if datetime.now() - cached_at < timedelta(minutes=self._error_cache_ttl_minutes):
+                    logger.debug(f"Using cached error for {symbol}: {cached_error}")
+                    result[symbol] = PriceData(
+                        symbol=symbol,
+                        price=0.0,
+                        source="yfinance",
+                        error=cached_error,
+                    )
                     continue
+                else:
+                    # Error cache expired, remove it
+                    del self._error_cache[symbol]
 
-                # Get beta (market risk)
-                beta = info.get("beta")
-
-                # Get volatility (approximate from 52-week range if available)
-                volatility = None
-                if "fiftyTwoWeekHigh" in info and "fiftyTwoWeekLow" in info:
-                    high = info["fiftyTwoWeekHigh"]
-                    low = info["fiftyTwoWeekLow"]
-                    if high and low and high > 0:
-                        volatility = (high - low) / high
-
-                # Get sector
-                sector = info.get("sector")
-
-                price_data = PriceData(
-                    symbol=symbol,
-                    price=float(price),
-                    beta=float(beta) if beta else None,
-                    volatility=float(volatility) if volatility else None,
-                    sector=sector,
-                    source="yfinance",
-                )
-
+            # Try to fetch with retry logic
+            price_data = self._fetch_single_symbol_with_retry(symbol)
+            if price_data:
                 result[symbol] = price_data
-                logger.debug(f"Fetched {symbol} from yfinance: ${price}")
-
-            except Exception as e:
-                logger.warning(f"Failed to fetch {symbol} from yfinance: {e}")
 
         return result
+
+    @retry(
+        retry=retry_if_exception_type((Timeout, ReadTimeout, ConnectionError, RemoteDisconnected)),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+    )
+    def _fetch_single_symbol_with_retry(self, symbol: str) -> PriceData | None:
+        """Fetch a single symbol with retry logic for transient errors.
+
+        Args:
+            symbol: Stock symbol to fetch
+
+        Returns:
+            PriceData if successful, None otherwise
+        """
+        try:
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
+
+            # Get current price
+            price = info.get("currentPrice") or info.get("regularMarketPrice")
+            if not price:
+                error_msg = "No price data available"
+                logger.warning(f"{symbol}: {error_msg}")
+                # Cache this error (permanent - don't retry)
+                self._error_cache[symbol] = (error_msg, datetime.now())
+                return PriceData(
+                    symbol=symbol,
+                    price=0.0,
+                    source="yfinance",
+                    error=error_msg,
+                )
+
+            # Get beta (market risk)
+            beta = info.get("beta")
+
+            # Get volatility (approximate from 52-week range if available)
+            volatility = None
+            if "fiftyTwoWeekHigh" in info and "fiftyTwoWeekLow" in info:
+                high = info["fiftyTwoWeekHigh"]
+                low = info["fiftyTwoWeekLow"]
+                if high and low and high > 0:
+                    volatility = (high - low) / high
+
+            # Get sector
+            sector = info.get("sector")
+
+            price_data = PriceData(
+                symbol=symbol,
+                price=float(price),
+                beta=float(beta) if beta else None,
+                volatility=float(volatility) if volatility else None,
+                sector=sector,
+                source="yfinance",
+            )
+
+            logger.debug(f"Fetched {symbol} from yfinance: ${price}")
+            return price_data
+
+        except HTTPError as e:
+            # HTTP errors - check status code
+            status_code = getattr(e, "code", None)
+            if status_code == 404:
+                error_msg = f"Symbol not found (404)"
+                logger.warning(f"{symbol}: {error_msg}")
+                # Cache this error (permanent - invalid symbol)
+                self._error_cache[symbol] = (error_msg, datetime.now())
+                return PriceData(
+                    symbol=symbol,
+                    price=0.0,
+                    source="yfinance",
+                    error=error_msg,
+                )
+            elif status_code == 429:
+                error_msg = f"Rate limit exceeded (429)"
+                logger.warning(f"{symbol}: {error_msg}")
+                # Don't cache - let retry logic handle it
+                raise  # Retry on rate limits
+            else:
+                error_msg = f"HTTP error {status_code}"
+                logger.warning(f"{symbol}: {error_msg}")
+                self._error_cache[symbol] = (error_msg, datetime.now())
+                return PriceData(
+                    symbol=symbol,
+                    price=0.0,
+                    source="yfinance",
+                    error=error_msg,
+                )
+
+        except (Timeout, ReadTimeout, ConnectionError, RemoteDisconnected) as e:
+            # Transient network errors - retry
+            error_msg = f"Network error: {type(e).__name__}"
+            logger.warning(f"{symbol}: {error_msg}, will retry")
+            raise  # Retry these errors
+
+        except JSONDecodeError as e:
+            # Malformed response
+            error_msg = "Invalid JSON response"
+            logger.warning(f"{symbol}: {error_msg}")
+            self._error_cache[symbol] = (error_msg, datetime.now())
+            return PriceData(
+                symbol=symbol,
+                price=0.0,
+                source="yfinance",
+                error=error_msg,
+            )
+
+        except KeyError as e:
+            # Missing expected field
+            error_msg = f"Missing field: {e}"
+            logger.warning(f"{symbol}: {error_msg}")
+            self._error_cache[symbol] = (error_msg, datetime.now())
+            return PriceData(
+                symbol=symbol,
+                price=0.0,
+                source="yfinance",
+                error=error_msg,
+            )
+
+        except Exception as e:
+            # Catch-all for unexpected errors
+            error_msg = f"Unexpected error: {type(e).__name__}: {str(e)}"
+            logger.error(f"{symbol}: {error_msg}")
+            self._error_cache[symbol] = (error_msg, datetime.now())
+            return PriceData(
+                symbol=symbol,
+                price=0.0,
+                source="yfinance",
+                error=error_msg,
+            )
 
     def _fetch_from_polygon(self, symbols: list[str]) -> dict[str, PriceData]:
         """Fetch price data from Polygon API.

@@ -34,7 +34,7 @@
 
 Based on PRD #0010, here are the main implementation phases:
 
-- [ ] **1.0 Migrate to FastAPI Lifespan Handlers** (P0 - Critical, 10 min)
+- [x] **1.0 Migrate to FastAPI Lifespan Handlers** (P0 - Critical, 10 min)
 - [ ] **2.0 Add Comprehensive Error Handling to Price Fetcher** (P1 - High value, 1 hour)
 - [ ] **3.0 Implement Structured JSON Logging with structlog** (P2 - Enables debugging, 2 hours)
 - [ ] **4.0 Add Pre-commit Hooks for Code Quality** (P2 - Prevents issues, 1 hour)
@@ -146,7 +146,7 @@ Based on PRD #0010, here are the main implementation phases:
 
 ## Tasks
 
-- [ ] **1.0 Migrate to FastAPI Lifespan Handlers** (P0 - Critical, 10 min)
+- [x] **1.0 Migrate to FastAPI Lifespan Handlers** (P0 - Critical, 10 min)
   - [x] 1.1 Replace deprecated on_event with lifespan context manager
     - [x] 1.1.1 Import `contextlib.asynccontextmanager` in `backend/app/main.py`
     - [x] 1.1.2 Create `lifespan()` async context manager function
