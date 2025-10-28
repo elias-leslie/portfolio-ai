@@ -3,7 +3,7 @@
 #
 # IMPORTANT: Hook versions synchronized with backend/requirements.txt
 # Version sync validated by: ./scripts/validate-versions.sh
-# Current versions: ruff 0.14.2, mypy 1.18.2
+# Current versions: ruff 0.14.2, mypy 1.18.2, Python 3.13
 
 repos:
   # Ruff - Python linter and formatter
@@ -13,12 +13,14 @@ repos:
       # Ruff formatter - auto-fix formatting issues
       - id: ruff-format
         name: ruff format
+        language_version: python3.13
         types_or: [python, pyi]
         files: ^backend/
 
       # Ruff linter - catch linting errors
       - id: ruff
         name: ruff check
+        language_version: python3.13
         args: [--fix, --exit-non-zero-on-fix]
         types_or: [python, pyi]
         files: ^backend/
@@ -29,6 +31,7 @@ repos:
     hooks:
       - id: mypy
         name: mypy type check
+        language_version: python3.13
         types: [python]
         files: ^backend/app/
         args: [--strict]
