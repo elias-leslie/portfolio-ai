@@ -1,49 +1,53 @@
 # Pre-commit hooks for portfolio-ai
 # See https://pre-commit.com for more information
 #
-# IMPORTANT: These hooks use LOCAL venv tools (not remote pinned versions)
-# This ensures pre-commit and direct venv usage always use identical tool versions
-# REQUIREMENT: Virtual environment MUST be activated before committing
+# IMPORTANT: Hook versions synchronized with backend/requirements.txt
+# Version sync validated by: ./scripts/validate-versions.sh
+# Current versions: ruff 0.14.2, mypy 1.18.2
 
 repos:
-  # Local hooks - use tools from activated venv
-  - repo: local
+  # Ruff - Python linter and formatter
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.2
     hooks:
-      # Venv activation check - MUST run first
-      - id: venv-check
-        name: check venv activated
-        entry: bash -c 'if [ -z "$VIRTUAL_ENV" ]; then echo "ERROR - Virtual environment not activated - Run source backend/.venv/bin/activate"; exit 1; fi'
-        language: system
-        pass_filenames: false
-        always_run: true
-
       # Ruff formatter - auto-fix formatting issues
       - id: ruff-format
         name: ruff format
-        entry: ruff format
-        language: system
         types_or: [python, pyi]
-        pass_filenames: true
         files: ^backend/
 
       # Ruff linter - catch linting errors
-      - id: ruff-check
+      - id: ruff
         name: ruff check
-        entry: ruff check --fix --exit-non-zero-on-fix
-        language: system
+        args: [--fix, --exit-non-zero-on-fix]
         types_or: [python, pyi]
-        pass_filenames: true
         files: ^backend/
 
-      # Mypy type checking - only app/ directory
+  # Mypy - Static type checking
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.18.2
+    hooks:
       - id: mypy
         name: mypy type check
-        entry: mypy
-        language: system
         types: [python]
         files: ^backend/app/
         args: [--strict]
-        pass_filenames: true
+        additional_dependencies:
+          - pydantic>=2.7.0
+          - types-requests>=2.31.0
+          - types-PyYAML>=6.0.12
+          - duckdb>=1.4.0
+          - polars>=1.6.0
+          - httpx>=0.24.0
+          - structlog>=24.1.0
+          - python-json-logger>=2.0.7
+          - yfinance>=0.2.0
+          - tenacity>=8.2.0
+          - anthropic>=0.25.0
+          - fastapi>=0.111.0
+          - celery>=5.3.0
+          - pandas>=2.2.0
+          - pandas-stubs>=2.0.0
 
   # General file checks (no version conflicts here)
   - repo: https://github.com/pre-commit/pre-commit-hooks
