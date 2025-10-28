@@ -330,22 +330,22 @@
     - [x] 3.1.1 Update `backend/requirements.txt`
       - [x] Add `pandas_ta>=0.3.14b`
       - [x] Run `pip install -r requirements.txt` to verify installation
-  - [ ] 3.2 Create indicator calculation wrapper (FR-3.2)
-    - [ ] 3.2.1 Create `backend/app/analytics/indicators.py` (~300 lines)
-      - [ ] Add function: `calculate_indicators(ticker: str, indicators: list[str]) -> dict`
-      - [ ] Supported indicators:
-        - [ ] RSI (14-period): `pandas_ta.rsi(close, length=14)`
-        - [ ] MACD (12/26/9): `pandas_ta.macd(close, fast=12, slow=26, signal=9)`
-        - [ ] Bollinger Bands (20, 2σ): `pandas_ta.bbands(close, length=20, std=2)`
-        - [ ] SMA (20/50/200): `pandas_ta.sma(close, length=20)`
-        - [ ] EMA (20/50/200): `pandas_ta.ema(close, length=20)`
-        - [ ] ATR (14): `pandas_ta.atr(high, low, close, length=14)`
-        - [ ] Stochastic (14/3/3): `pandas_ta.stoch(high, low, close, k=14, d=3, smooth_k=3)`
-      - [ ] Fetch OHLCV from `day_bars` table (minimum 200 days for SMA-200)
-      - [ ] Convert to pandas DataFrame for pandas_ta compatibility
-      - [ ] Calculate all requested indicators
-      - [ ] Add interpretations: "oversold" (RSI < 30), "overbought" (RSI > 70), "bullish_cross" (MACD > signal)
-      - [ ] Return: Dict with indicator values and interpretations
+  - [x] 3.2 Create indicator calculation wrapper (FR-3.2) ✅
+    - [x] 3.2.1 Create `backend/app/analytics/indicators.py` (324 lines)
+      - [x] Add function: `calculate_indicators(ticker: str, indicators: list[str]) -> dict`
+      - [x] Supported indicators:
+        - [x] RSI (14-period): `pandas_ta.rsi(close, length=14)`
+        - [x] MACD (12/26/9): `pandas_ta.macd(close, fast=12, slow=26, signal=9)`
+        - [x] Bollinger Bands (20, 2σ): `pandas_ta.bbands(close, length=20, std=2)`
+        - [x] SMA (20/50/200): `pandas_ta.sma(close, length=20)`
+        - [x] EMA (20/50/200): `pandas_ta.ema(close, length=20)`
+        - [x] ATR (14): `pandas_ta.atr(high, low, close, length=14)`
+        - [x] Stochastic (14/3/3): `pandas_ta.stoch(high, low, close, k=14, d=3, smooth_k=3)`
+      - [x] Fetch OHLCV from `day_bars` table (minimum 200 days for SMA-200)
+      - [x] Convert to pandas DataFrame for pandas_ta compatibility
+      - [x] Calculate all requested indicators
+      - [x] Add interpretations: "oversold" (RSI < 30), "overbought" (RSI > 70), "bullish_cross" (MACD > signal)
+      - [x] Return: Dict with indicator values and interpretations
   - [ ] 3.3 Update database schema for indicator caching (FR-3.3)
     - [ ] 3.3.1 Add `technical_indicators` table to `backend/app/storage/schema.py`
       - [ ] Schema: See PRD FR-3.3 for full schema (17 columns)
