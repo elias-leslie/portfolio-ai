@@ -79,7 +79,9 @@ def get_price_data_tool_definition() -> dict[str, Any]:
     """Get price data tool definition."""
     return {
         "name": "get_price_data",
-        "description": "Fetch current price and analytics for stock symbols",
+        "description": "Fetch current price, analytics, and technical indicators for stock symbols. "
+        "Returns enriched data including RSI, MACD, Bollinger Bands, moving averages, ATR, "
+        "and Stochastic oscillators with human-readable interpretations to support trading decisions.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -207,13 +209,182 @@ class AgentTools:
         }
 
     def execute_get_price_data(self, symbols: list[str]) -> dict[str, Any]:
-        """Execute get_price_data tool."""
+        """Execute get_price_data tool with technical indicators.
+
+        Fetches current price data and enriches it with technical indicators
+        from the technical_indicators table. Returns formatted interpretations
+        to help agents make informed trading decisions.
+        """
         price_data = self.price_fetcher.fetch_price_data(symbols)
 
+        # Fetch technical indicators for each symbol
+        enriched_prices = {}
+        for sym, data in price_data.items():
+            price_info = data.model_dump(mode="json")
+
+            # Fetch latest technical indicators from database
+            indicators = self._fetch_indicators(sym)
+
+            if indicators:
+                price_info["indicators"] = indicators
+                price_info["analysis"] = self._format_indicator_analysis(
+                    sym, data.price, indicators
+                )
+
+            enriched_prices[sym] = price_info
+
         return {
-            "prices": {sym: data.model_dump(mode="json") for sym, data in price_data.items()},
+            "prices": enriched_prices,
             "count": len(price_data),
         }
+
+    def _fetch_indicators(self, ticker: str) -> dict[str, Any] | None:
+        """Fetch latest technical indicators for a ticker.
+
+        Args:
+            ticker: Stock ticker symbol
+
+        Returns:
+            Dictionary of indicator values, or None if no data available
+        """
+        try:
+            result = self.storage.query(
+                """
+                SELECT
+                    rsi_14, macd, macd_signal, macd_histogram,
+                    bb_upper, bb_middle, bb_lower,
+                    sma_20, sma_50, sma_200,
+                    ema_20, ema_50, ema_200,
+                    atr_14, stoch_k, stoch_d,
+                    date
+                FROM technical_indicators
+                WHERE ticker = ?
+                ORDER BY date DESC
+                LIMIT 1
+                """,
+                [ticker.upper()],
+            )
+
+            if result.is_empty():
+                return None
+
+            row = result.row(0, named=True)
+            return {
+                "rsi_14": row["rsi_14"],
+                "macd": {
+                    "macd": row["macd"],
+                    "signal": row["macd_signal"],
+                    "histogram": row["macd_histogram"],
+                },
+                "bbands": {
+                    "upper": row["bb_upper"],
+                    "middle": row["bb_middle"],
+                    "lower": row["bb_lower"],
+                },
+                "sma_20": row["sma_20"],
+                "sma_50": row["sma_50"],
+                "sma_200": row["sma_200"],
+                "ema_20": row["ema_20"],
+                "ema_50": row["ema_50"],
+                "ema_200": row["ema_200"],
+                "atr_14": row["atr_14"],
+                "stochastic": {
+                    "k": row["stoch_k"],
+                    "d": row["stoch_d"],
+                },
+                "date": str(row["date"]),
+            }
+        except Exception as e:
+            logger.warning(f"Failed to fetch indicators for {ticker}: {e}")
+            return None
+
+    def _format_indicator_analysis(
+        self, ticker: str, current_price: float, indicators: dict[str, Any]
+    ) -> str:
+        """Format technical indicators into human-readable analysis text.
+
+        Args:
+            ticker: Stock ticker symbol
+            current_price: Current stock price
+            indicators: Dictionary of indicator values
+
+        Returns:
+            Formatted analysis string for agent consumption
+        """
+        analysis_parts = [f"{ticker} current price ${current_price:.2f}"]
+
+        # RSI analysis
+        rsi = indicators.get("rsi_14")
+        if rsi is not None:
+            if rsi < 30:
+                analysis_parts.append(f"RSI={rsi:.1f} (oversold)")
+            elif rsi > 70:
+                analysis_parts.append(f"RSI={rsi:.1f} (overbought)")
+            else:
+                analysis_parts.append(f"RSI={rsi:.1f} (neutral)")
+
+        # MACD analysis
+        macd_data = indicators.get("macd")
+        if macd_data and macd_data.get("macd") is not None:
+            macd = macd_data["macd"]
+            signal = macd_data["signal"]
+            if macd > signal:
+                analysis_parts.append("MACD bullish cross")
+            elif macd < signal:
+                analysis_parts.append("MACD bearish cross")
+
+        # Bollinger Bands analysis
+        bbands = indicators.get("bbands")
+        if bbands and bbands.get("upper") is not None:
+            bb_upper = bbands["upper"]
+            bb_lower = bbands["lower"]
+            bb_middle = bbands["middle"]
+
+            if current_price < bb_lower:
+                analysis_parts.append("below lower Bollinger Band")
+            elif current_price > bb_upper:
+                analysis_parts.append("above upper Bollinger Band")
+            elif current_price < bb_middle:
+                analysis_parts.append("near lower Bollinger Band")
+            elif current_price > bb_middle:
+                analysis_parts.append("near upper Bollinger Band")
+
+        # SMA 200 trend analysis
+        sma_200 = indicators.get("sma_200")
+        if sma_200 is not None:
+            if current_price > sma_200:
+                pct_above = ((current_price - sma_200) / sma_200) * 100
+                analysis_parts.append(f"{pct_above:.1f}% above 200-day SMA (uptrend)")
+            else:
+                pct_below = ((sma_200 - current_price) / sma_200) * 100
+                analysis_parts.append(f"{pct_below:.1f}% below 200-day SMA (downtrend)")
+
+        # Stochastic analysis
+        stoch = indicators.get("stochastic")
+        if stoch and stoch.get("k") is not None:
+            stoch_k = stoch["k"]
+            if stoch_k < 20:
+                analysis_parts.append(f"Stochastic={stoch_k:.1f} (oversold)")
+            elif stoch_k > 80:
+                analysis_parts.append(f"Stochastic={stoch_k:.1f} (overbought)")
+
+        # Add trading signal interpretation
+        signals = []
+        if rsi is not None and rsi < 30:
+            signals.append("potential buy signal")
+        if rsi is not None and rsi > 70:
+            signals.append("potential sell signal")
+
+        if macd_data and macd_data.get("macd") is not None:
+            if macd_data["macd"] > macd_data["signal"] and rsi is not None and rsi < 50:
+                signals.append("bullish momentum building")
+            elif macd_data["macd"] < macd_data["signal"] and rsi is not None and rsi > 50:
+                signals.append("bearish momentum building")
+
+        if signals:
+            analysis_parts.append(f"- {', '.join(signals)}")
+
+        return ", ".join(analysis_parts)
 
     def execute_store_idea(self, agent_run_id: str, **idea_data: Any) -> dict[str, Any]:
         """Execute store_idea tool."""

@@ -44,6 +44,9 @@ repos:
           - python-json-logger
           - pandas-ta
           - tenacity
+          - duckdb
+          - feedparser
+          - yfinance
 
   # General file checks
   - repo: https://github.com/pre-commit/pre-commit-hooks

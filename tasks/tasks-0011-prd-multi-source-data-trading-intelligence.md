@@ -166,8 +166,8 @@ All 19 pre-existing mypy type errors have been fixed and committed (commit fcdf1
 - ✅ `backend/app/storage/schema.py` - Added 3 new tables: source_performance, day_bars, minute_bars (Task 1.2 complete)
 - `backend/app/api/health.py` - Add multi-source health checks
 - ✅ `backend/requirements.txt` - Added pandas-ta>=0.3.14b (Task 3.1 complete)
-- `backend/app/agents/tools.py` - Integrate technical indicators into agent tools
-- `backend/app/tasks/agent_tasks.py` - Add Celery tasks for data ingestion and paper trading
+- ✅ `backend/app/agents/tools.py` - Integrated technical indicators into agent tools (Task 3.6 complete, 175 lines added)
+- ✅ `backend/app/tasks/agent_tasks.py` - Added Celery task for technical indicators (Task 3.4 complete)
 - `docs/core/ARCHITECTURE.md` - Document multi-source architecture and local AI strategy
 - `docs/core/DEVELOPMENT.md` - Update with new testing protocols
 
@@ -423,11 +423,11 @@ All 19 pre-existing mypy type errors have been fixed and committed (commit fcdf1
       - [x] Fixed ALL 57 mypy errors across entire codebase (commit c7cb485)
       - [x] Committed indicators.py API + all mypy fixes (commits c7cb485 + 4234434)
       - [ ] Write tests (deferred to Task 3.7)
-  - [ ] 3.6 Integrate with AI agent prompts (FR-3.6)
-    - [ ] 3.6.1 Update `backend/app/agents/tools.py`
-      - [ ] Extend `get_price_data` tool to include indicators
-      - [ ] Fetch indicators from `technical_indicators` table
-      - [ ] Format for agent prompt: "AAPL current price $182, RSI=32 (oversold), MACD bullish cross, near lower Bollinger Band - potential buy signal"
+  - [x] 3.6 Integrate with AI agent prompts (FR-3.6) ✅ COMPLETE
+    - [x] 3.6.1 Update `backend/app/agents/tools.py`
+      - [x] Extend `get_price_data` tool to include indicators
+      - [x] Fetch indicators from `technical_indicators` table
+      - [x] Format for agent prompt: "AAPL current price $182, RSI=32 (oversold), MACD bullish cross, near lower Bollinger Band - potential buy signal"
   - [ ] 3.7 Write indicator tests
     - [ ] 3.7.1 Create `tests/test_indicators.py` (~300 lines)
       - [ ] Test: RSI calculation with known OHLCV data (verify RSI value matches expected)
