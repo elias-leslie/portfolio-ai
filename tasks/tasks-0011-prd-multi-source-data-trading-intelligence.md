@@ -22,14 +22,18 @@
   - Task 1.1.3: polygon_client.py (241 lines)
   - Task 1.1.4: polygon_source.py (214 lines)
   - Task 1.1.5: multi_source_fetcher.py (587 lines)
+- Task 1.2: Update database schema for source tracking (3 of 3 subtasks complete)
+  - Task 1.2.1: source_performance table
+  - Task 1.2.2: day_bars table with index
+  - Task 1.2.3: minute_bars table
 
 **⚠️ NEXT STEPS:**
-1. Task 1.2: Update database schema for source tracking
-2. Task 1.3: Refactor price_fetcher.py to use MultiSourceFetcher
-3. Task 1.4: Update health check endpoint
+1. Task 1.3: Refactor price_fetcher.py to use MultiSourceFetcher
+2. Task 1.4: Update health check endpoint
+3. Task 1.5: Write comprehensive multi-source tests
 4. Continue with remaining tasks sequentially
 
-**EFFORT TO COMPLETE:** HIGH (3-4 weeks, ~75% remaining)
+**EFFORT TO COMPLETE:** HIGH (3-4 weeks, ~70% remaining)
 
 **Context from Current Codebase:**
 - ✅ BaseSource class exists (`backend/app/sources/base.py`) - adapted from market-sim
@@ -155,18 +159,18 @@
       - [x] Store metrics in `source_performance` table (need schema update)
       - [x] Add method: `fetch_with_fallback(request: DatasetRequest) -> pl.DataFrame | None`
       - [x] Log all failover events with structured logging
-  - [ ] 1.2 Update database schema for source tracking (FR-1.6, FR-2.3)
-    - [ ] 1.2.1 Add `source_performance` table to `backend/app/storage/schema.py`
-      - [ ] Schema: `source_name TEXT PRIMARY KEY, success_count INTEGER, failure_count INTEGER, total_latency_ms BIGINT, rate_limit_hits INTEGER, last_success_at TIMESTAMP`
-      - [ ] Add to `_create_metadata_tables()` method
-      - [ ] Add to table_registry metadata
-    - [ ] 1.2.2 Add `day_bars` table for historical OHLCV data
-      - [ ] Schema: `ticker TEXT, date DATE, open DOUBLE, high DOUBLE, low DOUBLE, close DOUBLE, volume BIGINT, vwap DOUBLE, source TEXT, ingest_run_id TEXT, PRIMARY KEY (ticker, date)`
-      - [ ] Add to `_create_timeseries_tables()` method
-      - [ ] Create index: `CREATE INDEX idx_day_bars_ticker ON day_bars(ticker)`
-    - [ ] 1.2.3 Add `minute_bars` table for intraday data (optional feature)
-      - [ ] Schema: `ticker TEXT, ts_utc TIMESTAMP, open DOUBLE, high DOUBLE, low DOUBLE, close DOUBLE, volume BIGINT, vwap DOUBLE, source TEXT, PRIMARY KEY (ticker, ts_utc)`
-      - [ ] Add to `_create_timeseries_tables()` method
+  - [x] 1.2 Update database schema for source tracking (FR-1.6, FR-2.3)
+    - [x] 1.2.1 Add `source_performance` table to `backend/app/storage/schema.py`
+      - [x] Schema: `source_name TEXT PRIMARY KEY, success_count INTEGER, failure_count INTEGER, total_latency_ms BIGINT, rate_limit_hits INTEGER, last_success_at TIMESTAMP`
+      - [x] Add to `_create_metadata_tables()` method
+      - [x] Add to table_registry metadata
+    - [x] 1.2.2 Add `day_bars` table for historical OHLCV data
+      - [x] Schema: `ticker TEXT, date DATE, open DOUBLE, high DOUBLE, low DOUBLE, close DOUBLE, volume BIGINT, vwap DOUBLE, source TEXT, ingest_run_id TEXT, PRIMARY KEY (ticker, date)`
+      - [x] Add to `_create_timeseries_tables()` method
+      - [x] Create index: `CREATE INDEX idx_day_bars_ticker ON day_bars(ticker)`
+    - [x] 1.2.3 Add `minute_bars` table for intraday data (optional feature)
+      - [x] Schema: `ticker TEXT, ts_utc TIMESTAMP, open DOUBLE, high DOUBLE, low DOUBLE, close DOUBLE, volume BIGINT, vwap DOUBLE, source TEXT, PRIMARY KEY (ticker, ts_utc)`
+      - [x] Add to `_create_timeseries_tables()` method
   - [ ] 1.3 Refactor price_fetcher.py to use MultiSourceFetcher (FR-1.3)
     - [ ] 1.3.1 Update `backend/app/portfolio/price_fetcher.py`
       - [ ] Replace direct `yf.Ticker()` calls with `MultiSourceFetcher.fetch_with_fallback()`
