@@ -155,9 +155,7 @@ def get_indicators_for_ticker(
         raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception as e:
         # Unexpected error
-        raise HTTPException(
-            status_code=500, detail=f"Error calculating indicators: {e!s}"
-        ) from e
+        raise HTTPException(status_code=500, detail=f"Error calculating indicators: {e!s}") from e
 
 
 @router.get("/{ticker}/history", response_model=list[IndicatorsResponse])

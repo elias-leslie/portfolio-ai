@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Any, cast
+from typing import cast
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
