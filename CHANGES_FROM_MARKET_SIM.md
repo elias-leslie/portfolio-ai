@@ -2,7 +2,7 @@
 
 This document tracks how Portfolio AI differs from the market-sim project it was bootstrapped from.
 
-**Last Updated**: 2025-10-27
+**Last Updated**: 2025-01-28
 
 ---
 
@@ -83,15 +83,18 @@ Both use the same 6 core docs:
 ## Inherited Components (Unchanged)
 
 ### From Market-Sim Storage Layer
-- `app/storage/connection.py` - DuckDB connection manager
-- `app/storage/metadata.py` - Metadata tracking
-- `app/storage/queries.py` - Query helpers
-- `app/storage/ingestion.py` - Data ingestion patterns
+- `backend/app/storage/connection.py` - DuckDB connection manager
+- `backend/app/storage/metadata.py` - Metadata tracking
+- `backend/app/storage/queries.py` - Query helpers
+- `backend/app/storage/ingestion.py` - Data ingestion patterns
 
-### From Market-Sim Data Sources
-- `app/sources/fred.py` - FRED API integration
-- `app/sources/news.py` - Google News RSS
-- `app/sources/multi_source_fetcher.py` - Failover pattern
+### From Market-Sim Data Sources (In Progress)
+- `backend/app/sources/fred.py` - FRED API integration ✅
+- `backend/app/sources/news.py` - Google News RSS ✅
+- `backend/app/sources/base.py` - BaseSource, SourceManager (foundation) ✅
+- `backend/app/sources/multi_source_fetcher.py` - Failover pattern (planned in PRD #0011)
+- `backend/app/sources/polygon_source.py` - Polygon API (planned in PRD #0011)
+- Additional 9 data source adapters (planned in PRD #0011)
 
 ### From Market-Sim Dev Infrastructure
 - `.claude/commands/` - All 5 slash commands
