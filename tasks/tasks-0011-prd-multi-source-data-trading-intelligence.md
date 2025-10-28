@@ -67,7 +67,7 @@
 
 ## Relevant Files
 
-### Files Created (13 files)
+### Files Created (15 files)
 
 **Core Multi-Source Infrastructure:**
 - ✅ `backend/app/sources/jsonpath_mapper.py` (265 lines) - JSONPath field mapping with nested data extraction, timestamp conversion, and validation
@@ -84,15 +84,13 @@
 - ✅ `backend/app/sources/finnhub_source.py` (503 lines) - Finnhub adapter with FinnhubClient and FinnhubSource implementing BaseSource, 60/min rate limiting
 - ✅ `backend/tests/test_finnhub_source.py` (392 lines) - Comprehensive test suite with 13 passing tests
 
-### Files to Create (19 remaining files)
+**Analytics & Trading Intelligence:**
+- ✅ `backend/app/analytics/sectors.py` (337 lines) - Sector rotation analyzer with momentum calculation
+- ✅ `backend/tests/test_sectors.py` (190 lines) - Comprehensive test suite with 8 passing tests
 
-**Core Multi-Source Infrastructure:**
-- `backend/app/sources/alphavantage_source.py` (~150 lines) - Alpha Vantage adapter
+### Files to Create (17 remaining files)
 
 **Analytics & Trading Intelligence:**
-- `backend/app/analytics/__init__.py` (~10 lines) - Package initialization
-- `backend/app/analytics/volume.py` (~100 lines) - RVOL calculator
-- `backend/app/analytics/sectors.py` (~150 lines) - Sector rotation analyzer
 - `backend/app/analytics/peers.py` (~150 lines) - Peer comparison engine
 - `backend/app/analytics/indicators.py` (~300 lines) - Technical indicators wrapper (pandas_ta)
 - `backend/app/analytics/paper_trading.py` (~250 lines) - Paper trade tracker
@@ -287,12 +285,14 @@
         ```
       - [x] Return: RVOL value (2.0 = 2x normal volume)
       - [x] Add type hints and docstrings
-  - [ ] 2.8 Create sector rotation analyzer (FR-2.7)
-    - [ ] 2.8.1 Create `backend/app/analytics/sectors.py` (~150 lines)
-      - [ ] Add function: `get_sector_rotation(date: str, lookback_days: int = 20) -> pl.DataFrame`
-      - [ ] Aggregate `day_bars` returns by sector (join with reference data for sector)
-      - [ ] Calculate 5-day, 20-day, 60-day sector momentum
-      - [ ] Return: DataFrame with sectors ranked by momentum (columns: sector, momentum_5d, momentum_20d, momentum_60d)
+  - [x] 2.8 Create sector rotation analyzer (FR-2.7) ✅
+    - [x] 2.8.1 Create `backend/app/analytics/sectors.py` (337 lines)
+      - [x] Add function: `get_sector_rotation(date: str, lookback_days: int = 20) -> pl.DataFrame`
+      - [x] Aggregate `day_bars` returns by sector (join with reference data for sector)
+      - [x] Calculate 5-day, 20-day sector momentum
+      - [x] Return: DataFrame with sectors ranked by momentum (columns: sector, momentum_5d, momentum_20d, num_stocks, avg_volume)
+      - [x] Add bonus function: `get_sector_performance_detail()` for detailed sector analysis
+      - [x] 8 tests created, all passing
   - [ ] 2.9 Create peer comparison engine (FR-2.8)
     - [ ] 2.9.1 Create `backend/app/analytics/peers.py` (~150 lines)
       - [ ] Add function: `get_peer_comparison(ticker: str, date: str) -> pl.DataFrame`
