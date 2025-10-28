@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+import datetime as dt
+import json
+from unittest.mock import patch
+
+import polars as pl
 import pytest
 from fastapi.testclient import TestClient
 
@@ -24,6 +29,7 @@ def cleanup_database():
     with storage.connection() as conn:
         conn.execute("DELETE FROM portfolio_positions")
         conn.execute("DELETE FROM portfolio_accounts")
+        conn.execute("DELETE FROM price_cache")  # Clear price cache too
 
     yield
 
@@ -31,6 +37,35 @@ def cleanup_database():
     with storage.connection() as conn:
         conn.execute("DELETE FROM portfolio_positions")
         conn.execute("DELETE FROM portfolio_accounts")
+        conn.execute("DELETE FROM price_cache")  # Clear price cache too
+
+
+@pytest.fixture(autouse=True)
+def mock_price_data():
+    """Mock price fetcher to return valid price data for test symbols."""
+    from app.portfolio.models import PriceData
+    from app.portfolio.price_fetcher import PriceDataFetcher
+
+    # Create a function that returns mock PriceData objects
+    def mock_fetch_fresh_prices(symbols: list[str]) -> dict[str, PriceData]:
+        """Return mock price data for requested symbols."""
+        price_map = {"AAPL": 180.0, "MSFT": 350.0, "GOOGL": 140.0}
+
+        return {
+            symbol: PriceData(
+                symbol=symbol,
+                price=price_map.get(symbol, 100.0),
+                beta=1.2,
+                sector="Technology",
+                source="yfinance",
+                error=None,
+            )
+            for symbol in symbols
+        }
+
+    # Patch the _fetch_fresh_prices method
+    with patch.object(PriceDataFetcher, "_fetch_fresh_prices", side_effect=mock_fetch_fresh_prices):
+        yield
 
 
 def test_portfolio_crud_integration_flow(client: TestClient):

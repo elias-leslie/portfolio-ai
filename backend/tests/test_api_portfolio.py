@@ -13,7 +13,10 @@ def test_health_endpoint() -> None:
     """Test health check endpoint."""
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json()["status"] == "healthy"
+    # Health status can be "healthy" or "degraded" in tests (sources may not have been used yet)
+    assert response.json()["status"] in ["healthy", "degraded"]
+    assert "checks" in response.json()
+    assert "database" in response.json()["checks"]
 
 
 def test_root_endpoint() -> None:

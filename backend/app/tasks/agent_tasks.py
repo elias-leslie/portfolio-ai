@@ -12,6 +12,7 @@ from app.agents.discovery import DiscoveryAgent
 from app.agents.portfolio_analyzer import PortfolioAnalyzerAgent
 from app.agents.tools import AgentTools
 from app.analytics.indicators import calculate_indicators
+from app.analytics.paper_trading import update_paper_trades
 from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.portfolio.analytics import PortfolioAnalytics
@@ -473,3 +474,74 @@ def update_technical_indicators(  # type: ignore[no-untyped-def]
     )
 
     return result
+
+
+@celery_app.task(name="update_paper_trades_task", bind=True)  # type: ignore[misc]
+def update_paper_trades_task(  # type: ignore[no-untyped-def]
+    self, max_holding_days: int = 60
+) -> dict[str, int]:
+    """Update all open paper trades with current prices and check for exits.
+
+    This task fetches current prices for all open paper trades, updates returns,
+    and automatically closes trades that hit target/stop or exceed max holding period.
+    Should be scheduled daily at market close + 30 minutes (4:30 PM ET).
+
+    Args:
+        max_holding_days: Maximum days to hold before auto-closing (default: 60)
+
+    Returns:
+        Dict with update statistics:
+        - trades_updated: Number of trades updated
+        - trades_closed: Number of trades closed
+        - target_hits: Number of target price hits
+        - stop_hits: Number of stop loss hits
+        - expired: Number of trades closed due to time limit
+
+    Example:
+        >>> # Run immediately
+        >>> update_paper_trades_task(max_holding_days=60)
+        {"trades_updated": 10, "trades_closed": 2, "target_hits": 1, "stop_hits": 0, "expired": 1}
+
+        >>> # Schedule as background task (daily at 4:30 PM ET)
+        >>> update_paper_trades_task.delay()
+
+    Note:
+        This task should be configured in Celery beat schedule to run daily:
+        ```python
+        celery_app.conf.beat_schedule = {
+            'update-paper-trades-daily': {
+                'task': 'update_paper_trades_task',
+                'schedule': crontab(hour=16, minute=30),  # 4:30 PM ET
+            },
+        }
+        ```
+    """
+    task_id = self.request.id
+    logger.info(
+        "update_paper_trades_task_started",
+        task_id=task_id,
+        max_holding_days=max_holding_days,
+    )
+
+    try:
+        storage = get_storage()
+
+        # Update all open paper trades
+        stats = update_paper_trades(storage, max_holding_days=max_holding_days)
+
+        logger.info(
+            "update_paper_trades_task_completed",
+            task_id=task_id,
+            **stats,
+        )
+
+        return stats
+
+    except Exception as e:
+        logger.error(
+            "update_paper_trades_task_failed",
+            task_id=task_id,
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+        raise

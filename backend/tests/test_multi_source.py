@@ -29,6 +29,11 @@ def mock_storage(tmp_path):  # type: ignore[no-untyped-def]
 
     db_path = tmp_path / "test_multi_source.duckdb"
     storage = get_storage(db_path=str(db_path))
+
+    # Clean source_performance table to ensure fresh metrics for each test
+    with storage.connection() as conn:
+        conn.execute("DELETE FROM source_performance")
+
     return storage
 
 

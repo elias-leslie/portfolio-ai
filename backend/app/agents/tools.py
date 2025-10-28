@@ -18,6 +18,8 @@ if TYPE_CHECKING:
     from app.sources.news import GoogleNewsSource
     from app.storage.facade import DuckDBStorage
 
+from app.analytics.paper_trading import create_paper_trade
+
 logger = logging.getLogger(__name__)
 
 
@@ -387,7 +389,7 @@ class AgentTools:
         return ", ".join(analysis_parts)
 
     def execute_store_idea(self, agent_run_id: str, **idea_data: Any) -> dict[str, Any]:
-        """Execute store_idea tool."""
+        """Execute store_idea tool and automatically create a paper trade."""
         idea_id = str(uuid.uuid4())
 
         self.storage.insert_dict(
@@ -413,4 +415,20 @@ class AgentTools:
 
         logger.info(f"Stored idea {idea_id}: {idea_data.get('title')}")
 
-        return {"idea_id": idea_id, "status": "stored"}
+        # Automatically create paper trade for this idea
+        paper_trade = create_paper_trade(self.storage, idea_id)
+
+        if paper_trade:
+            logger.info(
+                f"Created paper trade for idea {idea_id}: "
+                f"{paper_trade['ticker']} @ ${paper_trade['entry_price']}"
+            )
+            return {
+                "idea_id": idea_id,
+                "status": "stored",
+                "paper_trade_created": True,
+                "ticker": paper_trade["ticker"],
+            }
+        else:
+            logger.warning(f"Failed to create paper trade for idea {idea_id}")
+            return {"idea_id": idea_id, "status": "stored", "paper_trade_created": False}

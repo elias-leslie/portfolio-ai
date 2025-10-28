@@ -308,94 +308,59 @@ def test_update_idea_status_not_found(client: TestClient) -> None:
     assert response.json()["detail"] == "Idea not found"
 
 
-@patch("app.api.ideas.DiscoveryAgent")
+@patch("app.api.ideas.run_discovery_agent")
 def test_generate_ideas_discovery_agent(
-    mock_agent_class: Mock, client: TestClient, test_storage: DuckDBStorage
+    mock_task: Mock, client: TestClient, test_storage: DuckDBStorage
 ) -> None:
     """Test POST /api/ideas/generate with discovery agent."""
-    # Mock agent instance and run result
-    mock_agent = Mock()
-    mock_agent.agent_type = "discovery"
-
-    # The run() method will insert the agent_run record into the database
-    def mock_run() -> dict:
-        _insert_test_agent_run(test_storage, run_id="run-123", agent_type="discovery", num_ideas=5)
-        return {
-            "status": "completed",
-            "run_id": "run-123",
-            "num_ideas": 5,
-        }
-
-    mock_agent.run = mock_run
-    mock_agent_class.return_value = mock_agent
+    # Mock Celery task result
+    mock_async_result = Mock()
+    mock_async_result.id = "task-123"
+    mock_task.apply_async.return_value = mock_async_result
 
     response = client.post("/api/ideas/generate", json={"agent_type": "discovery"})
 
     assert response.status_code == 200
     data = response.json()
-    assert data["status"] == "completed"
-    assert data["agent_run_id"] == "run-123"
-    assert data["num_ideas"] == 5
+    assert data["status"] == "running"
+    assert data["task_id"] == "task-123"
     assert data["agent_type"] == "discovery"
 
-    # Verify agent was instantiated
-    mock_agent_class.assert_called_once()
+    # Verify task was dispatched
+    mock_task.apply_async.assert_called_once()
 
 
-@patch("app.api.ideas.PortfolioAnalyzerAgent")
+@patch("app.api.ideas.run_portfolio_analyzer")
 def test_generate_ideas_portfolio_analyzer_agent(
-    mock_agent_class: Mock, client: TestClient, test_storage: DuckDBStorage
+    mock_task: Mock, client: TestClient, test_storage: DuckDBStorage
 ) -> None:
     """Test POST /api/ideas/generate with portfolio_analyzer agent."""
-    # Mock agent instance and run result
-    mock_agent = Mock()
-    mock_agent.agent_type = "portfolio_analyzer"
-
-    # The run() method will insert the agent_run record into the database
-    def mock_run() -> dict:
-        _insert_test_agent_run(
-            test_storage,
-            run_id="run-456",
-            agent_type="portfolio_analyzer",
-            num_ideas=3,
-        )
-        return {
-            "status": "completed",
-            "run_id": "run-456",
-            "num_ideas": 3,
-        }
-
-    mock_agent.run = mock_run
-    mock_agent_class.return_value = mock_agent
+    # Mock Celery task result
+    mock_async_result = Mock()
+    mock_async_result.id = "task-456"
+    mock_task.apply_async.return_value = mock_async_result
 
     response = client.post("/api/ideas/generate", json={"agent_type": "portfolio_analyzer"})
 
     assert response.status_code == 200
     data = response.json()
-    assert data["status"] == "completed"
-    assert data["agent_run_id"] == "run-456"
-    assert data["num_ideas"] == 3
+    assert data["status"] == "running"
+    assert data["task_id"] == "task-456"
     assert data["agent_type"] == "portfolio_analyzer"
 
-    # Verify agent was instantiated
-    mock_agent_class.assert_called_once()
+    # Verify task was dispatched
+    mock_task.apply_async.assert_called_once()
 
 
-@patch("app.api.ideas.DiscoveryAgent")
-def test_generate_ideas_agent_failure(mock_agent_class: Mock, client: TestClient) -> None:
-    """Test POST /api/ideas/generate when agent fails."""
-    # Mock agent instance with failed run
-    mock_agent = Mock()
-    mock_agent.run.return_value = {
-        "status": "failed",
-        "error": "API rate limit exceeded",
-    }
-    mock_agent_class.return_value = mock_agent
+@patch("app.api.ideas.run_discovery_agent")
+def test_generate_ideas_agent_failure(mock_task: Mock, client: TestClient) -> None:
+    """Test POST /api/ideas/generate when Celery task dispatch fails."""
+    # Mock task dispatch failure
+    mock_task.apply_async.side_effect = Exception("Celery connection failed")
 
     response = client.post("/api/ideas/generate", json={"agent_type": "discovery"})
 
     assert response.status_code == 500
-    assert "Agent run failed" in response.json()["detail"]
 
 
 def test_generate_ideas_invalid_agent_type(client: TestClient) -> None:

@@ -326,6 +326,7 @@ def test_portfolio_analyzer_execute_tool_store_idea(
             "cost_usd": 0.0,
             "error_message": None,
             "metadata": None,
+            "celery_task_id": None,
         },
     )
 

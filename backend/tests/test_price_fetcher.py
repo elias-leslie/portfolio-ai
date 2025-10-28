@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import datetime as dt
+import json
 import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import polars as pl
 import pytest
 
 from app.portfolio.price_fetcher import PriceDataFetcher
+from app.sources.base import DATASET_REFERENCE, DatasetRequest
 from app.storage import DuckDBStorage
 
 
@@ -113,69 +116,79 @@ def test_get_cached_prices_expired(price_fetcher: PriceDataFetcher) -> None:
     assert cached == {}
 
 
-@patch("app.portfolio.price_fetcher.yf.Ticker")
-def test_fetch_from_yfinance_success(
-    mock_ticker: MagicMock,
+def test_fetch_fresh_prices_success(
     price_fetcher: PriceDataFetcher,
 ) -> None:
-    """Test successful fetch from yfinance."""
-    # Mock yfinance response
-    mock_info = {
-        "currentPrice": 180.0,
-        "beta": 1.2,
-        "fiftyTwoWeekHigh": 200.0,
-        "fiftyTwoWeekLow": 150.0,
-        "sector": "Technology",
-    }
-    mock_ticker.return_value.info = mock_info
+    """Test successful fetch using MultiSourceFetcher."""
+    # Mock the MultiSourceFetcher.fetch_with_fallback method
+    mock_df = pl.DataFrame(
+        {
+            "ticker": ["AAPL"],
+            "as_of_date": [dt.date.today()],
+            "payload": [json.dumps({"price": 180.0, "beta": 1.2, "sector": "Technology"})],
+            "source": ["yfinance"],
+        }
+    )
 
-    result = price_fetcher._fetch_from_yfinance(["AAPL"])
+    with patch.object(
+        price_fetcher.multi_source_fetcher, "fetch_with_fallback", return_value=(mock_df, {})
+    ):
+        result = price_fetcher._fetch_fresh_prices(["AAPL"])
 
-    assert "AAPL" in result
-    assert result["AAPL"].price == 180.0
-    assert result["AAPL"].beta == 1.2
-    assert result["AAPL"].sector == "Technology"
-    assert result["AAPL"].source == "yfinance"
+        assert "AAPL" in result
+        assert result["AAPL"].price == 180.0
+        assert result["AAPL"].beta == 1.2
+        assert result["AAPL"].sector == "Technology"
+        assert result["AAPL"].source == "yfinance"
 
 
-@patch("app.portfolio.price_fetcher.yf.Ticker")
-def test_fetch_from_yfinance_no_price(
-    mock_ticker: MagicMock,
+def test_fetch_fresh_prices_no_price(
     price_fetcher: PriceDataFetcher,
 ) -> None:
-    """Test yfinance fetch with no price available."""
-    # Mock yfinance response with no price
-    mock_ticker.return_value.info = {}
+    """Test fetch with no price available in response."""
+    # Mock response with no price (price = 0)
+    mock_df = pl.DataFrame(
+        {
+            "ticker": ["AAPL"],
+            "as_of_date": [dt.date.today()],
+            "payload": [json.dumps({"price": 0, "sector": "Technology"})],
+            "source": ["yfinance"],
+        }
+    )
 
-    result = price_fetcher._fetch_from_yfinance(["AAPL"])
+    with patch.object(
+        price_fetcher.multi_source_fetcher, "fetch_with_fallback", return_value=(mock_df, {})
+    ):
+        result = price_fetcher._fetch_fresh_prices(["AAPL"])
 
-    # Now returns PriceData with error set
-    assert "AAPL" in result
-    assert result["AAPL"].error == "No price data available"
-    assert result["AAPL"].price == 0.0
+        # Now returns PriceData with error set
+        assert "AAPL" in result
+        assert result["AAPL"].error == "No price data available"
+        assert result["AAPL"].price == 0.0
 
 
-@patch("app.portfolio.price_fetcher.yf.Ticker")
-def test_fetch_from_yfinance_exception(
-    mock_ticker: MagicMock,
+def test_fetch_fresh_prices_all_sources_failed(
     price_fetcher: PriceDataFetcher,
 ) -> None:
-    """Test yfinance fetch handling exceptions."""
-    # Mock yfinance to raise an exception
-    mock_ticker.side_effect = Exception("API error")
+    """Test handling when all sources fail."""
+    # Mock all sources failing (returns None with errors)
+    errors_by_source = {"yfinance": ["API error"], "polygon": ["Service unavailable"]}
 
-    result = price_fetcher._fetch_from_yfinance(["AAPL"])
+    with patch.object(
+        price_fetcher.multi_source_fetcher,
+        "fetch_with_fallback",
+        return_value=(None, errors_by_source),
+    ):
+        result = price_fetcher._fetch_fresh_prices(["AAPL"])
 
-    # Now returns PriceData with error set
-    assert "AAPL" in result
-    assert result["AAPL"].error is not None
-    assert "API error" in result["AAPL"].error
-    assert result["AAPL"].price == 0.0
+        # Now returns PriceData with error set
+        assert "AAPL" in result
+        assert result["AAPL"].error is not None
+        assert "All sources failed" in result["AAPL"].error
+        assert result["AAPL"].price == 0.0
 
 
-@patch("app.portfolio.price_fetcher.yf.Ticker")
 def test_fetch_price_data_with_cache_hit(
-    mock_ticker: MagicMock,
     price_fetcher: PriceDataFetcher,
 ) -> None:
     """Test fetch_price_data uses cache when available."""
@@ -187,180 +200,71 @@ def test_fetch_price_data_with_cache_hit(
     }
     price_fetcher._cache_prices(price_data)
 
-    # Fetch (should use cache, not call yfinance)
-    result = price_fetcher.fetch_price_data(["AAPL"])
+    # Mock the fetch_with_fallback to ensure it's NOT called
+    with patch.object(
+        price_fetcher.multi_source_fetcher, "fetch_with_fallback"
+    ) as mock_fetch:
+        # Fetch (should use cache, not call fetch_with_fallback)
+        result = price_fetcher.fetch_price_data(["AAPL"])
 
-    assert "AAPL" in result
-    assert result["AAPL"].price == 180.0
+        assert "AAPL" in result
+        assert result["AAPL"].price == 180.0
 
-    # yfinance should not have been called
-    mock_ticker.assert_not_called()
+        # MultiSourceFetcher should not have been called
+        mock_fetch.assert_not_called()
 
 
-@patch("app.portfolio.price_fetcher.yf.Ticker")
 def test_fetch_price_data_cache_miss(
-    mock_ticker: MagicMock,
     price_fetcher: PriceDataFetcher,
 ) -> None:
     """Test fetch_price_data fetches fresh data on cache miss."""
-    # Mock yfinance response
-    mock_info = {
-        "currentPrice": 180.0,
-        "beta": 1.2,
-        "sector": "Technology",
-    }
-    mock_ticker.return_value.info = mock_info
+    # Mock MultiSourceFetcher response
+    mock_df = pl.DataFrame(
+        {
+            "ticker": ["AAPL"],
+            "as_of_date": [dt.date.today()],
+            "payload": [json.dumps({"price": 180.0, "beta": 1.2, "sector": "Technology"})],
+            "source": ["yfinance"],
+        }
+    )
 
-    # Fetch (cache miss)
-    result = price_fetcher.fetch_price_data(["AAPL"])
+    with patch.object(
+        price_fetcher.multi_source_fetcher, "fetch_with_fallback", return_value=(mock_df, {})
+    ):
+        # Fetch (cache miss)
+        result = price_fetcher.fetch_price_data(["AAPL"])
 
-    assert "AAPL" in result
-    assert result["AAPL"].price == 180.0
+        assert "AAPL" in result
+        assert result["AAPL"].price == 180.0
 
-    # Verify data was cached
-    df = price_fetcher.storage.query("SELECT * FROM price_cache WHERE symbol = 'AAPL'")
-    assert not df.is_empty()
-
-
-@patch("app.portfolio.price_fetcher.yf.Ticker")
-def test_fetch_yfinance_rate_limit_429(
-    mock_ticker: MagicMock,
-    price_fetcher: PriceDataFetcher,
-) -> None:
-    """Test yfinance HTTP 429 (rate limit) handling."""
-    from urllib.error import HTTPError
-
-    # Mock HTTP 429 error - this should be retried 3 times
-    error = HTTPError(url="http://test.com", code=429, msg="Rate limit", hdrs={}, fp=None)
-    mock_ticker.side_effect = error
-
-    result = price_fetcher._fetch_from_yfinance(["AAPL"])
-
-    # Should return empty dict (retry exhausted after 3 attempts, no PriceData returned)
-    assert result == {}
-    # Verify it was retried 3 times
-    assert mock_ticker.call_count == 3
+        # Verify data was cached
+        df = price_fetcher.storage.query("SELECT * FROM price_cache WHERE symbol = 'AAPL'")
+        assert not df.is_empty()
 
 
-@patch("app.portfolio.price_fetcher.yf.Ticker")
-def test_fetch_yfinance_timeout(
-    mock_ticker: MagicMock,
-    price_fetcher: PriceDataFetcher,
-) -> None:
-    """Test yfinance timeout handling."""
-    from requests.exceptions import Timeout
-
-    # Mock timeout error - this should be retried 3 times
-    mock_ticker.side_effect = Timeout("Request timed out")
-
-    result = price_fetcher._fetch_from_yfinance(["AAPL"])
-
-    # Should return empty dict (retry exhausted after 3 attempts, no PriceData returned)
-    assert result == {}
-    # Verify it was retried 3 times
-    assert mock_ticker.call_count == 3
-
-
-@patch("app.portfolio.price_fetcher.yf.Ticker")
-def test_fetch_yfinance_404_not_found(
-    mock_ticker: MagicMock,
-    price_fetcher: PriceDataFetcher,
-) -> None:
-    """Test yfinance 404 (invalid symbol) handling."""
-    from urllib.error import HTTPError
-
-    # Mock HTTP 404 error
-    error = HTTPError(url="http://test.com", code=404, msg="Not Found", hdrs={}, fp=None)
-    mock_ticker.side_effect = error
-
-    result = price_fetcher._fetch_from_yfinance(["INVALID"])
-
-    # Should return PriceData with error
-    assert "INVALID" in result
-    assert result["INVALID"].error == "Symbol not found (404)"
-    assert result["INVALID"].price == 0.0
-
-
-@patch("app.portfolio.price_fetcher.yf.Ticker")
-def test_fetch_yfinance_json_decode_error(
-    mock_ticker: MagicMock,
-    price_fetcher: PriceDataFetcher,
-) -> None:
-    """Test yfinance JSONDecodeError handling."""
-    from json import JSONDecodeError
-
-    # Mock JSON decode error
-    mock_ticker.side_effect = JSONDecodeError("Invalid JSON", "", 0)
-
-    result = price_fetcher._fetch_from_yfinance(["AAPL"])
-
-    # Should return PriceData with error
-    assert "AAPL" in result
-    assert result["AAPL"].error == "Invalid JSON response"
-    assert result["AAPL"].price == 0.0
-
-
-@patch("app.portfolio.price_fetcher.yf.Ticker")
-def test_fetch_yfinance_key_error(
-    mock_ticker: MagicMock,
-    price_fetcher: PriceDataFetcher,
-) -> None:
-    """Test yfinance KeyError handling."""
-    # Mock KeyError
-    mock_ticker.side_effect = KeyError("currentPrice")
-
-    result = price_fetcher._fetch_from_yfinance(["AAPL"])
-
-    # Should return PriceData with error
-    assert "AAPL" in result
-    assert "Missing field" in result["AAPL"].error
-    assert result["AAPL"].price == 0.0
-
-
-@patch("app.portfolio.price_fetcher.yf.Ticker")
 def test_fetch_partial_success(
-    mock_ticker: MagicMock,
     price_fetcher: PriceDataFetcher,
 ) -> None:
     """Test partial success (some symbols succeed, some fail)."""
+    # Mock response where AAPL succeeds but INVALID has no data
+    mock_df = pl.DataFrame(
+        {
+            "ticker": ["AAPL"],
+            "as_of_date": [dt.date.today()],
+            "payload": [json.dumps({"price": 180.0, "beta": 1.2, "sector": "Technology"})],
+            "source": ["yfinance"],
+        }
+    )
 
-    # Mock different responses for different symbols
-    def side_effect(symbol: str) -> MagicMock:
-        if symbol == "AAPL":
-            mock = MagicMock()
-            mock.info = {"currentPrice": 180.0, "beta": 1.2, "sector": "Technology"}
-            return mock
-        raise Exception("API error")
+    with patch.object(
+        price_fetcher.multi_source_fetcher, "fetch_with_fallback", return_value=(mock_df, {})
+    ):
+        result = price_fetcher._fetch_fresh_prices(["AAPL", "INVALID"])
 
-    mock_ticker.side_effect = side_effect
+        # AAPL should succeed
+        assert "AAPL" in result
+        assert result["AAPL"].price == 180.0
+        assert result["AAPL"].error is None
 
-    result = price_fetcher._fetch_from_yfinance(["AAPL", "INVALID"])
-
-    # AAPL should succeed
-    assert "AAPL" in result
-    assert result["AAPL"].price == 180.0
-    assert result["AAPL"].error is None
-
-    # INVALID should fail with error
-    assert "INVALID" in result
-    assert result["INVALID"].error is not None
-    assert result["INVALID"].price == 0.0
-
-
-def test_error_cache_prevents_retry_storm(
-    price_fetcher: PriceDataFetcher,
-) -> None:
-    """Test error cache prevents retry storms."""
-
-    # Manually populate error cache
-    from datetime import datetime
-
-    price_fetcher._error_cache["INVALID"] = ("Symbol not found", datetime.now())
-
-    # Try to fetch again - should return cached error immediately
-    result = price_fetcher._fetch_from_yfinance(["INVALID"])
-
-    # Should return cached error
-    assert "INVALID" in result
-    assert result["INVALID"].error == "Symbol not found"
-    assert result["INVALID"].price == 0.0
+        # INVALID should not be in result (not returned by source)
+        assert "INVALID" not in result

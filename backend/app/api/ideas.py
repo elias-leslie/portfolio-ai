@@ -5,10 +5,11 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from celery.result import AsyncResult  # type: ignore[import-untyped]
+from celery.result import AsyncResult  # type: ignore[import-not-found]
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from app.analytics.agent_performance import get_agent_performance, get_agent_performance_summary
 from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.storage import get_storage
@@ -156,25 +157,36 @@ async def generate_ideas(request: GenerateIdeasRequest) -> GenerateIdeasResponse
         agent_type=request.agent_type,
     )
 
-    # Dispatch task to Celery
-    if request.agent_type == "discovery":
-        task = run_discovery_agent.apply_async()
-    elif request.agent_type == "portfolio_analyzer":
-        task = run_portfolio_analyzer.apply_async()
-    else:
-        raise HTTPException(status_code=400, detail="Invalid agent type")
+    try:
+        # Dispatch task to Celery
+        if request.agent_type == "discovery":
+            task = run_discovery_agent.apply_async()
+        elif request.agent_type == "portfolio_analyzer":
+            task = run_portfolio_analyzer.apply_async()
+        else:
+            raise HTTPException(status_code=400, detail="Invalid agent type")
 
-    logger.info(
-        "generate_ideas_dispatched",
-        agent_type=request.agent_type,
-        task_id=task.id,
-    )
+        logger.info(
+            "generate_ideas_dispatched",
+            agent_type=request.agent_type,
+            task_id=task.id,
+        )
 
-    return GenerateIdeasResponse(
-        status="running",
-        task_id=task.id,
-        agent_type=request.agent_type,
-    )
+        return GenerateIdeasResponse(
+            status="running",
+            task_id=task.id,
+            agent_type=request.agent_type,
+        )
+    except Exception as e:
+        logger.error(
+            "generate_ideas_task_dispatch_failed",
+            agent_type=request.agent_type,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to dispatch agent task: {e!s}",
+        ) from e
 
 
 class AgentRunStatusResponse(BaseModel):
@@ -320,3 +332,142 @@ async def update_idea_status(idea_id: str, request: UpdateIdeaStatusRequest) -> 
         created_at=result[13].isoformat(),
         updated_at=result[14].isoformat(),
     )
+
+
+# Agent Performance Models
+class BestWorstTradeModel(BaseModel):
+    """Model for best/worst trade information."""
+
+    ticker: str
+    return_: float = Field(..., alias="return")
+    entry_date: str | None
+    exit_date: str | None
+    holding_days: int | None
+
+    class Config:
+        """Pydantic config."""
+
+        populate_by_name = True
+
+
+class AgentPerformanceMetrics(BaseModel):
+    """Model for agent performance metrics."""
+
+    win_rate: float
+    average_return: float
+    average_winner: float
+    average_loser: float
+    win_loss_ratio: float | None
+    total_ideas: int
+    open_ideas: int
+    closed_ideas: int
+    best_trade: BestWorstTradeModel | None
+    worst_trade: BestWorstTradeModel | None
+
+
+class AgentPerformanceResponse(BaseModel):
+    """Response model for agent performance."""
+
+    agent_type: str
+    period_days: int
+    metrics: AgentPerformanceMetrics
+
+
+class AgentSummaryMetrics(BaseModel):
+    """Model for summarized agent metrics."""
+
+    agent_type: str
+    win_rate: float
+    average_return: float
+    average_winner: float
+    average_loser: float
+    win_loss_ratio: float | None
+    total_ideas: int
+    open_ideas: int
+    closed_ideas: int
+    best_trade: BestWorstTradeModel | None
+    worst_trade: BestWorstTradeModel | None
+
+
+class AgentPerformanceSummaryResponse(BaseModel):
+    """Response model for all agents performance summary."""
+
+    agents: list[AgentSummaryMetrics]
+    period_days: int
+    total_agents: int
+
+
+@router.get("/agents/{agent_type}/performance", response_model=AgentPerformanceResponse)
+async def get_agent_performance_endpoint(
+    agent_type: str,
+    days: int = 90,
+) -> AgentPerformanceResponse:
+    """Get performance metrics for a specific agent type.
+
+    Analyzes paper trading outcomes to calculate win rate, average returns,
+    and other key performance indicators for the specified agent over the
+    given time period.
+
+    Args:
+        agent_type: Type of agent (e.g., "DiscoveryAgent", "PortfolioAnalyzerAgent")
+        days: Number of days to look back for performance calculation (default: 90)
+
+    Returns:
+        Performance metrics including win rate, average returns, and best/worst trades
+
+    Example:
+        GET /api/ideas/agents/DiscoveryAgent/performance?days=90
+    """
+    logger.info(
+        "get_agent_performance_request",
+        agent_type=agent_type,
+        days=days,
+    )
+
+    # Get performance metrics
+    perf = get_agent_performance(storage, agent_type, days=days)
+
+    logger.info(
+        "get_agent_performance_response",
+        agent_type=agent_type,
+        days=days,
+        win_rate=perf["metrics"]["win_rate"],
+        total_ideas=perf["metrics"]["total_ideas"],
+    )
+
+    return AgentPerformanceResponse(**perf)
+
+
+@router.get("/agents/performance/summary", response_model=AgentPerformanceSummaryResponse)
+async def get_all_agents_performance(
+    days: int = 30,
+) -> AgentPerformanceSummaryResponse:
+    """Get performance summary for all agent types.
+
+    Returns performance metrics for all agents, enabling easy comparison
+    of different agent strategies.
+
+    Args:
+        days: Number of days to look back (default: 30)
+
+    Returns:
+        List of agent performance metrics for comparison
+
+    Example:
+        GET /api/ideas/agents/performance/summary?days=30
+    """
+    logger.info(
+        "get_all_agents_performance_request",
+        days=days,
+    )
+
+    # Get summary for all agents
+    summary = get_agent_performance_summary(storage, days=days)
+
+    logger.info(
+        "get_all_agents_performance_response",
+        days=days,
+        total_agents=summary["total_agents"],
+    )
+
+    return AgentPerformanceSummaryResponse(**summary)

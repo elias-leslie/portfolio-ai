@@ -258,6 +258,7 @@ class Agent(ABC):
                 "cost_usd": 0.0,
                 "error_message": None,
                 "metadata": None,
+                "celery_task_id": None,
             },
         )
 
