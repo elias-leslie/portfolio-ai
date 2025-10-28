@@ -5,7 +5,6 @@ This module fetches price data using yfinance as primary and Polygon as backup.
 
 from __future__ import annotations
 
-import logging
 import os
 from datetime import datetime, timedelta
 from http.client import RemoteDisconnected
@@ -23,10 +22,11 @@ from tenacity import (
 )
 
 from ..constants import DEFAULT_PRICE_CACHE_TTL_MINUTES
+from ..logging_config import get_logger
 from ..storage import DuckDBStorage
 from .models import PriceData
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class PriceDataFetcher:
@@ -112,7 +112,12 @@ class PriceDataFetcher:
         for row in df.iter_rows(named=True):
             result[row["symbol"]] = PriceData(**row)
 
-        logger.info(f"Found {len(result)} cached prices")
+        logger.info(
+            "cache_hit",
+            num_cached=len(result),
+            symbols=list(result.keys()),
+            cache_hit=True,
+        )
         return result
 
     def _fetch_fresh_prices(self, symbols: list[str]) -> dict[str, PriceData]:
@@ -134,13 +139,18 @@ class PriceDataFetcher:
         failed_symbols = [s for s in symbols if s not in result]
         if failed_symbols and self.polygon_api_key:
             logger.info(
-                f"Falling back to Polygon for {len(failed_symbols)} symbols: {failed_symbols}"
+                "polygon_failover",
+                num_failed=len(failed_symbols),
+                symbols=failed_symbols,
+                source="polygon",
             )
             polygon_data = self._fetch_from_polygon(failed_symbols)
             result.update(polygon_data)
         elif failed_symbols:
             logger.warning(
-                f"No Polygon API key, cannot fetch {len(failed_symbols)} failed symbols"
+                "no_polygon_api_key",
+                num_failed=len(failed_symbols),
+                symbols=failed_symbols,
             )
 
         return result
@@ -161,7 +171,12 @@ class PriceDataFetcher:
             if symbol in self._error_cache:
                 cached_error, cached_at = self._error_cache[symbol]
                 if datetime.now() - cached_at < timedelta(minutes=self._error_cache_ttl_minutes):
-                    logger.debug(f"Using cached error for {symbol}: {cached_error}")
+                    logger.debug(
+                        "error_cache_hit",
+                        symbol=symbol,
+                        error=cached_error,
+                        cached_at=cached_at.isoformat(),
+                    )
                     result[symbol] = PriceData(
                         symbol=symbol,
                         price=0.0,
@@ -202,7 +217,12 @@ class PriceDataFetcher:
             price = info.get("currentPrice") or info.get("regularMarketPrice")
             if not price:
                 error_msg = "No price data available"
-                logger.warning(f"{symbol}: {error_msg}")
+                logger.warning(
+                    "price_fetch_no_data",
+                    symbol=symbol,
+                    error=error_msg,
+                    source="yfinance",
+                )
                 # Cache this error (permanent - don't retry)
                 self._error_cache[symbol] = (error_msg, datetime.now())
                 return PriceData(
@@ -235,7 +255,15 @@ class PriceDataFetcher:
                 source="yfinance",
             )
 
-            logger.debug(f"Fetched {symbol} from yfinance: ${price}")
+            logger.info(
+                "price_fetch_success",
+                symbol=symbol,
+                price=float(price),
+                source="yfinance",
+                has_beta=beta is not None,
+                has_volatility=volatility is not None,
+                has_sector=sector is not None,
+            )
             return price_data
 
         except HTTPError as e:
@@ -243,7 +271,13 @@ class PriceDataFetcher:
             status_code = getattr(e, "code", None)
             if status_code == 404:
                 error_msg = f"Symbol not found (404)"
-                logger.warning(f"{symbol}: {error_msg}")
+                logger.warning(
+                    "price_fetch_http_error",
+                    symbol=symbol,
+                    error=error_msg,
+                    status_code=404,
+                    source="yfinance",
+                )
                 # Cache this error (permanent - invalid symbol)
                 self._error_cache[symbol] = (error_msg, datetime.now())
                 return PriceData(
@@ -254,12 +288,25 @@ class PriceDataFetcher:
                 )
             elif status_code == 429:
                 error_msg = f"Rate limit exceeded (429)"
-                logger.warning(f"{symbol}: {error_msg}")
+                logger.warning(
+                    "price_fetch_rate_limit",
+                    symbol=symbol,
+                    error=error_msg,
+                    status_code=429,
+                    source="yfinance",
+                    will_retry=True,
+                )
                 # Don't cache - let retry logic handle it
                 raise  # Retry on rate limits
             else:
                 error_msg = f"HTTP error {status_code}"
-                logger.warning(f"{symbol}: {error_msg}")
+                logger.warning(
+                    "price_fetch_http_error",
+                    symbol=symbol,
+                    error=error_msg,
+                    status_code=status_code,
+                    source="yfinance",
+                )
                 self._error_cache[symbol] = (error_msg, datetime.now())
                 return PriceData(
                     symbol=symbol,
@@ -271,13 +318,25 @@ class PriceDataFetcher:
         except (Timeout, ReadTimeout, ConnectionError, RemoteDisconnected) as e:
             # Transient network errors - retry
             error_msg = f"Network error: {type(e).__name__}"
-            logger.warning(f"{symbol}: {error_msg}, will retry")
+            logger.warning(
+                "price_fetch_network_error",
+                symbol=symbol,
+                error=error_msg,
+                error_type=type(e).__name__,
+                source="yfinance",
+                will_retry=True,
+            )
             raise  # Retry these errors
 
         except JSONDecodeError as e:
             # Malformed response
             error_msg = "Invalid JSON response"
-            logger.warning(f"{symbol}: {error_msg}")
+            logger.warning(
+                "price_fetch_json_error",
+                symbol=symbol,
+                error=error_msg,
+                source="yfinance",
+            )
             self._error_cache[symbol] = (error_msg, datetime.now())
             return PriceData(
                 symbol=symbol,
@@ -289,7 +348,13 @@ class PriceDataFetcher:
         except KeyError as e:
             # Missing expected field
             error_msg = f"Missing field: {e}"
-            logger.warning(f"{symbol}: {error_msg}")
+            logger.warning(
+                "price_fetch_key_error",
+                symbol=symbol,
+                error=error_msg,
+                missing_field=str(e),
+                source="yfinance",
+            )
             self._error_cache[symbol] = (error_msg, datetime.now())
             return PriceData(
                 symbol=symbol,
@@ -301,7 +366,13 @@ class PriceDataFetcher:
         except Exception as e:
             # Catch-all for unexpected errors
             error_msg = f"Unexpected error: {type(e).__name__}: {str(e)}"
-            logger.error(f"{symbol}: {error_msg}")
+            logger.error(
+                "price_fetch_unexpected_error",
+                symbol=symbol,
+                error=error_msg,
+                error_type=type(e).__name__,
+                source="yfinance",
+            )
             self._error_cache[symbol] = (error_msg, datetime.now())
             return PriceData(
                 symbol=symbol,
@@ -321,7 +392,12 @@ class PriceDataFetcher:
         """
         # Placeholder for Polygon implementation
         # Will be implemented when Polygon integration is needed
-        logger.info(f"Polygon fetch not yet implemented for {symbols}")
+        logger.info(
+            "polygon_not_implemented",
+            symbols=symbols,
+            num_symbols=len(symbols),
+            source="polygon",
+        )
         return {}
 
     def _cache_prices(self, price_data: dict[str, PriceData]) -> None:
@@ -340,4 +416,8 @@ class PriceDataFetcher:
         df = pl.DataFrame(rows)
         self.storage.insert_dataframe("price_cache", df, mode="append")
 
-        logger.info(f"Cached {len(rows)} price records")
+        logger.info(
+            "prices_cached",
+            num_cached=len(rows),
+            symbols=list(price_data.keys()),
+        )

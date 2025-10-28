@@ -6,7 +6,6 @@ This module provides the base Agent class that all agents inherit from.
 from __future__ import annotations
 
 import json
-import logging
 import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime
@@ -14,7 +13,9 @@ from typing import Any
 
 from anthropic import Anthropic
 
-logger = logging.getLogger(__name__)
+from ..logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class Agent(ABC):
@@ -86,7 +87,13 @@ class Agent(ABC):
         run_id = str(uuid.uuid4())
         started_at = datetime.now()
 
-        logger.info(f"Starting agent run {run_id} for {self.agent_type}")
+        logger.info(
+            "agent_run_started",
+            run_id=run_id,
+            agent_type=self.agent_type,
+            model=self.model,
+            max_iterations=max_iterations,
+        )
 
         # Record agent run
         self._record_run_start(run_id, started_at)
@@ -113,6 +120,18 @@ class Agent(ABC):
                             final_text += block.text
 
                     completed_at = datetime.now()
+                    duration_s = (completed_at - started_at).total_seconds()
+
+                    logger.info(
+                        "agent_run_completed",
+                        run_id=run_id,
+                        agent_type=self.agent_type,
+                        num_tool_calls=len(tool_calls_made),
+                        iterations=iteration + 1,
+                        duration_s=round(duration_s, 2),
+                        status="completed",
+                    )
+
                     self._record_run_complete(
                         run_id,
                         completed_at,
