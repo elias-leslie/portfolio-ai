@@ -1,71 +1,63 @@
 """Price data fetching with multi-source failover.
 
-This module fetches price data using yfinance as primary and Polygon as backup.
+This module fetches price data using MultiSourceFetcher with YFinance and Polygon sources.
 """
 
 from __future__ import annotations
 
+import datetime as dt
+import json
 import os
 from datetime import datetime, timedelta
-from http.client import RemoteDisconnected
-from json import JSONDecodeError
-from urllib.error import HTTPError
 
 import polars as pl
-import yfinance as yf
-from requests.exceptions import ConnectionError, ReadTimeout, Timeout
-from tenacity import (
-    RetryError,
-    retry,
-    retry_if_exception,
-    stop_after_attempt,
-    wait_exponential,
-)
 
 from ..constants import DEFAULT_PRICE_CACHE_TTL_MINUTES
 from ..logging_config import get_logger
+from ..sources.base import DATASET_REFERENCE, BaseSource, DatasetRequest
+from ..sources.multi_source_fetcher import MultiSourceFetcher
+from ..sources.polygon_source import PolygonSource
+from ..sources.yfinance_source import YFinanceSource
 from ..storage import DuckDBStorage
 from .models import PriceData
 
 logger = get_logger(__name__)
 
 
-def _should_retry_exception(exception: BaseException) -> bool:
-    """Determine if an exception should trigger a retry.
-
-    Args:
-        exception: The exception to check
-
-    Returns:
-        True if should retry, False otherwise
-    """
-    # Retry transient network errors
-    if isinstance(exception, Timeout | ReadTimeout | ConnectionError | RemoteDisconnected):
-        return True
-    # Retry rate limit errors (429)
-    if isinstance(exception, HTTPError):
-        return getattr(exception, "code", None) == 429
-    return False
-
-
 class PriceDataFetcher:
     """Fetches price data with caching and multi-source failover.
 
-    Uses yfinance as primary source and Polygon as backup.
-    Implements 15-minute cache TTL.
+    Uses MultiSourceFetcher with YFinance (priority 1) and Polygon (priority 10) sources.
+    Implements 15-minute cache TTL for price data.
     """
 
     def __init__(self, storage: DuckDBStorage) -> None:
         """Initialize price data fetcher.
 
         Args:
-            storage: DuckDBStorage instance for caching
+            storage: DuckDBStorage instance for caching and metrics
         """
         self.storage = storage
         self.cache_ttl_minutes = DEFAULT_PRICE_CACHE_TTL_MINUTES
-        self.polygon_api_key = os.getenv("POLYGON_API_KEY")
         self._error_cache: dict[str, tuple[str, datetime]] = {}  # symbol -> (error, timestamp)
         self._error_cache_ttl_minutes = 5
+
+        # Initialize multi-source fetcher with YFinance and optionally Polygon
+        sources: list[BaseSource] = [YFinanceSource()]
+
+        # Add Polygon source only if API key is available
+        polygon_api_key = os.getenv("POLYGON_API_KEY")
+        if polygon_api_key:
+            sources.append(PolygonSource())
+            logger.info("multi_source_initialized", sources=["yfinance", "polygon"])
+        else:
+            logger.info(
+                "multi_source_initialized",
+                sources=["yfinance"],
+                note="Polygon disabled (no API key)",
+            )
+
+        self.multi_source_fetcher = MultiSourceFetcher(sources, storage)
 
     def fetch_price_data(self, symbols: list[str]) -> dict[str, PriceData]:
         """Fetch price data for multiple symbols with caching.
@@ -140,7 +132,7 @@ class PriceDataFetcher:
         return result
 
     def _fetch_fresh_prices(self, symbols: list[str]) -> dict[str, PriceData]:
-        """Fetch fresh price data from yfinance (primary) or Polygon (backup).
+        """Fetch fresh price data using MultiSourceFetcher with automatic failover.
 
         Args:
             symbols: List of symbols to fetch
@@ -150,283 +142,94 @@ class PriceDataFetcher:
         """
         result = {}
 
-        # Try yfinance first
-        yfinance_data = self._fetch_from_yfinance(symbols)
-        result.update(yfinance_data)
-
-        # Fallback to Polygon for failed symbols
-        failed_symbols = [s for s in symbols if s not in result]
-        if failed_symbols and self.polygon_api_key:
-            logger.info(
-                "polygon_failover",
-                num_failed=len(failed_symbols),
-                symbols=failed_symbols,
-                source="polygon",
-            )
-            polygon_data = self._fetch_from_polygon(failed_symbols)
-            result.update(polygon_data)
-        elif failed_symbols:
-            logger.warning(
-                "no_polygon_api_key",
-                num_failed=len(failed_symbols),
-                symbols=failed_symbols,
-            )
-
-        return result
-
-    def _fetch_from_yfinance(self, symbols: list[str]) -> dict[str, PriceData]:
-        """Fetch price data from yfinance.
-
-        Args:
-            symbols: List of symbols
-
-        Returns:
-            Dictionary of PriceData
-        """
-        result = {}
-
-        for symbol in symbols:
-            # Check error cache first to avoid retry storms
-            if symbol in self._error_cache:
-                cached_error, cached_at = self._error_cache[symbol]
-                if datetime.now() - cached_at < timedelta(minutes=self._error_cache_ttl_minutes):
-                    logger.debug(
-                        "error_cache_hit",
-                        symbol=symbol,
-                        error=cached_error,
-                        cached_at=cached_at.isoformat(),
-                    )
-                    result[symbol] = PriceData(
-                        symbol=symbol,
-                        price=0.0,
-                        source="yfinance",
-                        error=cached_error,
-                    )
-                    continue
-                # Error cache expired, remove it
-                del self._error_cache[symbol]
-
-            # Try to fetch with retry logic
-            try:
-                price_data = self._fetch_single_symbol_with_retry(symbol)
-                if price_data:
-                    result[symbol] = price_data
-            except RetryError:
-                # Retry exhausted for transient errors (429, timeout, etc)
-                # Log and skip this symbol (will try Polygon if available)
-                logger.warning(
-                    "price_fetch_retry_exhausted",
-                    symbol=symbol,
-                    source="yfinance",
-                    retries=3,
-                )
-                # Don't add to result - let failover to Polygon handle it
-
-        return result
-
-    @retry(  # type: ignore[misc]
-        retry=retry_if_exception(_should_retry_exception),
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=1, max=10),
-    )
-    def _fetch_single_symbol_with_retry(self, symbol: str) -> PriceData | None:  # noqa: PLR0911
-        """Fetch a single symbol with retry logic for transient errors.
-
-        Args:
-            symbol: Stock symbol to fetch
-
-        Returns:
-            PriceData if successful, None otherwise
-        """
-        try:
-            ticker = yf.Ticker(symbol)
-            info = ticker.info
-
-            # Get current price
-            price = info.get("currentPrice") or info.get("regularMarketPrice")
-            if not price:
-                error_msg = "No price data available"
-                logger.warning(
-                    "price_fetch_no_data",
-                    symbol=symbol,
-                    error=error_msg,
-                    source="yfinance",
-                )
-                # Cache this error (permanent - don't retry)
-                self._error_cache[symbol] = (error_msg, datetime.now())
-                return PriceData(
-                    symbol=symbol,
-                    price=0.0,
-                    source="yfinance",
-                    error=error_msg,
-                )
-
-            # Get beta (market risk)
-            beta = info.get("beta")
-
-            # Get volatility (approximate from 52-week range if available)
-            volatility = None
-            if "fiftyTwoWeekHigh" in info and "fiftyTwoWeekLow" in info:
-                high = info["fiftyTwoWeekHigh"]
-                low = info["fiftyTwoWeekLow"]
-                if high and low and high > 0:
-                    volatility = (high - low) / high
-
-            # Get sector
-            sector = info.get("sector")
-
-            price_data = PriceData(
-                symbol=symbol,
-                price=float(price),
-                beta=float(beta) if beta else None,
-                volatility=float(volatility) if volatility else None,
-                sector=sector,
-                source="yfinance",
-            )
-
-            logger.info(
-                "price_fetch_success",
-                symbol=symbol,
-                price=float(price),
-                source="yfinance",
-                has_beta=beta is not None,
-                has_volatility=volatility is not None,
-                has_sector=sector is not None,
-            )
-            return price_data
-
-        except HTTPError as e:
-            # HTTP errors - check status code
-            status_code = getattr(e, "code", None)
-            if status_code == 404:
-                error_msg = "Symbol not found (404)"
-                logger.warning(
-                    "price_fetch_http_error",
-                    symbol=symbol,
-                    error=error_msg,
-                    status_code=404,
-                    source="yfinance",
-                )
-                # Cache this error (permanent - invalid symbol)
-                self._error_cache[symbol] = (error_msg, datetime.now())
-                return PriceData(
-                    symbol=symbol,
-                    price=0.0,
-                    source="yfinance",
-                    error=error_msg,
-                )
-            if status_code == 429:
-                error_msg = "Rate limit exceeded (429)"
-                logger.warning(
-                    "price_fetch_rate_limit",
-                    symbol=symbol,
-                    error=error_msg,
-                    status_code=429,
-                    source="yfinance",
-                    will_retry=True,
-                )
-                # Don't cache - let retry logic handle it
-                raise  # Retry on rate limits
-            error_msg = f"HTTP error {status_code}"
-            logger.warning(
-                "price_fetch_http_error",
-                symbol=symbol,
-                error=error_msg,
-                status_code=status_code,
-                source="yfinance",
-            )
-            self._error_cache[symbol] = (error_msg, datetime.now())
-            return PriceData(
-                symbol=symbol,
-                price=0.0,
-                source="yfinance",
-                error=error_msg,
-            )
-
-        except (Timeout, ReadTimeout, ConnectionError, RemoteDisconnected) as e:
-            # Transient network errors - retry
-            error_msg = f"Network error: {type(e).__name__}"
-            logger.warning(
-                "price_fetch_network_error",
-                symbol=symbol,
-                error=error_msg,
-                error_type=type(e).__name__,
-                source="yfinance",
-                will_retry=True,
-            )
-            raise  # Retry these errors
-
-        except JSONDecodeError:
-            # Malformed response
-            error_msg = "Invalid JSON response"
-            logger.warning(
-                "price_fetch_json_error",
-                symbol=symbol,
-                error=error_msg,
-                source="yfinance",
-            )
-            self._error_cache[symbol] = (error_msg, datetime.now())
-            return PriceData(
-                symbol=symbol,
-                price=0.0,
-                source="yfinance",
-                error=error_msg,
-            )
-
-        except KeyError as e:
-            # Missing expected field
-            error_msg = f"Missing field: {e}"
-            logger.warning(
-                "price_fetch_key_error",
-                symbol=symbol,
-                error=error_msg,
-                missing_field=str(e),
-                source="yfinance",
-            )
-            self._error_cache[symbol] = (error_msg, datetime.now())
-            return PriceData(
-                symbol=symbol,
-                price=0.0,
-                source="yfinance",
-                error=error_msg,
-            )
-
-        except Exception as e:
-            # Catch-all for unexpected errors
-            error_msg = f"Unexpected error: {type(e).__name__}: {e!s}"
-            logger.error(
-                "price_fetch_unexpected_error",
-                symbol=symbol,
-                error=error_msg,
-                error_type=type(e).__name__,
-                source="yfinance",
-            )
-            self._error_cache[symbol] = (error_msg, datetime.now())
-            return PriceData(
-                symbol=symbol,
-                price=0.0,
-                source="yfinance",
-                error=error_msg,
-            )
-
-    def _fetch_from_polygon(self, symbols: list[str]) -> dict[str, PriceData]:
-        """Fetch price data from Polygon API.
-
-        Args:
-            symbols: List of symbols
-
-        Returns:
-            Dictionary of PriceData
-        """
-        # Placeholder for Polygon implementation
-        # Will be implemented when Polygon integration is needed
-        logger.info(
-            "polygon_not_implemented",
-            symbols=symbols,
-            num_symbols=len(symbols),
-            source="polygon",
+        # Use MultiSourceFetcher for automatic priority-based failover
+        request = DatasetRequest(
+            dataset=DATASET_REFERENCE,
+            profile=None,
+            tickers=symbols,
+            start=dt.date.today(),
+            end=dt.date.today(),
+            timezone="UTC",
         )
-        return {}
+
+        df, errors_by_source = self.multi_source_fetcher.fetch_with_fallback(request, verbose=True)
+
+        if df is not None and len(df) > 0:
+            # Convert DataFrame to PriceData dict
+            # Expected columns from YFinanceSource/PolygonSource reference data:
+            # ticker, as_of_date, payload (JSON with price, sector, etc.), source
+            for row in df.iter_rows(named=True):
+                ticker = row["ticker"]
+                source = row.get("source", "unknown")
+                payload = row.get("payload", {})
+
+                if isinstance(payload, str):
+                    payload = json.loads(payload)
+
+                # Extract price and metadata from payload
+                price = payload.get("price", 0.0)
+                sector = payload.get("sector")
+                beta = payload.get("beta")
+                volatility = payload.get("volatility")
+
+                if price and price > 0:
+                    result[ticker] = PriceData(
+                        symbol=ticker,
+                        price=float(price),
+                        beta=float(beta) if beta else None,
+                        volatility=float(volatility) if volatility else None,
+                        sector=sector,
+                        source=source,
+                    )
+                    logger.info(
+                        "price_fetch_success",
+                        symbol=ticker,
+                        price=float(price),
+                        source=source,
+                        has_beta=beta is not None,
+                        has_volatility=volatility is not None,
+                        has_sector=sector is not None,
+                    )
+                else:
+                    # No valid price data
+                    error_msg = "No price data available"
+                    result[ticker] = PriceData(
+                        symbol=ticker,
+                        price=0.0,
+                        source=source,
+                        error=error_msg,
+                    )
+                    logger.warning(
+                        "price_fetch_no_data",
+                        symbol=ticker,
+                        error=error_msg,
+                        source=source,
+                    )
+        else:
+            # All sources failed
+            for symbol in symbols:
+                error_details = " | ".join(
+                    [f"{src}: {', '.join(errs)}" for src, errs in errors_by_source.items()]
+                )
+                error_msg = (
+                    f"All sources failed: {error_details}"
+                    if error_details
+                    else "All sources failed"
+                )
+
+                result[symbol] = PriceData(
+                    symbol=symbol,
+                    price=0.0,
+                    source="multi_source",
+                    error=error_msg,
+                )
+                logger.warning(
+                    "price_fetch_all_sources_failed",
+                    symbol=symbol,
+                    errors=errors_by_source,
+                )
+
+        return result
 
     def _cache_prices(self, price_data: dict[str, PriceData]) -> None:
         """Cache price data to database.

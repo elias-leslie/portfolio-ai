@@ -100,8 +100,8 @@
 
 ### Files to Update (8 files)
 
-- `backend/app/portfolio/price_fetcher.py` - Refactor to use MultiSourceFetcher instead of direct yfinance
-- `backend/app/storage/schema.py` - Add 5 new tables: day_bars, technical_indicators, idea_outcomes, source_performance, minute_bars
+- ✅ `backend/app/portfolio/price_fetcher.py` - Refactored to use MultiSourceFetcher with YFinance+Polygon (Task 1.3 complete)
+- ✅ `backend/app/storage/schema.py` - Added 3 new tables: source_performance, day_bars, minute_bars (Task 1.2 complete)
 - `backend/app/api/health.py` - Add multi-source health checks
 - `backend/requirements.txt` - Add pandas_ta, transformers, torch, sentencepiece
 - `backend/app/agents/tools.py` - Integrate technical indicators into agent tools
@@ -171,13 +171,14 @@
     - [x] 1.2.3 Add `minute_bars` table for intraday data (optional feature)
       - [x] Schema: `ticker TEXT, ts_utc TIMESTAMP, open DOUBLE, high DOUBLE, low DOUBLE, close DOUBLE, volume BIGINT, vwap DOUBLE, source TEXT, PRIMARY KEY (ticker, ts_utc)`
       - [x] Add to `_create_timeseries_tables()` method
-  - [ ] 1.3 Refactor price_fetcher.py to use MultiSourceFetcher (FR-1.3)
-    - [ ] 1.3.1 Update `backend/app/portfolio/price_fetcher.py`
-      - [ ] Replace direct `yf.Ticker()` calls with `MultiSourceFetcher.fetch_with_fallback()`
-      - [ ] Keep existing 15-minute cache logic
-      - [ ] Keep existing error caching (5-minute TTL)
-      - [ ] Add source lineage tracking (record which source provided each data point)
-      - [ ] Update `_fetch_from_polygon()` to use PolygonSource instead of placeholder
+  - [x] 1.3 Refactor price_fetcher.py to use MultiSourceFetcher (FR-1.3)
+    - [x] 1.3.1 Update `backend/app/portfolio/price_fetcher.py`
+      - [x] Replace direct `yf.Ticker()` calls with `MultiSourceFetcher.fetch_with_fallback()`
+      - [x] Keep existing 15-minute cache logic
+      - [x] Keep existing error caching (5-minute TTL)
+      - [x] Add source lineage tracking (record which source provided each data point)
+      - [x] Removed `_fetch_from_polygon()` placeholder - now uses PolygonSource adapter
+      - Note: Old price_fetcher tests need updating for new multi-source architecture (deferred to Task 1.5)
   - [ ] 1.4 Update health check endpoint (FR-1.8)
     - [ ] 1.4.1 Update `backend/app/api/health.py`
       - [ ] Add data source availability checks for all 9 sources
