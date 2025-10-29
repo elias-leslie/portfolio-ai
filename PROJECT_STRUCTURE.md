@@ -64,88 +64,74 @@
 ## Critical Paths
 
 ### Virtual Environment
-- **Location**: `/home/kasadis/portfolio-ai/backend/.venv/`
-- **Activate from project root**: `source backend/.venv/bin/activate`
-- **Activate from backend dir**: `source .venv/bin/activate`
+- **Location**: `~/portfolio-ai/backend/.venv/`
+- **Activate**: `source ~/portfolio-ai/backend/.venv/bin/activate`
 
 ### Tests
-- **Location**: `/home/kasadis/portfolio-ai/backend/tests/`
-- **Run from project root**: `backend/.venv/bin/pytest backend/tests/ -v`
-- **Run from backend dir**: `.venv/bin/pytest tests/ -v`
+- **Location**: `~/portfolio-ai/backend/tests/`
+- **Run tests**: `cd ~/portfolio-ai/backend && pytest tests/ -v`
 
 ### Application Code
-- **Location**: `/home/kasadis/portfolio-ai/backend/app/`
+- **Location**: `~/portfolio-ai/backend/app/`
 - **Import path**: `from app.storage import ...`
 
 ### Configuration Files
-- **Python config**: `/home/kasadis/portfolio-ai/backend/pyproject.toml`
-- **Pre-commit config**: `/home/kasadis/portfolio-ai/.pre-commit-config.yaml` (project root!)
-- **Requirements**: `/home/kasadis/portfolio-ai/backend/requirements.txt`
+- **Python config**: `~/portfolio-ai/backend/pyproject.toml`
+- **Pre-commit config**: `~/portfolio-ai/.pre-commit-config.yaml`
+- **Requirements**: `~/portfolio-ai/backend/requirements.txt`
 
 ---
 
 ## Common Command Patterns
 
-### From Project Root (`/home/kasadis/portfolio-ai/`)
+All commands use absolute paths anchored to `~/portfolio-ai/` to eliminate ambiguity:
 
 ```bash
 # Activate venv
-source backend/.venv/bin/activate
+source ~/portfolio-ai/backend/.venv/bin/activate
 
 # Run tests
-backend/.venv/bin/pytest backend/tests/ -v
+cd ~/portfolio-ai/backend && pytest tests/ -v
 
 # Run linting
-./scripts/lint.sh
+~/portfolio-ai/scripts/lint.sh
 
 # Run type checking
-backend/.venv/bin/mypy backend/app/ --strict
+cd ~/portfolio-ai/backend && mypy app/ --strict
 
 # Start backend
-cd backend && .venv/bin/uvicorn app.main:app --reload
-```
+cd ~/portfolio-ai/backend && uvicorn app.main:app --reload
 
-### From Backend Dir (`/home/kasadis/portfolio-ai/backend/`)
+# Start frontend
+cd ~/portfolio-ai/frontend && npm run dev
 
-```bash
-# Activate venv
-source .venv/bin/activate
-
-# Run tests
-.venv/bin/pytest tests/ -v
-
-# Run linting (script is in parent dir)
-../scripts/lint.sh
-
-# Run type checking
-.venv/bin/mypy app/ --strict
-
-# Start backend
-.venv/bin/uvicorn app.main:app --reload
+# Git operations
+cd ~/portfolio-ai && git status
 ```
 
 ---
 
-## Working Directory Detection
+## Path Standardization
 
-When writing scripts or commands, detect the current working directory:
+**Core Rule**: All paths use `~/portfolio-ai/` prefix to eliminate ambiguity.
+
+This prevents common issues:
+- ❌ `cd backend` from wrong location → creates `backend/backend/` nesting
+- ❌ Relative paths → confusion about execution context
+- ✅ `cd ~/portfolio-ai/backend` → always correct location
+
+Scripts should use absolute paths:
 
 ```bash
-# Check if we're in project root or backend dir
-if [ -d "backend/.venv" ]; then
-  # We're in project root
-  VENV="backend/.venv"
-  TESTS="backend/tests"
-  APP="backend/app"
-elif [ -d ".venv" ] && [ -d "app" ]; then
-  # We're in backend dir
-  VENV=".venv"
-  TESTS="tests"
-  APP="app"
-else
-  echo "Error: Run from project root or backend dir"
-  exit 1
-fi
+# Preferred: Use absolute paths
+VENV="$HOME/portfolio-ai/backend/.venv"
+TESTS="$HOME/portfolio-ai/backend/tests"
+APP="$HOME/portfolio-ai/backend/app"
+
+# Run commands from correct directory
+cd ~/portfolio-ai/backend
+source ~/portfolio-ai/backend/.venv/bin/activate
+pytest tests/ -v
 ```
 
 ---
@@ -164,41 +150,49 @@ This structure emerged from the project evolution:
 ## Common Mistakes to Avoid
 
 ❌ **Wrong**: `cd backend && source backend/.venv/bin/activate`
-✅ **Correct**: `cd backend && source .venv/bin/activate`
+✅ **Correct**: `source ~/portfolio-ai/backend/.venv/bin/activate`
 
-❌ **Wrong**: `cd backend && ./../scripts/lint.sh` (works but ugly)
-✅ **Correct**: `./scripts/lint.sh` (from project root)
+❌ **Wrong**: `./scripts/lint.sh` (relative path, context-dependent)
+✅ **Correct**: `~/portfolio-ai/scripts/lint.sh` (absolute path, always works)
+
+❌ **Wrong**: `cd backend` from unknown location
+✅ **Correct**: `cd ~/portfolio-ai/backend` (always correct)
 
 ❌ **Wrong**: Looking for `tests/` in project root
-✅ **Correct**: Tests are in `backend/tests/`
+✅ **Correct**: Tests are in `~/portfolio-ai/backend/tests/`
 
-❌ **Wrong**: Expecting database at `./data/portfolio-ai.db` when running from project root
-✅ **Correct**: Database is at `backend/data/portfolio-ai.db` (app uses relative path from backend dir)
+❌ **Wrong**: Expecting database at `./data/portfolio-ai.db`
+✅ **Correct**: Database is at `~/portfolio-ai/backend/data/portfolio-ai.db`
 
-❌ **Wrong**: Running tools from project root (creates duplicate caches in root)
-✅ **Correct**: Always `cd backend` first, then run `ruff`, `mypy`, `pytest`
+❌ **Wrong**: Running tools without `cd` to backend first
+✅ **Correct**: `cd ~/portfolio-ai/backend && ruff check app/`
 
 ---
 
 ## Quick Verification
 
-Run these commands to verify your understanding:
+Run these commands from any directory to verify paths:
 
 ```bash
-# From project root
-ls backend/.venv/bin/python    # Should exist
-ls backend/tests/              # Should list test files
-ls backend/app/main.py         # Should exist
+# Verify virtual environment
+ls ~/portfolio-ai/backend/.venv/bin/python    # Should exist
 
-# From backend dir
-ls .venv/bin/python            # Should exist
-ls tests/                      # Should list test files
-ls app/main.py                 # Should exist
+# Verify tests location
+ls ~/portfolio-ai/backend/tests/              # Should list test files
+
+# Verify app code
+ls ~/portfolio-ai/backend/app/main.py         # Should exist
+
+# Verify database location
+ls ~/portfolio-ai/backend/data/portfolio-ai.db # Should exist (after setup)
+
+# Verify scripts
+ls ~/portfolio-ai/scripts/lint.sh             # Should exist
 ```
 
 ---
 
 **See Also**:
-- [CLAUDE.md](CLAUDE.md) - Quick reference for common commands
-- [docs/core/DEVELOPMENT.md](docs/core/DEVELOPMENT.md) - Development workflows
-- [docs/core/ARCHITECTURE.md](docs/core/ARCHITECTURE.md) - System architecture
+- [~/portfolio-ai/CLAUDE.md](~/portfolio-ai/CLAUDE.md) - Quick reference for common commands
+- [~/portfolio-ai/docs/core/DEVELOPMENT.md](~/portfolio-ai/docs/core/DEVELOPMENT.md) - Development workflows
+- [~/portfolio-ai/docs/core/ARCHITECTURE.md](~/portfolio-ai/docs/core/ARCHITECTURE.md) - System architecture
