@@ -14,17 +14,23 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAddTicker } from "@/lib/hooks/useWatchlist";
 import { toast } from "sonner";
+import { AlertCircle } from "lucide-react";
 
 interface AddTickerModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   accountId: string;
+  currentCount?: number;
 }
+
+const MAX_TICKERS = 50;
+const WARNING_THRESHOLD = 45;
 
 export function AddTickerModal({
   open,
   onOpenChange,
   accountId,
+  currentCount = 0,
 }: AddTickerModalProps) {
   const [symbol, setSymbol] = useState("");
   const [note, setNote] = useState("");
@@ -34,8 +40,11 @@ export function AddTickerModal({
     return symbol.trim().length > 0 && symbol.trim().length <= 10;
   };
 
+  const isAtLimit = currentCount >= MAX_TICKERS;
+  const showWarning = currentCount >= WARNING_THRESHOLD && currentCount < MAX_TICKERS;
+
   const handleSubmit = () => {
-    if (!isValid()) return;
+    if (!isValid() || isAtLimit) return;
 
     const symbolUpper = symbol.trim().toUpperCase();
 
@@ -75,6 +84,43 @@ export function AddTickerModal({
             indicators
           </DialogDescription>
         </DialogHeader>
+
+        {/* Quota warning banner */}
+        {isAtLimit && (
+          <div className="rounded-md border border-loss bg-loss/10 p-3">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="mt-0.5 h-4 w-4 text-loss" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-loss">
+                  Watchlist limit reached
+                </p>
+                <p className="mt-1 text-xs text-text-muted">
+                  You have reached the maximum of {MAX_TICKERS} tickers. Remove
+                  some tickers to add more, or contact support to increase your
+                  limit.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showWarning && !isAtLimit && (
+          <div className="rounded-md border border-accent bg-accent/10 p-3">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="mt-0.5 h-4 w-4 text-accent" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-accent">
+                  Approaching watchlist limit
+                </p>
+                <p className="mt-1 text-xs text-text-muted">
+                  You have {currentCount} of {MAX_TICKERS} tickers. Free tier
+                  API quotas are optimized for up to {MAX_TICKERS} tickers with
+                  15-minute refresh intervals.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
@@ -124,7 +170,7 @@ export function AddTickerModal({
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!isValid() || addTicker.isPending}
+            disabled={!isValid() || addTicker.isPending || isAtLimit}
           >
             {addTicker.isPending ? "Adding..." : "Add Ticker"}
           </Button>

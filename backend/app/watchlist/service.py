@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from datetime import UTC, datetime
 from typing import Any
 
@@ -122,18 +123,69 @@ def refresh_watchlist_scores(
     *,
     account_id: str | None = None,
     price_fetcher: PriceDataFetcher | None = None,
+    batch_size: int = 20,
+    batch_delay_seconds: float = 2.0,
 ) -> dict[str, Any]:
-    """Refresh watchlist scores for all items or a specific account."""
+    """Refresh watchlist scores for all items or a specific account.
+
+    Args:
+        storage: Database storage instance
+        account_id: Optional account ID to filter items (None = all accounts)
+        price_fetcher: Optional price fetcher instance (creates new if None)
+        batch_size: Number of symbols to fetch in each batch (default: 20)
+        batch_delay_seconds: Delay between batches to respect rate limits (default: 2.0)
+
+    Returns:
+        Dict with processing statistics:
+        - processed: Number of items successfully processed
+        - symbols: List of symbols processed
+        - batches: Number of batches executed
+
+    Note:
+        Batching strategy respects API quota limits:
+        - YFinance: Unlimited (primary source, handles bulk requests)
+        - TwelveData: 8 req/min, 800/day (batch_size=20, delay=2s = 6/min conservative)
+        - Polygon: 5 req/min (batch_size=20, delay=2s = well under limit)
+        Conservative defaults ensure we stay within free tier quotas even with failover.
+    """
     items_df = _load_watchlist_items(storage, account_id)
     if items_df.is_empty():
         logger.info("watchlist_refresh_no_items", account_id=account_id)
-        return {"processed": 0, "symbols": []}
+        return {"processed": 0, "symbols": [], "batches": 0}
 
     symbols = sorted(set(items_df["symbol"]))
     fetcher = price_fetcher or PriceDataFetcher(storage)
-    price_map = fetcher.fetch_price_data(symbols)
     technical_map = _load_latest_technical(storage, symbols)
     default_weights = _load_default_weights(storage)
+
+    # Batch symbols to respect API rate limits
+    symbol_batches = [symbols[i : i + batch_size] for i in range(0, len(symbols), batch_size)]
+    total_batches = len(symbol_batches)
+
+    logger.info(
+        "watchlist_refresh_batching",
+        total_symbols=len(symbols),
+        batch_size=batch_size,
+        total_batches=total_batches,
+        delay_seconds=batch_delay_seconds,
+    )
+
+    # Fetch price data in batches with delays
+    price_map: dict[str, Any] = {}
+    for batch_idx, batch_symbols in enumerate(symbol_batches, start=1):
+        logger.debug(
+            "watchlist_refresh_batch",
+            batch=batch_idx,
+            total_batches=total_batches,
+            batch_size=len(batch_symbols),
+        )
+
+        batch_prices = fetcher.fetch_price_data(batch_symbols)
+        price_map.update(batch_prices)
+
+        # Delay between batches (except after last batch)
+        if batch_idx < total_batches and batch_delay_seconds > 0:
+            time.sleep(batch_delay_seconds)
 
     processed = 0
     now = datetime.now(UTC)
@@ -186,8 +238,9 @@ def refresh_watchlist_scores(
         "watchlist_refresh_completed",
         processed=processed,
         symbols=processed_symbols,
+        batches=total_batches,
     )
-    return {"processed": processed, "symbols": processed_symbols}
+    return {"processed": processed, "symbols": processed_symbols, "batches": total_batches}
 
 
 class WatchlistService:
