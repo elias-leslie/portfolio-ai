@@ -41,7 +41,22 @@
 10. **Write documentation** (ARCHITECTURE.md, DEVELOPMENT.md updates)
 11. After Phase 1 passes QA, proceed to Phase 2 intelligence services
 
-## Deployment Session Notes (2025-10-29 Late Evening)
+## Deployment Session Notes (2025-10-29)
+
+**Session 3 Completed (API Key Migration & Quota Management):**
+- ✅ **Migrated all API keys from market-sim** - Extracted 11 credentials (9 unique sources) from market-sim database
+- ✅ **Created credential loader** - `app/storage/credential_loader.py` loads credentials from database into environment at startup
+- ✅ **Integrated startup loading** - Modified `app/main.py` to load credentials during application startup
+- ✅ **Created validation script** - `scripts/validate-api-quotas.sh` checks database + environment for API keys
+- ✅ **Updated health endpoint** - `/api/health` now includes `api_quotas` field with quota info for all sources
+- ✅ **Tested reboot scenario** - Verified credentials persist and load correctly after restart (simulated reboot)
+- ✅ **Responsive design complete** - Added WatchlistCard component for mobile, breakpoints configured
+- 📊 **API Keys Status**: 9 unique sources in database (alpaca, alphavantage, finnhub, fmp, fred, newsapi, polygon, stockdata, twelvedata)
+
+**Session 2 Completed (Bug Fixes):**
+- ✅ Fixed database account issues, preferences API bug, React key warnings
+- ✅ Added missing watchlist history endpoint, fixed refresh endpoint
+- ✅ Resolved theme script syntax error
 
 **Session 1 Completed (Earlier):**
 - ✅ Created complete Phase 1 frontend UI (watchlist page, table, modals, settings)
@@ -381,8 +396,8 @@ cd ~/portfolio-ai
   - [ ] 6.0.5 Write Playwright tests covering responsive layouts, keyboard navigation, screen reader cues, and reduced-motion flow. (DEFERRED - personal use, manual testing sufficient)
 
 - [ ] **7.0 API Quota Management & Validation**
-  - [ ] 7.0.1 Create `scripts/validate-api-quotas.sh` to check keys, run sample calls, and report safe watchlist size.
-  - [ ] 7.0.2 Add quota details to `/api/health`.
+  - [x] 7.0.1 Create `scripts/validate-api-quotas.sh` to check keys, run sample calls, and report safe watchlist size.
+  - [x] 7.0.2 Add quota details to `/api/health` (includes API key migration from market-sim + startup credential loader).
   - [ ] 7.0.3 Implement batching/delay logic inside `refresh_watchlist_scores_task`.
   - [ ] 7.0.4 Display a UI warning when a user attempts to add more than 50 tickers.
   - [ ] 7.0.5 Document the quota strategy in `docs/core/OPERATIONS.md`.

@@ -6,9 +6,11 @@ system status, dependencies, and service availability including multi-source dat
 
 from __future__ import annotations
 
+import os
 import time
 from datetime import datetime, timedelta
-from typing import Literal
+from pathlib import Path
+from typing import Any, Literal
 
 from fastapi import APIRouter, Response
 from pydantic import BaseModel, Field
@@ -71,6 +73,16 @@ class WatchlistStats(BaseModel):
     items_with_scores: int = 0
 
 
+class APIQuotaInfo(BaseModel):
+    """API quota information for external data sources."""
+
+    source_name: str
+    configured: bool
+    rate_limit: str | None = None  # e.g., "8 req/min"
+    daily_limit: str | None = None  # e.g., "800/day"
+    estimated_capacity: int | None = None  # Max tickers for 15-min refresh
+
+
 class HealthCheckResponse(BaseModel):
     """Complete health check response."""
 
@@ -83,6 +95,7 @@ class HealthCheckResponse(BaseModel):
     cache_stats: CacheStats | None = None
     agent_stats: AgentStats | None = None
     watchlist_stats: WatchlistStats | None = None
+    api_quotas: list[APIQuotaInfo] = Field(default_factory=list)
 
 
 class HealthCheckService:
@@ -358,6 +371,115 @@ class HealthCheckService:
             logger.error("get_watchlist_stats_failed", error=str(e))
             return WatchlistStats(total_items=0)
 
+    def get_api_quotas(self) -> list[APIQuotaInfo]:
+        """Get API quota information from source configuration files.
+
+        Returns:
+            List of APIQuotaInfo for each configured data source
+        """
+        quotas: list[APIQuotaInfo] = []
+
+        try:
+            # Find config directory
+            config_dir = Path(__file__).parent.parent.parent.parent / "config" / "sources"
+
+            if not config_dir.exists():
+                logger.warning("get_api_quotas_no_config_dir", config_dir=str(config_dir))
+                return quotas
+
+            # Define quota metadata for each source
+            quota_map: dict[str, dict[str, Any]] = {
+                "yfinance": {
+                    "env_var": "YFINANCE_KEY",
+                    "rate_limit": "Unlimited",
+                    "daily_limit": "Unlimited",
+                    "capacity": None,
+                },
+                "twelvedata": {
+                    "env_var": "TWELVEDATA_API_KEY",
+                    "rate_limit": "8 req/min",
+                    "daily_limit": "800/day",
+                    "capacity": 50,
+                },
+                "fmp": {
+                    "env_var": "FMP_API_KEY",
+                    "rate_limit": None,
+                    "daily_limit": "~250/day",
+                    "capacity": 15,
+                },
+                "polygon": {
+                    "env_var": "POLYGON_API_KEY",
+                    "rate_limit": "5 req/min",
+                    "daily_limit": "7200/day",
+                    "capacity": 100,
+                },
+                "finnhub": {
+                    "env_var": "FINNHUB_API_KEY",
+                    "rate_limit": "60 req/min",
+                    "daily_limit": "Unlimited",
+                    "capacity": None,
+                },
+                "newsapi": {
+                    "env_var": "NEWSAPI_KEY",
+                    "rate_limit": None,
+                    "daily_limit": "100/day",
+                    "capacity": None,
+                },
+                "alphavantage": {
+                    "env_var": "ALPHAVANTAGE_API_KEY",
+                    "rate_limit": "5 req/min",
+                    "daily_limit": "25/day",
+                    "capacity": 1,
+                },
+                "fred": {
+                    "env_var": "FRED_API_KEY",
+                    "rate_limit": None,
+                    "daily_limit": "Unlimited",
+                    "capacity": None,
+                },
+            }
+
+            for source_id, quota_info in quota_map.items():
+                # Check if API key is configured (database first, then environment)
+                configured = False
+
+                # Check database first
+                try:
+                    cred_df = self.storage.query(
+                        "SELECT value FROM source_credentials WHERE source_id = ? AND field = 'apikey'",
+                        [source_id],
+                    )
+                    if not cred_df.is_empty():
+                        db_value = cred_df.to_dicts()[0]["value"]
+                        configured = bool(
+                            db_value and db_value not in ("your_key_here", "PLACEHOLDER")
+                        )
+                except Exception:
+                    pass  # Database check failed, fall through to env var check
+
+                # Fall back to environment variable if not in database
+                if not configured:
+                    env_var = quota_info["env_var"]
+                    key_value = os.getenv(env_var, "")
+                    configured = bool(
+                        key_value and key_value not in ("your_key_here", "PLACEHOLDER")
+                    )
+
+                quotas.append(
+                    APIQuotaInfo(
+                        source_name=source_id,
+                        configured=configured,
+                        rate_limit=quota_info["rate_limit"],
+                        daily_limit=quota_info["daily_limit"],
+                        estimated_capacity=quota_info["capacity"],
+                    )
+                )
+
+        except Exception as e:
+            logger.error("get_api_quotas_failed", error=str(e))
+
+        return quotas
+
     def perform_health_check(self) -> HealthCheckResponse:
         """Perform all health checks including multi-source data fetching.
 
@@ -390,6 +512,7 @@ class HealthCheckService:
         cache_stats = self.get_cache_stats()
         agent_stats = self.get_agent_stats()
         watchlist_stats = self.get_watchlist_stats()
+        api_quotas = self.get_api_quotas()
 
         # Calculate uptime
         uptime_seconds = int((datetime.now() - APP_START_TIME).total_seconds())
@@ -402,6 +525,7 @@ class HealthCheckService:
             cache_stats=cache_stats,
             agent_stats=agent_stats,
             watchlist_stats=watchlist_stats,
+            api_quotas=api_quotas,
         )
 
 

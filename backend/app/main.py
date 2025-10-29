@@ -14,6 +14,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.api import analytics, health, ideas, indicators, market, portfolio, preferences, watchlist
 from app.logging_config import configure_logging, get_logger
 from app.storage import get_storage
+from app.storage.credential_loader import load_credentials_from_database
 
 # Configure structured logging
 configure_logging()
@@ -56,6 +57,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     storage.ensure_schema()
 
     logger.info("Database schema initialized")
+
+    # Load API credentials from database into environment variables
+    load_credentials_from_database()
 
     yield
 
