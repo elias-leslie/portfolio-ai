@@ -1,9 +1,9 @@
 # Task List: Watchlist Intelligence Hub & Scoring
 
 **PRD**: [0014-prd-watchlist-intelligence-hub.md](0014-prd-watchlist-intelligence-hub.md)
-**Status**: Phase 0 complete, Phase 1 backend complete, Phase 1 API complete; Phase 1 frontend pending
-**Completion**: 50% (Phase 0: 100%, Phase 1 backend: 100%, Phase 1 API: 100%, Phase 1 frontend: 0%)
-**Effort to Complete**: Medium (3-4 weeks)
+**Status**: Phase 0 complete, Phase 1 backend/API/frontend complete; Phase 1 testing & docs pending
+**Completion**: 75% (Phase 0: 100%, Phase 1 backend: 100%, Phase 1 API: 100%, Phase 1 frontend: 90%, Phase 1 testing: 0%)
+**Effort to Complete**: Low-Medium (1-2 weeks for testing & docs)
 **Last Updated**: 2025-10-29
 
 **Implementation Strategy**: Phase 0 retrofits the existing site to the new token-first system. Phase 1 delivers the watchlist MVP with price/technical data. Phase 2 adds sentiment and fundamental intelligence.
@@ -20,17 +20,22 @@
 **✅ COMPLETE:**
 - Phase 0 sitewide theme realignment (tasks 0.1–0.6)
 - Phase 1 backend schema + scoring foundation (tasks 1.0.1–1.0.6, 2.0.1–2.0.6)
-- Phase 1 API layer (tasks 3.0.1–3.0.5) ✨ COMPLETE
+- Phase 1 API layer (tasks 3.0.1–3.0.5)
+- Phase 1 frontend core components (tasks 4.0.1–4.0.8, 5.0.1–5.0.4) ✨ NEW
 
 **🔄 IN PROGRESS:**
-- Phase 1 frontend implementation (4.0–8.0) – *ready to start (API layer complete)*
+- Phase 1 responsive design & accessibility (tasks 6.0.1–6.0.5) – *partially complete*
+- Phase 1 testing & documentation (tasks 8.0.1–8.0.7) – *ready to start*
 
 **⚠️ NEXT STEPS:**
 1. ~~Deliver Phase 0 theme/token work on the frontend~~ ✅ DONE
 2. ~~Build Phase 1 API layer (watchlist CRUD endpoints, preferences, health check)~~ ✅ DONE
 3. ~~Write integration tests for Phase 1 API~~ ✅ DONE
-4. **Build Phase 1 frontend UI**: watchlist page, table, modals, settings integration, sparkline component (Tasks 4.0-8.0)
-5. After Phase 1 passes QA, proceed to Phase 2 intelligence services (sentiment, fundamentals, AI summaries)
+4. ~~Build Phase 1 frontend UI: watchlist page, table, modals, settings integration, sparkline component~~ ✅ DONE
+5. **Complete responsive design & accessibility** (mobile layout, ARIA labels, keyboard nav)
+6. **Add comprehensive testing** (frontend component tests, E2E flows)
+7. **Write documentation** (ARCHITECTURE.md, DEVELOPMENT.md updates)
+8. After Phase 1 passes QA, proceed to Phase 2 intelligence services (sentiment, fundamentals, AI summaries)
 
 ## Handoff Notes (2025-10-29)
 
@@ -63,15 +68,26 @@
     - Fixed datetime serialization in API responses
     - Fixed JSON parsing for `raw_metrics` field
     - All 27 watchlist tests passing (20 integration + 7 unit tests)
-- 🚧 **Phase 1 frontend (Tasks 4.0-8.0)** - Ready to start:
-  - Watchlist page, table component, modals, settings integration
-  - Sparkline component for 7-day score history
-  - Responsive design & accessibility
+- ✅ **Phase 1 frontend (Tasks 4.0-5.0)** - Core components complete (2025-10-29):
+  - Watchlist page with loading states, error handling, refresh controls
+  - WatchlistTable with sortable columns, expandable rows, delete actions, viz badge scoring
+  - ExpandedRow showing price/technical breakdown, 7-day history, editable notes
+  - AddTickerModal with validation and duplicate checking
+  - Sparkline component with viz tokens and reduced-motion support
+  - WatchlistPreferences component in settings (refresh interval, weights, auto-expand)
+  - Badge component with viz-0 through viz-5 variants for score display
+  - Full API integration via watchlist.ts and useWatchlist hooks
+  - Navigation updated with Watchlist link
+- 🚧 **Phase 1 remaining work**:
+  - Responsive mobile layout (WatchlistCard component)
+  - Enhanced accessibility (ARIA labels, keyboard nav already partially implemented)
   - API quota management UI
+  - Comprehensive testing (frontend component tests, E2E flows)
+  - Documentation updates
 - 📦 Tests added: `tests/watchlist/` + extended `tests/test_price_fetcher.py`. Run `cd ~/portfolio-ai/backend && pytest tests/watchlist tests/test_price_fetcher.py` after backend changes.
 - 🔁 Celery task `refresh_watchlist_scores` currently runs on-demand; scheduling cadence (15 min default) still needs configuration once API/frontend consume it.
 
-**EFFORT TO COMPLETE:** Medium (3-5 weeks remaining)
+**EFFORT TO COMPLETE:** Low-Medium (1-2 weeks remaining for Phase 1 completion)
 
 ---
 
@@ -283,23 +299,23 @@
   - [x] 3.0.4 Add a watchlist health section to `/api/health` (last refresh timestamp and next scheduled run).
   - [x] 3.0.5 Write integration tests covering CRUD, validation, refresh behaviour, and error handling.
 
-- [ ] **4.0 Watchlist Frontend Experience**
-  - [ ] 4.0.1 Create `frontend/app/watchlist/page.tsx` with tokenized surfaces, header controls, loading skeleton, and responsive spacing.
-  - [ ] 4.0.2 Build `frontend/components/watchlist/WatchlistTable.tsx` (TanStack table, sorting, virtualization, tokenized rows, `viz` badges, stale indicators, auto-refresh).
-  - [ ] 4.0.3 Build `frontend/components/watchlist/ExpandedRow.tsx` (score breakdown cards, 7-day timeline, data source badges, notes editor, reduced-motion animation).
-  - [ ] 4.0.4 Create `frontend/components/watchlist/AddTickerModal.tsx` with validation, error states, and tokenized dialog styling.
-  - [ ] 4.0.5 Implement `frontend/lib/api/watchlist.ts` (CRUD, score fetching, manual refresh).
-  - [ ] 4.0.6 Implement `frontend/lib/hooks/useWatchlist.ts` (items, detail, refresh mutation, preferences wiring).
-  - [ ] 4.0.7 Add `frontend/components/ui/sparkline.tsx` for 7-day trends using viz tokens and reduced-motion fallbacks.
-  - [ ] 4.0.8 Update `frontend/components/Navigation.tsx` to include the Watchlist link with tokenized hover/active/focus states.
-  - [ ] 4.0.9 Ship a tokenized chart demo (Storybook story or standalone page) demonstrating candlesticks, VWAP, ATR overlays.
+- [x] **4.0 Watchlist Frontend Experience**
+  - [x] 4.0.1 Create `frontend/app/watchlist/page.tsx` with tokenized surfaces, header controls, loading skeleton, and responsive spacing.
+  - [x] 4.0.2 Build `frontend/components/watchlist/WatchlistTable.tsx` (TanStack table, sorting, virtualization, tokenized rows, `viz` badges, stale indicators, auto-refresh).
+  - [x] 4.0.3 Build `frontend/components/watchlist/ExpandedRow.tsx` (score breakdown cards, 7-day timeline, data source badges, notes editor, reduced-motion animation).
+  - [x] 4.0.4 Create `frontend/components/watchlist/AddTickerModal.tsx` with validation, error states, and tokenized dialog styling.
+  - [x] 4.0.5 Implement `frontend/lib/api/watchlist.ts` (CRUD, score fetching, manual refresh).
+  - [x] 4.0.6 Implement `frontend/lib/hooks/useWatchlist.ts` (items, detail, refresh mutation, preferences wiring).
+  - [x] 4.0.7 Add `frontend/components/ui/sparkline.tsx` for 7-day trends using viz tokens and reduced-motion fallbacks.
+  - [x] 4.0.8 Update `frontend/components/Navigation.tsx` to include the Watchlist link with tokenized hover/active/focus states.
+  - [ ] 4.0.9 Ship a tokenized chart demo (Storybook story or standalone page) demonstrating candlesticks, VWAP, ATR overlays. (DEFERRED - no Storybook setup)
 
-- [ ] **5.0 Watchlist Settings Integration**
-  - [ ] 5.0.1 Create `frontend/components/settings/WatchlistPreferences.tsx` (refresh interval, auto-expand toggle, weight sliders, reset button) using tokenized controls.
-  - [ ] 5.0.2 Insert the preferences component into `frontend/app/settings/page.tsx` (already tokenized during Phase 0).
-  - [ ] 5.0.3 Extend `frontend/lib/api/preferences.ts` for the new watchlist fields.
-  - [ ] 5.0.4 Extend `frontend/lib/hooks/usePreferences.ts` to expose setters and trigger watchlist refetches.
-  - [ ] 5.0.5 Add frontend tests covering preference save, weight validation, and cache invalidation.
+- [x] **5.0 Watchlist Settings Integration**
+  - [x] 5.0.1 Create `frontend/components/settings/WatchlistPreferences.tsx` (refresh interval, auto-expand toggle, weight sliders, reset button) using tokenized controls.
+  - [x] 5.0.2 Insert the preferences component into `frontend/app/settings/page.tsx` (already tokenized during Phase 0).
+  - [x] 5.0.3 Extend `frontend/lib/api/preferences.ts` for the new watchlist fields.
+  - [x] 5.0.4 Extend `frontend/lib/hooks/usePreferences.ts` to expose setters and trigger watchlist refetches. (N/A - hooks already handle this via invalidateQueries)
+  - [ ] 5.0.5 Add frontend tests covering preference save, weight validation, and cache invalidation. (PENDING - requires test setup)
 
 - [ ] **6.0 Responsive Design & Accessibility**
   - [ ] 6.0.1 Configure responsive breakpoints in `WatchlistTable.tsx` (desktop/tablet/mobile behaviour).
