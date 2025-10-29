@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from typing import Any
 
@@ -209,7 +210,7 @@ class WatchlistService:
         """
         items_df = self.storage.query(
             """
-            SELECT wi.id, wi.account_id, wi.ticker as symbol, wi.note,
+            SELECT wi.id, wi.account_id, wi.symbol, wi.note,
                    wi.created_at, wi.updated_at
             FROM watchlist_items wi
             WHERE wi.account_id = ?
@@ -224,13 +225,21 @@ class WatchlistService:
         results: list[dict[str, Any]] = []
 
         for row in items_df.iter_rows(named=True):
+            # Convert datetime objects to ISO strings if needed
+            created_at = row["created_at"]
+            if hasattr(created_at, "isoformat"):
+                created_at = created_at.isoformat()
+            updated_at = row["updated_at"]
+            if hasattr(updated_at, "isoformat"):
+                updated_at = updated_at.isoformat()
+
             item_data = {
                 "id": row["id"],
                 "account_id": row["account_id"],
                 "symbol": row["symbol"],
                 "note": row.get("note"),
-                "created_at": row["created_at"],
-                "updated_at": row["updated_at"],
+                "created_at": created_at,
+                "updated_at": updated_at,
                 "score": None,
                 "score_alert": False,
             }
@@ -250,6 +259,13 @@ class WatchlistService:
             if not snapshot_df.is_empty():
                 snap_row = snapshot_df.to_dicts()[0]
                 raw_metrics = snap_row.get("raw_metrics", {})
+
+                # Parse raw_metrics if it's a string (JSON)
+                if isinstance(raw_metrics, str):
+                    try:
+                        raw_metrics = json.loads(raw_metrics)
+                    except (json.JSONDecodeError, TypeError):
+                        raw_metrics = {}
 
                 # Check if >10 point change in last 7 days
                 alert = self._check_score_alert(row["id"], snap_row["overall_score"])
@@ -272,7 +288,7 @@ class WatchlistService:
             SELECT overall_score
             FROM watchlist_snapshots
             WHERE item_id = ?
-              AND fetched_at >= datetime('now', '-7 days')
+              AND fetched_at >= current_timestamp - INTERVAL '7 days'
             ORDER BY fetched_at ASC
             LIMIT 1
             """,

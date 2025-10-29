@@ -148,7 +148,7 @@ async def create_watchlist_item(data: WatchlistItemCreate) -> WatchlistItemRespo
         existing_df = storage.query(
             """
             SELECT id FROM watchlist_items
-            WHERE account_id = ? AND ticker = ?
+            WHERE account_id = ? AND symbol = ?
             """,
             [data.account_id, symbol],
         )
@@ -161,7 +161,7 @@ async def create_watchlist_item(data: WatchlistItemCreate) -> WatchlistItemRespo
 
         storage.query(
             """
-            INSERT INTO watchlist_items (id, account_id, ticker, note, created_at, updated_at)
+            INSERT INTO watchlist_items (id, account_id, symbol, note, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?)
             """,
             [item_id, data.account_id, symbol, data.note, now, now],
@@ -198,7 +198,7 @@ async def get_watchlist_item(item_id: str) -> WatchlistItemResponse:
     try:
         items_df = storage.query(
             """
-            SELECT id, account_id, ticker as symbol, note, created_at, updated_at
+            SELECT id, account_id, symbol, note, created_at, updated_at
             FROM watchlist_items
             WHERE id = ?
             """,
@@ -214,13 +214,21 @@ async def get_watchlist_item(item_id: str) -> WatchlistItemResponse:
         scores = watchlist_service.get_items_with_scores(item["account_id"])
         matching_score = next((s for s in scores if s["id"] == item_id), None)
 
+        # Convert datetime objects to ISO strings if needed
+        created_at = item["created_at"]
+        if hasattr(created_at, "isoformat"):
+            created_at = created_at.isoformat()
+        updated_at = item["updated_at"]
+        if hasattr(updated_at, "isoformat"):
+            updated_at = updated_at.isoformat()
+
         return WatchlistItemResponse(
             id=item["id"],
             account_id=item["account_id"],
             symbol=item["symbol"],
             note=item["note"],
-            created_at=item["created_at"],
-            updated_at=item["updated_at"],
+            created_at=created_at,
+            updated_at=updated_at,
             current_score=(
                 ScoreBreakdownResponse(
                     price=ScoreComponentResponse(**matching_score["score"]["price"]),
@@ -255,7 +263,7 @@ async def update_watchlist_item(item_id: str, data: WatchlistItemUpdate) -> Watc
         # Check if exists
         items_df = storage.query(
             """
-            SELECT account_id, ticker FROM watchlist_items WHERE id = ?
+            SELECT account_id, symbol FROM watchlist_items WHERE id = ?
             """,
             [item_id],
         )
@@ -345,7 +353,7 @@ async def refresh_watchlist_scores(account_id: str) -> RefreshResponse:
         # Get all items for this account
         items_df = storage.query(
             """
-            SELECT id, ticker FROM watchlist_items WHERE account_id = ?
+            SELECT id, symbol FROM watchlist_items WHERE account_id = ?
             """,
             [account_id],
         )
@@ -363,13 +371,13 @@ async def refresh_watchlist_scores(account_id: str) -> RefreshResponse:
         refreshed = 0
         for item in items:
             try:
-                watchlist_service.refresh_scores(item["id"], item["ticker"])
+                watchlist_service.refresh_scores(item["id"], item["symbol"])
                 refreshed += 1
             except Exception as e:
                 logger.warning(
                     "Failed to refresh score for item",
                     item_id=item["id"],
-                    symbol=item["ticker"],
+                    symbol=item["symbol"],
                     error=str(e),
                 )
 
