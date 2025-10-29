@@ -77,12 +77,12 @@ def _get_or_create_preferences() -> dict[str, object]:
             "allow_crypto": result[5],
             "allow_futures": result[6],
             "max_position_size_pct": result[7],
-            "watchlist_refresh_minutes": result[8],
-            "watchlist_auto_expand": result[9],
-            "watchlist_price_weight": result[10],
-            "watchlist_technical_weight": result[11],
-            "created_at": result[12],
-            "updated_at": result[13],
+            "created_at": result[8],
+            "updated_at": result[9],
+            "watchlist_refresh_minutes": result[10],
+            "watchlist_auto_expand": result[11],
+            "watchlist_price_weight": result[12],
+            "watchlist_technical_weight": result[13],
         }
 
     # Create default preferences
