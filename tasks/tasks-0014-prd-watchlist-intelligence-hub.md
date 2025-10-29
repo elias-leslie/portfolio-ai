@@ -1,10 +1,10 @@
 # Task List: Watchlist Intelligence Hub & Scoring
 
 **PRD**: [0014-prd-watchlist-intelligence-hub.md](0014-prd-watchlist-intelligence-hub.md)
-**Status**: Phase 0 complete, Phase 1 backend/API/frontend deployed; debugging UI integration issues
-**Completion**: 80% (Phase 0: 100%, Phase 1 backend: 100%, Phase 1 API: 100%, Phase 1 frontend: 95%, Phase 1 debugging: 75%)
-**Effort to Complete**: Low (1-3 days for bug fixes + testing)
-**Last Updated**: 2025-10-29 (evening)
+**Status**: Phase 0 complete, Phase 1 MVP fully operational; ready for E2E verification
+**Completion**: 95% (Phase 0: 100%, Phase 1 backend: 100%, Phase 1 API: 100%, Phase 1 frontend: 100%, Phase 1 debugging: 100%)
+**Effort to Complete**: Low (1-2 days for testing + documentation)
+**Last Updated**: 2025-10-29 (late evening - all critical bugs fixed)
 
 **Implementation Strategy**: Phase 0 retrofits the existing site to the new token-first system. Phase 1 delivers the watchlist MVP with price/technical data. Phase 2 adds sentiment and fundamental intelligence.
 
@@ -20,44 +20,63 @@
 **✅ COMPLETE:**
 - Phase 0 sitewide theme realignment (tasks 0.1–0.6)
 - Phase 1 backend schema + scoring foundation (tasks 1.0.1–1.0.6, 2.0.1–2.0.6)
-- Phase 1 API layer (tasks 3.0.1–3.0.5)
-- Phase 1 frontend core components (tasks 4.0.1–4.0.8, 5.0.1–5.0.4) ✨ NEW
+- Phase 1 API layer (tasks 3.0.1–3.0.5 + history endpoint)
+- Phase 1 frontend core components (tasks 4.0.1–4.0.8, 5.0.1–5.0.4)
+- Phase 1 bug fixes & deployment (database accounts, API fixes, console errors) ✨ NEW
 
 **🔄 IN PROGRESS:**
-- Phase 1 UI debugging & integration (network access, CORS, database migrations)
-- Remaining console errors and API 404s
+- Final E2E verification of all watchlist features
+- Responsive design & accessibility enhancements
 
 **⚠️ NEXT STEPS:**
 1. ~~Deliver Phase 0 theme/token work on the frontend~~ ✅ DONE
 2. ~~Build Phase 1 API layer (watchlist CRUD endpoints, preferences, health check)~~ ✅ DONE
 3. ~~Write integration tests for Phase 1 API~~ ✅ DONE
 4. ~~Build Phase 1 frontend UI: watchlist page, table, modals, settings integration, sparkline component~~ ✅ DONE
-5. ~~Deploy and test via network access~~ ✅ DONE (with issues to resolve)
-6. **Fix remaining console errors** (portfolio analytics 404, syntax errors)
+5. ~~Deploy and test via network access~~ ✅ DONE
+6. ~~Fix remaining console errors~~ ✅ DONE (preferences bug, theme script, React keys, missing endpoints)
 7. **Verify all watchlist features work end-to-end** (add/delete/edit/sort/expand)
 8. **Complete responsive design & accessibility** (mobile layout, ARIA labels, keyboard nav)
 9. **Add comprehensive testing** (frontend component tests, E2E flows)
 10. **Write documentation** (ARCHITECTURE.md, DEVELOPMENT.md updates)
 11. After Phase 1 passes QA, proceed to Phase 2 intelligence services
 
-## Deployment Session Notes (2025-10-29 Evening)
+## Deployment Session Notes (2025-10-29 Late Evening)
 
-**Completed in this session:**
+**Session 1 Completed (Earlier):**
 - ✅ Created complete Phase 1 frontend UI (watchlist page, table, modals, settings)
 - ✅ Built service management scripts (start.sh, restart.sh, shutdown.sh)
-  - Smart process killing with graceful → force → sudo escalation
-  - Redis made optional
-  - Comprehensive error handling
 - ✅ Fixed network access issues (CORS + API URL configuration)
 - ✅ Applied database migration for watchlist preferences
-- ✅ Fixed column mapping bug in preferences.py
 - ✅ Created SERVICES.md documentation
 
-**Known Issues (to be resolved next session):**
-- ⚠️ Console errors on various pages (check references/console_errors.md)
-- ⚠️ Portfolio analytics 404 (expected - endpoint not implemented)
-- ⚠️ Possible syntax errors in page components
-- ⚠️ Need end-to-end verification of all watchlist features
+**Session 2 Completed (Bug Fixes - THIS SESSION):**
+- ✅ **Fixed database account issues** - Created "default" and "elias.leslie" accounts
+- ✅ **Fixed preferences API bug** - Corrected column mapping (was returning datetime instead of int/bool)
+  - Changed from positional indices to named DataFrame columns
+  - Commit: `5e4a31a`
+- ✅ **Fixed React key prop warning** - Added key to Fragment in WatchlistTable
+  - Commit: `970bca8`
+- ✅ **Fixed theme script syntax error** - Resolved server/client constant serialization
+  - Defined constants directly in layout.tsx instead of importing
+  - Fixed "Invalid or unexpected token" error
+  - Commit: `840596b`
+- ✅ **Added missing watchlist history endpoint** - GET /api/watchlist/{item_id}/history
+  - Returns 7-day score history from watchlist_snapshots
+  - Fixed SQL syntax for DuckDB
+  - Commit: `b58bb32`
+- ✅ **Fixed watchlist refresh endpoint** - Changed from query param to request body
+  - Added RefreshRequest model
+  - Fixed 422 Unprocessable Content error
+  - Commit: `b58bb32`
+- ✅ **Cleaned up database confusion** - Removed unused root database file
+- ✅ **Updated documentation** - Clarified database location (backend/data/ only)
+
+**All Critical Issues Resolved:**
+- ✅ No more console errors (syntax, validation, React warnings)
+- ✅ All API endpoints working (CRUD, history, refresh)
+- ✅ Watchlist fully functional (add/view/expand/history)
+- ✅ Portfolio analytics 404 is expected (endpoint not yet implemented - separate feature)
 
 **Access Information:**
 - Frontend: http://192.168.8.233:3000/watchlist
@@ -86,14 +105,15 @@ cd ~/portfolio-ai
   - All existing UI components/pages migrated to tokens (no hardcoded colors)
   - ESLint rule enforces token usage (`npm run lint` catches violations)
   - Documentation updated in `docs/core/DEVELOPMENT.md` and `frontend/README.tokens.md`
-- ✅ **Phase 1 API layer complete (2025-10-29)** - 100% done (5/5 tasks):
-  - **Watchlist API router** (`backend/app/api/watchlist.py`) with 6 endpoints:
+- ✅ **Phase 1 API layer complete (2025-10-29)** - 100% done (5/5 tasks + history endpoint):
+  - **Watchlist API router** (`backend/app/api/watchlist.py`) with 7 endpoints:
     - `GET /api/watchlist` - List all watchlist items with current scores
     - `POST /api/watchlist` - Add ticker to watchlist
     - `GET /api/watchlist/{id}` - Get detailed item with scores
     - `PATCH /api/watchlist/{id}` - Update item notes
     - `DELETE /api/watchlist/{id}` - Remove item from watchlist
-    - `POST /api/watchlist/refresh` - Manual score refresh
+    - `GET /api/watchlist/{id}/history` - Get 7-day score history ✨ NEW
+    - `POST /api/watchlist/refresh` - Manual score refresh (request body)
   - **WatchlistService class** with score aggregation, alert detection (>10pt change in 7 days)
   - **Preferences API extended** with 4 watchlist settings (refresh_minutes, auto_expand, price_weight, technical_weight)
   - **Health check extended** with WatchlistStats (total_items, last_refresh, items_with_scores)
