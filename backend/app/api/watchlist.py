@@ -82,6 +82,23 @@ class RefreshResponse(BaseModel):
     refreshed_count: int
 
 
+class ScoreHistoryPoint(BaseModel):
+    """Response model for a single score history point."""
+
+    timestamp: str
+    overall: float
+    price_score: float
+    technical_score: float
+
+
+class ScoreHistoryResponse(BaseModel):
+    """Response model for score history."""
+
+    item_id: str
+    symbol: str
+    history: list[ScoreHistoryPoint]
+
+
 # Endpoints
 @router.get("", response_model=WatchlistListResponse)
 async def list_watchlist_items(account_id: str) -> WatchlistListResponse:
@@ -338,18 +355,94 @@ async def delete_watchlist_item(item_id: str) -> None:
         raise HTTPException(status_code=500, detail=f"Failed to delete item: {e}") from e
 
 
+@router.get("/{item_id}/history", response_model=ScoreHistoryResponse)
+async def get_score_history(item_id: str, days: int = 7) -> ScoreHistoryResponse:
+    """
+    Get score history for a watchlist item.
+
+    Args:
+        item_id: Watchlist item ID
+        days: Number of days of history to return (default 7)
+
+    Returns:
+        Score history for the item
+    """
+    try:
+        # Get item info
+        item_df = storage.query(
+            """
+            SELECT symbol FROM watchlist_items WHERE id = ?
+            """,
+            [item_id],
+        )
+
+        if item_df.is_empty():
+            raise HTTPException(status_code=404, detail="Watchlist item not found")
+
+        symbol = item_df.to_dicts()[0]["symbol"]
+
+        # Get history from watchlist_snapshots
+        # Note: DuckDB doesn't support parameterized INTERVAL, so we use string formatting
+        # days is validated as an int by FastAPI, so this is safe
+        history_df = storage.query(
+            f"""
+            SELECT fetched_at, overall_score, fundamental_score, technical_score
+            FROM watchlist_snapshots
+            WHERE item_id = ?
+            AND fetched_at >= CURRENT_TIMESTAMP - INTERVAL {days} DAYS
+            ORDER BY fetched_at ASC
+            """,
+            [item_id],
+        )
+
+        history = []
+        for row in history_df.to_dicts():
+            fetched_at = row["fetched_at"]
+            if hasattr(fetched_at, "isoformat"):
+                fetched_at = fetched_at.isoformat()
+
+            history.append(
+                ScoreHistoryPoint(
+                    timestamp=fetched_at,
+                    overall=row["overall_score"],
+                    price_score=row[
+                        "fundamental_score"
+                    ],  # Using fundamental_score as proxy for price
+                    technical_score=row["technical_score"],
+                )
+            )
+
+        return ScoreHistoryResponse(
+            item_id=item_id,
+            symbol=symbol,
+            history=history,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Failed to get score history", item_id=item_id, error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to get history: {e}") from e
+
+
+class RefreshRequest(BaseModel):
+    """Request model for manual refresh."""
+
+    account_id: str = Field(..., description="Account ID to refresh")
+
+
 @router.post("/refresh", response_model=RefreshResponse)
-async def refresh_watchlist_scores(account_id: str) -> RefreshResponse:
+async def refresh_watchlist_scores(data: RefreshRequest) -> RefreshResponse:
     """
     Manually trigger a refresh of all watchlist scores for an account.
 
     Args:
-        account_id: Account ID
+        data: Refresh request data with account_id
 
     Returns:
         Refresh status
     """
     try:
+        account_id = data.account_id
         # Get all items for this account
         items_df = storage.query(
             """
