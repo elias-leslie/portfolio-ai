@@ -63,27 +63,13 @@ class PreferencesUpdate(BaseModel):
 def _get_or_create_preferences() -> dict[str, object]:
     """Get existing preferences or create default ones."""
     with storage.connection() as conn:
-        result = conn.execute(
+        result_df = conn.execute(
             "SELECT * FROM user_preferences ORDER BY updated_at DESC LIMIT 1"
-        ).fetchone()
+        ).df()
 
-    if result:
-        return {
-            "id": result[0],
-            "risk_tolerance": result[1],
-            "allow_long": result[2],
-            "allow_short": result[3],
-            "allow_options": result[4],
-            "allow_crypto": result[5],
-            "allow_futures": result[6],
-            "max_position_size_pct": result[7],
-            "created_at": result[8],
-            "updated_at": result[9],
-            "watchlist_refresh_minutes": result[10],
-            "watchlist_auto_expand": result[11],
-            "watchlist_price_weight": result[12],
-            "watchlist_technical_weight": result[13],
-        }
+    if not result_df.empty:
+        row = result_df.iloc[0].to_dict()
+        return dict(row)  # Explicitly cast to dict to satisfy mypy
 
     # Create default preferences
     user_id = str(uuid.uuid4())
