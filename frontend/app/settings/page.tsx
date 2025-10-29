@@ -15,6 +15,8 @@ import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { WatchlistPreferences } from "@/components/settings/WatchlistPreferences";
+import type { PreferencesResponse } from "@/lib/api/preferences";
 
 export default function SettingsPage() {
   const { data: preferences, isLoading } = usePreferences();
@@ -285,6 +287,22 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Watchlist Preferences */}
+          {preferences && (
+            <WatchlistPreferences
+              preferences={preferences}
+              onUpdate={async (updates: Partial<PreferencesResponse>) => {
+                return new Promise<void>((resolve, reject) => {
+                  updatePreferences.mutate(updates, {
+                    onSuccess: () => resolve(),
+                    onError: (error) => reject(error),
+                  });
+                });
+              }}
+              isPending={updatePreferences.isPending}
+            />
+          )}
 
           {/* Save Button */}
           <div className="flex justify-end gap-4">

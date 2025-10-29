@@ -13,6 +13,10 @@ export interface PreferencesResponse {
   allow_crypto: boolean;
   allow_futures: boolean;
   max_position_size_pct: number;
+  watchlist_refresh_minutes: number;
+  watchlist_auto_expand: boolean;
+  watchlist_price_weight: number;
+  watchlist_technical_weight: number;
 }
 
 export interface PreferencesUpdate {
@@ -23,6 +27,10 @@ export interface PreferencesUpdate {
   allow_crypto?: boolean;
   allow_futures?: boolean;
   max_position_size_pct?: number;
+  watchlist_refresh_minutes?: number;
+  watchlist_auto_expand?: boolean;
+  watchlist_price_weight?: number;
+  watchlist_technical_weight?: number;
 }
 
 /**
