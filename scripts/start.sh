@@ -11,24 +11,58 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 BACKEND_DIR="$PROJECT_ROOT/backend"
 FRONTEND_DIR="$PROJECT_ROOT/frontend"
 
+# Function to kill process gracefully, with force-kill fallback
+kill_process() {
+    local pattern="$1"
+    local name="$2"
+    local timeout=5
+
+    if pgrep -f "$pattern" > /dev/null 2>&1; then
+        # Try graceful kill
+        pkill -f "$pattern" 2>/dev/null || true
+
+        # Wait for process to die
+        for i in $(seq 1 $timeout); do
+            if ! pgrep -f "$pattern" > /dev/null 2>&1; then
+                return 0
+            fi
+            sleep 1
+        done
+
+        # Process didn't die, force kill
+        echo "⚠ $name didn't stop gracefully, force killing..."
+        pkill -9 -f "$pattern" 2>/dev/null || true
+        sleep 1
+
+        # Check if we need sudo
+        if pgrep -f "$pattern" > /dev/null 2>&1; then
+            echo "⚠ Need elevated permissions to kill $name"
+            sudo pkill -9 -f "$pattern" 2>/dev/null || true
+        fi
+    fi
+}
+
 echo "================================"
 echo "Starting Portfolio AI Platform"
 echo "================================"
 echo ""
 
-# Check if Redis is running
-if pgrep -x "redis-server" > /dev/null; then
-    echo "✓ Redis is already running"
-else
-    echo "Starting Redis..."
-    redis-server --daemonize yes
-    sleep 1
+# Check if Redis is available and running (optional for basic features)
+if command -v redis-server &> /dev/null; then
     if pgrep -x "redis-server" > /dev/null; then
-        echo "✓ Redis started successfully"
+        echo "✓ Redis is already running"
     else
-        echo "✗ Failed to start Redis"
-        exit 1
+        echo "Starting Redis..."
+        redis-server --daemonize yes
+        sleep 1
+        if pgrep -x "redis-server" > /dev/null; then
+            echo "✓ Redis started successfully"
+        else
+            echo "⚠ Warning: Redis failed to start (background jobs won't work)"
+        fi
     fi
+else
+    echo "ℹ Redis not found (optional - install for background job support)"
 fi
 echo ""
 
@@ -41,8 +75,7 @@ if [ ! -d ".venv" ]; then
 fi
 
 # Stop any existing backend processes
-pkill -f "uvicorn.*main:app" 2>/dev/null || true
-sleep 1
+kill_process "uvicorn.*main:app" "existing Backend"
 
 source .venv/bin/activate
 nohup uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 > /tmp/portfolio-backend.log 2>&1 &
@@ -62,8 +95,7 @@ echo ""
 
 # Start Celery Worker
 echo "Starting Celery worker..."
-pkill -f "celery.*worker" 2>/dev/null || true
-sleep 1
+kill_process "celery.*worker" "existing Celery"
 
 cd "$BACKEND_DIR"
 nohup celery -A app.celery_app worker --loglevel=info > /tmp/portfolio-celery.log 2>&1 &
@@ -95,8 +127,7 @@ EOF
 fi
 
 # Stop any existing frontend processes
-pkill -f "next.*dev" 2>/dev/null || true
-sleep 1
+kill_process "next.*dev" "existing Frontend"
 
 nohup npm run dev > /tmp/portfolio-frontend.log 2>&1 &
 FRONTEND_PID=$!

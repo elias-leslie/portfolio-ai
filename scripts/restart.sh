@@ -12,6 +12,35 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 BACKEND_DIR="$PROJECT_ROOT/backend"
 FRONTEND_DIR="$PROJECT_ROOT/frontend"
 
+# Function to kill process gracefully, with force-kill fallback
+kill_process() {
+    local pattern="$1"
+    local name="$2"
+    local timeout=5
+
+    # Try graceful kill
+    if pkill -f "$pattern" 2>/dev/null; then
+        # Wait for process to die
+        for i in $(seq 1 $timeout); do
+            if ! pgrep -f "$pattern" > /dev/null 2>&1; then
+                return 0
+            fi
+            sleep 1
+        done
+
+        # Process didn't die, force kill
+        echo "⚠ $name didn't stop gracefully, force killing..."
+        pkill -9 -f "$pattern" 2>/dev/null || true
+        sleep 1
+
+        # Check if we need sudo
+        if pgrep -f "$pattern" > /dev/null 2>&1; then
+            echo "⚠ Need elevated permissions to kill $name"
+            sudo pkill -9 -f "$pattern" 2>/dev/null || true
+        fi
+    fi
+}
+
 echo "================================"
 echo "Restarting Portfolio AI Platform"
 echo "================================"
@@ -19,18 +48,22 @@ echo ""
 
 # Stop services (but not Redis)
 echo "Stopping services..."
-pkill -f "next.*dev" 2>/dev/null || true
-pkill -f "celery.*worker" 2>/dev/null || true
-pkill -f "uvicorn.*main:app" 2>/dev/null || true
-sleep 2
+kill_process "next.*dev" "Frontend"
+kill_process "celery.*worker" "Celery"
+kill_process "uvicorn.*main:app" "Backend"
+sleep 1
 echo "✓ Services stopped"
 echo ""
 
-# Verify Redis is running
-if ! pgrep -x "redis-server" > /dev/null; then
-    echo "⚠ Warning: Redis is not running. Starting Redis..."
-    redis-server --daemonize yes
-    sleep 1
+# Check if Redis is available and running (optional)
+if command -v redis-server &> /dev/null; then
+    if ! pgrep -x "redis-server" > /dev/null; then
+        echo "⚠ Redis is not running. Starting Redis..."
+        redis-server --daemonize yes
+        sleep 1
+    fi
+else
+    echo "ℹ Redis not found (optional - only needed for background jobs)"
 fi
 echo ""
 
