@@ -21,6 +21,16 @@ web/.turbo/
 data/
 logs/
 
+# Tool caches (should only exist in backend/)
+/.mypy_cache/
+/.ruff_cache/
+
+# Prevent root-level duplicates (files belong in backend/)
+/tests/
+
+# Prevent nested backend directory (legacy artifact)
+/backend/backend/
+
 # Environment & tooling
 .env
 .env.local

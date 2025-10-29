@@ -26,8 +26,7 @@
 │   ├── logs/                            ← Application logs
 │   ├── migrations/                      ← Database migrations
 │   ├── pyproject.toml                   ← Project config (ruff, mypy, pytest)
-│   ├── requirements.txt                 ← Pip dependencies
-│   └── backend/                         ← Empty nested dir (legacy artifact, ignore)
+│   └── requirements.txt                 ← Pip dependencies
 │
 ├── frontend/                             ← Next.js dashboard
 │   ├── app/                             ← App router pages
@@ -52,8 +51,7 @@
 │   └── ...
 │
 ├── config/                               ← YAML seed data
-├── data/                                 ← Project-level data files
-├── logs/                                 ← Project-level logs
+├── data/                                 ← Database backups only (app uses backend/data/)
 │
 ├── CLAUDE.md                             ← Quick reference for AI agents
 ├── .pre-commit-config.yaml              ← Pre-commit hook configuration
@@ -168,14 +166,17 @@ This structure emerged from the project evolution:
 ❌ **Wrong**: `cd backend && source backend/.venv/bin/activate`
 ✅ **Correct**: `cd backend && source .venv/bin/activate`
 
-❌ **Wrong**: `pytest backend/backend/tests/`
-✅ **Correct**: `pytest backend/tests/`
-
 ❌ **Wrong**: `cd backend && ./../scripts/lint.sh` (works but ugly)
 ✅ **Correct**: `./scripts/lint.sh` (from project root)
 
 ❌ **Wrong**: Looking for `tests/` in project root
 ✅ **Correct**: Tests are in `backend/tests/`
+
+❌ **Wrong**: Expecting database at `./data/portfolio-ai.db` when running from project root
+✅ **Correct**: Database is at `backend/data/portfolio-ai.db` (app uses relative path from backend dir)
+
+❌ **Wrong**: Running tools from project root (creates duplicate caches in root)
+✅ **Correct**: Always `cd backend` first, then run `ruff`, `mypy`, `pytest`
 
 ---
 
