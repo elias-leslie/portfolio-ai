@@ -1,9 +1,9 @@
 # Task List: Watchlist Intelligence Hub & Scoring
 
 **PRD**: [0014-prd-watchlist-intelligence-hub.md](0014-prd-watchlist-intelligence-hub.md)
-**Status**: Phase 0 complete, Phase 1 backend complete, Phase 1 API 80% complete; Phase 1 frontend pending
-**Completion**: 45% (Phase 0: 100%, Phase 1 backend: 100%, Phase 1 API: 80%, Phase 1 frontend: 0%)
-**Effort to Complete**: Medium (3-5 weeks)
+**Status**: Phase 0 complete, Phase 1 backend complete, Phase 1 API complete; Phase 1 frontend pending
+**Completion**: 50% (Phase 0: 100%, Phase 1 backend: 100%, Phase 1 API: 100%, Phase 1 frontend: 0%)
+**Effort to Complete**: Medium (3-4 weeks)
 **Last Updated**: 2025-10-29
 
 **Implementation Strategy**: Phase 0 retrofits the existing site to the new token-first system. Phase 1 delivers the watchlist MVP with price/technical data. Phase 2 adds sentiment and fundamental intelligence.
@@ -20,17 +20,17 @@
 **✅ COMPLETE:**
 - Phase 0 sitewide theme realignment (tasks 0.1–0.6)
 - Phase 1 backend schema + scoring foundation (tasks 1.0.1–1.0.6, 2.0.1–2.0.6)
-- Phase 1 API layer (tasks 3.0.1–3.0.4) ✨ NEW - 80% complete
+- Phase 1 API layer (tasks 3.0.1–3.0.5) ✨ COMPLETE
 
 **🔄 IN PROGRESS:**
 - Phase 1 frontend implementation (4.0–8.0) – *ready to start (API layer complete)*
-- Task 3.0.5: Integration tests for watchlist API (optional/deferred)
 
 **⚠️ NEXT STEPS:**
 1. ~~Deliver Phase 0 theme/token work on the frontend~~ ✅ DONE
 2. ~~Build Phase 1 API layer (watchlist CRUD endpoints, preferences, health check)~~ ✅ DONE
-3. **Build Phase 1 frontend UI**: watchlist page, table, modals, settings integration, sparkline component (Tasks 4.0-8.0)
-4. After Phase 1 passes QA, proceed to Phase 2 intelligence services (sentiment, fundamentals, AI summaries)
+3. ~~Write integration tests for Phase 1 API~~ ✅ DONE
+4. **Build Phase 1 frontend UI**: watchlist page, table, modals, settings integration, sparkline component (Tasks 4.0-8.0)
+5. After Phase 1 passes QA, proceed to Phase 2 intelligence services (sentiment, fundamentals, AI summaries)
 
 ## Handoff Notes (2025-10-29)
 
@@ -45,7 +45,7 @@
   - All existing UI components/pages migrated to tokens (no hardcoded colors)
   - ESLint rule enforces token usage (`npm run lint` catches violations)
   - Documentation updated in `docs/core/DEVELOPMENT.md` and `frontend/README.tokens.md`
-- ✅ **Phase 1 API layer complete (2025-10-29)** - 80% done (4/5 tasks):
+- ✅ **Phase 1 API layer complete (2025-10-29)** - 100% done (5/5 tasks):
   - **Watchlist API router** (`backend/app/api/watchlist.py`) with 6 endpoints:
     - `GET /api/watchlist` - List all watchlist items with current scores
     - `POST /api/watchlist` - Add ticker to watchlist
@@ -58,6 +58,11 @@
   - **Health check extended** with WatchlistStats (total_items, last_refresh, items_with_scores)
   - Router registered in `backend/app/main.py`
   - All code passes ruff linting and mypy type checking
+  - **Integration tests complete** - 20 comprehensive tests covering CRUD, validation, refresh, score alerts
+    - Fixed schema inconsistencies (`symbol` vs `ticker` column naming)
+    - Fixed datetime serialization in API responses
+    - Fixed JSON parsing for `raw_metrics` field
+    - All 27 watchlist tests passing (20 integration + 7 unit tests)
 - 🚧 **Phase 1 frontend (Tasks 4.0-8.0)** - Ready to start:
   - Watchlist page, table component, modals, settings integration
   - Sparkline component for 7-day score history
@@ -271,12 +276,12 @@
   - [x] 2.0.5 Add a Celery job in `backend/app/tasks/agent_tasks.py` (`refresh_watchlist_scores_task`) with batching and scheduling.
   - [x] 2.0.6 Write backend tests for scoring accuracy, stale flagging, history calculations, and Celery job behaviour.
 
-- [ ] **3.0 Watchlist API & Background Jobs**
+- [x] **3.0 Watchlist API & Background Jobs**
   - [x] 3.0.1 Implement `backend/app/api/watchlist.py` endpoints (list, create, delete, patch, manual refresh, detail).
   - [x] 3.0.2 Register the router in `backend/app/main.py` with required dependencies.
   - [x] 3.0.3 Extend `backend/app/api/preferences.py` with watchlist preference fields.
   - [x] 3.0.4 Add a watchlist health section to `/api/health` (last refresh timestamp and next scheduled run).
-  - [ ] 3.0.5 Write integration tests covering CRUD, validation, refresh behaviour, and error handling.
+  - [x] 3.0.5 Write integration tests covering CRUD, validation, refresh behaviour, and error handling.
 
 - [ ] **4.0 Watchlist Frontend Experience**
   - [ ] 4.0.1 Create `frontend/app/watchlist/page.tsx` with tokenized surfaces, header controls, loading skeleton, and responsive spacing.
