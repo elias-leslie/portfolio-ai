@@ -5,11 +5,6 @@ import { Providers } from "./providers";
 import { Toaster } from "sonner";
 import { Navigation } from "@/components/Navigation";
 import { cn } from "@/lib/utils";
-import {
-  PREFERS_LIGHT_QUERY,
-  PREFERS_REDUCED_MOTION_QUERY,
-  THEME_STORAGE_KEY,
-} from "@/components/providers/ThemeProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -25,6 +20,11 @@ export const metadata: Metadata = {
   title: "Portfolio AI Platform",
   description: "AI-powered portfolio intelligence and market insights",
 };
+
+// Define theme constants directly to avoid serialization issues
+const THEME_STORAGE_KEY = "portfolio-ai.theme";
+const PREFERS_LIGHT_QUERY = "(prefers-color-scheme: light)";
+const PREFERS_REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 
 const themeInitializer = `
 (() => {
