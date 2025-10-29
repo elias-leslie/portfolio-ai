@@ -187,3 +187,146 @@ def refresh_watchlist_scores(
         symbols=processed_symbols,
     )
     return {"processed": processed, "symbols": processed_symbols}
+
+
+class WatchlistService:
+    """Service layer for watchlist operations."""
+
+    def __init__(self, storage: DuckDBStorage):
+        """Initialize watchlist service."""
+        self.storage = storage
+        self.price_fetcher = PriceDataFetcher(storage)
+
+    def get_items_with_scores(self, account_id: str) -> list[dict[str, Any]]:
+        """
+        Get all watchlist items for an account with their latest scores.
+
+        Args:
+            account_id: Account ID
+
+        Returns:
+            List of watchlist items with scores and alert flags
+        """
+        items_df = self.storage.query(
+            """
+            SELECT wi.id, wi.account_id, wi.ticker as symbol, wi.note,
+                   wi.created_at, wi.updated_at
+            FROM watchlist_items wi
+            WHERE wi.account_id = ?
+            ORDER BY wi.created_at DESC
+            """,
+            [account_id],
+        )
+
+        if items_df.is_empty():
+            return []
+
+        results: list[dict[str, Any]] = []
+
+        for row in items_df.iter_rows(named=True):
+            item_data = {
+                "id": row["id"],
+                "account_id": row["account_id"],
+                "symbol": row["symbol"],
+                "note": row.get("note"),
+                "created_at": row["created_at"],
+                "updated_at": row["updated_at"],
+                "score": None,
+                "score_alert": False,
+            }
+
+            # Get latest snapshot
+            snapshot_df = self.storage.query(
+                """
+                SELECT overall_score, technical_score, fetched_at, raw_metrics
+                FROM watchlist_snapshots
+                WHERE item_id = ?
+                ORDER BY fetched_at DESC
+                LIMIT 1
+                """,
+                [row["id"]],
+            )
+
+            if not snapshot_df.is_empty():
+                snap_row = snapshot_df.to_dicts()[0]
+                raw_metrics = snap_row.get("raw_metrics", {})
+
+                # Check if >10 point change in last 7 days
+                alert = self._check_score_alert(row["id"], snap_row["overall_score"])
+
+                item_data["score"] = {
+                    "price": raw_metrics.get("price", {}),
+                    "technical": raw_metrics.get("technical", {}),
+                    "overall": snap_row["overall_score"],
+                }
+                item_data["score_alert"] = alert
+
+            results.append(item_data)
+
+        return results
+
+    def _check_score_alert(self, item_id: str, current_score: float) -> bool:
+        """Check if score changed >10 points in last 7 days."""
+        history_df = self.storage.query(
+            """
+            SELECT overall_score
+            FROM watchlist_snapshots
+            WHERE item_id = ?
+              AND fetched_at >= datetime('now', '-7 days')
+            ORDER BY fetched_at ASC
+            LIMIT 1
+            """,
+            [item_id],
+        )
+
+        if history_df.is_empty():
+            return False
+
+        week_ago_score = float(history_df["overall_score"][0])
+        return abs(current_score - week_ago_score) > 10.0
+
+    def refresh_scores(self, item_id: str, symbol: str) -> None:
+        """
+        Refresh scores for a single watchlist item.
+
+        Args:
+            item_id: Watchlist item ID
+            symbol: Stock symbol
+        """
+        price_data = self.price_fetcher.fetch_price_data([symbol]).get(symbol)
+        if not price_data or price_data.price <= 0:
+            raise ValueError(f"Unable to fetch price data for {symbol}")
+
+        technical_map = _load_latest_technical(self.storage, [symbol])
+        technical_snapshot = technical_map.get(symbol, TechnicalSnapshot())
+        technical_snapshot.price = price_data.price
+
+        change_pct = _calculate_price_change(self.storage, symbol, price_data.price)
+        default_weights = _load_default_weights(self.storage)
+        now = datetime.now(UTC)
+
+        breakdown = calculate_watchlist_scores(
+            WatchlistScoreInputs(
+                price=price_data,
+                price_change_pct=change_pct,
+                technical=technical_snapshot,
+                weights=default_weights,
+                now=now,
+            )
+        )
+
+        snapshot = WatchlistSnapshot(
+            item_id=item_id,
+            fetched_at=now,
+            price=price_data.price,
+            change_pct=change_pct,
+            beta=price_data.beta,
+            volatility=price_data.volatility,
+            overall_score=breakdown.overall,
+            technical_score=breakdown.technical.score,
+            raw_metrics=breakdown.to_snapshot_payload(),
+        )
+
+        self.storage.query_mgr.upsert_watchlist_snapshot(**snapshot.to_upsert_params())
+
+        logger.info("Watchlist item scores refreshed", item_id=item_id, symbol=symbol)
