@@ -1,10 +1,10 @@
 # Task List: Watchlist Intelligence Hub & Scoring
 
 **PRD**: [0014-prd-watchlist-intelligence-hub.md](0014-prd-watchlist-intelligence-hub.md)
-**Status**: Phase 0 complete, Phase 1 MVP fully operational; ready for E2E verification
-**Completion**: 95% (Phase 0: 100%, Phase 1 backend: 100%, Phase 1 API: 100%, Phase 1 frontend: 100%, Phase 1 debugging: 100%)
-**Effort to Complete**: Low (1-2 days for testing + documentation)
-**Last Updated**: 2025-10-29 (late evening - all critical bugs fixed)
+**Status**: Phase 0 complete, Phase 1 MVP fully operational with API quota management
+**Completion**: 98% (Phase 0: 100%, Phase 1: 95% - only testing & final documentation remaining)
+**Effort to Complete**: Low (1-2 days for comprehensive testing + architecture docs)
+**Last Updated**: 2025-10-29 (evening - API quota management complete)
 
 **Implementation Strategy**: Phase 0 retrofits the existing site to the new token-first system. Phase 1 delivers the watchlist MVP with price/technical data. Phase 2 adds sentiment and fundamental intelligence.
 
@@ -22,11 +22,15 @@
 - Phase 1 backend schema + scoring foundation (tasks 1.0.1–1.0.6, 2.0.1–2.0.6)
 - Phase 1 API layer (tasks 3.0.1–3.0.5 + history endpoint)
 - Phase 1 frontend core components (tasks 4.0.1–4.0.8, 5.0.1–5.0.4)
-- Phase 1 bug fixes & deployment (database accounts, API fixes, console errors) ✨ NEW
+- Phase 1 bug fixes & deployment (database accounts, API fixes, console errors)
+- Phase 1 responsive design (tasks 6.0.1–6.0.2)
+- Phase 1 API quota management (tasks 7.0.1–7.0.5) ✨ NEW
+  - Batching/delay logic in refresh service (batch_size=20, delay=2s)
+  - UI quota warnings in AddTickerModal (50 ticker limit, warning at 45)
+  - Comprehensive quota strategy documentation in OPERATIONS.md
 
 **🔄 IN PROGRESS:**
-- Final E2E verification of all watchlist features
-- Responsive design & accessibility enhancements
+- Task 8.0: Testing, Documentation & Production Readiness
 
 **⚠️ NEXT STEPS:**
 1. ~~Deliver Phase 0 theme/token work on the frontend~~ ✅ DONE
@@ -35,11 +39,12 @@
 4. ~~Build Phase 1 frontend UI: watchlist page, table, modals, settings integration, sparkline component~~ ✅ DONE
 5. ~~Deploy and test via network access~~ ✅ DONE
 6. ~~Fix remaining console errors~~ ✅ DONE (preferences bug, theme script, React keys, missing endpoints)
-7. **Verify all watchlist features work end-to-end** (add/delete/edit/sort/expand)
-8. **Complete responsive design & accessibility** (mobile layout, ARIA labels, keyboard nav)
-9. **Add comprehensive testing** (frontend component tests, E2E flows)
-10. **Write documentation** (ARCHITECTURE.md, DEVELOPMENT.md updates)
-11. After Phase 1 passes QA, proceed to Phase 2 intelligence services
+7. ~~Implement API quota management~~ ✅ DONE (batching, UI warnings, documentation)
+8. **Verify test coverage reaches 80%+ target** (backend unit + integration tests)
+9. **Add structured logging** for scoring, errors, and quota warnings
+10. **Update architecture documentation** (ARCHITECTURE.md with watchlist data flow)
+11. **Perform manual E2E validation** (10 ticker smoke test, all features)
+12. After Phase 1 passes QA, proceed to Phase 2 intelligence services
 
 ## Deployment Session Notes (2025-10-29)
 
@@ -395,12 +400,12 @@ cd ~/portfolio-ai
   - [ ] 6.0.4 Automate WCAG AA contrast testing for dark default and `.light` states. (DEFERRED - personal use, tokens already WCAG-compliant)
   - [ ] 6.0.5 Write Playwright tests covering responsive layouts, keyboard navigation, screen reader cues, and reduced-motion flow. (DEFERRED - personal use, manual testing sufficient)
 
-- [ ] **7.0 API Quota Management & Validation**
+- [x] **7.0 API Quota Management & Validation**
   - [x] 7.0.1 Create `scripts/validate-api-quotas.sh` to check keys, run sample calls, and report safe watchlist size.
   - [x] 7.0.2 Add quota details to `/api/health` (includes API key migration from market-sim + startup credential loader).
-  - [ ] 7.0.3 Implement batching/delay logic inside `refresh_watchlist_scores_task`.
-  - [ ] 7.0.4 Display a UI warning when a user attempts to add more than 50 tickers.
-  - [ ] 7.0.5 Document the quota strategy in `docs/core/OPERATIONS.md`.
+  - [x] 7.0.3 Implement batching/delay logic inside `refresh_watchlist_scores_task`.
+  - [x] 7.0.4 Display a UI warning when a user attempts to add more than 50 tickers.
+  - [x] 7.0.5 Document the quota strategy in `docs/core/OPERATIONS.md`.
 
 - [ ] **8.0 Testing, Documentation & Production Readiness**
   - [ ] 8.0.1 Reach 80%+ backend coverage (unit, integration, Celery job tests).
