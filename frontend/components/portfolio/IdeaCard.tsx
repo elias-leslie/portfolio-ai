@@ -9,32 +9,32 @@ interface IdeaCardProps {
 }
 
 export function IdeaCard({ idea }: IdeaCardProps) {
-  const getRiskColor = (risk: string) => {
+  const getRiskStyles = (risk: string) => {
     switch (risk.toLowerCase()) {
       case "low":
-        return "bg-green-100 text-green-800";
+        return "bg-gain/15 text-gain-strong";
       case "medium":
-        return "bg-yellow-100 text-yellow-800";
+        return "bg-primary/15 text-primary";
       case "high":
-        return "bg-red-100 text-red-800";
+        return "bg-loss/15 text-loss-strong";
       default:
-        return "bg-gray-100 text-gray-800";
+        return "bg-surface-muted/70 text-text-muted";
     }
   };
 
   const getConfidenceColor = (score: number) => {
-    if (score >= 0.8) return "bg-green-500";
-    if (score >= 0.6) return "bg-yellow-500";
-    return "bg-red-500";
+    if (score >= 0.8) return "bg-gain";
+    if (score >= 0.6) return "bg-primary";
+    return "bg-loss";
   };
 
   return (
     <Link href={`/ideas/${idea.id}`}>
-      <Card className="p-4 hover:shadow-lg transition-shadow cursor-pointer">
-        <div className="flex items-start justify-between mb-2">
-          <h3 className="font-semibold text-sm line-clamp-2">{idea.title}</h3>
+      <Card className="cursor-pointer p-4 transition-shadow duration-200 ease-in-out hover:shadow-md">
+        <div className="mb-2 flex items-start justify-between gap-3">
+          <h3 className="line-clamp-2 text-sm font-semibold text-text">{idea.title}</h3>
           <span
-            className={`px-2 py-1 text-xs rounded-full ${getRiskColor(
+            className={`rounded-full px-2 py-1 text-xs font-medium ${getRiskStyles(
               idea.risk_level
             )}`}
           >
@@ -42,15 +42,15 @@ export function IdeaCard({ idea }: IdeaCardProps) {
           </span>
         </div>
 
-        <p className="text-xs text-muted-foreground line-clamp-2 mb-3">
+        <p className="mb-3 line-clamp-2 text-xs text-text-muted">
           {idea.thesis}
         </p>
 
-        <div className="flex items-center justify-between text-xs">
+        <div className="flex items-center justify-between text-xs text-text-muted">
           <div className="flex items-center gap-2">
-            <span className="text-muted-foreground">Confidence:</span>
-            <div className="flex items-center gap-1">
-              <div className="w-16 h-2 bg-gray-200 rounded-full overflow-hidden">
+            <span>Confidence:</span>
+            <div className="flex items-center gap-1 text-text">
+              <div className="h-2 w-16 overflow-hidden rounded-full bg-surface-muted/60">
                 <div
                   className={`h-full ${getConfidenceColor(
                     idea.confidence_score
@@ -58,21 +58,21 @@ export function IdeaCard({ idea }: IdeaCardProps) {
                   style={{ width: `${idea.confidence_score * 100}%` }}
                 />
               </div>
-              <span className="font-medium">
+              <span className="font-medium text-text">
                 {(idea.confidence_score * 100).toFixed(0)}%
               </span>
             </div>
           </div>
           {idea.reward_estimate && (
-            <span className="font-medium text-green-600">
+            <span className="font-medium text-gain">
               {idea.reward_estimate}
             </span>
           )}
         </div>
 
-        <div className="mt-3 text-xs">
-          <span className="text-muted-foreground">Action: </span>
-          <span className="font-medium">{idea.action}</span>
+        <div className="mt-3 text-xs text-text-muted">
+          <span>Action: </span>
+          <span className="font-medium text-text">{idea.action}</span>
         </div>
       </Card>
     </Link>

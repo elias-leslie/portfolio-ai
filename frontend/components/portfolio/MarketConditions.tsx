@@ -9,7 +9,7 @@ export function MarketConditions() {
   if (isLoading) {
     return (
       <Card className="p-6">
-        <div className="h-32 animate-pulse bg-muted rounded" />
+        <div className="h-32 animate-pulse rounded bg-surface-muted/60" />
       </Card>
     );
   }
@@ -40,22 +40,22 @@ export function MarketConditions() {
 
   return (
     <Card className="p-6">
-      <h2 className="text-lg font-semibold mb-4">Market Conditions</h2>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <h2 className="mb-4 text-lg font-semibold text-text">Market Conditions</h2>
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         {indicators.map((indicator) => (
           <div key={indicator.name} className="space-y-1">
-            <div className="text-xs text-muted-foreground">
+            <div className="text-xs text-text-muted">
               {indicator.name}
             </div>
-            <div className="text-lg font-semibold">
+            <div className="text-lg font-semibold text-text">
               {indicator.value !== null && indicator.value !== undefined
                 ? `${indicator.value.toFixed(2)}${indicator.suffix || ""}`
                 : "—"}
             </div>
             {indicator.change !== null && indicator.change !== undefined && (
               <div
-                className={`text-xs ${
-                  indicator.change >= 0 ? "text-green-600" : "text-red-600"
+                className={`text-xs font-medium ${
+                  indicator.change >= 0 ? "text-gain" : "text-loss"
                 }`}
               >
                 {indicator.change >= 0 ? "+" : ""}

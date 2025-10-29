@@ -1,4 +1,7 @@
-"use client";
+/* eslint react-hooks/incompatible-library: "off" */
+'use client';
+
+/* @reactCompiler disable */
 
 import { useState } from "react";
 import {
@@ -54,10 +57,10 @@ export function PositionTable() {
         const type = row.getValue("position_type") as string;
         return (
           <span
-            className={`px-2 py-1 text-xs rounded ${
+            className={`rounded px-2 py-1 text-xs font-medium ${
               type === "long"
-                ? "bg-green-100 text-green-800"
-                : "bg-red-100 text-red-800"
+                ? "bg-gain/15 text-gain-strong"
+                : "bg-loss/15 text-loss-strong"
             }`}
           >
             {type.toUpperCase()}
@@ -91,7 +94,7 @@ export function PositionTable() {
       cell: ({ row }) => {
         const gain = row.getValue("gain") as number;
         return (
-          <span className={gain >= 0 ? "text-green-600" : "text-red-600"}>
+          <span className={gain >= 0 ? "text-gain" : "text-loss"}>
             {formatCurrency(gain)}
           </span>
         );
@@ -103,7 +106,7 @@ export function PositionTable() {
       cell: ({ row }) => {
         const gainPct = row.getValue("gain_pct") as number;
         return (
-          <span className={gainPct >= 0 ? "text-green-600" : "text-red-600"}>
+          <span className={gainPct >= 0 ? "text-gain" : "text-loss"}>
             {formatPercent(gainPct)}
           </span>
         );
@@ -149,9 +152,11 @@ export function PositionTable() {
 
   if (isLoading) {
     return (
-      <div className="rounded-md border">
-        <div className="h-64 flex items-center justify-center">
-          <div className="animate-pulse">Loading positions...</div>
+      <div className="rounded-md border border-border bg-surface/50">
+        <div className="flex h-64 items-center justify-center">
+          <div className="animate-pulse text-text-muted">
+            Loading positions...
+          </div>
         </div>
       </div>
     );
@@ -159,8 +164,8 @@ export function PositionTable() {
 
   if (!portfolio?.positions.length) {
     return (
-      <div className="rounded-md border">
-        <div className="h-64 flex items-center justify-center text-muted-foreground">
+      <div className="rounded-md border border-border bg-surface/50">
+        <div className="flex h-64 items-center justify-center text-text-muted">
           No positions yet. Add your first position to get started.
         </div>
       </div>
@@ -168,7 +173,7 @@ export function PositionTable() {
   }
 
   return (
-    <div className="rounded-md border">
+    <div className="rounded-md border border-border bg-surface/40">
       <Table>
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (

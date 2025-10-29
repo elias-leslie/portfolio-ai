@@ -39,24 +39,24 @@ export class ErrorBoundary extends React.Component<
       }
 
       return (
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="flex min-h-screen items-center justify-center bg-bg p-4">
           <Card className="max-w-md w-full">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-red-600">
-                <AlertTriangle className="h-5 w-5" />
+              <CardTitle className="flex items-center gap-2 text-loss">
+                <AlertTriangle className="h-5 w-5" aria-hidden />
                 Something went wrong
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-text-muted">
                 An unexpected error occurred. Please try refreshing the page.
               </p>
               {this.state.error && (
-                <details className="text-xs text-gray-500">
+                <details className="text-xs text-text-muted">
                   <summary className="cursor-pointer font-medium">
                     Error details
                   </summary>
-                  <pre className="mt-2 p-2 bg-gray-100 rounded overflow-auto">
+                  <pre className="mt-2 max-h-48 overflow-auto rounded bg-surface-muted/70 p-2 text-left text-xs text-text">
                     {this.state.error.message}
                   </pre>
                 </details>

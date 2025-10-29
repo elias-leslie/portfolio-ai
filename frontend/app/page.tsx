@@ -35,40 +35,40 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="bg-bg">
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">
+        <div className="mb-10">
+          <h1 className="text-3xl font-semibold text-text">
             Portfolio AI Dashboard
           </h1>
-          <p className="mt-2 text-sm text-gray-600">
+          <p className="mt-2 text-sm text-text-muted">
             AI-powered portfolio intelligence and market insights
           </p>
         </div>
 
         {/* Market Conditions */}
-        <div className="mb-8">
+        <div className="mb-10">
           <MarketConditions />
         </div>
 
         {/* Portfolio Overview */}
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold mb-4">Portfolio Overview</h2>
+        <div className="mb-10 space-y-4">
+          <h2 className="text-xl font-semibold text-text">Portfolio Overview</h2>
           <PortfolioOverview />
         </div>
 
         {/* Investment Ideas */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Investment Ideas</h2>
-            <div className="flex gap-2">
+        <div className="mb-12">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
+            <h2 className="text-xl font-semibold text-text">Investment Ideas</h2>
+            <div className="flex items-center gap-3">
               <select
                 value={agentType}
                 onChange={(e) =>
                   setAgentType(e.target.value as "discovery" | "portfolio_analyzer")
                 }
-                className="px-3 py-2 border rounded-md text-sm"
+                className="rounded-md border border-border bg-surface/80 px-3 py-2 text-sm text-text shadow-xs transition-colors duration-200 ease-in-out focus-visible:border-focus focus-visible:ring-2 focus-visible:ring-focus/30 disabled:cursor-not-allowed disabled:opacity-35"
                 disabled={generateIdeas.isPending}
               >
                 <option value="discovery">General Market Ideas</option>
@@ -88,7 +88,7 @@ export default function Dashboard() {
               {[...Array(3)].map((_, i) => (
                 <div
                   key={i}
-                  className="h-48 animate-pulse bg-gray-200 rounded-lg"
+                  className="h-48 animate-pulse rounded-lg bg-surface-muted/60"
                 />
               ))}
             </div>
@@ -99,8 +99,8 @@ export default function Dashboard() {
               ))}
             </div>
           ) : (
-            <div className="text-center py-12 bg-white rounded-lg border">
-              <p className="text-gray-500 mb-4">
+            <div className="rounded-lg border border-border bg-surface-elev py-12 text-center shadow-md">
+              <p className="mb-4 text-text-muted">
                 No investment ideas yet. Generate some to get started!
               </p>
               <Button onClick={handleGenerateIdeas}>

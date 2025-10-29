@@ -33,6 +33,9 @@ import {
 import { useAddPosition, useCreateAccount } from "@/lib/hooks/usePortfolio";
 import { PlusCircle } from "lucide-react";
 
+type PositionType = "long" | "short";
+type AccountType = "IRA" | "Taxable" | "401k" | "Roth" | "HSA";
+
 export default function PortfolioPage() {
   const addPosition = useAddPosition();
   const createAccount = useCreateAccount();
@@ -43,14 +46,12 @@ export default function PortfolioPage() {
   const [symbol, setSymbol] = useState("");
   const [shares, setShares] = useState("");
   const [costBasis, setCostBasis] = useState("");
-  const [positionType, setPositionType] = useState<"long" | "short">("long");
+  const [positionType, setPositionType] = useState<PositionType>("long");
 
   // Add Account form state
   const [accountOpen, setAccountOpen] = useState(false);
   const [accountName, setAccountName] = useState("");
-  const [accountType, setAccountType] = useState<
-    "IRA" | "Taxable" | "401k" | "Roth" | "HSA"
-  >("Taxable");
+  const [accountType, setAccountType] = useState<AccountType>("Taxable");
 
   // Form validation
   const isPositionFormValid = () => {
@@ -121,15 +122,15 @@ export default function PortfolioPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="bg-bg">
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-10 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">
+            <h1 className="text-3xl font-semibold text-text">
               Portfolio Management
             </h1>
-            <p className="mt-2 text-sm text-gray-600">
+            <p className="mt-2 text-sm text-text-muted">
               Manage your positions, accounts, and view detailed analytics
             </p>
           </div>
@@ -163,7 +164,9 @@ export default function PortfolioPage() {
                     <Label htmlFor="account-type">Account Type</Label>
                     <Select
                       value={accountType}
-                      onValueChange={(value: any) => setAccountType(value)}
+                      onValueChange={(value: string) =>
+                        setAccountType(value as AccountType)
+                      }
                     >
                       <SelectTrigger id="account-type">
                         <SelectValue />
@@ -214,7 +217,7 @@ export default function PortfolioPage() {
                       value={accountId}
                       onChange={(e) => setAccountId(e.target.value)}
                     />
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-text-muted">
                       Create an account first if you don&apos;t have one
                     </p>
                   </div>
@@ -255,7 +258,9 @@ export default function PortfolioPage() {
                     <Label htmlFor="position-type">Position Type</Label>
                     <Select
                       value={positionType}
-                      onValueChange={(value: any) => setPositionType(value)}
+                      onValueChange={(value: string) =>
+                        setPositionType(value as PositionType)
+                      }
                     >
                       <SelectTrigger id="position-type">
                         <SelectValue />
@@ -281,7 +286,7 @@ export default function PortfolioPage() {
         </div>
 
         {/* Portfolio Analytics */}
-        <div className="mb-8">
+        <div className="mb-10">
           <PortfolioOverview />
         </div>
 

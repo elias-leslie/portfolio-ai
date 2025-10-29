@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, startTransition } from "react";
 import { usePreferences, useUpdatePreferences } from "@/lib/hooks/usePreferences";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -31,7 +31,11 @@ export default function SettingsPage() {
 
   // Update form state when preferences load
   useEffect(() => {
-    if (preferences) {
+    if (!preferences) {
+      return;
+    }
+
+    startTransition(() => {
       setRiskTolerance(preferences.risk_tolerance);
       setAllowLong(preferences.allow_long);
       setAllowShort(preferences.allow_short);
@@ -39,7 +43,7 @@ export default function SettingsPage() {
       setAllowCrypto(preferences.allow_crypto);
       setAllowFutures(preferences.allow_futures);
       setMaxPositionSizePct(preferences.max_position_size_pct.toString());
-    }
+    });
   }, [preferences]);
 
   // Handle form submit
@@ -81,14 +85,14 @@ export default function SettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
-          <div className="animate-pulse">
-            <div className="h-8 w-48 bg-gray-200 rounded mb-2" />
-            <div className="h-4 w-96 bg-gray-200 rounded mb-8" />
+      <div className="bg-bg">
+        <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
+          <div className="animate-pulse space-y-6">
+            <div className="h-9 w-48 rounded-md bg-surface-muted/60" />
+            <div className="h-4 w-80 rounded-md bg-surface-muted/60" />
             <div className="space-y-4">
               {[...Array(3)].map((_, i) => (
-                <div key={i} className="h-64 bg-gray-200 rounded" />
+                <div key={i} className="h-64 rounded-lg bg-surface-muted/60" />
               ))}
             </div>
           </div>
@@ -98,12 +102,12 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="bg-bg">
+      <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-          <p className="mt-2 text-sm text-gray-600">
+        <div className="mb-10">
+          <h1 className="text-3xl font-semibold text-text">Settings</h1>
+          <p className="mt-2 text-sm text-text-muted">
             Configure your risk tolerance and trading preferences for AI-generated ideas
           </p>
         </div>
@@ -133,15 +137,15 @@ export default function SettingsPage() {
                   step={1}
                   className="w-full"
                 />
-                <div className="flex justify-between text-xs text-muted-foreground">
+                <div className="flex justify-between text-xs text-text-muted">
                   <span>1 - Very Conservative</span>
                   <span>5 - Moderate</span>
                   <span>10 - Very Aggressive</span>
                 </div>
               </div>
 
-              <div className="rounded-lg bg-muted p-4">
-                <p className="text-sm text-muted-foreground">
+              <div className="rounded-lg border border-border bg-surface-muted/70 p-4">
+                <p className="text-sm text-text-muted">
                   {riskTolerance <= 3 && (
                     <>
                       <strong>Conservative:</strong> You prefer stable, low-risk investments with predictable returns. AI agents will focus on blue-chip stocks and conservative strategies.
@@ -149,12 +153,12 @@ export default function SettingsPage() {
                   )}
                   {riskTolerance >= 4 && riskTolerance <= 7 && (
                     <>
-                      <strong>Moderate:</strong> You're willing to accept some risk for potential growth. AI agents will suggest a balanced mix of growth and value opportunities.
+                      <strong>Moderate:</strong> You&rsquo;re willing to accept some risk for potential growth. AI agents will suggest a balanced mix of growth and value opportunities.
                     </>
                   )}
                   {riskTolerance >= 8 && (
                     <>
-                      <strong>Aggressive:</strong> You're comfortable with high-risk, high-reward investments. AI agents will explore growth stocks, emerging sectors, and speculative plays.
+                      <strong>Aggressive:</strong> You&rsquo;re comfortable with high-risk, high-reward investments. AI agents will explore growth stocks, emerging sectors, and speculative plays.
                     </>
                   )}
                 </p>
@@ -182,7 +186,7 @@ export default function SettingsPage() {
                   max="100"
                   step="1"
                 />
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-text-muted">
                   Recommended: 10-25% to maintain diversification
                 </p>
               </div>
@@ -194,12 +198,12 @@ export default function SettingsPage() {
             <CardHeader>
               <CardTitle>Trading Preferences</CardTitle>
               <CardDescription>
-                Select which types of trades you're willing to consider
+                Select which types of trades you&rsquo;re willing to consider
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center gap-3">
                   <Checkbox
                     id="allow-long"
                     checked={allowLong}
@@ -209,13 +213,13 @@ export default function SettingsPage() {
                   />
                   <Label
                     htmlFor="allow-long"
-                    className="text-sm font-normal cursor-pointer"
+                    className="cursor-pointer text-sm font-medium text-text"
                   >
                     Long Positions (Buy stocks expecting price to rise)
                   </Label>
                 </div>
 
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center gap-3">
                   <Checkbox
                     id="allow-short"
                     checked={allowShort}
@@ -225,13 +229,13 @@ export default function SettingsPage() {
                   />
                   <Label
                     htmlFor="allow-short"
-                    className="text-sm font-normal cursor-pointer"
+                    className="cursor-pointer text-sm font-medium text-text"
                   >
                     Short Positions (Sell stocks expecting price to fall)
                   </Label>
                 </div>
 
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center gap-3">
                   <Checkbox
                     id="allow-options"
                     checked={allowOptions}
@@ -241,13 +245,13 @@ export default function SettingsPage() {
                   />
                   <Label
                     htmlFor="allow-options"
-                    className="text-sm font-normal cursor-pointer"
+                    className="cursor-pointer text-sm font-medium text-text"
                   >
                     Options Trading (Calls, puts, spreads)
                   </Label>
                 </div>
 
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center gap-3">
                   <Checkbox
                     id="allow-crypto"
                     checked={allowCrypto}
@@ -257,13 +261,13 @@ export default function SettingsPage() {
                   />
                   <Label
                     htmlFor="allow-crypto"
-                    className="text-sm font-normal cursor-pointer"
+                    className="cursor-pointer text-sm font-medium text-text"
                   >
                     Cryptocurrency (Bitcoin, Ethereum, etc.)
                   </Label>
                 </div>
 
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center gap-3">
                   <Checkbox
                     id="allow-futures"
                     checked={allowFutures}
@@ -273,7 +277,7 @@ export default function SettingsPage() {
                   />
                   <Label
                     htmlFor="allow-futures"
-                    className="text-sm font-normal cursor-pointer"
+                    className="cursor-pointer text-sm font-medium text-text"
                   >
                     Futures & Commodities
                   </Label>
