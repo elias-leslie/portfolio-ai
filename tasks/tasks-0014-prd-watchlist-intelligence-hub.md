@@ -1,10 +1,10 @@
 # Task List: Watchlist Intelligence Hub & Scoring
 
 **PRD**: [0014-prd-watchlist-intelligence-hub.md](0014-prd-watchlist-intelligence-hub.md)
-**Status**: Phase 0 complete, Phase 1 backend/API/frontend complete; Phase 1 testing & docs pending
-**Completion**: 75% (Phase 0: 100%, Phase 1 backend: 100%, Phase 1 API: 100%, Phase 1 frontend: 90%, Phase 1 testing: 0%)
-**Effort to Complete**: Low-Medium (1-2 weeks for testing & docs)
-**Last Updated**: 2025-10-29
+**Status**: Phase 0 complete, Phase 1 backend/API/frontend deployed; debugging UI integration issues
+**Completion**: 80% (Phase 0: 100%, Phase 1 backend: 100%, Phase 1 API: 100%, Phase 1 frontend: 95%, Phase 1 debugging: 75%)
+**Effort to Complete**: Low (1-3 days for bug fixes + testing)
+**Last Updated**: 2025-10-29 (evening)
 
 **Implementation Strategy**: Phase 0 retrofits the existing site to the new token-first system. Phase 1 delivers the watchlist MVP with price/technical data. Phase 2 adds sentiment and fundamental intelligence.
 
@@ -24,18 +24,54 @@
 - Phase 1 frontend core components (tasks 4.0.1–4.0.8, 5.0.1–5.0.4) ✨ NEW
 
 **🔄 IN PROGRESS:**
-- Phase 1 responsive design & accessibility (tasks 6.0.1–6.0.5) – *partially complete*
-- Phase 1 testing & documentation (tasks 8.0.1–8.0.7) – *ready to start*
+- Phase 1 UI debugging & integration (network access, CORS, database migrations)
+- Remaining console errors and API 404s
 
 **⚠️ NEXT STEPS:**
 1. ~~Deliver Phase 0 theme/token work on the frontend~~ ✅ DONE
 2. ~~Build Phase 1 API layer (watchlist CRUD endpoints, preferences, health check)~~ ✅ DONE
 3. ~~Write integration tests for Phase 1 API~~ ✅ DONE
 4. ~~Build Phase 1 frontend UI: watchlist page, table, modals, settings integration, sparkline component~~ ✅ DONE
-5. **Complete responsive design & accessibility** (mobile layout, ARIA labels, keyboard nav)
-6. **Add comprehensive testing** (frontend component tests, E2E flows)
-7. **Write documentation** (ARCHITECTURE.md, DEVELOPMENT.md updates)
-8. After Phase 1 passes QA, proceed to Phase 2 intelligence services (sentiment, fundamentals, AI summaries)
+5. ~~Deploy and test via network access~~ ✅ DONE (with issues to resolve)
+6. **Fix remaining console errors** (portfolio analytics 404, syntax errors)
+7. **Verify all watchlist features work end-to-end** (add/delete/edit/sort/expand)
+8. **Complete responsive design & accessibility** (mobile layout, ARIA labels, keyboard nav)
+9. **Add comprehensive testing** (frontend component tests, E2E flows)
+10. **Write documentation** (ARCHITECTURE.md, DEVELOPMENT.md updates)
+11. After Phase 1 passes QA, proceed to Phase 2 intelligence services
+
+## Deployment Session Notes (2025-10-29 Evening)
+
+**Completed in this session:**
+- ✅ Created complete Phase 1 frontend UI (watchlist page, table, modals, settings)
+- ✅ Built service management scripts (start.sh, restart.sh, shutdown.sh)
+  - Smart process killing with graceful → force → sudo escalation
+  - Redis made optional
+  - Comprehensive error handling
+- ✅ Fixed network access issues (CORS + API URL configuration)
+- ✅ Applied database migration for watchlist preferences
+- ✅ Fixed column mapping bug in preferences.py
+- ✅ Created SERVICES.md documentation
+
+**Known Issues (to be resolved next session):**
+- ⚠️ Console errors on various pages (check references/console_errors.md)
+- ⚠️ Portfolio analytics 404 (expected - endpoint not implemented)
+- ⚠️ Possible syntax errors in page components
+- ⚠️ Need end-to-end verification of all watchlist features
+
+**Access Information:**
+- Frontend: http://192.168.8.233:3000/watchlist
+- Backend API: http://192.168.8.233:8000
+- API Docs: http://192.168.8.233:8000/docs
+- Network IP: 192.168.8.233 (configured in CORS and .env.local)
+
+**Service Management:**
+```bash
+cd ~/portfolio-ai
+./scripts/restart.sh   # Restart all services
+./scripts/start.sh     # Start from scratch
+./scripts/shutdown.sh  # Stop all services
+```
 
 ## Handoff Notes (2025-10-29)
 
@@ -87,7 +123,7 @@
 - 📦 Tests added: `tests/watchlist/` + extended `tests/test_price_fetcher.py`. Run `cd ~/portfolio-ai/backend && pytest tests/watchlist tests/test_price_fetcher.py` after backend changes.
 - 🔁 Celery task `refresh_watchlist_scores` currently runs on-demand; scheduling cadence (15 min default) still needs configuration once API/frontend consume it.
 
-**EFFORT TO COMPLETE:** Low-Medium (1-2 weeks remaining for Phase 1 completion)
+**EFFORT TO COMPLETE:** Low (1-3 days remaining for Phase 1 completion - mostly bug fixes)
 
 ---
 
