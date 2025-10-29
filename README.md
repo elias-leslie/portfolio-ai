@@ -26,13 +26,13 @@ See **[HANDOFF_NOTES.md](./HANDOFF_NOTES.md)** for detailed testing checklist.
 
 ### Backend Setup
 ```bash
-cd backend
+cd ~/portfolio-ai/backend
 python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+source ~/portfolio-ai/backend/.venv/bin/activate
+pip install -r ~/portfolio-ai/backend/requirements.txt
 
 # Create .env file with your API key
-echo "ANTHROPIC_API_KEY=your-key-here" > .env
+echo "ANTHROPIC_API_KEY=your-key-here" > ~/portfolio-ai/backend/.env
 
 # Start backend
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -40,7 +40,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ### Frontend Setup
 ```bash
-cd frontend
+cd ~/portfolio-ai/frontend
 npm install
 npm run dev
 ```
@@ -56,10 +56,10 @@ For testing on your phone:
 
 ```bash
 # Terminal 1: Start backend
-cd backend && source .venv/bin/activate && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+cd ~/portfolio-ai/backend && source ~/portfolio-ai/backend/.venv/bin/activate && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 # Terminal 2: Start frontend
-cd frontend && npm run dev
+cd ~/portfolio-ai/frontend && npm run dev
 
 # Terminal 3: Configure Tailscale
 tailscale serve --bg 3000
@@ -106,19 +106,19 @@ See **[docs/core/ARCHITECTURE.md](./docs/core/ARCHITECTURE.md)** for comprehensi
 
 ```bash
 # Backend tests (86% coverage)
-cd backend
-source .venv/bin/activate
+cd ~/portfolio-ai/backend
+source ~/portfolio-ai/backend/.venv/bin/activate
 pytest tests/ -v --cov=app --cov-report=term-missing
 
 # Frontend build
-cd frontend
+cd ~/portfolio-ai/frontend
 npm run build
 ```
 
 ## 📁 Project Structure
 
 ```
-portfolio-ai/
+~/portfolio-ai/
 ├── backend/              # Python FastAPI application
 │   ├── app/
 │   │   ├── agents/       # AI agent system
@@ -126,22 +126,22 @@ portfolio-ai/
 │   │   ├── portfolio/    # Portfolio management
 │   │   ├── sources/      # Data sources (yfinance, FRED, News)
 │   │   └── storage/      # DuckDB storage layer
-│   └── tests/            # 121 tests
+│   ├── tests/            # 121 tests
+│   └── data/             # DuckDB database (auto-created)
 ├── frontend/             # Next.js 14 application
 │   ├── app/              # Pages (dashboard, portfolio, settings, ideas)
 │   ├── components/       # React components
 │   └── lib/              # API clients & hooks
-├── data/                 # DuckDB database (auto-created)
 ├── docs/core/            # Documentation
 └── tasks/                # PRDs and task lists
 ```
 
 ## 📚 Documentation
 
-- **[ARCHITECTURE.md](./docs/core/ARCHITECTURE.md)** - System design and components
-- **[HANDOFF_NOTES.md](./HANDOFF_NOTES.md)** - Manual testing checklist
-- **[CLAUDE.md](./CLAUDE.md)** - Project governance and commands
-- **[tasks/](./tasks/)** - PRD and detailed task breakdowns
+- **[~/portfolio-ai/docs/core/ARCHITECTURE.md](~/portfolio-ai/docs/core/ARCHITECTURE.md)** - System design and components
+- **[~/portfolio-ai/HANDOFF_NOTES.md](~/portfolio-ai/HANDOFF_NOTES.md)** - Manual testing checklist
+- **[~/portfolio-ai/CLAUDE.md](~/portfolio-ai/CLAUDE.md)** - Project governance and commands
+- **[~/portfolio-ai/tasks/](~/portfolio-ai/tasks/)** - PRD and detailed task breakdowns
 
 ## 🔧 Development Workflow
 
@@ -149,16 +149,16 @@ See **[CLAUDE.md](./CLAUDE.md#-command-quick-reference)** for complete commands.
 
 ```bash
 # Run tests
-pytest tests/ -v --cov=app
+cd ~/portfolio-ai/backend && pytest tests/ -v --cov=app
 
 # Linting
-./scripts/lint.sh
+~/portfolio-ai/scripts/lint.sh
 
 # Type checking
-mypy app/ --strict
+cd ~/portfolio-ai/backend && mypy app/ --strict
 
 # Validate slash commands
-./scripts/validate-commands.sh
+~/portfolio-ai/scripts/validate-commands.sh
 ```
 
 ## 🎯 Next Steps
@@ -173,7 +173,7 @@ mypy app/ --strict
 - Agents cost money - each run uses Claude API
 - Price data requires internet (yfinance)
 - Database auto-created on first backend startup
-- Use `/do_it tasks/tasks-0009-prd-portfolio-ai-platform.md` to continue development
+- Use `/do_it ~/portfolio-ai/tasks/tasks-0009-prd-portfolio-ai-platform.md` to continue development
 
 ## 📝 License
 
