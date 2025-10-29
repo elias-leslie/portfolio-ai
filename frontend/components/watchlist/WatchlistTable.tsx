@@ -12,6 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Sparkline } from "@/components/ui/sparkline";
 import { ExpandedRow } from "@/components/watchlist/ExpandedRow";
+import { WatchlistCard } from "@/components/watchlist/WatchlistCard";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronRight, AlertCircle, Trash2 } from "lucide-react";
 import { useDeleteWatchlistItem } from "@/lib/hooks/useWatchlist";
@@ -138,7 +139,8 @@ export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
 
   return (
     <div className="rounded-md border border-border bg-surface shadow-sm">
-      <Table>
+      {/* Desktop Table View (hidden on mobile) */}
+      <Table className="hidden md:table">
         <TableHeader>
           <TableRow>
             <TableHead className="w-[40px]" />
@@ -336,6 +338,18 @@ export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
           })}
         </TableBody>
       </Table>
+
+      {/* Mobile Card View (shown on mobile only) */}
+      <div className="md:hidden space-y-3 p-3">
+        {sortedItems.map((item) => (
+          <WatchlistCard
+            key={item.id}
+            item={item}
+            onDelete={handleDelete}
+            isDeleting={deleteMutation.isPending}
+          />
+        ))}
+      </div>
     </div>
   );
 }
