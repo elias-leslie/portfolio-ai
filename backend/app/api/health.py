@@ -62,6 +62,15 @@ class AgentStats(BaseModel):
     avg_cost_usd: float | None = None
 
 
+class WatchlistStats(BaseModel):
+    """Watchlist statistics."""
+
+    total_items: int
+    last_refresh: datetime | None = None
+    refresh_age_minutes: float | None = None
+    items_with_scores: int = 0
+
+
 class HealthCheckResponse(BaseModel):
     """Complete health check response."""
 
@@ -73,6 +82,7 @@ class HealthCheckResponse(BaseModel):
     sources: dict[str, SourceHealthCheck] = Field(default_factory=dict)
     cache_stats: CacheStats | None = None
     agent_stats: AgentStats | None = None
+    watchlist_stats: WatchlistStats | None = None
 
 
 class HealthCheckService:
@@ -302,6 +312,52 @@ class HealthCheckService:
                 failed_runs=0,
             )
 
+    def get_watchlist_stats(self) -> WatchlistStats:
+        """Get watchlist statistics.
+
+        Returns:
+            WatchlistStats with watchlist metrics
+        """
+        try:
+            # Get total items
+            items_df = self.storage.query("SELECT COUNT(*) as total FROM watchlist_items")
+            total_items = items_df.to_dicts()[0]["total"] if not items_df.is_empty() else 0
+
+            # Get last refresh timestamp and count items with scores
+            snapshots_df = self.storage.query(
+                """
+                SELECT
+                    MAX(fetched_at) as last_refresh,
+                    COUNT(DISTINCT item_id) as items_with_scores
+                FROM watchlist_snapshots
+                """
+            )
+
+            if snapshots_df.is_empty():
+                return WatchlistStats(
+                    total_items=total_items,
+                    items_with_scores=0,
+                )
+
+            row = snapshots_df.to_dicts()[0]
+            last_refresh = row.get("last_refresh")
+            items_with_scores = row.get("items_with_scores") or 0
+
+            refresh_age_minutes = None
+            if last_refresh:
+                refresh_age_minutes = (datetime.now() - last_refresh).total_seconds() / 60
+
+            return WatchlistStats(
+                total_items=total_items,
+                last_refresh=last_refresh,
+                refresh_age_minutes=refresh_age_minutes,
+                items_with_scores=items_with_scores,
+            )
+
+        except Exception as e:
+            logger.error("get_watchlist_stats_failed", error=str(e))
+            return WatchlistStats(total_items=0)
+
     def perform_health_check(self) -> HealthCheckResponse:
         """Perform all health checks including multi-source data fetching.
 
@@ -333,6 +389,7 @@ class HealthCheckService:
         # Get statistics
         cache_stats = self.get_cache_stats()
         agent_stats = self.get_agent_stats()
+        watchlist_stats = self.get_watchlist_stats()
 
         # Calculate uptime
         uptime_seconds = int((datetime.now() - APP_START_TIME).total_seconds())
@@ -344,6 +401,7 @@ class HealthCheckService:
             sources=sources,
             cache_stats=cache_stats,
             agent_stats=agent_stats,
+            watchlist_stats=watchlist_stats,
         )
 
 

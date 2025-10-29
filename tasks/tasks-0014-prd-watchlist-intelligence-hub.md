@@ -256,8 +256,8 @@
 - [ ] **3.0 Watchlist API & Background Jobs**
   - [x] 3.0.1 Implement `backend/app/api/watchlist.py` endpoints (list, create, delete, patch, manual refresh, detail).
   - [x] 3.0.2 Register the router in `backend/app/main.py` with required dependencies.
-  - [ ] 3.0.3 Extend `backend/app/api/preferences.py` with watchlist preference fields.
-  - [ ] 3.0.4 Add a watchlist health section to `/api/health` (last refresh timestamp and next scheduled run).
+  - [x] 3.0.3 Extend `backend/app/api/preferences.py` with watchlist preference fields.
+  - [x] 3.0.4 Add a watchlist health section to `/api/health` (last refresh timestamp and next scheduled run).
   - [ ] 3.0.5 Write integration tests covering CRUD, validation, refresh behaviour, and error handling.
 
 - [ ] **4.0 Watchlist Frontend Experience**
