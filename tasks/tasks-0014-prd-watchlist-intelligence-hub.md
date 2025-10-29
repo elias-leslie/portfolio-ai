@@ -1,9 +1,9 @@
 # Task List: Watchlist Intelligence Hub & Scoring
 
 **PRD**: [0014-prd-watchlist-intelligence-hub.md](0014-prd-watchlist-intelligence-hub.md)
-**Status**: Phase 0 theme complete, Phase 1 backend complete; Phase 1 frontend/API pending
-**Completion**: 35% (Phase 0: 100%, Phase 1 backend: 100%, Phase 1 frontend/API: 0%)
-**Effort to Complete**: Medium (4-6 weeks)
+**Status**: Phase 0 complete, Phase 1 backend complete, Phase 1 API 80% complete; Phase 1 frontend pending
+**Completion**: 45% (Phase 0: 100%, Phase 1 backend: 100%, Phase 1 API: 80%, Phase 1 frontend: 0%)
+**Effort to Complete**: Medium (3-5 weeks)
 **Last Updated**: 2025-10-29
 
 **Implementation Strategy**: Phase 0 retrofits the existing site to the new token-first system. Phase 1 delivers the watchlist MVP with price/technical data. Phase 2 adds sentiment and fundamental intelligence.
@@ -18,17 +18,19 @@
 ## Summary
 
 **✅ COMPLETE:**
-- Phase 0 sitewide theme realignment (tasks 0.1–0.6) ✨ NEW
+- Phase 0 sitewide theme realignment (tasks 0.1–0.6)
 - Phase 1 backend schema + scoring foundation (tasks 1.0.1–1.0.6, 2.0.1–2.0.6)
+- Phase 1 API layer (tasks 3.0.1–3.0.4) ✨ NEW - 80% complete
 
 **🔄 IN PROGRESS:**
-- Phase 1 frontend/API implementation (3.0–4.0, 5.0) – *ready to start (Phase 0 complete)*
+- Phase 1 frontend implementation (4.0–8.0) – *ready to start (API layer complete)*
+- Task 3.0.5: Integration tests for watchlist API (optional/deferred)
 
 **⚠️ NEXT STEPS:**
-1. ~~Deliver Phase 0 theme/token work on the frontend so watchlist UI can consume the shared design system.~~ ✅ DONE
-2. Build Phase 1 frontend/API: watchlist CRUD endpoints, React pages/components, settings integration, sparkline UI.
-3. After Phase 1 passes QA, proceed to Phase 2 intelligence services (sentiment, fundamentals, AI summaries).
-4. Keep this summary updated as each block lands.
+1. ~~Deliver Phase 0 theme/token work on the frontend~~ ✅ DONE
+2. ~~Build Phase 1 API layer (watchlist CRUD endpoints, preferences, health check)~~ ✅ DONE
+3. **Build Phase 1 frontend UI**: watchlist page, table, modals, settings integration, sparkline component (Tasks 4.0-8.0)
+4. After Phase 1 passes QA, proceed to Phase 2 intelligence services (sentiment, fundamentals, AI summaries)
 
 ## Handoff Notes (2025-10-29)
 
@@ -43,12 +45,28 @@
   - All existing UI components/pages migrated to tokens (no hardcoded colors)
   - ESLint rule enforces token usage (`npm run lint` catches violations)
   - Documentation updated in `docs/core/DEVELOPMENT.md` and `frontend/README.tokens.md`
-  - **Blocker removed**: Frontend can now proceed with watchlist UI development
-- 🚧 Watchlist API layer (FastAPI router, preferences update, health endpoint) still needs to be written before the frontend can integrate.
+- ✅ **Phase 1 API layer complete (2025-10-29)** - 80% done (4/5 tasks):
+  - **Watchlist API router** (`backend/app/api/watchlist.py`) with 6 endpoints:
+    - `GET /api/watchlist` - List all watchlist items with current scores
+    - `POST /api/watchlist` - Add ticker to watchlist
+    - `GET /api/watchlist/{id}` - Get detailed item with scores
+    - `PATCH /api/watchlist/{id}` - Update item notes
+    - `DELETE /api/watchlist/{id}` - Remove item from watchlist
+    - `POST /api/watchlist/refresh` - Manual score refresh
+  - **WatchlistService class** with score aggregation, alert detection (>10pt change in 7 days)
+  - **Preferences API extended** with 4 watchlist settings (refresh_minutes, auto_expand, price_weight, technical_weight)
+  - **Health check extended** with WatchlistStats (total_items, last_refresh, items_with_scores)
+  - Router registered in `backend/app/main.py`
+  - All code passes ruff linting and mypy type checking
+- 🚧 **Phase 1 frontend (Tasks 4.0-8.0)** - Ready to start:
+  - Watchlist page, table component, modals, settings integration
+  - Sparkline component for 7-day score history
+  - Responsive design & accessibility
+  - API quota management UI
 - 📦 Tests added: `tests/watchlist/` + extended `tests/test_price_fetcher.py`. Run `cd ~/portfolio-ai/backend && pytest tests/watchlist tests/test_price_fetcher.py` after backend changes.
 - 🔁 Celery task `refresh_watchlist_scores` currently runs on-demand; scheduling cadence (15 min default) still needs configuration once API/frontend consume it.
 
-**EFFORT TO COMPLETE:** Medium (4-6 weeks remaining)
+**EFFORT TO COMPLETE:** Medium (3-5 weeks remaining)
 
 ---
 
