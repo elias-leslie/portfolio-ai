@@ -8,7 +8,7 @@ per process.
 from __future__ import annotations
 
 import logging
-from collections.abc import Generator
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -49,7 +49,7 @@ class ConnectionManager:
         logger.info(f"ConnectionManager initialized with db_path: {self.db_path}")
 
     @contextmanager
-    def connection(self) -> Generator[duckdb.DuckDBPyConnection, None, None]:
+    def connection(self) -> Iterator[duckdb.DuckDBPyConnection]:
         """Context manager for DuckDB connections.
 
         Opens connection, yields it for use, and ensures it's closed on exit.

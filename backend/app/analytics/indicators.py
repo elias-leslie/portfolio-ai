@@ -7,13 +7,14 @@ including RSI, MACD, Bollinger Bands, moving averages, ATR, and Stochastic.
 from __future__ import annotations
 
 import datetime as dt
-from typing import Any
-
-import pandas as pd
-import pandas_ta as ta
+from importlib import import_module
+from typing import Any, cast
 
 from app.logging_config import get_logger
 from app.storage import DuckDBStorage
+
+pd = cast(Any, import_module("pandas"))
+ta = cast(Any, import_module("pandas_ta"))
 
 logger = get_logger(__name__)
 
@@ -178,7 +179,7 @@ def _fetch_ohlcv_data(
     ticker: str,
     lookback_days: int = 250,
     as_of_date: dt.date | str | None = None,
-) -> pd.DataFrame:
+) -> Any:
     """Fetch OHLCV data from day_bars table for indicator calculations.
 
     Args:

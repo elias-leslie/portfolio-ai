@@ -217,21 +217,21 @@
 
 **Goal**: Deliver a working watchlist with CRUD, price data, technical indicators, and a tokenized dark-first UI. Phase 1 cannot start until Phase 0 is complete.
 
-- [ ] **1.0 Watchlist Database & Data Infrastructure**
-  - [ ] 1.0.1 Extend `backend/app/storage/schema.py` with `watchlist_items`, `watchlist_snapshots`, and `reference_cache` definitions.
-  - [ ] 1.0.2 Register Phase 1 migrations in `backend/app/storage/migrations.py`, including indexes on `item_id`, `ticker`, and `fetched_at`.
-  - [ ] 1.0.3 Add watchlist fields to `user_preferences` (refresh interval, auto-expand, price weight, technical weight).
-  - [ ] 1.0.4 Create helper queries in `backend/app/storage/queries.py` (`get_watchlist_items_by_account`, `get_watchlist_snapshot_history`, `upsert_watchlist_snapshot`).
-  - [ ] 1.0.5 Run migrations and seed existing users with default preferences.
-  - [ ] 1.0.6 Add unit tests covering table creation, migrations, and query helpers.
+- [x] **1.0 Watchlist Database & Data Infrastructure**
+  - [x] 1.0.1 Extend `backend/app/storage/schema.py` with `watchlist_items`, `watchlist_snapshots`, and `reference_cache` definitions.
+  - [x] 1.0.2 Register Phase 1 migrations in `backend/app/storage/migrations.py`, including indexes on `item_id`, `ticker`, and `fetched_at`.
+  - [x] 1.0.3 Add watchlist fields to `user_preferences` (refresh interval, auto-expand, price weight, technical weight).
+  - [x] 1.0.4 Create helper queries in `backend/app/storage/queries.py` (`get_watchlist_items_by_account`, `get_watchlist_snapshot_history`, `upsert_watchlist_snapshot`).
+  - [x] 1.0.5 Run migrations and seed existing users with default preferences.
+  - [x] 1.0.6 Add unit tests covering table creation, migrations, and query helpers.
 
 - [ ] **2.0 Backend Scoring & Refresh Services**
-  - [ ] 2.0.1 Create `backend/app/watchlist/models.py` with Pydantic models (`WatchlistItem`, `WatchlistSnapshot`, `ScoreBreakdown`).
-  - [ ] 2.0.2 Implement price and technical scoring in `backend/app/watchlist/scoring.py` (normalization, weighting, stale detection).
-  - [ ] 2.0.3 Build `backend/app/watchlist/history.py` utilities for 7-day timelines and >10 point alert detection.
-  - [ ] 2.0.4 Extend `backend/app/portfolio/price_fetcher.py` to include volatility and beta in the payload.
-  - [ ] 2.0.5 Add a Celery job in `backend/app/tasks/agent_tasks.py` (`refresh_watchlist_scores_task`) with batching and scheduling.
-  - [ ] 2.0.6 Write backend tests for scoring accuracy, stale flagging, history calculations, and Celery job behaviour.
+  - [x] 2.0.1 Create `backend/app/watchlist/models.py` with Pydantic models (`WatchlistItem`, `WatchlistSnapshot`, `ScoreBreakdown`).
+  - [x] 2.0.2 Implement price and technical scoring in `backend/app/watchlist/scoring.py` (normalization, weighting, stale detection).
+  - [x] 2.0.3 Build `backend/app/watchlist/history.py` utilities for 7-day timelines and >10 point alert detection.
+  - [x] 2.0.4 Extend `backend/app/portfolio/price_fetcher.py` to include volatility and beta in the payload.
+  - [x] 2.0.5 Add a Celery job in `backend/app/tasks/agent_tasks.py` (`refresh_watchlist_scores_task`) with batching and scheduling.
+  - [x] 2.0.6 Write backend tests for scoring accuracy, stale flagging, history calculations, and Celery job behaviour.
 
 - [ ] **3.0 Watchlist API & Background Jobs**
   - [ ] 3.0.1 Implement `backend/app/api/watchlist.py` endpoints (list, create, delete, patch, manual refresh, detail).

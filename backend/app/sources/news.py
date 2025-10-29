@@ -7,9 +7,11 @@ from __future__ import annotations
 
 import logging
 import time
+from importlib import import_module
+from types import ModuleType
 from typing import Any
 
-import feedparser  # type: ignore[import-untyped]  # feedparser doesn't ship type stubs
+feedparser: ModuleType = import_module("feedparser")
 
 logger = logging.getLogger(__name__)
 

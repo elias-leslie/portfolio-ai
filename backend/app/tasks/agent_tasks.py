@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import datetime as dt
 import uuid
+from typing import Any
 
 from app.agents.discovery import DiscoveryAgent
 from app.agents.portfolio_analyzer import PortfolioAnalyzerAgent
@@ -29,6 +30,7 @@ from app.sources.polygon_source import PolygonSource
 from app.sources.twelvedata_source import TwelveDataSource
 from app.sources.yfinance_source import YFinanceSource
 from app.storage import get_storage
+from app.watchlist.service import refresh_watchlist_scores as refresh_watchlist_scores_service
 
 logger = get_logger(__name__)
 
@@ -543,5 +545,38 @@ def update_paper_trades_task(  # type: ignore[no-untyped-def]
             task_id=task_id,
             error=str(e),
             error_type=type(e).__name__,
+        )
+        raise
+
+
+@celery_app.task(name="refresh_watchlist_scores", bind=True)  # type: ignore[misc]
+def refresh_watchlist_scores_task(self, account_id: str | None = None) -> dict[str, Any]:  # type: ignore[no-untyped-def]
+    """Refresh watchlist scores for all items or a specific account."""
+
+    task_id = self.request.id
+    logger.info(
+        "watchlist_refresh_task_started",
+        task_id=task_id,
+        account_id=account_id,
+    )
+
+    try:
+        storage = get_storage()
+        result = refresh_watchlist_scores_service(storage, account_id=account_id)
+        result.update({"task_id": task_id})
+
+        logger.info(
+            "watchlist_refresh_task_completed",
+            task_id=task_id,
+            processed=result.get("processed", 0),
+        )
+        return result
+
+    except Exception as exc:  # pragma: no cover - safety net
+        logger.error(
+            "watchlist_refresh_task_failed",
+            task_id=task_id,
+            account_id=account_id,
+            error=str(exc),
         )
         raise

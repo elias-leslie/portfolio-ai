@@ -8,8 +8,10 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
+from math import sqrt
 
+import numpy as np
 import polars as pl
 
 from ..constants import DEFAULT_PRICE_CACHE_TTL_MINUTES
@@ -41,6 +43,8 @@ class PriceDataFetcher:
         self.cache_ttl_minutes = DEFAULT_PRICE_CACHE_TTL_MINUTES
         self._error_cache: dict[str, tuple[str, datetime]] = {}  # symbol -> (error, timestamp)
         self._error_cache_ttl_minutes = 5
+        self.market_benchmark = os.getenv("PRICE_BENCHMARK_TICKER", "SPY")
+        self.volatility_lookback_days = 90
 
         # Initialize multi-source fetcher with YFinance and optionally Polygon
         sources: list[BaseSource] = [YFinanceSource()]
@@ -229,6 +233,15 @@ class PriceDataFetcher:
                     errors=errors_by_source,
                 )
 
+        # Augment metrics for any symbols missing beta or volatility
+        for symbol, data in result.items():
+            if data.price and (data.beta is None or data.volatility is None):
+                beta, volatility = self._compute_local_risk_metrics(symbol)
+                if beta is not None:
+                    data.beta = beta
+                if volatility is not None:
+                    data.volatility = volatility
+
         return result
 
     def _cache_prices(self, price_data: dict[str, PriceData]) -> None:
@@ -252,3 +265,67 @@ class PriceDataFetcher:
             num_cached=len(rows),
             symbols=list(price_data.keys()),
         )
+
+    def _compute_local_risk_metrics(self, symbol: str) -> tuple[float | None, float | None]:
+        """Compute beta and volatility from local historical data."""
+        start_date = datetime.now(UTC).date() - timedelta(days=self.volatility_lookback_days * 2)
+        df = self.storage.query(
+            """
+            SELECT ticker, date, close
+            FROM day_bars
+            WHERE ticker IN (?, ?)
+              AND date >= ?
+            ORDER BY date ASC
+            """,
+            [symbol, self.market_benchmark, start_date],
+        )
+
+        if df.is_empty():
+            return (None, None)
+
+        try:
+            symbol_df = (
+                df.filter(pl.col("ticker") == symbol)
+                .sort("date")
+                .with_columns(pl.col("close").pct_change().alias("symbol_return"))
+                .drop_nulls(["symbol_return"])
+            )
+            market_df = (
+                df.filter(pl.col("ticker") == self.market_benchmark)
+                .sort("date")
+                .with_columns(pl.col("close").pct_change().alias("market_return"))
+                .drop_nulls(["market_return"])
+            )
+        except pl.exceptions.ComputeError:
+            return (None, None)
+
+        if symbol_df.is_empty() or market_df.is_empty():
+            return (None, None)
+
+        joined = symbol_df.join(market_df, on="date", how="inner")
+        if joined.height < 5:
+            return (None, None)
+
+        symbol_returns = joined["symbol_return"].to_numpy()
+        market_returns = joined["market_return"].to_numpy()
+
+        # Filter non-finite values
+        mask = np.isfinite(symbol_returns) & np.isfinite(market_returns)
+        symbol_returns = symbol_returns[mask]
+        market_returns = market_returns[mask]
+
+        if symbol_returns.size < 5 or market_returns.size < 5:
+            return (None, None)
+
+        # Volatility: annualized standard deviation of daily returns
+        symbol_std = np.std(symbol_returns, ddof=1)
+        volatility = float(symbol_std * sqrt(252))
+
+        market_variance = float(np.var(market_returns, ddof=1))
+        if market_variance == 0 or np.isnan(market_variance):
+            beta = None
+        else:
+            covariance = float(np.cov(symbol_returns, market_returns, ddof=1)[0, 1])
+            beta = covariance / market_variance
+
+        return (beta, volatility)
