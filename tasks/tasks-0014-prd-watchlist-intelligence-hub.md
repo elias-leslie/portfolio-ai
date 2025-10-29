@@ -30,6 +30,7 @@
   - Comprehensive quota strategy documentation in OPERATIONS.md
 
 **🔄 IN PROGRESS:**
+- **Task 6.5: Fix Real-Time Quote Data Fetching** ⚠️ **CRITICAL BLOCKER**
 - Task 8.0: Testing, Documentation & Production Readiness
 
 **⚠️ NEXT STEPS:**
@@ -40,11 +41,15 @@
 5. ~~Deploy and test via network access~~ ✅ DONE
 6. ~~Fix remaining console errors~~ ✅ DONE (preferences bug, theme script, React keys, missing endpoints)
 7. ~~Implement API quota management~~ ✅ DONE (batching, UI warnings, documentation)
-8. **Verify test coverage reaches 80%+ target** (backend unit + integration tests)
-9. **Add structured logging** for scoring, errors, and quota warnings
-10. **Update architecture documentation** (ARCHITECTURE.md with watchlist data flow)
-11. **Perform manual E2E validation** (10 ticker smoke test, all features)
-12. After Phase 1 passes QA, proceed to Phase 2 intelligence services
+8. **FIX QUOTE DATA FETCHING** ⚠️ **HIGHEST PRIORITY - BLOCKS ALL WATCHLIST DATA**
+   - Add price fields to YFinance reference payload (currentPrice, beta)
+   - Clear bad price cache entries (price=0.0)
+   - Verify end-to-end: add ticker → refresh → see real data
+9. **Verify test coverage reaches 80%+ target** (backend unit + integration tests)
+10. **Add structured logging** for scoring, errors, and quota warnings
+11. **Update architecture documentation** (ARCHITECTURE.md with watchlist data flow)
+12. **Perform manual E2E validation** (10 ticker smoke test, all features)
+13. After Phase 1 passes QA, proceed to Phase 2 intelligence services
 
 ## Deployment Session Notes (2025-10-29)
 
@@ -399,6 +404,28 @@ cd ~/portfolio-ai
   - [ ] 6.0.3 Add ARIA labels, keyboard navigation, and focus management across table rows, buttons, and dialogs. (DEFERRED - personal use, no accessibility requirements)
   - [ ] 6.0.4 Automate WCAG AA contrast testing for dark default and `.light` states. (DEFERRED - personal use, tokens already WCAG-compliant)
   - [ ] 6.0.5 Write Playwright tests covering responsive layouts, keyboard navigation, screen reader cues, and reduced-motion flow. (DEFERRED - personal use, manual testing sufficient)
+
+- [ ] **6.5 Fix Real-Time Quote Data Fetching (CRITICAL - BLOCKS WATCHLIST DATA)** ⚠️ **HIGHEST PRIORITY**
+  - [ ] 6.5.1 **[CRITICAL]** Add price fields to YFinance reference payload - Extract `currentPrice`, `regularMarketPrice`, `beta` from `ticker.info`
+    - Update `backend/app/sources/yfinance_source.py` `fetch_reference_payload()` to include price fields in JSON payload (lines 172-186)
+    - Map: `currentPrice` → `price`, `beta` → `beta`, `fiftyTwoWeekHigh/Low` → `volatility` calculation
+    - Add YAML config mapping for `price_cache` table in `config/sources/yfinance.yaml`
+  - [ ] 6.5.2 **[CRITICAL]** Clear bad cache entries - Delete all `price_cache` rows where `price = 0.0` or `error IS NOT NULL`
+  - [ ] 6.5.3 **[HIGH]** Test end-to-end data flow - Add AAPL to watchlist, trigger refresh, verify real price appears
+  - [ ] 6.5.4 **[MEDIUM]** Add similar fixes for Polygon/TwelveData quote endpoints if needed
+  - [ ] 6.5.5 **[LOW]** Update YAML configs with standardized `price_cache` field mappings across all sources
+
+**Why This is Critical:**
+- Currently `YFinanceSource.fetch_reference_payload()` returns company metadata (sector, market cap) but NOT current price
+- `PriceDataFetcher` expects `payload.price` but gets `payload.price = None` → creates cache entries with `price=0.0`
+- Watchlist refresh sees cached `price=0.0`, skips processing, shows 0 items refreshed
+- **NO DATA APPEARS IN WATCHLIST** until this is fixed
+- YFinance DOES have the data (`ticker.info['currentPrice']`) but we're not extracting it
+
+**Root Cause:**
+- Missing price field extraction in `yfinance_source.py:172-186`
+- Bad/stale cache entries prevent retries even after code fix
+- No YAML config for `price_cache` table quote endpoint mappings
 
 - [x] **7.0 API Quota Management & Validation**
   - [x] 7.0.1 Create `scripts/validate-api-quotas.sh` to check keys, run sample calls, and report safe watchlist size.
