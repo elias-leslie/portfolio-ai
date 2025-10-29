@@ -77,6 +77,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",  # Next.js dev server
         "http://127.0.0.1:3000",
+        "http://192.168.8.233:3000",  # Network access
     ],
     allow_credentials=True,
     allow_methods=["*"],
