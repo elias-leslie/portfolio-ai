@@ -2,7 +2,7 @@
 
 **Purpose**: This document clarifies the actual directory structure to prevent confusion when running commands or navigating the codebase.
 
-**Last Updated**: 2025-10-28
+**Last Updated**: 2025-10-29
 
 ---
 
@@ -20,8 +20,10 @@
 │   │   ├── portfolio/                   ← Portfolio CRUD & analytics
 │   │   ├── sources/                     ← Data source adapters
 │   │   ├── storage/                     ← DuckDB storage layer
+│   │   ├── watchlist/                   ← Watchlist scoring & services
 │   │   └── main.py                      ← FastAPI application entry point
 │   ├── tests/                           ← Test files (ACTUAL LOCATION)
+│   │   └── watchlist/                   ← Watchlist unit tests
 │   ├── data/                            ← DuckDB database files
 │   ├── logs/                            ← Application logs
 │   ├── migrations/                      ← Database migrations
