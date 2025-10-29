@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import {
   Table,
   TableBody,
@@ -222,9 +222,8 @@ export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
             const techStale = item.current_score?.technical.stale ?? false;
 
             return (
-              <>
+              <Fragment key={item.id}>
                 <TableRow
-                  key={item.id}
                   className={cn(
                     "cursor-pointer",
                     isExpanded && "bg-surface-muted/40"
@@ -332,7 +331,7 @@ export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
                     </TableCell>
                   </TableRow>
                 )}
-              </>
+              </Fragment>
             );
           })}
         </TableBody>
