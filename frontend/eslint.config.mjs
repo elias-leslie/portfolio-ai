@@ -13,6 +13,28 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  {
+    files: ["**/*.{js,jsx,ts,tsx}"],
+    ignores: ["eslint.config.mjs", "*.config.{js,mjs,ts}"],
+    rules: {
+      // Custom rule: Prevent hardcoded Tailwind color utilities
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "Literal[value=/\\b(gray|slate|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-(50|100|200|300|400|500|600|700|800|900|950)\\b/]",
+          message:
+            "Use design tokens instead of hardcoded Tailwind colors. Reference tokens like bg-surface, text-text, border-border, etc.",
+        },
+        {
+          selector:
+            "Literal[value=/\\b(bg-white|bg-black|text-white|text-black)\\b/]",
+          message:
+            "Use design tokens instead of bg-white/bg-black. Use bg-bg, text-text, etc.",
+        },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;
