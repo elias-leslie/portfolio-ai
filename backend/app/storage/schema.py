@@ -24,7 +24,7 @@ MIGRATIONS: list[tuple[str, str]] = []
 class SchemaManager:
     """Manages DuckDB schema creation for portfolio-ai.
 
-    Handles schema creation for all 16 tables and table registry metadata.
+    Handles schema creation for all 19 tables and table registry metadata.
     """
 
     def __init__(self, connection_mgr: ConnectionManager) -> None:
@@ -36,14 +36,8 @@ class SchemaManager:
         self.connection_mgr = connection_mgr
 
     def ensure_schema(self) -> None:
-        """Create all 16 database tables in a single transaction.
-
-        Creates tables in dependency order with transaction wrapper for atomicity.
-        Also applies any pending migrations from migrations/ directory.
-        """
-        # Apply migrations first (before schema creation for flexibility)
+        """Create all domain tables and apply pending migrations."""
         migration_mgr = MigrationManager(self.connection_mgr)
-        migration_mgr.apply_migrations()
 
         with self.connection_mgr.connection() as conn:
             try:
@@ -51,6 +45,7 @@ class SchemaManager:
 
                 self._create_config_tables(conn)
                 self._create_timeseries_tables(conn)
+                self._create_watchlist_tables(conn)
                 self._create_metadata_tables(conn)
 
                 # Apply legacy migrations and populate registry
@@ -58,12 +53,15 @@ class SchemaManager:
                 self._populate_registry_metadata(conn)
 
                 conn.execute("COMMIT")
-                logger.info("Schema initialization completed successfully (16 tables)")
+                logger.info("Schema initialization completed successfully with watchlist tables")
 
             except Exception as e:
                 conn.execute("ROLLBACK")
                 logger.error(f"Schema initialization failed, rolled back: {e}")
                 raise
+
+        # Apply SQL file migrations after base schema exists
+        migration_mgr.apply_migrations()
 
     def _create_config_tables(self, conn: duckdb.DuckDBPyConnection) -> None:
         """Create configuration tables (6 tables)."""
@@ -153,6 +151,10 @@ class SchemaManager:
                 allow_crypto           BOOLEAN DEFAULT false,
                 allow_futures          BOOLEAN DEFAULT false,
                 max_position_size_pct  DOUBLE DEFAULT 10.0,
+                watchlist_refresh_minutes INTEGER DEFAULT 5,
+                watchlist_auto_expand    BOOLEAN DEFAULT false,
+                watchlist_price_weight   DOUBLE DEFAULT 50.0,
+                watchlist_technical_weight DOUBLE DEFAULT 50.0,
                 created_at             TIMESTAMP DEFAULT now(),
                 updated_at             TIMESTAMP DEFAULT now()
             )
@@ -242,6 +244,70 @@ class SchemaManager:
         # Create index for technical_indicators ticker lookups
         conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_indicators_ticker ON technical_indicators(ticker, date)
+        """)
+
+    def _create_watchlist_tables(self, conn: duckdb.DuckDBPyConnection) -> None:
+        """Create watchlist and reference tables (3 tables)."""
+        # reference_cache stores raw reference data per ticker/source
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS reference_cache (
+                ticker                 TEXT NOT NULL,
+                as_of_date             DATE NOT NULL,
+                payload                JSON NOT NULL,
+                source                 TEXT NOT NULL,
+                created_at             TIMESTAMP DEFAULT now(),
+                PRIMARY KEY (ticker, as_of_date, source)
+            )
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_reference_cache_ticker
+            ON reference_cache(ticker, as_of_date)
+        """)
+
+        # watchlist_items group tickers per account with metadata + notes
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS watchlist_items (
+                id                     TEXT PRIMARY KEY,
+                account_id             TEXT NOT NULL,
+                symbol                 TEXT NOT NULL,
+                metadata               JSON,
+                note                   TEXT,
+                created_at             TIMESTAMP DEFAULT now(),
+                updated_at             TIMESTAMP DEFAULT now(),
+                UNIQUE (account_id, symbol),
+                FOREIGN KEY (account_id) REFERENCES portfolio_accounts(id)
+            )
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_watchlist_items_account
+            ON watchlist_items(account_id, symbol)
+        """)
+
+        # watchlist_snapshots cache scoring outputs over time
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS watchlist_snapshots (
+                item_id                TEXT NOT NULL,
+                fetched_at             TIMESTAMP NOT NULL,
+                price                  DOUBLE,
+                change_pct             DOUBLE,
+                beta                   DOUBLE,
+                volatility             DOUBLE,
+                news_score             DOUBLE,
+                technical_score        DOUBLE,
+                fundamental_score      DOUBLE,
+                ai_score               DOUBLE,
+                ai_confidence          DOUBLE,
+                sector_score           DOUBLE,
+                competitor_score       DOUBLE,
+                overall_score          DOUBLE,
+                raw_metrics            JSON,
+                PRIMARY KEY (item_id, fetched_at),
+                FOREIGN KEY (item_id) REFERENCES watchlist_items(id)
+            )
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_watchlist_snapshots_item
+            ON watchlist_snapshots(item_id, fetched_at)
         """)
 
     def _create_metadata_tables(self, conn: duckdb.DuckDBPyConnection) -> None:
@@ -388,10 +454,13 @@ class SchemaManager:
             ("portfolio_accounts", "config", "Portfolio account definitions"),
             ("portfolio_positions", "config", "Portfolio position holdings"),
             ("user_preferences", "config", "User risk tolerance and trade preferences"),
+            ("reference_cache", "config", "Cached reference metadata for watchlist tickers"),
             ("price_cache", "timeseries", "Cached price and analytics data"),
             ("day_bars", "timeseries", "Historical daily OHLCV data"),
             ("minute_bars", "timeseries", "Intraday minute-level OHLCV data"),
             ("technical_indicators", "timeseries", "Cached technical indicator values"),
+            ("watchlist_items", "watchlist", "User watchlist items and notes"),
+            ("watchlist_snapshots", "watchlist", "Cached watchlist scoring snapshots"),
             ("agent_runs", "metadata", "Agent execution tracking"),
             ("agent_ideas", "metadata", "Investment ideas generated by agents"),
             ("agent_tool_calls", "metadata", "Tool calls made during agent execution"),
@@ -412,4 +481,4 @@ class SchemaManager:
                 [table_name, table_type, description],
             )
 
-        logger.debug("Populated table_registry with 16 entries")
+        logger.debug("Populated table_registry with %d entries", len(registry_entries))
