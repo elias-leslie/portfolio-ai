@@ -50,10 +50,23 @@ export function SparklineWithHistory({
     );
   }
 
-  // Transform historical data: extract overall scores, sort by timestamp, limit to 7 points
+  // Transform historical data: extract overall scores, filter out invalid values, limit to 7 points
   const scoreData = historyResponse.history
     .map((h) => h.overall_score)
+    .filter((score) => typeof score === "number" && !isNaN(score))
     .slice(-7); // Take last 7 data points
+
+  // If we don't have any valid data points, show placeholder
+  if (scoreData.length === 0) {
+    return (
+      <div
+        className="flex items-center justify-center text-xs text-text-muted"
+        style={{ width, height }}
+      >
+        —
+      </div>
+    );
+  }
 
   return (
     <Sparkline
