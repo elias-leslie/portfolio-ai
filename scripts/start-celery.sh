@@ -33,12 +33,13 @@ cd ~/portfolio-ai/backend
 # Activate virtual environment
 source .venv/bin/activate
 
-# Start Celery Worker
+# Start Celery Worker with limited concurrency to avoid DuckDB lock conflicts
 echo -e "\n${YELLOW}Starting Celery Worker...${NC}"
 celery -A app.celery_app worker \
     --loglevel=info \
     --logfile=/tmp/portfolio-ai-celery-worker.log \
     --pidfile=/tmp/portfolio-ai-celery-worker.pid \
+    --concurrency=2 \
     --detach
 
 if [ -f /tmp/portfolio-ai-celery-worker.pid ]; then
