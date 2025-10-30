@@ -18,6 +18,7 @@ import {
   type WatchlistItemUpdate,
   type RefreshResponse,
   type ScoreHistory,
+  type ScoreHistoryResponse,
   type RefreshStatus,
 } from "@/lib/api/watchlist";
 import { fetchPreferences } from "@/lib/api/preferences";
@@ -77,7 +78,7 @@ export function useWatchlistItem(itemId: string) {
  * Hook to fetch score history for an item
  */
 export function useScoreHistory(itemId: string) {
-  return useQuery<ScoreHistory[], Error>({
+  return useQuery<ScoreHistoryResponse, Error>({
     queryKey: watchlistKeys.history(itemId),
     queryFn: () => fetchScoreHistory(itemId),
     enabled: !!itemId,

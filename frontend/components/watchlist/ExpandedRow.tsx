@@ -20,9 +20,10 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [noteValue, setNoteValue] = useState(item.note || "");
   const updateMutation = useUpdateWatchlistItem();
-  const { data: history } = useScoreHistory(item.id);
+  const { data: historyResponse } = useScoreHistory(item.id);
 
   const hasScore = !!item.current_score;
+  const history = historyResponse?.history || [];
   const priceScore = item.current_score?.price;
   const techScore = item.current_score?.technical;
 

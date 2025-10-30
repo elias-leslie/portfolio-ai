@@ -20,7 +20,7 @@ export function SparklineWithHistory({
   height = 24,
   className,
 }: SparklineWithHistoryProps) {
-  const { data: history, isLoading, error } = useScoreHistory(itemId);
+  const { data: historyResponse, isLoading, error } = useScoreHistory(itemId);
 
   // Loading state
   if (isLoading) {
@@ -34,7 +34,12 @@ export function SparklineWithHistory({
   }
 
   // Error or empty state
-  if (error || !history || history.length === 0) {
+  if (
+    error ||
+    !historyResponse ||
+    !historyResponse.history ||
+    historyResponse.history.length === 0
+  ) {
     return (
       <div
         className="flex items-center justify-center text-xs text-text-muted"
@@ -46,7 +51,9 @@ export function SparklineWithHistory({
   }
 
   // Transform historical data: extract overall scores, sort by timestamp, limit to 7 points
-  const scoreData = history.map((h) => h.overall_score).slice(-7); // Take last 7 data points
+  const scoreData = historyResponse.history
+    .map((h) => h.overall_score)
+    .slice(-7); // Take last 7 data points
 
   return (
     <Sparkline

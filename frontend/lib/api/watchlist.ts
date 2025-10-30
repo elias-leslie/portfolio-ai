@@ -58,6 +58,12 @@ export interface ScoreHistory {
   technical_score: number;
 }
 
+export interface ScoreHistoryResponse {
+  item_id: string;
+  symbol: string;
+  history: ScoreHistory[];
+}
+
 export interface RefreshStatus {
   is_refreshing: boolean;
   started_at?: string;
@@ -219,7 +225,7 @@ export async function refreshWatchlistScores(
  */
 export async function fetchScoreHistory(
   itemId: string
-): Promise<ScoreHistory[]> {
+): Promise<ScoreHistoryResponse> {
   const response = await fetch(
     `${API_BASE_URL}/api/watchlist/${itemId}/history`,
     {
@@ -231,8 +237,12 @@ export async function fetchScoreHistory(
   );
 
   if (!response.ok) {
-    // History endpoint may not exist yet, return empty array
-    return [];
+    // History endpoint may not exist yet, return empty response
+    return {
+      item_id: itemId,
+      symbol: "",
+      history: [],
+    };
   }
 
   return response.json();
