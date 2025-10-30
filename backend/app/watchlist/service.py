@@ -304,12 +304,20 @@ def refresh_watchlist_scores(
         batches=total_batches,
     )
 
-    # Clear refresh status from Redis
+    # Update refresh status to completed (keep for 5 seconds for frontend polling)
     try:
         redis_client = _get_redis_client()
-        redis_client.delete(redis_key)
+        completed_data = {
+            "status": "completed",
+            "started_at": json.loads(redis_client.get(redis_key) or "{}").get("started_at"),
+            "total_items": total_items,
+            "processed_items": processed,
+            "current_symbol": None,
+            "is_refreshing": False,
+        }
+        redis_client.setex(redis_key, 5, json.dumps(completed_data))  # Keep for 5 seconds
     except Exception as e:
-        logger.warning("Failed to clear Redis refresh status", error=str(e))
+        logger.warning("Failed to update Redis refresh completion status", error=str(e))
 
     return {"processed": processed, "symbols": processed_symbols, "batches": total_batches}
 

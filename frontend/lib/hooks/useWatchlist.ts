@@ -36,12 +36,15 @@ export const watchlistKeys = {
 
 /**
  * Hook to fetch all watchlist items for an account
+ * Auto-refreshes every 30 seconds for live score updates
  */
 export function useWatchlist(accountId: string) {
   return useQuery<WatchlistListResponse, Error>({
     queryKey: watchlistKeys.list(accountId),
     queryFn: () => fetchWatchlistItems(accountId),
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 10, // 10 seconds
+    refetchInterval: 1000 * 30, // Refetch every 30 seconds for live updates
+    refetchIntervalInBackground: false,
     enabled: !!accountId,
   });
 }
@@ -145,18 +148,14 @@ export function useRefreshWatchlist() {
 
 /**
  * Hook to poll refresh status for an account's watchlist
- * Polls every 2 seconds when refresh is active
+ * Polls every 1 second when refresh is active or recently completed
  */
 export function useRefreshStatus(accountId: string, enabled = true) {
   return useQuery<RefreshStatus, Error>({
     queryKey: watchlistKeys.refreshStatus(accountId),
     queryFn: () => fetchRefreshStatus(accountId),
     enabled: !!accountId && enabled,
-    refetchInterval: (query) => {
-      // Poll every 2 seconds if refreshing, otherwise disable polling
-      const data = query.state.data;
-      return data?.is_refreshing ? 2000 : false;
-    },
+    refetchInterval: 1000, // Poll every 1 second to catch short refreshes
     refetchIntervalInBackground: false,
     staleTime: 0, // Always consider stale to enable polling
   });
