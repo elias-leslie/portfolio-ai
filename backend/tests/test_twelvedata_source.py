@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import datetime as dt
 import json
-import time
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -264,32 +263,47 @@ def test_twelvedata_client_rate_limiting() -> None:
             mock_http_client = MagicMock()
             mock_client_class.return_value = mock_http_client
 
-            # Create client with low rate limit for testing
-            client = TwelveDataClient(api_key="test_key", rate_calls_per_minute=2)
+            # Mock time.sleep and time.time to make test run instantly
+            mock_time = 0.0
+            sleep_calls = []
 
-            # Mock response
-            mock_response = MagicMock()
-            mock_response.status_code = 200
-            mock_response.json.return_value = {"status": "ok"}
-            mock_http_client.request.return_value = mock_response
+            def mock_sleep(seconds: float) -> None:
+                nonlocal mock_time
+                sleep_calls.append(seconds)
+                mock_time += seconds
 
-            # Make first request - should go through immediately
-            start_time = time.time()
-            client.get("/test")
-            first_call_time = time.time() - start_time
+            def mock_time_func() -> float:
+                return mock_time
 
-            # First call should be fast (< 0.1s)
-            assert first_call_time < 0.1
+            with (
+                patch("time.sleep", side_effect=mock_sleep),
+                patch("time.time", side_effect=mock_time_func),
+            ):
+                # Create client with low rate limit for testing
+                client = TwelveDataClient(api_key="test_key", rate_calls_per_minute=2)
 
-            # Make second request - should also go through
-            client.get("/test")
+                # Mock response
+                mock_response = MagicMock()
+                mock_response.status_code = 200
+                mock_response.json.return_value = {"status": "ok"}
+                mock_http_client.request.return_value = mock_response
 
-            # Make third request - should trigger rate limit wait
-            # (we set rate_calls_per_minute=2, so third request should wait)
-            client.get("/test")
+                # Make first request - should go through immediately
+                client.get("/test")
+                assert len(sleep_calls) == 0  # No sleep on first call
 
-            # Verify throttle was called and all requests completed
-            assert client.request_count == 3
+                # Make second request - should also go through
+                client.get("/test")
+                assert len(sleep_calls) == 0  # No sleep on second call (within rate limit)
+
+                # Make third request - should trigger rate limit wait
+                # (we set rate_calls_per_minute=2, so third request should wait)
+                client.get("/test")
+                assert len(sleep_calls) == 1  # Sleep was called once
+                assert sleep_calls[0] > 0  # Sleep time should be positive
+
+                # Verify all requests completed
+                assert client.request_count == 3
 
 
 def test_twelvedata_source_is_enabled() -> None:
