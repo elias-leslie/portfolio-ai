@@ -106,6 +106,23 @@ def _load_default_weights(storage: DuckDBStorage) -> ScoreWeights:
     )
 
 
+def _load_stale_ttl_minutes(storage: DuckDBStorage) -> int:
+    """Load stale TTL from preferences (3x refresh interval)."""
+    df = storage.query(
+        """
+        SELECT watchlist_refresh_minutes
+        FROM user_preferences
+        ORDER BY updated_at DESC
+        LIMIT 1
+        """
+    )
+    if df.is_empty():
+        return 15  # Default: 3x 5min refresh = 15min
+
+    refresh_minutes = df.to_dicts()[0].get("watchlist_refresh_minutes", 5)
+    return int(refresh_minutes * 3)  # Stale = 3x refresh interval
+
+
 def _calculate_price_change(
     storage: DuckDBStorage, symbol: str, price: float | None
 ) -> float | None:
@@ -194,6 +211,7 @@ def refresh_watchlist_scores(
     fetcher = price_fetcher or PriceDataFetcher(storage)
     technical_map = _load_latest_technical(storage, symbols)
     default_weights = _load_default_weights(storage)
+    stale_ttl_minutes = _load_stale_ttl_minutes(storage)
 
     # Batch symbols to respect API rate limits
     symbol_batches = [symbols[i : i + batch_size] for i in range(0, len(symbols), batch_size)]
@@ -278,6 +296,7 @@ def refresh_watchlist_scores(
                 technical=technical_snapshot,
                 weights=default_weights,
                 now=now,
+                stale_ttl_minutes=stale_ttl_minutes,
             )
         )
 
@@ -461,6 +480,7 @@ class WatchlistService:
         technical_snapshot.price = price_data.price
 
         default_weights = _load_default_weights(self.storage)
+        stale_ttl_minutes = _load_stale_ttl_minutes(self.storage)
         now = datetime.now(UTC)
 
         breakdown = calculate_watchlist_scores(
@@ -470,6 +490,7 @@ class WatchlistService:
                 technical=technical_snapshot,
                 weights=default_weights,
                 now=now,
+                stale_ttl_minutes=stale_ttl_minutes,
             )
         )
 

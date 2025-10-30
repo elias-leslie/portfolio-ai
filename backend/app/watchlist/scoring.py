@@ -66,7 +66,9 @@ def _score_from_trend(
     return (composite + 0.2) / 0.4 * 100.0
 
 
-def _compute_price_component(inputs: PriceComponentInputs, weight: float) -> ScoreComponent:
+def _compute_price_component(
+    inputs: PriceComponentInputs, weight: float, stale_ttl_minutes: int = 15
+) -> ScoreComponent:
     now = inputs.now
     price_data = inputs.price_data
     change_pct = inputs.change_pct
@@ -75,7 +77,7 @@ def _compute_price_component(inputs: PriceComponentInputs, weight: float) -> Sco
     if cached_at.tzinfo is None:
         cached_at = cached_at.replace(tzinfo=UTC)
 
-    stale = _is_stale(cached_at, PRICE_STALE_TTL_MINUTES, now)
+    stale = _is_stale(cached_at, stale_ttl_minutes, now)
     metadata: dict[str, Any] = {
         "source": price_data.source,
         "cached_at": cached_at.isoformat(),
@@ -104,11 +106,12 @@ def _compute_technical_component(
     technical: TechnicalSnapshot,
     weight: float,
     now: datetime,
+    stale_ttl_minutes: int = 15,
 ) -> ScoreComponent:
     if technical.calculated_at is None:
         stale = True
     else:
-        stale = _is_stale(technical.calculated_at, TECHNICAL_STALE_TTL_MINUTES, now)
+        stale = _is_stale(technical.calculated_at, stale_ttl_minutes, now)
 
     component_scores: list[float] = []
     metadata: dict[str, Any] = {}
@@ -167,12 +170,14 @@ def calculate_watchlist_scores(inputs: WatchlistScoreInputs) -> ScoreBreakdown:
             now=now,
         ),
         weight=weights["price"],
+        stale_ttl_minutes=inputs.stale_ttl_minutes,
     )
 
     technical_component = _compute_technical_component(
         inputs.technical,
         weight=weights["technical"],
         now=now,
+        stale_ttl_minutes=inputs.stale_ttl_minutes,
     )
 
     overall = (
