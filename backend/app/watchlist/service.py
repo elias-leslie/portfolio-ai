@@ -205,6 +205,18 @@ def refresh_watchlist_scores(
             continue
 
         change_pct = _calculate_price_change(storage, symbol, price_data.price)
+
+        # Skip refresh if historical data is missing (prevents score degradation)
+        # This happens when a ticker is newly added but historical data hasn't been ingested yet
+        if change_pct is None:
+            logger.info(
+                "watchlist_refresh_skipped_missing_historical_data",
+                symbol=symbol,
+                item_id=item_id,
+                reason="Insufficient day_bars data (need at least 2 days for change_pct calculation)",
+            )
+            continue
+
         technical_snapshot = technical_map.get(symbol, TechnicalSnapshot())
         technical_snapshot.price = price_data.price
 
@@ -361,16 +373,26 @@ class WatchlistService:
         Args:
             item_id: Watchlist item ID
             symbol: Stock symbol
+
+        Raises:
+            ValueError: If unable to fetch price data or insufficient historical data
         """
         price_data = self.price_fetcher.fetch_price_data([symbol]).get(symbol)
         if not price_data or price_data.price <= 0:
             raise ValueError(f"Unable to fetch price data for {symbol}")
 
+        change_pct = _calculate_price_change(self.storage, symbol, price_data.price)
+
+        # Require historical data for meaningful scores
+        if change_pct is None:
+            raise ValueError(
+                f"Insufficient historical data for {symbol} - need at least 2 days in day_bars table"
+            )
+
         technical_map = _load_latest_technical(self.storage, [symbol])
         technical_snapshot = technical_map.get(symbol, TechnicalSnapshot())
         technical_snapshot.price = price_data.price
 
-        change_pct = _calculate_price_change(self.storage, symbol, price_data.price)
         default_weights = _load_default_weights(self.storage)
         now = datetime.now(UTC)
 

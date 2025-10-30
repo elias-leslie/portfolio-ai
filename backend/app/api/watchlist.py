@@ -205,7 +205,9 @@ async def create_watchlist_item(data: WatchlistItemCreate) -> WatchlistItemRespo
             )  # Wait 30s for ingestion
             logger.info("Scheduled technical indicators calculation", symbol=symbol)
 
-            # Refresh watchlist scores (will run after indicators complete)
+            # Refresh watchlist scores for the entire account after data ingestion
+            # Note: The refresh logic now safely skips tickers without sufficient historical data,
+            # preventing score degradation for existing tickers
             refresh_watchlist_scores_task.apply_async(
                 args=[data.account_id], countdown=60
             )  # Wait 60s for everything
