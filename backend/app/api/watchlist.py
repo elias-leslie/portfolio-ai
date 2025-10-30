@@ -10,6 +10,11 @@ from pydantic import BaseModel, Field
 
 from app.logging_config import get_logger
 from app.storage import get_storage
+from app.tasks.agent_tasks import (
+    ingest_historical_ohlcv,
+    refresh_watchlist_scores_task,
+    update_technical_indicators,
+)
 from app.watchlist.service import WatchlistService
 
 logger = get_logger(__name__)
@@ -185,6 +190,32 @@ async def create_watchlist_item(data: WatchlistItemCreate) -> WatchlistItemRespo
         )
 
         logger.info("Watchlist item created", item_id=item_id, symbol=symbol)
+
+        # Trigger background data population for the new ticker
+        try:
+            # Ingest 200 days of historical OHLCV data
+            ingest_historical_ohlcv.delay(tickers=[symbol], days=200)
+            logger.info("Triggered historical data ingestion", symbol=symbol)
+
+            # Calculate technical indicators (will run after ingestion completes)
+            update_technical_indicators.apply_async(
+                args=[[symbol]], countdown=30
+            )  # Wait 30s for ingestion
+            logger.info("Scheduled technical indicators calculation", symbol=symbol)
+
+            # Refresh watchlist scores (will run after indicators complete)
+            refresh_watchlist_scores_task.apply_async(
+                args=[data.account_id], countdown=60
+            )  # Wait 60s for everything
+            logger.info("Scheduled watchlist score refresh", account_id=data.account_id)
+
+        except Exception as bg_error:
+            # Log but don't fail the request - background tasks are async
+            logger.warning(
+                "Failed to trigger background tasks",
+                symbol=symbol,
+                error=str(bg_error),
+            )
 
         return WatchlistItemResponse(
             id=item_id,
@@ -459,8 +490,30 @@ async def refresh_watchlist_scores(data: RefreshRequest) -> RefreshResponse:
             )
 
         items = items_df.to_dicts()
+        tickers = [item["symbol"] for item in items]
 
-        # Refresh scores for each item
+        # Trigger background data refresh for ALL tickers
+        try:
+            # Fetch latest OHLCV data (last 5 days to update recent bars)
+            ingest_historical_ohlcv.delay(tickers=tickers, days=5)
+            logger.info("Triggered OHLCV data refresh", tickers=tickers, account_id=account_id)
+
+            # Update technical indicators (will run after ingestion completes)
+            update_technical_indicators.apply_async(args=[tickers], countdown=15)
+            logger.info("Scheduled technical indicators update", tickers=tickers)
+
+            # Refresh watchlist scores (will run after indicators complete)
+            refresh_watchlist_scores_task.apply_async(args=[account_id], countdown=30)
+            logger.info("Scheduled watchlist score refresh", account_id=account_id)
+
+        except Exception as bg_error:
+            logger.warning(
+                "Failed to trigger background refresh tasks",
+                account_id=account_id,
+                error=str(bg_error),
+            )
+
+        # Also do immediate synchronous refresh
         refreshed = 0
         for item in items:
             try:
@@ -478,7 +531,7 @@ async def refresh_watchlist_scores(data: RefreshRequest) -> RefreshResponse:
 
         return RefreshResponse(
             status="success",
-            message=f"Refreshed {refreshed} of {len(items)} items",
+            message=f"Refreshed {refreshed} of {len(items)} items (background data fetch queued)",
             refreshed_count=refreshed,
         )
     except Exception as e:

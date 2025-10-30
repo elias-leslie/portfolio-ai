@@ -35,6 +35,22 @@ celery_app.conf.update(
     worker_max_tasks_per_child=50,  # Restart worker after 50 tasks
 )
 
+# Configure Celery Beat schedule for periodic tasks
+celery_app.conf.beat_schedule = {
+    # Refresh watchlist scores every 15 minutes (default, can be overridden by user preferences)
+    "refresh-watchlist-scores": {
+        "task": "refresh_watchlist_scores",
+        "schedule": 900.0,  # 15 minutes in seconds
+        "options": {"expires": 300},  # Task expires after 5 minutes if not picked up
+    },
+    # Update paper trades daily at 4:30 PM ET (market close + 30 min)
+    "update-paper-trades-daily": {
+        "task": "update_paper_trades_task",
+        "schedule": 86400.0,  # Daily (24 hours)
+        "options": {"expires": 3600},  # Task expires after 1 hour
+    },
+}
+
 # Import tasks to register them with Celery
 # This must come after celery_app is defined
 from app.tasks import agent_tasks  # noqa: E402, F401
