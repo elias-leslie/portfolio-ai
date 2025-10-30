@@ -16,7 +16,13 @@ from app.tasks.agent_tasks import (
     refresh_watchlist_scores_task,
     update_technical_indicators,
 )
-from app.watchlist.service import WatchlistService, _get_redis_client
+from app.watchlist.service import (
+    WatchlistService,
+    _get_redis_client,
+)
+from app.watchlist.service import (
+    refresh_watchlist_scores as refresh_watchlist_scores_service,
+)
 
 logger = get_logger(__name__)
 
@@ -604,19 +610,9 @@ async def refresh_watchlist_scores(data: RefreshRequest) -> RefreshResponse:
                 error=str(bg_error),
             )
 
-        # Also do immediate synchronous refresh
-        refreshed = 0
-        for item in items:
-            try:
-                watchlist_service.refresh_scores(item["id"], item["symbol"])
-                refreshed += 1
-            except Exception as e:
-                logger.warning(
-                    "Failed to refresh score for item",
-                    item_id=item["id"],
-                    symbol=item["symbol"],
-                    error=str(e),
-                )
+        # Do immediate synchronous refresh with Redis progress tracking
+        result = refresh_watchlist_scores_service(storage, account_id=account_id)
+        refreshed = result.get("processed", 0)
 
         logger.info("Watchlist scores refreshed", account_id=account_id, count=refreshed)
 
