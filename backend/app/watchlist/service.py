@@ -253,7 +253,8 @@ def refresh_watchlist_scores(
         # Update refresh status for current symbol
         try:
             redis_client = _get_redis_client()
-            status_data = json.loads(redis_client.get(redis_key) or "{}")
+            redis_value = redis_client.get(redis_key)
+            status_data = json.loads(str(redis_value) if redis_value else "{}")
             status_data.update(
                 {
                     "current_symbol": symbol,
@@ -326,9 +327,11 @@ def refresh_watchlist_scores(
     # Update refresh status to completed (keep for 5 seconds for frontend polling)
     try:
         redis_client = _get_redis_client()
+        redis_value = redis_client.get(redis_key)
+        existing_data = json.loads(str(redis_value) if redis_value else "{}")
         completed_data = {
             "status": "completed",
-            "started_at": json.loads(redis_client.get(redis_key) or "{}").get("started_at"),
+            "started_at": existing_data.get("started_at"),
             "total_items": total_items,
             "processed_items": processed,
             "current_symbol": None,

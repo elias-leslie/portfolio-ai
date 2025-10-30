@@ -127,7 +127,7 @@ class PostgreSQLDuckDBWrapper:
             pandas DataFrame with query results.
         """
         try:
-            import pandas as pd  # noqa: PLC0415
+            import pandas as pd  # noqa: PLC0415  # type: ignore[import-untyped]
 
             # Get column names from cursor description
             if self._cursor.description is None:
@@ -259,10 +259,10 @@ class ConnectionManager:
             >>> mgr = ConnectionManager("postgresql://user:pass@localhost:5432/db")
             >>> mgr = ConnectionManager()  # Uses DATABASE_URL env var
         """
-        self.database_url = database_url or os.getenv(
+        self.database_url: str = database_url or os.getenv(
             "DATABASE_URL",
             "postgresql://portfolio_ai_user:REDACTED_PASSWORD@localhost:5432/portfolio_ai",
-        )
+        )  # type: ignore[assignment]
 
         # Create SQLAlchemy engine with connection pooling
         self.engine: Engine = create_engine(

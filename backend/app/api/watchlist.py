@@ -283,7 +283,7 @@ async def get_refresh_status(account_id: str) -> RefreshStatusResponse:
                 percent_complete=None,
             )
 
-        status_data = json.loads(status_json)
+        status_data = json.loads(str(status_json))
         started_at_str = status_data.get("started_at")
         total_items = status_data.get("total_items", 0)
         processed_items = status_data.get("processed_items", 0)
