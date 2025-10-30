@@ -16,17 +16,23 @@
 ## Summary
 
 **✅ COMPLETE:**
-- (None yet)
+- **Critical Bug Fix**: Fixed database deadlock in `upsert_by_id` causing test hangs (test_portfolio_manager.py)
+- **Performance Fix**: Optimized rate limiting tests (160x faster, 90s → 0.5s)
+- **Phase 1.0 Investigation**: Verified PRD #0016 complete, audited DuckDB references, gathered test status
+  - Test suite: 302/306 passing (98.7%), 2 pre-existing failures, 2 skipped
+  - Test runtime: 54s (was 175s, 3.2x faster)
+  - PRD #0016: CONFIRMED COMPLETE (all 6 sources in price_fetcher.py:60-98)
+  - DuckDB refs: pyproject.toml:14, .pre-commit-config.yaml:42, 7 root docs, 28 core docs
 
 **🔄 IN PROGRESS:**
-- (Not started)
+- Phase 2: Dependency & Configuration Cleanup (ready to start)
 
 **⚠️ NEXT STEPS:**
-1. Begin with Task 1.0 (Investigation & Audit)
-2. Complete Phase 1 before moving to Phase 2
-3. Update this summary as work progresses
+1. Phase 2: Remove DuckDB dependencies from config files
+2. Phase 3: Documentation overhaul (update all DuckDB → PostgreSQL)
+3. Phase 4-7: Test integrity, CI gates, code quality, verification
 
-**EFFORT TO COMPLETE:** High (21-28 hours, ~2.5-3.5 days)
+**EFFORT TO COMPLETE:** High (~18-24 hours remaining, ~2-3 days)
 
 ---
 
