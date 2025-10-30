@@ -39,7 +39,8 @@ repos:
           - pydantic>=2.7.0
           - types-requests>=2.31.0
           - types-PyYAML>=6.0.12
-          - duckdb>=1.4.0
+          - sqlalchemy>=2.0.44
+          - psycopg2-binary>=2.9.11
           - polars>=1.6.0
           - httpx>=0.24.0
           - structlog>=24.1.0

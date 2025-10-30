@@ -1,6 +1,7 @@
-"""DuckDB metadata management operations.
+"""PostgreSQL metadata management operations.
 
 This module handles table metadata tracking and database status operations.
+Uses PostgreSQLDuckDBWrapper for DuckDB-compatible interface over PostgreSQL.
 """
 
 from __future__ import annotations
@@ -8,9 +9,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-import duckdb
-
+# Type hint only - actual connection is PostgreSQL via PostgreSQLDuckDBWrapper
+# See connection.py for wrapper implementation
 if TYPE_CHECKING:
+    import duckdb  # type: ignore[import-not-found]
+
     from .connection import ConnectionManager
 
 logger = logging.getLogger(__name__)

@@ -66,7 +66,7 @@ class IngestionManager:
 
             # Update metadata if manager exists
             if self.metadata_mgr:
-                self.metadata_mgr.update_table_metadata(conn, table_name)  # type: ignore[arg-type]
+                self.metadata_mgr.update_table_metadata(conn, table_name)
 
             logger.info(f"Inserted {row_count} rows into {table_name}")
             return row_count
@@ -113,7 +113,7 @@ class IngestionManager:
 
             # Update metadata if manager exists
             if self.metadata_mgr:
-                self.metadata_mgr.update_table_metadata(conn, table_name)  # type: ignore[arg-type]
+                self.metadata_mgr.update_table_metadata(conn, table_name)
 
             logger.info(f"Upserted {row_count} rows in {table_name}")
             return row_count

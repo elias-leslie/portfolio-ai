@@ -14,8 +14,8 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import create_engine, pool  # type: ignore[import-not-found]
-from sqlalchemy.engine import Engine  # type: ignore[import-not-found]
+from sqlalchemy import create_engine, pool
+from sqlalchemy.engine import Engine
 
 if TYPE_CHECKING:
     pass

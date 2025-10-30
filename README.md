@@ -20,8 +20,9 @@ See **[HANDOFF_NOTES.md](./HANDOFF_NOTES.md)** for detailed testing checklist.
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.11+
+- Python 3.13+
 - Node.js 18+
+- PostgreSQL 16
 - Anthropic API key (for AI agents)
 
 ### Backend Setup
@@ -77,9 +78,9 @@ See **[docs/core/ARCHITECTURE.md](./docs/core/ARCHITECTURE.md)** for comprehensi
 
 **High-level stack**:
 - **Frontend**: Next.js 14, React Query, shadcn/ui, Tailwind CSS
-- **Backend**: FastAPI, DuckDB, Pydantic
+- **Backend**: FastAPI, PostgreSQL 16, SQLAlchemy, Pydantic
 - **AI**: Anthropic Claude API
-- **Data**: yfinance, FRED, Google News RSS
+- **Data**: Multi-source failover (YFinance, TwelveData, FMP, Polygon, Finnhub, AlphaVantage), FRED, Google News RSS
 
 ## 📊 Key Features
 
@@ -124,10 +125,10 @@ npm run build
 │   │   ├── agents/       # AI agent system
 │   │   ├── api/          # API routers
 │   │   ├── portfolio/    # Portfolio management
-│   │   ├── sources/      # Data sources (yfinance, FRED, News)
-│   │   └── storage/      # DuckDB storage layer
-│   ├── tests/            # 121 tests
-│   └── data/             # DuckDB database (auto-created)
+│   │   ├── sources/      # Data sources (multi-source failover)
+│   │   └── storage/      # PostgreSQL storage layer
+│   ├── tests/            # 306 tests (99.3% passing)
+│   └── data/             # Database backups only (PostgreSQL managed externally)
 ├── frontend/             # Next.js 14 application
 │   ├── app/              # Pages (dashboard, portfolio, settings, ideas)
 │   ├── components/       # React components

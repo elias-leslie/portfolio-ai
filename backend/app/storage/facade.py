@@ -1,7 +1,8 @@
-"""DuckDB storage facade integrating all manager classes.
+"""PostgreSQL storage facade integrating all manager classes.
 
-This module provides the main DuckDBStorage class that delegates operations
-to specialized managers while maintaining a unified API.
+This module provides the main DuckDBStorage class (name kept for backward compatibility)
+that delegates operations to specialized managers while maintaining a unified API.
+Uses PostgreSQLDuckDBWrapper for DuckDB-compatible interface over PostgreSQL.
 """
 
 from __future__ import annotations
@@ -9,10 +10,14 @@ from __future__ import annotations
 import logging
 from contextlib import AbstractContextManager
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import duckdb
 import polars as pl
+
+# Type hint only - actual connection is PostgreSQL via PostgreSQLDuckDBWrapper
+# See connection.py for wrapper implementation
+if TYPE_CHECKING:
+    import duckdb  # type: ignore[import-not-found]
 
 from .connection import get_connection_manager
 from .ingestion import IngestionManager
@@ -62,7 +67,7 @@ class DuckDBStorage:
         Yields:
             duckdb.DuckDBPyConnection: Active database connection.
         """
-        return self.connection_mgr.connection()  # type: ignore[return-value]
+        return self.connection_mgr.connection()
 
     # Schema methods
     def ensure_schema(self) -> None:

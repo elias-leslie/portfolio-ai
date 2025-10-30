@@ -16,6 +16,7 @@ tests/test_api_ideas.py
 tests/test_api_market.py
 tests/test_api_portfolio.py
 tests/test_api_preferences.py
+tests/test_api_watchlist.py
 tests/test_discovery_agent.py
 tests/test_finnhub_source.py
 tests/test_fmp_source.py
@@ -24,6 +25,7 @@ tests/test_integration_portfolio_crud.py
 tests/test_jsonpath_mapper.py
 tests/test_logging_config.py
 tests/test_multi_source.py
+tests/test_multi_source_price_fetcher.py
 tests/test_peers.py
 tests/test_portfolio_analytics.py
 tests/test_portfolio_analyzer.py
