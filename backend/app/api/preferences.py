@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import cast
 
 from fastapi import APIRouter
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.storage import get_storage
 
@@ -34,6 +34,7 @@ class PreferencesResponse(BaseModel):
     watchlist_technical_weight: float = Field(
         ..., description="Weight for technical score component"
     )
+    display_timezone: str = Field(..., description="User's preferred display timezone")
 
 
 class PreferencesUpdate(BaseModel):
@@ -58,6 +59,31 @@ class PreferencesUpdate(BaseModel):
     watchlist_technical_weight: float | None = Field(
         None, ge=0, le=100, description="Weight for technical score component (0-100)"
     )
+    display_timezone: str | None = Field(
+        None, description="User's preferred display timezone (USA timezones only)"
+    )
+
+    @field_validator("display_timezone")
+    @classmethod
+    def validate_timezone(cls, v: str | None) -> str | None:
+        """Validate timezone is one of the 6 supported USA timezones."""
+        if v is None:
+            return v
+
+        valid_timezones = {
+            "America/New_York",
+            "America/Chicago",
+            "America/Denver",
+            "America/Los_Angeles",
+            "America/Anchorage",
+            "Pacific/Honolulu",
+        }
+
+        if v not in valid_timezones:
+            msg = f"Invalid timezone. Must be one of: {', '.join(sorted(valid_timezones))}"
+            raise ValueError(msg)
+
+        return v
 
 
 def _get_or_create_preferences() -> dict[str, object]:
@@ -82,8 +108,9 @@ def _get_or_create_preferences() -> dict[str, object]:
                 allow_crypto, allow_futures, max_position_size_pct,
                 watchlist_refresh_minutes, watchlist_auto_expand,
                 watchlist_price_weight, watchlist_technical_weight,
+                display_timezone,
                 created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 user_id,
@@ -98,6 +125,7 @@ def _get_or_create_preferences() -> dict[str, object]:
                 False,
                 50.0,
                 50.0,
+                "America/New_York",
                 datetime.now(),
                 datetime.now(),
             ],
@@ -117,6 +145,7 @@ def _get_or_create_preferences() -> dict[str, object]:
         "watchlist_auto_expand": False,
         "watchlist_price_weight": 50.0,
         "watchlist_technical_weight": 50.0,
+        "display_timezone": "America/New_York",
         "created_at": datetime.now(),
         "updated_at": datetime.now(),
     }
@@ -139,6 +168,7 @@ async def get_preferences() -> PreferencesResponse:
         watchlist_auto_expand=cast(bool, prefs["watchlist_auto_expand"]),
         watchlist_price_weight=cast(float, prefs["watchlist_price_weight"]),
         watchlist_technical_weight=cast(float, prefs["watchlist_technical_weight"]),
+        display_timezone=cast(str, prefs["display_timezone"]),
     )
 
 
@@ -171,6 +201,8 @@ async def update_preferences(update: PreferencesUpdate) -> PreferencesResponse:
         current["watchlist_price_weight"] = update.watchlist_price_weight
     if update.watchlist_technical_weight is not None:
         current["watchlist_technical_weight"] = update.watchlist_technical_weight
+    if update.display_timezone is not None:
+        current["display_timezone"] = update.display_timezone
 
     # Save to database
     with storage.connection() as conn:
@@ -188,6 +220,7 @@ async def update_preferences(update: PreferencesUpdate) -> PreferencesResponse:
                 watchlist_auto_expand = ?,
                 watchlist_price_weight = ?,
                 watchlist_technical_weight = ?,
+                display_timezone = ?,
                 updated_at = ?
             WHERE id = ?
             """,
@@ -203,6 +236,7 @@ async def update_preferences(update: PreferencesUpdate) -> PreferencesResponse:
                 current["watchlist_auto_expand"],
                 current["watchlist_price_weight"],
                 current["watchlist_technical_weight"],
+                current["display_timezone"],
                 datetime.now(),
                 current["id"],
             ],
@@ -221,4 +255,5 @@ async def update_preferences(update: PreferencesUpdate) -> PreferencesResponse:
         watchlist_auto_expand=cast(bool, current["watchlist_auto_expand"]),
         watchlist_price_weight=cast(float, current["watchlist_price_weight"]),
         watchlist_technical_weight=cast(float, current["watchlist_technical_weight"]),
+        display_timezone=cast(str, current["display_timezone"]),
     )
