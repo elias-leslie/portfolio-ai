@@ -20,6 +20,7 @@ import {
   type ScoreHistory,
   type RefreshStatus,
 } from "@/lib/api/watchlist";
+import { fetchPreferences } from "@/lib/api/preferences";
 
 // Query keys
 export const watchlistKeys = {
@@ -36,14 +37,26 @@ export const watchlistKeys = {
 
 /**
  * Hook to fetch all watchlist items for an account
- * Auto-refreshes every 30 seconds for live score updates
+ * Auto-refreshes based on user preferences (default: 5 minutes)
  */
 export function useWatchlist(accountId: string) {
+  // Fetch preferences to get refresh interval
+  const { data: preferences } = useQuery({
+    queryKey: ["preferences"],
+    queryFn: fetchPreferences,
+    staleTime: 1000 * 60 * 15, // Preferences are fresh for 15 minutes
+  });
+
+  // Use preference or fallback to 5 minutes
+  const refreshMinutes = preferences?.watchlist_refresh_minutes ?? 5;
+  const refreshIntervalMs = refreshMinutes * 60 * 1000; // Convert to milliseconds
+  const staleTimeMs = refreshMinutes * 3 * 60 * 1000; // 3x refresh interval
+
   return useQuery<WatchlistListResponse, Error>({
     queryKey: watchlistKeys.list(accountId),
     queryFn: () => fetchWatchlistItems(accountId),
-    staleTime: 1000 * 60 * 15, // 15 minutes - data is considered fresh for this long
-    refetchInterval: 1000 * 30, // Refetch every 30 seconds for live updates
+    staleTime: staleTimeMs, // Data stale after 3x refresh interval
+    refetchInterval: refreshIntervalMs, // Refetch based on user preference
     refetchIntervalInBackground: false,
     enabled: !!accountId,
   });
