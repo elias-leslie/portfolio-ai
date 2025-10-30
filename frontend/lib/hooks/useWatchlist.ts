@@ -42,7 +42,7 @@ export function useWatchlist(accountId: string) {
   return useQuery<WatchlistListResponse, Error>({
     queryKey: watchlistKeys.list(accountId),
     queryFn: () => fetchWatchlistItems(accountId),
-    staleTime: 1000 * 10, // 10 seconds
+    staleTime: 1000 * 60 * 15, // 15 minutes - data is considered fresh for this long
     refetchInterval: 1000 * 30, // Refetch every 30 seconds for live updates
     refetchIntervalInBackground: false,
     enabled: !!accountId,
