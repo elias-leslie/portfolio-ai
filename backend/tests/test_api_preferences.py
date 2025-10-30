@@ -111,6 +111,7 @@ def test_get_preferences_returns_existing(client: TestClient, test_storage: Duck
                 datetime.now(),
             ],
         )
+        conn.commit()  # Commit the insert
 
     response = client.get("/api/preferences")
 

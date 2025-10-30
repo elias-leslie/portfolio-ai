@@ -116,6 +116,31 @@ class PostgreSQLDuckDBWrapper:
         """
         return self.pl()
 
+    def df(self) -> Any:
+        """Fetch results as pandas DataFrame (DuckDB compatibility).
+
+        Returns:
+            pandas DataFrame with query results.
+        """
+        try:
+            import pandas as pd  # noqa: PLC0415
+
+            # Get column names from cursor description
+            if self._cursor.description is None:
+                # No results to convert
+                return pd.DataFrame()
+
+            columns = [desc[0] for desc in self._cursor.description]
+            rows = self._cursor.fetchall()
+
+            # Create pandas DataFrame
+            if not rows:
+                return pd.DataFrame(columns=columns)
+
+            return pd.DataFrame(rows, columns=columns)
+        except ImportError as e:
+            raise ImportError("pandas is required for .df() method") from e
+
     def commit(self) -> None:
         """Commit current transaction."""
         self._conn.commit()
