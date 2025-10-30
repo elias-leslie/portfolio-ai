@@ -271,6 +271,22 @@ def ingest_historical_ohlcv(  # type: ignore[no-untyped-def]
                     ingest_run_id=ingest_run_id,
                 )
 
+            # Reorder columns to match day_bars table schema
+            # Table expects: ticker, date, open, high, low, close, volume, vwap, source, ingest_run_id
+            column_order = [
+                "ticker",
+                "date",
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "vwap",
+                "source",
+                "ingest_run_id",
+            ]
+            result_df = result_df.select(column_order)
+
             # Insert into database (replace existing data for same ticker/date)
             logger.info(
                 "ingest_inserting_data",
