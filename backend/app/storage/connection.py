@@ -65,8 +65,13 @@ class ConnectionManager:
             ...     # connection automatically closed after block
         """
         logger.debug(f"Opening DuckDB connection to {self.db_path}")
-        conn = duckdb.connect(str(self.db_path))
+        # Open with read_write access for concurrent operations
+        # DuckDB handles concurrency automatically with its MVCC system
+        conn = duckdb.connect(str(self.db_path), read_only=False)
         try:
+            # Configure for better concurrent performance
+            conn.execute("SET enable_object_cache=true")
+            conn.execute("SET threads=2")  # Limit threads per connection
             yield conn
         finally:
             conn.close()
