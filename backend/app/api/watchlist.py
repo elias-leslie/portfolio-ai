@@ -181,13 +181,15 @@ async def create_watchlist_item(data: WatchlistItemCreate) -> WatchlistItemRespo
         item_id = str(datetime.now(UTC).timestamp()).replace(".", "")
         now = datetime.now(UTC).isoformat()
 
-        storage.query(
-            """
-            INSERT INTO watchlist_items (id, account_id, symbol, note, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            [item_id, data.account_id, symbol, data.note, now, now],
-        )
+        with storage.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO watchlist_items (id, account_id, symbol, note, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                [item_id, data.account_id, symbol, data.note, now, now],
+            )
+            conn.commit()
 
         logger.info("Watchlist item created", item_id=item_id, symbol=symbol)
 
@@ -322,14 +324,16 @@ async def update_watchlist_item(item_id: str, data: WatchlistItemUpdate) -> Watc
         now = datetime.now(UTC).isoformat()
 
         # Update note
-        storage.query(
-            """
-            UPDATE watchlist_items
-            SET note = ?, updated_at = ?
-            WHERE id = ?
-            """,
-            [data.note, now, item_id],
-        )
+        with storage.connection() as conn:
+            conn.execute(
+                """
+                UPDATE watchlist_items
+                SET note = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                [data.note, now, item_id],
+            )
+            conn.commit()
 
         logger.info("Watchlist item updated", item_id=item_id)
 
@@ -362,21 +366,21 @@ async def delete_watchlist_item(item_id: str) -> None:
         if items_df.is_empty():
             raise HTTPException(status_code=404, detail="Watchlist item not found")
 
-        # Delete snapshots first (foreign key)
-        storage.query(
-            """
-            DELETE FROM watchlist_snapshots WHERE item_id = ?
-            """,
-            [item_id],
-        )
-
-        # Delete item
-        storage.query(
-            """
-            DELETE FROM watchlist_items WHERE id = ?
-            """,
-            [item_id],
-        )
+        # Delete snapshots first (foreign key), then delete item
+        with storage.connection() as conn:
+            conn.execute(
+                """
+                DELETE FROM watchlist_snapshots WHERE item_id = ?
+                """,
+                [item_id],
+            )
+            conn.execute(
+                """
+                DELETE FROM watchlist_items WHERE id = ?
+                """,
+                [item_id],
+            )
+            conn.commit()
 
         logger.info("Watchlist item deleted", item_id=item_id)
     except HTTPException:
