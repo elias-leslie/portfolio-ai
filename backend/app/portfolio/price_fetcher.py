@@ -16,9 +16,13 @@ import polars as pl
 
 from ..constants import DEFAULT_PRICE_CACHE_TTL_MINUTES
 from ..logging_config import get_logger
+from ..sources.alphavantage_source import AlphaVantageSource
 from ..sources.base import DATASET_REFERENCE, BaseSource, DatasetRequest
+from ..sources.finnhub_source import FinnhubSource
+from ..sources.fmp_source import FMPSource
 from ..sources.multi_source_fetcher import MultiSourceFetcher
 from ..sources.polygon_source import PolygonSource
+from ..sources.twelvedata_source import TwelveDataSource
 from ..sources.yfinance_source import YFinanceSource
 from ..storage import DuckDBStorage
 from .models import PriceData
@@ -29,7 +33,14 @@ logger = get_logger(__name__)
 class PriceDataFetcher:
     """Fetches price data with caching and multi-source failover.
 
-    Uses MultiSourceFetcher with YFinance (priority 1) and Polygon (priority 10) sources.
+    Uses MultiSourceFetcher with up to 6 sources in priority order:
+    1. YFinance (no API key needed)
+    2. TwelveData
+    3. FMP
+    4. Polygon
+    5. Finnhub
+    6. AlphaVantage
+
     Implements 15-minute cache TTL for price data.
     """
 
@@ -46,22 +57,66 @@ class PriceDataFetcher:
         self.market_benchmark = os.getenv("PRICE_BENCHMARK_TICKER", "SPY")
         self.volatility_lookback_days = 90
 
-        # Initialize multi-source fetcher with YFinance and optionally Polygon
-        sources: list[BaseSource] = [YFinanceSource()]
+        # Initialize multi-source fetcher with all available sources
+        sources: list[BaseSource] = [YFinanceSource()]  # Priority 1, no key needed
+        source_names = ["yfinance"]
+        skipped_sources = []
 
-        # Add Polygon source only if API key is available
-        polygon_api_key = os.getenv("POLYGON_API_KEY")
-        if polygon_api_key:
-            sources.append(PolygonSource())
-            logger.info("multi_source_initialized", sources=["yfinance", "polygon"])
+        # Add TwelveData (Priority 2)
+        if self._has_api_key("TWELVEDATA_API_KEY"):
+            sources.append(TwelveDataSource())
+            source_names.append("twelvedata")
         else:
-            logger.info(
-                "multi_source_initialized",
-                sources=["yfinance"],
-                note="Polygon disabled (no API key)",
-            )
+            skipped_sources.append("twelvedata")
+
+        # Add FMP (Priority 3)
+        if self._has_api_key("FMP_API_KEY"):
+            sources.append(FMPSource())
+            source_names.append("fmp")
+        else:
+            skipped_sources.append("fmp")
+
+        # Add Polygon (Priority 4)
+        if self._has_api_key("POLYGON_API_KEY"):
+            sources.append(PolygonSource())
+            source_names.append("polygon")
+        else:
+            skipped_sources.append("polygon")
+
+        # Add Finnhub (Priority 5)
+        if self._has_api_key("FINNHUB_API_KEY"):
+            sources.append(FinnhubSource())
+            source_names.append("finnhub")
+        else:
+            skipped_sources.append("finnhub")
+
+        # Add AlphaVantage (Priority 6)
+        if self._has_api_key("ALPHAVANTAGE_API_KEY"):
+            sources.append(AlphaVantageSource())
+            source_names.append("alphavantage")
+        else:
+            skipped_sources.append("alphavantage")
+
+        logger.info(
+            "sources_initialized",
+            count=len(sources),
+            active_sources=source_names,
+            skipped_sources=skipped_sources,
+        )
 
         self.multi_source_fetcher = MultiSourceFetcher(sources, storage)
+
+    def _has_api_key(self, key_name: str) -> bool:
+        """Check if an API key is available in environment.
+
+        Args:
+            key_name: Name of the environment variable
+
+        Returns:
+            True if key exists and is non-empty, False otherwise
+        """
+        key_value = os.getenv(key_name)
+        return bool(key_value and key_value.strip())
 
     def fetch_price_data(self, symbols: list[str]) -> dict[str, PriceData]:
         """Fetch price data for multiple symbols with caching.
