@@ -6,16 +6,17 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sparkline } from "@/components/ui/sparkline";
-import { Save, Edit2, X } from "lucide-react";
+import { Save, Edit2, X, Loader2 } from "lucide-react";
 import { useUpdateWatchlistItem, useScoreHistory } from "@/lib/hooks/useWatchlist";
 import { toast } from "sonner";
-import type { WatchlistItem } from "@/lib/api/watchlist";
+import type { WatchlistItem, RefreshStatus } from "@/lib/api/watchlist";
 
 interface ExpandedRowProps {
   item: WatchlistItem;
+  refreshStatus?: RefreshStatus;
 }
 
-export function ExpandedRow({ item }: ExpandedRowProps) {
+export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [noteValue, setNoteValue] = useState(item.note || "");
   const updateMutation = useUpdateWatchlistItem();
@@ -24,6 +25,10 @@ export function ExpandedRow({ item }: ExpandedRowProps) {
   const hasScore = !!item.current_score;
   const priceScore = item.current_score?.price;
   const techScore = item.current_score?.technical;
+
+  // Check if this item is currently being refreshed
+  const isRefreshing =
+    refreshStatus?.is_refreshing && refreshStatus.current_symbol === item.symbol;
 
   const handleSaveNote = () => {
     updateMutation.mutate(
@@ -74,6 +79,47 @@ export function ExpandedRow({ item }: ExpandedRowProps) {
 
   return (
     <div className="space-y-4">
+      {/* Refresh Progress Card */}
+      {isRefreshing && refreshStatus && (
+        <Card className="border-accent bg-accent/5">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Refreshing Scores...
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="text-sm text-text-muted">
+              {refreshStatus.elapsed_seconds !== undefined && (
+                <p>
+                  Elapsed time:{" "}
+                  <span className="font-medium text-text">
+                    {refreshStatus.elapsed_seconds}s
+                  </span>
+                </p>
+              )}
+              {refreshStatus.percent_complete !== undefined && (
+                <p>
+                  Progress:{" "}
+                  <span className="font-medium text-text">
+                    {refreshStatus.percent_complete.toFixed(0)}%
+                  </span>
+                </p>
+              )}
+              {refreshStatus.processed_items !== undefined &&
+                refreshStatus.total_items !== undefined && (
+                  <p>
+                    Items processed:{" "}
+                    <span className="font-medium text-text">
+                      {refreshStatus.processed_items} / {refreshStatus.total_items}
+                    </span>
+                  </p>
+                )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Score Breakdown */}
       {hasScore && (
         <div className="grid gap-4 sm:grid-cols-2">

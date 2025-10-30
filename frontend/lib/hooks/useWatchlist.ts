@@ -11,12 +11,14 @@ import {
   deleteWatchlistItem,
   refreshWatchlistScores,
   fetchScoreHistory,
+  fetchRefreshStatus,
   type WatchlistListResponse,
   type WatchlistItem,
   type WatchlistItemCreate,
   type WatchlistItemUpdate,
   type RefreshResponse,
   type ScoreHistory,
+  type RefreshStatus,
 } from "@/lib/api/watchlist";
 
 // Query keys
@@ -28,6 +30,8 @@ export const watchlistKeys = {
   detail: (itemId: string) => [...watchlistKeys.details(), itemId] as const,
   history: (itemId: string) =>
     [...watchlistKeys.detail(itemId), "history"] as const,
+  refreshStatus: (accountId: string) =>
+    [...watchlistKeys.all, "refresh-status", accountId] as const,
 };
 
 /**
@@ -136,5 +140,24 @@ export function useRefreshWatchlist() {
         queryKey: watchlistKeys.list(accountId),
       });
     },
+  });
+}
+
+/**
+ * Hook to poll refresh status for an account's watchlist
+ * Polls every 2 seconds when refresh is active
+ */
+export function useRefreshStatus(accountId: string, enabled = true) {
+  return useQuery<RefreshStatus, Error>({
+    queryKey: watchlistKeys.refreshStatus(accountId),
+    queryFn: () => fetchRefreshStatus(accountId),
+    enabled: !!accountId && enabled,
+    refetchInterval: (query) => {
+      // Poll every 2 seconds if refreshing, otherwise disable polling
+      const data = query.state.data;
+      return data?.is_refreshing ? 2000 : false;
+    },
+    refetchIntervalInBackground: false,
+    staleTime: 0, // Always consider stale to enable polling
   });
 }

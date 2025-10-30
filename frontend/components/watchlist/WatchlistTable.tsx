@@ -15,8 +15,17 @@ import { ExpandedRow } from "@/components/watchlist/ExpandedRow";
 import { WatchlistCard } from "@/components/watchlist/WatchlistCard";
 import { SourceBadge } from "@/components/watchlist/SourceBadge";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronRight, AlertCircle, Trash2 } from "lucide-react";
-import { useDeleteWatchlistItem } from "@/lib/hooks/useWatchlist";
+import {
+  ChevronDown,
+  ChevronRight,
+  AlertCircle,
+  Trash2,
+  Loader2,
+} from "lucide-react";
+import {
+  useDeleteWatchlistItem,
+  useRefreshStatus,
+} from "@/lib/hooks/useWatchlist";
 import { toast } from "sonner";
 import type { WatchlistItem } from "@/lib/api/watchlist";
 import { cn } from "@/lib/utils";
@@ -34,6 +43,7 @@ export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
   const [sortField, setSortField] = useState<SortField>("symbol");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const deleteMutation = useDeleteWatchlistItem();
+  const { data: refreshStatus } = useRefreshStatus(accountId);
 
   // Handle sort
   const handleSort = (field: SortField) => {
@@ -262,6 +272,13 @@ export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
                           }
                         />
                       ) : null}
+                      {refreshStatus?.is_refreshing &&
+                        refreshStatus.current_symbol === item.symbol && (
+                          <Loader2
+                            className="h-4 w-4 animate-spin text-accent"
+                            aria-label="Refreshing..."
+                          />
+                        )}
                       {item.score_alert && (
                         <AlertCircle
                           className="h-4 w-4 text-accent"
@@ -344,7 +361,7 @@ export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
                 {isExpanded && (
                   <TableRow>
                     <TableCell colSpan={8} className="bg-surface-muted/20 p-4">
-                      <ExpandedRow item={item} />
+                      <ExpandedRow item={item} refreshStatus={refreshStatus} />
                     </TableCell>
                   </TableRow>
                 )}
