@@ -24,13 +24,17 @@
 - Phase 1 frontend core components (tasks 4.0.1–4.0.8, 5.0.1–5.0.4)
 - Phase 1 bug fixes & deployment (database accounts, API fixes, console errors)
 - Phase 1 responsive design (tasks 6.0.1–6.0.2)
-- Phase 1 API quota management (tasks 7.0.1–7.0.5) ✨ NEW
+- **Phase 1 real-time quote data fetching (tasks 6.5.1–6.5.3)** ✨ **CRITICAL FIX**
+  - YFinance now extracts currentPrice ($269.70), beta (1.094), volatility (0.377)
+  - Cleared 9 bad cache entries
+  - Watchlist API returns REAL DATA
+- Phase 1 API quota management (tasks 7.0.1–7.0.5)
   - Batching/delay logic in refresh service (batch_size=20, delay=2s)
   - UI quota warnings in AddTickerModal (50 ticker limit, warning at 45)
   - Comprehensive quota strategy documentation in OPERATIONS.md
 
 **🔄 IN PROGRESS:**
-- **Task 6.5: Fix Real-Time Quote Data Fetching** ⚠️ **CRITICAL BLOCKER**
+- **Task 6.6: Populate Historical Data & Technical Indicators** ⚠️ **NEXT PRIORITY - ENABLES SCORING**
 - Task 8.0: Testing, Documentation & Production Readiness
 
 **⚠️ NEXT STEPS:**
@@ -41,15 +45,17 @@
 5. ~~Deploy and test via network access~~ ✅ DONE
 6. ~~Fix remaining console errors~~ ✅ DONE (preferences bug, theme script, React keys, missing endpoints)
 7. ~~Implement API quota management~~ ✅ DONE (batching, UI warnings, documentation)
-8. **FIX QUOTE DATA FETCHING** ⚠️ **HIGHEST PRIORITY - BLOCKS ALL WATCHLIST DATA**
-   - Add price fields to YFinance reference payload (currentPrice, beta)
-   - Clear bad price cache entries (price=0.0)
-   - Verify end-to-end: add ticker → refresh → see real data
-9. **Verify test coverage reaches 80%+ target** (backend unit + integration tests)
-10. **Add structured logging** for scoring, errors, and quota warnings
-11. **Update architecture documentation** (ARCHITECTURE.md with watchlist data flow)
-12. **Perform manual E2E validation** (10 ticker smoke test, all features)
-13. After Phase 1 passes QA, proceed to Phase 2 intelligence services
+8. ~~FIX QUOTE DATA FETCHING~~ ✅ **DONE** - AAPL price $269.70, beta 1.094, volatility 0.377
+9. **POPULATE HISTORICAL DATA & INDICATORS** ⚠️ **NEXT - REQUIRED FOR SCORES**
+   - Ingest 200 days OHLCV data for watchlist tickers
+   - Calculate technical indicators (RSI, MACD, BB, SMA, EMA)
+   - Refresh watchlist to compute scores
+   - Verify non-zero scores appear in UI
+10. **Verify test coverage reaches 80%+ target** (backend unit + integration tests)
+11. **Add structured logging** for scoring, errors, and quota warnings
+12. **Update architecture documentation** (ARCHITECTURE.md with watchlist data flow)
+13. **Perform manual E2E validation** (10 ticker smoke test, all features)
+14. After Phase 1 passes QA, proceed to Phase 2 intelligence services
 
 ## Deployment Session Notes (2025-10-29)
 
@@ -416,16 +422,49 @@ cd ~/portfolio-ai
   - [ ] 6.5.5 **[LOW]** Update YAML configs with standardized `price_cache` field mappings across all sources (DEFERRED - not required for functionality)
 
 **Why This is Critical:**
-- Currently `YFinanceSource.fetch_reference_payload()` returns company metadata (sector, market cap) but NOT current price
-- `PriceDataFetcher` expects `payload.price` but gets `payload.price = None` → creates cache entries with `price=0.0`
-- Watchlist refresh sees cached `price=0.0`, skips processing, shows 0 items refreshed
-- **NO DATA APPEARS IN WATCHLIST** until this is fixed
-- YFinance DOES have the data (`ticker.info['currentPrice']`) but we're not extracting it
+- ~~Currently `YFinanceSource.fetch_reference_payload()` returns company metadata (sector, market cap) but NOT current price~~ ✅ FIXED
+- ~~`PriceDataFetcher` expects `payload.price` but gets `payload.price = None` → creates cache entries with `price=0.0`~~ ✅ FIXED
+- ~~Watchlist refresh sees cached `price=0.0`, skips processing, shows 0 items refreshed~~ ✅ FIXED
+- ~~**NO DATA APPEARS IN WATCHLIST** until this is fixed~~ ✅ **DATA NOW APPEARS**
+- ~~YFinance DOES have the data (`ticker.info['currentPrice']`) but we're not extracting it~~ ✅ **NOW EXTRACTING**
 
-**Root Cause:**
-- Missing price field extraction in `yfinance_source.py:172-186`
-- Bad/stale cache entries prevent retries even after code fix
-- No YAML config for `price_cache` table quote endpoint mappings
+**Root Cause:** ✅ **RESOLVED**
+- ~~Missing price field extraction in `yfinance_source.py:172-186`~~ ✅ Added price, beta, volatility extraction
+- ~~Bad/stale cache entries prevent retries even after code fix~~ ✅ Cleared 9 bad entries
+- ~~No YAML config for `price_cache` table quote endpoint mappings~~ ⚠️ Deferred (optional)
+
+- [ ] **6.6 Populate Historical Data & Technical Indicators (ENABLES SCORING)** ⚠️ **NEXT PRIORITY**
+  - [ ] 6.6.1 **[HIGH]** Ingest historical OHLCV data for watchlist tickers
+    - Get list of all unique symbols from `watchlist_items` table
+    - Use `ingest_historical_ohlcv` Celery task to backfill 200 days of daily bars
+    - Verify data appears in `day_bars` table (200 rows per ticker)
+    - Store source lineage (yfinance/polygon/etc.)
+  - [ ] 6.6.2 **[HIGH]** Calculate technical indicators for watchlist tickers
+    - Use `update_technical_indicators` Celery task for all watchlist symbols
+    - Calculate: RSI_14, MACD, BB, SMA (20/50/200), EMA (20/50/200), ATR_14, Stochastic
+    - Verify indicators appear in `technical_indicators` table
+    - Confirm calculated_at timestamps are recent
+  - [ ] 6.6.3 **[CRITICAL]** Refresh watchlist to compute scores
+    - Trigger `refresh_watchlist_scores` for default account
+    - Verify price_score > 0 (should calculate from price change %)
+    - Verify technical_score > 0 (should aggregate RSI, MACD, etc.)
+    - Verify overall_score = weighted average of components
+  - [ ] 6.6.4 **[HIGH]** Test UI displays scores correctly
+    - Open http://192.168.8.233:3000/watchlist
+    - Verify AAPL shows non-zero scores in table
+    - Expand row to see score breakdown (price + technical components)
+    - Verify sparkline shows 7-day score history
+  - [ ] 6.6.5 **[MEDIUM]** Make this automatic for new tickers
+    - Update watchlist add endpoint to trigger historical data fetch
+    - Add background job that auto-populates indicators for new tickers
+    - Document in OPERATIONS.md
+
+**Why This is Important:**
+- Currently scores = 0.0 because no historical data or technical indicators exist
+- Price score needs previous close to calculate % change
+- Technical score needs RSI, MACD, BB indicators from 200-day history
+- Without scores, watchlist provides data but no intelligence/ranking
+- This completes the "minimum viable product" for Phase 1
 
 - [x] **7.0 API Quota Management & Validation**
   - [x] 7.0.1 Create `scripts/validate-api-quotas.sh` to check keys, run sample calls, and report safe watchlist size.
