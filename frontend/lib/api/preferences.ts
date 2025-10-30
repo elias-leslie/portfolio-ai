@@ -17,6 +17,7 @@ export interface PreferencesResponse {
   watchlist_auto_expand: boolean;
   watchlist_price_weight: number;
   watchlist_technical_weight: number;
+  display_timezone: string;
 }
 
 export interface PreferencesUpdate {
@@ -31,6 +32,7 @@ export interface PreferencesUpdate {
   watchlist_auto_expand?: boolean;
   watchlist_price_weight?: number;
   watchlist_technical_weight?: number;
+  display_timezone?: string;
 }
 
 /**
@@ -55,7 +57,7 @@ export async function fetchPreferences(): Promise<PreferencesResponse> {
  * Update user preferences
  */
 export async function updatePreferences(
-  data: PreferencesUpdate
+  data: PreferencesUpdate,
 ): Promise<PreferencesResponse> {
   const response = await fetch(`${API_BASE_URL}/api/preferences/`, {
     method: "POST",

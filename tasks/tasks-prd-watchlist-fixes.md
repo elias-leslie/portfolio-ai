@@ -97,96 +97,96 @@
     - [x] 1.9.2 Fix any failing tests
     - [x] 1.9.3 Run `mypy app/api/preferences.py --strict` and fix type errors
 
-- [ ] 2.0 Create SparklineWithHistory Component with Real Data
-  - [ ] 2.1 Create SparklineWithHistory component file
-    - [ ] 2.1.1 Create `frontend/components/watchlist/SparklineWithHistory.tsx` file
-    - [ ] 2.1.2 Add "use client" directive at top
-    - [ ] 2.1.3 Import useScoreHistory hook from @/lib/hooks/useWatchlist
-    - [ ] 2.1.4 Import Sparkline component from @/components/ui/sparkline
-  - [ ] 2.2 Define component props interface
-    - [ ] 2.2.1 Create SparklineWithHistoryProps interface with itemId, width, height props
-    - [ ] 2.2.2 Add optional className prop for styling flexibility
-  - [ ] 2.3 Implement component logic to fetch historical data
-    - [ ] 2.3.1 Call useScoreHistory(itemId) hook to fetch 7-day history
-    - [ ] 2.3.2 Extract data, isLoading, error from hook response
-  - [ ] 2.4 Add loading state UI
-    - [ ] 2.4.1 Return skeleton placeholder during isLoading (gray rectangle with pulse animation)
-  - [ ] 2.5 Add error/empty state UI
-    - [ ] 2.5.1 Return "—" placeholder if error or no data available
-  - [ ] 2.6 Transform historical data for sparkline
-    - [ ] 2.6.1 Map history array to extract overall scores: data.map(h => h.overall)
-    - [ ] 2.6.2 Sort by timestamp ascending (oldest to newest)
-    - [ ] 2.6.3 Limit to last 7 data points if more exist
-  - [ ] 2.7 Render Sparkline with real data
-    - [ ] 2.7.1 Pass transformed data array to <Sparkline> component
-    - [ ] 2.7.2 Pass width and height props
-    - [ ] 2.7.3 Add aria-label for accessibility
-  - [ ] 2.8 Add TypeScript types and exports
-    - [ ] 2.8.1 Ensure all props are properly typed
-    - [ ] 2.8.2 Export SparklineWithHistory as named export
+- [x] 2.0 Create SparklineWithHistory Component with Real Data
+  - [x] 2.1 Create SparklineWithHistory component file
+    - [x] 2.1.1 Create `frontend/components/watchlist/SparklineWithHistory.tsx` file
+    - [x] 2.1.2 Add "use client" directive at top
+    - [x] 2.1.3 Import useScoreHistory hook from @/lib/hooks/useWatchlist
+    - [x] 2.1.4 Import Sparkline component from @/components/ui/sparkline
+  - [x] 2.2 Define component props interface
+    - [x] 2.2.1 Create SparklineWithHistoryProps interface with itemId, width, height props
+    - [x] 2.2.2 Add optional className prop for styling flexibility
+  - [x] 2.3 Implement component logic to fetch historical data
+    - [x] 2.3.1 Call useScoreHistory(itemId) hook to fetch 7-day history
+    - [x] 2.3.2 Extract data, isLoading, error from hook response
+  - [x] 2.4 Add loading state UI
+    - [x] 2.4.1 Return skeleton placeholder during isLoading (gray rectangle with pulse animation)
+  - [x] 2.5 Add error/empty state UI
+    - [x] 2.5.1 Return "—" placeholder if error or no data available
+  - [x] 2.6 Transform historical data for sparkline
+    - [x] 2.6.1 Map history array to extract overall scores: data.map(h => h.overall)
+    - [x] 2.6.2 Sort by timestamp ascending (oldest to newest)
+    - [x] 2.6.3 Limit to last 7 data points if more exist
+  - [x] 2.7 Render Sparkline with real data
+    - [x] 2.7.1 Pass transformed data array to <Sparkline> component
+    - [x] 2.7.2 Pass width and height props
+    - [x] 2.7.3 Add aria-label for accessibility
+  - [x] 2.8 Add TypeScript types and exports
+    - [x] 2.8.1 Ensure all props are properly typed
+    - [x] 2.8.2 Export SparklineWithHistory as named export
 
-- [ ] 3.0 Update WatchlistTable to Use Sparkline and Timezone
-  - [ ] 3.1 Import SparklineWithHistory component
-    - [ ] 3.1.1 Add import statement at top of WatchlistTable.tsx
-  - [ ] 3.2 Add timezone utility functions
-    - [ ] 3.2.1 Create getTimezoneAbbreviation function (extracts EST, CST, etc. from Date + timezone)
-    - [ ] 3.2.2 Use Intl.DateTimeFormat with timeZoneName: 'short' to extract abbreviation
-  - [ ] 3.3 Fetch user timezone preference
-    - [ ] 3.3.1 Import usePreferences hook from @/lib/hooks/usePreferences
-    - [ ] 3.3.2 Call usePreferences() in component body
-    - [ ] 3.3.3 Extract display_timezone from preferences data
-    - [ ] 3.3.4 Fallback to 'America/New_York' if preference not loaded
-  - [ ] 3.4 Update formatDate function to accept timezone parameter
-    - [ ] 3.4.1 Change formatDate signature to (dateStr: string, timezone: string)
-    - [ ] 3.4.2 Use toLocaleString with timeZone option instead of toLocaleDateString
-    - [ ] 3.4.3 Call getTimezoneAbbreviation to get abbreviation (e.g., "EST")
-    - [ ] 3.4.4 Append abbreviation to formatted date string
-  - [ ] 3.5 Replace hardcoded sparkline with SparklineWithHistory
-    - [ ] 3.5.1 Find line ~334 with hardcoded data array
-    - [ ] 3.5.2 Replace <Sparkline data={[...]} /> with <SparklineWithHistory itemId={item.id} />
-    - [ ] 3.5.3 Pass width={80} height={24} props
-  - [ ] 3.6 Update formatDate calls to pass timezone
-    - [ ] 3.6.1 Find all formatDate(item.updated_at) calls
-    - [ ] 3.6.2 Update to formatDate(item.updated_at, userTimezone)
-  - [ ] 3.7 Test WatchlistTable in browser
-    - [ ] 3.7.1 Start frontend dev server: npm run dev
-    - [ ] 3.7.2 Navigate to /watchlist page
-    - [ ] 3.7.3 Verify sparklines show real data (not hardcoded dummy data)
-    - [ ] 3.7.4 Verify timestamps show timezone abbreviation (e.g., "Oct 30, 3:21 PM EST")
+- [x] 3.0 Update WatchlistTable to Use Sparkline and Timezone
+  - [x] 3.1 Import SparklineWithHistory component
+    - [x] 3.1.1 Add import statement at top of WatchlistTable.tsx
+  - [x] 3.2 Add timezone utility functions
+    - [x] 3.2.1 Create getTimezoneAbbreviation function (extracts EST, CST, etc. from Date + timezone)
+    - [x] 3.2.2 Use Intl.DateTimeFormat with timeZoneName: 'short' to extract abbreviation
+  - [x] 3.3 Fetch user timezone preference
+    - [x] 3.3.1 Import usePreferences hook from @/lib/hooks/usePreferences
+    - [x] 3.3.2 Call usePreferences() in component body
+    - [x] 3.3.3 Extract display_timezone from preferences data
+    - [x] 3.3.4 Fallback to 'America/New_York' if preference not loaded
+  - [x] 3.4 Update formatDate function to accept timezone parameter
+    - [x] 3.4.1 Change formatDate signature to (dateStr: string, timezone: string)
+    - [x] 3.4.2 Use toLocaleString with timeZone option instead of toLocaleDateString
+    - [x] 3.4.3 Call getTimezoneAbbreviation to get abbreviation (e.g., "EST")
+    - [x] 3.4.4 Append abbreviation to formatted date string
+  - [x] 3.5 Replace hardcoded sparkline with SparklineWithHistory
+    - [x] 3.5.1 Find line ~334 with hardcoded data array
+    - [x] 3.5.2 Replace <Sparkline data={[...]} /> with <SparklineWithHistory itemId={item.id} />
+    - [x] 3.5.3 Pass width={80} height={24} props
+  - [x] 3.6 Update formatDate calls to pass timezone
+    - [x] 3.6.1 Find all formatDate(item.updated_at) calls
+    - [x] 3.6.2 Update to formatDate(item.updated_at, userTimezone)
+  - [x] 3.7 Test WatchlistTable in browser
+    - [x] 3.7.1 Start frontend dev server: npm run dev
+    - [x] 3.7.2 Navigate to /watchlist page
+    - [x] 3.7.3 Verify sparklines show real data (not hardcoded dummy data)
+    - [x] 3.7.4 Verify timestamps show timezone abbreviation (e.g., "Oct 30, 3:21 PM EST")
 
-- [ ] 4.0 Add Timezone Selector to Settings Page
-  - [ ] 4.1 Update frontend preferences TypeScript types
-    - [ ] 4.1.1 Open `frontend/lib/api/preferences.ts`
-    - [ ] 4.1.2 Add `display_timezone: string` to PreferencesResponse interface
-    - [ ] 4.1.3 Add `display_timezone?: string` to PreferencesUpdate interface
-  - [ ] 4.2 Create timezone options constant
-    - [ ] 4.2.1 Define TIMEZONE_OPTIONS object in settings/page.tsx
-    - [ ] 4.2.2 Map IANA names to friendly labels (e.g., 'America/New_York': 'Eastern Time (EST/EDT)')
-    - [ ] 4.2.3 Include all 6 USA timezones
-  - [ ] 4.3 Add displayTimezone state variable
-    - [ ] 4.3.1 Add useState hook: const [displayTimezone, setDisplayTimezone] = useState('America/New_York')
-    - [ ] 4.3.2 Update useEffect to set displayTimezone from preferences.display_timezone
-  - [ ] 4.4 Add displayTimezone to hasChanges function
-    - [ ] 4.4.1 Add displayTimezone !== preferences.display_timezone check
-  - [ ] 4.5 Add displayTimezone to handleSave mutation
-    - [ ] 4.5.1 Include display_timezone: displayTimezone in updatePreferences.mutate payload
-  - [ ] 4.6 Create Display Preferences Card in JSX
-    - [ ] 4.6.1 Add new Card component after Watchlist Preferences section
-    - [ ] 4.6.2 Set CardTitle to "Display Preferences"
-    - [ ] 4.6.3 Set CardDescription to "Customize how data is displayed"
-  - [ ] 4.7 Add timezone select dropdown
-    - [ ] 4.7.1 Add Label with text "Timezone"
-    - [ ] 4.7.2 Add Select component (import from @/components/ui/select)
-    - [ ] 4.7.3 Map TIMEZONE_OPTIONS to SelectItem components
-    - [ ] 4.7.4 Bind value={displayTimezone} and onValueChange={setDisplayTimezone}
-  - [ ] 4.8 Test timezone selector in browser
-    - [ ] 4.8.1 Navigate to /settings page
-    - [ ] 4.8.2 Verify "Display Preferences" section appears
-    - [ ] 4.8.3 Change timezone dropdown to "Pacific Time (PST/PDT)"
-    - [ ] 4.8.4 Click "Save Changes" button
-    - [ ] 4.8.5 Verify success toast appears
-    - [ ] 4.8.6 Navigate to /watchlist page
-    - [ ] 4.8.7 Verify timestamps now show "PST" instead of "EST"
+- [x] 4.0 Add Timezone Selector to Settings Page
+  - [x] 4.1 Update frontend preferences TypeScript types
+    - [x] 4.1.1 Open `frontend/lib/api/preferences.ts`
+    - [x] 4.1.2 Add `display_timezone: string` to PreferencesResponse interface
+    - [x] 4.1.3 Add `display_timezone?: string` to PreferencesUpdate interface
+  - [x] 4.2 Create timezone options constant
+    - [x] 4.2.1 Define TIMEZONE_OPTIONS object in settings/page.tsx
+    - [x] 4.2.2 Map IANA names to friendly labels (e.g., 'America/New_York': 'Eastern Time (EST/EDT)')
+    - [x] 4.2.3 Include all 6 USA timezones
+  - [x] 4.3 Add displayTimezone state variable
+    - [x] 4.3.1 Add useState hook: const [displayTimezone, setDisplayTimezone] = useState('America/New_York')
+    - [x] 4.3.2 Update useEffect to set displayTimezone from preferences.display_timezone
+  - [x] 4.4 Add displayTimezone to hasChanges function
+    - [x] 4.4.1 Add displayTimezone !== preferences.display_timezone check
+  - [x] 4.5 Add displayTimezone to handleSave mutation
+    - [x] 4.5.1 Include display_timezone: displayTimezone in updatePreferences.mutate payload
+  - [x] 4.6 Create Display Preferences Card in JSX
+    - [x] 4.6.1 Add new Card component after Watchlist Preferences section
+    - [x] 4.6.2 Set CardTitle to "Display Preferences"
+    - [x] 4.6.3 Set CardDescription to "Customize how data is displayed"
+  - [x] 4.7 Add timezone select dropdown
+    - [x] 4.7.1 Add Label with text "Timezone"
+    - [x] 4.7.2 Add Select component (import from @/components/ui/select)
+    - [x] 4.7.3 Map TIMEZONE_OPTIONS to SelectItem components
+    - [x] 4.7.4 Bind value={displayTimezone} and onValueChange={setDisplayTimezone}
+  - [x] 4.8 Test timezone selector in browser
+    - [x] 4.8.1 Navigate to /settings page
+    - [x] 4.8.2 Verify "Display Preferences" section appears
+    - [x] 4.8.3 Change timezone dropdown to "Pacific Time (PST/PDT)"
+    - [x] 4.8.4 Click "Save Changes" button
+    - [x] 4.8.5 Verify success toast appears
+    - [x] 4.8.6 Navigate to /watchlist page
+    - [x] 4.8.7 Verify timestamps now show "PST" instead of "EST"
 
 - [ ] 5.0 Verification and Integration Testing
   - [ ] 5.1 Run full backend test suite

@@ -10,7 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Sparkline } from "@/components/ui/sparkline";
+import { SparklineWithHistory } from "@/components/watchlist/SparklineWithHistory";
 import { ExpandedRow } from "@/components/watchlist/ExpandedRow";
 import { WatchlistCard } from "@/components/watchlist/WatchlistCard";
 import { SourceBadge } from "@/components/watchlist/SourceBadge";
@@ -26,6 +26,7 @@ import {
   useDeleteWatchlistItem,
   useRefreshStatus,
 } from "@/lib/hooks/useWatchlist";
+import { usePreferences } from "@/lib/hooks/usePreferences";
 import { toast } from "sonner";
 import type { WatchlistItem } from "@/lib/api/watchlist";
 import { cn } from "@/lib/utils";
@@ -44,6 +45,10 @@ export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const deleteMutation = useDeleteWatchlistItem();
   const { data: refreshStatus } = useRefreshStatus(accountId);
+  const { data: preferences } = usePreferences();
+
+  // Get user's timezone preference
+  const userTimezone = preferences?.display_timezone ?? "America/New_York";
 
   // Handle sort
   const handleSort = (field: SortField) => {
@@ -110,13 +115,13 @@ export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
         onError: (error) => {
           toast.error(`Failed to remove ticker: ${error.message}`);
         },
-      }
+      },
     );
   };
 
   // Get score badge variant based on score value
   const getScoreBadgeVariant = (
-    score: number
+    score: number,
   ): "viz-0" | "viz-1" | "viz-2" | "viz-3" | "viz-4" | "viz-5" => {
     if (score >= 80) return "viz-5";
     if (score >= 60) return "viz-4";
@@ -126,15 +131,30 @@ export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
     return "viz-0";
   };
 
-  // Format date
-  const formatDate = (dateStr: string) => {
+  // Get timezone abbreviation (EST, PST, etc.)
+  const getTimezoneAbbreviation = (timezone: string): string => {
+    const date = new Date();
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      timeZoneName: "short",
+    });
+    const parts = formatter.formatToParts(date);
+    const timeZonePart = parts.find((part) => part.type === "timeZoneName");
+    return timeZonePart?.value ?? "";
+  };
+
+  // Format date with timezone
+  const formatDate = (dateStr: string, timezone: string) => {
     const date = new Date(dateStr);
-    return date.toLocaleDateString("en-US", {
+    const formatted = date.toLocaleString("en-US", {
+      timeZone: timezone,
       month: "short",
       day: "numeric",
       hour: "numeric",
       minute: "2-digit",
     });
+    const tzAbbr = getTimezoneAbbreviation(timezone);
+    return `${formatted} ${tzAbbr}`;
   };
 
   if (items.length === 0) {
@@ -239,7 +259,7 @@ export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
                 <TableRow
                   className={cn(
                     "cursor-pointer",
-                    isExpanded && "bg-surface-muted/40"
+                    isExpanded && "bg-surface-muted/40",
                   )}
                   onClick={() => setExpandedId(isExpanded ? null : item.id)}
                 >
@@ -265,8 +285,8 @@ export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
                           source={item.current_score.price.metadata.source}
                           stale={item.current_score.price.stale}
                           priority={
-                            typeof item.current_score.price.metadata.priority ===
-                            "number"
+                            typeof item.current_score.price.metadata
+                              .priority === "number"
                               ? item.current_score.price.metadata.priority
                               : undefined
                           }
@@ -330,8 +350,8 @@ export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
                   </TableCell>
                   <TableCell>
                     {hasScore ? (
-                      <Sparkline
-                        data={[65, 68, 72, 70, 73, 71, overall]}
+                      <SparklineWithHistory
+                        itemId={item.id}
                         width={80}
                         height={24}
                       />
@@ -340,7 +360,7 @@ export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
                     )}
                   </TableCell>
                   <TableCell className="text-xs text-text-muted">
-                    {formatDate(item.updated_at)}
+                    {formatDate(item.updated_at, userTimezone)}
                   </TableCell>
                   <TableCell>
                     <Button

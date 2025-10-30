@@ -1,7 +1,10 @@
 "use client";
 
 import { useState, useEffect, startTransition } from "react";
-import { usePreferences, useUpdatePreferences } from "@/lib/hooks/usePreferences";
+import {
+  usePreferences,
+  useUpdatePreferences,
+} from "@/lib/hooks/usePreferences";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
@@ -15,8 +18,25 @@ import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { WatchlistPreferences } from "@/components/settings/WatchlistPreferences";
 import type { PreferencesResponse } from "@/lib/api/preferences";
+
+// Timezone options (6 USA timezones)
+const TIMEZONE_OPTIONS = {
+  "America/New_York": "Eastern Time (EST/EDT)",
+  "America/Chicago": "Central Time (CST/CDT)",
+  "America/Denver": "Mountain Time (MST/MDT)",
+  "America/Los_Angeles": "Pacific Time (PST/PDT)",
+  "America/Anchorage": "Alaska Time (AKST/AKDT)",
+  "Pacific/Honolulu": "Hawaii Time (HST)",
+};
 
 export default function SettingsPage() {
   const { data: preferences, isLoading } = usePreferences();
@@ -30,6 +50,8 @@ export default function SettingsPage() {
   const [allowCrypto, setAllowCrypto] = useState(false);
   const [allowFutures, setAllowFutures] = useState(false);
   const [maxPositionSizePct, setMaxPositionSizePct] = useState<string>("20");
+  const [displayTimezone, setDisplayTimezone] =
+    useState<string>("America/New_York");
 
   // Update form state when preferences load
   useEffect(() => {
@@ -45,6 +67,7 @@ export default function SettingsPage() {
       setAllowCrypto(preferences.allow_crypto);
       setAllowFutures(preferences.allow_futures);
       setMaxPositionSizePct(preferences.max_position_size_pct.toString());
+      setDisplayTimezone(preferences.display_timezone);
     });
   }, [preferences]);
 
@@ -59,6 +82,7 @@ export default function SettingsPage() {
         allow_crypto: allowCrypto,
         allow_futures: allowFutures,
         max_position_size_pct: parseFloat(maxPositionSizePct),
+        display_timezone: displayTimezone,
       },
       {
         onSuccess: () => {
@@ -67,7 +91,7 @@ export default function SettingsPage() {
         onError: (error) => {
           toast.error(`Failed to save settings: ${error.message}`);
         },
-      }
+      },
     );
   };
 
@@ -81,7 +105,8 @@ export default function SettingsPage() {
       allowOptions !== preferences.allow_options ||
       allowCrypto !== preferences.allow_crypto ||
       allowFutures !== preferences.allow_futures ||
-      parseFloat(maxPositionSizePct) !== preferences.max_position_size_pct
+      parseFloat(maxPositionSizePct) !== preferences.max_position_size_pct ||
+      displayTimezone !== preferences.display_timezone
     );
   };
 
@@ -110,7 +135,8 @@ export default function SettingsPage() {
         <div className="mb-10">
           <h1 className="text-3xl font-semibold text-text">Settings</h1>
           <p className="mt-2 text-sm text-text-muted">
-            Configure your risk tolerance and trading preferences for AI-generated ideas
+            Configure your risk tolerance and trading preferences for
+            AI-generated ideas
           </p>
         </div>
 
@@ -120,7 +146,8 @@ export default function SettingsPage() {
             <CardHeader>
               <CardTitle>Risk Tolerance</CardTitle>
               <CardDescription>
-                Set your risk tolerance level from 1 (very conservative) to 10 (very aggressive)
+                Set your risk tolerance level from 1 (very conservative) to 10
+                (very aggressive)
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -150,17 +177,23 @@ export default function SettingsPage() {
                 <p className="text-sm text-text-muted">
                   {riskTolerance <= 3 && (
                     <>
-                      <strong>Conservative:</strong> You prefer stable, low-risk investments with predictable returns. AI agents will focus on blue-chip stocks and conservative strategies.
+                      <strong>Conservative:</strong> You prefer stable, low-risk
+                      investments with predictable returns. AI agents will focus
+                      on blue-chip stocks and conservative strategies.
                     </>
                   )}
                   {riskTolerance >= 4 && riskTolerance <= 7 && (
                     <>
-                      <strong>Moderate:</strong> You&rsquo;re willing to accept some risk for potential growth. AI agents will suggest a balanced mix of growth and value opportunities.
+                      <strong>Moderate:</strong> You&rsquo;re willing to accept
+                      some risk for potential growth. AI agents will suggest a
+                      balanced mix of growth and value opportunities.
                     </>
                   )}
                   {riskTolerance >= 8 && (
                     <>
-                      <strong>Aggressive:</strong> You&rsquo;re comfortable with high-risk, high-reward investments. AI agents will explore growth stocks, emerging sectors, and speculative plays.
+                      <strong>Aggressive:</strong> You&rsquo;re comfortable with
+                      high-risk, high-reward investments. AI agents will explore
+                      growth stocks, emerging sectors, and speculative plays.
                     </>
                   )}
                 </p>
@@ -173,7 +206,8 @@ export default function SettingsPage() {
             <CardHeader>
               <CardTitle>Position Size Limit</CardTitle>
               <CardDescription>
-                Maximum percentage of portfolio that can be allocated to a single position
+                Maximum percentage of portfolio that can be allocated to a
+                single position
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -288,6 +322,40 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
+          {/* Display Preferences */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Display Preferences</CardTitle>
+              <CardDescription>
+                Customize how data is displayed across the application
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <Label htmlFor="timezone">Timezone</Label>
+                <Select
+                  value={displayTimezone}
+                  onValueChange={setDisplayTimezone}
+                >
+                  <SelectTrigger id="timezone">
+                    <SelectValue placeholder="Select timezone" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(TIMEZONE_OPTIONS).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-text-muted">
+                  Choose your preferred timezone for displaying dates and times
+                  throughout the application
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Watchlist Preferences */}
           {preferences && (
             <WatchlistPreferences
@@ -317,8 +385,9 @@ export default function SettingsPage() {
                   setAllowCrypto(preferences.allow_crypto);
                   setAllowFutures(preferences.allow_futures);
                   setMaxPositionSizePct(
-                    preferences.max_position_size_pct.toString()
+                    preferences.max_position_size_pct.toString(),
                   );
+                  setDisplayTimezone(preferences.display_timezone);
                 }
               }}
               disabled={!hasChanges()}
