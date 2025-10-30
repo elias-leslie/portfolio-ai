@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from typing import Any
 
@@ -15,7 +16,7 @@ from app.tasks.agent_tasks import (
     refresh_watchlist_scores_task,
     update_technical_indicators,
 )
-from app.watchlist.service import WatchlistService
+from app.watchlist.service import WatchlistService, _get_redis_client
 
 logger = get_logger(__name__)
 
@@ -543,3 +544,83 @@ async def refresh_watchlist_scores(data: RefreshRequest) -> RefreshResponse:
     except Exception as e:
         logger.error("Failed to refresh watchlist scores", account_id=account_id, error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to refresh scores: {e}") from e
+
+
+class RefreshStatusResponse(BaseModel):
+    """Response model for refresh status query."""
+
+    is_refreshing: bool = Field(..., description="Whether a refresh is currently in progress")
+    started_at: str | None = Field(None, description="ISO timestamp when refresh started")
+    elapsed_seconds: float | None = Field(None, description="Seconds elapsed since start")
+    total_items: int | None = Field(None, description="Total number of items to process")
+    processed_items: int | None = Field(None, description="Number of items processed so far")
+    current_symbol: str | None = Field(None, description="Currently processing symbol")
+    percent_complete: float | None = Field(None, description="Percentage complete (0-100)")
+
+
+@router.get("/refresh-status", response_model=RefreshStatusResponse)
+async def get_refresh_status(account_id: str) -> RefreshStatusResponse:
+    """
+    Get the current refresh status for an account's watchlist.
+
+    Args:
+        account_id: Account ID to check refresh status for
+
+    Returns:
+        Refresh status with progress information
+    """
+    try:
+        redis_client = _get_redis_client()
+        redis_key = f"watchlist:refresh:{account_id}"
+        status_json = redis_client.get(redis_key)
+
+        if not status_json:
+            # No refresh in progress
+            return RefreshStatusResponse(
+                is_refreshing=False,
+                started_at=None,
+                elapsed_seconds=None,
+                total_items=None,
+                processed_items=None,
+                current_symbol=None,
+                percent_complete=None,
+            )
+
+        status_data = json.loads(status_json)
+        started_at_str = status_data.get("started_at")
+        total_items = status_data.get("total_items", 0)
+        processed_items = status_data.get("processed_items", 0)
+
+        # Calculate elapsed time
+        elapsed_seconds = None
+        if started_at_str:
+            started_at = datetime.fromisoformat(started_at_str)
+            elapsed_seconds = (datetime.now(UTC) - started_at).total_seconds()
+
+        # Calculate percentage
+        percent_complete = None
+        if total_items and total_items > 0:
+            percent_complete = round((processed_items / total_items) * 100, 1)
+
+        return RefreshStatusResponse(
+            is_refreshing=True,
+            started_at=started_at_str,
+            elapsed_seconds=elapsed_seconds,
+            total_items=total_items,
+            processed_items=processed_items,
+            current_symbol=status_data.get("current_symbol"),
+            percent_complete=percent_complete,
+        )
+
+    except Exception as e:
+        logger.error("Failed to get refresh status", account_id=account_id, error=str(e))
+        # Return no refresh in progress on error
+        return RefreshStatusResponse(
+            is_refreshing=False,
+            started_at=None,
+            elapsed_seconds=None,
+            total_items=None,
+            processed_items=None,
+            current_symbol=None,
+            percent_complete=None,
+        )

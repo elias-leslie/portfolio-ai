@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 from datetime import UTC, datetime
 from typing import Any
 
 import polars as pl
+import redis  # type: ignore[import-not-found]
 
 from ..logging_config import get_logger
 from ..portfolio.price_fetcher import PriceDataFetcher
@@ -21,6 +23,18 @@ from .models import (
 from .scoring import calculate_watchlist_scores
 
 logger = get_logger(__name__)
+
+# Redis client for tracking refresh progress
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+_redis_client: redis.Redis | None = None
+
+
+def _get_redis_client() -> redis.Redis:
+    """Get or create Redis client for progress tracking."""
+    global _redis_client  # noqa: PLW0603
+    if _redis_client is None:
+        _redis_client = redis.from_url(REDIS_URL, decode_responses=True)
+    return _redis_client
 
 
 def _load_watchlist_items(storage: DuckDBStorage, account_id: str | None) -> pl.DataFrame:
@@ -154,6 +168,29 @@ def refresh_watchlist_scores(
         return {"processed": 0, "symbols": [], "batches": 0}
 
     symbols = sorted(set(items_df["symbol"]))
+    total_items = len(items_df)
+
+    # Initialize refresh status in Redis
+    redis_key = f"watchlist:refresh:{account_id or 'all'}"
+    try:
+        redis_client = _get_redis_client()
+        redis_client.setex(
+            redis_key,
+            900,  # 15 minute TTL
+            json.dumps(
+                {
+                    "status": "running",
+                    "started_at": datetime.now(UTC).isoformat(),
+                    "total_items": total_items,
+                    "processed_items": 0,
+                    "current_symbol": None,
+                    "symbols": symbols,
+                }
+            ),
+        )
+    except Exception as e:
+        logger.warning("Failed to initialize Redis refresh status", error=str(e))
+
     fetcher = price_fetcher or PriceDataFetcher(storage)
     technical_map = _load_latest_technical(storage, symbols)
     default_weights = _load_default_weights(storage)
@@ -194,6 +231,20 @@ def refresh_watchlist_scores(
     for row in items_df.iter_rows(named=True):
         symbol = row["symbol"]
         item_id = row["id"]
+
+        # Update refresh status for current symbol
+        try:
+            redis_client = _get_redis_client()
+            status_data = json.loads(redis_client.get(redis_key) or "{}")
+            status_data.update(
+                {
+                    "current_symbol": symbol,
+                    "processed_items": processed,
+                }
+            )
+            redis_client.setex(redis_key, 900, json.dumps(status_data))
+        except Exception as e:
+            logger.debug("Failed to update Redis refresh status", error=str(e))
 
         price_data = price_map.get(symbol)
         if not price_data or price_data.price <= 0:
@@ -252,6 +303,14 @@ def refresh_watchlist_scores(
         symbols=processed_symbols,
         batches=total_batches,
     )
+
+    # Clear refresh status from Redis
+    try:
+        redis_client = _get_redis_client()
+        redis_client.delete(redis_key)
+    except Exception as e:
+        logger.warning("Failed to clear Redis refresh status", error=str(e))
+
     return {"processed": processed, "symbols": processed_symbols, "batches": total_batches}
 
 

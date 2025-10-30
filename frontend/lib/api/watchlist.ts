@@ -58,6 +58,16 @@ export interface ScoreHistory {
   technical_score: number;
 }
 
+export interface RefreshStatus {
+  is_refreshing: boolean;
+  started_at?: string;
+  elapsed_seconds?: number;
+  total_items?: number;
+  processed_items?: number;
+  current_symbol?: string;
+  percent_complete?: number;
+}
+
 /**
  * Get all watchlist items for an account
  */
@@ -158,6 +168,29 @@ export async function deleteWatchlistItem(itemId: string): Promise<void> {
   if (!response.ok) {
     throw new Error(`Failed to delete item: ${response.statusText}`);
   }
+}
+
+/**
+ * Get refresh status for an account's watchlist
+ */
+export async function fetchRefreshStatus(
+  accountId: string
+): Promise<RefreshStatus> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/watchlist/refresh-status?account_id=${encodeURIComponent(accountId)}`,
+    {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch refresh status: ${response.statusText}`);
+  }
+
+  return response.json();
 }
 
 /**
