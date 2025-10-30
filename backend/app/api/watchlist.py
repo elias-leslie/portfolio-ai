@@ -500,14 +500,18 @@ async def get_score_history(item_id: str, days: int = 7) -> ScoreHistoryResponse
         symbol = item_df.to_dicts()[0]["symbol"]
 
         # Get history from watchlist_snapshots
-        # Note: DuckDB doesn't support parameterized INTERVAL, so we use string formatting
+        # Note: PostgreSQL requires quotes around INTERVAL value, so we use string formatting
         # days is validated as an int by FastAPI, so this is safe
         history_df = storage.query(
             f"""
-            SELECT fetched_at, overall_score, fundamental_score, technical_score
+            SELECT
+                fetched_at,
+                COALESCE(overall_score, 0.0) as overall_score,
+                COALESCE(fundamental_score, 0.0) as fundamental_score,
+                COALESCE(technical_score, 0.0) as technical_score
             FROM watchlist_snapshots
             WHERE item_id = ?
-            AND fetched_at >= CURRENT_TIMESTAMP - INTERVAL {days} DAYS
+            AND fetched_at >= CURRENT_TIMESTAMP - INTERVAL '{days} DAYS'
             ORDER BY fetched_at ASC
             """,
             [item_id],
