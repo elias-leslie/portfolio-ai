@@ -169,9 +169,28 @@ class YFinanceSource(BaseSource):
 
                 # Extract relevant fields
                 # Note: Store as JSON string for flexibility
+                # CRITICAL: Include price fields for watchlist functionality
+                price = (
+                    info.get("currentPrice")
+                    or info.get("regularMarketPrice")
+                    or info.get("previousClose")
+                )
+                beta = info.get("beta")
+
+                # Calculate volatility from 52-week high/low if available
+                volatility = None
+                high_52 = info.get("fiftyTwoWeekHigh")
+                low_52 = info.get("fiftyTwoWeekLow")
+                if high_52 and low_52 and high_52 > 0:
+                    # Approximate annualized volatility from 52-week range
+                    volatility = (high_52 - low_52) / high_52
+
                 payload_json = json.dumps(
                     {
                         "symbol": ticker,
+                        "price": price,  # Current market price
+                        "beta": beta,  # Market beta
+                        "volatility": volatility,  # Calculated from 52-week range
                         "longName": info.get("longName"),
                         "shortName": info.get("shortName"),
                         "sector": info.get("sector"),
