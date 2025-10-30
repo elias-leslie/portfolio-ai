@@ -2,44 +2,19 @@
 
 from __future__ import annotations
 
-import tempfile
-from pathlib import Path
-
 import pytest
 
 from app.portfolio.manager import PortfolioManager
-from app.storage import DuckDBStorage
+from app.storage import DuckDBStorage, get_storage
 
 
 @pytest.fixture
 def storage() -> DuckDBStorage:
-    """Create a DuckDBStorage instance with a temporary database."""
-    temp_dir = tempfile.mkdtemp()
-    db_path = Path(temp_dir) / "test.duckdb"
+    """Get the storage instance (uses PostgreSQL test database).
 
-    # Create fresh storage instance (bypass singleton)
-    from app.storage.connection import ConnectionManager
-    from app.storage.ingestion import IngestionManager
-    from app.storage.metadata import MetadataManager
-    from app.storage.queries import QueryManager
-    from app.storage.schema import SchemaManager
-
-    storage_inst = DuckDBStorage.__new__(DuckDBStorage)
-    storage_inst.connection_mgr = ConnectionManager()
-    storage_inst.schema_mgr = SchemaManager(storage_inst.connection_mgr)
-    storage_inst.metadata_mgr = MetadataManager(storage_inst.connection_mgr)
-    storage_inst.ingestion_mgr = IngestionManager(
-        storage_inst.connection_mgr, storage_inst.metadata_mgr
-    )
-    storage_inst.query_mgr = QueryManager(storage_inst.connection_mgr)
-    storage_inst.schema_mgr.ensure_schema()
-
-    yield storage_inst
-
-    # Cleanup
-    if db_path.exists():
-        db_path.unlink()
-    Path(temp_dir).rmdir()
+    Test isolation is handled by the clean_database fixture in conftest.py.
+    """
+    return get_storage()
 
 
 @pytest.fixture

@@ -216,11 +216,12 @@ class PostgreSQLDuckDBWrapper:
                 "DataFrame operations require the engine to be passed to wrapper."
             )
 
-        # Use connection context from engine for proper transaction handling
-        with self._engine.begin() as conn:
+        # pandas to_sql needs to run in its own transaction
+        # Use the engine directly (not the wrapped connection) to avoid conflicts
+        with self._engine.connect() as sql_conn, sql_conn.begin():
             pdf.to_sql(
                 name=table_name,
-                con=conn,
+                con=sql_conn,
                 if_exists=if_exists,
                 index=False,
                 method="multi",  # Batch inserts (much faster than default)

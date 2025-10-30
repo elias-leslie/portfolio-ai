@@ -101,7 +101,12 @@ class IngestionManager:
                 ids,
             )
 
+            # CRITICAL: Commit the DELETE before the INSERT to avoid deadlocks
+            # insert_dataframe opens its own transaction, so we must commit first
+            conn.commit()
+
             # Use explicit DataFrame insertion instead of DuckDB variable reference
+            # Note: This opens a NEW transaction (via engine.connect())
             conn.insert_dataframe(table_name, df, if_exists="append")
 
             row_count = len(df)
