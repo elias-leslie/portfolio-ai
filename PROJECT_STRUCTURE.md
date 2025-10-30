@@ -19,12 +19,12 @@
 │   │   ├── api/                         ← FastAPI routers
 │   │   ├── portfolio/                   ← Portfolio CRUD & analytics
 │   │   ├── sources/                     ← Data source adapters
-│   │   ├── storage/                     ← DuckDB storage layer
+│   │   ├── storage/                     ← PostgreSQL storage layer
 │   │   ├── watchlist/                   ← Watchlist scoring & services
 │   │   └── main.py                      ← FastAPI application entry point
 │   ├── tests/                           ← Test files (ACTUAL LOCATION)
 │   │   └── watchlist/                   ← Watchlist unit tests
-│   ├── data/                            ← DuckDB database files
+│   ├── data/                            ← Database backups only (PostgreSQL managed externally)
 │   ├── logs/                            ← Application logs
 │   ├── migrations/                      ← Database migrations
 │   ├── pyproject.toml                   ← Project config (ruff, mypy, pytest)
