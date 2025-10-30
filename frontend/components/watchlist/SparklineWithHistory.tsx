@@ -52,7 +52,7 @@ export function SparklineWithHistory({
 
   // Transform historical data: extract overall scores, filter out invalid values, limit to 7 points
   const scoreData = historyResponse.history
-    .map((h) => h.overall_score)
+    .map((h) => h.overall)
     .filter((score) => typeof score === "number" && !isNaN(score))
     .slice(-7); // Take last 7 data points
 

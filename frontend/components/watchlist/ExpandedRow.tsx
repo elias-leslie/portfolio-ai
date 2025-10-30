@@ -223,7 +223,9 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
                   Overall Score
                 </p>
                 <Sparkline
-                  data={history.map((h) => h.overall_score)}
+                  data={history
+                    .map((h) => h.overall)
+                    .filter((score) => typeof score === "number" && !isNaN(score))}
                   width={200}
                   height={40}
                   showDots
@@ -235,7 +237,9 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
                     Price Score
                   </p>
                   <Sparkline
-                    data={history.map((h) => h.price_score)}
+                    data={history
+                      .map((h) => h.price_score)
+                      .filter((score) => typeof score === "number" && !isNaN(score))}
                     width={150}
                     height={32}
                   />
@@ -245,7 +249,9 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
                     Technical Score
                   </p>
                   <Sparkline
-                    data={history.map((h) => h.technical_score)}
+                    data={history
+                      .map((h) => h.technical_score)
+                      .filter((score) => typeof score === "number" && !isNaN(score))}
                     width={150}
                     height={32}
                   />

@@ -52,8 +52,8 @@ export interface RefreshResponse {
 }
 
 export interface ScoreHistory {
-  fetched_at: string;
-  overall_score: number;
+  timestamp: string;
+  overall: number;
   price_score: number;
   technical_score: number;
 }
