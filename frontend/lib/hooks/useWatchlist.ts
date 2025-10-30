@@ -50,14 +50,14 @@ export function useWatchlist(accountId: string) {
   // Use preference or fallback to 5 minutes
   const refreshMinutes = preferences?.watchlist_refresh_minutes ?? 5;
   const refreshIntervalMs = refreshMinutes * 60 * 1000; // Convert to milliseconds
-  const staleTimeMs = refreshMinutes * 3 * 60 * 1000; // 3x refresh interval
 
   return useQuery<WatchlistListResponse, Error>({
     queryKey: watchlistKeys.list(accountId),
     queryFn: () => fetchWatchlistItems(accountId),
-    staleTime: staleTimeMs, // Data stale after 3x refresh interval
+    staleTime: 0, // Always consider data stale to enable frequent updates
     refetchInterval: refreshIntervalMs, // Refetch based on user preference
-    refetchIntervalInBackground: false,
+    refetchIntervalInBackground: true, // Enable background refresh
+    refetchOnWindowFocus: true, // Refetch when window regains focus
     enabled: !!accountId,
   });
 }
