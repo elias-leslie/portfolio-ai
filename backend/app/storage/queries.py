@@ -182,3 +182,4 @@ class QueryManager:
 
         with self.connection_mgr.connection() as conn:
             conn.execute(sql, params)
+            conn.commit()  # Commit the upsert

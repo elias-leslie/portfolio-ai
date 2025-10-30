@@ -81,6 +81,7 @@ def run_discovery_agent(self) -> str:  # type: ignore[no-untyped-def]
                 """,
                 [task_id, run_id],
             )
+            conn.commit()  # Commit the update
 
         logger.info(
             "discovery_agent_task_completed",
@@ -144,6 +145,7 @@ def run_portfolio_analyzer(self) -> str:  # type: ignore[no-untyped-def]
                 """,
                 [task_id, run_id],
             )
+            conn.commit()  # Commit the update
 
         logger.info(
             "portfolio_analyzer_task_completed",
@@ -418,11 +420,11 @@ def update_technical_indicators(  # type: ignore[no-untyped-def]
             }
 
             # Insert/update in technical_indicators table
-            # Using UPSERT pattern (INSERT OR REPLACE)
+            # Using UPSERT pattern (PostgreSQL ON CONFLICT)
             with storage.connection() as conn:
                 conn.execute(
                     """
-                    INSERT OR REPLACE INTO technical_indicators (
+                    INSERT INTO technical_indicators (
                         ticker, date, rsi_14, macd, macd_signal, macd_histogram,
                         bb_upper, bb_middle, bb_lower,
                         sma_20, sma_50, sma_200,
@@ -437,6 +439,24 @@ def update_technical_indicators(  # type: ignore[no-untyped-def]
                         ?, ?, ?,
                         ?
                     )
+                    ON CONFLICT (ticker, date) DO UPDATE SET
+                        rsi_14 = EXCLUDED.rsi_14,
+                        macd = EXCLUDED.macd,
+                        macd_signal = EXCLUDED.macd_signal,
+                        macd_histogram = EXCLUDED.macd_histogram,
+                        bb_upper = EXCLUDED.bb_upper,
+                        bb_middle = EXCLUDED.bb_middle,
+                        bb_lower = EXCLUDED.bb_lower,
+                        sma_20 = EXCLUDED.sma_20,
+                        sma_50 = EXCLUDED.sma_50,
+                        sma_200 = EXCLUDED.sma_200,
+                        ema_20 = EXCLUDED.ema_20,
+                        ema_50 = EXCLUDED.ema_50,
+                        ema_200 = EXCLUDED.ema_200,
+                        atr_14 = EXCLUDED.atr_14,
+                        stoch_k = EXCLUDED.stoch_k,
+                        stoch_d = EXCLUDED.stoch_d,
+                        calculated_at = EXCLUDED.calculated_at
                     """,
                     [
                         indicator_data["ticker"],
@@ -460,6 +480,7 @@ def update_technical_indicators(  # type: ignore[no-untyped-def]
                         indicator_data["calculated_at"],
                     ],
                 )
+                conn.commit()  # Commit the upsert
 
             success_count += 1
             logger.info(

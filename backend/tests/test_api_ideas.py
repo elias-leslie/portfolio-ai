@@ -84,6 +84,7 @@ def _insert_test_agent_run(
                 None,
             ],
         )
+        conn.commit()  # Commit explicitly for PostgreSQL
 
 
 def _insert_test_idea(
@@ -131,6 +132,7 @@ def _insert_test_idea(
                 datetime.now(),
             ],
         )
+        conn.commit()  # Commit explicitly for PostgreSQL
         return idea_id
 
 

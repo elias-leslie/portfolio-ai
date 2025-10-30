@@ -183,6 +183,7 @@ class PortfolioManager:
                 "DELETE FROM portfolio_positions WHERE id = ?",
                 [position_id],
             )
+            conn.commit()  # Commit the deletion
 
         logger.info(f"Deleted position {position_id}")
 

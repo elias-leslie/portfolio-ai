@@ -57,6 +57,7 @@ class IngestionManager:
         with self.connection_mgr.connection() as conn:
             if mode == "replace":
                 conn.execute(f"DELETE FROM {table_name}")
+                conn.commit()  # Commit the deletion before insert
 
             # Use explicit DataFrame insertion instead of DuckDB variable reference
             conn.insert_dataframe(table_name, df, if_exists="append")

@@ -1,5 +1,5 @@
 ---
-description: Execute tasks from a task list one-by-one with test/commit protocol
+description: Execute tasks autonomously until ALL complete or genuinely blocked (sudo/credentials/decision needed)
 argument-hint: [task list filename]
 ---
 
@@ -44,6 +44,63 @@ Guidelines for managing task lists in markdown files to track progress on comple
   3. Once all the subtasks are marked completed and changes have been committed, mark the **parent task** as completed.
 - **Default behavior:** Ask for permission before each sub-task UNLESS user has requested autonomous execution
 
+## What "Blocked" Actually Means
+
+You are ONLY blocked if:
+1. **Need sudo/root access** - System-level operations you cannot perform (installing packages, modifying system configs)
+2. **Need external credentials** - API keys, passwords, access tokens not available in environment
+3. **Need user decision** - Architectural choice between 2+ valid approaches where both are reasonable
+4. **Exhausted solutions** - Tried 3+ different technical approaches with no progress
+
+You are NOT blocked if:
+1. **Tests are failing** - Debug them, fix the code
+2. **Errors are occurring** - Fix them, try different approaches
+3. **Documentation is needed** - Do it at the end after all tasks complete
+4. **You think you're "running out of time"** - This is never true, keep working
+5. **Task seems complex** - Break it down into smaller steps and continue
+6. **Need to research** - Look up documentation, check similar issues, try solutions
+7. **Code needs refactoring** - Do it, that's part of the task
+8. **Performance issues** - Profile, optimize, fix them
+
+## Error Resolution Protocol
+
+When you encounter errors during task execution:
+
+1. **Try solution #1** - Most obvious fix based on error message
+2. **Try solution #2** - Alternative approach (different method, library, pattern)
+3. **Try solution #3** - Research-based solution (check docs, search codebase for similar patterns)
+4. **Ask for help** - Only after 3 genuine attempts, explain what you tried and why each failed
+
+**Do NOT:**
+- Stop to create status reports mid-task
+- Defer errors for "later" or "follow-up work"
+- Document issues without attempting multiple fixes first
+- Assume complexity or unfamiliarity means you're "blocked"
+- Give up after first failed attempt
+
+**Examples of proper error resolution:**
+- Test fails → Try fix #1 (obvious bug) → Still fails → Try fix #2 (check test setup) → Still fails → Try fix #3 (research similar tests) → Still fails → Ask user
+- Import error → Try fix #1 (check imports) → Try fix #2 (check dependencies) → Try fix #3 (reinstall package) → Ask if still failing
+- Type error → Try fix #1 (add type hints) → Try fix #2 (fix type mismatch) → Try fix #3 (refactor types) → Ask if complex
+
+## Status Reporting Rules
+
+Create status reports or summary documents ONLY when:
+- ✅ **ALL tasks in the task list are complete** - Everything done, ready for review
+- ✅ **You are genuinely blocked** - Meet criteria above (sudo/credentials/user decision)
+- ✅ **User explicitly requests status** - "Give me a status update"
+
+**Do NOT create status reports when:**
+- ❌ Tests are failing (fix them instead)
+- ❌ You encounter errors (resolve them instead)
+- ❌ Tasks seem complex (work through them instead)
+- ❌ You think you're "running low on time" (never true)
+- ❌ You want to "document progress" mid-work (finish first, document after)
+- ❌ Some tests pass but others fail (fix the failing ones)
+- ❌ You've made "good progress" but aren't done (keep going)
+
+**Exception:** Brief progress updates are fine (e.g., "Fixed 10/15 tests, working on remaining 5"), but don't stop working to write detailed reports.
+
 ## Task List Maintenance
 
 1. **Update the task list as you work:**
@@ -77,9 +134,10 @@ When working with task lists, the AI must:
    - If stuck or blocked, ASK the user for guidance
    - Complete ALL tasks in the list unless user explicitly tells you to stop
 9. **When to pause:**
-   - Only pause if technically blocked (missing info, external dependency, ambiguous requirements)
-   - ASK the user when blocked - do NOT defer or skip
-   - Otherwise continue working through tasks
+   - ONLY pause if genuinely blocked: need sudo/root access, external credentials, or user architectural decision
+   - Do NOT pause for: test failures, errors, complexity, research needs, or thinking you're "out of time"
+   - Follow the "Error Resolution Protocol" above - try 3 solutions before asking for help
+   - Do NOT create status reports mid-work - finish all tasks first, then summarize
 
 ---
 

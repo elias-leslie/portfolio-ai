@@ -283,6 +283,7 @@ class Agent(ABC):
                 """,
                 [completed_at, status, num_ideas, error_message, run_id],
             )
+            conn.commit()  # Commit the update
 
     def _record_tool_call(
         self,

@@ -307,6 +307,7 @@ async def update_idea_status(idea_id: str, request: UpdateIdeaStatusRequest) -> 
             "UPDATE agent_ideas SET status = ?, updated_at = ? WHERE id = ?",
             [request.status, datetime.now(), idea_id],
         )
+        conn.commit()  # Commit the update
 
     # Return updated idea
     with storage.connection() as conn:

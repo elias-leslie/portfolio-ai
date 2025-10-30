@@ -102,6 +102,7 @@ def _get_or_create_preferences() -> dict[str, object]:
                 datetime.now(),
             ],
         )
+        conn.commit()  # Commit the insert
 
     return {
         "id": user_id,
@@ -206,6 +207,7 @@ async def update_preferences(update: PreferencesUpdate) -> PreferencesResponse:
                 current["id"],
             ],
         )
+        conn.commit()  # Commit the update
 
     return PreferencesResponse(
         risk_tolerance=cast(int, current["risk_tolerance"]),
