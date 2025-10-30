@@ -13,11 +13,20 @@ from celery import Celery  # type: ignore[import-untyped]  # celery doesn't ship
 # Get Redis URL from environment or use default
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 
-# Create Celery application
+# Get DATABASE_URL for result backend
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://portfolio_ai_user:REDACTED_PASSWORD@localhost:5432/portfolio_ai",
+)
+
+# Create Celery application with Redis broker + PostgreSQL backend
+# Note: Redis is recommended for broker (fast message queue)
+#       PostgreSQL is used for result backend (persistent storage)
 celery_app = Celery(
     "portfolio-ai",
-    broker=f"{REDIS_URL}/0",  # Use DB 0 for broker
-    backend=f"{REDIS_URL}/1",  # Use DB 1 for results
+    broker=f"{REDIS_URL}/0",  # Redis broker (message queue)
+    backend=f"db+{DATABASE_URL}",  # PostgreSQL result backend
+    broker_connection_retry_on_startup=True,
 )
 
 # Configure Celery

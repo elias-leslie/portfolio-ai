@@ -46,146 +46,84 @@ Invoke this workflow by using `/check_it` in these scenarios:
 
 **Use the Gemini MCP tool** (`mcp__gemini-cli__ask-gemini`) to leverage Gemini's massive context window.
 
-**Construction of Analysis Prompt**:
+**Construction of Analysis Prompt** (Gemini-specific):
 
-Use **broad wildcard patterns** to capture entire codebase sections. Gemini's 2M+ token context window can handle full directories.
+**Principles:**
+1. **Auto-discover structure:** Use Glob to find all code/doc files dynamically
+2. **Use broad wildcards:** Load entire directories (`@backend/**/*.py`, `@frontend/**/*.{ts,tsx}`)
+3. **Include all artifacts:** Docs, code, config, tests, planning docs
+4. **Let Gemini determine dimensions:** Don't prescribe specific categories; let Gemini identify what matters for this project type
+5. **Request specificity:** Ask for file:line references, percentages, concrete recommendations
 
+**Prompt Template:**
 ```
-Analyze the following codebase for solution alignment across multiple dimensions.
+Analyze this codebase for solution alignment.
 
-PROJECT DOCUMENTATION:
-@**/*.md (all markdown files including README, CLAUDE.md, etc.)
-@docs/**/* (entire docs directory tree)
+CONTEXT LOADED:
+@**/*.md @docs/**/* (all documentation)
+@backend/**/*.py @frontend/**/*.{ts,tsx} (all code - adapt patterns to project)
+@**/pyproject.toml @**/package.json @**/.pre-commit-config.yaml (all config)
+@tests/**/* (all tests - adapt pattern to project)
+@tasks/**/* @.ai_dev_tasks/**/* (planning docs)
 
-CONFIGURATION FILES:
-@**/pyproject.toml @**/package.json @**/tsconfig.json
-@**/.pre-commit-config.yaml @**/.eslintrc* @**/pytest.ini
-@.github/**/* (CI/CD workflows and configs)
-@**/Cargo.toml @**/go.mod (if Rust/Go projects)
+ANALYSIS REQUESTED:
+1. Determine appropriate alignment dimensions for this project type
+2. Score each dimension 0-100% based on documented standards vs. reality
+3. Provide specific file:line references for issues
+4. Rank issues by priority (critical/high/medium/low)
+5. Include actionable recommendations with effort estimates
 
-COMPLETE CODE STRUCTURE:
-@backend/**/*.py (all Python backend code)
-@frontend/**/*.{ts,tsx,js,jsx} (all frontend code)
-@app/**/*.py (alternative app structure)
-@src/**/*.{ts,tsx,js,jsx} (alternative src structure)
-@lib/**/* @pkg/**/* (additional code directories)
-@scripts/**/* (build/utility scripts)
+REQUIRED DIMENSIONS (always check):
+- Architecture consistency (patterns, boundaries, error handling)
+- Documentation currency (accuracy, completeness)
+- Coding standards (linting, formatting, conventions)
+- Test coverage & quality (targets, critical paths)
+- Configuration alignment (no contradictions)
+- Security practices (secrets, SQL parameterization)
+- Code quality & patterns (proper types, explicit behavior, no band-aids)
 
-COMPLETE TEST SUITE:
-@tests/**/*.py @test/**/*.py (Python tests)
-@**/*.test.{ts,tsx,js,jsx} @**/*.spec.{ts,tsx,js,jsx} (JS/TS tests)
-@__tests__/**/* (Jest tests)
+For EACH dimension:
+- Score 0-100%
+- List what IS aligned (strengths)
+- List specific misalignments with file:line refs
+- Provide actionable recommendations
 
-PLANNING & TASKS:
-@tasks/**/* @.ai_dev_tasks/**/* @docs/planning/**/*
-
-Evaluate alignment across these dimensions:
-
-1. ARCHITECTURE CONSISTENCY (0-100%):
-   - Do components follow stated architectural patterns?
-   - Are layers/boundaries respected (e.g., storage abstraction, API boundaries)?
-   - Is there consistent error handling?
-   - Are dependencies managed as documented?
-
-2. DOCUMENTATION CURRENCY (0-100%):
-   - Are docs up-to-date with code reality?
-   - Do README/setup instructions work?
-   - Are API docs synchronized with actual endpoints?
-   - Are architecture diagrams/descriptions accurate?
-
-3. CODING STANDARDS ADHERENCE (0-100%):
-   - Are linting rules from config enforced in code?
-   - Do files respect size limits (if documented)?
-   - Are naming conventions consistent?
-   - Is code formatted according to standards?
-
-4. TEST COVERAGE & QUALITY (0-100%):
-   - Does test coverage meet stated targets?
-   - Are critical paths tested?
-   - Are test files properly organized?
-   - Do tests follow naming conventions?
-
-5. CONFIGURATION ALIGNMENT (0-100%):
-   - Do multiple config files contradict each other?
-   - Are environment variables documented?
-   - Are dependencies up-to-date and consistent?
-   - Do build tools have correct settings?
-
-6. SECURITY BEST PRACTICES (0-100%):
-   - Are secrets properly managed (not hardcoded)?
-   - Are security patterns documented and followed (e.g., SQL parameterization)?
-   - Are dependencies free of known vulnerabilities?
-   - Are authentication/authorization patterns consistent?
-
-7. [PROJECT-SPECIFIC CATEGORIES]:
-   - Detect and evaluate additional categories based on project type
-   - Examples: Database migration consistency, API versioning, component reusability
-
-For EACH dimension, provide in structured markdown:
-
-### [Category Name] (XX%)
-**Status**: ✅ Well-aligned | ⚠️ Needs attention | 🔴 Critical
-
-**Aligned**:
-- [Bulleted list of what IS aligned and working well]
-
-**Misalignments**:
-- [Specific issues with file:line references where possible]
-- [Quantify gaps: "15 files exceed size limit", "12 functions missing type hints"]
-
-**Recommendations**:
-1. [Specific, actionable fix with estimated effort]
-2. [Another recommendation]
-
-OVERALL SUMMARY:
-- Overall Alignment Score: XX% (weighted average)
-- Critical Issues Count: N
-- High Priority Issues Count: N
-- Categories Analyzed: N
-
-PRIORITIZED ACTION ITEMS (top 10-15):
-1. [CRITICAL] Specific issue with file reference
-2. [HIGH] Another issue
-[etc.]
+FORMAT:
+- Executive summary with overall score
+- Per-dimension breakdown with aligned/misaligned items
+- Prioritized action items (top 15)
+- Trend analysis if previous report exists
 ```
 
 **Execute the Gemini Analysis**:
 
-**Key Principle**: **Breadth over Sampling** - Load entire directories rather than sampling files.
+**Discovery & Analysis Process**:
 
-**Why This Approach**:
-- ✅ Gemini's 2M+ token context can handle 10,000+ lines of code easily
-- ✅ Prevents missing critical misalignments in non-sampled files
-- ✅ Allows Gemini to detect patterns across entire modules
-- ✅ More accurate percentage scores (based on full codebase, not samples)
+1. **Auto-discover project structure** using Glob tool:
+   - Find all code files: `**/*.py`, `**/*.{ts,tsx,js,jsx}`, `**/*.{rs,go,java}`
+   - Find all docs: `**/*.md`, `docs/**/*`
+   - Find all configs: `**/pyproject.toml`, `**/package.json`, `**/tsconfig.json`
+   - Find all tests: `tests/**/*`, `**/*.test.*`, `**/*.spec.*`
 
-**Implementation**:
-1. **Auto-discover** the project structure using Glob tool:
-   ```
-   - Use Glob to find all *.py files → confirms Python project
-   - Use Glob to find all *.{ts,tsx} files → confirms TypeScript/React
-   - Use Glob to find docs/**/* → maps documentation
-   ```
-
-2. **Construct comprehensive prompt** using wildcard `@` syntax:
-   ```
-   Prompt should include:
-   @backend/**/*.py @frontend/**/*.{ts,tsx} @docs/**/* @tests/**/*
-   ```
+2. **Construct comprehensive Gemini prompt**:
+   - Use `@` syntax with discovered patterns (see template above)
+   - Load entire directories (don't sample - Gemini's 2M+ token context handles it)
+   - Include all discovered artifacts (docs, code, config, tests, planning)
 
 3. **Call Gemini MCP tool**:
    ```
    mcp__gemini-cli__ask-gemini with:
-   - prompt: [Full analysis request with @ includes]
-   - model: "gemini-2.5-pro" (default, best for comprehensive analysis)
-   - sandbox: false (read-only analysis, no code execution needed)
-   - changeMode: false (we want analysis, not code changes)
+   - prompt: [Full analysis request with @ includes from template]
+   - model: "gemini-2.5-pro" (default)
+   - sandbox: false (read-only analysis)
+   - changeMode: false (analysis, not code changes)
    ```
 
-**Context Size Management**:
-- For portfolio-ai size projects (~50-100 files): Load everything
-- For very large projects (1000+ files): Use directory-level wildcards but load ALL directories
-- Gemini will handle the context; prioritize completeness over artificial limits
+**Why This Approach Works**:
+- ✅ Gemini's 2M+ token context handles full codebases easily
+- ✅ No sampling = no missed issues
+- ✅ Detects patterns across entire modules
+- ✅ Accurate scores (based on full codebase, not samples)
 
 ### Phase 3: Generate Report
 

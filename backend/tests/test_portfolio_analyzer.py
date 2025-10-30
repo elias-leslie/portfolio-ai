@@ -36,7 +36,7 @@ def storage() -> DuckDBStorage:
     from app.storage.schema import SchemaManager
 
     storage_inst = DuckDBStorage.__new__(DuckDBStorage)
-    storage_inst.connection_mgr = ConnectionManager(db_path=db_path)
+    storage_inst.connection_mgr = ConnectionManager()
     storage_inst.schema_mgr = SchemaManager(storage_inst.connection_mgr)
     storage_inst.metadata_mgr = MetadataManager(storage_inst.connection_mgr)
     storage_inst.ingestion_mgr = IngestionManager(
@@ -203,9 +203,9 @@ def mock_anthropic_client() -> Mock:
         block.id = f"tool_idea_{i}"
         block.name = "store_idea"
         block.input = {
-            "title": f"Portfolio Idea {i+1}",
-            "thesis": f"Given your heavy tech exposure, this idea {i+1} helps diversify",
-            "action": f"Action for idea {i+1}",
+            "title": f"Portfolio Idea {i + 1}",
+            "thesis": f"Given your heavy tech exposure, this idea {i + 1} helps diversify",
+            "action": f"Action for idea {i + 1}",
             "idea_type": "long",
             "confidence_score": 65 + i * 5,
             "risk_level": "medium",
@@ -413,7 +413,7 @@ def test_portfolio_analyzer_run_full_execution(
         ideas = conn.execute("SELECT * FROM agent_ideas").fetchall()
         assert len(ideas) == 5
         for i, idea in enumerate(ideas):
-            assert idea[3] == f"Portfolio Idea {i+1}"  # title
+            assert idea[3] == f"Portfolio Idea {i + 1}"  # title
             # Verify ideas reference portfolio
             assert "tech" in idea[4].lower() or "portfolio" in idea[4].lower()  # thesis
 

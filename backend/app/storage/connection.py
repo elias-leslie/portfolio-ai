@@ -33,14 +33,16 @@ class PostgreSQLDuckDBWrapper:
     to PostgreSQL-style %s placeholders.
     """
 
-    def __init__(self, pg_conn: Any) -> None:
+    def __init__(self, pg_conn: Any, engine: Any = None) -> None:
         """Initialize wrapper around psycopg2 connection.
 
         Args:
             pg_conn: psycopg2 connection object
+            engine: Optional SQLAlchemy engine (needed for DataFrame operations)
         """
         self._conn = pg_conn
         self._cursor = pg_conn.cursor()
+        self._engine = engine
 
     def execute(self, query: str, parameters: list[Any] | None = None) -> Any:
         """Execute SQL query with DuckDB-compatible interface.
@@ -104,6 +106,16 @@ class PostgreSQLDuckDBWrapper:
         except ImportError as e:
             raise ImportError("Polars is required for .pl() method") from e
 
+    def fetchdf(self) -> Any:
+        """Fetch results as Polars DataFrame (DuckDB compatibility).
+
+        Alias for .pl() method to match DuckDB's fetchdf() interface.
+
+        Returns:
+            Polars DataFrame with query results.
+        """
+        return self.pl()
+
     def commit(self) -> None:
         """Commit current transaction."""
         self._conn.commit()
@@ -116,6 +128,76 @@ class PostgreSQLDuckDBWrapper:
         """Close cursor and connection."""
         self._cursor.close()
         self._conn.close()
+
+    def insert_dataframe(self, table_name: str, df: Any, if_exists: str = "append") -> int:
+        """Insert pandas/polars DataFrame into table using efficient bulk insert.
+
+        This method provides a clean alternative to DuckDB's variable reference
+        feature (SELECT * FROM pandas_df), which doesn't exist in PostgreSQL.
+
+        Args:
+            table_name: Target table name
+            df: pandas or polars DataFrame to insert
+            if_exists: 'append' (default), 'replace', or 'fail'
+                - 'append': Insert data, table must exist
+                - 'replace': Drop table and recreate (WARNING: destructive)
+                - 'fail': Raise error if table exists
+
+        Returns:
+            Number of rows inserted
+
+        Raises:
+            ValueError: If table_name contains SQL injection characters
+            ImportError: If pandas not installed
+            psycopg2.Error: If database operation fails
+
+        Example:
+            >>> with mgr.connection() as conn:
+            ...     df = pl.DataFrame({"col1": [1, 2], "col2": ["a", "b"]})
+            ...     rows = conn.insert_dataframe("my_table", df)
+            ...     print(f"Inserted {rows} rows")
+
+        Note:
+            Uses pandas.DataFrame.to_sql() with method='multi' for
+            optimized batch insertion (100-1000x faster than row-by-row).
+        """
+        import pandas as pd  # noqa: PLC0415
+
+        # Validate table name (prevent SQL injection)
+        if not table_name.replace("_", "").isalnum():
+            raise ValueError(f"Invalid table name: {table_name}")
+
+        # Convert polars to pandas if needed
+        if hasattr(df, "to_pandas"):
+            pdf = df.to_pandas()
+        elif isinstance(df, pd.DataFrame):
+            pdf = df
+        else:
+            raise TypeError(f"Expected pandas or polars DataFrame, got {type(df)}")
+
+        if pdf.empty:
+            logger.debug(f"Skipping empty DataFrame for table {table_name}")
+            return 0
+
+        # Use pandas to_sql with SQLAlchemy engine for efficient bulk insert
+        # pandas requires a SQLAlchemy connection, not a raw psycopg2 connection
+        if self._engine is None:
+            raise RuntimeError(
+                "SQLAlchemy engine not available. "
+                "DataFrame operations require the engine to be passed to wrapper."
+            )
+
+        pdf.to_sql(
+            name=table_name,
+            con=self._engine,
+            if_exists=if_exists,
+            index=False,
+            method="multi",  # Batch inserts (much faster than default)
+        )
+
+        row_count = len(pdf)
+        logger.debug(f"Inserted {row_count} rows into {table_name}")
+        return row_count
 
     @property
     def description(self) -> Any:
@@ -172,7 +254,14 @@ class ConnectionManager:
         for use, and returns it to pool on exit.
 
         Yields:
-            PostgreSQLDuckDBWrapper: DuckDB-compatible connection wrapper.
+            PostgreSQLDuckDBWrapper: Connection wrapper with methods:
+                - execute(query, params) → self
+                - fetchall() → list[tuple]
+                - fetchone() → tuple | None
+                - fetchdf() → polars.DataFrame
+                - pl() → polars.DataFrame
+                - insert_dataframe(table, df) → int
+                - commit(), rollback(), close()
 
         Example:
             >>> mgr = ConnectionManager()
@@ -182,7 +271,7 @@ class ConnectionManager:
         """
         logger.debug("Getting connection from PostgreSQL pool")
         pg_conn = self.engine.raw_connection()
-        wrapper = PostgreSQLDuckDBWrapper(pg_conn)
+        wrapper = PostgreSQLDuckDBWrapper(pg_conn, engine=self.engine)
         try:
             yield wrapper
         finally:

@@ -128,6 +128,14 @@ The generated task list _must_ follow this structure:
   - [ ] Code formatting applied: `ruff format app/`
   - [ ] Complexity limits met (functions <50 lines, complexity <10)
 
+- [ ] **Clean Implementation (No Band-Aids)**
+  - [ ] All type hints are proper (no `Any` shortcuts like `Iterator[Any]`)
+  - [ ] Behavior is explicit (no magic parsing/interception of strings or scope)
+  - [ ] Single source of truth maintained (no duplicated logic/schemas)
+  - [ ] Standard patterns used (no custom workarounds that "just work")
+  - [ ] Clear intent throughout (no hidden behaviors behind wrappers)
+  - [ ] Proper error messages (no silent failures or vague errors)
+
 - [ ] **Documentation**
   - [ ] All public functions/classes have docstrings
   - [ ] ARCHITECTURE.md updated if patterns changed

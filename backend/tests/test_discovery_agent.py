@@ -32,7 +32,7 @@ def storage() -> DuckDBStorage:
     from app.storage.schema import SchemaManager
 
     storage_inst = DuckDBStorage.__new__(DuckDBStorage)
-    storage_inst.connection_mgr = ConnectionManager(db_path=db_path)
+    storage_inst.connection_mgr = ConnectionManager()
     storage_inst.schema_mgr = SchemaManager(storage_inst.connection_mgr)
     storage_inst.metadata_mgr = MetadataManager(storage_inst.connection_mgr)
     storage_inst.ingestion_mgr = IngestionManager(
@@ -148,8 +148,8 @@ def mock_anthropic_client() -> Mock:
         block.id = f"tool_idea_{i}"
         block.name = "store_idea"
         block.input = {
-            "title": f"Investment Idea {i+1}",
-            "thesis": f"This is investment thesis {i+1} based on market analysis",
+            "title": f"Investment Idea {i + 1}",
+            "thesis": f"This is investment thesis {i + 1} based on market analysis",
             "action": f"Buy {['AAPL', 'GOOGL', 'MSFT', 'TSLA', 'NVDA'][i]}",
             "idea_type": "long",
             "confidence_score": 70 + i * 5,
@@ -379,7 +379,7 @@ def test_discovery_agent_run_full_execution(
         ideas = conn.execute("SELECT * FROM agent_ideas").fetchall()
         assert len(ideas) == 5
         for i, idea in enumerate(ideas):
-            assert idea[3] == f"Investment Idea {i+1}"  # title (column 3, not 4)
+            assert idea[3] == f"Investment Idea {i + 1}"  # title (column 3, not 4)
 
 
 def test_discovery_agent_run_records_tool_calls(

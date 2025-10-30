@@ -45,21 +45,15 @@ The project maintains **core documentation files** (typically in `docs/core/` or
 4. **Update Core Documentation**:
    - Read each core document
    - Update sections based on identified gaps
+   - **Apply path standardization** (if project enforces `~/PROJECT/` pattern)
    - Ensure consistency across documents (no contradictions)
    - Preserve document structure and style
-5. **Validate Commands**:
-   - Run command validation script: `scripts/validate-commands.sh`
-   - Review validation report (passed/failed/new/removed commands)
-   - Fix any broken commands in documentation
-   - Verify new commands work correctly
-   - Update "Last Validated" timestamp in CLAUDE.md and DEVELOPMENT.md with current date
-   - **If validation fails**: Update docs BEFORE committing (do not proceed with broken commands)
-6. **Consolidate Stray Documentation**:
+5. **Consolidate Stray Documentation**:
    - Find documentation files outside core structure
    - Merge content into appropriate core documents
    - Archive or deprecate stray files
-7. **Update Index File**: Refresh main documentation map (e.g., README.md, CLAUDE.md)
-8. **Finalize**:
+6. **Update Index File**: Refresh main documentation map (e.g., README.md, CLAUDE.md)
+7. **Finalize**:
    - Update documentation timestamp
    - Create git commit with clear summary
    - Display summary to user
@@ -104,6 +98,44 @@ Before finalizing, review each document for bloat:
 - Core documentation files: <800 lines each
 - Workflow files (.ai_dev_tasks): <100 lines each
 
+### Path Standardization (Check Project Rules)
+
+**Before finalizing, check if the project enforces path standards** (review CLAUDE.md, PROJECT_STRUCTURE.md, or similar):
+
+Some projects require **root-anchored paths** using `~/PROJECT/` pattern to eliminate ambiguity.
+
+**Pattern**: Use absolute paths with project root prefix for all command examples
+- Example: `cd ~/portfolio-ai/backend` (NOT `cd backend`)
+- Example: `source ~/portfolio-ai/backend/.venv/bin/activate` (NOT `source .venv/bin/activate`)
+- Example: `~/portfolio-ai/scripts/lint.sh` (NOT `./scripts/lint.sh` or `scripts/lint.sh`)
+
+**Why this matters**:
+- Commands work from any directory
+- Eliminates confusion about execution context
+- Prevents path nesting errors (e.g., `backend/backend/`)
+- Consistent across all documentation
+
+**When to apply**:
+- ✅ Command examples in prose (always use `~/PROJECT/`)
+- ✅ Script execution paths (always use `~/PROJECT/`)
+- ✅ File references in explanations (use `~/PROJECT/` for clarity)
+- ❌ Markdown links (use relative paths like `[doc](docs/core/file.md)` - they're file-location relative)
+
+**Example conversions**:
+```bash
+# Before (ambiguous)
+cd backend
+source .venv/bin/activate
+pytest tests/
+
+# After (standardized)
+cd ~/portfolio-ai/backend
+source ~/portfolio-ai/backend/.venv/bin/activate
+cd ~/portfolio-ai/backend && pytest tests/
+```
+
+**Note**: If project doesn't enforce this pattern, skip this check. This is project-specific.
+
 ## Output
 
 ### Required Artifacts:
@@ -124,13 +156,6 @@ Updated documentation for:
 Documents updated:
 - <Doc name 1>: <what changed>
 - <Doc name 2>: <what changed>
-
-Command validation:
-- ✓ X commands validated
-- ⊕ Y new commands added
-- ⊗ Z obsolete commands removed
-
-Last validated: YYYY-MM-DD
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
@@ -169,10 +194,9 @@ After completion, verify:
 - ✅ All resolved issues marked as resolved
 - ✅ No stray documentation files (all consolidated or archived)
 - ✅ No contradictions between documents
-- ✅ **All documented commands validated and working** (no failed validations)
-- ✅ **"Last Validated" timestamps updated** in CLAUDE.md and DEVELOPMENT.md
+- ✅ **All command examples use `~/PROJECT/` paths** (if project enforces this pattern)
 - ✅ Timestamp marker reflects actual update time
-- ✅ Git commit created with clear summary (includes validation results)
+- ✅ Git commit created with clear summary
 - ✅ No bloat: All files within reasonable size limits
 
 ---
@@ -188,11 +212,9 @@ The AI will:
 1. Analyze git history since last documentation update
 2. Identify gaps and outdated information
 3. Update all core documentation files
-4. **Validate all documented commands** (run scripts/validate-commands.sh)
-5. **Fix any broken commands** before proceeding
-6. Consolidate stray documentation files
-7. Review for bloat and extract if needed
-8. Create a commit with documentation changes and validation summary
+4. Consolidate stray documentation files
+5. Review for bloat and extract if needed
+6. Create a commit with documentation changes
 
 ## Example Output
 
@@ -205,12 +227,6 @@ Core docs updated:
 ✓ ARCHITECTURE.md - Added multi-source failover pattern
 ✓ REFACTOR_STATUS.md - Marked P1.1 as complete
 ✓ CLAUDE.md - Updated Phase 1 status
-
-Command validation:
-✓ 45 commands validated successfully
-⊕ 3 new commands added (verified working)
-⊗ 1 obsolete command removed from docs
-Last validated: 2025-10-27
 
 Stray files consolidated:
 → docs/feature_notes.md archived to docs/archive/legacy-20251025-v3/

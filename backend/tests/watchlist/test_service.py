@@ -33,7 +33,7 @@ def storage() -> DuckDBStorage:
     from app.storage.schema import SchemaManager
 
     storage_inst = DuckDBStorage.__new__(DuckDBStorage)
-    storage_inst.connection_mgr = ConnectionManager(db_path=db_path)
+    storage_inst.connection_mgr = ConnectionManager()
     storage_inst.schema_mgr = SchemaManager(storage_inst.connection_mgr)
     storage_inst.metadata_mgr = MetadataManager(storage_inst.connection_mgr)
     storage_inst.ingestion_mgr = IngestionManager(

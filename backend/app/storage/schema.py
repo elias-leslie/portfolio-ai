@@ -1,6 +1,11 @@
-"""DuckDB schema management for portfolio-ai.
+"""PostgreSQL schema validation for portfolio-ai.
 
-This module manages database schema creation and table registry metadata.
+This module validates database schema initialization and applies incremental
+migrations. Schema creation is handled by scripts/migrate-schema-to-postgres.py
+to ensure proper PostgreSQL type conversion.
+
+Note:
+    Do NOT add inline DDL here. Keep migration script as single source of truth.
 """
 
 from __future__ import annotations
@@ -20,9 +25,10 @@ MIGRATIONS: list[tuple[str, str]] = []
 
 
 class SchemaManager:
-    """Manages DuckDB schema creation for portfolio-ai.
+    """Validates PostgreSQL schema initialization for portfolio-ai.
 
-    Handles schema creation for all 19 tables and table registry metadata.
+    Verifies that core tables exist and applies incremental migrations.
+    Schema creation must be done via migration script first.
     """
 
     def __init__(self, connection_mgr: ConnectionManager) -> None:
@@ -34,404 +40,54 @@ class SchemaManager:
         self.connection_mgr = connection_mgr
 
     def ensure_schema(self) -> None:
-        """Create all domain tables and apply pending migrations."""
+        """Verify database schema is initialized.
+
+        This method validates that core tables exist. It does NOT create tables.
+        Schema creation is handled by the migration script for proper PostgreSQL
+        type conversion and foreign key constraints.
+
+        Raises:
+            RuntimeError: If core tables are missing (schema not initialized)
+
+        Note:
+            To initialize schema, run:
+            python scripts/migrate-schema-to-postgres.py
+        """
         migration_mgr = MigrationManager(self.connection_mgr)
 
         with self.connection_mgr.connection() as conn:
-            try:
-                conn.execute("BEGIN TRANSACTION")
+            # Check if core tables exist
+            result = conn.execute("""
+                SELECT COUNT(DISTINCT table_name)
+                FROM information_schema.tables
+                WHERE table_schema = 'public'
+                AND table_name IN (
+                    'source_registry',
+                    'source_credentials',
+                    'portfolio_accounts',
+                    'portfolio_positions',
+                    'watchlist_items',
+                    'watchlist_snapshots',
+                    'day_bars',
+                    'price_cache',
+                    'agent_runs'
+                )
+            """).fetchone()
 
-                self._create_config_tables(conn)
-                self._create_timeseries_tables(conn)
-                self._create_watchlist_tables(conn)
-                self._create_metadata_tables(conn)
+            core_table_count = result[0] if result else 0
 
-                # Apply legacy migrations and populate registry
-                self._apply_migrations(conn)
-                self._populate_registry_metadata(conn)
+            if core_table_count < 9:
+                raise RuntimeError(
+                    f"Database schema incomplete: found {core_table_count}/9 core tables. "
+                    "Initialize schema first:\n"
+                    "  cd ~/portfolio-ai/backend\n"
+                    "  python ../scripts/migrate-schema-to-postgres.py"
+                )
 
-                conn.execute("COMMIT")
-                logger.info("Schema initialization completed successfully with watchlist tables")
+            logger.info(f"Schema validation passed: {core_table_count} core tables exist")
 
-            except Exception as e:
-                conn.execute("ROLLBACK")
-                logger.error(f"Schema initialization failed, rolled back: {e}")
-                raise
-
-        # Apply SQL file migrations after base schema exists
+        # Apply SQL file migrations (incremental schema updates)
         migration_mgr.apply_migrations()
-
-    def _create_config_tables(
-        self, conn: Any
-    ) -> None:  # PostgreSQLDuckDBWrapper or DuckDBPyConnection
-        """Create configuration tables (6 tables)."""
-        # source_registry - Data source definitions
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS source_registry (
-                source_id              TEXT PRIMARY KEY,
-                display_name           TEXT NOT NULL,
-                priority               INTEGER NOT NULL,
-                enabled                BOOLEAN DEFAULT true,
-                definition             JSON NOT NULL,
-                created_at             TIMESTAMP DEFAULT now(),
-                updated_at             TIMESTAMP DEFAULT now()
-            )
-        """)
-
-        # source_credentials - API keys and secrets
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS source_credentials (
-                source_id              TEXT NOT NULL,
-                field                  TEXT NOT NULL,
-                value                  TEXT NOT NULL,
-                updated_at             TIMESTAMP DEFAULT now(),
-                PRIMARY KEY (source_id, field)
-            )
-        """)
-
-        # endpoint_catalog - API endpoint definitions
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS endpoint_catalog (
-                id                     TEXT PRIMARY KEY,
-                source_id              TEXT NOT NULL,
-                endpoint_key           TEXT NOT NULL,
-                target_table           TEXT NOT NULL,
-                path_template          TEXT NOT NULL,
-                field_mapping          JSON NOT NULL,
-                created_at             TIMESTAMP DEFAULT now(),
-                FOREIGN KEY (source_id) REFERENCES source_registry(source_id)
-            )
-        """)
-
-        # Indexes for efficient lookups
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_source_priority ON source_registry(priority, enabled)"
-        )
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_endpoint_source ON endpoint_catalog(source_id)"
-        )
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_endpoint_target ON endpoint_catalog(target_table)"
-        )
-
-        # portfolio_accounts
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS portfolio_accounts (
-                id                     TEXT PRIMARY KEY,
-                name                   TEXT NOT NULL,
-                account_type           TEXT NOT NULL,
-                created_at             TIMESTAMP DEFAULT now(),
-                updated_at             TIMESTAMP DEFAULT now()
-            )
-        """)
-
-        # portfolio_positions
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS portfolio_positions (
-                id                     TEXT PRIMARY KEY,
-                account_id             TEXT NOT NULL,
-                symbol                 TEXT NOT NULL,
-                shares                 DOUBLE NOT NULL,
-                cost_basis             DOUBLE NOT NULL,
-                position_type          TEXT NOT NULL,
-                created_at             TIMESTAMP DEFAULT now(),
-                updated_at             TIMESTAMP DEFAULT now(),
-                FOREIGN KEY (account_id) REFERENCES portfolio_accounts(id)
-            )
-        """)
-
-        # user_preferences
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS user_preferences (
-                id                     TEXT PRIMARY KEY,
-                risk_tolerance         INTEGER NOT NULL,
-                allow_long             BOOLEAN DEFAULT true,
-                allow_short            BOOLEAN DEFAULT false,
-                allow_options          BOOLEAN DEFAULT false,
-                allow_crypto           BOOLEAN DEFAULT false,
-                allow_futures          BOOLEAN DEFAULT false,
-                max_position_size_pct  DOUBLE DEFAULT 10.0,
-                watchlist_refresh_minutes INTEGER DEFAULT 5,
-                watchlist_auto_expand    BOOLEAN DEFAULT false,
-                watchlist_price_weight   DOUBLE DEFAULT 50.0,
-                watchlist_technical_weight DOUBLE DEFAULT 50.0,
-                created_at             TIMESTAMP DEFAULT now(),
-                updated_at             TIMESTAMP DEFAULT now()
-            )
-        """)
-
-    def _create_timeseries_tables(self, conn: Any) -> None:
-        """Create time-series data tables (4 tables)."""
-        # price_cache
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS price_cache (
-                symbol                 TEXT NOT NULL,
-                price                  DOUBLE NOT NULL,
-                beta                   DOUBLE,
-                volatility             DOUBLE,
-                sector                 TEXT,
-                cached_at              TIMESTAMP NOT NULL,
-                source                 TEXT NOT NULL,
-                error                  TEXT,
-                PRIMARY KEY (symbol, cached_at)
-            )
-        """)
-
-        # day_bars (historical OHLCV data)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS day_bars (
-                ticker                 TEXT NOT NULL,
-                date                   DATE NOT NULL,
-                open                   DOUBLE NOT NULL,
-                high                   DOUBLE NOT NULL,
-                low                    DOUBLE NOT NULL,
-                close                  DOUBLE NOT NULL,
-                volume                 BIGINT NOT NULL,
-                vwap                   DOUBLE,
-                source                 TEXT NOT NULL,
-                ingest_run_id          TEXT,
-                PRIMARY KEY (ticker, date)
-            )
-        """)
-
-        # Create index for day_bars ticker lookups
-        conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_day_bars_ticker ON day_bars(ticker)
-        """)
-
-        # minute_bars (intraday data - optional feature)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS minute_bars (
-                ticker                 TEXT NOT NULL,
-                ts_utc                 TIMESTAMP NOT NULL,
-                open                   DOUBLE NOT NULL,
-                high                   DOUBLE NOT NULL,
-                low                    DOUBLE NOT NULL,
-                close                  DOUBLE NOT NULL,
-                volume                 BIGINT NOT NULL,
-                vwap                   DOUBLE,
-                source                 TEXT NOT NULL,
-                PRIMARY KEY (ticker, ts_utc)
-            )
-        """)
-
-        # technical_indicators (cached technical indicator values)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS technical_indicators (
-                ticker                 TEXT NOT NULL,
-                date                   DATE NOT NULL,
-                rsi_14                 DOUBLE,
-                macd                   DOUBLE,
-                macd_signal            DOUBLE,
-                macd_histogram         DOUBLE,
-                bb_upper               DOUBLE,
-                bb_middle              DOUBLE,
-                bb_lower               DOUBLE,
-                sma_20                 DOUBLE,
-                sma_50                 DOUBLE,
-                sma_200                DOUBLE,
-                ema_20                 DOUBLE,
-                ema_50                 DOUBLE,
-                ema_200                DOUBLE,
-                atr_14                 DOUBLE,
-                stoch_k                DOUBLE,
-                stoch_d                DOUBLE,
-                calculated_at          TIMESTAMP NOT NULL,
-                PRIMARY KEY (ticker, date)
-            )
-        """)
-
-        # Create index for technical_indicators ticker lookups
-        conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_indicators_ticker ON technical_indicators(ticker, date)
-        """)
-
-    def _create_watchlist_tables(self, conn: Any) -> None:
-        """Create watchlist and reference tables (3 tables)."""
-        # reference_cache stores raw reference data per ticker/source
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS reference_cache (
-                ticker                 TEXT NOT NULL,
-                as_of_date             DATE NOT NULL,
-                payload                JSON NOT NULL,
-                source                 TEXT NOT NULL,
-                created_at             TIMESTAMP DEFAULT now(),
-                PRIMARY KEY (ticker, as_of_date, source)
-            )
-        """)
-        conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_reference_cache_ticker
-            ON reference_cache(ticker, as_of_date)
-        """)
-
-        # watchlist_items group tickers per account with metadata + notes
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS watchlist_items (
-                id                     TEXT PRIMARY KEY,
-                account_id             TEXT NOT NULL,
-                symbol                 TEXT NOT NULL,
-                metadata               JSON,
-                note                   TEXT,
-                created_at             TIMESTAMP DEFAULT now(),
-                updated_at             TIMESTAMP DEFAULT now(),
-                UNIQUE (account_id, symbol),
-                FOREIGN KEY (account_id) REFERENCES portfolio_accounts(id)
-            )
-        """)
-        conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_watchlist_items_account
-            ON watchlist_items(account_id, symbol)
-        """)
-
-        # watchlist_snapshots cache scoring outputs over time
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS watchlist_snapshots (
-                item_id                TEXT NOT NULL,
-                fetched_at             TIMESTAMP NOT NULL,
-                price                  DOUBLE,
-                change_pct             DOUBLE,
-                beta                   DOUBLE,
-                volatility             DOUBLE,
-                news_score             DOUBLE,
-                technical_score        DOUBLE,
-                fundamental_score      DOUBLE,
-                ai_score               DOUBLE,
-                ai_confidence          DOUBLE,
-                sector_score           DOUBLE,
-                competitor_score       DOUBLE,
-                overall_score          DOUBLE,
-                raw_metrics            JSON,
-                PRIMARY KEY (item_id, fetched_at),
-                FOREIGN KEY (item_id) REFERENCES watchlist_items(id)
-            )
-        """)
-        conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_watchlist_snapshots_item
-            ON watchlist_snapshots(item_id, fetched_at)
-        """)
-
-    def _create_metadata_tables(self, conn: Any) -> None:
-        """Create metadata and tracking tables (7 tables)."""
-        # agent_runs
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS agent_runs (
-                id                     TEXT PRIMARY KEY,
-                agent_type             TEXT NOT NULL,
-                started_at             TIMESTAMP NOT NULL,
-                completed_at           TIMESTAMP,
-                status                 TEXT NOT NULL,
-                num_ideas              INTEGER DEFAULT 0,
-                cost_usd               DOUBLE DEFAULT 0.0,
-                error_message          TEXT,
-                metadata               JSON,
-                celery_task_id         TEXT
-            )
-        """)
-
-        # agent_ideas
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS agent_ideas (
-                id                     TEXT PRIMARY KEY,
-                agent_run_id           TEXT NOT NULL,
-                idea_type              TEXT NOT NULL,
-                title                  TEXT NOT NULL,
-                thesis                 TEXT NOT NULL,
-                action                 TEXT NOT NULL,
-                confidence_score       DOUBLE NOT NULL,
-                risk_level             TEXT NOT NULL,
-                reward_estimate        TEXT,
-                portfolio_impact       TEXT,
-                data_needed            TEXT,
-                risks                  TEXT,
-                status                 TEXT DEFAULT 'pending',
-                created_at             TIMESTAMP DEFAULT now(),
-                updated_at             TIMESTAMP DEFAULT now(),
-                FOREIGN KEY (agent_run_id) REFERENCES agent_runs(id)
-            )
-        """)
-
-        # agent_tool_calls
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS agent_tool_calls (
-                id                     TEXT PRIMARY KEY,
-                agent_run_id           TEXT NOT NULL,
-                tool_name              TEXT NOT NULL,
-                parameters             JSON NOT NULL,
-                response_summary       TEXT,
-                duration_ms            INTEGER,
-                called_at              TIMESTAMP DEFAULT now(),
-                FOREIGN KEY (agent_run_id) REFERENCES agent_runs(id)
-            )
-        """)
-
-        # validation_results
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS validation_results (
-                id                     TEXT PRIMARY KEY,
-                idea_id                TEXT NOT NULL,
-                validation_type        TEXT NOT NULL,
-                passed                 BOOLEAN NOT NULL,
-                details                TEXT,
-                validated_at           TIMESTAMP DEFAULT now(),
-                FOREIGN KEY (idea_id) REFERENCES agent_ideas(id)
-            )
-        """)
-
-        # source_performance (for multi-source failover tracking)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS source_performance (
-                source_name            TEXT PRIMARY KEY,
-                success_count          INTEGER DEFAULT 0,
-                failure_count          INTEGER DEFAULT 0,
-                total_latency_ms       BIGINT DEFAULT 0,
-                rate_limit_hits        INTEGER DEFAULT 0,
-                last_success_at        TIMESTAMP
-            )
-        """)
-
-        # idea_outcomes (for paper trading tracking)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS idea_outcomes (
-                idea_id                TEXT NOT NULL PRIMARY KEY,
-                agent_run_id           TEXT NOT NULL,
-                ticker                 TEXT NOT NULL,
-                idea_type              TEXT NOT NULL,
-                entry_price            DOUBLE,
-                entry_date             DATE,
-                target_price           DOUBLE,
-                stop_loss_price        DOUBLE,
-                current_price          DOUBLE,
-                current_return_pct     DOUBLE,
-                status                 TEXT NOT NULL,
-                exit_price             DOUBLE,
-                exit_date              DATE,
-                exit_reason            TEXT,
-                realized_return_pct    DOUBLE,
-                holding_days           INTEGER,
-                max_favorable_pct      DOUBLE,
-                max_adverse_pct        DOUBLE,
-                created_at             TIMESTAMP NOT NULL,
-                updated_at             TIMESTAMP NOT NULL,
-                FOREIGN KEY (idea_id) REFERENCES agent_ideas(id)
-            )
-        """)
-
-        # Create index for idea_outcomes status lookups
-        conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_outcomes_status ON idea_outcomes(status)
-        """)
-
-        # table_registry (for metadata tracking)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS table_registry (
-                table_name             TEXT PRIMARY KEY,
-                table_type             TEXT,
-                description            TEXT,
-                row_count              BIGINT DEFAULT 0,
-                last_written           TIMESTAMP,
-                created_at             TIMESTAMP DEFAULT now()
-            )
-        """)
 
     def _apply_migrations(self, conn: Any) -> None:
         """Apply backward-compatible schema migrations.

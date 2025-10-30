@@ -55,15 +55,11 @@ class IngestionManager:
             return 0
 
         with self.connection_mgr.connection() as conn:
-            # Convert polars to pandas for DuckDB
-            pandas_df = df.to_pandas()  # noqa: F841 - DuckDB uses this variable in SQL
-
             if mode == "replace":
                 conn.execute(f"DELETE FROM {table_name}")
 
-            conn.execute(
-                f"INSERT INTO {table_name} SELECT * FROM pandas_df",
-            )
+            # Use explicit DataFrame insertion instead of DuckDB variable reference
+            conn.insert_dataframe(table_name, df, if_exists="append")
 
             row_count = len(df)
 
@@ -104,11 +100,8 @@ class IngestionManager:
                 ids,
             )
 
-            # Insert new rows
-            pandas_df = df.to_pandas()  # noqa: F841 - DuckDB uses this variable in SQL
-            conn.execute(
-                f"INSERT INTO {table_name} SELECT * FROM pandas_df",
-            )
+            # Use explicit DataFrame insertion instead of DuckDB variable reference
+            conn.insert_dataframe(table_name, df, if_exists="append")
 
             row_count = len(df)
 

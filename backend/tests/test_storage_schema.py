@@ -29,7 +29,7 @@ def temp_db_path() -> Path:
 @pytest.fixture
 def connection_mgr(temp_db_path: Path) -> ConnectionManager:
     """Create a ConnectionManager with a temporary database."""
-    return ConnectionManager(db_path=temp_db_path)
+    return ConnectionManager()
 
 
 @pytest.fixture

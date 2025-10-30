@@ -26,6 +26,7 @@ Then enable user selection to automatically initiate `/plan_it` for the chosen i
 - Files exceeding project line limits, missing test coverage
 - DRY violations (similar code patterns across files)
 - Inline TODO/FIXME/HACK comments, missing type hints/docs
+- **Band-aid patterns:** `Any` type shortcuts, magic string/SQL parsing, scope inspection, implicit behaviors, duplicated sources of truth
 
 **Documentation Review**:
 - Stale documentation (git log timestamps > 7 days old)
