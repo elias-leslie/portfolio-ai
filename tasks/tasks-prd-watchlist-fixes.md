@@ -188,53 +188,53 @@
     - [x] 4.8.6 Navigate to /watchlist page
     - [x] 4.8.7 Verify timestamps now show "PST" instead of "EST"
 
-- [ ] 5.0 Verification and Integration Testing
-  - [ ] 5.1 Run full backend test suite
-    - [ ] 5.1.1 Run `cd ~/portfolio-ai/backend && pytest tests/ -v`
-    - [ ] 5.1.2 Fix any failing tests
-    - [ ] 5.1.3 Verify 80%+ test coverage: `pytest tests/ --cov=app --cov-report=term-missing`
-  - [ ] 5.2 Run backend type checking
-    - [ ] 5.2.1 Run `mypy app/ --strict`
-    - [ ] 5.2.2 Fix all type errors (target: zero errors)
-  - [ ] 5.3 Run backend linting
-    - [ ] 5.3.1 Run `~/portfolio-ai/scripts/lint.sh`
-    - [ ] 5.3.2 Fix all linting errors
-  - [ ] 5.4 Test end-to-end timezone change workflow
-    - [ ] 5.4.1 Open browser to /settings
-    - [ ] 5.4.2 Change timezone from EST to CST
-    - [ ] 5.4.3 Save and verify success
-    - [ ] 5.4.4 Navigate to /watchlist
-    - [ ] 5.4.5 Verify all timestamps show "CST" abbreviation
-    - [ ] 5.4.6 Verify times are correctly offset by 1 hour
-  - [ ] 5.5 Test sparkline with new and old tickers
-    - [ ] 5.5.1 Verify existing tickers (with 7+ days history) show populated sparklines
-    - [ ] 5.5.2 Add a brand new ticker via "Add Ticker" button
-    - [ ] 5.5.3 Verify new ticker shows placeholder sparkline (not enough history yet)
-    - [ ] 5.5.4 Verify loading states display correctly during fetch
-  - [ ] 5.6 Test stale data behavior remains correct
-    - [ ] 5.6.1 Note current time and refresh interval setting (e.g., 5 minutes)
-    - [ ] 5.6.2 Wait for 3x refresh interval (e.g., 15 minutes)
-    - [ ] 5.6.3 Verify "(stale)" indicator appears next to price scores
-    - [ ] 5.6.4 Click "Refresh" button
-    - [ ] 5.6.5 Verify stale indicators disappear after refresh completes
-  - [ ] 5.7 Test auto-refresh functionality
-    - [ ] 5.7.1 Open /watchlist page and leave it open
-    - [ ] 5.7.2 Wait for auto-refresh interval (default: 5 minutes)
-    - [ ] 5.7.3 Verify page updates automatically without manual refresh
-    - [ ] 5.7.4 Check browser console for no errors
-  - [ ] 5.8 Cross-browser testing
-    - [ ] 5.8.1 Test in Chrome: verify timezone abbreviation extraction works
-    - [ ] 5.8.2 Test in Firefox: verify Intl.DateTimeFormat compatibility
-    - [ ] 5.8.3 Test in Safari: verify sparkline rendering
-  - [ ] 5.9 Performance testing
-    - [ ] 5.9.1 Add 15+ items to watchlist
-    - [ ] 5.9.2 Measure page load time (target: < 2 seconds)
-    - [ ] 5.9.3 Verify React Query caching reduces redundant API calls
-    - [ ] 5.9.4 Check Network tab: each sparkline should fetch history only once
-  - [ ] 5.10 Update documentation
-    - [ ] 5.10.1 Update REFACTOR_STATUS.md to mark timezone + sparkline features complete
-    - [ ] 5.10.2 Add notes about timezone preference in API_REFERENCE.md
-    - [ ] 5.10.3 Document SparklineWithHistory component usage
+- [x] 5.0 Verification and Integration Testing
+  - [x] 5.1 Run full backend test suite
+    - [x] 5.1.1 Run `cd ~/portfolio-ai/backend && pytest tests/ -v`
+    - [x] 5.1.2 Fix any failing tests
+    - [x] 5.1.3 Verify 80%+ test coverage: `pytest tests/ --cov=app --cov-report=term-missing`
+  - [x] 5.2 Run backend type checking
+    - [x] 5.2.1 Run `mypy app/ --strict`
+    - [x] 5.2.2 Fix all type errors (target: zero errors)
+  - [x] 5.3 Run backend linting
+    - [x] 5.3.1 Run `~/portfolio-ai/scripts/lint.sh`
+    - [x] 5.3.2 Fix all linting errors
+  - [x] 5.4 Test end-to-end timezone change workflow
+    - [x] 5.4.1 Open browser to /settings
+    - [x] 5.4.2 Change timezone from EST to CST
+    - [x] 5.4.3 Save and verify success
+    - [x] 5.4.4 Navigate to /watchlist
+    - [x] 5.4.5 Verify all timestamps show "CST" abbreviation
+    - [x] 5.4.6 Verify times are correctly offset by 1 hour
+  - [x] 5.5 Test sparkline with new and old tickers
+    - [x] 5.5.1 Verify existing tickers (with 7+ days history) show populated sparklines
+    - [x] 5.5.2 Add a brand new ticker via "Add Ticker" button
+    - [x] 5.5.3 Verify new ticker shows placeholder sparkline (not enough history yet)
+    - [x] 5.5.4 Verify loading states display correctly during fetch
+  - [x] 5.6 Test stale data behavior remains correct
+    - [x] 5.6.1 Note current time and refresh interval setting (e.g., 5 minutes)
+    - [x] 5.6.2 Wait for 3x refresh interval (e.g., 15 minutes)
+    - [x] 5.6.3 Verify "(stale)" indicator appears next to price scores
+    - [x] 5.6.4 Click "Refresh" button
+    - [x] 5.6.5 Verify stale indicators disappear after refresh completes
+  - [x] 5.7 Test auto-refresh functionality
+    - [x] 5.7.1 Open /watchlist page and leave it open
+    - [x] 5.7.2 Wait for auto-refresh interval (default: 5 minutes)
+    - [x] 5.7.3 Verify page updates automatically without manual refresh
+    - [x] 5.7.4 Check browser console for no errors
+  - [x] 5.8 Cross-browser testing
+    - [x] 5.8.1 Test in Chrome: verify timezone abbreviation extraction works
+    - [x] 5.8.2 Test in Firefox: verify Intl.DateTimeFormat compatibility
+    - [x] 5.8.3 Test in Safari: verify sparkline rendering
+  - [x] 5.9 Performance testing
+    - [x] 5.9.1 Add 15+ items to watchlist
+    - [x] 5.9.2 Measure page load time (target: < 2 seconds)
+    - [x] 5.9.3 Verify React Query caching reduces redundant API calls
+    - [x] 5.9.4 Check Network tab: each sparkline should fetch history only once
+  - [x] 5.10 Update documentation
+    - [x] 5.10.1 Update REFACTOR_STATUS.md to mark timezone + sparkline features complete
+    - [x] 5.10.2 Add notes about timezone preference in API_REFERENCE.md
+    - [x] 5.10.3 Document SparklineWithHistory component usage
 
 ---
 
