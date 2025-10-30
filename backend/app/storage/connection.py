@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
@@ -48,7 +49,7 @@ class PostgreSQLDuckDBWrapper:
         """Execute SQL query with DuckDB-compatible interface.
 
         Args:
-            query: SQL query string (may use ? placeholders)
+            query: SQL query string (may use ? or $n placeholders)
             parameters: Optional list of parameters
 
         Returns:
@@ -57,6 +58,9 @@ class PostgreSQLDuckDBWrapper:
         # Convert DuckDB ? placeholders to PostgreSQL %s placeholders
         if "?" in query:
             query = query.replace("?", "%s")
+
+        # Convert PostgreSQL $1, $2, etc. placeholders to %s
+        query = re.sub(r"\$\d+", "%s", query)
 
         if parameters:
             self._cursor.execute(query, parameters)
