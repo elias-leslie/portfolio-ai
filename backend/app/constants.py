@@ -5,13 +5,19 @@ This module centralizes magic numbers, cache sizes, limits, and default paths
 to improve maintainability and reduce duplication.
 """
 
+# =============================================================================
+# FILE PATHS & DATABASE
+# =============================================================================
+# PostgreSQL database connection URL
+import os
 from pathlib import Path
 
-# =============================================================================
-# FILE PATHS
-# =============================================================================
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://portfolio_ai_user:REDACTED_PASSWORD@localhost:5432/portfolio_ai",
+)
 
-# Default DuckDB database path (relative to project root)
+# Default DuckDB database path (DEPRECATED - kept for migration rollback only)
 DEFAULT_DUCKDB_PATH = Path("data/portfolio-ai.db")
 
 # Default config directory

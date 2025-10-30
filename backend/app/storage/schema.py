@@ -6,9 +6,7 @@ This module manages database schema creation and table registry metadata.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
-
-import duckdb
+from typing import TYPE_CHECKING, Any
 
 from .migrations import MigrationManager
 
@@ -63,7 +61,9 @@ class SchemaManager:
         # Apply SQL file migrations after base schema exists
         migration_mgr.apply_migrations()
 
-    def _create_config_tables(self, conn: duckdb.DuckDBPyConnection) -> None:
+    def _create_config_tables(
+        self, conn: Any
+    ) -> None:  # PostgreSQLDuckDBWrapper or DuckDBPyConnection
         """Create configuration tables (6 tables)."""
         # source_registry - Data source definitions
         conn.execute("""
@@ -160,7 +160,7 @@ class SchemaManager:
             )
         """)
 
-    def _create_timeseries_tables(self, conn: duckdb.DuckDBPyConnection) -> None:
+    def _create_timeseries_tables(self, conn: Any) -> None:
         """Create time-series data tables (4 tables)."""
         # price_cache
         conn.execute("""
@@ -246,7 +246,7 @@ class SchemaManager:
             CREATE INDEX IF NOT EXISTS idx_indicators_ticker ON technical_indicators(ticker, date)
         """)
 
-    def _create_watchlist_tables(self, conn: duckdb.DuckDBPyConnection) -> None:
+    def _create_watchlist_tables(self, conn: Any) -> None:
         """Create watchlist and reference tables (3 tables)."""
         # reference_cache stores raw reference data per ticker/source
         conn.execute("""
@@ -310,7 +310,7 @@ class SchemaManager:
             ON watchlist_snapshots(item_id, fetched_at)
         """)
 
-    def _create_metadata_tables(self, conn: duckdb.DuckDBPyConnection) -> None:
+    def _create_metadata_tables(self, conn: Any) -> None:
         """Create metadata and tracking tables (7 tables)."""
         # agent_runs
         conn.execute("""
@@ -433,7 +433,7 @@ class SchemaManager:
             )
         """)
 
-    def _apply_migrations(self, conn: duckdb.DuckDBPyConnection) -> None:
+    def _apply_migrations(self, conn: Any) -> None:
         """Apply backward-compatible schema migrations.
 
         Uses ADD COLUMN IF NOT EXISTS to allow safe re-runs.
@@ -445,7 +445,7 @@ class SchemaManager:
             except Exception as e:
                 logger.warning(f"Migration {version} failed (may already exist): {e}")
 
-    def _populate_registry_metadata(self, conn: duckdb.DuckDBPyConnection) -> None:
+    def _populate_registry_metadata(self, conn: Any) -> None:
         """Populate table_registry with metadata for all tables."""
         registry_entries = [
             ("source_registry", "config", "Data source definitions"),

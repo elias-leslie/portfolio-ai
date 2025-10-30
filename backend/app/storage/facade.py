@@ -42,7 +42,7 @@ class DuckDBStorage:
             db_path: Path to DuckDB database file. If None, uses default path.
         """
         # Initialize connection manager (singleton)
-        self.connection_mgr = get_connection_manager(db_path)
+        self.connection_mgr = get_connection_manager(db_path)  # type: ignore[arg-type]
 
         # Initialize specialized managers
         self.schema_mgr = SchemaManager(self.connection_mgr)
@@ -62,7 +62,7 @@ class DuckDBStorage:
         Yields:
             duckdb.DuckDBPyConnection: Active database connection.
         """
-        return self.connection_mgr.connection()
+        return self.connection_mgr.connection()  # type: ignore[return-value]
 
     # Schema methods
     def ensure_schema(self) -> None:
