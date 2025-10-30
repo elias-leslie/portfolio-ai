@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sparkline } from "@/components/ui/sparkline";
 import { ExpandedRow } from "@/components/watchlist/ExpandedRow";
+import { SourceBadge } from "@/components/watchlist/SourceBadge";
 import { ChevronDown, ChevronRight, AlertCircle, Trash2 } from "lucide-react";
 import type { WatchlistItem } from "@/lib/api/watchlist";
 
@@ -54,14 +55,28 @@ export function WatchlistCard({
     <div className="rounded-lg border border-border bg-surface p-4 shadow-sm">
       {/* Card Header */}
       <div className="mb-3 flex items-start justify-between">
-        <div className="flex items-center gap-2">
-          <h3 className="text-lg font-semibold text-text">{item.symbol}</h3>
-          {item.score_alert && (
-            <AlertCircle
-              className="h-4 w-4 text-accent"
-              aria-label="Score changed >10 points in last 7 days"
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-semibold text-text">{item.symbol}</h3>
+            {item.score_alert && (
+              <AlertCircle
+                className="h-4 w-4 text-accent"
+                aria-label="Score changed >10 points in last 7 days"
+              />
+            )}
+          </div>
+          {item.current_score?.price.metadata?.source &&
+          typeof item.current_score.price.metadata.source === "string" ? (
+            <SourceBadge
+              source={item.current_score.price.metadata.source}
+              stale={item.current_score.price.stale}
+              priority={
+                typeof item.current_score.price.metadata.priority === "number"
+                  ? item.current_score.price.metadata.priority
+                  : undefined
+              }
             />
-          )}
+          ) : null}
         </div>
         <div className="flex items-center gap-1">
           <Button

@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Sparkline } from "@/components/ui/sparkline";
 import { ExpandedRow } from "@/components/watchlist/ExpandedRow";
 import { WatchlistCard } from "@/components/watchlist/WatchlistCard";
+import { SourceBadge } from "@/components/watchlist/SourceBadge";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronRight, AlertCircle, Trash2 } from "lucide-react";
 import { useDeleteWatchlistItem } from "@/lib/hooks/useWatchlist";
@@ -246,7 +247,21 @@ export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
                   </TableCell>
                   <TableCell className="font-medium">
                     <div className="flex items-center gap-2">
-                      {item.symbol}
+                      <span>{item.symbol}</span>
+                      {item.current_score?.price.metadata?.source &&
+                      typeof item.current_score.price.metadata.source ===
+                        "string" ? (
+                        <SourceBadge
+                          source={item.current_score.price.metadata.source}
+                          stale={item.current_score.price.stale}
+                          priority={
+                            typeof item.current_score.price.metadata.priority ===
+                            "number"
+                              ? item.current_score.price.metadata.priority
+                              : undefined
+                          }
+                        />
+                      ) : null}
                       {item.score_alert && (
                         <AlertCircle
                           className="h-4 w-4 text-accent"

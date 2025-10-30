@@ -89,7 +89,7 @@ export default function WatchlistPage() {
           open={addTickerOpen}
           onOpenChange={setAddTickerOpen}
           accountId={accountId}
-          currentCount={watchlistData?.length || 0}
+          currentCount={watchlistData?.items.length || 0}
         />
       </div>
     </div>
