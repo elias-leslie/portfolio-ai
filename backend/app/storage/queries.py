@@ -47,7 +47,8 @@ class QueryManager:
                 result = conn.execute(sql, params).fetchdf()
             else:
                 result = conn.execute(sql).fetchdf()
-            return pl.from_pandas(result)  # type: ignore[no-any-return]
+            # fetchdf() already returns polars DataFrame, no conversion needed
+            return result  # type: ignore[no-any-return]
 
     def get_watchlist_items_by_account(self, account_id: str) -> pl.DataFrame:
         """Return watchlist items for a given account ordered by symbol."""

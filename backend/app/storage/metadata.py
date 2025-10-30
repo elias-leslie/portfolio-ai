@@ -39,11 +39,15 @@ class MetadataManager:
             conn: Active DuckDB connection
             table_name: Name of the table that was updated
         """
-        # Check if table_registry exists
-        tables = conn.execute("SHOW TABLES").fetchall()
-        table_names = [t[0] for t in tables]
+        # Check if table_registry exists (PostgreSQL-compatible query)
+        result = conn.execute("""
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema = 'public'
+            AND table_name = 'table_registry'
+        """).fetchone()
 
-        if "table_registry" not in table_names:
+        if not result:
             return  # table_registry not initialized yet
 
         # Get current row count

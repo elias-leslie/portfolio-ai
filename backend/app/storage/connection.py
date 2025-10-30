@@ -179,21 +179,23 @@ class PostgreSQLDuckDBWrapper:
             logger.debug(f"Skipping empty DataFrame for table {table_name}")
             return 0
 
-        # Use pandas to_sql with SQLAlchemy engine for efficient bulk insert
-        # pandas requires a SQLAlchemy connection, not a raw psycopg2 connection
+        # Use pandas to_sql with SQLAlchemy connection for efficient bulk insert
+        # pandas requires a proper SQLAlchemy connection in a transaction context
         if self._engine is None:
             raise RuntimeError(
                 "SQLAlchemy engine not available. "
                 "DataFrame operations require the engine to be passed to wrapper."
             )
 
-        pdf.to_sql(
-            name=table_name,
-            con=self._engine,
-            if_exists=if_exists,
-            index=False,
-            method="multi",  # Batch inserts (much faster than default)
-        )
+        # Use connection context from engine for proper transaction handling
+        with self._engine.begin() as conn:
+            pdf.to_sql(
+                name=table_name,
+                con=conn,
+                if_exists=if_exists,
+                index=False,
+                method="multi",  # Batch inserts (much faster than default)
+            )
 
         row_count = len(pdf)
         logger.debug(f"Inserted {row_count} rows into {table_name}")

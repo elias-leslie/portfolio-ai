@@ -55,7 +55,12 @@ def test_ensure_schema_creates_all_tables(schema_mgr: SchemaManager) -> None:
     schema_mgr.ensure_schema()
 
     with schema_mgr.connection_mgr.connection() as conn:
-        tables = conn.execute("SHOW TABLES").fetchall()
+        # PostgreSQL-compatible query to list tables
+        tables = conn.execute("""
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema = 'public'
+        """).fetchall()
         table_names = {t[0] for t in tables}
 
         expected_tables = {
@@ -230,7 +235,12 @@ def test_schema_idempotent(schema_mgr: SchemaManager) -> None:
     schema_mgr.ensure_schema()  # Should not raise
 
     with schema_mgr.connection_mgr.connection() as conn:
-        tables = conn.execute("SHOW TABLES").fetchall()
+        # PostgreSQL-compatible query to list tables
+        tables = conn.execute("""
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema = 'public'
+        """).fetchall()
         table_names = {t[0] for t in tables}
 
         # Should still have all tables
