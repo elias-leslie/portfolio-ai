@@ -1,16 +1,39 @@
-"""Unit tests for DuckDB schema creation."""
+"""Unit tests for PostgreSQL schema creation."""
 
 from __future__ import annotations
 
 import tempfile
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from app.storage.connection import ConnectionManager
 from app.storage.queries import QueryManager
 from app.storage.schema import SchemaManager
+
+
+def get_table_columns(conn: Any, table_name: str) -> dict[str, str]:
+    """Get table columns using PostgreSQL information_schema.
+
+    Args:
+        conn: Database connection
+        table_name: Name of the table
+
+    Returns:
+        Dictionary mapping column names to data types
+    """
+    result = conn.execute(
+        """
+        SELECT column_name, data_type
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = ?
+        ORDER BY ordinal_position
+        """,
+        [table_name],
+    ).fetchall()
+    return {row[0]: row[1] for row in result}
 
 
 @pytest.fixture
@@ -95,8 +118,7 @@ def test_portfolio_accounts_table_structure(schema_mgr: SchemaManager) -> None:
     schema_mgr.ensure_schema()
 
     with schema_mgr.connection_mgr.connection() as conn:
-        result = conn.execute("DESCRIBE portfolio_accounts").fetchall()
-        columns = {row[0]: row[1] for row in result}
+        columns = get_table_columns(conn, "portfolio_accounts")
 
         assert "id" in columns
         assert "name" in columns
@@ -110,8 +132,7 @@ def test_portfolio_positions_table_structure(schema_mgr: SchemaManager) -> None:
     schema_mgr.ensure_schema()
 
     with schema_mgr.connection_mgr.connection() as conn:
-        result = conn.execute("DESCRIBE portfolio_positions").fetchall()
-        columns = {row[0]: row[1] for row in result}
+        columns = get_table_columns(conn, "portfolio_positions")
 
         assert "id" in columns
         assert "account_id" in columns
@@ -126,8 +147,7 @@ def test_user_preferences_table_structure(schema_mgr: SchemaManager) -> None:
     schema_mgr.ensure_schema()
 
     with schema_mgr.connection_mgr.connection() as conn:
-        result = conn.execute("DESCRIBE user_preferences").fetchall()
-        columns = {row[0]: row[1] for row in result}
+        columns = get_table_columns(conn, "user_preferences")
 
         assert "id" in columns
         assert "risk_tolerance" in columns
@@ -173,8 +193,7 @@ def test_price_cache_table_structure(schema_mgr: SchemaManager) -> None:
     schema_mgr.ensure_schema()
 
     with schema_mgr.connection_mgr.connection() as conn:
-        result = conn.execute("DESCRIBE price_cache").fetchall()
-        columns = {row[0]: row[1] for row in result}
+        columns = get_table_columns(conn, "price_cache")
 
         assert "symbol" in columns
         assert "price" in columns
@@ -190,8 +209,7 @@ def test_agent_runs_table_structure(schema_mgr: SchemaManager) -> None:
     schema_mgr.ensure_schema()
 
     with schema_mgr.connection_mgr.connection() as conn:
-        result = conn.execute("DESCRIBE agent_runs").fetchall()
-        columns = {row[0]: row[1] for row in result}
+        columns = get_table_columns(conn, "agent_runs")
 
         assert "id" in columns
         assert "agent_type" in columns
@@ -207,8 +225,7 @@ def test_agent_ideas_table_structure(schema_mgr: SchemaManager) -> None:
     schema_mgr.ensure_schema()
 
     with schema_mgr.connection_mgr.connection() as conn:
-        result = conn.execute("DESCRIBE agent_ideas").fetchall()
-        columns = {row[0]: row[1] for row in result}
+        columns = get_table_columns(conn, "agent_ideas")
 
         assert "id" in columns
         assert "agent_run_id" in columns
@@ -270,15 +287,9 @@ def test_watchlist_tables_structure(schema_mgr: SchemaManager) -> None:
     schema_mgr.ensure_schema()
 
     with schema_mgr.connection_mgr.connection() as conn:
-        items_columns = {
-            row[0]: row[1] for row in conn.execute("DESCRIBE watchlist_items").fetchall()
-        }
-        snapshots_columns = {
-            row[0]: row[1] for row in conn.execute("DESCRIBE watchlist_snapshots").fetchall()
-        }
-        reference_columns = {
-            row[0]: row[1] for row in conn.execute("DESCRIBE reference_cache").fetchall()
-        }
+        items_columns = get_table_columns(conn, "watchlist_items")
+        snapshots_columns = get_table_columns(conn, "watchlist_snapshots")
+        reference_columns = get_table_columns(conn, "reference_cache")
 
         assert {"id", "account_id", "symbol", "metadata", "note"}.issubset(items_columns)
         assert {
@@ -318,6 +329,7 @@ def test_get_watchlist_items_by_account(schema_mgr: SchemaManager, query_mgr: Qu
             """,
             ["item-2", "acct-1", "MSFT", "{}", None],
         )
+        conn.commit()  # Commit the inserts
 
     result = query_mgr.get_watchlist_items_by_account("acct-1")
     symbols = result.get_column("symbol").to_list()
@@ -346,6 +358,7 @@ def test_watchlist_snapshot_history_and_upsert(
             """,
             ["item-1", "acct-1", "AAPL", "{}"],
         )
+        conn.commit()  # Commit the inserts
 
     # Initial insert
     query_mgr.upsert_watchlist_snapshot(
@@ -385,7 +398,8 @@ def test_watchlist_snapshot_history_and_upsert(
     assert latest_price == 184.25
 
     earliest_raw_metrics = sorted_history["raw_metrics"].to_list()[0]
-    assert '"rsi": 59.0' in earliest_raw_metrics
+    # PostgreSQL JSONB returns dict, not JSON string
+    assert earliest_raw_metrics["rsi"] == 59.0 or '"rsi": 59.0' in str(earliest_raw_metrics)
 
 
 def test_migrations_applied(schema_mgr: SchemaManager) -> None:
