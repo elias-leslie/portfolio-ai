@@ -7,10 +7,18 @@ and proper database cleanup between tests.
 from __future__ import annotations
 
 import logging
+import os
 
 import pytest
 
 from app.storage.connection import ConnectionManager
+
+# Configure test database
+# Tests use a separate database to avoid cleaning production data
+TEST_DB_URL = (
+    "postgresql://portfolio_ai_user:REDACTED_PASSWORD@localhost:5432/portfolio_ai_test"
+)
+os.environ["DATABASE_URL"] = TEST_DB_URL
 
 logger = logging.getLogger(__name__)
 
