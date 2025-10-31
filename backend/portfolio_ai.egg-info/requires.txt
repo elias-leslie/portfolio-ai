@@ -39,4 +39,5 @@ ruff==0.14.2
 mypy==1.18.2
 types-PyYAML==6.0.12.20250915
 types-requests==2.32.4.20250913
+pandas-stubs==2.2.3.250915
 pre-commit==4.3.0

@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import polars as pl
-import redis  # type: ignore[import-not-found]
+import redis
 
 from ..logging_config import get_logger
 from ..portfolio.price_fetcher import PriceDataFetcher
@@ -26,10 +26,10 @@ logger = get_logger(__name__)
 
 # Redis client for tracking refresh progress
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
-_redis_client: redis.Redis | None = None
+_redis_client: redis.Redis[str] | None = None
 
 
-def _get_redis_client() -> redis.Redis:
+def _get_redis_client() -> redis.Redis[str]:
     """Get or create Redis client for progress tracking."""
     global _redis_client  # noqa: PLW0603
     if _redis_client is None:
