@@ -58,6 +58,7 @@ celery_app.conf.beat_schedule = {
             hour="13-20",  # 9:00 AM - 4:00 PM ET = 13:00 - 20:00 UTC (covers market hours)
             day_of_week="1-5",  # Monday-Friday
         ),
+        "args": ["default"],  # Pass account_id="default" to the task
         "options": {"expires": 300},  # Task expires after 5 minutes if not picked up
     },
     # Update paper trades daily at 4:30 PM ET (market close + 30 min)
