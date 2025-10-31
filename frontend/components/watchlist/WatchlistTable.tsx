@@ -83,8 +83,8 @@ export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
         bVal = b.current_score?.technical.score ?? -1;
         break;
       case "updated":
-        aVal = a.updated_at;
-        bVal = b.updated_at;
+        aVal = a.current_score?.price?.updated_at ?? a.updated_at;
+        bVal = b.current_score?.price?.updated_at ?? b.updated_at;
         break;
     }
 
@@ -360,7 +360,9 @@ export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
                     )}
                   </TableCell>
                   <TableCell className="text-xs text-text-muted">
-                    {formatDate(item.updated_at, userTimezone)}
+                    {item.current_score?.price?.updated_at
+                      ? formatDate(item.current_score.price.updated_at, userTimezone)
+                      : formatDate(item.updated_at, userTimezone)}
                   </TableCell>
                   <TableCell>
                     <Button
