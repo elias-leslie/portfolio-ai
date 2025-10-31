@@ -1,10 +1,10 @@
 # Task List: Watchlist Refresh Infrastructure & Market Hours Handling Fixes
 
 **PRD**: `0018-prd-watchlist-refresh-infrastructure-fixes.md`
-**Status**: Ready for Implementation
-**Completion**: 0% (Not started)
-**Effort to Complete**: MEDIUM
-**Last Updated**: 2025-10-30
+**Status**: IN PROGRESS
+**Completion**: 33% (2 of 6 major tasks complete)
+**Effort to Complete**: MEDIUM (4-6 hours remaining)
+**Last Updated**: 2025-10-30 23:45 PM EDT
 
 **Note on Effort Levels**:
 - **Low**: Simple changes, 1-2 hours total
@@ -16,17 +16,32 @@
 ## Summary
 
 **✅ COMPLETE:**
-- (None yet)
+- Task 1.0: Market Hours Awareness Implementation (100%)
+  - Created market_hours.py with is_market_hours() and is_stale()
+  - 19 unit tests (all passing)
+  - Database migration 004 for is_stale column
+  - Updated WatchlistSnapshot model and storage queries
+- Task 3.0: Celery Market Hours Integration (100%)
+  - Updated refresh_watchlist_scores_task to log market status
+  - Updated Celery beat schedule (every 15min during market hours)
 
 **🔄 IN PROGRESS:**
-- (Not started)
+- None (paused due to blocker)
+
+**❌ BLOCKER:**
+**CRITICAL BUG DISCOVERED**: Refresh skips tickers without historical data
+- **Symptom**: Only 1 of 13 tickers processed during refresh
+- **Root Cause**: `watchlist/service.py:279-288` skips tickers when `_calculate_price_change()` returns None (missing day_bars data)
+- **Impact**: Existing tickers lose scores (drop to 0.0) when new ticker is added
+- **Fix Required**: Remove skip logic, default change_pct to 0.0 if None, always update prices
+- **Priority**: Must fix before continuing with remaining tasks
 
 **⚠️ NEXT STEPS:**
-1. Begin with Task 1.0 (Market Hours Awareness)
-2. Follow checklist sequentially
-3. Update this summary as work progresses
+1. **IMMEDIATE**: Fix blocker (refresh skip logic in service.py)
+2. Complete Task 2.0 (Manual Refresh Button Fix)
+3. Complete Tasks 4.0, 5.0, 6.0 sequentially
 
-**EFFORT TO COMPLETE:** MEDIUM (~4-6 hours)
+**COMMITS**: 3 commits (1415b46, 21df9ce, 654a133)
 
 ---
 
