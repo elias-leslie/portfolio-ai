@@ -1,10 +1,11 @@
 # Task List: Watchlist Refresh Infrastructure & Market Hours Handling Fixes
 
 **PRD**: `0018-prd-watchlist-refresh-infrastructure-fixes.md`
-**Status**: COMPLETE ✅
-**Completion**: 100% (8 of 8 tasks complete: 0.0, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0)
-**Effort to Complete**: COMPLETE
-**Last Updated**: 2025-10-31 01:10 AM EDT
+**Status**: INCOMPLETE - CRITICAL ISSUES FOUND ❌
+**Completion**: 75% (6 of 8 tasks complete: 0.0, 1.0, 1.5, 2.0, 4.0, 5.0)
+**Tasks FAILING**: 3.0 (Celery scheduler broken), 6.0 (auto-refresh not working properly)
+**Effort to Complete**: HIGH (significant rework needed)
+**Last Updated**: 2025-10-31 09:20 AM EDT
 
 **Note on Effort Levels**:
 - **Low**: Simple changes, 1-2 hours total
@@ -60,8 +61,27 @@
   - Full test suite run: 332 passed, 1 failed (pre-existing), 2 skipped, 99.7% pass rate
   - All watchlist tests passing (test_api_watchlist.py 100%)
 
-**🔄 IN PROGRESS:**
-- None (All tasks complete!)
+**🔄 CRITICAL ISSUES DISCOVERED:**
+
+**Task 3.0: Celery Beat Scheduler - BROKEN ❌**
+- Schedule is **hardcoded** to 15 minutes, ignores user preferences entirely
+- Schedule timing was wrong: hour="14-20" instead of "13-20" (missed first 30min of market)
+- Fixed schedule to run every 1 minute at hour="13-20" for testing
+- **HOWEVER**: Task only updates 1 ticker (AAPL) out of 14 - other tickers not refreshing
+- account_id parameter likely missing in scheduled task call
+
+**Task 6.0: Auto-Refresh Validation - FAILING ❌**
+- Celery beat IS sending tasks (confirmed in logs: 09:13, 09:14, 09:15, 09:16, 09:17)
+- Database shows new snapshots created (timestamp 2025-10-31 13:17:00 UTC)
+- **BUT**: Only AAPL updated in UI ("Oct 31, 9:08 AM EDT") - all other tickers show old timestamps
+- 7-day trend sparklines incorrectly show "neutral" (flat) after hours - should show historical trend
+- Frontend auto-refresh (React Query) not working - requires manual page reload to see updates
+
+**Root Causes Identified:**
+1. Celery task not passing account_id="default" to refresh_watchlist_scores_service
+2. Task may be using wrong account or only processing partial watchlist
+3. Frontend refetchInterval may not be invalidating cache properly
+4. Sparkline calculation broken (neutral trend for historical data makes no sense)
 
 **⚠️ NEW ISSUE DISCOVERED:**
 **Task 1.6: Large Negative Price Changes Score as 0.0**

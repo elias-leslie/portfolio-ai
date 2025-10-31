@@ -47,14 +47,15 @@ celery_app.conf.update(
 
 # Configure Celery Beat schedule for periodic tasks
 celery_app.conf.beat_schedule = {
-    # Refresh watchlist scores every 15 minutes during market hours
+    # Refresh watchlist scores every 1 minute during market hours (for testing)
     # Monday-Friday, 9:30 AM - 4:00 PM ET (converted to UTC)
-    # Note: Task will still run if triggered, but logs market status
+    # Note: 9:30 AM ET = 13:30 UTC, 4:00 PM ET = 20:00 UTC
+    # TODO: Make interval configurable via user preferences
     "refresh-watchlist-scores": {
         "task": "refresh_watchlist_scores",
         "schedule": crontab(
-            minute="*/15",  # Every 15 minutes
-            hour="14-20",  # 9:30 AM - 4:00 PM ET = 14:30 - 21:00 UTC (approx)
+            minute="*/1",  # Every 1 minute (for testing - should be user preference)
+            hour="13-20",  # 9:00 AM - 4:00 PM ET = 13:00 - 20:00 UTC (covers market hours)
             day_of_week="1-5",  # Monday-Friday
         ),
         "options": {"expires": 300},  # Task expires after 5 minutes if not picked up
