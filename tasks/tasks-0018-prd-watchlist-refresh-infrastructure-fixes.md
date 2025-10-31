@@ -37,7 +37,11 @@
 - **Priority**: Must fix before continuing with remaining tasks
 
 **⚠️ NEXT STEPS:**
-1. **IMMEDIATE**: Fix blocker (refresh skip logic in service.py)
+1. **IMMEDIATE**: Complete Task 0.0 (Fix Critical Blocker - Refresh Skip Logic)
+   - Investigate data integrity (why existing tickers missing day_bars?)
+   - Remove skip logic that causes scores to drop
+   - Add fallback: use previous snapshot or default to 0.0
+   - Queue background task to backfill historical data
 2. Complete Task 2.0 (Manual Refresh Button Fix)
 3. Complete Tasks 4.0, 5.0, 6.0 sequentially
 
@@ -56,7 +60,7 @@
 
 ### Files to Update (9 files)
 
-- `backend/app/watchlist/service.py` - Add market hours awareness, atomic batch updates, improved error handling
+- `backend/app/watchlist/service.py` - **PRIORITY**: Fix skip logic (lines 279-288), add fallback for missing historical data, add market hours awareness, atomic batch updates, improved error handling
 - `backend/app/api/watchlist.py` - Update refresh endpoint to return proper multi-status responses
 - `backend/app/celery_app.py` - Update beat schedule with market hours crontab
 - `backend/app/tasks/agent_tasks.py` - Add market hours check to periodic refresh task
@@ -85,7 +89,56 @@
 
 ## Tasks
 
-### 1.0 Market Hours Awareness Implementation
+### 0.0 Fix Critical Blocker - Refresh Skip Logic (PRIORITY)
+
+**Issue**: Refresh skips tickers without historical data, causing scores to drop to 0.0
+
+- [ ] 0.1 Investigate data integrity issue
+  - [ ] 0.1.1 Query day_bars table to check which tickers have historical data
+  - [ ] 0.1.2 Query watchlist_items to see all tickers in watchlist
+  - [ ] 0.1.3 Identify which tickers are missing day_bars data
+  - [ ] 0.1.4 Document findings (why are existing tickers missing data?)
+- [ ] 0.2 Fix refresh skip logic in service.py
+  - [ ] 0.2.1 Read current implementation in `watchlist/service.py:279-288`
+  - [ ] 0.2.2 Remove `continue` statement that skips tickers
+  - [ ] 0.2.3 Update logic: if `change_pct` is None, default to 0.0
+  - [ ] 0.2.4 Add logging when change_pct defaults to 0.0
+  - [ ] 0.2.5 Ensure snapshot is still created with available data
+- [ ] 0.3 Add fallback logic for missing historical data
+  - [ ] 0.3.1 If day_bars missing, calculate change_pct from previous snapshot
+  - [ ] 0.3.2 Query most recent watchlist_snapshot for symbol
+  - [ ] 0.3.3 Compare current price to snapshot price
+  - [ ] 0.3.4 If no snapshot exists, default change_pct to 0.0
+  - [ ] 0.3.5 Add unit tests for fallback logic
+- [ ] 0.4 Add background task to backfill missing historical data
+  - [ ] 0.4.1 Create list of symbols needing historical data
+  - [ ] 0.4.2 Queue background task to ingest OHLCV data
+  - [ ] 0.4.3 Log which symbols are queued for backfill
+  - [ ] 0.4.4 Don't block refresh while backfill runs
+- [ ] 0.5 Test the fix end-to-end
+  - [ ] 0.5.1 Add new ticker (e.g., QQQ) without historical data
+  - [ ] 0.5.2 Trigger manual refresh via UI
+  - [ ] 0.5.3 Verify ALL tickers show scores (not just 1 of 13)
+  - [ ] 0.5.4 Verify existing ticker scores don't drop to 0.0
+  - [ ] 0.5.5 Check toast notification shows correct count
+  - [ ] 0.5.6 Use chrome-devtools MCP to automate UI testing
+- [ ] 0.6 Write unit tests for skip logic fix
+  - [ ] 0.6.1 Test: ticker with no day_bars data still gets processed
+  - [ ] 0.6.2 Test: change_pct defaults to 0.0 when None
+  - [ ] 0.6.3 Test: snapshot is created even with missing historical data
+  - [ ] 0.6.4 Test: existing snapshots used as fallback for change_pct
+  - [ ] 0.6.5 Run tests: `pytest tests/watchlist/ -v`
+- [ ] 0.7 Run type checking and linting
+  - [ ] 0.7.1 Run `mypy app/watchlist/service.py --strict`
+  - [ ] 0.7.2 Run `ruff check app/watchlist/service.py`
+  - [ ] 0.7.3 Fix any type or lint errors
+- [ ] 0.8 Commit the blocker fix
+  - [ ] 0.8.1 Stage changes: `git add app/watchlist/service.py tests/`
+  - [ ] 0.8.2 Create descriptive commit message
+  - [ ] 0.8.3 Verify pre-commit hooks pass
+  - [ ] 0.8.4 Push commit
+
+### 1.0 Market Hours Awareness Implementation (✅ COMPLETE)
 
 - [ ] 1.1 Create market_hours.py module structure
   - [ ] 1.1.1 Create file `backend/app/utils/market_hours.py` with module docstring
