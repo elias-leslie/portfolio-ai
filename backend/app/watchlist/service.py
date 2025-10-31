@@ -27,10 +27,10 @@ logger = get_logger(__name__)
 
 # Redis client for tracking refresh progress
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
-_redis_client: redis.Redis | None = None  # type: ignore[type-arg]
+_redis_client: redis.Redis[str] | None = None
 
 
-def _get_redis_client() -> redis.Redis:  # type: ignore[type-arg]
+def _get_redis_client() -> redis.Redis[str]:
     """Get or create Redis client for progress tracking."""
     global _redis_client  # noqa: PLW0603
     if _redis_client is None:
@@ -280,6 +280,8 @@ def refresh_watchlist_scores(
     processed = 0
     now = datetime.now(UTC)
     processed_symbols: list[str] = []
+    success_list: list[str] = []
+    failed_list: list[dict[str, str]] = []
 
     for row in items_df.iter_rows(named=True):
         symbol = row["symbol"]
@@ -300,93 +302,114 @@ def refresh_watchlist_scores(
         except Exception as e:
             logger.debug("Failed to update Redis refresh status", error=str(e))
 
-        price_data = price_map.get(symbol)
-        if not price_data or price_data.price <= 0:
-            logger.warning(
-                "watchlist_refresh_missing_price",
-                symbol=symbol,
-                item_id=item_id,
-            )
-            continue
-
-        change_pct, has_historical_data = _calculate_price_change(
-            storage, symbol, price_data.price, item_id
-        )
-
-        # Queue backfill task if historical data is missing
-        # Note: Using try/except to handle celery not running (dev environments)
-        if not has_historical_data:
-            try:
-                from ..tasks.agent_tasks import (  # noqa: PLC0415 - avoid circular dependency
-                    ingest_historical_ohlcv,
-                )
-
-                # Queue backfill for 252 trading days (~1 year)
-                ingest_historical_ohlcv.delay([symbol], days=252)
-                logger.info(
-                    "watchlist_refresh_queued_backfill",
-                    symbol=symbol,
-                    item_id=item_id,
-                    reason="Missing day_bars data - queued historical backfill task",
-                )
-            except Exception as e:
+        # Wrap per-ticker processing in try/except for error tracking
+        try:
+            price_data = price_map.get(symbol)
+            if not price_data or price_data.price <= 0:
                 logger.warning(
-                    "watchlist_refresh_backfill_queue_failed",
+                    "watchlist_refresh_missing_price",
                     symbol=symbol,
                     item_id=item_id,
-                    error=str(e),
                 )
+                failed_list.append(
+                    {
+                        "symbol": symbol,
+                        "reason": "Unable to fetch price data or invalid price",
+                    }
+                )
+                continue
 
-        # Default to 0.0% change if no comparison data available
-        if change_pct is None:
-            logger.info(
-                "watchlist_refresh_defaulted_change_pct",
+            change_pct, has_historical_data = _calculate_price_change(
+                storage, symbol, price_data.price, item_id
+            )
+
+            # Queue backfill task if historical data is missing
+            # Note: Using try/except to handle celery not running (dev environments)
+            if not has_historical_data:
+                try:
+                    from ..tasks.agent_tasks import (  # noqa: PLC0415 - avoid circular dependency
+                        ingest_historical_ohlcv,
+                    )
+
+                    # Queue backfill for 252 trading days (~1 year)
+                    ingest_historical_ohlcv.delay([symbol], days=252)
+                    logger.info(
+                        "watchlist_refresh_queued_backfill",
+                        symbol=symbol,
+                        item_id=item_id,
+                        reason="Missing day_bars data - queued historical backfill task",
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "watchlist_refresh_backfill_queue_failed",
+                        symbol=symbol,
+                        item_id=item_id,
+                        error=str(e),
+                    )
+
+            # Default to 0.0% change if no comparison data available
+            if change_pct is None:
+                logger.info(
+                    "watchlist_refresh_defaulted_change_pct",
+                    symbol=symbol,
+                    item_id=item_id,
+                    change_pct=0.0,
+                    reason="No comparison data (first snapshot) - defaulting to 0.0%",
+                )
+                change_pct = 0.0
+
+            technical_snapshot = technical_map.get(symbol, TechnicalSnapshot())
+            technical_snapshot.price = price_data.price
+
+            breakdown = calculate_watchlist_scores(
+                WatchlistScoreInputs(
+                    price=price_data,
+                    price_change_pct=change_pct,
+                    technical=technical_snapshot,
+                    weights=default_weights,
+                    now=now,
+                    stale_ttl_minutes=stale_ttl_minutes,
+                )
+            )
+
+            # Calculate staleness based on market hours
+            data_is_stale = is_stale(fetched_at=now, now=now)  # Just fetched, so not stale
+
+            snapshot = WatchlistSnapshot(
+                item_id=item_id,
+                fetched_at=now,
+                price=price_data.price,
+                change_pct=change_pct,
+                beta=price_data.beta,
+                volatility=price_data.volatility,
+                overall_score=breakdown.overall,
+                technical_score=breakdown.technical.score,
+                is_stale=data_is_stale,
+                raw_metrics=breakdown.to_snapshot_payload(),
+            )
+
+            storage.query_mgr.upsert_watchlist_snapshot(**snapshot.to_upsert_params())
+            processed += 1
+            processed_symbols.append(symbol)
+            success_list.append(symbol)
+
+        except Exception as e:
+            # Log error and continue processing remaining tickers
+            logger.warning(
+                "watchlist_refresh_ticker_failed",
                 symbol=symbol,
                 item_id=item_id,
-                change_pct=0.0,
-                reason="No comparison data (first snapshot) - defaulting to 0.0%",
+                error=str(e),
             )
-            change_pct = 0.0
-
-        technical_snapshot = technical_map.get(symbol, TechnicalSnapshot())
-        technical_snapshot.price = price_data.price
-
-        breakdown = calculate_watchlist_scores(
-            WatchlistScoreInputs(
-                price=price_data,
-                price_change_pct=change_pct,
-                technical=technical_snapshot,
-                weights=default_weights,
-                now=now,
-                stale_ttl_minutes=stale_ttl_minutes,
-            )
-        )
-
-        # Calculate staleness based on market hours
-        data_is_stale = is_stale(fetched_at=now, now=now)  # Just fetched, so not stale
-
-        snapshot = WatchlistSnapshot(
-            item_id=item_id,
-            fetched_at=now,
-            price=price_data.price,
-            change_pct=change_pct,
-            beta=price_data.beta,
-            volatility=price_data.volatility,
-            overall_score=breakdown.overall,
-            technical_score=breakdown.technical.score,
-            is_stale=data_is_stale,
-            raw_metrics=breakdown.to_snapshot_payload(),
-        )
-
-        storage.query_mgr.upsert_watchlist_snapshot(**snapshot.to_upsert_params())
-        processed += 1
-        processed_symbols.append(symbol)
+            failed_list.append({"symbol": symbol, "reason": str(e)})
 
     logger.info(
         "watchlist_refresh_completed",
         processed=processed,
         symbols=processed_symbols,
         batches=total_batches,
+        success_count=len(success_list),
+        failed_count=len(failed_list),
     )
 
     # Update refresh status to completed (keep for 5 seconds for frontend polling)
@@ -406,7 +429,15 @@ def refresh_watchlist_scores(
     except Exception as e:
         logger.warning("Failed to update Redis refresh completion status", error=str(e))
 
-    return {"processed": processed, "symbols": processed_symbols, "batches": total_batches}
+    return {
+        "processed": processed,
+        "symbols": processed_symbols,
+        "batches": total_batches,
+        "success_count": len(success_list),
+        "failed_count": len(failed_list),
+        "success": success_list,
+        "failed": failed_list,
+    }
 
 
 class WatchlistService:

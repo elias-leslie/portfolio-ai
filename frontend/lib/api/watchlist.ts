@@ -45,10 +45,17 @@ export interface WatchlistItemUpdate {
   note?: string;
 }
 
+export interface FailedTickerInfo {
+  symbol: string;
+  reason: string;
+}
+
 export interface RefreshResponse {
   status: string;
   message: string;
   refreshed_count: number;
+  failed_count?: number;
+  failed?: FailedTickerInfo[];
 }
 
 export interface ScoreHistory {
@@ -213,7 +220,8 @@ export async function refreshWatchlistScores(
     body: JSON.stringify({ account_id: accountId }),
   });
 
-  if (!response.ok) {
+  // Handle 207 Multi-Status (partial success) as success
+  if (!response.ok && response.status !== 207) {
     throw new Error(`Failed to refresh scores: ${response.statusText}`);
   }
 

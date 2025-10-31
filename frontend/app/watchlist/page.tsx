@@ -18,7 +18,20 @@ export default function WatchlistPage() {
   const handleRefresh = () => {
     refreshMutation.mutate(accountId, {
       onSuccess: (data) => {
-        toast.success(data.message || "Watchlist refreshed successfully");
+        // Handle different statuses
+        if (data.status === "success") {
+          // All success
+          toast.success(data.message || `Refreshed ${data.refreshed_count} tickers`);
+        } else if (data.status === "partial_success") {
+          // Partial success - show warning with failed tickers
+          const failedSymbols = data.failed?.slice(0, 3).map((f) => f.symbol).join(", ") || "";
+          const moreCount = (data.failed_count || 0) - 3;
+          const failedMsg = moreCount > 0 ? `${failedSymbols} and ${moreCount} more` : failedSymbols;
+
+          toast.warning(data.message, {
+            description: failedMsg ? `Failed: ${failedMsg}` : undefined,
+          });
+        }
       },
       onError: (err) => {
         toast.error(`Failed to refresh: ${err.message}`);

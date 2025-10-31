@@ -91,6 +91,7 @@ def _insert_watchlist_item(storage: DuckDBStorage, item_id: str, symbol: str) ->
             """,
             [item_id, "acct-1", symbol, json.dumps({})],
         )
+        conn.commit()
 
 
 def _insert_day_bars(storage: DuckDBStorage, symbol: str, closes: list[float]) -> None:
@@ -157,6 +158,7 @@ def _insert_account(storage: DuckDBStorage, account_id: str) -> None:
             """,
             [account_id, "Primary", "Taxable"],
         )
+        conn.commit()
 
 
 def test_refresh_watchlist_scores_persists_snapshots(storage: DuckDBStorage) -> None:

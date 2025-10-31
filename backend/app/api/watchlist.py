@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.logging_config import get_logger
@@ -86,12 +87,21 @@ class WatchlistListResponse(BaseModel):
     total_count: int
 
 
+class FailedTickerInfo(BaseModel):
+    """Information about a failed ticker refresh."""
+
+    symbol: str
+    reason: str
+
+
 class RefreshResponse(BaseModel):
     """Response model for manual refresh request."""
 
     status: str
     message: str
     refreshed_count: int
+    failed_count: int = 0
+    failed: list[FailedTickerInfo] = Field(default_factory=list)
 
 
 class ScoreHistoryPoint(BaseModel):
@@ -567,10 +577,12 @@ async def refresh_watchlist_scores(data: RefreshRequest) -> RefreshResponse:
         data: Refresh request data with account_id
 
     Returns:
-        Refresh status
+        Refresh status (200 OK for all success, 207 Multi-Status for partial success)
     """
     try:
         account_id = data.account_id
+        logger.info("Refresh request started", account_id=account_id)
+
         # Get all items for this account
         items_df = storage.query(
             """
@@ -584,10 +596,13 @@ async def refresh_watchlist_scores(data: RefreshRequest) -> RefreshResponse:
                 status="success",
                 message="No items in watchlist",
                 refreshed_count=0,
+                failed_count=0,
+                failed=[],
             )
 
         items = items_df.to_dicts()
         tickers = [item["symbol"] for item in items]
+        logger.info("Refreshing tickers", tickers=tickers, count=len(tickers))
 
         # Trigger background data refresh for ALL tickers
         try:
@@ -612,15 +627,46 @@ async def refresh_watchlist_scores(data: RefreshRequest) -> RefreshResponse:
 
         # Do immediate synchronous refresh with Redis progress tracking
         result = refresh_watchlist_scores_service(storage, account_id=account_id)
-        refreshed = result.get("processed", 0)
+        success_count = result.get("success_count", 0)
+        failed_count = result.get("failed_count", 0)
+        failed_list = [FailedTickerInfo(**f) for f in result.get("failed", [])]
 
-        logger.info("Watchlist scores refreshed", account_id=account_id, count=refreshed)
-
-        return RefreshResponse(
-            status="success",
-            message=f"Refreshed {refreshed} of {len(items)} items (background data fetch queued)",
-            refreshed_count=refreshed,
+        logger.info(
+            "Watchlist refresh completed",
+            account_id=account_id,
+            success_count=success_count,
+            failed_count=failed_count,
         )
+
+        # Determine status code based on results
+        if failed_count == 0:
+            # All success
+            return RefreshResponse(
+                status="success",
+                message=f"Refreshed all {success_count} items successfully",
+                refreshed_count=success_count,
+                failed_count=0,
+                failed=[],
+            )
+
+        if success_count > 0:
+            # Partial success - return 207 Multi-Status
+            response_data = RefreshResponse(
+                status="partial_success",
+                message=f"Refreshed {success_count} of {len(items)} items ({failed_count} failed)",
+                refreshed_count=success_count,
+                failed_count=failed_count,
+                failed=failed_list,
+            )
+            return JSONResponse(status_code=207, content=response_data.model_dump())  # type: ignore[return-value]
+
+        # Complete failure - return 500
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to refresh any items ({failed_count} failed)",
+        )
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error("Failed to refresh watchlist scores", account_id=account_id, error=str(e))
+        logger.error("Failed to refresh watchlist scores", account_id=data.account_id, error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to refresh scores: {e}") from e

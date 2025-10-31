@@ -485,7 +485,9 @@ def test_refresh_watchlist_scores_success(client: TestClient, test_storage: Duck
 
     assert data["status"] == "success"
     assert data["refreshed_count"] == 2
-    assert "2 of 2" in data["message"]
+    assert data["failed_count"] == 0
+    assert len(data["failed"]) == 0
+    assert "all 2 items" in data["message"]
 
 
 def test_refresh_watchlist_scores_handles_partial_failure(
@@ -533,11 +535,14 @@ def test_refresh_watchlist_scores_handles_partial_failure(
     ):
         response = client.post("/api/watchlist/refresh", json={"account_id": "test-account"})
 
-    assert response.status_code == 200
+    assert response.status_code == 207  # Multi-Status for partial success
     data = response.json()
 
-    assert data["status"] == "success"
+    assert data["status"] == "partial_success"
     assert data["refreshed_count"] == 1  # Only AAPL succeeded
+    assert data["failed_count"] == 1  # INVALID failed
+    assert len(data["failed"]) == 1
+    assert data["failed"][0]["symbol"] == "INVALID"
     assert "1 of 2" in data["message"]
 
 
