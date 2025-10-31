@@ -30,6 +30,7 @@ from app.sources.polygon_source import PolygonSource
 from app.sources.twelvedata_source import TwelveDataSource
 from app.sources.yfinance_source import YFinanceSource
 from app.storage import get_storage
+from app.utils.market_hours import is_market_hours
 from app.watchlist.service import refresh_watchlist_scores as refresh_watchlist_scores_service
 
 logger = get_logger(__name__)
@@ -588,24 +589,33 @@ def update_paper_trades_task(  # type: ignore[no-untyped-def]
 
 @celery_app.task(name="refresh_watchlist_scores", bind=True)  # type: ignore[misc]
 def refresh_watchlist_scores_task(self, account_id: str | None = None) -> dict[str, Any]:  # type: ignore[no-untyped-def]
-    """Refresh watchlist scores for all items or a specific account."""
+    """Refresh watchlist scores for all items or a specific account.
 
+    Note: This task checks market hours before refreshing. During market hours
+    (9:30 AM - 4:00 PM ET, Mon-Fri), it refreshes normally. After hours, it still
+    refreshes but uses a 24-hour staleness threshold instead of 15 minutes.
+    """
     task_id = self.request.id
+
+    # Check if markets are open (log for monitoring, but always refresh)
+    markets_open = is_market_hours()
     logger.info(
         "watchlist_refresh_task_started",
         task_id=task_id,
         account_id=account_id,
+        markets_open=markets_open,
     )
 
     try:
         storage = get_storage()
         result = refresh_watchlist_scores_service(storage, account_id=account_id)
-        result.update({"task_id": task_id})
+        result.update({"task_id": task_id, "markets_open": markets_open})
 
         logger.info(
             "watchlist_refresh_task_completed",
             task_id=task_id,
             processed=result.get("processed", 0),
+            markets_open=markets_open,
         )
         return result
 

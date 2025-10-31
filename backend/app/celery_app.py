@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 
 from celery import Celery  # type: ignore[import-untyped]  # celery doesn't ship type stubs
+from celery.schedules import crontab  # type: ignore[import-untyped]
 
 # Get Redis URL from environment or use default
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
@@ -46,10 +47,16 @@ celery_app.conf.update(
 
 # Configure Celery Beat schedule for periodic tasks
 celery_app.conf.beat_schedule = {
-    # Refresh watchlist scores every 15 minutes (default, can be overridden by user preferences)
+    # Refresh watchlist scores every 15 minutes during market hours
+    # Monday-Friday, 9:30 AM - 4:00 PM ET (converted to UTC)
+    # Note: Task will still run if triggered, but logs market status
     "refresh-watchlist-scores": {
         "task": "refresh_watchlist_scores",
-        "schedule": 900.0,  # 15 minutes in seconds
+        "schedule": crontab(
+            minute="*/15",  # Every 15 minutes
+            hour="14-20",  # 9:30 AM - 4:00 PM ET = 14:30 - 21:00 UTC (approx)
+            day_of_week="1-5",  # Monday-Friday
+        ),
         "options": {"expires": 300},  # Task expires after 5 minutes if not picked up
     },
     # Update paper trades daily at 4:30 PM ET (market close + 30 min)
