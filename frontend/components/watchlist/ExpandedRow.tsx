@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Sparkline } from "@/components/ui/sparkline";
 import { Save, Edit2, X, Loader2 } from "lucide-react";
 import { useUpdateWatchlistItem, useScoreHistory } from "@/lib/hooks/useWatchlist";
+import { usePreferences } from "@/lib/hooks/usePreferences";
 import { toast } from "sonner";
 import type { WatchlistItem, RefreshStatus } from "@/lib/api/watchlist";
 
@@ -21,6 +22,7 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
   const [noteValue, setNoteValue] = useState(item.note || "");
   const updateMutation = useUpdateWatchlistItem();
   const { data: historyResponse } = useScoreHistory(item.id);
+  const { data: preferences } = usePreferences();
 
   const hasScore = !!item.current_score;
   const history = historyResponse?.history || [];
@@ -66,16 +68,34 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
     return "viz-0";
   };
 
-  // Format timestamp
+  // Get user's timezone preference
+  const userTimezone = preferences?.display_timezone ?? "America/New_York";
+
+  // Get timezone abbreviation (EST, PST, etc.)
+  const getTimezoneAbbreviation = (timezone: string): string => {
+    const date = new Date();
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      timeZoneName: "short",
+    });
+    const parts = formatter.formatToParts(date);
+    const timeZonePart = parts.find((part) => part.type === "timeZoneName");
+    return timeZonePart?.value ?? "";
+  };
+
+  // Format timestamp with user's timezone
   const formatTimestamp = (timestamp?: string) => {
     if (!timestamp) return "Never";
     const date = new Date(timestamp);
-    return date.toLocaleString("en-US", {
+    const formatted = date.toLocaleString("en-US", {
+      timeZone: userTimezone,
       month: "short",
       day: "numeric",
       hour: "numeric",
       minute: "2-digit",
     });
+    const tzAbbr = getTimezoneAbbreviation(userTimezone);
+    return `${formatted} ${tzAbbr}`;
   };
 
   return (

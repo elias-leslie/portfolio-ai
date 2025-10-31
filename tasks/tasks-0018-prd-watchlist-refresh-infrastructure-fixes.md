@@ -2,9 +2,9 @@
 
 **PRD**: `0018-prd-watchlist-refresh-infrastructure-fixes.md`
 **Status**: IN PROGRESS
-**Completion**: 63% (5 of 8 tasks complete: 0.0, 1.0, 1.5, 2.0, 3.0)
-**Effort to Complete**: MEDIUM (2-4 hours remaining)
-**Last Updated**: 2025-10-31 00:40 AM EDT
+**Completion**: 88% (7 of 8 tasks complete: 0.0, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0)
+**Effort to Complete**: LOW (1 hour remaining)
+**Last Updated**: 2025-10-31 01:05 AM EDT
 
 **Note on Effort Levels**:
 - **Low**: Simple changes, 1-2 hours total
@@ -41,9 +41,21 @@
 - Task 3.0: Celery Market Hours Integration (100%)
   - Updated refresh_watchlist_scores_task to log market status
   - Updated Celery beat schedule (every 15min during market hours)
+- Task 4.0: Timezone Handling Consistency (100%)
+  - Database UTC timestamps confirmed (all use datetime.now(UTC))
+  - Pydantic serialization working (UTC with +00:00 suffix)
+  - Frontend uses native Intl.DateTimeFormat (no dependency needed!)
+  - WatchlistTable timezone formatting already implemented
+  - ExpandedRow updated to match WatchlistTable timezone formatting
+  - End-to-end tested: timestamps consistent between table and expanded row
+- Task 5.0: Error Handling & User Feedback (100%)
+  - Per-ticker error handling already implemented (try/except wrapper)
+  - Failed ticker collection and logging working
+  - Continue processing after failures confirmed
+  - Multi-status responses (200/207/500) verified in Task 2.0
 
 **🔄 IN PROGRESS:**
-- None (Task 2.0 verified complete)
+- None (Tasks 4.0 and 5.0 verified complete)
 
 **⚠️ NEW ISSUE DISCOVERED:**
 **Task 1.6: Large Negative Price Changes Score as 0.0**
@@ -54,8 +66,10 @@
 
 **⚠️ NEXT STEPS:**
 1. ~~Complete Task 2.0 (Manual Refresh Button Fix)~~ ✅ VERIFIED COMPLETE
-2. Investigate Task 1.6 (META score issue) if time permits
-3. Complete Tasks 4.0, 5.0, 6.0 sequentially
+2. ~~Complete Task 4.0 (Timezone Handling)~~ ✅ VERIFIED COMPLETE
+3. ~~Complete Task 5.0 (Error Handling)~~ ✅ VERIFIED COMPLETE
+4. Complete Task 6.0 (Testing & Validation) - final task
+5. Investigate Task 1.6 (META score issue) if time permits
 
 **COMMITS**: 5 commits (ec0fa93, 5c3f803, 1415b46, 21df9ce, 654a133)
 
