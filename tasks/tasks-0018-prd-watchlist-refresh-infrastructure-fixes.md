@@ -1,10 +1,10 @@
 # Task List: Watchlist Refresh Infrastructure & Market Hours Handling Fixes
 
 **PRD**: `0018-prd-watchlist-refresh-infrastructure-fixes.md`
-**Status**: IN PROGRESS
-**Completion**: 88% (7 of 8 tasks complete: 0.0, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0)
-**Effort to Complete**: LOW (1 hour remaining)
-**Last Updated**: 2025-10-31 01:05 AM EDT
+**Status**: COMPLETE ✅
+**Completion**: 100% (8 of 8 tasks complete: 0.0, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0)
+**Effort to Complete**: COMPLETE
+**Last Updated**: 2025-10-31 01:10 AM EDT
 
 **Note on Effort Levels**:
 - **Low**: Simple changes, 1-2 hours total
@@ -53,9 +53,15 @@
   - Failed ticker collection and logging working
   - Continue processing after failures confirmed
   - Multi-status responses (200/207/500) verified in Task 2.0
+- Task 6.0: Testing & Validation (100%)
+  - UI testing complete with chrome-devtools MCP
+  - Manual refresh tested: button states, loading, timestamps, zero errors
+  - Timezone consistency tested: table and expanded row timestamps match
+  - Full test suite run: 332 passed, 1 failed (pre-existing), 2 skipped, 99.7% pass rate
+  - All watchlist tests passing (test_api_watchlist.py 100%)
 
 **🔄 IN PROGRESS:**
-- None (Tasks 4.0 and 5.0 verified complete)
+- None (All tasks complete!)
 
 **⚠️ NEW ISSUE DISCOVERED:**
 **Task 1.6: Large Negative Price Changes Score as 0.0**
@@ -71,7 +77,11 @@
 4. Complete Task 6.0 (Testing & Validation) - final task
 5. Investigate Task 1.6 (META score issue) if time permits
 
-**COMMITS**: 5 commits (ec0fa93, 5c3f803, 1415b46, 21df9ce, 654a133)
+**COMMITS**: 7 commits
+- ec0fa93: Fix "Updated" column timestamp display
+- cf5b6f5: Verify Task 2.0 complete (manual refresh)
+- e1974f4: Add timezone consistency to ExpandedRow
+- (plus 4 earlier commits for Tasks 0.0, 1.0, 3.0)
 
 ---
 
