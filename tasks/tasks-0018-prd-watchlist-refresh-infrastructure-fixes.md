@@ -2,9 +2,9 @@
 
 **PRD**: `0018-prd-watchlist-refresh-infrastructure-fixes.md`
 **Status**: IN PROGRESS
-**Completion**: 33% (2 of 6 major tasks complete)
-**Effort to Complete**: MEDIUM (4-6 hours remaining)
-**Last Updated**: 2025-10-30 23:45 PM EDT
+**Completion**: 50% (4 of 8 tasks complete: 0.0, 1.0, 1.5, 3.0)
+**Effort to Complete**: MEDIUM (3-5 hours remaining)
+**Last Updated**: 2025-10-31 00:15 AM EDT
 
 **Note on Effort Levels**:
 - **Low**: Simple changes, 1-2 hours total
@@ -16,36 +16,42 @@
 ## Summary
 
 **✅ COMPLETE:**
+- Task 0.0: Fix Critical Blocker - Refresh Skip Logic (100%)
+  - Removed skip logic that prevented snapshot creation
+  - Added fallback to previous snapshots when day_bars unavailable
+  - Automatic backfill queuing for missing historical data
+  - 7 unit tests (all passing)
+  - End-to-end tested: NVDL ticker added, snapshots created, scores calculated
 - Task 1.0: Market Hours Awareness Implementation (100%)
   - Created market_hours.py with is_market_hours() and is_stale()
   - 19 unit tests (all passing)
   - Database migration 004 for is_stale column
   - Updated WatchlistSnapshot model and storage queries
+- Task 1.5: Fix Frontend Staleness & Timestamp Display (100%)
+  - Fixed "Updated" column to show price score refresh time instead of item creation time
+  - Updated sort logic to use score timestamps
+  - Verified staleness badges are working correctly (technical stale = missing indicators)
+  - End-to-end tested with chrome-devtools MCP
 - Task 3.0: Celery Market Hours Integration (100%)
   - Updated refresh_watchlist_scores_task to log market status
   - Updated Celery beat schedule (every 15min during market hours)
 
 **🔄 IN PROGRESS:**
-- None (paused due to blocker)
+- None (ready for Task 2.0)
 
-**❌ BLOCKER:**
-**CRITICAL BUG DISCOVERED**: Refresh skips tickers without historical data
-- **Symptom**: Only 1 of 13 tickers processed during refresh
-- **Root Cause**: `watchlist/service.py:279-288` skips tickers when `_calculate_price_change()` returns None (missing day_bars data)
-- **Impact**: Existing tickers lose scores (drop to 0.0) when new ticker is added
-- **Fix Required**: Remove skip logic, default change_pct to 0.0 if None, always update prices
-- **Priority**: Must fix before continuing with remaining tasks
+**⚠️ NEW ISSUE DISCOVERED:**
+**Task 1.6: Large Negative Price Changes Score as 0.0**
+- **Symptom**: META shows 0.0 price score despite having valid price data ($666.47, -11.33% change)
+- **Root Cause**: Scoring algorithm may treat large negative changes as 0.0
+- **Impact**: Users see misleading 0.0 scores for stocks with large drops
+- **Priority**: MEDIUM (affects score accuracy, but not data fetching or display)
 
 **⚠️ NEXT STEPS:**
-1. **IMMEDIATE**: Complete Task 0.0 (Fix Critical Blocker - Refresh Skip Logic)
-   - Investigate data integrity (why existing tickers missing day_bars?)
-   - Remove skip logic that causes scores to drop
-   - Add fallback: use previous snapshot or default to 0.0
-   - Queue background task to backfill historical data
-2. Complete Task 2.0 (Manual Refresh Button Fix)
+1. Complete Task 2.0 (Manual Refresh Button Fix)
+2. Investigate Task 1.6 (META score issue) if time permits
 3. Complete Tasks 4.0, 5.0, 6.0 sequentially
 
-**COMMITS**: 3 commits (1415b46, 21df9ce, 654a133)
+**COMMITS**: 5 commits (ec0fa93, 5c3f803, 1415b46, 21df9ce, 654a133)
 
 ---
 
@@ -183,6 +189,43 @@
   - [ ] 1.8.1 Run `mypy app/utils/market_hours.py --strict`
   - [ ] 1.8.2 Run `ruff check app/utils/market_hours.py`
   - [ ] 1.8.3 Fix any type or lint errors
+
+### 1.5 Fix Frontend Staleness & Timestamp Display (✅ COMPLETE)
+
+**Issue**: UI shows incorrect staleness badges and timestamps don't update after refresh
+
+- [x] 1.5.1 Investigate frontend staleness logic (✅)
+- [x] 1.5.2 Investigate timestamp display issues (✅)
+- [x] 1.5.3 Fix staleness badge logic (✅ - badges working correctly, no changes needed)
+- [x] 1.5.4 Fix timestamp display (✅ - changed to use price.updated_at)
+- [x] 1.5.5 Test end-to-end with chrome-devtools MCP (✅)
+- [x] 1.5.6 Run linting and type checking (✅)
+- [x] 1.5.7 Commit the fix (✅ - commit ec0fa93)
+
+### 1.6 Investigate Large Negative Price Changes Scoring as 0.0 (MEDIUM PRIORITY)
+
+**Issue**: META shows 0.0 price score despite valid price data ($666.47, -11.33% change)
+
+- [ ] 1.6.1 Investigate scoring algorithm
+  - [ ] 1.6.1.1 Check watchlist/scoring.py price score calculation
+  - [ ] 1.6.1.2 Identify how large negative changes are scored
+  - [ ] 1.6.1.3 Check if there's a floor/ceiling on score values
+  - [ ] 1.6.1.4 Document current scoring logic for negative changes
+- [ ] 1.6.2 Reproduce the issue
+  - [ ] 1.6.2.1 Query META snapshots to see historical scores
+  - [ ] 1.6.2.2 Check if other tickers with large drops show 0.0
+  - [ ] 1.6.2.3 Test with different negative change percentages
+  - [ ] 1.6.2.4 Document threshold where scores become 0.0
+- [ ] 1.6.3 Determine if fix is needed
+  - [ ] 1.6.3.1 Review PRD requirements for price scoring
+  - [ ] 1.6.3.2 Decide if 0.0 for large drops is intentional
+  - [ ] 1.6.3.3 If intentional, update UI to clarify (e.g., "Large drop")
+  - [ ] 1.6.3.4 If bug, propose scoring algorithm fix
+- [ ] 1.6.4 Implement fix if needed
+  - [ ] 1.6.4.1 Update scoring algorithm (if needed)
+  - [ ] 1.6.4.2 Add unit tests for edge cases
+  - [ ] 1.6.4.3 Run type checking and linting
+  - [ ] 1.6.4.4 Commit changes
 
 ### 2.0 Manual Refresh Button Fix
 
