@@ -27,10 +27,10 @@ logger = get_logger(__name__)
 
 # Redis client for tracking refresh progress
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
-_redis_client: redis.Redis[str] | None = None
+_redis_client: redis.Redis | None = None  # type: ignore[type-arg]
 
 
-def _get_redis_client() -> redis.Redis[str]:
+def _get_redis_client() -> redis.Redis:  # type: ignore[type-arg]
     """Get or create Redis client for progress tracking."""
     global _redis_client  # noqa: PLW0603
     if _redis_client is None:
@@ -125,11 +125,28 @@ def _load_stale_ttl_minutes(storage: DuckDBStorage) -> int:
 
 
 def _calculate_price_change(
-    storage: DuckDBStorage, symbol: str, price: float | None
-) -> float | None:
-    if price is None or price <= 0:
-        return None
+    storage: DuckDBStorage, symbol: str, price: float | None, item_id: str | None = None
+) -> tuple[float | None, bool]:
+    """Calculate price change percentage for a symbol.
 
+    First tries to calculate from day_bars historical data (preferred).
+    Falls back to previous watchlist snapshot if available.
+
+    Args:
+        storage: DuckDBStorage instance
+        symbol: Ticker symbol
+        price: Current price
+        item_id: Watchlist item ID (for snapshot fallback)
+
+    Returns:
+        Tuple of (change_pct, has_historical_data):
+        - change_pct: Price change percentage or None if insufficient data
+        - has_historical_data: True if day_bars data exists (False triggers backfill)
+    """
+    if price is None or price <= 0:
+        return (None, False)
+
+    # Try day_bars historical data first (preferred)
     df = storage.query(
         """
         SELECT close
@@ -140,14 +157,31 @@ def _calculate_price_change(
         """,
         [symbol],
     )
-    if df.height < 2:
-        return None
+    if df.height >= 2:
+        prev_close = df["close"][1]
+        if prev_close not in (0, None):
+            return (float((price - prev_close) / prev_close * 100.0), True)
 
-    prev_close = df["close"][1]
-    if prev_close in (0, None):
-        return None
+    # Fallback: Use previous watchlist snapshot if available
+    if item_id:
+        snapshot_df = storage.query(
+            """
+            SELECT price
+            FROM watchlist_snapshots
+            WHERE item_id = ?
+            ORDER BY fetched_at DESC
+            LIMIT 1
+            """,
+            [item_id],
+        )
+        if snapshot_df.height > 0:
+            prev_price = snapshot_df["price"][0]
+            if prev_price and prev_price > 0:
+                # Using snapshot fallback means no historical data
+                return (float((price - prev_price) / prev_price * 100.0), False)
 
-    return float((price - prev_close) / prev_close * 100.0)
+    # No data available for comparison
+    return (None, False)
 
 
 def refresh_watchlist_scores(
@@ -275,18 +309,44 @@ def refresh_watchlist_scores(
             )
             continue
 
-        change_pct = _calculate_price_change(storage, symbol, price_data.price)
+        change_pct, has_historical_data = _calculate_price_change(
+            storage, symbol, price_data.price, item_id
+        )
 
-        # Skip refresh if historical data is missing (prevents score degradation)
-        # This happens when a ticker is newly added but historical data hasn't been ingested yet
+        # Queue backfill task if historical data is missing
+        # Note: Using try/except to handle celery not running (dev environments)
+        if not has_historical_data:
+            try:
+                from ..tasks.agent_tasks import (  # noqa: PLC0415 - avoid circular dependency
+                    ingest_historical_ohlcv,
+                )
+
+                # Queue backfill for 252 trading days (~1 year)
+                ingest_historical_ohlcv.delay([symbol], days=252)
+                logger.info(
+                    "watchlist_refresh_queued_backfill",
+                    symbol=symbol,
+                    item_id=item_id,
+                    reason="Missing day_bars data - queued historical backfill task",
+                )
+            except Exception as e:
+                logger.warning(
+                    "watchlist_refresh_backfill_queue_failed",
+                    symbol=symbol,
+                    item_id=item_id,
+                    error=str(e),
+                )
+
+        # Default to 0.0% change if no comparison data available
         if change_pct is None:
             logger.info(
-                "watchlist_refresh_skipped_missing_historical_data",
+                "watchlist_refresh_defaulted_change_pct",
                 symbol=symbol,
                 item_id=item_id,
-                reason="Insufficient day_bars data (need at least 2 days for change_pct calculation)",
+                change_pct=0.0,
+                reason="No comparison data (first snapshot) - defaulting to 0.0%",
             )
-            continue
+            change_pct = 0.0
 
         technical_snapshot = technical_map.get(symbol, TechnicalSnapshot())
         technical_snapshot.price = price_data.price
@@ -475,12 +535,32 @@ class WatchlistService:
         if not price_data or price_data.price <= 0:
             raise ValueError(f"Unable to fetch price data for {symbol}")
 
-        change_pct = _calculate_price_change(self.storage, symbol, price_data.price)
+        change_pct, has_historical_data = _calculate_price_change(
+            self.storage, symbol, price_data.price, item_id
+        )
 
-        # Require historical data for meaningful scores
+        # Queue backfill if missing historical data
+        if not has_historical_data:
+            try:
+                from ..tasks.agent_tasks import (  # noqa: PLC0415 - avoid circular dependency
+                    ingest_historical_ohlcv,
+                )
+
+                ingest_historical_ohlcv.delay([symbol], days=252)
+                logger.info(
+                    "watchlist_refresh_scores_queued_backfill",
+                    symbol=symbol,
+                    item_id=item_id,
+                )
+            except Exception as e:
+                logger.warning(
+                    "watchlist_refresh_scores_backfill_failed", symbol=symbol, error=str(e)
+                )
+
+        # Require some comparison data for meaningful scores
         if change_pct is None:
             raise ValueError(
-                f"Insufficient historical data for {symbol} - need at least 2 days in day_bars table"
+                f"Insufficient historical data for {symbol} - need at least 2 days (day_bars or snapshots)"
             )
 
         technical_map = _load_latest_technical(self.storage, [symbol])
