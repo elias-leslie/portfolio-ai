@@ -115,6 +115,7 @@ class WatchlistSnapshot(BaseModel):
     sector_score: float | None = None
     competitor_score: float | None = None
     overall_score: float | None = None
+    is_stale: bool = False
     raw_metrics: dict[str, Any] = Field(default_factory=dict)
 
     def to_upsert_params(self) -> dict[str, Any]:

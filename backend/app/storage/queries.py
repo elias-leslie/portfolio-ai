@@ -123,6 +123,7 @@ class QueryManager:
         sector_score: float | None = None,
         competitor_score: float | None = None,
         overall_score: float | None = None,
+        is_stale: bool = False,
         raw_metrics: dict[str, Any] | None = None,
     ) -> None:
         """Insert or update a watchlist snapshot record."""
@@ -144,8 +145,9 @@ class QueryManager:
                 sector_score,
                 competitor_score,
                 overall_score,
+                is_stale,
                 raw_metrics
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (item_id, fetched_at) DO UPDATE SET
                 price = EXCLUDED.price,
                 change_pct = EXCLUDED.change_pct,
@@ -159,6 +161,7 @@ class QueryManager:
                 sector_score = EXCLUDED.sector_score,
                 competitor_score = EXCLUDED.competitor_score,
                 overall_score = EXCLUDED.overall_score,
+                is_stale = EXCLUDED.is_stale,
                 raw_metrics = EXCLUDED.raw_metrics
         """
 
@@ -177,6 +180,7 @@ class QueryManager:
             sector_score,
             competitor_score,
             overall_score,
+            is_stale,
             raw_metrics_json,
         ]
 

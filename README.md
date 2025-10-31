@@ -11,7 +11,7 @@ AI-led investment intelligence platform combining portfolio analytics with auton
 - Full-stack application (FastAPI + Next.js)
 - Portfolio management with real-time analytics
 - AI agent system (Discovery Agent + Portfolio Analyzer)
-- 121 tests passing, 86% coverage
+- 304 tests passing (99.3%), 86% coverage
 - Complete UI with navigation, forms, error handling
 
 ### 🧪 What's Next (Manual Testing Required)
@@ -106,7 +106,7 @@ See **[docs/core/ARCHITECTURE.md](./docs/core/ARCHITECTURE.md)** for comprehensi
 ## 🧪 Testing
 
 ```bash
-# Backend tests (86% coverage)
+# Backend tests (304/306 passing, 86% coverage)
 cd ~/portfolio-ai/backend
 source ~/portfolio-ai/backend/.venv/bin/activate
 pytest tests/ -v --cov=app --cov-report=term-missing

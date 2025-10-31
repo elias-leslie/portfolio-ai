@@ -14,6 +14,7 @@ import redis
 from ..logging_config import get_logger
 from ..portfolio.price_fetcher import PriceDataFetcher
 from ..storage import DuckDBStorage
+from ..utils.market_hours import is_stale
 from .models import (
     ScoreWeights,
     TechnicalSnapshot,
@@ -301,6 +302,9 @@ def refresh_watchlist_scores(
             )
         )
 
+        # Calculate staleness based on market hours
+        data_is_stale = is_stale(fetched_at=now, now=now)  # Just fetched, so not stale
+
         snapshot = WatchlistSnapshot(
             item_id=item_id,
             fetched_at=now,
@@ -310,6 +314,7 @@ def refresh_watchlist_scores(
             volatility=price_data.volatility,
             overall_score=breakdown.overall,
             technical_score=breakdown.technical.score,
+            is_stale=data_is_stale,
             raw_metrics=breakdown.to_snapshot_payload(),
         )
 
