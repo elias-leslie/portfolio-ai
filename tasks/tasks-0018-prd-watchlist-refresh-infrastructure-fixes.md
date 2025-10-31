@@ -2,9 +2,9 @@
 
 **PRD**: `0018-prd-watchlist-refresh-infrastructure-fixes.md`
 **Status**: IN PROGRESS
-**Completion**: 50% (4 of 8 tasks complete: 0.0, 1.0, 1.5, 3.0)
-**Effort to Complete**: MEDIUM (3-5 hours remaining)
-**Last Updated**: 2025-10-31 00:15 AM EDT
+**Completion**: 63% (5 of 8 tasks complete: 0.0, 1.0, 1.5, 2.0, 3.0)
+**Effort to Complete**: MEDIUM (2-4 hours remaining)
+**Last Updated**: 2025-10-31 00:40 AM EDT
 
 **Note on Effort Levels**:
 - **Low**: Simple changes, 1-2 hours total
@@ -32,12 +32,18 @@
   - Updated sort logic to use score timestamps
   - Verified staleness badges are working correctly (technical stale = missing indicators)
   - End-to-end tested with chrome-devtools MCP
+- Task 2.0: Manual Refresh Button Fix (100%)
+  - Backend already complete: debug logging, detailed results, multi-status responses (200/207/500)
+  - Frontend already complete: API client handles 207 status, cache invalidation working
+  - Loading state working: button disabled with spinner during refresh
+  - Toast notifications working: success/warning/error messages
+  - End-to-end tested with chrome-devtools MCP: 14 tickers refreshed successfully, zero console errors
 - Task 3.0: Celery Market Hours Integration (100%)
   - Updated refresh_watchlist_scores_task to log market status
   - Updated Celery beat schedule (every 15min during market hours)
 
 **🔄 IN PROGRESS:**
-- None (ready for Task 2.0)
+- None (Task 2.0 verified complete)
 
 **⚠️ NEW ISSUE DISCOVERED:**
 **Task 1.6: Large Negative Price Changes Score as 0.0**
@@ -47,7 +53,7 @@
 - **Priority**: MEDIUM (affects score accuracy, but not data fetching or display)
 
 **⚠️ NEXT STEPS:**
-1. Complete Task 2.0 (Manual Refresh Button Fix)
+1. ~~Complete Task 2.0 (Manual Refresh Button Fix)~~ ✅ VERIFIED COMPLETE
 2. Investigate Task 1.6 (META score issue) if time permits
 3. Complete Tasks 4.0, 5.0, 6.0 sequentially
 
