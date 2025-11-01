@@ -39,7 +39,7 @@ export interface PreferencesUpdate {
  * Get user's risk tolerance and trade preferences
  */
 export async function fetchPreferences(): Promise<PreferencesResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/preferences/`, {
+  const response = await fetch(`${API_BASE_URL}/api/preferences`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
@@ -59,7 +59,7 @@ export async function fetchPreferences(): Promise<PreferencesResponse> {
 export async function updatePreferences(
   data: PreferencesUpdate,
 ): Promise<PreferencesResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/preferences/`, {
+  const response = await fetch(`${API_BASE_URL}/api/preferences`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
