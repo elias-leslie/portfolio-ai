@@ -384,6 +384,14 @@
   - [ ] 6.5.5 Verify defaults applied correctly
   - [ ] 6.5.6 Run migration again to verify idempotence
 
+- [ ] 6.6 UI Validation Checkpoint 1 (Post-Migration)
+  - [ ] 6.6.1 Open http://localhost:3000/watchlist in Chrome
+  - [ ] 6.6.2 Take screenshot: `docs/screenshots/task-6.0-post-migration.png`
+  - [ ] 6.6.3 Verify existing watchlist items still load (if any)
+  - [ ] 6.6.4 Check console for database errors (list_console_messages)
+  - [ ] 6.6.5 Verify page renders without crashes
+  - [ ] 6.6.6 Document any visual regressions in UI_VALIDATION_PLAN.md
+
 ### 7.0 Update API Endpoints & Service Layer
 
 **Goal**: Integrate narrative generation into watchlist refresh flow and API responses
@@ -429,6 +437,16 @@
   - [ ] 7.5.4 Run test to verify full narrative in detail response
   - [ ] 7.5.5 Verify expanded view has all required sections
 
+- [ ] 7.6 UI Validation Checkpoint 2 (API Integration)
+  - [ ] 7.6.1 Add NVDA ticker to watchlist via UI (click "Add Ticker")
+  - [ ] 7.6.2 Trigger manual refresh (click "Refresh" button)
+  - [ ] 7.6.3 Take screenshot: `docs/screenshots/task-7.0-api-integration.png`
+  - [ ] 7.6.4 Check Network tab for /api/watchlist response (list_network_requests)
+  - [ ] 7.6.5 Verify narrative fields present in API response (signal_type, signal_strength, etc.)
+  - [ ] 7.6.6 Check console for errors (list_console_messages)
+  - [ ] 7.6.7 Verify no API errors (all 200 responses)
+  - [ ] 7.6.8 Document findings in UI_VALIDATION_PLAN.md
+
 ### 8.0 Frontend Integration (Narrative Display)
 
 **Goal**: Update watchlist UI to display narratives instead of raw scores
@@ -440,6 +458,9 @@
   - [ ] 8.1.4 Add color coding: Green (BUY), Yellow (HOLD), Red (AVOID)
   - [ ] 8.1.5 Test rendering with sample data
   - [ ] 8.1.6 Verify visual clarity and readability
+  - [ ] 8.1.7 UI Checkpoint 3: Take screenshot `task-8.1-signal-display.png`
+  - [ ] 8.1.8 Verify signal icons visible and color-coded correctly
+  - [ ] 8.1.9 Check table layout not broken
 
 - [ ] 8.2 Create Narrative Expanded View Component
   - [ ] 8.2.1 Create `NarrativeView.tsx` component
@@ -450,6 +471,10 @@
   - [ ] 8.2.6 Display technical setup bullets
   - [ ] 8.2.7 Test component rendering
   - [ ] 8.2.8 Verify all sections display correctly
+  - [ ] 8.2.9 UI Checkpoint 4: Take screenshot `task-8.2-narrative-view.png`
+  - [ ] 8.2.10 Click on NVDA row to expand view
+  - [ ] 8.2.11 Verify all narrative sections render (headline, health, news, technical)
+  - [ ] 8.2.12 Confirm plain language (no RSI/MACD/EMA jargon)
 
 - [ ] 8.3 Add Action Plan Display
   - [ ] 8.3.1 Create "What To Do" section in expanded view
@@ -458,6 +483,9 @@
   - [ ] 8.3.4 Display profit target with gain percentage
   - [ ] 8.3.5 Test action plan rendering
   - [ ] 8.3.6 Verify prices and percentages format correctly
+  - [ ] 8.3.7 UI Checkpoint 5: Take screenshot `task-8.3-action-plan.png`
+  - [ ] 8.3.8 Verify entry/stop/target prices display correctly
+  - [ ] 8.3.9 Check percentage calculations match backend API
 
 - [ ] 8.4 Add Position Sizing Display
   - [ ] 8.4.1 Create "Position Sizing" section
@@ -466,6 +494,9 @@
   - [ ] 8.4.4 Display maximum loss with percentage
   - [ ] 8.4.5 Test position sizing rendering
   - [ ] 8.4.6 Verify calculations match backend
+  - [ ] 8.4.7 UI Checkpoint 6: Take screenshot `task-8.4-position-sizing.png`
+  - [ ] 8.4.8 Verify shares, investment, gain, loss all display
+  - [ ] 8.4.9 Cross-check calculations with Network tab API response
 
 - [ ] 8.5 Add Special Notes & Warnings
   - [ ] 8.5.1 Create warnings section below action plan
@@ -474,6 +505,10 @@
   - [ ] 8.5.4 Test warning display logic
   - [ ] 8.5.5 Verify warnings only show when applicable
   - [ ] 8.5.6 Verify visual hierarchy and prominence
+  - [ ] 8.5.7 UI Checkpoint 7: Take screenshot `task-8.5-warnings.png`
+  - [ ] 8.5.8 Test with ticker having earnings in 2 days (if available)
+  - [ ] 8.5.9 Verify warnings display with correct icons (🔴/⚠)
+  - [ ] 8.5.10 Check warnings only appear when applicable
 
 ### 9.0 Testing & Validation
 
@@ -496,13 +531,24 @@
   - [ ] 9.2.5 Run integration tests
   - [ ] 9.2.6 Verify all integration points work correctly
 
-- [ ] 9.3 End-to-End Validation
-  - [ ] 9.3.1 Add NVDA to watchlist via UI
-  - [ ] 9.3.2 Trigger manual refresh
-  - [ ] 9.3.3 Verify BUY signal appears with 9/10 strength
-  - [ ] 9.3.4 Expand row and verify all narrative sections present
-  - [ ] 9.3.5 Verify entry/stop/target prices calculated correctly
-  - [ ] 9.3.6 Verify position sizing shows 71 shares for $500 risk
+- [ ] 9.3 End-to-End Validation (UI Checkpoint 8 - CRITICAL)
+  - [ ] 9.3.1 Add NVDA to watchlist via UI (click "Add Ticker" button)
+  - [ ] 9.3.2 Trigger manual refresh (click "Refresh" button)
+  - [ ] 9.3.3 Take screenshot: `task-9.3-final-list-view.png`
+  - [ ] 9.3.4 Verify BUY signal appears with 9/10 strength
+  - [ ] 9.3.5 Verify green color coding for BUY signal
+  - [ ] 9.3.6 Click on NVDA row to expand view
+  - [ ] 9.3.7 Take screenshot: `task-9.3-final-expanded-view.png`
+  - [ ] 9.3.8 Verify all narrative sections present (headline, health, news, technical, action plan)
+  - [ ] 9.3.9 Verify entry/stop/target prices calculated correctly
+  - [ ] 9.3.10 Verify position sizing shows correct shares for $500 risk
+  - [ ] 9.3.11 Check console for errors (list_console_messages)
+  - [ ] 9.3.12 Verify no failed network requests (list_network_requests)
+  - [ ] 9.3.13 Add 2-3 more tickers (mix of BUY/HOLD/AVOID)
+  - [ ] 9.3.14 Take screenshot: `task-9.3-final-multiple-signals.png`
+  - [ ] 9.3.15 Verify different signal types display with correct colors
+  - [ ] 9.3.16 Test table sorting and filtering (if applicable)
+  - [ ] 9.3.17 Verify no visual glitches or layout issues
 
 - [ ] 9.4 Edge Case Testing
   - [ ] 9.4.1 Test with stock missing fundamental data (should handle gracefully)
@@ -512,13 +558,21 @@
   - [ ] 9.4.5 Test with stock at earnings date (0 days away)
   - [ ] 9.4.6 Verify all edge cases handled without errors
 
-- [ ] 9.5 Performance Validation
-  - [ ] 9.5.1 Measure watchlist API response time (<500ms target)
-  - [ ] 9.5.2 Measure Celery refresh time for 14 tickers (<10s target)
-  - [ ] 9.5.3 Verify news fetching doesn't block watchlist display
-  - [ ] 9.5.4 Verify fundamental caching reduces API calls
-  - [ ] 9.5.5 Run load test with 50 concurrent users
-  - [ ] 9.5.6 Verify performance targets met
+- [ ] 9.5 Performance Validation (UI Checkpoint 9)
+  - [ ] 9.5.1 Add 14 tickers to watchlist via UI
+  - [ ] 9.5.2 Take screenshot: `task-9.5-performance.png`
+  - [ ] 9.5.3 Open Chrome DevTools Network tab
+  - [ ] 9.5.4 Measure page load time (<2s target)
+  - [ ] 9.5.5 Measure watchlist API response time (<500ms target)
+  - [ ] 9.5.6 Measure Celery refresh time for 14 tickers (<10s target)
+  - [ ] 9.5.7 Open Chrome DevTools Performance tab
+  - [ ] 9.5.8 Record interaction (scroll, expand rows)
+  - [ ] 9.5.9 Check for memory leaks
+  - [ ] 9.5.10 Verify smooth scrolling (60fps)
+  - [ ] 9.5.11 Check for layout shifts (CLS score)
+  - [ ] 9.5.12 Verify news fetching doesn't block watchlist display
+  - [ ] 9.5.13 Verify fundamental caching reduces API calls
+  - [ ] 9.5.14 Document performance metrics in UI_VALIDATION_PLAN.md
 
 - [ ] 9.6 Type Safety & Code Quality
   - [ ] 9.6.1 Run `mypy app/watchlist/ --strict`
