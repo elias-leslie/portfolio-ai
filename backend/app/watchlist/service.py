@@ -28,10 +28,10 @@ logger = get_logger(__name__)
 
 # Redis client for tracking refresh progress
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
-_redis_client: redis.Redis | None = None  # type: ignore[type-arg]
+_redis_client: redis.Redis[str] | None = None
 
 
-def _get_redis_client() -> redis.Redis:  # type: ignore[type-arg]
+def _get_redis_client() -> redis.Redis[str]:
     """Get or create Redis client for progress tracking."""
     global _redis_client  # noqa: PLW0603
     if _redis_client is None:

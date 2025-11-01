@@ -1,11 +1,11 @@
 # Task List: Watchlist Narrative Intelligence
 
 **PRD**: `0021-prd-watchlist-narrative-intelligence.md`
-**Status**: Ready for Execution (Critical fixes applied)
-**Completion**: 25% (Tasks 0.1-0.3, 1.0, 2.1-2.5, 3.1-3.2, 3.4 complete)
+**Status**: Ready for Execution (Prerequisites verified, mypy fixed)
+**Completion**: 25% (Tasks 0.1-0.3, 1.0, 1.4, 2.1-2.5, 3.1-3.2, 3.4 complete)
 **Effort to Complete**: Medium (reduced from High after simplifications)
 **Risk Level**: Medium (reduced from High after critical fixes)
-**Last Updated**: 2025-11-01 (Critical fixes applied, ready for autonomous execution)
+**Last Updated**: 2025-11-01 (Prerequisites verified: EMA-20 & ATR-14 exist, mypy errors fixed)
 
 **Note on Effort Levels**:
 - **Low**: 1-2 hours of straightforward work
@@ -33,15 +33,15 @@
   - Removed complex Next.js proxy layer that was exposing 127.0.0.1 to clients
   - Updated critical documentation with anti-bandaid guidelines
   - Settings page now accessible from LAN (192.168.8.233:3000) and Tailscale (100.123.190.81:3000)
-- Task 0.3: Comprehensive Refresh Architecture - commits 482e5f1, 985d980 (Nov 1, 2025)
+- Task 0.3: Comprehensive Refresh Architecture - commits 482e5f1, 985d980 (Nov 1, 2025) - ✅ **COMPLETE**
   - Phase 1: Basic backend auto-refresh ✅
   - Phase 2: Comprehensive refresh control system ✅
-  - Migration 005: Added refresh control columns (default_refresh_minutes, overrides, frontend_poll_interval)
-  - Updated Celery task logic with preference hierarchy (override → default → 15min fallback)
-  - Enhanced Settings UI with Basic + Advanced sections
-  - Created REFRESH_ARCHITECTURE.md documentation
-  - Fixed 'default' user ID issue (was using UUID) - commit 985d980
-  - Celery refreshing correctly every ~2 minutes with 1-minute threshold
+  - Migration 005: Added refresh control columns (default_refresh_minutes, overrides, frontend_poll_interval) ✅
+  - Updated Celery task logic with preference hierarchy (override → default → 15min fallback) ✅
+  - Enhanced Settings UI with Basic + Advanced sections ✅
+  - Fixed 'default' user ID issue (was using UUID) - commit 985d980 ✅
+  - Celery refreshing correctly every ~2 minutes with 1-minute threshold ✅
+  - Created REFRESH_ARCHITECTURE.md documentation (comprehensive guide with examples) ✅
 
 **🔄 IN PROGRESS:**
 - None
@@ -85,18 +85,19 @@
 7. **Risk level reduced** - From HIGH to MEDIUM after fixes applied
 
 **NEXT STEPS:**
-1. ✅ Task 1.4-1.5: Verify technical indicators (EMA-20, ATR-14, swing detection) - **PREREQUISITE**
-2. Task 3.3: Generate Company Health Section (requires Task 4.0 fundamentals)
-3. Task 3.5-3.7: Generate Action Plan, Position Sizing, Special Warnings
+1. ✅ Task 1.4: Verify EMA-20, ATR-14 availability - **COMPLETE** (verified: 5+ tickers have data)
+2. Task 1.5: Implement swing low/high detection - **PREREQUISITE** (blocks Task 5.0)
+3. Task 2.6: Implement trading style classification (simplified v1)
 4. Task 4.0: Integrate Fundamentals & News Data (multi-source failover)
 5. Task 5.0: Create Entry/Exit/Stop Calculator + Position Sizing
-6. Task 6.0: Database Migration (migration 008)
-7. Task 7.0: Update API Endpoints & Service Layer
-8. Task 8.0: Frontend Integration (Narrative Display)
-9. Task 9.0: Testing & Validation
+6. Task 3.3, 3.5-3.7: Complete narrative generation functions
+7. Task 6.0: Database Migration (migration 008)
+8. Task 7.0: Update API Endpoints & Service Layer
+9. Task 8.0: Frontend Integration (Narrative Display)
+10. Task 9.0: Testing & Validation
 
-**COMPLETION STATUS:** ~30% complete (7 subtasks complete: 0.1-0.3, 1.0-1.3, 2.1-2.5, 3.1-3.2, 3.4)
-**EFFORT TO COMPLETE:** Medium (Prerequisites clarified, edge cases documented, API endpoints specified, simplified trading styles)
+**COMPLETION STATUS:** ~25% complete (Tasks: 0.1-0.3 partial, 1.0-1.4, 2.1-2.5, 3.1-3.2, 3.4)
+**EFFORT TO COMPLETE:** Medium (Prerequisites verified, simplified trading styles, clear dependency order)
 
 ---
 
@@ -305,27 +306,29 @@
 
 **Commit**: f3d381e
 
-### 1.4 Verify Technical Indicator Availability (PREREQUISITE - CRITICAL)
+### 1.4 Verify Technical Indicator Availability (PREREQUISITE - CRITICAL) ✅
 
 **Goal**: Ensure all indicators needed for signal classification are available in the database
 
-- [ ] 1.4.1 Query `technical_indicators` table to check for EMA-20 and ATR-14 columns
-  - Run: `SELECT * FROM technical_indicators WHERE ticker = 'NVDA' LIMIT 1;`
-  - Check if columns exist: `ema_20`, `atr_14`
-- [ ] 1.4.2 If missing, add EMA-20 calculation to `app/portfolio/indicators.py`
-  - Function: `calculate_ema(prices: list[float], period: int = 20) -> float`
-  - Formula: Standard exponential moving average
-- [ ] 1.4.3 If missing, add ATR-14 calculation to `app/portfolio/indicators.py`
-  - Function: `calculate_atr(highs: list[float], lows: list[float], closes: list[float], period: int = 14) -> float`
-  - Formula: Average True Range over 14 periods
-- [ ] 1.4.4 Update `technical_indicators` table schema if needed
-  - Add columns: `ema_20 DOUBLE PRECISION`, `atr_14 DOUBLE PRECISION`
-  - Run migration script
-- [ ] 1.4.5 Backfill historical EMA-20 and ATR-14 data for existing tickers
-  - Run: `update_technical_indicators` Celery task for all watchlist symbols
-- [ ] 1.4.6 Test: Verify NVDA has EMA-20 and ATR-14 values populated
-  - Query: `SELECT ema_20, atr_14 FROM technical_indicators WHERE ticker = 'NVDA' ORDER BY date DESC LIMIT 1;`
-  - Assert: Both values are NOT NULL
+**Status**: ✅ **COMPLETE** (verified 2025-11-01)
+
+- [x] 1.4.1 Query `technical_indicators` table to check for EMA-20 and ATR-14 columns
+  - ✅ Columns exist: `ema_20 DOUBLE PRECISION`, `atr_14 DOUBLE PRECISION`
+  - ✅ Verified 5 tickers with data: AMZN, GOOGL, META, MSFT, NVDA
+- [x] 1.4.2 EMA-20 calculation already in `app/portfolio/indicators.py` ✅
+- [x] 1.4.3 ATR-14 calculation already in `app/portfolio/indicators.py` ✅
+- [x] 1.4.4 Schema already correct (no migration needed) ✅
+- [x] 1.4.5 Historical data already backfilled ✅
+- [x] 1.4.6 Test: NVDA has EMA-20=188.84, ATR-14=6.21 ✅
+
+**Evidence**:
+```
+AMZN: EMA-20=222.72, ATR-14=5.25
+GOOGL: EMA-20=257.05, ATR-14=7.27
+META: EMA-20=728.62, ATR-14=21.83
+MSFT: EMA-20=522.87, ATR-14=9.48
+NVDA: EMA-20=188.84, ATR-14=6.21
+```
 
 ### 1.5 Implement Swing Low/High Detection (PREREQUISITE - CRITICAL)
 
