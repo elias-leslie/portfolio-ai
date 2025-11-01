@@ -21,6 +21,7 @@ from .models import (
     WatchlistScoreInputs,
     WatchlistSnapshot,
 )
+from .scoring import _is_stale as scoring_is_stale
 from .scoring import calculate_watchlist_scores
 
 logger = get_logger(__name__)
@@ -516,6 +517,27 @@ class WatchlistService:
                         raw_metrics = json.loads(raw_metrics)
                     except (json.JSONDecodeError, TypeError):
                         raw_metrics = {}
+
+                # Recalculate staleness at display time using fetched_at timestamp
+                fetched_at = snap_row.get("fetched_at")
+                if fetched_at and isinstance(raw_metrics, dict):
+                    # Ensure fetched_at is timezone-aware
+                    if isinstance(fetched_at, datetime) and fetched_at.tzinfo is None:
+                        fetched_at = fetched_at.replace(tzinfo=UTC)
+
+                    # Get TTL from preferences
+                    stale_ttl_minutes = _load_stale_ttl_minutes(self.storage)
+                    current_time = datetime.now(UTC)
+
+                    # Update stale flags based on current time (mutate in place)
+                    if "price" in raw_metrics and isinstance(raw_metrics["price"], dict):
+                        raw_metrics["price"]["stale"] = scoring_is_stale(
+                            fetched_at, stale_ttl_minutes, current_time
+                        )
+                    if "technical" in raw_metrics and isinstance(raw_metrics["technical"], dict):
+                        raw_metrics["technical"]["stale"] = scoring_is_stale(
+                            fetched_at, stale_ttl_minutes, current_time
+                        )
 
                 # Check if >10 point change in last 7 days
                 alert = self._check_score_alert(row["id"], snap_row["overall_score"])

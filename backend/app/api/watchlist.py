@@ -523,7 +523,7 @@ async def get_score_history(item_id: str, days: int = 7) -> ScoreHistoryResponse
             SELECT
                 fetched_at,
                 COALESCE(overall_score, 0.0) as overall_score,
-                COALESCE(fundamental_score, 0.0) as fundamental_score,
+                COALESCE(raw_metrics->'price'->>'score', '0.0')::double precision as price_score,
                 COALESCE(technical_score, 0.0) as technical_score
             FROM watchlist_snapshots
             WHERE item_id = ?
@@ -543,9 +543,7 @@ async def get_score_history(item_id: str, days: int = 7) -> ScoreHistoryResponse
                 ScoreHistoryPoint(
                     timestamp=fetched_at,
                     overall=row["overall_score"],
-                    price_score=row[
-                        "fundamental_score"
-                    ],  # Using fundamental_score as proxy for price
+                    price_score=row["price_score"],  # Extract from raw_metrics.price.score
                     technical_score=row["technical_score"],
                 )
             )

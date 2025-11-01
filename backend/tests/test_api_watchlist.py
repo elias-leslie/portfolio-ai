@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
@@ -720,3 +721,167 @@ def test_response_structure_matches_spec(client: TestClient, test_storage: DuckD
     assert "total_count" in list_data
     assert isinstance(list_data["items"], list)
     assert isinstance(list_data["total_count"], int)
+
+
+# Staleness Detection Tests
+
+
+def test_staleness_detection_reflects_age_of_snapshot(
+    client: TestClient, test_storage: DuckDBStorage
+) -> None:
+    """Test stale flag in score reflects age of snapshot, not snapshot-time staleness."""
+    # Insert watchlist item directly to database
+    item_id = "test-item-stale"
+    with test_storage.connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO watchlist_items (id, account_id, symbol, note, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            """,
+            [
+                item_id,
+                "test-account",
+                "AAPL",
+                None,
+                datetime.now(UTC),
+                datetime.now(UTC),
+            ],
+        )
+        conn.commit()
+
+    # Insert snapshot from 50 minutes ago (stale because TTL is 45 minutes = 3x15min refresh)
+    old_fetched_at = datetime.now(UTC) - timedelta(minutes=50)
+    raw_metrics = {
+        "price": {"score": 50.0, "weight": 50.0, "stale": False},  # Was not stale at refresh time
+        "technical": {"score": 60.0, "weight": 50.0, "stale": False},
+    }
+    with test_storage.connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO watchlist_snapshots
+                (item_id, fetched_at, price, technical_score, overall_score, is_stale, raw_metrics)
+            VALUES
+                ($1, $2, $3, $4, $5, $6, $7::jsonb)
+            """,
+            [
+                item_id,
+                old_fetched_at,
+                100.0,
+                60.0,
+                55.0,
+                False,  # Was not stale at refresh time
+                json.dumps(raw_metrics),
+            ],
+        )
+        conn.commit()
+
+    # Fetch watchlist - should calculate staleness based on age NOW
+    response = client.get("/api/watchlist?account_id=test-account")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert len(data["items"]) == 1
+    item = data["items"][0]
+
+    # Score components should be marked stale (50 min old > 45 min TTL)
+    assert item["current_score"] is not None
+    assert item["current_score"]["price"]["stale"] is True, "Price should be stale (50 min old)"
+    assert item["current_score"]["technical"]["stale"] is True, (
+        "Technical should be stale (50 min old)"
+    )
+
+
+# History Endpoint Tests
+
+
+def test_get_score_history_extracts_price_score_from_raw_metrics(
+    client: TestClient, test_storage: DuckDBStorage
+) -> None:
+    """Test GET /api/watchlist/{item_id}/history extracts price.score from raw_metrics JSONB."""
+    # Insert watchlist item directly to database
+    item_id = "test-item-history"
+    with test_storage.connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO watchlist_items (id, account_id, symbol, note, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            """,
+            [
+                item_id,
+                "test-account",
+                "AAPL",
+                None,
+                datetime.now(UTC),
+                datetime.now(UTC),
+            ],
+        )
+        conn.commit()
+
+    # Insert historical snapshots with raw_metrics containing price.score
+    now = datetime.now(UTC)
+    snapshots = [
+        (now - timedelta(days=6), 45.0, 60.0, 52.5),  # price.score=45, technical=60
+        (now - timedelta(days=5), 50.0, 58.0, 54.0),  # price.score=50, technical=58
+        (now - timedelta(days=4), 55.0, 62.0, 58.5),  # price.score=55, technical=62
+        (now - timedelta(days=3), 60.0, 65.0, 62.5),  # price.score=60, technical=65
+        (now - timedelta(days=2), 65.0, 68.0, 66.5),  # price.score=65, technical=68
+        (now - timedelta(days=1), 70.0, 70.0, 70.0),  # price.score=70, technical=70
+        (now, 75.0, 72.0, 73.5),  # price.score=75, technical=72
+    ]
+
+    with test_storage.connection() as conn:
+        for fetched_at, price_score, technical_score, overall_score in snapshots:
+            # Create raw_metrics JSONB with price.score structure
+            raw_metrics = {
+                "price": {
+                    "score": price_score,
+                    "weight": 50.0,
+                    "stale": False,
+                },
+                "technical": {
+                    "score": technical_score,
+                    "weight": 50.0,
+                    "stale": False,
+                },
+            }
+            conn.execute(
+                """
+                INSERT INTO watchlist_snapshots
+                    (item_id, fetched_at, price, technical_score, overall_score, raw_metrics)
+                VALUES
+                    ($1, $2, $3, $4, $5, $6::jsonb)
+                """,
+                [
+                    item_id,
+                    fetched_at,
+                    100.0 + price_score,  # price data (not used in this test)
+                    technical_score,
+                    overall_score,
+                    json.dumps(raw_metrics),  # Convert dict to JSON string
+                ],
+            )
+        conn.commit()
+
+    # Fetch score history
+    response = client.get(f"/api/watchlist/{item_id}/history")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["item_id"] == item_id
+    assert data["symbol"] == "AAPL"
+    assert len(data["history"]) == 7
+
+    # Verify price_score is extracted from raw_metrics.price.score (not fundamental_score)
+    expected_price_scores = [45.0, 50.0, 55.0, 60.0, 65.0, 70.0, 75.0]
+    expected_technical_scores = [60.0, 58.0, 62.0, 65.0, 68.0, 70.0, 72.0]
+    expected_overall_scores = [52.5, 54.0, 58.5, 62.5, 66.5, 70.0, 73.5]
+
+    for idx, point in enumerate(data["history"]):
+        assert point["price_score"] == expected_price_scores[idx], (
+            f"At index {idx}: expected price_score={expected_price_scores[idx]}, "
+            f"got {point['price_score']}"
+        )
+        assert point["technical_score"] == expected_technical_scores[idx]
+        assert point["overall"] == expected_overall_scores[idx]

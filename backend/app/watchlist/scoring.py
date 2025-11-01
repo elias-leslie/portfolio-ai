@@ -36,9 +36,9 @@ def _is_stale(timestamp: datetime | None, ttl_minutes: int, now: datetime) -> bo
 
 
 def _score_from_change_percent(change_pct: float) -> float:
-    """Map price change percent (-10% to +10%) into 0-100 range."""
-    clamped = max(-10.0, min(10.0, change_pct))
-    return (clamped + 10.0) / 20.0 * 100.0
+    """Map price change percent (-20% to +20%) into 0-100 range."""
+    clamped = max(-20.0, min(20.0, change_pct))
+    return (clamped + 20.0) / 40.0 * 100.0
 
 
 def _score_from_rsi(rsi: float) -> float:
