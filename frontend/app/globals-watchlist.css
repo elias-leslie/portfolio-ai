@@ -1,0 +1,55 @@
+/**
+ * Watchlist-specific animations for smart selective updates
+ *
+ * These animations provide visual feedback when watchlist data changes
+ * without requiring full page refreshes. Cells flash briefly to indicate
+ * updated values.
+ */
+
+/* Flash animation for changed cells */
+@keyframes flash-update {
+  0% {
+    background-color: hsl(var(--accent) / 0.3);
+  }
+  50% {
+    background-color: hsl(var(--accent) / 0.5);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+/* Apply flash animation to table cells with data-changed attribute */
+[data-slot="table-cell"][data-changed="true"] {
+  animation: flash-update 2s ease-out;
+}
+
+/* Smooth transitions for score badge changes */
+.score-badge {
+  transition: all 0.3s ease-in-out;
+}
+
+/* Smooth transitions for price display changes */
+.price-display {
+  transition: color 0.3s ease-in-out, transform 0.2s ease-in-out;
+}
+
+.price-display[data-changed="true"] {
+  animation: flash-update 2s ease-out;
+}
+
+/* Pul
+
+se effect for newly updated rows */
+@keyframes pulse-row {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+
+[data-slot="table-row"][data-recently-updated="true"] {
+  animation: pulse-row 1s ease-in-out 1;
+}

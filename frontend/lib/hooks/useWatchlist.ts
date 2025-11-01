@@ -52,17 +52,19 @@ export function useWatchlist(accountId: string) {
   const refreshMinutes = preferences?.watchlist_refresh_minutes ?? 5;
   const refreshIntervalMs = refreshMinutes * 60 * 1000; // Convert to milliseconds
 
-  // Include refreshIntervalMs in query key to force new query when interval changes
-  // This ensures React Query creates a fresh query observer with the correct interval
+  // Query key should NOT include refreshIntervalMs - that causes unnecessary cache
+  // invalidation and resets UI state (modals, etc). The interval is a query option,
+  // not part of the query identity. React Query handles interval changes correctly.
   return useQuery<WatchlistListResponse, Error>({
-    queryKey: [...watchlistKeys.list(accountId), refreshIntervalMs],
+    queryKey: watchlistKeys.list(accountId),
     queryFn: () => fetchWatchlistItems(accountId),
     staleTime: 0, // Always consider data stale to enable frequent updates
     refetchInterval: refreshIntervalMs, // Refetch based on user preference
     refetchIntervalInBackground: true, // Enable background refresh
     refetchOnWindowFocus: true, // Refetch when window regains focus
-    refetchOnMount: true, // Refetch when component mounts
+    refetchOnMount: false, // Don't refetch on mount - use cached data for smooth UX
     enabled: !!accountId,
+    structuralSharing: true, // Only update changed data, preserves UI state
   });
 }
 
