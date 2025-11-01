@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import uuid
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, cast
 
 from anthropic import Anthropic
@@ -88,7 +88,7 @@ class Agent(ABC):
             Dict with final response and metadata
         """
         run_id = str(uuid.uuid4())
-        started_at = datetime.now()
+        started_at = datetime.now(UTC)
 
         logger.info(
             "agent_run_started",
@@ -124,7 +124,7 @@ class Agent(ABC):
                         if block.type == "text":
                             final_text += block.text
 
-                    completed_at = datetime.now()
+                    completed_at = datetime.now(UTC)
                     duration_s = (completed_at - started_at).total_seconds()
 
                     logger.info(
@@ -160,13 +160,13 @@ class Agent(ABC):
                         assistant_content.append(block)
 
                         if block.type == "tool_use":
-                            tool_start = datetime.now()
+                            tool_start = datetime.now(UTC)
                             tool_input = cast(dict[str, Any], block.input)
 
                             # Execute tool
                             result = self.execute_tool(block.name, tool_input)
 
-                            tool_end = datetime.now()
+                            tool_end = datetime.now(UTC)
                             duration_ms = int((tool_end - tool_start).total_seconds() * 1000)
 
                             # Record tool call
@@ -203,7 +203,7 @@ class Agent(ABC):
                     # Unexpected stop reason
                     self._record_run_complete(
                         run_id,
-                        datetime.now(),
+                        datetime.now(UTC),
                         "error",
                         len(tool_calls_made),
                         f"Unexpected stop reason: {response.stop_reason}",
@@ -218,7 +218,7 @@ class Agent(ABC):
             # Max iterations reached
             self._record_run_complete(
                 run_id,
-                datetime.now(),
+                datetime.now(UTC),
                 "max_iterations",
                 len(tool_calls_made),
             )
@@ -233,7 +233,7 @@ class Agent(ABC):
             logger.error(f"Agent run {run_id} failed: {e}")
             self._record_run_complete(
                 run_id,
-                datetime.now(),
+                datetime.now(UTC),
                 "error",
                 0,
                 str(e),
@@ -308,6 +308,6 @@ class Agent(ABC):
                 "parameters": json.dumps(parameters),
                 "response_summary": result_summary,
                 "duration_ms": duration_ms,
-                "called_at": datetime.now(),
+                "called_at": datetime.now(UTC),
             },
         )

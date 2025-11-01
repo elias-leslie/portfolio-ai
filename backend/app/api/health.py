@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 import time
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
 
@@ -23,7 +23,7 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/health", tags=["health"])
 
 # Track application start time for uptime calculation
-APP_START_TIME = datetime.now()
+APP_START_TIME = datetime.now(UTC)
 
 
 class SourceHealthCheck(BaseModel):
@@ -129,7 +129,7 @@ class HealthCheckService:
             return CheckResult(
                 status="ok",
                 latency_ms=latency_ms,
-                last_success=datetime.now(),
+                last_success=datetime.now(UTC),
             )
 
         except Exception as e:
@@ -185,7 +185,7 @@ class HealthCheckService:
 
                 # Determine status based on last success and success rate
                 if last_success_at:
-                    time_since_success = datetime.now() - last_success_at
+                    time_since_success = datetime.now(UTC) - last_success_at
                     if time_since_success < timedelta(minutes=15):
                         if success_rate >= 80:
                             status: Literal["ok", "degraded", "down"] = "ok"
@@ -266,7 +266,7 @@ class HealthCheckService:
 
             cache_age_minutes = None
             if last_cached:
-                cache_age_minutes = (datetime.now() - last_cached).total_seconds() / 60
+                cache_age_minutes = (datetime.now(UTC) - last_cached).total_seconds() / 60
 
             return CacheStats(
                 total_cached=total_cached,
@@ -358,7 +358,7 @@ class HealthCheckService:
 
             refresh_age_minutes = None
             if last_refresh:
-                refresh_age_minutes = (datetime.now() - last_refresh).total_seconds() / 60
+                refresh_age_minutes = (datetime.now(UTC) - last_refresh).total_seconds() / 60
 
             return WatchlistStats(
                 total_items=total_items,
@@ -515,7 +515,7 @@ class HealthCheckService:
         api_quotas = self.get_api_quotas()
 
         # Calculate uptime
-        uptime_seconds = int((datetime.now() - APP_START_TIME).total_seconds())
+        uptime_seconds = int((datetime.now(UTC) - APP_START_TIME).total_seconds())
 
         return HealthCheckResponse(
             status=overall_status,

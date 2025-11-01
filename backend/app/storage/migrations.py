@@ -7,7 +7,7 @@ and ensuring idempotent execution.
 from __future__ import annotations
 
 import hashlib
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -212,7 +212,7 @@ class MigrationManager:
                     INSERT INTO schema_migrations (version, description, applied_at, checksum)
                     VALUES (?, ?, ?, ?)
                     """,
-                    [version, description, datetime.now(), checksum],
+                    [version, description, datetime.now(UTC), checksum],
                 )
 
                 # Commit the transaction

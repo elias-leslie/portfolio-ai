@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import datetime as dt
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from app.analytics.indicators import calculate_indicators
@@ -101,7 +101,7 @@ def create_paper_trade(storage: DuckDBStorage, idea_id: str) -> dict[str, Any] |
 
     # Insert into idea_outcomes table
     entry_date = dt.date.today()
-    now = datetime.now()
+    now = datetime.now(UTC)
 
     insert_data = {
         "idea_id": idea_id,
@@ -217,7 +217,7 @@ def update_paper_trades(storage: DuckDBStorage, max_holding_days: int = 60) -> d
         "expired": 0,
     }
 
-    now = datetime.now()
+    now = datetime.now(UTC)
     today = dt.date.today()
 
     for trade in trades_list:
