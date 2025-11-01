@@ -1,0 +1,16 @@
+[Unit]
+Description=Portfolio AI Celery Beat Scheduler
+After=network.target redis-server.service portfolio-backend.service
+Wants=redis-server.service portfolio-celery.service
+
+[Service]
+Type=simple
+User=kasadis
+WorkingDirectory=/home/kasadis/portfolio-ai/backend
+Environment="PATH=/home/kasadis/portfolio-ai/backend/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/home/kasadis/portfolio-ai/backend/.venv/bin/celery -A app.celery_app beat --loglevel=info
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
