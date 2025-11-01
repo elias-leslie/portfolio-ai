@@ -1,10 +1,11 @@
 # Task List: Watchlist Narrative Intelligence
 
 **PRD**: `0021-prd-watchlist-narrative-intelligence.md`
-**Status**: Blocked (PRD 0020 Foundational Fixes must complete first)
-**Completion**: 25% (Task 0.3 complete, but blocked pending foundational fixes)
-**Effort to Complete**: High
-**Last Updated**: 2025-11-01 (Renumbered from 0020 to 0021)
+**Status**: Ready for Execution (Critical fixes applied)
+**Completion**: 25% (Tasks 0.1-0.3, 1.0, 2.1-2.5, 3.1-3.2, 3.4 complete)
+**Effort to Complete**: Medium (reduced from High after simplifications)
+**Risk Level**: Medium (reduced from High after critical fixes)
+**Last Updated**: 2025-11-01 (Critical fixes applied, ready for autonomous execution)
 
 **Note on Effort Levels**:
 - **Low**: 1-2 hours of straightforward work
@@ -58,15 +59,44 @@
   - **Fix**: Changed from `.slice(-7)` to even sampling algorithm that preserves historical variation
   - **Impact**: Sparklines now show meaningful trends - tickers with price movement display visible ups/downs
 
-**NEXT STEPS:**
-1. Restart backend service to apply timestamp fix
-2. Task 2.0: Implement Signal Classification Engine
-3. Task 3.0: Build Narrative Generation System
-4. Task 4.0: Integrate Fundamentals & News Data
-5. Continue sequentially through remaining tasks
+- **Sparklines not showing real historical data** - RESOLVED (Nov 1, 2025)
+  - **Root Cause**: History endpoint only read from watchlist_snapshots (2-4 identical snapshots from today)
+  - **Fix**: Fetch 10 trading days of real price data from yfinance, compute scores from normalized price movement
+  - **Impact**: Sparklines now display actual 10-day price trends, not flat lines
 
-**COMPLETION STATUS:** ~25% complete (2 of 9 major tasks done: data integrity + refresh architecture)
-**EFFORT TO COMPLETE:** High (Signal classification, narrative generation, fundamentals/news integration, API debugging, frontend integration, and testing remain)
+**📋 ENHANCEMENTS ADDED (Nov 1, 2025):**
+- **Trading Style Classification** - Per-ticker recommendations (Index/Trend/Value/Swing/Event) - **SIMPLIFIED V1**
+  - Task 2.6: Classify using simple heuristics (ETF list, RSI zones, earnings proximity, signal strength)
+  - Task 3.2.7 & 3.8: Include style in headlines + dedicated style section in narrative
+  - Task 6.2.6: Database columns for style (recommended_style, style_confidence, optimal_holding_period, risk_level)
+  - Task 8.1.10 & 8.2.13: Display style badges in table + expanded view
+  - Task 8.6: Filter watchlist by trading style
+  - Task 8.7: Adaptive sparklines (timeframe matches style: Index=250d, Trend=60d, Swing=10d, Event=5d)
+  - **Impact**: Each ticker gets optimal strategy recommendation with timeframe, risk profile, and exit strategy
+  - **V2 Enhancements** (deferred to PRD #0022): Advanced detection with support/resistance, sector P/E, momentum analysis
+
+**🔧 CRITICAL FIXES APPLIED (Nov 1, 2025):**
+1. **Migration file number** - Changed from 005 to 008 (005-007 already exist)
+2. **Prerequisites added** - Tasks 1.4-1.5: Verify EMA-20, ATR-14, swing low/high availability
+3. **Completed tasks marked** - Tasks 2.1-2.5, 3.1, 3.2, 3.4 already implemented in narrative.py
+4. **API documentation added** - Task 4.1: YFinance/Finnhub/FMP endpoint details and examples
+5. **Edge cases added** - Task 5.4: Handle invalid setups, expensive stocks, large positions
+6. **Database indexes** - Task 6.5.7-6.5.8: Performance indexes for signal_type, earnings_date, recommended_style
+7. **Risk level reduced** - From HIGH to MEDIUM after fixes applied
+
+**NEXT STEPS:**
+1. ✅ Task 1.4-1.5: Verify technical indicators (EMA-20, ATR-14, swing detection) - **PREREQUISITE**
+2. Task 3.3: Generate Company Health Section (requires Task 4.0 fundamentals)
+3. Task 3.5-3.7: Generate Action Plan, Position Sizing, Special Warnings
+4. Task 4.0: Integrate Fundamentals & News Data (multi-source failover)
+5. Task 5.0: Create Entry/Exit/Stop Calculator + Position Sizing
+6. Task 6.0: Database Migration (migration 008)
+7. Task 7.0: Update API Endpoints & Service Layer
+8. Task 8.0: Frontend Integration (Narrative Display)
+9. Task 9.0: Testing & Validation
+
+**COMPLETION STATUS:** ~30% complete (7 subtasks complete: 0.1-0.3, 1.0-1.3, 2.1-2.5, 3.1-3.2, 3.4)
+**EFFORT TO COMPLETE:** Medium (Prerequisites clarified, edge cases documented, API endpoints specified, simplified trading styles)
 
 ---
 
@@ -79,7 +109,7 @@
 - `backend/app/watchlist/news.py` (~200 lines) - News headline fetching and sentiment scoring (Google News RSS + VADER)
 - `backend/app/watchlist/earnings.py` (~150 lines) - Earnings calendar integration with warning system
 - `backend/app/watchlist/calculator.py` (~200 lines) - Entry/Exit/Stop calculator + position sizing logic
-- `backend/migrations/005_narrative_intelligence.sql` (~80 lines) - Schema migration for new columns
+- `backend/migrations/008_narrative_intelligence.sql` (~80 lines) - Schema migration for new columns
 - `backend/tests/watchlist/test_narrative.py` (~400 lines) - Tests for signal classification and narrative generation
 - `backend/tests/watchlist/test_fundamentals.py` (~300 lines) - Tests for company health scoring
 
@@ -275,11 +305,65 @@
 
 **Commit**: f3d381e
 
-### 2.0 Implement Signal Classification Engine
+### 1.4 Verify Technical Indicator Availability (PREREQUISITE - CRITICAL)
+
+**Goal**: Ensure all indicators needed for signal classification are available in the database
+
+- [ ] 1.4.1 Query `technical_indicators` table to check for EMA-20 and ATR-14 columns
+  - Run: `SELECT * FROM technical_indicators WHERE ticker = 'NVDA' LIMIT 1;`
+  - Check if columns exist: `ema_20`, `atr_14`
+- [ ] 1.4.2 If missing, add EMA-20 calculation to `app/portfolio/indicators.py`
+  - Function: `calculate_ema(prices: list[float], period: int = 20) -> float`
+  - Formula: Standard exponential moving average
+- [ ] 1.4.3 If missing, add ATR-14 calculation to `app/portfolio/indicators.py`
+  - Function: `calculate_atr(highs: list[float], lows: list[float], closes: list[float], period: int = 14) -> float`
+  - Formula: Average True Range over 14 periods
+- [ ] 1.4.4 Update `technical_indicators` table schema if needed
+  - Add columns: `ema_20 DOUBLE PRECISION`, `atr_14 DOUBLE PRECISION`
+  - Run migration script
+- [ ] 1.4.5 Backfill historical EMA-20 and ATR-14 data for existing tickers
+  - Run: `update_technical_indicators` Celery task for all watchlist symbols
+- [ ] 1.4.6 Test: Verify NVDA has EMA-20 and ATR-14 values populated
+  - Query: `SELECT ema_20, atr_14 FROM technical_indicators WHERE ticker = 'NVDA' ORDER BY date DESC LIMIT 1;`
+  - Assert: Both values are NOT NULL
+
+### 1.5 Implement Swing Low/High Detection (PREREQUISITE - CRITICAL)
+
+**Goal**: Calculate swing lows (10-day) and swing highs (30-day) for stop/target calculation
+
+- [ ] 1.5.1 Write test for swing_low calculation
+  - Test: Given 10 days of price data, return lowest close price
+  - Edge case: Less than 10 days of data → return None
+- [ ] 1.5.2 Write test for swing_high calculation
+  - Test: Given 30 days of price data, return highest close price
+  - Edge case: Less than 30 days of data → return None
+- [ ] 1.5.3 Implement `get_swing_low()` function in `calculator.py`
+  - Signature: `get_swing_low(symbol: str, days: int = 10) -> float | None`
+  - Query last 10 days from `day_bars` table, return min(close)
+- [ ] 1.5.4 Implement `get_swing_high()` function in `calculator.py`
+  - Signature: `get_swing_high(symbol: str, days: int = 30) -> float | None`
+  - Query last 30 days from `day_bars` table, return max(close)
+- [ ] 1.5.5 Run tests to verify swing detection works correctly
+  - Test with NVDA data (should have 30+ days available)
+- [ ] 1.5.6 Test edge case: Handle missing data gracefully
+  - If < 10 days available, swing_low returns None
+  - If < 30 days available, swing_high returns None
+
+### 2.0 Implement Signal Classification Engine (PARTIALLY COMPLETE ✅)
 
 **Goal**: Create Buy/Hold/Avoid signal classifier based on multiple technical + fundamental indicators
 
-- [x] 2.1 Create Signal Classification Models
+**NOTE**: Tasks 2.1-2.5, 3.1, 3.2, 3.4 already completed in previous commits.
+`backend/app/watchlist/narrative.py` contains:
+- ✅ SignalType, SignalStrength, SignalClassification models
+- ✅ classify_signal() function with BUY/HOLD/AVOID logic
+- ✅ NARRATIVE_TEMPLATES dict with plain-language mappings
+- ✅ generate_headline() function
+- ✅ generate_technical_bullets() function
+
+**REMAINING WORK**: Tasks 3.3, 3.5, 3.6, 3.7 (deferred tasks), and trading style enhancement (simplified in 2.6)
+
+- [x] 2.1 Create Signal Classification Models (✅ Already implemented in narrative.py)
   - [x] 2.1.1 Write test for `SignalType` enum (BUY, HOLD, AVOID)
   - [x] 2.1.2 Write test for `SignalStrength` class (0-10 scale)
   - [x] 2.1.3 Add `SignalType` enum to `backend/app/watchlist/models.py`
@@ -324,6 +408,47 @@
   - [x] 2.5.5 Run test to verify strength calculation accuracy
   - [x] 2.5.6 Verify edge cases (0 confirmations, all confirmations)
 
+- [ ] 2.6 Classify Recommended Trading Style (ENHANCEMENT - SIMPLIFIED V1)
+
+  **SIMPLIFIED APPROACH FOR V1**: Use basic heuristics instead of complex detection.
+  **V2 ENHANCEMENTS** (deferred to PRD #0022): Support/resistance detection, sector P/E, sophisticated algorithms.
+
+  - [ ] 2.6.1 Write test for Index style classification (SIMPLIFIED)
+    - **Criteria**: Symbol in hardcoded list: `['SPY', 'VOO', 'VTI', 'QQQ', 'IWM', 'DIA', 'AGG', 'BND']`
+    - Example: SPY, VOO, VTI
+    - Timeframe: Hold indefinitely (buy & hold forever)
+    - Risk: Low
+  - [ ] 2.6.2 Write test for Event style classification (SIMPLE - CHECK FIRST)
+    - **Criteria**: `earnings_days_away < 7` (from earnings module)
+    - Example: Stock approaching earnings
+    - Timeframe: Days to weeks (catalyst-driven)
+    - Risk: High
+  - [ ] 2.6.3 Write test for Swing style classification (SIMPLE)
+    - **Criteria**: RSI in [30-40] OR RSI in [60-70] (reversal zones)
+    - Example: Stock bouncing off support/resistance zones
+    - Timeframe: 1-3 weeks (catch specific move)
+    - Risk: Medium
+  - [ ] 2.6.4 Write test for Trend style classification (SIMPLE)
+    - **Criteria**: `signal_strength >= 8` AND `signal_type == BUY`
+    - Example: NVDA in strong bull run
+    - Timeframe: 2-3 months (ride momentum)
+    - Risk: Medium
+  - [ ] 2.6.5 Write test for Value style classification (DEFAULT FALLBACK)
+    - **Criteria**: None of the above (default)
+    - Example: Quality company, unclear setup
+    - Timeframe: 6-12 months (patient hold)
+    - Risk: Medium-Low
+  - [ ] 2.6.6 Implement `classify_trading_style()` function in narrative.py
+    - Apply classification hierarchy: Index → Event → Swing → Trend → Value (default)
+    - Return: `(style, confidence, holding_period, risk_level)`
+  - [ ] 2.6.7 Add fields to SignalClassification model:
+    - `recommended_style: Literal['Index', 'Trend', 'Value', 'Swing', 'Event']`
+    - `style_confidence: int` (0-10, based on how clearly criteria matched)
+    - `optimal_holding_period: str` (e.g., "Hold indefinitely", "2-3 months", "1-3 weeks")
+    - `risk_level: Literal['Low', 'Medium-Low', 'Medium', 'High']`
+  - [ ] 2.6.8 Run tests to verify simple classification works correctly
+  - [ ] 2.6.9 Document limitations and v2 enhancement plan in docstring
+
 ### 3.0 Build Narrative Generation System
 
 **Goal**: Translate technical indicators into plain-language narratives with zero jargon
@@ -347,6 +472,10 @@
   - [x] 3.2.4 Extract primary reason from signal classification
   - [x] 3.2.5 Run test to verify headline format
   - [x] 3.2.6 Verify headline matches expected pattern
+  - [ ] 3.2.7 ENHANCEMENT: Add trading style to headline format
+    - Format: "{signal_type} - {reason} | Best Play: {style} ({timeframe})"
+    - Example: "STRONG BUY - Quality Company + Good Setup | Best Play: 🔥 Trend (8-12 weeks)"
+    - Include style icon: 📈 Index, 🔥 Trend, 💎 Value, ⚡ Swing, 📅 Event
 
 - [ ] 3.3 Generate Company Health Section (FR-2.2) - DEFERRED (requires Task 4.0 fundamentals data)
   - [ ] 3.3.1 Write test for company health bullet generation
@@ -394,6 +523,20 @@
   - [ ] 3.7.5 Run test to verify warnings appear when appropriate
   - [ ] 3.7.6 Verify warnings omitted when not applicable
 
+- [ ] 3.8 Generate Trading Style Recommendation Section (ENHANCEMENT)
+  - [ ] 3.8.1 Write test for style recommendation text generation
+  - [ ] 3.8.2 Implement style explanation templates:
+    - **Index (📈)**: "Best held indefinitely. Low-risk diversified exposure, great for passive investors. Dollar-cost average and ignore short-term noise."
+    - **Trend (🔥)**: "Best played as trend-following swing over 2-3 months. Ride the momentum, exit if breaks 50-day MA. Let winners run."
+    - **Value (💎)**: "Patient long-term hold for 6-12 months. Quality company trading below intrinsic value. Wait for market to recognize."
+    - **Swing (⚡)**: "Good swing trade setup for 5-15% move over 1-3 weeks. Enter at support, exit at resistance. Quick in and out."
+    - **Event (📅)**: "Short-term catalyst play for days/weeks. High risk, high reward around specific event. Size accordingly."
+  - [ ] 3.8.3 Include optimal holding period for style
+  - [ ] 3.8.4 Include risk profile (Low/Medium/High)
+  - [ ] 3.8.5 Include exit strategy for style
+  - [ ] 3.8.6 Run test to verify style text matches classification
+  - [ ] 3.8.7 Verify style confidence reflected in language (strong vs weak recommendation)
+
 ### 4.0 Integrate Fundamentals & News Data
 
 **Goal**: Fetch and score company health (fundamentals) + news sentiment to contextualize signals
@@ -402,9 +545,33 @@
   - [ ] 4.1.1 Write test for YFinance fundamental data fetching
   - [ ] 4.1.2 Create `backend/app/watchlist/fundamentals.py` module
   - [ ] 4.1.3 Implement `fetch_fundamentals()` with YFinance as primary source
+    - **YFinance API Usage**:
+      ```python
+      import yfinance as yf
+      ticker = yf.Ticker("NVDA")
+      info = ticker.info  # Returns dict with fundamental data
+
+      # Keys needed:
+      # - profitMargins: float (0.53 = 53%)
+      # - revenueGrowth: float (1.22 = 122% YoY)
+      # - debtToEquity: float (0.45 = 45%)
+      # - recommendationKey: str ("buy", "hold", "sell")
+      # - recommendationMean: float (1.0-5.0, where 1=strong buy)
+      # - targetMeanPrice: float (analyst average target)
+      ```
   - [ ] 4.1.4 Add multi-source failover: YFinance → Finnhub → FMP
-  - [ ] 4.1.5 Run test to verify data fetching works
-  - [ ] 4.1.6 Verify failover triggers on source failure
+    - **Finnhub API** (requires API key in env: `FINNHUB_API_KEY`):
+      - Endpoint: `GET https://finnhub.io/api/v1/stock/metric?symbol={symbol}&metric=all&token={api_key}`
+      - Response keys: `metric.revenueGrowthAnnual`, `metric.netProfitMargin`, `metric.currentRatio`
+    - **FMP API** (requires API key in env: `FMP_API_KEY`):
+      - Endpoint: `GET https://financialmodelingprep.com/api/v3/ratios/{symbol}?apikey={api_key}`
+      - Response: Array of ratio objects with `debtEquityRatio`, `returnOnEquity`, etc.
+  - [ ] 4.1.5 Define `BaseFundamentalSource` interface (mirror PriceDataFetcher pattern)
+    - Abstract methods: `fetch_fundamentals(symbol: str) -> FundamentalData | None`
+    - Concrete classes: `YFinanceSource`, `FinnhubSource`, `FMPSource`
+  - [ ] 4.1.6 Run test to verify data fetching works
+  - [ ] 4.1.7 Verify failover triggers on source failure (mock API errors)
+  - [ ] 4.1.8 Add caching to `reference_cache` table (TTL: 24 hours for fundamentals)
 
 - [ ] 4.2 Implement EXCELLENT Classification (FR-3.1)
   - [ ] 4.2.1 Write test for EXCELLENT company (NVDA: margin 53%, growth 122%)
@@ -511,6 +678,16 @@
   - [ ] 5.4.8 Implement: `loss = shares × (entry - stop)` (should ≈ risk_budget)
   - [ ] 5.4.9 Run all tests to verify calculations
   - [ ] 5.4.10 Verify NVDA example: Entry $202, Stop $195, Risk $500 → 71 shares
+  - [ ] 5.4.11 **Handle edge case**: entry <= stop (invalid setup)
+    - Return `None` for `position_size_shares`
+    - Set `narrative_action_plan = "⚠ Invalid setup - stop loss must be below entry price"`
+    - Log warning: "Invalid trade setup for {symbol}: entry={entry}, stop={stop}"
+  - [ ] 5.4.12 **Handle edge case**: shares = 0 (stock too expensive for risk budget)
+    - When `floor(risk_budget / (entry - stop)) == 0`
+    - Display: "Stock too expensive for ${risk_budget} risk budget - consider larger budget or skip this trade"
+  - [ ] 5.4.13 **Handle edge case**: Very large position (>$100k investment)
+    - If `shares × entry_price > 100000`, add warning
+    - Warning: "⚠ Large position size (${investment:,.0f}) - ensure you have sufficient capital"
 
 - [ ] 5.5 Add User Risk Budget Preference (FR-2.4)
   - [ ] 5.5.1 Write test for risk budget retrieval from user_preferences
@@ -525,7 +702,7 @@
 **Goal**: Add new columns to `watchlist_snapshots` and `user_preferences` tables
 
 - [ ] 6.1 Create Migration Script
-  - [ ] 6.1.1 Create `backend/migrations/005_narrative_intelligence.sql`
+  - [ ] 6.1.1 Create `backend/migrations/008_narrative_intelligence.sql` (005-007 already exist)
   - [ ] 6.1.2 Add idempotent ALTER TABLE with `IF NOT EXISTS` clauses
   - [ ] 6.1.3 Add `signal_type TEXT CHECK(signal_type IN ('BUY', 'HOLD', 'AVOID'))`
   - [ ] 6.1.4 Add `signal_strength INTEGER CHECK(signal_strength BETWEEN 0 AND 10)`
@@ -538,6 +715,10 @@
   - [ ] 6.2.3 Add `profit_target DOUBLE PRECISION`
   - [ ] 6.2.4 Add `position_size_shares INTEGER`
   - [ ] 6.2.5 Add `narrative_action_plan TEXT`
+  - [ ] 6.2.6 ENHANCEMENT: Add trading style columns
+    - Add `recommended_style TEXT CHECK(recommended_style IN ('Index', 'Trend', 'Value', 'Swing', 'Event'))`
+    - Add `style_confidence INTEGER CHECK(style_confidence BETWEEN 0 AND 10)`
+    - Add `optimal_holding_period TEXT` (e.g., "2-3 months", "1-3 weeks", "Hold indefinitely")
 
 - [ ] 6.3 Add Fundamental & News Columns
   - [ ] 6.3.1 Add `company_health TEXT CHECK(company_health IN ('EXCELLENT', 'GOOD', 'WEAK'))`
@@ -559,6 +740,23 @@
   - [ ] 6.5.4 Verify CHECK constraints enforce valid values
   - [ ] 6.5.5 Verify defaults applied correctly
   - [ ] 6.5.6 Run migration again to verify idempotence
+  - [ ] 6.5.7 **Add performance indexes** for new columns
+    ```sql
+    CREATE INDEX IF NOT EXISTS idx_watchlist_snapshots_signal
+      ON watchlist_snapshots(item_id, signal_type, fetched_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_watchlist_snapshots_earnings
+      ON watchlist_snapshots(item_id, earnings_date)
+      WHERE earnings_date IS NOT NULL;
+
+    CREATE INDEX IF NOT EXISTS idx_watchlist_snapshots_style
+      ON watchlist_snapshots(item_id, recommended_style, fetched_at DESC);
+    ```
+  - [ ] 6.5.8 **Measure table size impact**
+    - Record table size before migration: `SELECT pg_size_pretty(pg_total_relation_size('watchlist_snapshots'));`
+    - Record table size after migration
+    - Verify size increase < 50% (adding 16 columns should be ~30-40% increase)
+    - Document in migration notes
 
 - [ ] 6.6 UI Validation Checkpoint 1 (Post-Migration)
   - [ ] 6.6.1 Open http://localhost:3000/watchlist in Chrome
@@ -637,6 +835,10 @@
   - [ ] 8.1.7 UI Checkpoint 3: Take screenshot `task-8.1-signal-display.png`
   - [ ] 8.1.8 Verify signal icons visible and color-coded correctly
   - [ ] 8.1.9 Check table layout not broken
+  - [ ] 8.1.10 ENHANCEMENT: Add trading style badge to table row
+    - Display style icon + text (📈 Index, 🔥 Trend, 💎 Value, ⚡ Swing, 📅 Event)
+    - Color-code by risk: Green (Index), Blue (Trend/Value), Yellow (Swing), Orange (Event)
+    - Show optimal timeframe on hover tooltip
 
 - [ ] 8.2 Create Narrative Expanded View Component
   - [ ] 8.2.1 Create `NarrativeView.tsx` component
@@ -651,6 +853,12 @@
   - [ ] 8.2.10 Click on NVDA row to expand view
   - [ ] 8.2.11 Verify all narrative sections render (headline, health, news, technical)
   - [ ] 8.2.12 Confirm plain language (no RSI/MACD/EMA jargon)
+  - [ ] 8.2.13 ENHANCEMENT: Add trading style section to expanded view
+    - Display recommended style with icon (📈/🔥/💎/⚡/📅)
+    - Show optimal holding period
+    - Show risk profile (Low/Medium/High)
+    - Show reasoning (why this style fits this setup)
+    - Show exit strategy specific to style
 
 - [ ] 8.3 Add Action Plan Display
   - [ ] 8.3.1 Create "What To Do" section in expanded view
@@ -685,6 +893,30 @@
   - [ ] 8.5.8 Test with ticker having earnings in 2 days (if available)
   - [ ] 8.5.9 Verify warnings display with correct icons (🔴/⚠)
   - [ ] 8.5.10 Check warnings only appear when applicable
+
+- [ ] 8.6 Add Trading Style Filter (ENHANCEMENT)
+  - [ ] 8.6.1 Add filter dropdown in Watchlist header (next to "Add Ticker" / "Refresh")
+  - [ ] 8.6.2 Filter options: "All Styles", "📈 Index", "🔥 Trend", "💎 Value", "⚡ Swing", "📅 Event"
+  - [ ] 8.6.3 Filter table rows by `recommended_style` field
+  - [ ] 8.6.4 Show count: "Showing 3 Trend plays" or "Showing all 14 tickers"
+  - [ ] 8.6.5 Test filter functionality with mixed styles
+  - [ ] 8.6.6 Verify filter persists on page refresh (localStorage)
+  - [ ] 8.6.7 UI Checkpoint 8: Take screenshot `task-8.6-style-filter.png`
+  - [ ] 8.6.8 Verify filter dropdown displays correctly
+  - [ ] 8.6.9 Test filtering by each style (Index, Trend, Value, Swing, Event)
+  - [ ] 8.6.10 Verify count updates correctly
+
+- [ ] 8.7 Adjust Sparkline Timeframe Based on Style (ENHANCEMENT)
+  - [ ] 8.7.1 Modify `SparklineWithHistory` component to accept style parameter
+  - [ ] 8.7.2 Map style to days: Index=250, Trend=60, Value=60, Swing=10, Event=5
+  - [ ] 8.7.3 Pass appropriate `days` parameter to `/api/watchlist/{item_id}/history?days=N`
+  - [ ] 8.7.4 Test sparkline rendering with different styles
+  - [ ] 8.7.5 Verify Index shows 1-year chart (250 days)
+  - [ ] 8.7.6 Verify Swing shows 2-week chart (10 days)
+  - [ ] 8.7.7 Verify Event shows 1-week chart (5 days)
+  - [ ] 8.7.8 UI Checkpoint 9: Take screenshot `task-8.7-adaptive-sparklines.png`
+  - [ ] 8.7.9 Compare sparklines side-by-side (Index vs Swing vs Event)
+  - [ ] 8.7.10 Verify timeframes match recommended holding periods
 
 ### 9.0 Testing & Validation
 

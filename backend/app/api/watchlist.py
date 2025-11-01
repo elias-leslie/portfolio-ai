@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import yfinance as yf  # type: ignore[import-untyped]
 from fastapi import APIRouter, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
@@ -472,16 +473,19 @@ async def delete_watchlist_item(item_id: str) -> None:
 
 
 @router.get("/{item_id}/history", response_model=ScoreHistoryResponse)
-async def get_score_history(item_id: str, days: int = 7) -> ScoreHistoryResponse:
+async def get_score_history(item_id: str, days: int = 10) -> ScoreHistoryResponse:
     """
     Get score history for a watchlist item.
 
+    Fetches actual historical price data from yfinance and computes scores
+    based on price trends to provide meaningful sparkline data.
+
     Args:
         item_id: Watchlist item ID
-        days: Number of days of history to return (default 7)
+        days: Number of trading days of history to return (default 10)
 
     Returns:
-        Score history for the item
+        Score history with computed scores from actual price data
     """
     try:
         # Get item info
@@ -497,36 +501,61 @@ async def get_score_history(item_id: str, days: int = 7) -> ScoreHistoryResponse
 
         symbol = item_df.to_dicts()[0]["symbol"]
 
-        # Get history from watchlist_snapshots
-        # Note: PostgreSQL requires quotes around INTERVAL value, so we use string formatting
-        # days is validated as an int by FastAPI, so this is safe
-        history_df = storage.query(
-            f"""
-            SELECT
-                fetched_at,
-                COALESCE(overall_score, 0.0) as overall_score,
-                COALESCE(raw_metrics->'price'->>'score', '0.0')::double precision as price_score,
-                COALESCE(technical_score, 0.0) as technical_score
-            FROM watchlist_snapshots
-            WHERE item_id = ?
-            AND fetched_at >= CURRENT_TIMESTAMP - INTERVAL '{days} DAYS'
-            ORDER BY fetched_at ASC
-            """,
-            [item_id],
-        )
+        # Fetch historical price data from yfinance
+        # Request ~15 calendar days to ensure we get at least 10 trading days
+        end_date = datetime.now(UTC)
+        start_date = end_date - timedelta(days=15)
+
+        ticker = yf.Ticker(symbol)
+        hist = ticker.history(start=start_date, end=end_date, interval="1d")
+
+        if hist.empty:
+            logger.warning("No historical data available", symbol=symbol)
+            # Return empty history if no data available
+            return ScoreHistoryResponse(
+                item_id=item_id,
+                symbol=symbol,
+                history=[],
+            )
+
+        # Take only the last N trading days (defaults to 10)
+        hist = hist.tail(days)
+
+        # Compute scores based on normalized price movement
+        # Use closing prices to calculate a score from 0-100
+        closes = hist["Close"].values
+        min_price = float(closes.min())
+        max_price = float(closes.max())
+        price_range = max_price - min_price if max_price > min_price else 1.0
 
         history = []
-        for row in history_df.to_dicts():
-            fetched_at = row["fetched_at"]
-            if hasattr(fetched_at, "isoformat"):
-                fetched_at = fetched_at.isoformat()
+        for idx, (timestamp, row) in enumerate(hist.iterrows()):
+            close_price = float(row["Close"])
+
+            # Normalize price to 0-100 scale based on range
+            price_score = ((close_price - min_price) / price_range) * 100
+
+            # For technical score, use a simple momentum indicator
+            # (comparing current price to first price in the period)
+            if idx > 0:
+                first_price = float(closes[0])
+                change_pct = ((close_price - first_price) / first_price) * 100
+                # Map ±10% change to 0-100 scale, clamped
+                technical_score = max(0, min(100, 50 + (change_pct * 5)))
+            else:
+                technical_score = 50.0  # Neutral for first point
+
+            # Overall score is weighted average (50/50)
+            overall_score = (price_score * 0.5) + (technical_score * 0.5)
 
             history.append(
                 ScoreHistoryPoint(
-                    timestamp=fetched_at,
-                    overall=row["overall_score"],
-                    price_score=row["price_score"],  # Extract from raw_metrics.price.score
-                    technical_score=row["technical_score"],
+                    timestamp=timestamp.isoformat()
+                    if hasattr(timestamp, "isoformat")
+                    else str(timestamp),
+                    overall=overall_score,
+                    price_score=price_score,
+                    technical_score=technical_score,
                 )
             )
 
@@ -538,7 +567,7 @@ async def get_score_history(item_id: str, days: int = 7) -> ScoreHistoryResponse
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("Failed to get score history", item_id=item_id, error=str(e))
+        logger.error("Failed to get score history", item_id=item_id, symbol=symbol, error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to get history: {e}") from e
 
 

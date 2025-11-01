@@ -39,13 +39,17 @@ export function Sparkline({
   // Calculate min/max for scaling
   const minValue = Math.min(...data);
   const maxValue = Math.max(...data);
-  const valueRange = maxValue - minValue || 1; // Avoid division by zero
+  const valueRange = maxValue - minValue;
+
+  // If all values are identical, center the line vertically
+  const isFlat = valueRange === 0;
 
   // Generate SVG path
   const points = data.map((value, index) => {
     // Handle single data point case (avoid division by zero)
     const x = data.length === 1 ? width / 2 : (index / (data.length - 1)) * width;
-    const y = height - ((value - minValue) / valueRange) * height;
+    // If flat, center at 50% height; otherwise scale normally
+    const y = isFlat ? height / 2 : height - ((value - minValue) / valueRange) * height;
     return { x, y, value };
   });
 
