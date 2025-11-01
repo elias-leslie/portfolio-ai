@@ -32,14 +32,22 @@
   - JSON-structured output with timestamps, levels, key/value fields
   - All 372 tests passing (6 new tests added)
 
+- Task 3.0: Consolidate Frontend API Clients (🟡 HIGH) - commit 8ec0429
+  - Created unified API client (frontend/lib/api/client.ts)
+  - ApiError class, retry logic (3 attempts), exponential backoff (1s, 2s, 3s)
+  - Refactored 5 API modules: watchlist, preferences, portfolio, ideas, market
+  - Eliminated duplicate API_BASE_URL (5 → 1), error handling (5 → 1), headers (5 → 1)
+  - ~170 lines of duplicate code removed (~28% reduction average)
+  - TypeScript compiler passes, all API modules import from unified client
+
 **🔄 IN PROGRESS:**
 - None
 
 **⚠️ NEXT:**
-- Task 3.0: Consolidate Frontend API Clients (🟡 HIGH)
+- Task 4.0: Fix Async/Sync Mismatches & Account Preferences (🟡 HIGH)
 
-**COMPLETION STATUS:** 33% complete (2 of 6 major tasks done)
-**EFFORT TO COMPLETE:** Medium-High (API consolidation, async/sync fixes, DRY violations, docstrings, E2E testing)
+**COMPLETION STATUS:** 50% complete (3 of 6 major tasks done)
+**EFFORT TO COMPLETE:** Medium (async/sync fixes, DRY violations, docstrings, E2E testing)
 
 ---
 
