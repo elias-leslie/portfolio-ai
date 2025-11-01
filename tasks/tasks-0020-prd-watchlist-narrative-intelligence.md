@@ -27,12 +27,23 @@
 - Task 0.2: WatchlistPreferences Component (FALSE ALARM - Rendering correctly)
   - Component visible and functional in Settings page
   - All preferences display and save correctly
+- Network Access Fix - commits 2fe1bce, 198ab20 (Nov 1, 2025)
+  - Simplified architecture: backend on 0.0.0.0:8000, frontend calls backend directly
+  - Removed complex Next.js proxy layer that was exposing 127.0.0.1 to clients
+  - Updated critical documentation with anti-bandaid guidelines
+  - Settings page now accessible from LAN (192.168.8.233:3000) and Tailscale (100.123.190.81:3000)
 
 **🔄 IN PROGRESS:**
-- Task 2.0: Implement Signal Classification Engine
+- None
 
-**⚠️ NEXT STEPS:**
-1. Task 2.0: Implement Signal Classification Engine
+**⚠️ CRITICAL BLOCKER - NEXT STEPS:**
+1. Task 0.3: **FIX BACKEND AUTO-REFRESH** (CRITICAL - discovered Nov 1, 10:55 AM)
+   - **ROOT CAUSE IDENTIFIED**: Backend has NO automatic refresh mechanism
+   - Frontend polls database every 15 min ✅ (working)
+   - Backend does NOT auto-refresh scores ❌ (MISSING)
+   - Tickers show stale data (GOOG from 5:33 AM, others from 9:28 AM, now 10:55 AM)
+   - **SOLUTION**: Implement Celery Beat periodic task to refresh watchlist scores
+2. Task 2.0: Implement Signal Classification Engine
 2. Task 3.0: Build Narrative Generation System
 3. Task 4.0: Integrate Fundamentals & News Data
 4. Continue sequentially through remaining tasks
@@ -137,6 +148,84 @@
 - [x] 0.2.5 No fix needed - rendering works correctly
 - [x] 0.2.6 Test: Navigated to Settings, verified Watchlist Preferences section visible ✓
 - [x] 0.2.7 Test: Refresh interval slider shows "15 minutes" correctly ✓
+
+---
+
+### 0.3 Fix Backend Auto-Refresh (CRITICAL BLOCKER) ⚠️
+
+**Goal**: Implement automatic backend refresh of watchlist scores (currently only frontend polls stale DB data)
+
+**Current State - Discovered Nov 1, 10:55 AM**:
+- ✅ Frontend: Polls database every 15 minutes via React Query `refetchInterval` (WORKING)
+- ❌ Backend: NO automatic refresh mechanism (MISSING - ROOT CAUSE)
+- 📊 Evidence: All tickers show stale data
+  - AAPL, META, NVDA, TSLA: Last updated 9:28-9:30 AM (1.5 hours ago)
+  - GOOG: Last updated 5:33 AM (5+ hours ago) - never refreshed after being added
+  - Current time: 10:55 AM
+  - Expected: Should have refreshed ~5 times with 15-min interval
+
+**Root Cause Analysis**:
+- `useWatchlist` hook (frontend/lib/hooks/useWatchlist.ts:43-67) correctly polls DB
+- BUT it only calls `fetchWatchlistItems()` which reads from database
+- The `refreshWatchlistScores()` function (backend refresh) only called on manual button click
+- No Celery Beat periodic task exists to automatically refresh scores
+- Result: Frontend sees same stale DB data every 15 minutes
+
+**Solution - Simple & Clean**:
+- Add Celery Beat periodic task to call `refresh_watchlist_scores()` for each account
+- Use user's `watchlist_refresh_minutes` preference to determine schedule
+- Follow existing Celery pattern from codebase
+
+**Tasks**:
+
+- [ ] 0.3.1 Investigate existing Celery setup
+  - [ ] Read `backend/app/celery_app.py` to understand current configuration
+  - [ ] Check if Celery Beat is already configured
+  - [ ] Search for existing periodic tasks as examples
+  - [ ] Understand how to define beat schedule
+
+- [ ] 0.3.2 Create periodic task for watchlist refresh
+  - [ ] Add `@celery_app.task` for `refresh_all_watchlists()`
+  - [ ] Query all accounts with watchlist items
+  - [ ] For each account, call existing `refresh_watchlist_scores()` service function
+  - [ ] Add error handling and logging
+  - [ ] Follow existing code patterns
+
+- [ ] 0.3.3 Configure Celery Beat schedule
+  - [ ] Add beat_schedule to celery_app configuration
+  - [ ] Use user preference `watchlist_refresh_minutes` (default 15 min)
+  - [ ] Consider: single task vs per-user tasks
+  - [ ] Document schedule in code comments
+
+- [ ] 0.3.4 Test locally
+  - [ ] Start Celery worker: `celery -A app.celery_app worker --loglevel=info`
+  - [ ] Start Celery Beat: `celery -A app.celery_app beat --loglevel=info`
+  - [ ] Add ticker to watchlist via UI
+  - [ ] Wait for scheduled refresh (verify in Beat logs)
+  - [ ] Check UI shows updated data after refresh
+  - [ ] Verify logs show successful refresh
+
+- [ ] 0.3.5 End-to-end UI verification (MANDATORY)
+  - [ ] Navigate to http://192.168.8.233:3000/watchlist
+  - [ ] Take screenshot: `docs/screenshots/watchlist-before-auto-refresh-test.png`
+  - [ ] Note current update times for all tickers
+  - [ ] Wait for next scheduled refresh (check Celery Beat logs for timing)
+  - [ ] Take screenshot: `docs/screenshots/watchlist-after-auto-refresh-test.png`
+  - [ ] Verify ALL tickers show NEW update times
+  - [ ] Verify GOOG finally updates (should no longer show 5:33 AM time)
+  - [ ] Check console for errors (list_console_messages)
+  - [ ] Confirm no "(stale)" badges on recently refreshed items
+
+- [ ] 0.3.6 Update documentation
+  - [ ] Add Celery Beat to CLAUDE.md Quick Start section
+  - [ ] Document in docs/core/OPERATIONS.md
+  - [ ] Add comments in code explaining schedule configuration
+
+**Verification Protocol**:
+- Must test via UI as user would experience it
+- Must wait for actual scheduled refresh (not manual button click)
+- Must verify with screenshots showing timestamp changes
+- Must check Celery Beat logs confirming task execution
 
 ---
 
