@@ -1,0 +1,16 @@
+[Unit]
+Description=Portfolio AI Backend (FastAPI)
+After=network.target postgresql.service redis-server.service
+Wants=postgresql.service redis-server.service
+
+[Service]
+Type=simple
+User=kasadis
+WorkingDirectory=/home/kasadis/portfolio-ai/backend
+Environment="PATH=/home/kasadis/portfolio-ai/backend/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/home/kasadis/portfolio-ai/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
