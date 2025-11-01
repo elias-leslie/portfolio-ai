@@ -109,19 +109,33 @@ def _load_default_weights(storage: DuckDBStorage) -> ScoreWeights:
 
 
 def _load_stale_ttl_minutes(storage: DuckDBStorage) -> int:
-    """Load stale TTL from preferences (3x refresh interval)."""
+    """
+    Load stale TTL from preferences (3x refresh interval).
+
+    Priority: watchlist_refresh_override → default_refresh_minutes → fallback (15min)
+    """
     df = storage.query(
         """
-        SELECT watchlist_refresh_minutes
+        SELECT watchlist_refresh_override, default_refresh_minutes
         FROM user_preferences
         ORDER BY updated_at DESC
         LIMIT 1
         """
     )
     if df.is_empty():
-        return 15  # Default: 3x 5min refresh = 15min
+        return 45  # Default: 3x 15min refresh = 45min
 
-    refresh_minutes = df.to_dicts()[0].get("watchlist_refresh_minutes", 5)
+    row = df.to_dicts()[0]
+
+    # Use override if set, otherwise use default, otherwise fallback to 15
+    refresh_override = row.get("watchlist_refresh_override")
+    default_refresh = row.get("default_refresh_minutes", 15)
+
+    if refresh_override is not None:
+        refresh_minutes = int(refresh_override)
+    else:
+        refresh_minutes = int(default_refresh) if default_refresh is not None else 15
+
     return int(refresh_minutes * 3)  # Stale = 3x refresh interval
 
 
