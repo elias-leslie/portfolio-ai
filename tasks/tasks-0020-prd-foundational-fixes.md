@@ -2,10 +2,10 @@
 
 **PRD**: `0020-prd-foundational-fixes.md`
 **Status**: Paused
-**Completion**: 67% (4/6 tasks complete)
-**Effort to Complete**: Low-Medium (code quality, E2E testing)
-**Last Updated**: 2025-11-01 19:30 UTC
-**Paused**: 2025-11-01 19:30 - After Task 4.0 completion (see PAUSE-HANDOFF-2025-11-01-1930.md)
+**Completion**: 83% (5/6 tasks complete)
+**Effort to Complete**: Low (E2E testing only)
+**Last Updated**: 2025-11-01 19:50 UTC
+**Paused**: 2025-11-01 19:50 - After Task 5.0 completion (see PAUSE-HANDOFF-2025-11-01-1950.md)
 
 **Note on Effort Levels**:
 - **Low**: 1-2 hours of straightforward work
@@ -18,50 +18,34 @@
 
 **✅ COMPLETE:**
 - Task 1.0: Fix Critical Data Integrity Issues (🔴 BLOCKING) - commit 222e059
-  - Timezone standardization: 9 files fixed, all use datetime.now(UTC)
-  - UUID-based IDs: watchlist.py fixed, 100 concurrent creates with 0 collisions
-  - Database migration 006 applied successfully
-  - All tests passing (366 passed, 4 skipped, 1 pre-existing failure)
-
 - Task 2.0: Migrate to Structured Logging (🟡 HIGH) - commit 23ff4c3
-  - 14 modules migrated to structured logging (get_logger() from app.logging_config)
-  - Core: portfolio/manager.py, agents/tools.py, storage/queries.py, storage/facade.py
-  - Storage: ingestion.py, schema.py, metadata.py, connection.py, yaml_loader.py
-  - Sources: fred.py, news.py
-  - Agents: discovery.py, portfolio_analyzer.py, analytics.py
-  - 4 integration tests added and passing
-  - JSON-structured output with timestamps, levels, key/value fields
-  - All 372 tests passing (6 new tests added)
-
 - Task 3.0: Consolidate Frontend API Clients (🟡 HIGH) - commit 8ec0429
-  - Created unified API client (frontend/lib/api/client.ts)
-  - ApiError class, retry logic (3 attempts), exponential backoff (1s, 2s, 3s)
-  - Refactored 5 API modules: watchlist, preferences, portfolio, ideas, market
-  - Eliminated duplicate API_BASE_URL (5 → 1), error handling (5 → 1), headers (5 → 1)
-  - ~170 lines of duplicate code removed (~28% reduction average)
-  - TypeScript compiler passes, all API modules import from unified client
-
 - Task 4.0: Fix Async/Sync Mismatches (🟡 HIGH) - commit 475ce7d
-  - Wrapped synchronous database calls in run_in_threadpool()
-  - Fixed watchlist.py: list_watchlist_items, get_watchlist_item (3 sync calls)
-  - Fixed preferences.py: get_preferences, update_preferences (2 sync calls)
-  - Prevents blocking async event loop
-  - Improves API throughput under concurrent load
-  - All 372 tests passing
+- Task 5.0: Code Quality & Documentation Updates (🟢 MEDIUM) - commits e09b418, 6201d71, 15ef009
+  - Fixed migration transaction bug (conn.commit() was missing)
+  - Created migration 007 to populate table_registry (19 entries)
+  - Extracted agent task helpers (_setup_agent_tools, _update_celery_task_id)
+  - Refactored run_discovery_agent and run_portfolio_analyzer
+  - Updated 5 storage module docstrings (PostgreSQL vs DuckDB)
+  - Added optimized get_item_with_score_by_id() method (10x+ speedup)
+  - Updated GET /api/watchlist/{item_id} to use optimized query
+  - All 377 tests passing
 
 **🔄 IN PROGRESS:**
 - None
 
 **⚠️ NEXT (Resume Here):**
-- Task 5.0: Code Quality & Documentation Updates (🟢 MEDIUM)
-  - Extract agent task helper functions
-  - Update storage docstrings (remove DuckDB references)
-  - Add optimized query method
+- Task 6.0: End-to-End Validation & Testing (🟢 LOW-MEDIUM)
+  - Browser automation tests for watchlist, settings, portfolio, ideas pages
+  - Integration test suites
+  - Performance validation
+  - Final verification checklist
+  - Documentation updates
 
-<!-- PAUSED: 2025-11-01 19:30 UTC - Resume with Task 5.0 -->
+<!-- PAUSED: 2025-11-01 19:50 UTC - Resume with Task 6.0 -->
 
-**COMPLETION STATUS:** 67% complete (4 of 6 major tasks done)
-**EFFORT TO COMPLETE:** Low-Medium (DRY violations, docstrings, E2E testing)
+**COMPLETION STATUS:** 83% complete (5 of 6 major tasks done)
+**EFFORT TO COMPLETE:** Low (E2E testing and documentation only)
 
 ---
 
