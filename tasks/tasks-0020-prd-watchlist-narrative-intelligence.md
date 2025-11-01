@@ -1,10 +1,10 @@
 # Task List: Watchlist Narrative Intelligence
 
 **PRD**: `0020-prd-watchlist-narrative-intelligence.md`
-**Status**: Ready for Implementation
-**Completion**: 0% (Not started)
+**Status**: In Progress
+**Completion**: 25% (Task 0.3 complete, API stale data issue needs debugging)
 **Effort to Complete**: High
-**Last Updated**: 2025-10-31
+**Last Updated**: 2025-11-01
 
 **Note on Effort Levels**:
 - **Low**: 1-2 hours of straightforward work
@@ -32,34 +32,40 @@
   - Removed complex Next.js proxy layer that was exposing 127.0.0.1 to clients
   - Updated critical documentation with anti-bandaid guidelines
   - Settings page now accessible from LAN (192.168.8.233:3000) and Tailscale (100.123.190.81:3000)
+- Task 0.3: Comprehensive Refresh Architecture - commits 482e5f1, 985d980 (Nov 1, 2025)
+  - Phase 1: Basic backend auto-refresh ✅
+  - Phase 2: Comprehensive refresh control system ✅
+  - Migration 005: Added refresh control columns (default_refresh_minutes, overrides, frontend_poll_interval)
+  - Updated Celery task logic with preference hierarchy (override → default → 15min fallback)
+  - Enhanced Settings UI with Basic + Advanced sections
+  - Created REFRESH_ARCHITECTURE.md documentation
+  - Fixed 'default' user ID issue (was using UUID) - commit 985d980
+  - Celery refreshing correctly every ~2 minutes with 1-minute threshold
 
 **🔄 IN PROGRESS:**
 - None
 
-**⚠️ CRITICAL BLOCKER - NEXT STEPS:**
-1. Task 0.3: **FIX BACKEND AUTO-REFRESH** (CRITICAL - discovered Nov 1, 10:55 AM)
-   - **ROOT CAUSE IDENTIFIED**: Backend has NO automatic refresh mechanism
-   - Frontend polls database every 15 min ✅ (working)
-   - Backend does NOT auto-refresh scores ❌ (MISSING)
-   - Tickers show stale data (GOOG from 5:33 AM, others from 9:28 AM, now 10:55 AM)
-   - **SOLUTION**: Implement Celery Beat periodic task to refresh watchlist scores
+**⚠️ KNOWN ISSUE - NEEDS INVESTIGATION:**
+- **UI showing stale timestamps (12:09 PM) despite fresh DB data (12:20 PM)**
+  - Backend Celery: ✅ Refreshing correctly every ~2 minutes
+  - Database: ✅ Has fresh snapshots at 12:20:19 PM for all tickers
+  - API Response: ❌ Returns old timestamps (16:09:22 UTC = 12:09 PM EDT)
+  - Backend restarted: Yes, but still returning stale data
+  - **Next step**: Investigate why watchlist API endpoint returns stale data
+  - **Possible causes**:
+    1. API querying wrong snapshots (check JOIN logic in backend/app/api/watchlist.py)
+    2. Redis/memory cache not cleared after restart
+    3. API using different account_id filter than Celery
+
+**NEXT STEPS:**
+1. Debug watchlist API endpoint to find why it returns stale data
 2. Task 2.0: Implement Signal Classification Engine
-2. Task 3.0: Build Narrative Generation System
-3. Task 4.0: Integrate Fundamentals & News Data
-4. Continue sequentially through remaining tasks
+3. Task 3.0: Build Narrative Generation System
+4. Task 4.0: Integrate Fundamentals & News Data
+5. Continue sequentially through remaining tasks
 
-**SERVER STATUS CHECK (Nov 1, 11:36 AM EDT):**
-- ✅ Backend: Running (port 8000, serving API requests)
-- ⚠️ Frontend: Running (port 3000, minor cross-origin warning for /_next/* resources)
-- ❌ Celery Worker: Running but **DATABASE ERROR** - column "account_id" does not exist
-  - Error location: `backend/app/tasks/agent_tasks.py:609` (user_preferences query)
-  - Impact: Watchlist auto-refresh task failing every minute since 11:30 AM
-  - Code fix applied: Changed `account_id` to `id`, changed `?` to `%s` for PostgreSQL
-  - **Action required**: Restart Celery services to apply fix
-- ✅ Beat: Running (scheduling tasks every 60 seconds)
-
-**COMPLETION STATUS:** ~11% complete (1 of 9 major tasks done, 2 false alarms resolved)
-**EFFORT TO COMPLETE:** High (Signal classification, narrative generation, fundamentals/news integration, database migrations, API updates, frontend integration, and testing remain)
+**COMPLETION STATUS:** ~25% complete (2 of 9 major tasks done: data integrity + refresh architecture)
+**EFFORT TO COMPLETE:** High (Signal classification, narrative generation, fundamentals/news integration, API debugging, frontend integration, and testing remain)
 
 ---
 
