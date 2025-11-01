@@ -15,11 +15,38 @@ To guide an AI assistant in creating a detailed, step-by-step task list in Markd
 - **Location:** `/tasks/`
 - **Filename:** `tasks-[prd-file-name].md` (e.g., `tasks-0001-prd-user-profile-editing.md`)
 
+## CRITICAL: Understand Before Planning
+
+**MANDATORY BEFORE GENERATING TASKS:**
+
+1. **READ THE EXISTING CODEBASE THOROUGHLY:**
+   - Search for similar features that ALREADY EXIST
+   - Identify existing patterns, utilities, and components that can be REUSED
+   - Check how related features are currently implemented
+   - **DO NOT assume** - VERIFY by reading actual code
+
+2. **PLAN FOR SIMPLICITY & REUSE:**
+   - Tasks should REUSE existing code, not duplicate it
+   - Tasks should follow EXISTING architectural patterns in the codebase
+   - Tasks should be the SIMPLEST path to meet requirements
+   - If a feature already exists, modify it - don't create a new one
+
+3. **AVOID GENERATING TASKS THAT ADD COMPLEXITY:**
+   - ❌ DO NOT create tasks for new abstraction layers if existing ones work
+   - ❌ DO NOT create tasks for custom implementations when libraries exist
+   - ❌ DO NOT create tasks for workarounds when root cause can be fixed
+   - ✅ DO create tasks that simplify and consolidate existing code
+
 ## Process
 
 1.  **Receive PRD Reference:** The user points the AI to a specific PRD file
 2.  **Analyze PRD:** The AI reads and analyzes the functional requirements, user stories, and other sections of the specified PRD.
-3.  **Assess Current State:** Review the existing codebase to understand existing infrastructre, architectural patterns and conventions. Also, identify any existing components or features that already exist and could be relevant to the PRD requirements. Then, identify existing related files, components, and utilities that can be leveraged or need modification.
+3.  **Assess Current State - CRITICAL STEP:**
+    - Review the existing codebase DEEPLY to understand infrastructure, architectural patterns and conventions
+    - Search for similar features that ALREADY EXIST (grep, find related files)
+    - Identify existing components or features that can be REUSED or EXTENDED
+    - Map out existing related files, components, and utilities that should be leveraged
+    - **DO NOT skip this step** - insufficient research leads to duplicated code and complexity bloat
 4.  **Phase 1: Generate Parent Tasks:** Based on the PRD analysis and current state assessment, create the file and generate the main, high-level tasks required to implement the feature. Use your judgement on how many high-level tasks to use. It's likely to be about five tasks. Present these tasks to the user in the specified format (without sub-tasks yet). Inform the user: "I have generated the high-level tasks based on the PRD. Ready to generate the sub-tasks? Respond with 'Go' to proceed."
 5.  **Wait for Confirmation:** Pause and wait for the user to respond with "Go".
 6.  **Phase 2: Generate Sub-Tasks:** Once the user confirms, break down each parent task into smaller, actionable sub-tasks necessary to complete the parent task. Ensure sub-tasks logically follow from the parent task, cover the implementation details implied by the PRD, and consider existing codebase patterns where relevant without being constrained by them.

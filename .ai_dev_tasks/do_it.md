@@ -7,6 +7,50 @@ argument-hint: [task list filename]
 
 Guidelines for managing task lists in markdown files to track progress on completing a PRD
 
+## CRITICAL: Root Cause Analysis & Simplicity First
+
+**MANDATORY BEFORE CHANGING ANY CODE:**
+
+1. **UNDERSTAND THE EXISTING ARCHITECTURE** - ALWAYS read related files first:
+   - Find HOW the feature currently works (read the actual code, don't assume)
+   - Check what patterns ALREADY EXIST in the codebase (grep for similar functionality)
+   - Understand the data flow from frontend → backend → database
+   - **NEVER guess** - if you don't understand something, READ THE CODE
+
+2. **DEBUG SYSTEMATICALLY - Find Root Cause BEFORE Fixing:**
+   - **Start with the error message** - what is ACTUALLY failing? (not what you think)
+   - **Trace backwards** - follow the data/request flow to find where it breaks
+   - **Check the obvious first** - is a service down? Wrong IP? Missing config?
+   - **Use logs and network inspection** - don't assume, VERIFY what's happening
+   - **Ask "why?" 5 times** - surface problem → intermediate cause → root cause
+
+3. **USE THE SIMPLEST SOLUTION THAT FIXES THE ROOT CAUSE:**
+   - **Fix the actual problem** - not symptoms (example: backend not listening on network → change --host to 0.0.0.0, don't add proxy layers)
+   - **Use existing patterns** - if the codebase has a pattern, USE IT (don't invent new ones)
+   - **Prefer simple over clever** - 1-line config change > 50 lines of new proxy code
+   - **Remove complexity, don't add it** - if existing code is convoluted, simplify it
+
+4. **ANTI-PATTERNS THAT CAUSE BLOAT (NEVER DO THIS):**
+   - ❌ Adding Next.js rewrites/proxies when backend just needs to listen on 0.0.0.0
+   - ❌ Creating new wrapper functions when existing ones work fine
+   - ❌ Implementing custom parsing when standard libraries exist
+   - ❌ Adding "magic" interceptors instead of fixing the actual config
+   - ❌ Working around a problem instead of fixing it at the source
+   - ❌ Copying code between files instead of importing from one source
+   - ❌ Guessing at solutions without reading how existing code works
+
+5. **VERIFICATION CHECKLIST BEFORE IMPLEMENTING:**
+   - [ ] I have READ the related existing code and UNDERSTAND how it works
+   - [ ] I have identified the ROOT CAUSE, not just symptoms
+   - [ ] My solution uses EXISTING patterns from the codebase
+   - [ ] My solution is the SIMPLEST fix for the root cause
+   - [ ] I am NOT adding new complexity/layers/abstractions unnecessarily
+   - [ ] I checked if this functionality ALREADY EXISTS elsewhere in the code
+
+**EXAMPLE - RIGHT vs WRONG:**
+- ❌ WRONG: "Settings page not loading from network → add Next.js proxy → add rewrites → modify frontend API calls → still broken → modify more..."
+- ✅ RIGHT: "Settings page not loading from network → check network requests → backend returning 127.0.0.1 redirect → backend only listening on 127.0.0.1 → change uvicorn --host to 0.0.0.0 → FIXED"
+
 ## Task Implementation
 - **Work autonomously:** Execute tasks continuously unless explicitly instructed otherwise or blocked by technical issues
 - **User can request autonomous mode:** If user says "continue autonomously" or "y, continue", work through all remaining tasks without pausing
