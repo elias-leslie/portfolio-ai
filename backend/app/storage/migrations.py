@@ -215,6 +215,9 @@ class MigrationManager:
                     [version, description, datetime.now(), checksum],
                 )
 
+                # Commit the transaction
+                conn.commit()
+
             logger.info(
                 "migration_applied_successfully",
                 version=version,
