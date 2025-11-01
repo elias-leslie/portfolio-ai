@@ -173,3 +173,155 @@ class TestClassifySignal:
 
         # Should have some reasons
         assert len(result.reasons) > 0
+
+
+class TestNarrativeTemplates:
+    """Tests for narrative template system."""
+
+    def test_narrative_templates_exist(self) -> None:
+        """Test that NARRATIVE_TEMPLATES dictionary exists."""
+        from app.watchlist.narrative import NARRATIVE_TEMPLATES
+
+        assert isinstance(NARRATIVE_TEMPLATES, dict)
+        assert len(NARRATIVE_TEMPLATES) > 0
+
+    def test_narrative_template_uptrend(self) -> None:
+        """Test uptrend template translates to plain language."""
+        from app.watchlist.narrative import NARRATIVE_TEMPLATES
+
+        template = NARRATIVE_TEMPLATES.get("uptrend")
+        assert template is not None
+        assert "uptrend" in template.lower() or "rising" in template.lower()
+        # Verify no jargon
+        assert "EMA" not in template
+        assert "SMA" not in template
+
+    def test_narrative_template_no_jargon(self) -> None:
+        """Test that templates contain no trader jargon."""
+        from app.watchlist.narrative import NARRATIVE_TEMPLATES
+
+        jargon_terms = ["RSI", "MACD", "EMA", "SMA", "ATR", "VWAP"]
+        for key, template in NARRATIVE_TEMPLATES.items():
+            for jargon in jargon_terms:
+                assert jargon not in template, f"Template '{key}' contains jargon: {jargon}"
+
+    def test_narrative_template_coverage(self) -> None:
+        """Test that key templates exist."""
+        from app.watchlist.narrative import NARRATIVE_TEMPLATES
+
+        required_keys = [
+            "uptrend",
+            "pullback",
+            "momentum_positive",
+            "volume_high",
+            "overbought",
+            "oversold",
+        ]
+        for key in required_keys:
+            assert key in NARRATIVE_TEMPLATES, f"Missing template: {key}"
+
+
+class TestGenerateHeadline:
+    """Tests for generate_headline function."""
+
+    def test_generate_headline_buy_signal(self) -> None:
+        """Test headline generation for BUY signal."""
+        from app.watchlist.narrative import SignalStrength, SignalType, generate_headline
+
+        classification = SignalClassification(
+            signal_type=SignalType.BUY,
+            strength=SignalStrength(value=9),
+            reasons=[
+                "Price > 20-day EMA (uptrend)",
+                "RSI at 55 (healthy)",
+                "MACD positive (momentum)",
+            ],
+        )
+
+        headline = generate_headline(classification)
+
+        # Should follow format: "{SIGNAL_TYPE} - {reason}"
+        assert "BUY" in headline
+        assert " - " in headline
+        # Should extract a primary reason
+        assert len(headline) > 10  # Not empty
+
+    def test_generate_headline_avoid_signal(self) -> None:
+        """Test headline generation for AVOID signal."""
+        from app.watchlist.narrative import generate_headline
+
+        classification = SignalClassification(
+            signal_type=SignalType.AVOID,
+            strength=SignalStrength(value=2),
+            reasons=["Price below 20-day EMA (downtrend)", "News sentiment negative"],
+        )
+
+        headline = generate_headline(classification)
+
+        assert "AVOID" in headline
+        assert " - " in headline
+
+    def test_generate_headline_hold_signal(self) -> None:
+        """Test headline generation for HOLD signal."""
+        from app.watchlist.narrative import generate_headline
+
+        classification = SignalClassification(
+            signal_type=SignalType.HOLD,
+            strength=SignalStrength(value=5),
+            reasons=["Mixed signals"],
+        )
+
+        headline = generate_headline(classification)
+
+        assert "HOLD" in headline
+        assert " - " in headline
+
+
+class TestGenerateTechnicalBullets:
+    """Tests for generate_technical_bullets function."""
+
+    def test_generate_technical_bullets_uptrend(self) -> None:
+        """Test technical bullet generation for uptrend setup."""
+        from app.watchlist.narrative import generate_technical_bullets
+
+        inputs = {
+            "price": 202.0,
+            "ema_20": 195.0,
+            "rsi_14": 55.0,
+            "macd": 2.5,
+            "volume": 100_000_000,
+            "volume_avg_20": 80_000_000,
+        }
+
+        bullets = generate_technical_bullets(inputs)
+
+        # Should generate 3-5 bullets
+        assert 3 <= len(bullets) <= 5
+        # Should be plain language (no jargon)
+        for bullet in bullets:
+            assert "EMA" not in bullet
+            assert "RSI" not in bullet
+            assert "MACD" not in bullet
+        # Should mention uptrend/momentum/volume
+        all_text = " ".join(bullets).lower()
+        assert any(term in all_text for term in ["uptrend", "rising", "momentum", "volume"])
+
+    def test_generate_technical_bullets_downtrend(self) -> None:
+        """Test technical bullet generation for downtrend setup."""
+        from app.watchlist.narrative import generate_technical_bullets
+
+        inputs = {
+            "price": 180.0,
+            "ema_20": 195.0,
+            "rsi_14": 40.0,
+            "macd": -1.5,
+            "volume": 50_000_000,
+            "volume_avg_20": 80_000_000,
+        }
+
+        bullets = generate_technical_bullets(inputs)
+
+        assert len(bullets) > 0
+        # Should mention downtrend or weakness
+        all_text = " ".join(bullets).lower()
+        assert any(term in all_text for term in ["downtrend", "falling", "weak", "below"])

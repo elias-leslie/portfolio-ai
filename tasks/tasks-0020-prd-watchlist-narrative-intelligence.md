@@ -152,27 +152,27 @@
 
 **Goal**: Translate technical indicators into plain-language narratives with zero jargon
 
-- [ ] 3.1 Create Narrative Template System (FR-2.2)
-  - [ ] 3.1.1 Write test for narrative template rendering
-  - [ ] 3.1.2 Create `NARRATIVE_TEMPLATES` dict with plain-language mappings
-  - [ ] 3.1.3 Add "uptrend" → "Stock is in an uptrend (rising steadily)"
-  - [ ] 3.1.4 Add "pullback" → "Just pulled back to a good entry point"
-  - [ ] 3.1.5 Add "momentum_positive" → "Momentum is positive (buyers are in control)"
-  - [ ] 3.1.6 Add "volume_high" → "Excellent volume - strong conviction"
-  - [ ] 3.1.7 Add "overbought" → "Already extended - just hit new high"
-  - [ ] 3.1.8 Add "oversold" → "Oversold - potential bounce opportunity"
-  - [ ] 3.1.9 Run test to verify template lookup works
-  - [ ] 3.1.10 Verify no trader jargon in templates (no RSI, MACD, EMA)
+- [x] 3.1 Create Narrative Template System (FR-2.2)
+  - [x] 3.1.1 Write test for narrative template rendering
+  - [x] 3.1.2 Create `NARRATIVE_TEMPLATES` dict with plain-language mappings
+  - [x] 3.1.3 Add "uptrend" → "Stock is in an uptrend (rising steadily)"
+  - [x] 3.1.4 Add "pullback" → "Just pulled back to a good entry point"
+  - [x] 3.1.5 Add "momentum_positive" → "Momentum is positive (buyers are in control)"
+  - [x] 3.1.6 Add "volume_high" → "Excellent volume - strong conviction"
+  - [x] 3.1.7 Add "overbought" → "Already extended - just hit new high"
+  - [x] 3.1.8 Add "oversold" → "Oversold - potential bounce opportunity"
+  - [x] 3.1.9 Run test to verify template lookup works
+  - [x] 3.1.10 Verify no trader jargon in templates (no RSI, MACD, EMA)
 
-- [ ] 3.2 Generate Headline Section (FR-2.2)
-  - [ ] 3.2.1 Write test for headline generation
-  - [ ] 3.2.2 Implement `generate_headline()` function
-  - [ ] 3.2.3 Format: "{signal_type} - {reason}" (e.g., "STRONG BUY - Quality Company + Good Setup")
-  - [ ] 3.2.4 Extract primary reason from signal classification
-  - [ ] 3.2.5 Run test to verify headline format
-  - [ ] 3.2.6 Verify headline matches expected pattern
+- [x] 3.2 Generate Headline Section (FR-2.2)
+  - [x] 3.2.1 Write test for headline generation
+  - [x] 3.2.2 Implement `generate_headline()` function
+  - [x] 3.2.3 Format: "{signal_type} - {reason}" (e.g., "STRONG BUY - Quality Company + Good Setup")
+  - [x] 3.2.4 Extract primary reason from signal classification
+  - [x] 3.2.5 Run test to verify headline format
+  - [x] 3.2.6 Verify headline matches expected pattern
 
-- [ ] 3.3 Generate Company Health Section (FR-2.2)
+- [ ] 3.3 Generate Company Health Section (FR-2.2) - DEFERRED (requires Task 4.0 fundamentals data)
   - [ ] 3.3.1 Write test for company health bullet generation
   - [ ] 3.3.2 Implement `generate_company_health_bullets()` function
   - [ ] 3.3.3 Format revenue growth: "✓ Growing fast - Revenue up 122% this year"
@@ -182,15 +182,15 @@
   - [ ] 3.3.7 Run test to verify 3-5 bullets generated
   - [ ] 3.3.8 Verify checkmarks (✓✗⚠) used correctly
 
-- [ ] 3.4 Generate Technical Setup Section (FR-2.2)
-  - [ ] 3.4.1 Write test for technical setup bullet generation
-  - [ ] 3.4.2 Implement `generate_technical_bullets()` function
-  - [ ] 3.4.3 Translate price vs EMA → "Strong uptrend - making higher highs"
-  - [ ] 3.4.4 Translate RSI → "Healthy pullback - normal profit-taking"
-  - [ ] 3.4.5 Translate MACD → "Buyers active - momentum positive"
-  - [ ] 3.4.6 Translate volume → "Excellent volume - strong conviction"
-  - [ ] 3.4.7 Run test to verify 3-5 plain-language bullets
-  - [ ] 3.4.8 Verify zero jargon in output
+- [x] 3.4 Generate Technical Setup Section (FR-2.2)
+  - [x] 3.4.1 Write test for technical setup bullet generation
+  - [x] 3.4.2 Implement `generate_technical_bullets()` function
+  - [x] 3.4.3 Translate price vs EMA → "Strong uptrend - making higher highs"
+  - [x] 3.4.4 Translate RSI → "Healthy pullback - normal profit-taking"
+  - [x] 3.4.5 Translate MACD → "Buyers active - momentum positive"
+  - [x] 3.4.6 Translate volume → "Excellent volume - strong conviction"
+  - [x] 3.4.7 Run test to verify 3-5 plain-language bullets
+  - [x] 3.4.8 Verify zero jargon in output
 
 - [ ] 3.5 Generate Action Plan Section (FR-2.2)
   - [ ] 3.5.1 Write test for action plan generation

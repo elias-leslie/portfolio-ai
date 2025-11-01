@@ -6,6 +6,141 @@ from typing import Any
 
 from .models import SignalClassification, SignalStrength, SignalType
 
+# Narrative templates: Translate technical indicators to plain language (zero jargon)
+NARRATIVE_TEMPLATES: dict[str, str] = {
+    # Trend templates
+    "uptrend": "Stock is in an uptrend (rising steadily)",
+    "downtrend": "Stock is in a downtrend (falling steadily)",
+    "sideways": "Stock is moving sideways (range-bound)",
+    # Entry templates
+    "pullback": "Just pulled back to a good entry point",
+    "breakout": "Breaking out to new highs",
+    "support": "Bouncing off support level",
+    # Momentum templates
+    "momentum_positive": "Momentum is positive (buyers are in control)",
+    "momentum_negative": "Momentum is negative (sellers are in control)",
+    "momentum_neutral": "Momentum is neutral (waiting for direction)",
+    # Volume templates
+    "volume_high": "Excellent volume - strong conviction",
+    "volume_low": "Low volume - weak participation",
+    "volume_average": "Normal volume - steady activity",
+    # Condition templates
+    "overbought": "Already extended - just hit new high",
+    "oversold": "Oversold - potential bounce opportunity",
+    "healthy": "Healthy pullback - normal profit-taking",
+    # Company health templates
+    "excellent_company": "Top-tier company with strong fundamentals",
+    "good_company": "Solid company with decent fundamentals",
+    "weak_company": "Struggling company with weak fundamentals",
+    # News templates
+    "positive_news": "Recent positive news driving interest",
+    "negative_news": "Recent negative news causing concern",
+    "neutral_news": "News flow is neutral",
+}
+
+
+def generate_headline(classification: SignalClassification) -> str:
+    """Generate a plain-language headline for the signal classification.
+
+    Args:
+        classification: Signal classification with type, strength, and reasons
+
+    Returns:
+        Headline string in format: "{SIGNAL_TYPE} - {primary_reason}"
+    """
+    signal_str = classification.signal_type.value  # BUY, HOLD, or AVOID
+
+    # Add strength descriptor for BUY signals
+    if classification.signal_type == SignalType.BUY:
+        if classification.strength.value >= 8:
+            signal_str = "STRONG BUY"
+        elif classification.strength.value >= 6:
+            signal_str = "BUY"
+
+    # Extract primary reason (first reason is usually most important)
+    if classification.reasons:
+        # Take first reason and simplify it
+        primary_reason = classification.reasons[0]
+        # Remove technical details in parentheses if present
+        if "(" in primary_reason:
+            primary_reason = primary_reason.split("(")[0].strip()
+    # Fallback reason based on signal type
+    elif classification.signal_type == SignalType.BUY:
+        primary_reason = "Good setup"
+    elif classification.signal_type == SignalType.AVOID:
+        primary_reason = "Risk factors present"
+    else:
+        primary_reason = "Mixed signals"
+
+    return f"{signal_str} - {primary_reason}"
+
+
+def generate_technical_bullets(inputs: dict[str, Any]) -> list[str]:
+    """Generate plain-language technical setup bullets (zero jargon).
+
+    Args:
+        inputs: Dictionary containing technical indicator values
+
+    Returns:
+        List of 3-5 plain-language bullet points
+    """
+    bullets: list[str] = []
+
+    # Extract inputs
+    price = inputs.get("price", 0.0)
+    ema_20 = inputs.get("ema_20", 0.0)
+    rsi_14 = inputs.get("rsi_14", 50.0)
+    macd = inputs.get("macd", 0.0)
+    volume = inputs.get("volume", 0.0)
+    volume_avg_20 = inputs.get("volume_avg_20", 0.0)
+
+    # Translate price vs EMA (trend)
+    if price > 0 and ema_20 > 0:
+        if price > ema_20:
+            pct_above = ((price - ema_20) / ema_20) * 100
+            if pct_above >= 5:
+                bullets.append("Strong uptrend - making higher highs")
+            else:
+                bullets.append("In uptrend - rising steadily")
+        else:
+            pct_below = ((ema_20 - price) / ema_20) * 100
+            if pct_below >= 5:
+                bullets.append("In downtrend - falling steadily")
+            else:
+                bullets.append("Below recent average - weak trend")
+
+    # Translate RSI (momentum condition)
+    if rsi_14 > 70:
+        bullets.append("Already extended - just hit new high")
+    elif rsi_14 < 30:
+        bullets.append("Oversold - potential bounce opportunity")
+    elif 40 <= rsi_14 <= 60:
+        bullets.append("Healthy momentum - normal trading")
+    elif rsi_14 < 40:
+        bullets.append("Some weakness showing - sellers active")
+
+    # Translate MACD (momentum direction)
+    if macd > 0:
+        bullets.append("Buyers active - momentum positive")
+    elif macd < 0:
+        bullets.append("Sellers active - momentum negative")
+
+    # Translate volume
+    if volume_avg_20 > 0 and volume > 0:
+        volume_ratio = volume / volume_avg_20
+        if volume_ratio >= 1.5:
+            bullets.append("Excellent volume - strong conviction")
+        elif volume_ratio >= 0.7:
+            bullets.append("Normal volume - steady activity")
+        else:
+            bullets.append("Low volume - weak participation")
+
+    # Ensure we have at least 3 bullets
+    if len(bullets) < 3:
+        bullets.append("Limited technical data available")
+
+    return bullets[:5]  # Cap at 5 bullets
+
 
 def classify_signal(inputs: dict[str, Any]) -> SignalClassification:
     """Classify watchlist signal as BUY, HOLD, or AVOID based on multiple indicators.
