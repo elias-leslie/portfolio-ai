@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import uuid
 from datetime import datetime
 from typing import cast
 
@@ -139,7 +138,7 @@ def _get_or_create_preferences() -> dict[str, object]:
         return dict(row)  # Explicitly cast to dict to satisfy mypy
 
     # Create default preferences
-    user_id = str(uuid.uuid4())
+    user_id = "default"
 
     with storage.connection() as conn:
         conn.execute(
@@ -147,11 +146,14 @@ def _get_or_create_preferences() -> dict[str, object]:
             INSERT INTO user_preferences (
                 id, risk_tolerance, allow_long, allow_short, allow_options,
                 allow_crypto, allow_futures, max_position_size_pct,
+                default_refresh_minutes, watchlist_refresh_override,
+                portfolio_refresh_override, news_refresh_override,
+                frontend_poll_interval,
                 watchlist_refresh_minutes, watchlist_auto_expand,
                 watchlist_price_weight, watchlist_technical_weight,
                 display_timezone,
                 created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             [
                 user_id,
@@ -162,7 +164,12 @@ def _get_or_create_preferences() -> dict[str, object]:
                 False,
                 False,
                 10.0,
-                5,
+                15,  # default_refresh_minutes
+                None,  # watchlist_refresh_override
+                None,  # portfolio_refresh_override
+                None,  # news_refresh_override
+                30,  # frontend_poll_interval
+                15,  # watchlist_refresh_minutes (legacy)
                 False,
                 50.0,
                 50.0,
