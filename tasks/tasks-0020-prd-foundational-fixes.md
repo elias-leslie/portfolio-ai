@@ -40,14 +40,22 @@
   - ~170 lines of duplicate code removed (~28% reduction average)
   - TypeScript compiler passes, all API modules import from unified client
 
+- Task 4.0: Fix Async/Sync Mismatches (🟡 HIGH) - commit 475ce7d
+  - Wrapped synchronous database calls in run_in_threadpool()
+  - Fixed watchlist.py: list_watchlist_items, get_watchlist_item (3 sync calls)
+  - Fixed preferences.py: get_preferences, update_preferences (2 sync calls)
+  - Prevents blocking async event loop
+  - Improves API throughput under concurrent load
+  - All 372 tests passing
+
 **🔄 IN PROGRESS:**
 - None
 
 **⚠️ NEXT:**
-- Task 4.0: Fix Async/Sync Mismatches & Account Preferences (🟡 HIGH)
+- Task 5.0: Code Quality & Documentation Updates (🟢 MEDIUM)
 
-**COMPLETION STATUS:** 50% complete (3 of 6 major tasks done)
-**EFFORT TO COMPLETE:** Medium (async/sync fixes, DRY violations, docstrings, E2E testing)
+**COMPLETION STATUS:** 67% complete (4 of 6 major tasks done)
+**EFFORT TO COMPLETE:** Low-Medium (DRY violations, docstrings, E2E testing)
 
 ---
 
