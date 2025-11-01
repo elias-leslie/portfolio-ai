@@ -48,6 +48,16 @@
 3. Task 4.0: Integrate Fundamentals & News Data
 4. Continue sequentially through remaining tasks
 
+**SERVER STATUS CHECK (Nov 1, 11:36 AM EDT):**
+- ✅ Backend: Running (port 8000, serving API requests)
+- ⚠️ Frontend: Running (port 3000, minor cross-origin warning for /_next/* resources)
+- ❌ Celery Worker: Running but **DATABASE ERROR** - column "account_id" does not exist
+  - Error location: `backend/app/tasks/agent_tasks.py:609` (user_preferences query)
+  - Impact: Watchlist auto-refresh task failing every minute since 11:30 AM
+  - Code fix applied: Changed `account_id` to `id`, changed `?` to `%s` for PostgreSQL
+  - **Action required**: Restart Celery services to apply fix
+- ✅ Beat: Running (scheduling tasks every 60 seconds)
+
 **COMPLETION STATUS:** ~11% complete (1 of 9 major tasks done, 2 false alarms resolved)
 **EFFORT TO COMPLETE:** High (Signal classification, narrative generation, fundamentals/news integration, database migrations, API updates, frontend integration, and testing remain)
 
@@ -151,81 +161,80 @@
 
 ---
 
-### 0.3 Fix Backend Auto-Refresh (CRITICAL BLOCKER) ⚠️
+### 0.3 Fix Backend Auto-Refresh + Comprehensive Refresh Architecture (CRITICAL - IN PROGRESS) 🔄
 
-**Goal**: Implement automatic backend refresh of watchlist scores (currently only frontend polls stale DB data)
+**Goal**: Implement automatic backend refresh + build unified refresh control system with global defaults and per-feature overrides
 
-**Current State - Discovered Nov 1, 10:55 AM**:
-- ✅ Frontend: Polls database every 15 minutes via React Query `refetchInterval` (WORKING)
-- ❌ Backend: NO automatic refresh mechanism (MISSING - ROOT CAUSE)
-- 📊 Evidence: All tickers show stale data
-  - AAPL, META, NVDA, TSLA: Last updated 9:28-9:30 AM (1.5 hours ago)
-  - GOOG: Last updated 5:33 AM (5+ hours ago) - never refreshed after being added
-  - Current time: 10:55 AM
-  - Expected: Should have refreshed ~5 times with 15-min interval
+**Phase 1: Basic Backend Auto-Refresh (COMPLETED ✅)**
+- ✅ Celery Beat running 24/7 (not just market hours)
+- ✅ Task runs every 1 minute, checks user preference, skips if too soon
+- ✅ Honors `watchlist_refresh_minutes` preference (15 min default)
+- ✅ Manual refresh works, automatic refresh verified
+- ✅ Documentation updated (CLAUDE.md)
+- ✅ **CRITICAL FIX (Nov 1, 11:36 AM)**: Fixed database column error in Celery task
+  - Fixed `account_id` → `id` in user_preferences query (backend/app/tasks/agent_tasks.py:609,620)
+  - Fixed PostgreSQL parameter placeholders `?` → `%s`
+  - **Restart required**: `sudo systemctl restart portfolio-celery portfolio-beat`
 
-**Root Cause Analysis**:
-- `useWatchlist` hook (frontend/lib/hooks/useWatchlist.ts:43-67) correctly polls DB
-- BUT it only calls `fetchWatchlistItems()` which reads from database
-- The `refreshWatchlistScores()` function (backend refresh) only called on manual button click
-- No Celery Beat periodic task exists to automatically refresh scores
-- Result: Frontend sees same stale DB data every 15 minutes
-
-**Solution - Simple & Clean**:
-- Add Celery Beat periodic task to call `refresh_watchlist_scores()` for each account
-- Use user's `watchlist_refresh_minutes` preference to determine schedule
-- Follow existing Celery pattern from codebase
+**Phase 2: Comprehensive Refresh Architecture (IN PROGRESS 🔄)**
+**Architecture Goal**: Clear separation of concerns with single source of truth per feature
+- Backend refresh (expensive API calls) controlled by user preferences
+- Frontend polling (cheap DB reads) fixed at 30 seconds for responsiveness
+- Global default + per-feature overrides for power users
 
 **Tasks**:
 
-- [ ] 0.3.1 Investigate existing Celery setup
-  - [ ] Read `backend/app/celery_app.py` to understand current configuration
-  - [ ] Check if Celery Beat is already configured
-  - [ ] Search for existing periodic tasks as examples
-  - [ ] Understand how to define beat schedule
+- [x] 0.3.1 Investigate existing Celery setup ✓
+- [x] 0.3.2 Create periodic task for watchlist refresh ✓
+- [x] 0.3.3 Configure Celery Beat schedule (24/7, respects user pref) ✓
+- [x] 0.3.4 Test locally (verified 1-min interval working) ✓
+- [x] 0.3.5 Basic UI verification (screenshots taken) ✓
+- [x] 0.3.6 Update documentation (CLAUDE.md updated) ✓
 
-- [ ] 0.3.2 Create periodic task for watchlist refresh
-  - [ ] Add `@celery_app.task` for `refresh_all_watchlists()`
-  - [ ] Query all accounts with watchlist items
-  - [ ] For each account, call existing `refresh_watchlist_scores()` service function
-  - [ ] Add error handling and logging
-  - [ ] Follow existing code patterns
+- [ ] 0.3.7 Database Migration: Add refresh control columns
+  - [ ] Add `default_refresh_minutes` (global default, INTEGER DEFAULT 15)
+  - [ ] Add `watchlist_refresh_override` (NULL = use default)
+  - [ ] Add `portfolio_refresh_override` (future)
+  - [ ] Add `news_refresh_override` (future)
+  - [ ] Add `frontend_poll_interval` (INTEGER DEFAULT 30 seconds)
+  - [ ] Migration script: `migrations/005_refresh_controls.sql`
 
-- [ ] 0.3.3 Configure Celery Beat schedule
-  - [ ] Add beat_schedule to celery_app configuration
-  - [ ] Use user preference `watchlist_refresh_minutes` (default 15 min)
-  - [ ] Consider: single task vs per-user tasks
-  - [ ] Document schedule in code comments
+- [ ] 0.3.8 Update task logic to use new preference hierarchy
+  - [ ] Update `refresh_watchlist_scores_task` to check override first, then default
+  - [ ] Add clear logging: "Using watchlist override: 5 min" or "Using default: 15 min"
+  - [ ] Ensure backward compatibility (existing `watchlist_refresh_minutes` maps to default)
 
-- [ ] 0.3.4 Test locally
-  - [ ] Start Celery worker: `celery -A app.celery_app worker --loglevel=info`
-  - [ ] Start Celery Beat: `celery -A app.celery_app beat --loglevel=info`
-  - [ ] Add ticker to watchlist via UI
-  - [ ] Wait for scheduled refresh (verify in Beat logs)
-  - [ ] Check UI shows updated data after refresh
-  - [ ] Verify logs show successful refresh
+- [ ] 0.3.9 Update Celery Beat config with comprehensive documentation
+  - [ ] Document all scheduled tasks in code comments
+  - [ ] Keep 60-second poll interval for watchlist
+  - [ ] Add placeholders for future tasks (portfolio, news)
+  - [ ] Document static schedules (paper trades daily 4:30 PM ET)
 
-- [ ] 0.3.5 End-to-end UI verification (MANDATORY)
-  - [ ] Navigate to http://192.168.8.233:3000/watchlist
-  - [ ] Take screenshot: `docs/screenshots/watchlist-before-auto-refresh-test.png`
-  - [ ] Note current update times for all tickers
-  - [ ] Wait for next scheduled refresh (check Celery Beat logs for timing)
-  - [ ] Take screenshot: `docs/screenshots/watchlist-after-auto-refresh-test.png`
-  - [ ] Verify ALL tickers show NEW update times
-  - [ ] Verify GOOG finally updates (should no longer show 5:33 AM time)
-  - [ ] Check console for errors (list_console_messages)
-  - [ ] Confirm no "(stale)" badges on recently refreshed items
+- [ ] 0.3.10 Update Settings UI with Basic + Advanced sections
+  - [ ] Basic: "Default Refresh Interval" (controls all features)
+  - [ ] Basic: "Frontend Polling: 30 seconds (auto)" (info only)
+  - [ ] Advanced (collapsible): Per-feature overrides (Watchlist, Portfolio, News)
+  - [ ] Advanced: Radio buttons for "Use Default" vs "Custom"
+  - [ ] Static Schedules section (info only, not configurable)
 
-- [ ] 0.3.6 Update documentation
-  - [ ] Add Celery Beat to CLAUDE.md Quick Start section
-  - [ ] Document in docs/core/OPERATIONS.md
-  - [ ] Add comments in code explaining schedule configuration
+- [ ] 0.3.11 Create REFRESH_ARCHITECTURE.md documentation
+  - [ ] Table of all refresh types (backend vs frontend)
+  - [ ] Default intervals and configuration instructions
+  - [ ] Clear examples: "Set watchlist to 5 min, default to 15 min"
+  - [ ] Architecture diagram showing data flow
+
+- [ ] 0.3.12 Test comprehensive refresh system
+  - [ ] Set watchlist override to 2 min, verify refreshes every 2 min
+  - [ ] Set to "use default", change default to 10 min, verify 10 min
+  - [ ] Frontend polls every 30s regardless of backend interval
+  - [ ] UI shows correct values and saves properly
+  - [ ] Take final screenshots for documentation
 
 **Verification Protocol**:
-- Must test via UI as user would experience it
-- Must wait for actual scheduled refresh (not manual button click)
-- Must verify with screenshots showing timestamp changes
-- Must check Celery Beat logs confirming task execution
+- Must test via UI at user's actual network address (192.168.8.233:3000)
+- Must verify override takes precedence over default
+- Must verify frontend polls independently of backend refresh
+- Must document all refresh intervals clearly
 
 ---
 

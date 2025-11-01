@@ -9,7 +9,6 @@ from __future__ import annotations
 import os
 
 from celery import Celery  # type: ignore[import-untyped]  # celery doesn't ship type stubs
-from celery.schedules import crontab  # type: ignore[import-untyped]
 
 # Get Redis URL from environment or use default
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
@@ -47,19 +46,19 @@ celery_app.conf.update(
 
 # Configure Celery Beat schedule for periodic tasks
 celery_app.conf.beat_schedule = {
-    # Refresh watchlist scores every 1 minute during market hours (for testing)
-    # Monday-Friday, 9:30 AM - 4:00 PM ET (converted to UTC)
-    # Note: 9:30 AM ET = 13:30 UTC, 4:00 PM ET = 20:00 UTC
+    # Refresh watchlist scores every 1 minute (24/7) - FOR TESTING
+    # This ensures:
+    # - New tickers get historical backfill promptly
+    # - After-hours price changes are captured
+    # - Weekend users see updated data
+    # - Historical data gaps are filled
+    # TODO: Change to 15 minutes (900 seconds) for production
     # TODO: Make interval configurable via user preferences
     "refresh-watchlist-scores": {
         "task": "refresh_watchlist_scores",
-        "schedule": crontab(
-            minute="*/1",  # Every 1 minute (for testing - should be user preference)
-            hour="13-20",  # 9:00 AM - 4:00 PM ET = 13:00 - 20:00 UTC (covers market hours)
-            day_of_week="1-5",  # Monday-Friday
-        ),
+        "schedule": 60.0,  # Every 1 minute (60 seconds) - FOR TESTING ONLY
         "args": ["default"],  # Pass account_id="default" to the task
-        "options": {"expires": 300},  # Task expires after 5 minutes if not picked up
+        "options": {"expires": 120},  # Task expires after 2 minutes if not picked up
     },
     # Update paper trades daily at 4:30 PM ET (market close + 30 min)
     "update-paper-trades-daily": {

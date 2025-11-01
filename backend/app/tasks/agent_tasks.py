@@ -591,31 +591,95 @@ def update_paper_trades_task(  # type: ignore[no-untyped-def]
 def refresh_watchlist_scores_task(self, account_id: str | None = None) -> dict[str, Any]:  # type: ignore[no-untyped-def]
     """Refresh watchlist scores for all items or a specific account.
 
-    Note: This task checks market hours before refreshing. During market hours
-    (9:30 AM - 4:00 PM ET, Mon-Fri), it refreshes normally. After hours, it still
-    refreshes but uses a 24-hour staleness threshold instead of 15 minutes.
+    This task runs every 1 minute via Celery Beat, but respects the user's
+    watchlist_refresh_minutes preference by skipping execution if not enough
+    time has passed since the last refresh.
+
+    Note: This task checks market hours for logging, but refreshes 24/7.
     """
     task_id = self.request.id
-
-    # Check if markets are open (log for monitoring, but always refresh)
-    markets_open = is_market_hours()
-    logger.info(
-        "watchlist_refresh_task_started",
-        task_id=task_id,
-        account_id=account_id,
-        markets_open=markets_open,
-    )
+    account_id = account_id or "default"
 
     try:
         storage = get_storage()
+
+        # Check user preference for refresh interval (in minutes)
+        with storage.connection() as conn:
+            result = conn.execute(
+                "SELECT watchlist_refresh_minutes FROM user_preferences WHERE id = %s",
+                [account_id],
+            ).fetchone()
+            refresh_interval_minutes = result[0] if result else 15  # Default to 15 minutes
+
+            # Get last refresh time from most recent snapshot
+            last_refresh_result = conn.execute(
+                """
+                SELECT MAX(fetched_at) as last_refresh
+                FROM watchlist_snapshots ws
+                JOIN watchlist_items wi ON ws.item_id = wi.id
+                WHERE wi.account_id = %s
+                """,
+                [account_id],
+            ).fetchone()
+
+            last_refresh = (
+                last_refresh_result[0] if last_refresh_result and last_refresh_result[0] else None
+            )
+
+        # Calculate time since last refresh
+        now = dt.datetime.now(dt.UTC)
+        if last_refresh:
+            # Ensure last_refresh is timezone-aware
+            if last_refresh.tzinfo is None:
+                last_refresh = last_refresh.replace(tzinfo=dt.UTC)
+            else:
+                last_refresh = last_refresh.astimezone(dt.UTC)
+
+            minutes_since_refresh = (now - last_refresh).total_seconds() / 60.0
+
+            # Skip if not enough time has passed
+            if minutes_since_refresh < refresh_interval_minutes:
+                logger.info(
+                    "watchlist_refresh_skipped",
+                    task_id=task_id,
+                    account_id=account_id,
+                    minutes_since_refresh=round(minutes_since_refresh, 1),
+                    refresh_interval_minutes=refresh_interval_minutes,
+                    reason="Not enough time elapsed since last refresh",
+                )
+                return {
+                    "task_id": task_id,
+                    "skipped": True,
+                    "reason": "refresh_interval_not_met",
+                    "minutes_since_refresh": round(minutes_since_refresh, 1),
+                    "refresh_interval_minutes": refresh_interval_minutes,
+                }
+
+        # Proceed with refresh
+        markets_open = is_market_hours()
+        logger.info(
+            "watchlist_refresh_task_started",
+            task_id=task_id,
+            account_id=account_id,
+            markets_open=markets_open,
+            refresh_interval_minutes=refresh_interval_minutes,
+        )
+
         result = refresh_watchlist_scores_service(storage, account_id=account_id)
-        result.update({"task_id": task_id, "markets_open": markets_open})
+        result.update(
+            {
+                "task_id": task_id,
+                "markets_open": markets_open,
+                "refresh_interval_minutes": refresh_interval_minutes,
+            }
+        )
 
         logger.info(
             "watchlist_refresh_task_completed",
             task_id=task_id,
             processed=result.get("processed", 0),
             markets_open=markets_open,
+            refresh_interval_minutes=refresh_interval_minutes,
         )
         return result
 
