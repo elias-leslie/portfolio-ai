@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import cast
 
 from fastapi import APIRouter
@@ -174,8 +174,8 @@ def _get_or_create_preferences() -> dict[str, object]:
                 50.0,
                 50.0,
                 "America/New_York",
-                datetime.now(),
-                datetime.now(),
+                datetime.now(UTC),
+                datetime.now(UTC),
             ],
         )
         conn.commit()  # Commit the insert
@@ -201,8 +201,8 @@ def _get_or_create_preferences() -> dict[str, object]:
         "watchlist_price_weight": 50.0,
         "watchlist_technical_weight": 50.0,
         "display_timezone": "America/New_York",
-        "created_at": datetime.now(),
-        "updated_at": datetime.now(),
+        "created_at": datetime.now(UTC),
+        "updated_at": datetime.now(UTC),
     }
 
 
@@ -321,7 +321,7 @@ async def update_preferences(update: PreferencesUpdate) -> PreferencesResponse:
                 current["watchlist_price_weight"],
                 current["watchlist_technical_weight"],
                 current["display_timezone"],
-                datetime.now(),
+                datetime.now(UTC),
                 current["id"],
             ],
         )

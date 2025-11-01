@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -408,8 +408,8 @@ class AgentTools:
                 "data_needed": idea_data.get("data_needed"),
                 "risks": idea_data.get("risks"),
                 "status": "pending",
-                "created_at": datetime.now(),
-                "updated_at": datetime.now(),
+                "created_at": datetime.now(UTC),
+                "updated_at": datetime.now(UTC),
             },
         )
 

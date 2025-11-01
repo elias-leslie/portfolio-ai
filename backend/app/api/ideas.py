@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal
 
 from celery.result import AsyncResult  # type: ignore[import-untyped]
@@ -305,7 +305,7 @@ async def update_idea_status(idea_id: str, request: UpdateIdeaStatusRequest) -> 
     with storage.connection() as conn:
         conn.execute(
             "UPDATE agent_ideas SET status = ?, updated_at = ? WHERE id = ?",
-            [request.status, datetime.now(), idea_id],
+            [request.status, datetime.now(UTC), idea_id],
         )
         conn.commit()  # Commit the update
 

@@ -1,10 +1,10 @@
 # Task List: Watchlist Narrative Intelligence
 
-**PRD**: `0020-prd-watchlist-narrative-intelligence.md`
-**Status**: In Progress
-**Completion**: 25% (Task 0.3 complete, API stale data issue needs debugging)
+**PRD**: `0021-prd-watchlist-narrative-intelligence.md`
+**Status**: Blocked (PRD 0020 Foundational Fixes must complete first)
+**Completion**: 25% (Task 0.3 complete, but blocked pending foundational fixes)
 **Effort to Complete**: High
-**Last Updated**: 2025-11-01
+**Last Updated**: 2025-11-01 (Renumbered from 0020 to 0021)
 
 **Note on Effort Levels**:
 - **Low**: 1-2 hours of straightforward work

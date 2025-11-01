@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 from datetime import UTC, datetime
 from typing import Any
 
@@ -195,7 +196,7 @@ async def create_watchlist_item(data: WatchlistItemCreate) -> WatchlistItemRespo
             raise HTTPException(status_code=409, detail=f"Ticker {symbol} already in watchlist")
 
         # Create item
-        item_id = str(datetime.now(UTC).timestamp()).replace(".", "")
+        item_id = str(uuid.uuid4())
         now = datetime.now(UTC).isoformat()
 
         with storage.connection() as conn:

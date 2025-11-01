@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal
 
 import polars as pl
@@ -47,7 +47,7 @@ class PortfolioManager:
             Created Account instance
         """
         account_id = str(uuid.uuid4())
-        now = datetime.now()
+        now = datetime.now(UTC)
 
         account = Account(
             id=account_id,
@@ -104,7 +104,7 @@ class PortfolioManager:
             Created Position instance
         """
         position_id = str(uuid.uuid4())
-        now = datetime.now()
+        now = datetime.now(UTC)
 
         position = Position(
             id=position_id,
@@ -163,7 +163,7 @@ class PortfolioManager:
         if cost_basis is not None:
             position.cost_basis = cost_basis
 
-        position.updated_at = datetime.now()
+        position.updated_at = datetime.now(UTC)
 
         # Update in database using upsert
         df_update = pl.DataFrame([position.model_dump()])

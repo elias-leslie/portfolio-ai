@@ -158,7 +158,7 @@ class PriceDataFetcher:
             return {}
 
         # Query cache for recent prices
-        cutoff_time = datetime.now() - timedelta(minutes=self.cache_ttl_minutes)
+        cutoff_time = datetime.now(UTC) - timedelta(minutes=self.cache_ttl_minutes)
         placeholders = ",".join(["?" for _ in symbols])
 
         df = self.storage.query(

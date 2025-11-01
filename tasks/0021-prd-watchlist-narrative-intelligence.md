@@ -1,9 +1,9 @@
-# PRD 0020: Watchlist Narrative Intelligence
+# PRD 0021: Watchlist Narrative Intelligence
 
-**Status**: Draft
+**Status**: Draft (Blocked by PRD 0020 - Foundational Fixes)
 **Created**: 2025-10-31
 **Owner**: Portfolio AI Platform
-**Related PRDs**: #0014 (Watchlist Intelligence Hub Phase 1), #0018 (Watchlist Refresh Infrastructure Fixes)
+**Related PRDs**: #0014 (Watchlist Intelligence Hub Phase 1), #0018 (Watchlist Refresh Infrastructure Fixes), #0020 (Foundational Fixes - BLOCKING)
 
 ---
 
