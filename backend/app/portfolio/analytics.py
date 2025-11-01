@@ -6,9 +6,9 @@ sector exposure, and concentration risk.
 
 from __future__ import annotations
 
-import logging
 from collections import defaultdict
 
+from ..logging_config import get_logger
 from .models import (
     ConcentrationMetrics,
     PortfolioValue,
@@ -19,7 +19,7 @@ from .models import (
     PortfolioAnalytics as PortfolioAnalyticsModel,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class PortfolioAnalytics:

@@ -7,12 +7,13 @@ Uses PostgreSQLDuckDBWrapper for DuckDB-compatible interface over PostgreSQL.
 
 from __future__ import annotations
 
-import logging
 from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import polars as pl
+
+from ..logging_config import get_logger
 
 # Type hint only - actual connection is PostgreSQL via PostgreSQLDuckDBWrapper
 # See connection.py for wrapper implementation
@@ -25,7 +26,7 @@ from .metadata import MetadataManager
 from .queries import QueryManager
 from .schema import SchemaManager
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class DuckDBStorage:

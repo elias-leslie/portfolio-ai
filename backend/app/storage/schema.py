@@ -10,15 +10,15 @@ Note:
 
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING, Any
 
+from ..logging_config import get_logger
 from .migrations import MigrationManager
 
 if TYPE_CHECKING:
     from .connection import ConnectionManager
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Schema version migrations (version, SQL) - Deprecated, use migrations/ directory
 MIGRATIONS: list[tuple[str, str]] = []

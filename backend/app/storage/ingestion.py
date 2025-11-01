@@ -5,16 +5,17 @@ This module handles data insertion and upserting operations for portfolio tables
 
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING, Any
 
 import polars as pl
+
+from ..logging_config import get_logger
 
 if TYPE_CHECKING:
     from .connection import ConnectionManager
     from .metadata import MetadataManager
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class IngestionManager:

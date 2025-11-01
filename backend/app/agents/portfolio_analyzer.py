@@ -5,9 +5,10 @@ Analyzes user's portfolio to generate personalized investment ideas.
 
 from __future__ import annotations
 
-import logging
 import uuid
 from typing import TYPE_CHECKING, Any
+
+from ..logging_config import get_logger
 
 if TYPE_CHECKING:
     from app.storage.facade import DuckDBStorage
@@ -22,7 +23,7 @@ from .tools import (
     get_store_idea_tool_definition,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class PortfolioAnalyzerAgent(Agent):

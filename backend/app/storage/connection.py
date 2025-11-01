@@ -7,7 +7,6 @@ A DuckDB-compatible wrapper is provided to minimize code changes.
 
 from __future__ import annotations
 
-import logging
 import os
 import re
 from collections.abc import Iterator
@@ -17,10 +16,12 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import create_engine, pool
 from sqlalchemy.engine import Engine
 
+from ..logging_config import get_logger
+
 if TYPE_CHECKING:
     pass
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Singleton instance
 _connection_mgr: ConnectionManager | None = None

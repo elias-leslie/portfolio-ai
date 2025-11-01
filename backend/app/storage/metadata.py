@@ -6,8 +6,9 @@ Uses PostgreSQLDuckDBWrapper for DuckDB-compatible interface over PostgreSQL.
 
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING
+
+from ..logging_config import get_logger
 
 # Type hint only - actual connection is PostgreSQL via PostgreSQLDuckDBWrapper
 # See connection.py for wrapper implementation
@@ -16,7 +17,7 @@ if TYPE_CHECKING:
 
     from .connection import ConnectionManager
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class MetadataManager:

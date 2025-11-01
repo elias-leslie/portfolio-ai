@@ -5,17 +5,17 @@ This module provides the PortfolioManager class for managing accounts and positi
 
 from __future__ import annotations
 
-import logging
 import uuid
 from datetime import UTC, datetime
 from typing import Literal
 
 import polars as pl
 
+from ..logging_config import get_logger
 from ..storage import DuckDBStorage
 from .models import Account, Position
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class PortfolioManager:

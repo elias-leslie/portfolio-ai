@@ -5,13 +5,14 @@ Simplified FRED API integration for fetching economic indicators.
 
 from __future__ import annotations
 
-import logging
 import os
 from typing import Any, ClassVar
 
 import httpx
 
-logger = logging.getLogger(__name__)
+from ..logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class FREDSource:

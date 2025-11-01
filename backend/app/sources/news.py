@@ -5,15 +5,16 @@ Simplified Google News integration for fetching market headlines.
 
 from __future__ import annotations
 
-import logging
 import time
 from importlib import import_module
 from types import ModuleType
 from typing import Any
 
+from ..logging_config import get_logger
+
 feedparser: ModuleType = import_module("feedparser")
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class GoogleNewsSource:

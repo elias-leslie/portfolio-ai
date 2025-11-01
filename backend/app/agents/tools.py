@@ -5,7 +5,6 @@ This module provides tool definitions and executors for agents.
 
 from __future__ import annotations
 
-import logging
 import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -19,8 +18,9 @@ if TYPE_CHECKING:
     from app.storage.facade import DuckDBStorage
 
 from app.analytics.paper_trading import create_paper_trade
+from app.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def get_news_tool_definition() -> dict[str, Any]:

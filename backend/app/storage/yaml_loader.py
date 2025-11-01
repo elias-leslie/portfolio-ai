@@ -6,13 +6,14 @@ Loads data source configurations from YAML files and populates DuckDB tables.
 from __future__ import annotations
 
 import json
-import logging
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-logger = logging.getLogger(__name__)
+from ..logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def load_source_config(yaml_path: str) -> dict[str, Any]:

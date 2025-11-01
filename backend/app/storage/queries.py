@@ -6,16 +6,17 @@ This module provides preset query methods and raw SQL execution capabilities.
 from __future__ import annotations
 
 import json
-import logging
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 import polars as pl
 
+from ..logging_config import get_logger
+
 if TYPE_CHECKING:
     from .connection import ConnectionManager
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class QueryManager:
