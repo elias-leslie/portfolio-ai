@@ -45,27 +45,96 @@ celery_app.conf.update(
 )
 
 # Configure Celery Beat schedule for periodic tasks
+# ==============================================
+#
+# REFRESH ARCHITECTURE:
+# ---------------------
+# Backend refresh (expensive API calls): Controlled by user preferences
+#   - Global default: default_refresh_minutes (15 min default)
+#   - Per-feature overrides: watchlist_refresh_override, portfolio_refresh_override, news_refresh_override
+#   - Tasks check preference hierarchy: override → default → hardcoded fallback
+#
+# Frontend polling (cheap DB reads): Fixed at 30 seconds for responsiveness
+#   - Controlled by frontend_poll_interval in user_preferences (default: 30s)
+#   - Independent of backend refresh schedule
+#
+# PERIODIC TASK TYPES:
+# --------------------
+# 1. User-Configurable Backend Refresh (respects preferences)
+#    - Watchlist scores: polls every 60s, honors user's refresh_interval
+#    - Portfolio analytics: (future) polls every 60s, honors user's refresh_interval
+#    - News sentiment: (future) polls every 60s, honors user's refresh_interval
+#
+# 2. Static Schedules (not configurable)
+#    - Paper trades update: Daily at 4:30 PM ET (market close + 30 min)
+#    - Data cleanup: (future) Weekly on Sunday 2:00 AM
+#
+# DESIGN RATIONALE:
+# -----------------
+# - Beat polls frequently (60s) to ensure responsiveness
+# - Task logic skips execution if not enough time elapsed since last refresh
+# - This ensures user preferences are honored while maintaining prompt execution
+# - Example: If user sets watchlist to 5 min, Beat checks every 60s but only
+#   executes refresh when 5 min have passed since last actual refresh
+#
+# See: docs/REFRESH_ARCHITECTURE.md for complete documentation
+#
 celery_app.conf.beat_schedule = {
-    # Refresh watchlist scores every 1 minute (24/7) - FOR TESTING
-    # This ensures:
-    # - New tickers get historical backfill promptly
-    # - After-hours price changes are captured
-    # - Weekend users see updated data
-    # - Historical data gaps are filled
-    # TODO: Change to 15 minutes (900 seconds) for production
-    # TODO: Make interval configurable via user preferences
+    # ============================================================================
+    # USER-CONFIGURABLE BACKEND REFRESH TASKS
+    # ============================================================================
+    # These tasks poll frequently (60s) but honor user preference intervals
+    # Task logic checks: last_refresh_time + user_interval < now → execute
+    # ============================================================================
     "refresh-watchlist-scores": {
         "task": "refresh_watchlist_scores",
-        "schedule": 60.0,  # Every 1 minute (60 seconds) - FOR TESTING ONLY
-        "args": ["default"],  # Pass account_id="default" to the task
+        "schedule": 60.0,  # Poll every 60 seconds (Beat check interval)
+        "args": ["default"],  # account_id
         "options": {"expires": 120},  # Task expires after 2 minutes if not picked up
+        # Notes:
+        # - Task checks: watchlist_refresh_override → default_refresh_minutes → 15 min
+        # - Skips execution if not enough time elapsed since last refresh
+        # - Runs 24/7 to capture after-hours and weekend data
     },
-    # Update paper trades daily at 4:30 PM ET (market close + 30 min)
+    # Future: Portfolio analytics refresh
+    # Note: Commented example for future implementation
+    # "refresh-portfolio-analytics": {
+    #     "task": "refresh_portfolio_analytics",  # noqa: ERA001
+    #     "schedule": 60.0,  # Poll every 60 seconds  # noqa: ERA001
+    #     "args": ["default"],  # noqa: ERA001
+    #     "options": {"expires": 120},  # noqa: ERA001
+    #     # Task checks: portfolio_refresh_override → default_refresh_minutes → 15 min
+    # },
+    # Future: News sentiment refresh
+    # Note: Commented example for future implementation
+    # "refresh-news-sentiment": {
+    #     "task": "refresh_news_sentiment",  # noqa: ERA001
+    #     "schedule": 60.0,  # Poll every 60 seconds  # noqa: ERA001
+    #     "args": ["default"],  # noqa: ERA001
+    #     "options": {"expires": 120},  # noqa: ERA001
+    #     # Task checks: news_refresh_override → default_refresh_minutes → 15 min
+    # },
+    # ============================================================================
+    # STATIC SCHEDULE TASKS (NOT CONFIGURABLE)
+    # ============================================================================
+    # These tasks run on fixed schedules regardless of user preferences
+    # ============================================================================
     "update-paper-trades-daily": {
         "task": "update_paper_trades_task",
         "schedule": 86400.0,  # Daily (24 hours)
         "options": {"expires": 3600},  # Task expires after 1 hour
+        # Notes:
+        # - Runs daily at 4:30 PM ET (market close + 30 min)
+        # - Not configurable by user (business logic requirement)
     },
+    # Future: Data cleanup task
+    # Note: Commented example for future implementation
+    # "cleanup-old-data": {
+    #     "task": "cleanup_old_data",  # noqa: ERA001
+    #     "schedule": 604800.0,  # Weekly (7 days)  # noqa: ERA001
+    #     "options": {"expires": 3600},  # noqa: ERA001
+    #     # Runs Sunday 2:00 AM - not configurable
+    # },
 }
 
 # Import tasks to register them with Celery

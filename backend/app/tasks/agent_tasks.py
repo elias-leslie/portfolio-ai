@@ -604,12 +604,42 @@ def refresh_watchlist_scores_task(self, account_id: str | None = None) -> dict[s
         storage = get_storage()
 
         # Check user preference for refresh interval (in minutes)
+        # Priority: watchlist_refresh_override -> default_refresh_minutes -> 15 (hardcoded default)
         with storage.connection() as conn:
             result = conn.execute(
-                "SELECT watchlist_refresh_minutes FROM user_preferences WHERE id = %s",
+                """
+                SELECT
+                    COALESCE(watchlist_refresh_override, default_refresh_minutes, 15) as refresh_interval,
+                    watchlist_refresh_override IS NOT NULL as using_override
+                FROM user_preferences
+                WHERE id = %s
+                """,
                 [account_id],
             ).fetchone()
-            refresh_interval_minutes = result[0] if result else 15  # Default to 15 minutes
+
+            if result:
+                refresh_interval_minutes = result[0]
+                using_override = result[1]
+
+                if using_override:
+                    logger.info(
+                        "watchlist_refresh_using_override",
+                        account_id=account_id,
+                        refresh_interval_minutes=refresh_interval_minutes,
+                    )
+                else:
+                    logger.info(
+                        "watchlist_refresh_using_default",
+                        account_id=account_id,
+                        refresh_interval_minutes=refresh_interval_minutes,
+                    )
+            else:
+                refresh_interval_minutes = 15  # Fallback if no preferences found
+                logger.info(
+                    "watchlist_refresh_no_preferences",
+                    account_id=account_id,
+                    refresh_interval_minutes=refresh_interval_minutes,
+                )
 
             # Get last refresh time from most recent snapshot
             last_refresh_result = conn.execute(

@@ -13,6 +13,13 @@ export interface PreferencesResponse {
   allow_crypto: boolean;
   allow_futures: boolean;
   max_position_size_pct: number;
+  // Refresh control fields
+  default_refresh_minutes: number;
+  watchlist_refresh_override: number | null;
+  portfolio_refresh_override: number | null;
+  news_refresh_override: number | null;
+  frontend_poll_interval: number;
+  // Legacy watchlist fields (kept for backward compatibility)
   watchlist_refresh_minutes: number;
   watchlist_auto_expand: boolean;
   watchlist_price_weight: number;
@@ -28,6 +35,13 @@ export interface PreferencesUpdate {
   allow_crypto?: boolean;
   allow_futures?: boolean;
   max_position_size_pct?: number;
+  // Refresh control fields
+  default_refresh_minutes?: number;
+  watchlist_refresh_override?: number | null;
+  portfolio_refresh_override?: number | null;
+  news_refresh_override?: number | null;
+  frontend_poll_interval?: number;
+  // Legacy watchlist fields (kept for backward compatibility)
   watchlist_refresh_minutes?: number;
   watchlist_auto_expand?: boolean;
   watchlist_price_weight?: number;

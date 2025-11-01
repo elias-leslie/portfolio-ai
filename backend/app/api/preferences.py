@@ -28,6 +28,21 @@ class PreferencesResponse(BaseModel):
     allow_crypto: bool = Field(..., description="Allow crypto trading")
     allow_futures: bool = Field(..., description="Allow futures trading")
     max_position_size_pct: float = Field(..., description="Maximum position size as % of portfolio")
+    # Refresh control fields
+    default_refresh_minutes: int = Field(
+        ..., description="Global default refresh interval in minutes"
+    )
+    watchlist_refresh_override: int | None = Field(
+        None, description="Watchlist-specific refresh override (NULL = use default)"
+    )
+    portfolio_refresh_override: int | None = Field(
+        None, description="Portfolio-specific refresh override (NULL = use default)"
+    )
+    news_refresh_override: int | None = Field(
+        None, description="News-specific refresh override (NULL = use default)"
+    )
+    frontend_poll_interval: int = Field(..., description="Frontend polling interval in seconds")
+    # Legacy watchlist fields (kept for backward compatibility)
     watchlist_refresh_minutes: int = Field(..., description="Watchlist refresh interval in minutes")
     watchlist_auto_expand: bool = Field(..., description="Auto-expand watchlist rows")
     watchlist_price_weight: float = Field(..., description="Weight for price score component")
@@ -49,6 +64,32 @@ class PreferencesUpdate(BaseModel):
     max_position_size_pct: float | None = Field(
         None, gt=0, le=100, description="Maximum position size as % of portfolio"
     )
+    # Refresh control fields
+    default_refresh_minutes: int | None = Field(
+        None, ge=1, le=1440, description="Global default refresh interval (1-1440 minutes)"
+    )
+    watchlist_refresh_override: int | None = Field(
+        None,
+        ge=1,
+        le=1440,
+        description="Watchlist-specific refresh override (1-1440 minutes, NULL = use default)",
+    )
+    portfolio_refresh_override: int | None = Field(
+        None,
+        ge=1,
+        le=1440,
+        description="Portfolio-specific refresh override (1-1440 minutes, NULL = use default)",
+    )
+    news_refresh_override: int | None = Field(
+        None,
+        ge=1,
+        le=1440,
+        description="News-specific refresh override (1-1440 minutes, NULL = use default)",
+    )
+    frontend_poll_interval: int | None = Field(
+        None, ge=10, le=300, description="Frontend polling interval (10-300 seconds)"
+    )
+    # Legacy watchlist fields (kept for backward compatibility)
     watchlist_refresh_minutes: int | None = Field(
         None, ge=1, le=1440, description="Watchlist refresh interval (1-1440 minutes)"
     )
@@ -141,7 +182,14 @@ def _get_or_create_preferences() -> dict[str, object]:
         "allow_crypto": False,
         "allow_futures": False,
         "max_position_size_pct": 10.0,
-        "watchlist_refresh_minutes": 5,
+        # Refresh control fields
+        "default_refresh_minutes": 15,
+        "watchlist_refresh_override": None,
+        "portfolio_refresh_override": None,
+        "news_refresh_override": None,
+        "frontend_poll_interval": 30,
+        # Legacy watchlist fields
+        "watchlist_refresh_minutes": 15,
         "watchlist_auto_expand": False,
         "watchlist_price_weight": 50.0,
         "watchlist_technical_weight": 50.0,
@@ -164,6 +212,13 @@ async def get_preferences() -> PreferencesResponse:
         allow_crypto=cast(bool, prefs["allow_crypto"]),
         allow_futures=cast(bool, prefs["allow_futures"]),
         max_position_size_pct=cast(float, prefs["max_position_size_pct"]),
+        # Refresh control fields
+        default_refresh_minutes=cast(int, prefs["default_refresh_minutes"]),
+        watchlist_refresh_override=cast(int | None, prefs.get("watchlist_refresh_override")),
+        portfolio_refresh_override=cast(int | None, prefs.get("portfolio_refresh_override")),
+        news_refresh_override=cast(int | None, prefs.get("news_refresh_override")),
+        frontend_poll_interval=cast(int, prefs["frontend_poll_interval"]),
+        # Legacy watchlist fields
         watchlist_refresh_minutes=cast(int, prefs["watchlist_refresh_minutes"]),
         watchlist_auto_expand=cast(bool, prefs["watchlist_auto_expand"]),
         watchlist_price_weight=cast(float, prefs["watchlist_price_weight"]),
@@ -193,6 +248,18 @@ async def update_preferences(update: PreferencesUpdate) -> PreferencesResponse:
         current["allow_futures"] = update.allow_futures
     if update.max_position_size_pct is not None:
         current["max_position_size_pct"] = update.max_position_size_pct
+    # Refresh control fields
+    if update.default_refresh_minutes is not None:
+        current["default_refresh_minutes"] = update.default_refresh_minutes
+    if update.watchlist_refresh_override is not None:
+        current["watchlist_refresh_override"] = update.watchlist_refresh_override
+    if update.portfolio_refresh_override is not None:
+        current["portfolio_refresh_override"] = update.portfolio_refresh_override
+    if update.news_refresh_override is not None:
+        current["news_refresh_override"] = update.news_refresh_override
+    if update.frontend_poll_interval is not None:
+        current["frontend_poll_interval"] = update.frontend_poll_interval
+    # Legacy watchlist fields
     if update.watchlist_refresh_minutes is not None:
         current["watchlist_refresh_minutes"] = update.watchlist_refresh_minutes
     if update.watchlist_auto_expand is not None:
@@ -209,20 +276,25 @@ async def update_preferences(update: PreferencesUpdate) -> PreferencesResponse:
         conn.execute(
             """
             UPDATE user_preferences
-            SET risk_tolerance = ?,
-                allow_long = ?,
-                allow_short = ?,
-                allow_options = ?,
-                allow_crypto = ?,
-                allow_futures = ?,
-                max_position_size_pct = ?,
-                watchlist_refresh_minutes = ?,
-                watchlist_auto_expand = ?,
-                watchlist_price_weight = ?,
-                watchlist_technical_weight = ?,
-                display_timezone = ?,
-                updated_at = ?
-            WHERE id = ?
+            SET risk_tolerance = %s,
+                allow_long = %s,
+                allow_short = %s,
+                allow_options = %s,
+                allow_crypto = %s,
+                allow_futures = %s,
+                max_position_size_pct = %s,
+                default_refresh_minutes = %s,
+                watchlist_refresh_override = %s,
+                portfolio_refresh_override = %s,
+                news_refresh_override = %s,
+                frontend_poll_interval = %s,
+                watchlist_refresh_minutes = %s,
+                watchlist_auto_expand = %s,
+                watchlist_price_weight = %s,
+                watchlist_technical_weight = %s,
+                display_timezone = %s,
+                updated_at = %s
+            WHERE id = %s
             """,
             [
                 current["risk_tolerance"],
@@ -232,6 +304,11 @@ async def update_preferences(update: PreferencesUpdate) -> PreferencesResponse:
                 current["allow_crypto"],
                 current["allow_futures"],
                 current["max_position_size_pct"],
+                current["default_refresh_minutes"],
+                current["watchlist_refresh_override"],
+                current["portfolio_refresh_override"],
+                current["news_refresh_override"],
+                current["frontend_poll_interval"],
                 current["watchlist_refresh_minutes"],
                 current["watchlist_auto_expand"],
                 current["watchlist_price_weight"],
@@ -251,6 +328,13 @@ async def update_preferences(update: PreferencesUpdate) -> PreferencesResponse:
         allow_crypto=cast(bool, current["allow_crypto"]),
         allow_futures=cast(bool, current["allow_futures"]),
         max_position_size_pct=cast(float, current["max_position_size_pct"]),
+        # Refresh control fields
+        default_refresh_minutes=cast(int, current["default_refresh_minutes"]),
+        watchlist_refresh_override=cast(int | None, current.get("watchlist_refresh_override")),
+        portfolio_refresh_override=cast(int | None, current.get("portfolio_refresh_override")),
+        news_refresh_override=cast(int | None, current.get("news_refresh_override")),
+        frontend_poll_interval=cast(int, current["frontend_poll_interval"]),
+        # Legacy watchlist fields
         watchlist_refresh_minutes=cast(int, current["watchlist_refresh_minutes"]),
         watchlist_auto_expand=cast(bool, current["watchlist_auto_expand"]),
         watchlist_price_weight=cast(float, current["watchlist_price_weight"]),

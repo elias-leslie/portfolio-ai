@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
 import type { PreferencesResponse } from "@/lib/api/preferences";
 
@@ -20,9 +21,21 @@ export function WatchlistPreferences({
   onUpdate,
   isPending,
 }: WatchlistPreferencesProps) {
-  const [refreshMinutes, setRefreshMinutes] = useState(
-    preferences.watchlist_refresh_minutes
+  // Basic settings
+  const [defaultRefreshMinutes, setDefaultRefreshMinutes] = useState(
+    preferences.default_refresh_minutes
   );
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // Per-feature overrides
+  const [useWatchlistOverride, setUseWatchlistOverride] = useState(
+    preferences.watchlist_refresh_override !== null
+  );
+  const [watchlistOverride, setWatchlistOverride] = useState(
+    preferences.watchlist_refresh_override ?? preferences.default_refresh_minutes
+  );
+
+  // Legacy watchlist settings
   const [autoExpand, setAutoExpand] = useState(
     preferences.watchlist_auto_expand
   );
@@ -35,15 +48,23 @@ export function WatchlistPreferences({
 
   // Update local state when preferences change
   useEffect(() => {
-    setRefreshMinutes(preferences.watchlist_refresh_minutes);
+    setDefaultRefreshMinutes(preferences.default_refresh_minutes);
+    setUseWatchlistOverride(preferences.watchlist_refresh_override !== null);
+    setWatchlistOverride(
+      preferences.watchlist_refresh_override ?? preferences.default_refresh_minutes
+    );
     setAutoExpand(preferences.watchlist_auto_expand);
     setPriceWeight(preferences.watchlist_price_weight);
     setTechnicalWeight(preferences.watchlist_technical_weight);
   }, [preferences]);
 
   const hasChanges = () => {
+    const currentOverride = useWatchlistOverride ? watchlistOverride : null;
+    const savedOverride = preferences.watchlist_refresh_override;
+
     return (
-      refreshMinutes !== preferences.watchlist_refresh_minutes ||
+      defaultRefreshMinutes !== preferences.default_refresh_minutes ||
+      currentOverride !== savedOverride ||
       autoExpand !== preferences.watchlist_auto_expand ||
       priceWeight !== preferences.watchlist_price_weight ||
       technicalWeight !== preferences.watchlist_technical_weight
@@ -60,7 +81,8 @@ export function WatchlistPreferences({
 
     try {
       await onUpdate({
-        watchlist_refresh_minutes: refreshMinutes,
+        default_refresh_minutes: defaultRefreshMinutes,
+        watchlist_refresh_override: useWatchlistOverride ? watchlistOverride : null,
         watchlist_auto_expand: autoExpand,
         watchlist_price_weight: priceWeight,
         watchlist_technical_weight: technicalWeight,
@@ -72,7 +94,11 @@ export function WatchlistPreferences({
   };
 
   const handleReset = () => {
-    setRefreshMinutes(preferences.watchlist_refresh_minutes);
+    setDefaultRefreshMinutes(preferences.default_refresh_minutes);
+    setUseWatchlistOverride(preferences.watchlist_refresh_override !== null);
+    setWatchlistOverride(
+      preferences.watchlist_refresh_override ?? preferences.default_refresh_minutes
+    );
     setAutoExpand(preferences.watchlist_auto_expand);
     setPriceWeight(preferences.watchlist_price_weight);
     setTechnicalWeight(preferences.watchlist_technical_weight);
@@ -90,29 +116,134 @@ export function WatchlistPreferences({
   return (
     <Card className="border-border">
       <CardHeader>
-        <CardTitle>Watchlist Preferences</CardTitle>
+        <CardTitle>Refresh Control</CardTitle>
         <CardDescription>
-          Configure refresh interval, display options, and score weights
+          Configure how often data refreshes across all features
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Refresh Interval */}
-        <div className="space-y-3">
-          <Label htmlFor="refresh-interval">
-            Refresh Interval: {refreshMinutes} minutes
-          </Label>
-          <Slider
-            id="refresh-interval"
-            min={1}
-            max={60}
-            step={1}
-            value={[refreshMinutes]}
-            onValueChange={(value) => setRefreshMinutes(value[0])}
-            className="w-full"
-            aria-label="Watchlist refresh interval in minutes"
-          />
+        {/* Basic Settings */}
+        <div className="space-y-4 rounded-md border border-border bg-surface-muted/30 p-4">
+          <h4 className="text-sm font-medium text-text">Basic Settings</h4>
+
+          {/* Default Refresh Interval */}
+          <div className="space-y-3">
+            <Label htmlFor="default-refresh-interval">
+              Default Refresh Interval: {defaultRefreshMinutes} minutes
+            </Label>
+            <Slider
+              id="default-refresh-interval"
+              min={1}
+              max={60}
+              step={1}
+              value={[defaultRefreshMinutes]}
+              onValueChange={(value) => setDefaultRefreshMinutes(value[0])}
+              className="w-full"
+              aria-label="Default refresh interval in minutes"
+            />
+            <p className="text-xs text-text-muted">
+              Global default for all features (watchlist, portfolio, news). Each feature can override this in Advanced settings below.
+            </p>
+          </div>
+
+          {/* Frontend Polling (Info Only) */}
+          <div className="space-y-2">
+            <Label className="text-text-muted">
+              Frontend Polling: {preferences.frontend_poll_interval} seconds (automatic)
+            </Label>
+            <p className="text-xs text-text-muted">
+              How often the UI checks for new data. This is separate from backend refresh and optimized for responsiveness.
+            </p>
+          </div>
+        </div>
+
+        {/* Advanced Settings (Collapsible) */}
+        <div className="space-y-4">
+          <Button
+            variant="ghost"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            className="w-full justify-between"
+          >
+            <span className="text-sm font-medium">Advanced: Per-Feature Overrides</span>
+            <span className="text-xs text-text-muted">
+              {showAdvanced ? "▼" : "▶"}
+            </span>
+          </Button>
+
+          {showAdvanced && (
+            <div className="space-y-4 rounded-md border border-border bg-surface-muted/30 p-4">
+              {/* Watchlist Override */}
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Watchlist Refresh</Label>
+                <RadioGroup
+                  value={useWatchlistOverride ? "custom" : "default"}
+                  onValueChange={(value) => setUseWatchlistOverride(value === "custom")}
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="default" id="watchlist-default" />
+                    <Label htmlFor="watchlist-default" className="cursor-pointer font-normal">
+                      Use Default ({defaultRefreshMinutes} min)
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="custom" id="watchlist-custom" />
+                    <Label htmlFor="watchlist-custom" className="cursor-pointer font-normal">
+                      Custom Interval
+                    </Label>
+                  </div>
+                </RadioGroup>
+
+                {useWatchlistOverride && (
+                  <div className="mt-3 space-y-2">
+                    <Label htmlFor="watchlist-override-slider">
+                      Watchlist Interval: {watchlistOverride} minutes
+                    </Label>
+                    <Slider
+                      id="watchlist-override-slider"
+                      min={1}
+                      max={60}
+                      step={1}
+                      value={[watchlistOverride]}
+                      onValueChange={(value) => setWatchlistOverride(value[0])}
+                      className="w-full"
+                      aria-label="Watchlist refresh override interval in minutes"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Future: Portfolio Override */}
+              <div className="space-y-2 opacity-50">
+                <Label className="text-sm font-medium text-text-muted">
+                  Portfolio Refresh (Future)
+                </Label>
+                <p className="text-xs text-text-muted">
+                  Per-feature override for portfolio analytics (coming soon)
+                </p>
+              </div>
+
+              {/* Future: News Override */}
+              <div className="space-y-2 opacity-50">
+                <Label className="text-sm font-medium text-text-muted">
+                  News Refresh (Future)
+                </Label>
+                <p className="text-xs text-text-muted">
+                  Per-feature override for news sentiment (coming soon)
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Static Schedules (Info Only) */}
+        <div className="space-y-3 rounded-md border border-border bg-surface-muted/30 p-4">
+          <h4 className="text-sm font-medium text-text">Static Schedules (Not Configurable)</h4>
+          <ul className="space-y-2 text-xs text-text-muted">
+            <li>• Paper Trades Update: Daily at 4:30 PM ET</li>
+            <li>• Data Cleanup: Weekly on Sunday 2:00 AM (future)</li>
+          </ul>
           <p className="text-xs text-text-muted">
-            How often to automatically refresh watchlist scores (1-60 minutes)
+            These tasks run on fixed schedules for business logic reasons and cannot be customized.
           </p>
         </div>
 
