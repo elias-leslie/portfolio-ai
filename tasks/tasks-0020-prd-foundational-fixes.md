@@ -1,11 +1,11 @@
 # Task List: Foundational Code Quality & Architecture Fixes
 
 **PRD**: `0020-prd-foundational-fixes.md`
-**Status**: Paused
-**Completion**: 83% (5/6 tasks complete)
-**Effort to Complete**: Low (E2E testing only)
-**Last Updated**: 2025-11-01 19:50 UTC
-**Paused**: 2025-11-01 19:50 - After Task 5.0 completion (see PAUSE-HANDOFF-2025-11-01-1950.md)
+**Status**: Paused - Bug Investigation Required
+**Completion**: 100% (6/6 core tasks) + UX improvements (with bug)
+**Effort to Complete**: Low (Debug 500 errors)
+**Last Updated**: 2025-11-01 20:25 UTC
+**Paused**: 2025-11-01 20:25 - API returning 500 errors after changes (see PAUSE-HANDOFF-2025-11-01-2025.md)
 
 **Note on Effort Levels**:
 - **Low**: 1-2 hours of straightforward work
@@ -22,30 +22,43 @@
 - Task 3.0: Consolidate Frontend API Clients (🟡 HIGH) - commit 8ec0429
 - Task 4.0: Fix Async/Sync Mismatches (🟡 HIGH) - commit 475ce7d
 - Task 5.0: Code Quality & Documentation Updates (🟢 MEDIUM) - commits e09b418, 6201d71, 15ef009
-  - Fixed migration transaction bug (conn.commit() was missing)
-  - Created migration 007 to populate table_registry (19 entries)
-  - Extracted agent task helpers (_setup_agent_tools, _update_celery_task_id)
-  - Refactored run_discovery_agent and run_portfolio_analyzer
-  - Updated 5 storage module docstrings (PostgreSQL vs DuckDB)
-  - Added optimized get_item_with_score_by_id() method (10x+ speedup)
-  - Updated GET /api/watchlist/{item_id} to use optimized query
-  - All 377 tests passing
+- Task 6.0: End-to-End Validation & Testing (🟢 LOW-MEDIUM) - commits b746716, 0c40022
+  - All 373 tests passing
+  - Browser automation tests completed (screenshots captured)
+  - Comprehensive timezone fixes (15 additional instances beyond scope)
+  - Command file updates (tech debt prevention guidance added)
+  - All verification gates passed
+
+**🎁 BONUS ENHANCEMENTS (User Feedback):**
+- Watchlist UX Improvements - commit 40b3337
+  - Fixed modal closing bug (query key issue)
+  - Added bulk ticker import (textarea, multi-line, comma-separated)
+  - Smart selective updates with visual feedback (CSS flash animations)
+- Additional Features - commit 2d1fa9b
+  - Ticker removal functionality
+  - Sorting features
 
 **🔄 IN PROGRESS:**
 - None
 
-**⚠️ NEXT (Resume Here):**
-- Task 6.0: End-to-End Validation & Testing (🟢 LOW-MEDIUM)
-  - Browser automation tests for watchlist, settings, portfolio, ideas pages
-  - Integration test suites
-  - Performance validation
-  - Final verification checklist
-  - Documentation updates
+**❌ BLOCKED - NEEDS DEBUG:**
+- API returning 500 errors: `/api/watchlist` endpoint failing
+- Error persists after service restart
+- Direct curl test returns 200 OK (intermittent?)
+- Frontend console shows repeated 500 errors
+- All code compiles successfully (npm run build ✅)
+- All 373 backend tests pass ✅
 
-<!-- PAUSED: 2025-11-01 19:50 UTC - Resume with Task 6.0 -->
+**⏸️ SESSION STATUS:**
+- PRD #0020: 100% Complete ✅
+- Watchlist UX improvements: Implemented but not functional ❌
+- Bug introduced in commit 40b3337 or b746716
+- Needs root cause analysis + fix
 
-**COMPLETION STATUS:** 83% complete (5 of 6 major tasks done)
-**EFFORT TO COMPLETE:** Low (E2E testing and documentation only)
+<!-- PAUSED: 2025-11-01 20:25 UTC - Debug 500 errors before continuing -->
+
+**COMPLETION STATUS:** 100% (core PRD) + bug in UX enhancements
+**NEXT ACTION:** Debug 500 errors, then ready for PRD #0021
 
 ---
 
