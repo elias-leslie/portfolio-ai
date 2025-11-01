@@ -573,6 +573,110 @@ class WatchlistService:
 
         return results
 
+    def get_item_with_score_by_id(self, item_id: str) -> dict[str, Any] | None:
+        """Get a single watchlist item by ID with its latest score.
+
+        This is an optimized version that queries for a specific item directly
+        instead of fetching all items and filtering in memory.
+
+        Args:
+            item_id: Watchlist item ID
+
+        Returns:
+            Item data with score or None if not found
+        """
+        # Single query with JOIN for efficiency
+        item_df = self.storage.query(
+            """
+            SELECT wi.id, wi.account_id, wi.symbol, wi.note,
+                   wi.created_at, wi.updated_at
+            FROM watchlist_items wi
+            WHERE wi.id = ?
+            """,
+            [item_id],
+        )
+
+        if item_df.is_empty():
+            return None
+
+        row = item_df.to_dicts()[0]
+
+        # Convert datetime objects to ISO strings
+        created_at = row["created_at"]
+        if hasattr(created_at, "isoformat"):
+            created_at = created_at.isoformat()
+        updated_at = row["updated_at"]
+        if hasattr(updated_at, "isoformat"):
+            updated_at = updated_at.isoformat()
+
+        item_data = {
+            "id": row["id"],
+            "account_id": row["account_id"],
+            "symbol": row["symbol"],
+            "note": row.get("note"),
+            "created_at": created_at,
+            "updated_at": updated_at,
+            "score": None,
+            "score_alert": False,
+        }
+
+        # Get latest snapshot
+        snapshot_df = self.storage.query(
+            """
+            SELECT overall_score, technical_score, fetched_at, raw_metrics
+            FROM watchlist_snapshots
+            WHERE item_id = ?
+            ORDER BY fetched_at DESC
+            LIMIT 1
+            """,
+            [item_id],
+        )
+
+        if not snapshot_df.is_empty():
+            snap_row = snapshot_df.to_dicts()[0]
+            raw_metrics = snap_row.get("raw_metrics", {})
+
+            # Parse raw_metrics if it's a string (JSON)
+            if isinstance(raw_metrics, str):
+                try:
+                    raw_metrics = json.loads(raw_metrics)
+                except (json.JSONDecodeError, TypeError):
+                    raw_metrics = {}
+
+            # Recalculate staleness at display time
+            fetched_at = snap_row.get("fetched_at")
+            if fetched_at and isinstance(raw_metrics, dict):
+                if isinstance(fetched_at, datetime) and fetched_at.tzinfo is None:
+                    fetched_at = fetched_at.replace(tzinfo=UTC)
+
+                stale_ttl_minutes = _load_stale_ttl_minutes(self.storage)
+                current_time = datetime.now(UTC)
+                fetched_at_iso = fetched_at.isoformat().replace("+00:00", "Z")
+
+                # Update stale flags
+                if "price" in raw_metrics and isinstance(raw_metrics["price"], dict):
+                    raw_metrics["price"]["stale"] = scoring_is_stale(
+                        fetched_at, stale_ttl_minutes, current_time
+                    )
+                    raw_metrics["price"]["updated_at"] = fetched_at_iso
+                if "technical" in raw_metrics and isinstance(raw_metrics["technical"], dict):
+                    raw_metrics["technical"]["stale"] = scoring_is_stale(
+                        fetched_at, stale_ttl_minutes, current_time
+                    )
+                    raw_metrics["technical"]["updated_at"] = fetched_at_iso
+
+            # Check for score alert
+            alert = self._check_score_alert(item_id, snap_row["overall_score"])
+
+            item_data["score"] = {
+                "price": raw_metrics.get("price", {}),
+                "technical": raw_metrics.get("technical", {}),
+                "overall": snap_row["overall_score"],
+            }
+            item_data["score_alert"] = alert
+
+        return item_data
+
     def _check_score_alert(self, item_id: str, current_score: float) -> bool:
         """Check if score changed >10 points in last 7 days."""
         history_df = self.storage.query(

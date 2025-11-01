@@ -347,52 +347,29 @@ async def get_watchlist_item(item_id: str) -> WatchlistItemResponse:
         Watchlist item with scores
     """
     try:
-        items_df = await run_in_threadpool(
-            storage.query,
-            """
-            SELECT id, account_id, symbol, note, created_at, updated_at
-            FROM watchlist_items
-            WHERE id = ?
-            """,
-            [item_id],
-        )
+        # Use optimized single-item query instead of fetching all items
+        item = await run_in_threadpool(watchlist_service.get_item_with_score_by_id, item_id)
 
-        if items_df.is_empty():
+        if item is None:
             raise HTTPException(status_code=404, detail="Watchlist item not found")
-
-        item = items_df.to_dicts()[0]
-
-        # Get current score
-        scores = await run_in_threadpool(
-            watchlist_service.get_items_with_scores, item["account_id"]
-        )
-        matching_score = next((s for s in scores if s["id"] == item_id), None)
-
-        # Convert datetime objects to ISO strings if needed
-        created_at = item["created_at"]
-        if hasattr(created_at, "isoformat"):
-            created_at = created_at.isoformat()
-        updated_at = item["updated_at"]
-        if hasattr(updated_at, "isoformat"):
-            updated_at = updated_at.isoformat()
 
         return WatchlistItemResponse(
             id=item["id"],
             account_id=item["account_id"],
             symbol=item["symbol"],
             note=item["note"],
-            created_at=created_at,
-            updated_at=updated_at,
+            created_at=item["created_at"],
+            updated_at=item["updated_at"],
             current_score=(
                 ScoreBreakdownResponse(
-                    price=ScoreComponentResponse(**matching_score["score"]["price"]),
-                    technical=ScoreComponentResponse(**matching_score["score"]["technical"]),
-                    overall=matching_score["score"]["overall"],
+                    price=ScoreComponentResponse(**item["score"]["price"]),
+                    technical=ScoreComponentResponse(**item["score"]["technical"]),
+                    overall=item["score"]["overall"],
                 )
-                if matching_score and matching_score.get("score")
+                if item.get("score")
                 else None
             ),
-            score_alert=matching_score.get("score_alert", False) if matching_score else False,
+            score_alert=item.get("score_alert", False),
         )
     except HTTPException:
         raise
