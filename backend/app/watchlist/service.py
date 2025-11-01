@@ -529,15 +529,21 @@ class WatchlistService:
                     stale_ttl_minutes = _load_stale_ttl_minutes(self.storage)
                     current_time = datetime.now(UTC)
 
-                    # Update stale flags based on current time (mutate in place)
+                    # Format fetched_at as ISO string for API response
+                    fetched_at_iso = fetched_at.isoformat().replace("+00:00", "Z")
+
+                    # Update stale flags AND timestamps based on snapshot fetched_at (mutate in place)
+                    # BUG FIX: Use snapshot's fetched_at, not stale cached_at from price_cache
                     if "price" in raw_metrics and isinstance(raw_metrics["price"], dict):
                         raw_metrics["price"]["stale"] = scoring_is_stale(
                             fetched_at, stale_ttl_minutes, current_time
                         )
+                        raw_metrics["price"]["updated_at"] = fetched_at_iso
                     if "technical" in raw_metrics and isinstance(raw_metrics["technical"], dict):
                         raw_metrics["technical"]["stale"] = scoring_is_stale(
                             fetched_at, stale_ttl_minutes, current_time
                         )
+                        raw_metrics["technical"]["updated_at"] = fetched_at_iso
 
                 # Check if >10 point change in last 7 days
                 alert = self._check_score_alert(row["id"], snap_row["overall_score"])
