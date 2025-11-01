@@ -3,11 +3,42 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
 from ..portfolio.models import PriceData
+
+
+class SignalType(str, Enum):
+    """Signal classification type for watchlist items."""
+
+    BUY = "BUY"
+    HOLD = "HOLD"
+    AVOID = "AVOID"
+
+
+class SignalStrength(BaseModel):
+    """Signal strength on a 0-10 scale."""
+
+    value: int = Field(ge=0, le=10)
+
+    @field_validator("value")
+    @classmethod
+    def validate_range(cls, v: int) -> int:
+        """Validate that value is between 0 and 10."""
+        if not 0 <= v <= 10:
+            raise ValueError("Signal strength must be between 0 and 10")
+        return v
+
+
+class SignalClassification(BaseModel):
+    """Signal classification with type, strength, and reasoning."""
+
+    signal_type: SignalType
+    strength: SignalStrength
+    reasons: list[str] = Field(default_factory=list)
 
 
 class ScoreWeights(BaseModel):

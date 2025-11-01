@@ -103,50 +103,50 @@
 
 **Goal**: Create Buy/Hold/Avoid signal classifier based on multiple technical + fundamental indicators
 
-- [ ] 2.1 Create Signal Classification Models
-  - [ ] 2.1.1 Write test for `SignalType` enum (BUY, HOLD, AVOID)
-  - [ ] 2.1.2 Write test for `SignalStrength` class (0-10 scale)
-  - [ ] 2.1.3 Add `SignalType` enum to `backend/app/watchlist/models.py`
-  - [ ] 2.1.4 Add `SignalClassification` model with type + strength + reasons
-  - [ ] 2.1.5 Run tests to verify model validation works
-  - [ ] 2.1.6 Add type hints and verify with mypy
+- [x] 2.1 Create Signal Classification Models
+  - [x] 2.1.1 Write test for `SignalType` enum (BUY, HOLD, AVOID)
+  - [x] 2.1.2 Write test for `SignalStrength` class (0-10 scale)
+  - [x] 2.1.3 Add `SignalType` enum to `backend/app/watchlist/models.py`
+  - [x] 2.1.4 Add `SignalClassification` model with type + strength + reasons
+  - [x] 2.1.5 Run tests to verify model validation works
+  - [x] 2.1.6 Add type hints and verify with mypy
 
-- [ ] 2.2 Implement Buy Signal Logic (FR-2.1)
-  - [ ] 2.2.1 Write failing test for NVDA-style BUY signal (uptrend + good RSI + positive MACD)
-  - [ ] 2.2.2 Create `classify_signal()` function in `backend/app/watchlist/narrative.py`
-  - [ ] 2.2.3 Implement check: price > 20-day EMA (uptrend)
-  - [ ] 2.2.4 Implement check: RSI between 30-70 (not extreme)
-  - [ ] 2.2.5 Implement check: MACD > 0 (positive momentum)
-  - [ ] 2.2.6 Implement check: Volume >= 70% of 20-day average
-  - [ ] 2.2.7 Implement check: Company health = EXCELLENT or GOOD
-  - [ ] 2.2.8 Implement check: News sentiment >= 0.2
-  - [ ] 2.2.9 Run test to verify BUY signal classification
-  - [ ] 2.2.10 Verify test passes with 9/10 strength for NVDA example
+- [x] 2.2 Implement Buy Signal Logic (FR-2.1)
+  - [x] 2.2.1 Write failing test for NVDA-style BUY signal (uptrend + good RSI + positive MACD)
+  - [x] 2.2.2 Create `classify_signal()` function in `backend/app/watchlist/narrative.py`
+  - [x] 2.2.3 Implement check: price > 20-day EMA (uptrend)
+  - [x] 2.2.4 Implement check: RSI between 30-70 (not extreme)
+  - [x] 2.2.5 Implement check: MACD > 0 (positive momentum)
+  - [x] 2.2.6 Implement check: Volume >= 70% of 20-day average
+  - [x] 2.2.7 Implement check: Company health = EXCELLENT or GOOD
+  - [x] 2.2.8 Implement check: News sentiment >= 0.2
+  - [x] 2.2.9 Run test to verify BUY signal classification
+  - [x] 2.2.10 Verify test passes with 9/10 strength for NVDA example
 
-- [ ] 2.3 Implement Avoid Signal Logic (FR-2.1)
-  - [ ] 2.3.1 Write failing test for META-style AVOID signal (downtrend + negative news)
-  - [ ] 2.3.2 Implement check: Price < 20-day EMA AND 5-day SMA declining
-  - [ ] 2.3.3 Implement check: News sentiment < -0.3 (significantly negative)
-  - [ ] 2.3.4 Implement check: Earnings within 5 days (high volatility risk)
-  - [ ] 2.3.5 Implement check: Company health = WEAK
-  - [ ] 2.3.6 Run test to verify AVOID signal classification
-  - [ ] 2.3.7 Verify test passes with 2/10 strength for META example
+- [x] 2.3 Implement Avoid Signal Logic (FR-2.1)
+  - [x] 2.3.1 Write failing test for META-style AVOID signal (downtrend + negative news)
+  - [x] 2.3.2 Implement check: Price < 20-day EMA AND 5-day SMA declining
+  - [x] 2.3.3 Implement check: News sentiment < -0.3 (significantly negative)
+  - [x] 2.3.4 Implement check: Earnings within 5 days (high volatility risk)
+  - [x] 2.3.5 Implement check: Company health = WEAK
+  - [x] 2.3.6 Run test to verify AVOID signal classification
+  - [x] 2.3.7 Verify test passes with 2/10 strength for META example
 
-- [ ] 2.4 Implement Hold Signal Logic (FR-2.1)
-  - [ ] 2.4.1 Write failing test for mixed-conditions HOLD signal
-  - [ ] 2.4.2 Implement HOLD as fallback when neither BUY nor AVOID criteria met
-  - [ ] 2.4.3 Implement check: RSI > 70 (overbought) → HOLD
-  - [ ] 2.4.4 Implement check: Quality company but poor technical timing → HOLD
-  - [ ] 2.4.5 Run test to verify HOLD signal classification
-  - [ ] 2.4.6 Verify test passes with 4-6/10 strength range
+- [x] 2.4 Implement Hold Signal Logic (FR-2.1)
+  - [x] 2.4.1 Write failing test for mixed-conditions HOLD signal
+  - [x] 2.4.2 Implement HOLD as fallback when neither BUY nor AVOID criteria met
+  - [x] 2.4.3 Implement check: RSI > 70 (overbought) → HOLD
+  - [x] 2.4.4 Implement check: Quality company but poor technical timing → HOLD
+  - [x] 2.4.5 Run test to verify HOLD signal classification
+  - [x] 2.4.6 Verify test passes with 4-6/10 strength range
 
-- [ ] 2.5 Implement Signal Strength Calculator
-  - [ ] 2.5.1 Write test for counting confirming indicators
-  - [ ] 2.5.2 Implement strength formula: count confirmations / total checks
-  - [ ] 2.5.3 Implement BUY with 8+ confirmations → 9/10
-  - [ ] 2.5.4 Implement BUY with 5-7 confirmations → 6-8/10
-  - [ ] 2.5.5 Run test to verify strength calculation accuracy
-  - [ ] 2.5.6 Verify edge cases (0 confirmations, all confirmations)
+- [x] 2.5 Implement Signal Strength Calculator
+  - [x] 2.5.1 Write test for counting confirming indicators
+  - [x] 2.5.2 Implement strength formula: count confirmations / total checks
+  - [x] 2.5.3 Implement BUY with 8+ confirmations → 9/10
+  - [x] 2.5.4 Implement BUY with 5-7 confirmations → 6-8/10
+  - [x] 2.5.5 Run test to verify strength calculation accuracy
+  - [x] 2.5.6 Verify edge cases (0 confirmations, all confirmations)
 
 ### 3.0 Build Narrative Generation System
 
