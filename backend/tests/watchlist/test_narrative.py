@@ -325,3 +325,148 @@ class TestGenerateTechnicalBullets:
         # Should mention downtrend or weakness
         all_text = " ".join(bullets).lower()
         assert any(term in all_text for term in ["downtrend", "falling", "weak", "below"])
+
+
+class TestClassifyTradingStyle:
+    """Tests for classify_trading_style function."""
+
+    def test_classify_index_style(self) -> None:
+        """Test Index style classification for ETF symbols."""
+        from app.watchlist.narrative import classify_trading_style
+
+        # SPY should be classified as Index
+        result = classify_trading_style(
+            symbol="SPY",
+            signal_strength=5,
+            signal_type="HOLD",
+            rsi_14=50.0,
+            earnings_days_away=None,
+        )
+
+        assert result["style"] == "Index"
+        assert result["confidence"] >= 9  # Very confident for hardcoded list
+        assert "indefinitely" in result["holding_period"].lower()
+        assert result["risk_level"] == "Low"
+
+    def test_classify_event_style(self) -> None:
+        """Test Event style classification for earnings proximity."""
+        from app.watchlist.narrative import classify_trading_style
+
+        # Stock with earnings in 3 days should be Event style
+        result = classify_trading_style(
+            symbol="NVDA",
+            signal_strength=6,
+            signal_type="BUY",
+            rsi_14=50.0,
+            earnings_days_away=3,
+        )
+
+        assert result["style"] == "Event"
+        assert result["confidence"] >= 7
+        assert (
+            "days" in result["holding_period"].lower()
+            or "weeks" in result["holding_period"].lower()
+        )
+        assert result["risk_level"] == "High"
+
+    def test_classify_swing_style_oversold(self) -> None:
+        """Test Swing style classification for RSI in oversold reversal zone."""
+        from app.watchlist.narrative import classify_trading_style
+
+        # RSI in 30-40 range (oversold reversal zone)
+        result = classify_trading_style(
+            symbol="AAPL",
+            signal_strength=5,
+            signal_type="HOLD",
+            rsi_14=35.0,
+            earnings_days_away=None,
+        )
+
+        assert result["style"] == "Swing"
+        assert result["confidence"] >= 6
+        assert "week" in result["holding_period"].lower()
+        assert result["risk_level"] == "Medium"
+
+    def test_classify_swing_style_overbought(self) -> None:
+        """Test Swing style classification for RSI in overbought reversal zone."""
+        from app.watchlist.narrative import classify_trading_style
+
+        # RSI in 60-70 range (overbought reversal zone)
+        result = classify_trading_style(
+            symbol="GOOGL",
+            signal_strength=4,
+            signal_type="HOLD",
+            rsi_14=65.0,
+            earnings_days_away=None,
+        )
+
+        assert result["style"] == "Swing"
+        assert result["confidence"] >= 6
+        assert "week" in result["holding_period"].lower()
+        assert result["risk_level"] == "Medium"
+
+    def test_classify_trend_style(self) -> None:
+        """Test Trend style classification for strong BUY signals."""
+        from app.watchlist.narrative import classify_trading_style
+
+        # Strong BUY signal (strength >= 8)
+        result = classify_trading_style(
+            symbol="TSLA",
+            signal_strength=9,
+            signal_type="BUY",
+            rsi_14=55.0,
+            earnings_days_away=None,
+        )
+
+        assert result["style"] == "Trend"
+        assert result["confidence"] >= 8
+        assert "month" in result["holding_period"].lower()
+        assert result["risk_level"] == "Medium"
+
+    def test_classify_value_style_default(self) -> None:
+        """Test Value style classification as default fallback."""
+        from app.watchlist.narrative import classify_trading_style
+
+        # Doesn't match any other criteria → Value
+        result = classify_trading_style(
+            symbol="MSFT",
+            signal_strength=5,
+            signal_type="HOLD",
+            rsi_14=50.0,
+            earnings_days_away=None,
+        )
+
+        assert result["style"] == "Value"
+        assert result["confidence"] >= 5
+        assert "month" in result["holding_period"].lower()
+        assert result["risk_level"] in ("Medium", "Medium-Low")
+
+    def test_classify_trading_style_priority_index_first(self) -> None:
+        """Test that Index classification takes priority over Event."""
+        from app.watchlist.narrative import classify_trading_style
+
+        # VOO with earnings in 3 days → should still be Index
+        result = classify_trading_style(
+            symbol="VOO",
+            signal_strength=6,
+            signal_type="BUY",
+            rsi_14=50.0,
+            earnings_days_away=3,
+        )
+
+        assert result["style"] == "Index"
+
+    def test_classify_trading_style_priority_event_over_swing(self) -> None:
+        """Test that Event classification takes priority over Swing."""
+        from app.watchlist.narrative import classify_trading_style
+
+        # Earnings in 2 days + RSI=35 → should be Event
+        result = classify_trading_style(
+            symbol="META",
+            signal_strength=5,
+            signal_type="HOLD",
+            rsi_14=35.0,
+            earnings_days_away=2,
+        )
+
+        assert result["style"] == "Event"
