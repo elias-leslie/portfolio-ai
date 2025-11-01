@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from typing import cast
 
 from fastapi import APIRouter
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, field_validator
 
 from app.storage import get_storage
@@ -209,7 +210,7 @@ def _get_or_create_preferences() -> dict[str, object]:
 @router.get("/", response_model=PreferencesResponse)
 async def get_preferences() -> PreferencesResponse:
     """Get user's risk tolerance and trade preferences."""
-    prefs = _get_or_create_preferences()
+    prefs = await run_in_threadpool(_get_or_create_preferences)
 
     return PreferencesResponse(
         risk_tolerance=cast(int, prefs["risk_tolerance"]),
@@ -238,7 +239,7 @@ async def get_preferences() -> PreferencesResponse:
 async def update_preferences(update: PreferencesUpdate) -> PreferencesResponse:
     """Update user preferences."""
     # Get current preferences
-    current = _get_or_create_preferences()
+    current = await run_in_threadpool(_get_or_create_preferences)
 
     # Update fields
     if update.risk_tolerance is not None:

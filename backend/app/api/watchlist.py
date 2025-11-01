@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -135,7 +136,7 @@ async def list_watchlist_items(account_id: str) -> WatchlistListResponse:
         List of watchlist items with current scores
     """
     try:
-        items = watchlist_service.get_items_with_scores(account_id)
+        items = await run_in_threadpool(watchlist_service.get_items_with_scores, account_id)
 
         return WatchlistListResponse(
             items=[
@@ -346,7 +347,8 @@ async def get_watchlist_item(item_id: str) -> WatchlistItemResponse:
         Watchlist item with scores
     """
     try:
-        items_df = storage.query(
+        items_df = await run_in_threadpool(
+            storage.query,
             """
             SELECT id, account_id, symbol, note, created_at, updated_at
             FROM watchlist_items
@@ -361,7 +363,9 @@ async def get_watchlist_item(item_id: str) -> WatchlistItemResponse:
         item = items_df.to_dicts()[0]
 
         # Get current score
-        scores = watchlist_service.get_items_with_scores(item["account_id"])
+        scores = await run_in_threadpool(
+            watchlist_service.get_items_with_scores, item["account_id"]
+        )
         matching_score = next((s for s in scores if s["id"] == item_id), None)
 
         # Convert datetime objects to ISO strings if needed
