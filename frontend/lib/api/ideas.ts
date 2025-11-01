@@ -2,7 +2,7 @@
  * Ideas API client functions
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
+import { apiRequest } from "./client";
 
 // Types matching backend Pydantic models
 export interface Idea {
@@ -63,20 +63,9 @@ export async function fetchIdeas(params?: {
     queryParams.append("limit", params.limit.toString());
   }
 
-  const url = `${API_BASE_URL}/api/ideas/${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
+  const url = `/api/ideas/${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
 
-  const response = await fetch(url, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ideas: ${response.statusText}`);
-  }
-
-  return response.json();
+  return apiRequest<IdeasListResponse>(url);
 }
 
 /**
@@ -85,37 +74,17 @@ export async function fetchIdeas(params?: {
 export async function generateIdeas(
   data: GenerateIdeasRequest
 ): Promise<GenerateIdeasResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/ideas/generate`, {
+  return apiRequest<GenerateIdeasResponse>("/api/ideas/generate", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
     body: JSON.stringify(data),
   });
-
-  if (!response.ok) {
-    throw new Error(`Failed to generate ideas: ${response.statusText}`);
-  }
-
-  return response.json();
 }
 
 /**
  * Fetch detailed information about a specific idea
  */
 export async function fetchIdeaDetails(ideaId: string): Promise<Idea> {
-  const response = await fetch(`${API_BASE_URL}/api/ideas/${ideaId}`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch idea details: ${response.statusText}`);
-  }
-
-  return response.json();
+  return apiRequest<Idea>(`/api/ideas/${ideaId}`);
 }
 
 /**
@@ -125,17 +94,8 @@ export async function updateIdeaStatus(
   ideaId: string,
   data: UpdateIdeaStatusRequest
 ): Promise<Idea> {
-  const response = await fetch(`${API_BASE_URL}/api/ideas/${ideaId}/status`, {
+  return apiRequest<Idea>(`/api/ideas/${ideaId}/status`, {
     method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-    },
     body: JSON.stringify(data),
   });
-
-  if (!response.ok) {
-    throw new Error(`Failed to update idea status: ${response.statusText}`);
-  }
-
-  return response.json();
 }

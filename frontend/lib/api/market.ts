@@ -2,7 +2,7 @@
  * Market data API client functions
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
+import { apiRequest } from "./client";
 
 // Types matching backend Pydantic models
 export interface MarketConditionsResponse {
@@ -39,20 +39,7 @@ export interface PricesResponse {
  * Get current market conditions (S&P 500, VIX, 10Y yield, USD index)
  */
 export async function fetchMarketConditions(): Promise<MarketConditionsResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/market/conditions`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(
-      `Failed to fetch market conditions: ${response.statusText}`
-    );
-  }
-
-  return response.json();
+  return apiRequest<MarketConditionsResponse>("/api/market/conditions");
 }
 
 /**
@@ -61,19 +48,7 @@ export async function fetchMarketConditions(): Promise<MarketConditionsResponse>
 export async function fetchPrices(symbols: string[]): Promise<PricesResponse> {
   const symbolsParam = symbols.join(",");
 
-  const response = await fetch(
-    `${API_BASE_URL}/api/market/prices?symbols=${encodeURIComponent(symbolsParam)}`,
-    {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    }
+  return apiRequest<PricesResponse>(
+    `/api/market/prices?symbols=${encodeURIComponent(symbolsParam)}`
   );
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch prices: ${response.statusText}`);
-  }
-
-  return response.json();
 }

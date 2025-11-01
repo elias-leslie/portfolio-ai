@@ -2,7 +2,7 @@
  * Watchlist API client functions
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
+import { apiRequest } from "./client";
 
 // Types matching backend Pydantic models
 export interface ScoreComponent {
@@ -87,21 +87,9 @@ export interface RefreshStatus {
 export async function fetchWatchlistItems(
   accountId: string
 ): Promise<WatchlistListResponse> {
-  const response = await fetch(
-    `${API_BASE_URL}/api/watchlist?account_id=${encodeURIComponent(accountId)}`,
-    {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    }
+  return apiRequest<WatchlistListResponse>(
+    `/api/watchlist?account_id=${encodeURIComponent(accountId)}`
   );
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch watchlist: ${response.statusText}`);
-  }
-
-  return response.json();
 }
 
 /**
@@ -110,18 +98,7 @@ export async function fetchWatchlistItems(
 export async function fetchWatchlistItem(
   itemId: string
 ): Promise<WatchlistItem> {
-  const response = await fetch(`${API_BASE_URL}/api/watchlist/${itemId}`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch watchlist item: ${response.statusText}`);
-  }
-
-  return response.json();
+  return apiRequest<WatchlistItem>(`/api/watchlist/${itemId}`);
 }
 
 /**
@@ -130,22 +107,10 @@ export async function fetchWatchlistItem(
 export async function createWatchlistItem(
   data: WatchlistItemCreate
 ): Promise<WatchlistItem> {
-  const response = await fetch(`${API_BASE_URL}/api/watchlist`, {
+  return apiRequest<WatchlistItem>("/api/watchlist", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
     body: JSON.stringify(data),
   });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(
-      errorData.detail || `Failed to add ticker: ${response.statusText}`
-    );
-  }
-
-  return response.json();
 }
 
 /**
@@ -155,32 +120,19 @@ export async function updateWatchlistItem(
   itemId: string,
   data: WatchlistItemUpdate
 ): Promise<WatchlistItem> {
-  const response = await fetch(`${API_BASE_URL}/api/watchlist/${itemId}`, {
+  return apiRequest<WatchlistItem>(`/api/watchlist/${itemId}`, {
     method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-    },
     body: JSON.stringify(data),
   });
-
-  if (!response.ok) {
-    throw new Error(`Failed to update item: ${response.statusText}`);
-  }
-
-  return response.json();
 }
 
 /**
  * Delete a watchlist item
  */
 export async function deleteWatchlistItem(itemId: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/watchlist/${itemId}`, {
+  await apiRequest<void>(`/api/watchlist/${itemId}`, {
     method: "DELETE",
   });
-
-  if (!response.ok) {
-    throw new Error(`Failed to delete item: ${response.statusText}`);
-  }
 }
 
 /**
@@ -189,21 +141,9 @@ export async function deleteWatchlistItem(itemId: string): Promise<void> {
 export async function fetchRefreshStatus(
   accountId: string
 ): Promise<RefreshStatus> {
-  const response = await fetch(
-    `${API_BASE_URL}/api/watchlist/refresh-status?account_id=${encodeURIComponent(accountId)}`,
-    {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    }
+  return apiRequest<RefreshStatus>(
+    `/api/watchlist/refresh-status?account_id=${encodeURIComponent(accountId)}`
   );
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch refresh status: ${response.statusText}`);
-  }
-
-  return response.json();
 }
 
 /**
@@ -212,20 +152,10 @@ export async function fetchRefreshStatus(
 export async function refreshWatchlistScores(
   accountId: string
 ): Promise<RefreshResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/watchlist/refresh`, {
+  return apiRequest<RefreshResponse>("/api/watchlist/refresh", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
     body: JSON.stringify({ account_id: accountId }),
   });
-
-  // Handle 207 Multi-Status (partial success) as success
-  if (!response.ok && response.status !== 207) {
-    throw new Error(`Failed to refresh scores: ${response.statusText}`);
-  }
-
-  return response.json();
 }
 
 /**
@@ -234,17 +164,11 @@ export async function refreshWatchlistScores(
 export async function fetchScoreHistory(
   itemId: string
 ): Promise<ScoreHistoryResponse> {
-  const response = await fetch(
-    `${API_BASE_URL}/api/watchlist/${itemId}/history`,
-    {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    }
-  );
-
-  if (!response.ok) {
+  try {
+    return await apiRequest<ScoreHistoryResponse>(
+      `/api/watchlist/${itemId}/history`
+    );
+  } catch {
     // History endpoint may not exist yet, return empty response
     return {
       item_id: itemId,
@@ -252,6 +176,4 @@ export async function fetchScoreHistory(
       history: [],
     };
   }
-
-  return response.json();
 }

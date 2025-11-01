@@ -2,7 +2,7 @@
  * User preferences API client functions
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
+import { apiRequest } from "./client";
 
 // Types matching backend Pydantic models
 export interface PreferencesResponse {
@@ -53,37 +53,17 @@ export interface PreferencesUpdate {
  * Get user's risk tolerance and trade preferences
  */
 export async function fetchPreferences(): Promise<PreferencesResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/preferences/`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch preferences: ${response.statusText}`);
-  }
-
-  return response.json();
+  return apiRequest<PreferencesResponse>("/api/preferences/");
 }
 
 /**
  * Update user preferences
  */
 export async function updatePreferences(
-  data: PreferencesUpdate,
+  data: PreferencesUpdate
 ): Promise<PreferencesResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/preferences/`, {
+  return apiRequest<PreferencesResponse>("/api/preferences/", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
     body: JSON.stringify(data),
   });
-
-  if (!response.ok) {
-    throw new Error(`Failed to update preferences: ${response.statusText}`);
-  }
-
-  return response.json();
 }

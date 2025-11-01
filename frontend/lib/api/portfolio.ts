@@ -2,7 +2,7 @@
  * Portfolio API client functions
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
+import { apiRequest } from "./client";
 
 // Types matching backend Pydantic models
 export interface Account {
@@ -72,18 +72,7 @@ export interface AddPositionRequest {
  * Fetch all portfolio positions with current values
  */
 export async function fetchPortfolio(): Promise<PortfolioResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/portfolio/`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch portfolio: ${response.statusText}`);
-  }
-
-  return response.json();
+  return apiRequest<PortfolioResponse>("/api/portfolio/");
 }
 
 /**
@@ -92,19 +81,10 @@ export async function fetchPortfolio(): Promise<PortfolioResponse> {
 export async function createAccount(
   data: CreateAccountRequest
 ): Promise<Account> {
-  const response = await fetch(`${API_BASE_URL}/api/portfolio/account`, {
+  return apiRequest<Account>("/api/portfolio/account", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
     body: JSON.stringify(data),
   });
-
-  if (!response.ok) {
-    throw new Error(`Failed to create account: ${response.statusText}`);
-  }
-
-  return response.json();
 }
 
 /**
@@ -113,54 +93,24 @@ export async function createAccount(
 export async function addPosition(
   data: AddPositionRequest
 ): Promise<Position> {
-  const response = await fetch(`${API_BASE_URL}/api/portfolio/position`, {
+  return apiRequest<Position>("/api/portfolio/position", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
     body: JSON.stringify(data),
   });
-
-  if (!response.ok) {
-    throw new Error(`Failed to add position: ${response.statusText}`);
-  }
-
-  return response.json();
 }
 
 /**
  * Delete a position by ID
  */
 export async function deletePosition(positionId: string): Promise<void> {
-  const response = await fetch(
-    `${API_BASE_URL}/api/portfolio/position/${positionId}`,
-    {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error(`Failed to delete position: ${response.statusText}`);
-  }
+  await apiRequest<void>(`/api/portfolio/position/${positionId}`, {
+    method: "DELETE",
+  });
 }
 
 /**
  * Fetch portfolio analytics (beta, volatility, concentration, sector exposure)
  */
 export async function fetchAnalytics(): Promise<PortfolioAnalytics> {
-  const response = await fetch(`${API_BASE_URL}/api/portfolio/analytics`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch analytics: ${response.statusText}`);
-  }
-
-  return response.json();
+  return apiRequest<PortfolioAnalytics>("/api/portfolio/analytics");
 }
