@@ -1,4 +1,4 @@
-"""DuckDB storage layer for portfolio-ai.
+"""PostgreSQL storage layer for portfolio-ai.
 
 This module provides database access and management functionality.
 """

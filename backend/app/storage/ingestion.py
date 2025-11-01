@@ -1,4 +1,4 @@
-"""DuckDB ingestion methods for portfolio and agent data.
+"""PostgreSQL ingestion methods for portfolio and agent data.
 
 This module handles data insertion and upserting operations for portfolio tables.
 """
@@ -19,7 +19,7 @@ logger = get_logger(__name__)
 
 
 class IngestionManager:
-    """Manages data ingestion operations for DuckDB storage.
+    """Manages data ingestion operations for PostgreSQL storage.
 
     Handles insertion of portfolio positions, accounts, agent runs, and ideas.
     """

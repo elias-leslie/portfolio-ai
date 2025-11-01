@@ -36,6 +36,51 @@ from app.watchlist.service import refresh_watchlist_scores as refresh_watchlist_
 logger = get_logger(__name__)
 
 
+def _setup_agent_tools(storage: Any) -> AgentTools:
+    """Initialize agent tools with all required dependencies.
+
+    Args:
+        storage: StorageFacade instance for database access
+
+    Returns:
+        Configured AgentTools instance with all sources and managers
+    """
+    news_source = GoogleNewsSource()
+    fred_source = FREDSource()
+    price_fetcher = PriceDataFetcher(storage)
+    portfolio_mgr = PortfolioManager(storage)
+    analytics = PortfolioAnalytics()
+
+    return AgentTools(
+        storage=storage,
+        news_source=news_source,
+        fred_source=fred_source,
+        price_fetcher=price_fetcher,
+        portfolio_mgr=portfolio_mgr,
+        analytics=analytics,
+    )
+
+
+def _update_celery_task_id(storage: Any, task_id: str, run_id: str) -> None:
+    """Update agent_runs table with Celery task ID.
+
+    Args:
+        storage: StorageFacade instance for database access
+        task_id: Celery task ID
+        run_id: Agent run ID
+    """
+    with storage.connection() as conn:
+        conn.execute(
+            """
+            UPDATE agent_runs
+            SET celery_task_id = ?
+            WHERE id = ?
+            """,
+            [task_id, run_id],
+        )
+        conn.commit()
+
+
 @celery_app.task(name="run_discovery_agent", bind=True)  # type: ignore[misc]
 def run_discovery_agent(self) -> str:  # type: ignore[no-untyped-def]
     """Run discovery agent as a background task.
@@ -53,36 +98,14 @@ def run_discovery_agent(self) -> str:  # type: ignore[no-untyped-def]
         storage = get_storage()
 
         # Initialize agent tools
-        news_source = GoogleNewsSource()
-        fred_source = FREDSource()
-        price_fetcher = PriceDataFetcher(storage)
-        portfolio_mgr = PortfolioManager(storage)
-        analytics = PortfolioAnalytics()
-
-        agent_tools = AgentTools(
-            storage=storage,
-            news_source=news_source,
-            fred_source=fred_source,
-            price_fetcher=price_fetcher,
-            portfolio_mgr=portfolio_mgr,
-            analytics=analytics,
-        )
+        agent_tools = _setup_agent_tools(storage)
 
         agent = DiscoveryAgent(storage=storage, tools=agent_tools)
         result = agent.run()
         run_id = result["run_id"]
 
         # Update agent_runs with celery_task_id
-        with storage.connection() as conn:
-            conn.execute(
-                """
-                UPDATE agent_runs
-                SET celery_task_id = ?
-                WHERE id = ?
-                """,
-                [task_id, run_id],
-            )
-            conn.commit()  # Commit the update
+        _update_celery_task_id(storage, task_id, run_id)
 
         logger.info(
             "discovery_agent_task_completed",
@@ -117,36 +140,14 @@ def run_portfolio_analyzer(self) -> str:  # type: ignore[no-untyped-def]
         storage = get_storage()
 
         # Initialize agent tools
-        news_source = GoogleNewsSource()
-        fred_source = FREDSource()
-        price_fetcher = PriceDataFetcher(storage)
-        portfolio_mgr = PortfolioManager(storage)
-        analytics = PortfolioAnalytics()
-
-        agent_tools = AgentTools(
-            storage=storage,
-            news_source=news_source,
-            fred_source=fred_source,
-            price_fetcher=price_fetcher,
-            portfolio_mgr=portfolio_mgr,
-            analytics=analytics,
-        )
+        agent_tools = _setup_agent_tools(storage)
 
         agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools)
         result = agent.run()
         run_id = result["run_id"]
 
         # Update agent_runs with celery_task_id
-        with storage.connection() as conn:
-            conn.execute(
-                """
-                UPDATE agent_runs
-                SET celery_task_id = ?
-                WHERE id = ?
-                """,
-                [task_id, run_id],
-            )
-            conn.commit()  # Commit the update
+        _update_celery_task_id(storage, task_id, run_id)
 
         logger.info(
             "portfolio_analyzer_task_completed",

@@ -1,8 +1,8 @@
 """PostgreSQL storage facade integrating all manager classes.
 
-This module provides the main DuckDBStorage class (name kept for backward compatibility)
+This module provides the main StorageFacade class (DuckDBStorage name kept for backward compatibility)
 that delegates operations to specialized managers while maintaining a unified API.
-Uses PostgreSQLDuckDBWrapper for DuckDB-compatible interface over PostgreSQL.
+Uses PostgreSQLDuckDBWrapper to provide a DuckDB-compatible interface over PostgreSQL.
 """
 
 from __future__ import annotations

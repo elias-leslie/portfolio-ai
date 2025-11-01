@@ -1,4 +1,4 @@
-"""DuckDB query operations for portfolio data retrieval.
+"""PostgreSQL query operations for portfolio data retrieval.
 
 This module provides preset query methods and raw SQL execution capabilities.
 """
@@ -20,7 +20,7 @@ logger = get_logger(__name__)
 
 
 class QueryManager:
-    """Manages query operations for DuckDB storage.
+    """Manages query operations for PostgreSQL storage.
 
     Provides preset query methods for common use cases and raw SQL execution.
     """
