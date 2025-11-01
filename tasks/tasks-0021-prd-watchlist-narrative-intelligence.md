@@ -2,10 +2,13 @@
 
 **PRD**: `0021-prd-watchlist-narrative-intelligence.md`
 **Status**: Ready for Execution (Prerequisites verified, mypy fixed)
-**Completion**: 25% (Tasks 0.1-0.3, 1.0, 1.4, 2.1-2.5, 3.1-3.2, 3.4 complete)
+**Completion**: 27% (Tasks 0.1-0.3, 1.0, 1.4-1.5, 2.1-2.5, 3.1-3.2, 3.4 complete)
 **Effort to Complete**: Medium (reduced from High after simplifications)
 **Risk Level**: Medium (reduced from High after critical fixes)
-**Last Updated**: 2025-11-01 (Prerequisites verified: EMA-20 & ATR-14 exist, mypy errors fixed)
+**Last Updated**: 2025-11-01
+- Prerequisites verified: EMA-20 & ATR-14 exist, mypy errors fixed
+- UI testing protocol updated: All checkpoints now use browser-automation skill (0 token cost vs 18k for Chrome DevTools MCP)
+- 11 UI validation checkpoints with explicit screenshot.js, console.js, network.js, snapshot.js, interact.js, and performance.js commands
 
 **Note on Effort Levels**:
 - **Low**: 1-2 hours of straightforward work
@@ -86,7 +89,7 @@
 
 **NEXT STEPS:**
 1. ✅ Task 1.4: Verify EMA-20, ATR-14 availability - **COMPLETE** (verified: 5+ tickers have data)
-2. Task 1.5: Implement swing low/high detection - **PREREQUISITE** (blocks Task 5.0)
+2. ✅ Task 1.5: Implement swing low/high detection - **COMPLETE** (all 6 tests passing)
 3. Task 2.6: Implement trading style classification (simplified v1)
 4. Task 4.0: Integrate Fundamentals & News Data (multi-source failover)
 5. Task 5.0: Create Entry/Exit/Stop Calculator + Position Sizing
@@ -96,7 +99,7 @@
 9. Task 8.0: Frontend Integration (Narrative Display)
 10. Task 9.0: Testing & Validation
 
-**COMPLETION STATUS:** ~25% complete (Tasks: 0.1-0.3 partial, 1.0-1.4, 2.1-2.5, 3.1-3.2, 3.4)
+**COMPLETION STATUS:** ~27% complete (Tasks: 0.1-0.3 partial, 1.0-1.5, 2.1-2.5, 3.1-3.2, 3.4)
 **EFFORT TO COMPLETE:** Medium (Prerequisites verified, simplified trading styles, clear dependency order)
 
 ---
@@ -330,27 +333,33 @@ MSFT: EMA-20=522.87, ATR-14=9.48
 NVDA: EMA-20=188.84, ATR-14=6.21
 ```
 
-### 1.5 Implement Swing Low/High Detection (PREREQUISITE - CRITICAL)
+### 1.5 Implement Swing Low/High Detection (PREREQUISITE - CRITICAL) ✅
 
 **Goal**: Calculate swing lows (10-day) and swing highs (30-day) for stop/target calculation
 
-- [ ] 1.5.1 Write test for swing_low calculation
+**Status**: ✅ **COMPLETE** (verified 2025-11-01)
+
+- [x] 1.5.1 Write test for swing_low calculation ✅
   - Test: Given 10 days of price data, return lowest close price
   - Edge case: Less than 10 days of data → return None
-- [ ] 1.5.2 Write test for swing_high calculation
+- [x] 1.5.2 Write test for swing_high calculation ✅
   - Test: Given 30 days of price data, return highest close price
   - Edge case: Less than 30 days of data → return None
-- [ ] 1.5.3 Implement `get_swing_low()` function in `calculator.py`
-  - Signature: `get_swing_low(symbol: str, days: int = 10) -> float | None`
+- [x] 1.5.3 Implement `get_swing_low()` function in `calculator.py` ✅
+  - Signature: `get_swing_low(conn, symbol: str, days: int = 10) -> float | None`
   - Query last 10 days from `day_bars` table, return min(close)
-- [ ] 1.5.4 Implement `get_swing_high()` function in `calculator.py`
-  - Signature: `get_swing_high(symbol: str, days: int = 30) -> float | None`
+- [x] 1.5.4 Implement `get_swing_high()` function in `calculator.py` ✅
+  - Signature: `get_swing_high(conn, symbol: str, days: int = 30) -> float | None`
   - Query last 30 days from `day_bars` table, return max(close)
-- [ ] 1.5.5 Run tests to verify swing detection works correctly
-  - Test with NVDA data (should have 30+ days available)
-- [ ] 1.5.6 Test edge case: Handle missing data gracefully
+- [x] 1.5.5 Run tests to verify swing detection works correctly ✅
+  - All 6 tests pass (37 watchlist tests total)
+- [x] 1.5.6 Test edge case: Handle missing data gracefully ✅
   - If < 10 days available, swing_low returns None
   - If < 30 days available, swing_high returns None
+
+**Files Created**:
+- `backend/app/watchlist/calculator.py` (~100 lines) - Swing low/high detection functions
+- `backend/tests/watchlist/test_calculator.py` (~167 lines) - Comprehensive test suite
 
 ### 2.0 Implement Signal Classification Engine (PARTIALLY COMPLETE ✅)
 
@@ -762,12 +771,21 @@ NVDA: EMA-20=188.84, ATR-14=6.21
     - Document in migration notes
 
 - [ ] 6.6 UI Validation Checkpoint 1 (Post-Migration)
-  - [ ] 6.6.1 Open http://localhost:3000/watchlist in Chrome
-  - [ ] 6.6.2 Take screenshot: `docs/screenshots/task-6.0-post-migration.png`
-  - [ ] 6.6.3 Verify existing watchlist items still load (if any)
-  - [ ] 6.6.4 Check console for database errors (list_console_messages)
-  - [ ] 6.6.5 Verify page renders without crashes
-  - [ ] 6.6.6 Document any visual regressions in UI_VALIDATION_PLAN.md
+  - [ ] 6.6.0 Verify services running and create screenshot directory
+    - Check frontend: `curl -I http://localhost:3000` (expect 200/304)
+    - Check backend: `curl -I http://localhost:8000/health` (expect 200)
+    - Create directory: `mkdir -p ~/portfolio-ai/docs/screenshots`
+  - [ ] 6.6.1 Capture baseline before migration (for comparison)
+    - Screenshot: `node ~/.claude/skills/browser-automation/scripts/screenshot.js http://localhost:3000/watchlist ~/portfolio-ai/docs/screenshots/baseline-watchlist.png true`
+  - [ ] 6.6.2 Take screenshot after migration
+    - Screenshot: `node ~/.claude/skills/browser-automation/scripts/screenshot.js http://localhost:3000/watchlist ~/portfolio-ai/docs/screenshots/task-6.6-post-migration.png true`
+  - [ ] 6.6.3 Capture page structure (accessibility tree)
+    - Snapshot: `node ~/.claude/skills/browser-automation/scripts/snapshot.js http://localhost:3000/watchlist ~/portfolio-ai/docs/screenshots/task-6.6-snapshot.json`
+  - [ ] 6.6.4 Check console for database errors
+    - Console: `node ~/.claude/skills/browser-automation/scripts/console.js http://localhost:3000/watchlist 5000`
+  - [ ] 6.6.5 Verify existing watchlist items still load (if any)
+  - [ ] 6.6.6 Verify page renders without crashes (check screenshot + console output)
+  - [ ] 6.6.7 Document any visual regressions comparing baseline vs post-migration screenshots
 
 ### 7.0 Update API Endpoints & Service Layer
 
@@ -815,14 +833,24 @@ NVDA: EMA-20=188.84, ATR-14=6.21
   - [ ] 7.5.5 Verify expanded view has all required sections
 
 - [ ] 7.6 UI Validation Checkpoint 2 (API Integration)
-  - [ ] 7.6.1 Add NVDA ticker to watchlist via UI (click "Add Ticker")
-  - [ ] 7.6.2 Trigger manual refresh (click "Refresh" button)
-  - [ ] 7.6.3 Take screenshot: `docs/screenshots/task-7.0-api-integration.png`
-  - [ ] 7.6.4 Check Network tab for /api/watchlist response (list_network_requests)
-  - [ ] 7.6.5 Verify narrative fields present in API response (signal_type, signal_strength, etc.)
-  - [ ] 7.6.6 Check console for errors (list_console_messages)
-  - [ ] 7.6.7 Verify no API errors (all 200 responses)
-  - [ ] 7.6.8 Document findings in UI_VALIDATION_PLAN.md
+  - [ ] 7.6.1 Test Add Ticker interaction
+    - Click: `node ~/.claude/skills/browser-automation/scripts/interact.js click http://localhost:3000/watchlist 'button:has-text("Add Ticker")'`
+    - Screenshot modal: `node ~/.claude/skills/browser-automation/scripts/screenshot.js http://localhost:3000/watchlist ~/portfolio-ai/docs/screenshots/task-7.6-add-ticker-modal.png true`
+  - [ ] 7.6.2 Fill and submit ticker form
+    - Fill symbol: `node ~/.claude/skills/browser-automation/scripts/interact.js fill http://localhost:3000/watchlist 'input[name="symbol"]' 'NVDA'`
+    - Submit form (take screenshot after)
+  - [ ] 7.6.3 Trigger manual refresh
+    - Click: `node ~/.claude/skills/browser-automation/scripts/interact.js click http://localhost:3000/watchlist 'button:has-text("Refresh")'`
+  - [ ] 7.6.4 Monitor network requests during refresh
+    - Network: `node ~/.claude/skills/browser-automation/scripts/network.js http://localhost:3000/watchlist 10000 watchlist`
+    - Verify /api/watchlist calls present in output
+  - [ ] 7.6.5 Take screenshot after refresh
+    - Screenshot: `node ~/.claude/skills/browser-automation/scripts/screenshot.js http://localhost:3000/watchlist ~/portfolio-ai/docs/screenshots/task-7.6-api-integration.png true`
+  - [ ] 7.6.6 Check console for errors
+    - Console: `node ~/.claude/skills/browser-automation/scripts/console.js http://localhost:3000/watchlist 5000`
+  - [ ] 7.6.7 Verify narrative fields in network response
+    - Check network output for: signal_type, signal_strength, narrative_headline
+  - [ ] 7.6.8 Verify no API errors (all 200 responses in network log)
 
 ### 8.0 Frontend Integration (Narrative Display)
 
@@ -835,9 +863,10 @@ NVDA: EMA-20=188.84, ATR-14=6.21
   - [ ] 8.1.4 Add color coding: Green (BUY), Yellow (HOLD), Red (AVOID)
   - [ ] 8.1.5 Test rendering with sample data
   - [ ] 8.1.6 Verify visual clarity and readability
-  - [ ] 8.1.7 UI Checkpoint 3: Take screenshot `task-8.1-signal-display.png`
-  - [ ] 8.1.8 Verify signal icons visible and color-coded correctly
-  - [ ] 8.1.9 Check table layout not broken
+  - [ ] 8.1.7 UI Checkpoint 3: Screenshot signal display
+    - Screenshot: `node ~/.claude/skills/browser-automation/scripts/screenshot.js http://localhost:3000/watchlist ~/portfolio-ai/docs/screenshots/task-8.1-signal-display.png true`
+  - [ ] 8.1.8 Verify signal icons visible and color-coded correctly (inspect screenshot)
+  - [ ] 8.1.9 Check table layout not broken (inspect screenshot)
   - [ ] 8.1.10 ENHANCEMENT: Add trading style badge to table row
     - Display style icon + text (📈 Index, 🔥 Trend, 💎 Value, ⚡ Swing, 📅 Event)
     - Color-code by risk: Green (Index), Blue (Trend/Value), Yellow (Swing), Orange (Event)
@@ -852,10 +881,13 @@ NVDA: EMA-20=188.84, ATR-14=6.21
   - [ ] 8.2.6 Display technical setup bullets
   - [ ] 8.2.7 Test component rendering
   - [ ] 8.2.8 Verify all sections display correctly
-  - [ ] 8.2.9 UI Checkpoint 4: Take screenshot `task-8.2-narrative-view.png`
-  - [ ] 8.2.10 Click on NVDA row to expand view
-  - [ ] 8.2.11 Verify all narrative sections render (headline, health, news, technical)
-  - [ ] 8.2.12 Confirm plain language (no RSI/MACD/EMA jargon)
+  - [ ] 8.2.9 UI Checkpoint 4: Expand row and screenshot narrative view
+    - Click to expand: `node ~/.claude/skills/browser-automation/scripts/interact.js click http://localhost:3000/watchlist 'tr:has-text("NVDA")'`
+    - Screenshot: `node ~/.claude/skills/browser-automation/scripts/screenshot.js http://localhost:3000/watchlist ~/portfolio-ai/docs/screenshots/task-8.2-narrative-view.png true`
+  - [ ] 8.2.10 Capture expanded view structure
+    - Snapshot: `node ~/.claude/skills/browser-automation/scripts/snapshot.js http://localhost:3000/watchlist ~/portfolio-ai/docs/screenshots/task-8.2-expanded-snapshot.json`
+  - [ ] 8.2.11 Verify all narrative sections render (check snapshot for: headline, health, news, technical)
+  - [ ] 8.2.12 Confirm plain language (inspect screenshot - no RSI/MACD/EMA jargon visible)
   - [ ] 8.2.13 ENHANCEMENT: Add trading style section to expanded view
     - Display recommended style with icon (📈/🔥/💎/⚡/📅)
     - Show optimal holding period
@@ -870,9 +902,12 @@ NVDA: EMA-20=188.84, ATR-14=6.21
   - [ ] 8.3.4 Display profit target with gain percentage
   - [ ] 8.3.5 Test action plan rendering
   - [ ] 8.3.6 Verify prices and percentages format correctly
-  - [ ] 8.3.7 UI Checkpoint 5: Take screenshot `task-8.3-action-plan.png`
-  - [ ] 8.3.8 Verify entry/stop/target prices display correctly
-  - [ ] 8.3.9 Check percentage calculations match backend API
+  - [ ] 8.3.7 UI Checkpoint 5: Screenshot action plan section
+    - Screenshot: `node ~/.claude/skills/browser-automation/scripts/screenshot.js http://localhost:3000/watchlist ~/portfolio-ai/docs/screenshots/task-8.3-action-plan.png true`
+  - [ ] 8.3.8 Verify entry/stop/target prices display correctly (inspect screenshot)
+  - [ ] 8.3.9 Verify percentages match backend API
+    - Network: `node ~/.claude/skills/browser-automation/scripts/network.js http://localhost:3000/watchlist 5000 watchlist`
+    - Cross-reference prices in screenshot vs API response
 
 - [ ] 8.4 Add Position Sizing Display
   - [ ] 8.4.1 Create "Position Sizing" section
@@ -881,9 +916,12 @@ NVDA: EMA-20=188.84, ATR-14=6.21
   - [ ] 8.4.4 Display maximum loss with percentage
   - [ ] 8.4.5 Test position sizing rendering
   - [ ] 8.4.6 Verify calculations match backend
-  - [ ] 8.4.7 UI Checkpoint 6: Take screenshot `task-8.4-position-sizing.png`
-  - [ ] 8.4.8 Verify shares, investment, gain, loss all display
-  - [ ] 8.4.9 Cross-check calculations with Network tab API response
+  - [ ] 8.4.7 UI Checkpoint 6: Screenshot position sizing section
+    - Screenshot: `node ~/.claude/skills/browser-automation/scripts/screenshot.js http://localhost:3000/watchlist ~/portfolio-ai/docs/screenshots/task-8.4-position-sizing.png true`
+  - [ ] 8.4.8 Verify shares, investment, gain, loss all display (inspect screenshot)
+  - [ ] 8.4.9 Cross-check calculations with API response
+    - Network: `node ~/.claude/skills/browser-automation/scripts/network.js http://localhost:3000/watchlist 5000 watchlist`
+    - Verify: shares, investment, potential_gain, max_loss match API
 
 - [ ] 8.5 Add Special Notes & Warnings
   - [ ] 8.5.1 Create warnings section below action plan
@@ -892,10 +930,11 @@ NVDA: EMA-20=188.84, ATR-14=6.21
   - [ ] 8.5.4 Test warning display logic
   - [ ] 8.5.5 Verify warnings only show when applicable
   - [ ] 8.5.6 Verify visual hierarchy and prominence
-  - [ ] 8.5.7 UI Checkpoint 7: Take screenshot `task-8.5-warnings.png`
-  - [ ] 8.5.8 Test with ticker having earnings in 2 days (if available)
-  - [ ] 8.5.9 Verify warnings display with correct icons (🔴/⚠)
-  - [ ] 8.5.10 Check warnings only appear when applicable
+  - [ ] 8.5.7 UI Checkpoint 7: Screenshot warnings section
+    - Screenshot: `node ~/.claude/skills/browser-automation/scripts/screenshot.js http://localhost:3000/watchlist ~/portfolio-ai/docs/screenshots/task-8.5-warnings.png true`
+  - [ ] 8.5.8 Test with ticker having upcoming earnings (if available in watchlist)
+  - [ ] 8.5.9 Verify warnings display with correct icons (inspect screenshot for 🔴/⚠)
+  - [ ] 8.5.10 Verify warnings only appear when applicable (check API response for earnings_days_away)
 
 - [ ] 8.6 Add Trading Style Filter (ENHANCEMENT)
   - [ ] 8.6.1 Add filter dropdown in Watchlist header (next to "Add Ticker" / "Refresh")
@@ -904,10 +943,14 @@ NVDA: EMA-20=188.84, ATR-14=6.21
   - [ ] 8.6.4 Show count: "Showing 3 Trend plays" or "Showing all 14 tickers"
   - [ ] 8.6.5 Test filter functionality with mixed styles
   - [ ] 8.6.6 Verify filter persists on page refresh (localStorage)
-  - [ ] 8.6.7 UI Checkpoint 8: Take screenshot `task-8.6-style-filter.png`
-  - [ ] 8.6.8 Verify filter dropdown displays correctly
-  - [ ] 8.6.9 Test filtering by each style (Index, Trend, Value, Swing, Event)
-  - [ ] 8.6.10 Verify count updates correctly
+  - [ ] 8.6.7 UI Checkpoint 8: Screenshot style filter
+    - Screenshot dropdown: `node ~/.claude/skills/browser-automation/scripts/screenshot.js http://localhost:3000/watchlist ~/portfolio-ai/docs/screenshots/task-8.6-style-filter.png true`
+  - [ ] 8.6.8 Test filter dropdown interaction
+    - Click filter: `node ~/.claude/skills/browser-automation/scripts/interact.js click http://localhost:3000/watchlist 'select[name="style-filter"]'`
+  - [ ] 8.6.9 Test filtering by each style
+    - Select style: `node ~/.claude/skills/browser-automation/scripts/interact.js fill http://localhost:3000/watchlist 'select[name="style-filter"]' 'Trend'`
+    - Screenshot filtered: `node ~/.claude/skills/browser-automation/scripts/screenshot.js http://localhost:3000/watchlist ~/portfolio-ai/docs/screenshots/task-8.6-filtered-trend.png true`
+  - [ ] 8.6.10 Verify count updates correctly (inspect screenshots)
 
 - [ ] 8.7 Adjust Sparkline Timeframe Based on Style (ENHANCEMENT)
   - [ ] 8.7.1 Modify `SparklineWithHistory` component to accept style parameter
@@ -917,9 +960,11 @@ NVDA: EMA-20=188.84, ATR-14=6.21
   - [ ] 8.7.5 Verify Index shows 1-year chart (250 days)
   - [ ] 8.7.6 Verify Swing shows 2-week chart (10 days)
   - [ ] 8.7.7 Verify Event shows 1-week chart (5 days)
-  - [ ] 8.7.8 UI Checkpoint 9: Take screenshot `task-8.7-adaptive-sparklines.png`
-  - [ ] 8.7.9 Compare sparklines side-by-side (Index vs Swing vs Event)
-  - [ ] 8.7.10 Verify timeframes match recommended holding periods
+  - [ ] 8.7.8 UI Checkpoint 9: Screenshot adaptive sparklines
+    - Screenshot: `node ~/.claude/skills/browser-automation/scripts/screenshot.js http://localhost:3000/watchlist ~/portfolio-ai/docs/screenshots/task-8.7-adaptive-sparklines.png true`
+  - [ ] 8.7.9 Capture page structure to verify sparkline data attributes
+    - Snapshot: `node ~/.claude/skills/browser-automation/scripts/snapshot.js http://localhost:3000/watchlist ~/portfolio-ai/docs/screenshots/task-8.7-sparklines-snapshot.json`
+  - [ ] 8.7.10 Verify timeframes match styles (inspect screenshot + check API calls for different day params)
 
 ### 9.0 Testing & Validation
 
@@ -942,24 +987,37 @@ NVDA: EMA-20=188.84, ATR-14=6.21
   - [ ] 9.2.5 Run integration tests
   - [ ] 9.2.6 Verify all integration points work correctly
 
-- [ ] 9.3 End-to-End Validation (UI Checkpoint 8 - CRITICAL)
-  - [ ] 9.3.1 Add NVDA to watchlist via UI (click "Add Ticker" button)
-  - [ ] 9.3.2 Trigger manual refresh (click "Refresh" button)
-  - [ ] 9.3.3 Take screenshot: `task-9.3-final-list-view.png`
-  - [ ] 9.3.4 Verify BUY signal appears with 9/10 strength
-  - [ ] 9.3.5 Verify green color coding for BUY signal
-  - [ ] 9.3.6 Click on NVDA row to expand view
-  - [ ] 9.3.7 Take screenshot: `task-9.3-final-expanded-view.png`
-  - [ ] 9.3.8 Verify all narrative sections present (headline, health, news, technical, action plan)
-  - [ ] 9.3.9 Verify entry/stop/target prices calculated correctly
-  - [ ] 9.3.10 Verify position sizing shows correct shares for $500 risk
-  - [ ] 9.3.11 Check console for errors (list_console_messages)
-  - [ ] 9.3.12 Verify no failed network requests (list_network_requests)
-  - [ ] 9.3.13 Add 2-3 more tickers (mix of BUY/HOLD/AVOID)
-  - [ ] 9.3.14 Take screenshot: `task-9.3-final-multiple-signals.png`
-  - [ ] 9.3.15 Verify different signal types display with correct colors
-  - [ ] 9.3.16 Test table sorting and filtering (if applicable)
-  - [ ] 9.3.17 Verify no visual glitches or layout issues
+- [ ] 9.3 End-to-End Validation (UI Checkpoint 10 - CRITICAL)
+  - [ ] 9.3.1 Add NVDA to watchlist via UI
+    - Click: `node ~/.claude/skills/browser-automation/scripts/interact.js click http://localhost:3000/watchlist 'button:has-text("Add Ticker")'`
+    - Fill: `node ~/.claude/skills/browser-automation/scripts/interact.js fill http://localhost:3000/watchlist 'input[name="symbol"]' 'NVDA'`
+    - Submit and wait for ticker to appear
+  - [ ] 9.3.2 Trigger manual refresh
+    - Click: `node ~/.claude/skills/browser-automation/scripts/interact.js click http://localhost:3000/watchlist 'button:has-text("Refresh")'`
+    - Wait 10 seconds for refresh to complete
+  - [ ] 9.3.3 Screenshot list view
+    - Screenshot: `node ~/.claude/skills/browser-automation/scripts/screenshot.js http://localhost:3000/watchlist ~/portfolio-ai/docs/screenshots/task-9.3-final-list-view.png true`
+  - [ ] 9.3.4 Verify BUY signal with 9/10 strength (inspect screenshot)
+  - [ ] 9.3.5 Verify green color coding for BUY signal (inspect screenshot)
+  - [ ] 9.3.6 Expand NVDA row
+    - Click: `node ~/.claude/skills/browser-automation/scripts/interact.js click http://localhost:3000/watchlist 'tr:has-text("NVDA")'`
+  - [ ] 9.3.7 Screenshot expanded view
+    - Screenshot: `node ~/.claude/skills/browser-automation/scripts/screenshot.js http://localhost:3000/watchlist ~/portfolio-ai/docs/screenshots/task-9.3-final-expanded-view.png true`
+  - [ ] 9.3.8 Capture structure to verify all narrative sections
+    - Snapshot: `node ~/.claude/skills/browser-automation/scripts/snapshot.js http://localhost:3000/watchlist ~/portfolio-ai/docs/screenshots/task-9.3-expanded-snapshot.json`
+  - [ ] 9.3.9 Verify entry/stop/target prices (check screenshot + snapshot)
+  - [ ] 9.3.10 Verify position sizing shows correct shares for $500 risk (check screenshot)
+  - [ ] 9.3.11 Check console for errors
+    - Console: `node ~/.claude/skills/browser-automation/scripts/console.js http://localhost:3000/watchlist 10000`
+  - [ ] 9.3.12 Monitor network requests
+    - Network: `node ~/.claude/skills/browser-automation/scripts/network.js http://localhost:3000/watchlist 10000 watchlist`
+    - Verify all 200 responses, no failed requests
+  - [ ] 9.3.13 Add 2-3 more tickers (META, GOOGL) via UI to test mixed signals
+  - [ ] 9.3.14 Screenshot with multiple signals
+    - Screenshot: `node ~/.claude/skills/browser-automation/scripts/screenshot.js http://localhost:3000/watchlist ~/portfolio-ai/docs/screenshots/task-9.3-final-multiple-signals.png true`
+  - [ ] 9.3.15 Verify different signal types display with correct colors (inspect screenshot)
+  - [ ] 9.3.16 Test table sorting/filtering if applicable (use interact.js)
+  - [ ] 9.3.17 Verify no visual glitches (review all screenshots)
 
 - [ ] 9.4 Edge Case Testing
   - [ ] 9.4.1 Test with stock missing fundamental data (should handle gracefully)
@@ -969,21 +1027,26 @@ NVDA: EMA-20=188.84, ATR-14=6.21
   - [ ] 9.4.5 Test with stock at earnings date (0 days away)
   - [ ] 9.4.6 Verify all edge cases handled without errors
 
-- [ ] 9.5 Performance Validation (UI Checkpoint 9)
-  - [ ] 9.5.1 Add 14 tickers to watchlist via UI
-  - [ ] 9.5.2 Take screenshot: `task-9.5-performance.png`
-  - [ ] 9.5.3 Open Chrome DevTools Network tab
-  - [ ] 9.5.4 Measure page load time (<2s target)
-  - [ ] 9.5.5 Measure watchlist API response time (<500ms target)
-  - [ ] 9.5.6 Measure Celery refresh time for 14 tickers (<10s target)
-  - [ ] 9.5.7 Open Chrome DevTools Performance tab
-  - [ ] 9.5.8 Record interaction (scroll, expand rows)
-  - [ ] 9.5.9 Check for memory leaks
-  - [ ] 9.5.10 Verify smooth scrolling (60fps)
-  - [ ] 9.5.11 Check for layout shifts (CLS score)
-  - [ ] 9.5.12 Verify news fetching doesn't block watchlist display
-  - [ ] 9.5.13 Verify fundamental caching reduces API calls
-  - [ ] 9.5.14 Document performance metrics in UI_VALIDATION_PLAN.md
+- [ ] 9.5 Performance Validation (UI Checkpoint 11)
+  - [ ] 9.5.1 Add 14 tickers to watchlist via UI (use interact.js in loop if needed)
+  - [ ] 9.5.2 Screenshot full watchlist
+    - Screenshot: `node ~/.claude/skills/browser-automation/scripts/screenshot.js http://localhost:3000/watchlist ~/portfolio-ai/docs/screenshots/task-9.5-performance.png true`
+  - [ ] 9.5.3 Monitor network performance
+    - Network: `node ~/.claude/skills/browser-automation/scripts/network.js http://localhost:3000/watchlist 15000 watchlist`
+    - Measure API response time (<500ms target)
+  - [ ] 9.5.4 Run performance trace
+    - Performance: `node ~/.claude/skills/browser-automation/scripts/performance.js trace http://localhost:3000/watchlist ~/portfolio-ai/docs/screenshots/task-9.5-trace.json`
+  - [ ] 9.5.5 Measure Core Web Vitals
+    - Vitals: `node ~/.claude/skills/browser-automation/scripts/performance.js vitals http://localhost:3000/watchlist`
+    - Check: LCP <2.5s, FID <100ms, CLS <0.1
+  - [ ] 9.5.6 Verify page load time (<2s target from trace)
+  - [ ] 9.5.7 Check Celery refresh time for 14 tickers (<10s target)
+    - Monitor backend logs: `journalctl -u portfolio-celery -n 100 --no-pager`
+  - [ ] 9.5.8 Test scroll performance (inspect trace for janky frames)
+  - [ ] 9.5.9 Test expand/collapse interactions (use interact.js, check for smooth animations)
+  - [ ] 9.5.10 Verify news fetching doesn't block display (check network waterfall)
+  - [ ] 9.5.11 Verify fundamental caching reduces API calls (check for cache hits in logs)
+  - [ ] 9.5.12 Document metrics: page load, API response, CWV scores, refresh time
 
 - [ ] 9.6 Type Safety & Code Quality
   - [ ] 9.6.1 Run `mypy app/watchlist/ --strict`
