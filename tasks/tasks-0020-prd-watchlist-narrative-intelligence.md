@@ -45,20 +45,16 @@
 **🔄 IN PROGRESS:**
 - None
 
-**⚠️ KNOWN ISSUE - NEEDS INVESTIGATION:**
-- **UI showing stale timestamps (12:09 PM) despite fresh DB data (12:20 PM)**
-  - Backend Celery: ✅ Refreshing correctly every ~2 minutes
-  - Database: ✅ Has fresh snapshots at 12:20:19 PM for all tickers
-  - API Response: ❌ Returns old timestamps (16:09:22 UTC = 12:09 PM EDT)
-  - Backend restarted: Yes, but still returning stale data
-  - **Next step**: Investigate why watchlist API endpoint returns stale data
-  - **Possible causes**:
-    1. API querying wrong snapshots (check JOIN logic in backend/app/api/watchlist.py)
-    2. Redis/memory cache not cleared after restart
-    3. API using different account_id filter than Celery
+**✅ FIXED (Nov 1, 2025 - commit 5738b2f):**
+- **UI showing stale timestamps** - RESOLVED
+  - **Root Cause**: API returned `updated_at` from `raw_metrics.price` (stale `cached_at` from `price_cache`), not snapshot's `fetched_at`
+  - **Fix**: Override `updated_at` timestamps in score components with snapshot's `fetched_at` in `WatchlistService.get_items_with_scores()`
+  - **Testing**: Added comprehensive test case (TDD: RED → GREEN)
+  - **Impact**: UI now shows accurate timestamps matching actual refresh times
+  - **Note**: Requires backend restart (`sudo systemctl restart portfolio-backend`) to take effect
 
 **NEXT STEPS:**
-1. Debug watchlist API endpoint to find why it returns stale data
+1. Restart backend service to apply timestamp fix
 2. Task 2.0: Implement Signal Classification Engine
 3. Task 3.0: Build Narrative Generation System
 4. Task 4.0: Integrate Fundamentals & News Data
