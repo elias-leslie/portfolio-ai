@@ -23,12 +23,17 @@
   - All tests passing (342 total: 336 pass + 2 skip + 1 pre-existing failure)
 
 **🔄 IN PROGRESS:**
-- (None - Task 1.0 complete)
+- (Paused - Critical frontend bugs found during testing)
+
+**🔴 CRITICAL BUGS FOUND (MUST FIX FIRST):**
+1. Task 0.1: Fix frontend auto-polling (NOT working despite code fix)
+2. Task 0.2: Fix WatchlistPreferences component not rendering in Settings UI
 
 **⚠️ NEXT STEPS:**
-1. Task 2.0: Implement Signal Classification Engine
-2. Task 3.0: Build Narrative Generation System
-3. Continue sequentially through remaining tasks
+1. Fix Task 0.1 and 0.2 (critical blockers)
+2. Task 2.0: Implement Signal Classification Engine
+3. Task 3.0: Build Narrative Generation System
+4. Continue sequentially through remaining tasks
 
 **COMPLETION STATUS:** ~11% complete (1 of 9 major tasks done)
 **EFFORT TO COMPLETE:** High (Signal classification, narrative generation, fundamentals/news integration, database migrations, API updates, frontend integration, and testing remain)
@@ -68,6 +73,59 @@
 ---
 
 ## Tasks
+
+### 0.1 Fix Frontend Auto-Polling (CRITICAL BUG) 🔴
+
+**Goal**: Fix React Query auto-polling that is not triggering despite configuration
+
+**Evidence of Bug**:
+- Added `refetchIntervalInBackground: true` to QueryClient global config (commit f28674b)
+- Added `refetchOnMount: true` to useWatchlist hook
+- Settings shows refresh interval = 15 minutes (slider works, preference saves)
+- Waited 70+ seconds past 1-minute mark - NO new API call made
+- Only ONE `/api/watchlist?account_id=default` call on page load
+- `refresh-status` polling works (1s interval), but main watchlist polling does NOT
+
+**Root Cause**: Unknown - needs investigation
+- Global config has `refetchIntervalInBackground: true` ✓
+- Hook has `refetchInterval: refreshIntervalMs` ✓
+- Hook has `refetchOnMount: true` ✓
+- Preferences load correctly (`watchlist_refresh_minutes: 15`) ✓
+- But polling timer never triggers
+
+- [ ] 0.1.1 Investigate why React Query refetchInterval not working
+  - [ ] Check if query is paused or disabled
+  - [ ] Check if staleTime is interfering
+  - [ ] Add console.log to verify refreshIntervalMs calculation
+  - [ ] Test with simpler query to isolate issue
+- [ ] 0.1.2 Fix the polling mechanism
+- [ ] 0.1.3 Test: Set interval to 1 minute, verify API call after 60s
+- [ ] 0.1.4 Test: Change interval in Settings, verify new interval applies
+
+### 0.2 Fix WatchlistPreferences Component Not Rendering (CRITICAL BUG) 🔴
+
+**Goal**: Fix Settings page not showing Watchlist Preferences section
+
+**Evidence of Bug**:
+- Code has `<WatchlistPreferences>` component in settings/page.tsx (lines 360-373)
+- Conditional render: `{preferences && <WatchlistPreferences ...>}`
+- API returns preferences successfully (200 OK, all fields present)
+- Response includes: `watchlist_refresh_minutes: 15`, `watchlist_auto_expand: false`, weights, etc.
+- Browser shows: Risk Tolerance, Position Size, Trading Prefs, Display Prefs, Save button
+- Browser does NOT show: Watchlist Preferences section
+- No console errors, no network errors
+
+**Root Cause**: Unknown - component silently not rendering despite data being available
+
+- [ ] 0.2.1 Check if WatchlistPreferences component is properly imported
+- [ ] 0.2.2 Check if preferences object structure matches expected type
+- [ ] 0.2.3 Add console.log before conditional to verify preferences exists
+- [ ] 0.2.4 Check React DevTools to see if component is mounted but hidden
+- [ ] 0.2.5 Fix the rendering issue
+- [ ] 0.2.6 Test: Navigate to Settings, verify Watchlist Preferences section visible
+- [ ] 0.2.7 Test: Change refresh interval slider, save, verify persists
+
+---
 
 ### 1.0 Fix Data Integrity Issues (Foundation - CRITICAL) ✅
 
