@@ -45,15 +45,17 @@ export function useWatchlist(accountId: string) {
   const { data: preferences } = useQuery({
     queryKey: ["preferences"],
     queryFn: fetchPreferences,
-    staleTime: 1000 * 60 * 15, // Preferences are fresh for 15 minutes
+    staleTime: 1000 * 60 * 5, // Reduced to 5 min to pick up changes faster
   });
 
   // Use preference or fallback to 5 minutes
   const refreshMinutes = preferences?.watchlist_refresh_minutes ?? 5;
   const refreshIntervalMs = refreshMinutes * 60 * 1000; // Convert to milliseconds
 
+  // Include refreshIntervalMs in query key to force new query when interval changes
+  // This ensures React Query creates a fresh query observer with the correct interval
   return useQuery<WatchlistListResponse, Error>({
-    queryKey: watchlistKeys.list(accountId),
+    queryKey: [...watchlistKeys.list(accountId), refreshIntervalMs],
     queryFn: () => fetchWatchlistItems(accountId),
     staleTime: 0, // Always consider data stale to enable frequent updates
     refetchInterval: refreshIntervalMs, // Refetch based on user preference
