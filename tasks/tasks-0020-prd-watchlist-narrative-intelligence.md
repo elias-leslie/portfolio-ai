@@ -45,13 +45,18 @@
 **🔄 IN PROGRESS:**
 - None
 
-**✅ FIXED (Nov 1, 2025 - commit 5738b2f):**
-- **UI showing stale timestamps** - RESOLVED
+**✅ FIXED (Nov 1, 2025):**
+- **UI showing stale timestamps** - RESOLVED (commit 5738b2f)
   - **Root Cause**: API returned `updated_at` from `raw_metrics.price` (stale `cached_at` from `price_cache`), not snapshot's `fetched_at`
   - **Fix**: Override `updated_at` timestamps in score components with snapshot's `fetched_at` in `WatchlistService.get_items_with_scores()`
   - **Testing**: Added comprehensive test case (TDD: RED → GREEN)
   - **Impact**: UI now shows accurate timestamps matching actual refresh times
-  - **Note**: Requires backend restart (`sudo systemctl restart portfolio-backend`) to take effect
+
+- **Sparklines appearing flat despite data variation** - RESOLVED (commit 05de6d3)
+  - **Root Cause**: Frontend took last 7 chronological points (all recent, identical) instead of sampling across time range
+  - **Example**: TSLA had 9.35 point range in full history, but last 7 points were all 65.73 (0.00 variation)
+  - **Fix**: Changed from `.slice(-7)` to even sampling algorithm that preserves historical variation
+  - **Impact**: Sparklines now show meaningful trends - tickers with price movement display visible ups/downs
 
 **NEXT STEPS:**
 1. Restart backend service to apply timestamp fix
