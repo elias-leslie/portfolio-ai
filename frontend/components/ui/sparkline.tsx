@@ -43,7 +43,8 @@ export function Sparkline({
 
   // Generate SVG path
   const points = data.map((value, index) => {
-    const x = (index / (data.length - 1)) * width;
+    // Handle single data point case (avoid division by zero)
+    const x = data.length === 1 ? width / 2 : (index / (data.length - 1)) * width;
     const y = height - ((value - minValue) / valueRange) * height;
     return { x, y, value };
   });
