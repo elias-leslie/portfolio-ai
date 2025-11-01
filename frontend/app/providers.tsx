@@ -13,6 +13,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
           queries: {
             staleTime: 1000 * 60, // 1 minute
             refetchOnWindowFocus: false,
+            // Enable interval refetching globally (can be overridden per-query)
+            refetchIntervalInBackground: true,
           },
         },
       })

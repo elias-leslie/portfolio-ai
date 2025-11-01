@@ -59,6 +59,7 @@ export function useWatchlist(accountId: string) {
     refetchInterval: refreshIntervalMs, // Refetch based on user preference
     refetchIntervalInBackground: true, // Enable background refresh
     refetchOnWindowFocus: true, // Refetch when window regains focus
+    refetchOnMount: true, // Refetch when component mounts
     enabled: !!accountId,
   });
 }
