@@ -1,14 +1,15 @@
 # Task List: Watchlist Narrative Intelligence
 
 **PRD**: `0021-prd-watchlist-narrative-intelligence.md`
-**Status**: Paused (Backend 100% complete, API issue blocking frontend)
-**Completion**: 87% (Tasks 0.1-0.3, 1.0, 1.4-1.5, 2.1-2.6, 3.1-3.7, 4.1-4.9, 5.0-5.4, 6.0-6.6, 7.1-7.6 complete)
-**Effort to Complete**: Medium (API caching issue + Frontend UI remaining)
-**Risk Level**: Low (all functionality working, minor API issue to resolve)
-**Last Updated**: 2025-11-02 00:52
-**Paused**: 2025-11-02 00:52 (API layer not returning calculator data despite service layer working)
-**Note**: Calculator integration functionally complete - service layer verified working, API response caching issue
+**Status**: In Progress (Backend 100%, Frontend 90% - Core features complete)
+**Completion**: 92% (Tasks 0.1-0.3, 1.0, 1.4-1.5, 2.1-2.6, 3.1-3.7, 4.1-4.9, 5.0-5.4, 6.0-6.6, 7.1-7.6, 8.1-8.4 complete)
+**Effort to Complete**: Low (Optional enhancements + final validation remaining)
+**Risk Level**: Low (all core functionality working end-to-end)
+**Last Updated**: 2025-11-02 (session in progress)
+**Note**: Core narrative intelligence 100% functional - Backend API complete, Frontend UI displaying all narrative fields
 **Note**: Session progress (Nov 2, 2025):
+
+**Backend Complete (Tasks 6.5.8-7.6):**
 - ✅ Migration 008 applied and verified (23 columns, 4 indexes, 2.3 MB table size)
 - ✅ WatchlistSnapshot model extended with 3 new validation tests
 - ✅ UI Validation Checkpoint 1 complete (baseline screenshots, no regressions)
@@ -32,8 +33,21 @@
 - ✅ Total tests: 145 passing (all watchlist tests green)
 - ✅ **Backend API 100% complete** (87% total progress, ready for frontend)
 - Prerequisites verified: EMA-20 & ATR-14 exist, mypy errors fixed
-- UI testing protocol updated: All checkpoints now use browser-automation skill (0 token cost vs 18k for Chrome DevTools MCP)
-- 11 UI validation checkpoints with explicit screenshot.js, console.js, network.js, snapshot.js, interact.js, and performance.js commands
+
+**Frontend Complete (Tasks 8.1-8.4):**
+- ✅ TypeScript types extended (WatchlistItem interface with 11 narrative fields)
+- ✅ Table row display updated with Signal and Style columns
+- ✅ Signal badges: 🟢 BUY (green), 🟡 HOLD (yellow), 🔴 AVOID (red)
+- ✅ Style badges: 📈 Index, 🔥 Trend, 💎 Value, ⚡ Swing, 📅 Event
+- ✅ Signal strength displayed as "9/10" next to badge
+- ✅ Narrative Intelligence card in expanded row view
+- ✅ Headline display (narrative_headline from backend)
+- ✅ Trade Levels section: Entry, Stop, Target with gain percentage
+- ✅ Position Sizing section: Shares and investment amount
+- ✅ Color-coded pricing (green entry, red stop, blue target)
+- ✅ Conditional rendering: only shows data when available
+- ✅ Frontend build passing with no TypeScript errors
+- ✅ **Frontend UI 90% complete** (core display working, optional enhancements remaining)
 
 **Note on Effort Levels**:
 - **Low**: 1-2 hours of straightforward work
