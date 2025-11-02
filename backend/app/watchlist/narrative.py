@@ -517,17 +517,17 @@ def classify_signal(inputs: dict[str, Any]) -> SignalClassification:
     confirmations = 0
     avoid_flags = 0  # Count of negative indicators
 
-    # Extract inputs
-    price = inputs.get("price", 0.0)
-    ema_20 = inputs.get("ema_20", 0.0)
-    sma_5 = inputs.get("sma_5", 0.0)
-    sma_5_prev = inputs.get("sma_5_prev", 0.0)
-    rsi_14 = inputs.get("rsi_14", 50.0)
-    macd = inputs.get("macd", 0.0)
-    volume = inputs.get("volume", 0.0)
-    volume_avg_20 = inputs.get("volume_avg_20", 0.0)
-    company_health = inputs.get("company_health", "")
-    news_sentiment = inputs.get("news_sentiment", 0.0)
+    # Extract inputs (handle None values with or operator)
+    price = inputs.get("price", 0.0) or 0.0
+    ema_20 = inputs.get("ema_20", 0.0) or 0.0
+    sma_5 = inputs.get("sma_5", 0.0) or 0.0
+    sma_5_prev = inputs.get("sma_5_prev", 0.0) or 0.0
+    rsi_14 = inputs.get("rsi_14", 50.0) or 50.0
+    macd = inputs.get("macd", 0.0) or 0.0
+    volume = inputs.get("volume", 0.0) or 0.0
+    volume_avg_20 = inputs.get("volume_avg_20", 0.0) or 0.0
+    company_health = inputs.get("company_health", "") or ""
+    news_sentiment = inputs.get("news_sentiment", 0.0) or 0.0
     earnings_days_away = inputs.get("earnings_days_away")
 
     # Check for AVOID signals (negative indicators)

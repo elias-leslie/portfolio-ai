@@ -236,7 +236,8 @@ def calculate_position_size(entry_price: float, stop_loss: float, risk_budget: f
         71  # floor(500 / (202 - 195)) = floor(500 / 7) = 71 shares
     """
     # Invalid setup: stop should be below entry
-    if entry_price <= stop_loss:
+    # Also handle None values gracefully
+    if stop_loss is None or entry_price <= stop_loss:
         return None
 
     # Calculate risk per share

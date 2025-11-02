@@ -82,6 +82,21 @@ class WatchlistItemResponse(BaseModel):
     current_score: ScoreBreakdownResponse | None = None
     score_alert: bool = False  # True if score changed >10 points in last 7 days
 
+    # Narrative intelligence fields
+    signal_type: str | None = None
+    signal_strength: int | None = None
+    narrative_headline: str | None = None
+    recommended_style: str | None = None
+    style_confidence: int | None = None
+    optimal_holding_period: str | None = None
+    risk_level: str | None = None
+
+    # Trade calculation fields
+    entry_price: float | None = None
+    stop_loss: float | None = None
+    profit_target: float | None = None
+    position_size_shares: int | None = None
+
 
 class WatchlistListResponse(BaseModel):
     """Response model for list of watchlist items."""
@@ -158,6 +173,14 @@ async def list_watchlist_items(account_id: str) -> WatchlistListResponse:
                         else None
                     ),
                     score_alert=item.get("score_alert", False),
+                    # Narrative intelligence fields
+                    signal_type=item.get("signal_type"),
+                    signal_strength=item.get("signal_strength"),
+                    narrative_headline=item.get("narrative_headline"),
+                    recommended_style=item.get("recommended_style"),
+                    style_confidence=item.get("style_confidence"),
+                    optimal_holding_period=item.get("optimal_holding_period"),
+                    risk_level=item.get("risk_level"),
                 )
                 for item in items
             ],
@@ -371,6 +394,14 @@ async def get_watchlist_item(item_id: str) -> WatchlistItemResponse:
                 else None
             ),
             score_alert=item.get("score_alert", False),
+            # Narrative intelligence fields
+            signal_type=item.get("signal_type"),
+            signal_strength=item.get("signal_strength"),
+            narrative_headline=item.get("narrative_headline"),
+            recommended_style=item.get("recommended_style"),
+            style_confidence=item.get("style_confidence"),
+            optimal_holding_period=item.get("optimal_holding_period"),
+            risk_level=item.get("risk_level"),
         )
     except HTTPException:
         raise

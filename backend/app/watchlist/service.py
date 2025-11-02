@@ -15,12 +15,20 @@ from ..logging_config import get_logger
 from ..portfolio.price_fetcher import PriceDataFetcher
 from ..storage import DuckDBStorage
 from ..utils.market_hours import is_stale
+from .calculator import (
+    calculate_entry_price,
+    calculate_position_size,
+    calculate_profit_target,
+    calculate_stop_loss,
+)
 from .models import (
     ScoreWeights,
+    SignalType,
     TechnicalSnapshot,
     WatchlistScoreInputs,
     WatchlistSnapshot,
 )
+from .narrative import classify_signal, classify_trading_style, generate_headline
 from .scoring import _is_stale as scoring_is_stale
 from .scoring import calculate_watchlist_scores
 
@@ -137,6 +145,30 @@ def _load_stale_ttl_minutes(storage: DuckDBStorage) -> int:
         refresh_minutes = int(default_refresh) if default_refresh is not None else 15
 
     return int(refresh_minutes * 3)  # Stale = 3x refresh interval
+
+
+def _load_risk_budget(storage: DuckDBStorage) -> float:
+    """Load risk budget from user preferences.
+
+    Returns the amount a user is willing to risk per trade for position sizing.
+
+    Returns:
+        Risk budget in dollars (default: $500)
+    """
+    df = storage.query(
+        """
+        SELECT watchlist_risk_budget
+        FROM user_preferences
+        ORDER BY updated_at DESC
+        LIMIT 1
+        """
+    )
+    if df.is_empty():
+        return 500.0  # Default risk budget
+
+    row = df.to_dicts()[0]
+    risk_budget = row.get("watchlist_risk_budget", 500)
+    return float(risk_budget) if risk_budget is not None else 500.0
 
 
 def _calculate_price_change(
@@ -262,6 +294,7 @@ def refresh_watchlist_scores(
     technical_map = _load_latest_technical(storage, symbols)
     default_weights = _load_default_weights(storage)
     stale_ttl_minutes = _load_stale_ttl_minutes(storage)
+    risk_budget = _load_risk_budget(storage)
 
     # Batch symbols to respect API rate limits
     symbol_batches = [symbols[i : i + batch_size] for i in range(0, len(symbols), batch_size)]
@@ -387,6 +420,82 @@ def refresh_watchlist_scores(
                 )
             )
 
+            # Generate narrative intelligence
+            # Classify signal based on technical indicators
+            signal_inputs = {
+                "price": price_data.price,
+                "ema_20": technical_snapshot.price,  # Using current price as EMA approximation
+                "rsi_14": technical_snapshot.rsi_14,
+                "macd": technical_snapshot.macd,
+                "volume": None,  # Not available in current data
+                "company_health": None,  # Will be added in future iteration
+                "news_sentiment": None,  # Will be added in future iteration
+                "earnings_days_away": None,  # Will be added in future iteration
+            }
+
+            try:
+                classification = classify_signal(signal_inputs)
+                signal_type_str = classification.signal_type.value
+                signal_strength_val = classification.strength.value
+                headline = generate_headline(classification)
+
+                # Classify trading style
+                style_result = classify_trading_style(
+                    symbol=symbol,
+                    signal_strength=signal_strength_val,
+                    signal_type=signal_type_str,
+                    rsi_14=technical_snapshot.rsi_14 or 50.0,  # Default to neutral if missing
+                    earnings_days_away=None,
+                )
+
+                # Calculate trade levels (entry, stop, target, position size)
+                entry_price_val: float | None = None
+                stop_loss_val: float | None = None
+                profit_target_val: float | None = None
+                position_size_val: int | None = None
+
+                if price_data.price is not None:
+                    # Calculate entry price (current price for BUY/HOLD, None for AVOID)
+                    entry_price_val = calculate_entry_price(price_data.price, signal_type_str)
+
+                    # Calculate stop loss and profit target (requires DB connection)
+                    if entry_price_val is not None:
+                        with storage.connection() as conn:
+                            stop_loss_val = calculate_stop_loss(conn, symbol, entry_price_val)
+                            profit_target_val = calculate_profit_target(
+                                conn, symbol, entry_price_val
+                            )
+
+                        # Calculate position size based on risk budget
+                        if stop_loss_val is not None:
+                            position_size_val = calculate_position_size(
+                                entry_price=entry_price_val,
+                                stop_loss=stop_loss_val,
+                                risk_budget=risk_budget,
+                            )
+
+            except Exception as e:
+                logger.warning(
+                    "narrative_generation_failed",
+                    symbol=symbol,
+                    error=str(e),
+                )
+                # Use defaults if narrative generation fails
+                signal_type_str = SignalType.HOLD.value
+                signal_strength_val = 5
+                headline = f"HOLD - {symbol}"
+                style_result = {
+                    "style": "Value",
+                    "confidence": 5,
+                    "holding_period": "Unknown",
+                    "risk_level": "Medium",
+                }
+                # Initialize calculator values as None on failure
+                entry_price_val = None
+                stop_loss_val = None
+                profit_target_val = None
+                position_size_val = None
+
             # Calculate staleness based on market hours
             data_is_stale = is_stale(fetched_at=now, now=now)  # Just fetched, so not stale
 
@@ -401,6 +510,19 @@ def refresh_watchlist_scores(
                 technical_score=breakdown.technical.score,
                 is_stale=data_is_stale,
                 raw_metrics=breakdown.to_snapshot_payload(),
+                # Narrative fields
+                signal_type=signal_type_str,
+                signal_strength=signal_strength_val,
+                narrative_headline=headline,
+                recommended_style=style_result["style"],
+                style_confidence=style_result["confidence"],
+                optimal_holding_period=style_result["holding_period"],
+                risk_level=style_result["risk_level"],
+                # Trade calculation fields
+                entry_price=entry_price_val,
+                stop_loss=stop_loss_val,
+                profit_target=profit_target_val,
+                position_size_shares=position_size_val,
             )
 
             storage.query_mgr.upsert_watchlist_snapshot(**snapshot.to_upsert_params())
@@ -512,7 +634,10 @@ class WatchlistService:
             # Get latest snapshot
             snapshot_df = self.storage.query(
                 """
-                SELECT overall_score, technical_score, fetched_at, raw_metrics
+                SELECT overall_score, technical_score, fetched_at, raw_metrics,
+                       signal_type, signal_strength, narrative_headline,
+                       recommended_style, style_confidence, optimal_holding_period, risk_level,
+                       entry_price, stop_loss, profit_target, position_size_shares
                 FROM watchlist_snapshots
                 WHERE item_id = ?
                 ORDER BY fetched_at DESC
@@ -569,6 +694,21 @@ class WatchlistService:
                 }
                 item_data["score_alert"] = alert
 
+                # Add narrative intelligence fields
+                item_data["signal_type"] = snap_row.get("signal_type")
+                item_data["signal_strength"] = snap_row.get("signal_strength")
+                item_data["narrative_headline"] = snap_row.get("narrative_headline")
+                item_data["recommended_style"] = snap_row.get("recommended_style")
+                item_data["style_confidence"] = snap_row.get("style_confidence")
+                item_data["optimal_holding_period"] = snap_row.get("optimal_holding_period")
+                item_data["risk_level"] = snap_row.get("risk_level")
+
+                # Add trade calculation fields
+                item_data["entry_price"] = snap_row.get("entry_price")
+                item_data["stop_loss"] = snap_row.get("stop_loss")
+                item_data["profit_target"] = snap_row.get("profit_target")
+                item_data["position_size_shares"] = snap_row.get("position_size_shares")
+
             results.append(item_data)
 
         return results
@@ -623,7 +763,10 @@ class WatchlistService:
         # Get latest snapshot
         snapshot_df = self.storage.query(
             """
-            SELECT overall_score, technical_score, fetched_at, raw_metrics
+            SELECT overall_score, technical_score, fetched_at, raw_metrics,
+                   signal_type, signal_strength, narrative_headline,
+                   recommended_style, style_confidence, optimal_holding_period, risk_level,
+                   entry_price, stop_loss, profit_target, position_size_shares
             FROM watchlist_snapshots
             WHERE item_id = ?
             ORDER BY fetched_at DESC
@@ -674,6 +817,21 @@ class WatchlistService:
                 "overall": snap_row["overall_score"],
             }
             item_data["score_alert"] = alert
+
+            # Add narrative intelligence fields
+            item_data["signal_type"] = snap_row.get("signal_type")
+            item_data["signal_strength"] = snap_row.get("signal_strength")
+            item_data["narrative_headline"] = snap_row.get("narrative_headline")
+            item_data["recommended_style"] = snap_row.get("recommended_style")
+            item_data["style_confidence"] = snap_row.get("style_confidence")
+            item_data["optimal_holding_period"] = snap_row.get("optimal_holding_period")
+            item_data["risk_level"] = snap_row.get("risk_level")
+
+            # Add trade calculation fields
+            item_data["entry_price"] = snap_row.get("entry_price")
+            item_data["stop_loss"] = snap_row.get("stop_loss")
+            item_data["profit_target"] = snap_row.get("profit_target")
+            item_data["position_size_shares"] = snap_row.get("position_size_shares")
 
         return item_data
 
