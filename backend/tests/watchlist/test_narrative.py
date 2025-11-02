@@ -470,3 +470,414 @@ class TestClassifyTradingStyle:
         )
 
         assert result["style"] == "Event"
+
+
+class TestGenerateCompanyHealthBullets:
+    """Tests for generate_company_health_bullets function."""
+
+    def test_generate_company_health_bullets_excellent(self) -> None:
+        """Test company health bullets for EXCELLENT company (NVDA-style)."""
+        from app.watchlist.narrative import generate_company_health_bullets
+
+        # NVDA-style fundamentals: High growth, high margins, strong balance sheet
+        fundamentals = {
+            "revenue_growth": 1.22,  # 122% YoY
+            "profit_margin": 0.53,  # 53%
+            "debt_to_equity": 0.15,  # Low debt
+            "cash": 26_000_000_000,  # $26B cash
+            "analyst_buy_pct": 0.94,  # 47 buy / 50 total
+        }
+
+        bullets = generate_company_health_bullets(fundamentals)
+
+        # Should generate 3-5 bullets
+        assert 3 <= len(bullets) <= 5
+        # Should use checkmarks (✓ for positive)
+        assert any("✓" in bullet for bullet in bullets)
+        # Should mention revenue growth
+        all_text = " ".join(bullets).lower()
+        assert "revenue" in all_text or "growing" in all_text
+        # Should mention profit margins
+        assert "profit" in all_text or "margin" in all_text
+        # Should mention balance sheet or cash
+        assert any(term in all_text for term in ["cash", "balance", "debt"])
+        # Should be plain language (no jargon)
+        for bullet in bullets:
+            assert "P/E" not in bullet
+            assert "EBITDA" not in bullet
+
+    def test_generate_company_health_bullets_weak(self) -> None:
+        """Test company health bullets for WEAK company (negative indicators)."""
+        from app.watchlist.narrative import generate_company_health_bullets
+
+        # Weak fundamentals: Shrinking revenue, negative margins, high debt
+        fundamentals = {
+            "revenue_growth": -0.15,  # -15% decline
+            "profit_margin": -0.05,  # -5% (unprofitable)
+            "debt_to_equity": 2.5,  # Very high debt
+            "cash": 500_000_000,  # Low cash
+            "analyst_buy_pct": 0.20,  # Only 20% buy ratings
+        }
+
+        bullets = generate_company_health_bullets(fundamentals)
+
+        # Should generate bullets
+        assert len(bullets) > 0
+        # Should use warning symbols (✗ or ⚠ for negative)
+        assert any(symbol in bullet for symbol in ["✗", "⚠"] for bullet in bullets)
+        # Should mention negative aspects
+        all_text = " ".join(bullets).lower()
+        assert any(
+            term in all_text for term in ["shrinking", "declining", "negative", "unprofitable"]
+        )
+
+    def test_generate_company_health_bullets_good(self) -> None:
+        """Test company health bullets for GOOD company (moderate metrics)."""
+        from app.watchlist.narrative import generate_company_health_bullets
+
+        # Good fundamentals: Moderate growth, decent margins, reasonable debt
+        fundamentals = {
+            "revenue_growth": 0.08,  # 8% growth
+            "profit_margin": 0.12,  # 12% margin
+            "debt_to_equity": 0.8,  # Moderate debt
+            "cash": 5_000_000_000,  # $5B cash
+            "analyst_buy_pct": 0.60,  # 60% buy ratings
+        }
+
+        bullets = generate_company_health_bullets(fundamentals)
+
+        assert len(bullets) >= 3
+        # Should have mix of positive indicators
+        assert any("✓" in bullet for bullet in bullets)
+
+    def test_generate_company_health_bullets_handles_missing_data(self) -> None:
+        """Test that function handles missing fundamental data gracefully."""
+        from app.watchlist.narrative import generate_company_health_bullets
+
+        # Minimal data available
+        fundamentals = {
+            "revenue_growth": 0.10,
+        }
+
+        bullets = generate_company_health_bullets(fundamentals)
+
+        # Should still generate at least one bullet
+        assert len(bullets) >= 1
+        # Should not crash or return empty list
+
+    def test_generate_company_health_bullets_no_jargon(self) -> None:
+        """Test that company health bullets contain no financial jargon."""
+        from app.watchlist.narrative import generate_company_health_bullets
+
+        fundamentals = {
+            "revenue_growth": 0.25,
+            "profit_margin": 0.18,
+            "debt_to_equity": 0.4,
+            "cash": 10_000_000_000,
+            "analyst_buy_pct": 0.75,
+        }
+
+        bullets = generate_company_health_bullets(fundamentals)
+
+        # Verify no jargon
+        jargon_terms = ["P/E", "EBITDA", "EPS", "ROE", "ROI", "ROIC", "FCF"]
+        all_text = " ".join(bullets)
+        for jargon in jargon_terms:
+            assert jargon not in all_text, f"Found jargon term: {jargon}"
+
+
+class TestGenerateActionPlan:
+    """Tests for generate_action_plan function."""
+
+    def test_generate_action_plan_buy_signal(self) -> None:
+        """Test action plan generation for BUY signal."""
+        from app.watchlist.narrative import generate_action_plan
+
+        # BUY signal with entry/stop/target calculated
+        action_plan = generate_action_plan(
+            signal_type="BUY",
+            entry_price=202.0,
+            stop_loss=195.0,
+            profit_target=216.0,
+        )
+
+        # Should contain all three components
+        all_text = action_plan.lower()
+        assert "buy" in all_text or "entry" in all_text
+        assert "stop" in all_text or "exit" in all_text
+        assert "profit" in all_text or "target" in all_text
+        # Should include prices
+        assert "202" in action_plan
+        assert "195" in action_plan
+        assert "216" in action_plan
+        # Should include percentage gain
+        assert "%" in action_plan
+
+    def test_generate_action_plan_hold_signal(self) -> None:
+        """Test action plan generation for HOLD signal."""
+        from app.watchlist.narrative import generate_action_plan
+
+        # HOLD signal should have conditional entry
+        action_plan = generate_action_plan(
+            signal_type="HOLD",
+            entry_price=150.0,
+            stop_loss=145.0,
+            profit_target=160.0,
+        )
+
+        all_text = action_plan.lower()
+        # Should mention conditional entry or wait
+        assert any(word in all_text for word in ["wait", "watch", "consider", "if"])
+
+    def test_generate_action_plan_avoid_signal(self) -> None:
+        """Test action plan generation for AVOID signal."""
+        from app.watchlist.narrative import generate_action_plan
+
+        # AVOID signal with None values
+        action_plan = generate_action_plan(
+            signal_type="AVOID",
+            entry_price=None,
+            stop_loss=None,
+            profit_target=None,
+        )
+
+        all_text = action_plan.lower()
+        # Should recommend avoiding
+        assert any(word in all_text for word in ["avoid", "stay away", "pass", "skip"])
+
+    def test_generate_action_plan_calculates_gain_percentage(self) -> None:
+        """Test that action plan includes calculated gain percentage."""
+        from app.watchlist.narrative import generate_action_plan
+
+        # Entry $100, Target $110 → 10% gain
+        action_plan = generate_action_plan(
+            signal_type="BUY",
+            entry_price=100.0,
+            stop_loss=95.0,
+            profit_target=110.0,
+        )
+
+        # Should show gain percentage
+        assert "10" in action_plan and "%" in action_plan
+
+    def test_generate_action_plan_no_jargon(self) -> None:
+        """Test that action plan contains no trading jargon."""
+        from app.watchlist.narrative import generate_action_plan
+
+        action_plan = generate_action_plan(
+            signal_type="BUY",
+            entry_price=202.0,
+            stop_loss=195.0,
+            profit_target=216.0,
+        )
+
+        # Verify no jargon
+        jargon_terms = ["ATR", "R:R", "risk/reward", "fibonacci", "pivot"]
+        for jargon in jargon_terms:
+            assert jargon.lower() not in action_plan.lower(), f"Found jargon term: {jargon}"
+
+
+class TestGeneratePositionSizingText:
+    """Tests for generate_position_sizing_text function."""
+
+    def test_generate_position_sizing_text_valid_trade(self) -> None:
+        """Test position sizing text for valid trade setup."""
+        from app.watchlist.narrative import generate_position_sizing_text
+
+        # Valid trade: Entry $202, Stop $195, Target $216, Risk $500 → 71 shares
+        text = generate_position_sizing_text(
+            shares=71,
+            entry_price=202.0,
+            stop_loss=195.0,
+            profit_target=216.0,
+        )
+
+        all_text = text.lower()
+        # Should include shares
+        assert "71" in text
+        # Should include investment amount
+        assert "14" in text  # $14,342 investment
+        # Should include potential gain
+        assert "gain" in all_text or "profit" in all_text
+        # Should include max loss
+        assert "loss" in all_text or "risk" in all_text
+
+    def test_generate_position_sizing_text_calculates_investment(self) -> None:
+        """Test that position sizing calculates total investment."""
+        from app.watchlist.narrative import generate_position_sizing_text
+
+        # 100 shares @ $50 = $5,000 investment
+        text = generate_position_sizing_text(
+            shares=100,
+            entry_price=50.0,
+            stop_loss=48.0,
+            profit_target=55.0,
+        )
+
+        # Should show $5,000 investment
+        assert "5,000" in text or "5000" in text
+
+    def test_generate_position_sizing_text_calculates_potential_gain(self) -> None:
+        """Test that position sizing shows potential gain."""
+        from app.watchlist.narrative import generate_position_sizing_text
+
+        # 100 shares, Entry $50, Target $55 → Gain $500 (+10%)
+        text = generate_position_sizing_text(
+            shares=100,
+            entry_price=50.0,
+            stop_loss=48.0,
+            profit_target=55.0,
+        )
+
+        # Should show $500 gain and +10%
+        assert "500" in text
+        assert "10" in text and "%" in text
+
+    def test_generate_position_sizing_text_calculates_max_loss(self) -> None:
+        """Test that position sizing shows maximum loss."""
+        from app.watchlist.narrative import generate_position_sizing_text
+
+        # 100 shares, Entry $50, Stop $48 → Loss $200 (-4%)
+        text = generate_position_sizing_text(
+            shares=100,
+            entry_price=50.0,
+            stop_loss=48.0,
+            profit_target=55.0,
+        )
+
+        # Should show $200 loss and -4%
+        assert "200" in text
+        assert "4" in text and "%" in text
+
+    def test_generate_position_sizing_text_handles_zero_shares(self) -> None:
+        """Test position sizing when shares = 0 (stock too expensive)."""
+        from app.watchlist.narrative import generate_position_sizing_text
+
+        # 0 shares means stock is too expensive for risk budget
+        text = generate_position_sizing_text(
+            shares=0,
+            entry_price=1000.0,
+            stop_loss=998.0,
+            profit_target=1010.0,
+        )
+
+        all_text = text.lower()
+        # Should explain why 0 shares
+        assert any(word in all_text for word in ["expensive", "budget", "risk"])
+
+    def test_generate_position_sizing_text_no_jargon(self) -> None:
+        """Test that position sizing text contains no trading jargon."""
+        from app.watchlist.narrative import generate_position_sizing_text
+
+        text = generate_position_sizing_text(
+            shares=71,
+            entry_price=202.0,
+            stop_loss=195.0,
+            profit_target=216.0,
+        )
+
+        # Verify no jargon
+        jargon_terms = ["R:R", "risk/reward", "position size", "lot", "unit"]
+        for jargon in jargon_terms:
+            assert jargon.lower() not in text.lower(), f"Found jargon term: {jargon}"
+
+
+class TestGenerateSpecialNotes:
+    """Tests for generate_special_notes function."""
+
+    def test_generate_special_notes_earnings_imminent(self) -> None:
+        """Test special notes for earnings within 5 days (red warning)."""
+        from app.watchlist.narrative import generate_special_notes
+
+        notes = generate_special_notes(
+            signal_type="BUY",
+            signal_strength=8,
+            earnings_days_away=2,
+            company_health="EXCELLENT",
+        )
+
+        # Should include earnings warning
+        all_text = notes.lower()
+        assert "earnings" in all_text
+        assert "2" in notes  # Days away
+        # Should have red alert emoji or warning
+        assert "🔴" in notes or "⚠" in notes
+
+    def test_generate_special_notes_earnings_soon(self) -> None:
+        """Test special notes for earnings within 6-14 days (caution)."""
+        from app.watchlist.narrative import generate_special_notes
+
+        notes = generate_special_notes(
+            signal_type="BUY",
+            signal_strength=7,
+            earnings_days_away=10,
+            company_health="GOOD",
+        )
+
+        # Should include earnings caution
+        all_text = notes.lower()
+        assert "earnings" in all_text
+        assert "10" in notes
+
+    def test_generate_special_notes_no_earnings_soon(self) -> None:
+        """Test special notes when earnings >30 days away (no warning)."""
+        from app.watchlist.narrative import generate_special_notes
+
+        notes = generate_special_notes(
+            signal_type="BUY",
+            signal_strength=9,
+            earnings_days_away=45,
+            company_health="EXCELLENT",
+        )
+
+        # Should NOT include earnings warning
+        all_text = notes.lower()
+        # No urgent earnings warning
+        assert "🔴" not in notes
+
+    def test_generate_special_notes_why_this_works_buy_signal(self) -> None:
+        """Test that WHY THIS WORKS section explains BUY logic."""
+        from app.watchlist.narrative import generate_special_notes
+
+        notes = generate_special_notes(
+            signal_type="BUY",
+            signal_strength=9,
+            earnings_days_away=None,
+            company_health="EXCELLENT",
+        )
+
+        all_text = notes.lower()
+        # Should have WHY section
+        assert "why" in all_text
+        # Should mention technical + fundamentals
+        assert any(word in all_text for word in ["technical", "setup", "fundamentals", "quality"])
+
+    def test_generate_special_notes_why_this_works_hold_signal(self) -> None:
+        """Test that WHY THIS WORKS section explains HOLD logic."""
+        from app.watchlist.narrative import generate_special_notes
+
+        notes = generate_special_notes(
+            signal_type="HOLD",
+            signal_strength=5,
+            earnings_days_away=None,
+            company_health="GOOD",
+        )
+
+        all_text = notes.lower()
+        # Should explain why HOLD (mixed signals, waiting)
+        assert any(word in all_text for word in ["mixed", "wait", "watch", "improve"])
+
+    def test_generate_special_notes_avoid_signal(self) -> None:
+        """Test special notes for AVOID signal."""
+        from app.watchlist.narrative import generate_special_notes
+
+        notes = generate_special_notes(
+            signal_type="AVOID",
+            signal_strength=2,
+            earnings_days_away=3,
+            company_health="WEAK",
+        )
+
+        all_text = notes.lower()
+        # Should explain why AVOID
+        assert any(word in all_text for word in ["risk", "avoid", "concern", "weak"])

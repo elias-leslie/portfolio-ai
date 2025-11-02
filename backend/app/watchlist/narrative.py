@@ -146,6 +146,278 @@ def generate_technical_bullets(inputs: dict[str, Any]) -> list[str]:
 INDEX_ETFS = {"SPY", "VOO", "VTI", "QQQ", "IWM", "DIA", "AGG", "BND"}
 
 
+def generate_company_health_bullets(fundamentals: dict[str, Any]) -> list[str]:
+    """Generate plain-language company health bullets (zero jargon).
+
+    Args:
+        fundamentals: Dictionary containing fundamental data:
+            - revenue_growth: Revenue growth rate (0.10 = 10%)
+            - profit_margin: Profit margin (0.15 = 15%)
+            - debt_to_equity: Debt-to-equity ratio
+            - cash: Cash on hand (in dollars)
+            - analyst_buy_pct: Percentage of analysts with buy rating (0.75 = 75%)
+
+    Returns:
+        List of 3-5 plain-language bullet points with ✓/✗/⚠ symbols
+
+    Example:
+        >>> fundamentals = {
+        ...     "revenue_growth": 1.22,
+        ...     "profit_margin": 0.53,
+        ...     "debt_to_equity": 0.15,
+        ...     "cash": 26_000_000_000,
+        ...     "analyst_buy_pct": 0.94,
+        ... }
+        >>> bullets = generate_company_health_bullets(fundamentals)
+        >>> # Returns: ["✓ Growing fast - Revenue up 122% this year", ...]
+    """
+    bullets: list[str] = []
+
+    # Extract fundamentals (all optional)
+    revenue_growth = fundamentals.get("revenue_growth")
+    profit_margin = fundamentals.get("profit_margin")
+    debt_to_equity = fundamentals.get("debt_to_equity")
+    cash = fundamentals.get("cash")
+    analyst_buy_pct = fundamentals.get("analyst_buy_pct")
+
+    # Revenue growth bullet
+    if revenue_growth is not None:
+        revenue_pct = revenue_growth * 100
+        if revenue_growth >= 0.20:  # 20%+ growth
+            bullets.append(f"✓ Growing fast - Revenue up {revenue_pct:.0f}% this year")
+        elif revenue_growth >= 0.05:  # 5-20% growth
+            bullets.append(f"✓ Steady growth - Revenue up {revenue_pct:.0f}% this year")
+        elif revenue_growth >= 0:  # 0-5% growth
+            bullets.append(f"⚠ Slow growth - Revenue up {revenue_pct:.0f}% this year")
+        else:  # Negative growth
+            bullets.append(f"✗ Shrinking - Revenue down {abs(revenue_pct):.0f}% this year")
+
+    # Profit margin bullet
+    if profit_margin is not None:
+        margin_pct = profit_margin * 100
+        if profit_margin >= 0.20:  # 20%+ margin
+            bullets.append(f"✓ Very profitable - Profit margins {margin_pct:.0f}%")
+        elif profit_margin >= 0.05:  # 5-20% margin
+            bullets.append(f"✓ Profitable - Profit margins {margin_pct:.0f}%")
+        elif profit_margin >= 0:  # 0-5% margin
+            bullets.append(f"⚠ Low margins - Only {margin_pct:.0f}% profit")
+        else:  # Negative margin
+            bullets.append(f"✗ Unprofitable - Losing {abs(margin_pct):.0f}% on sales")
+
+    # Balance sheet bullet (debt + cash)
+    if debt_to_equity is not None or cash is not None:
+        if debt_to_equity is not None and debt_to_equity < 0.5:
+            # Low debt
+            if cash is not None and cash >= 1_000_000_000:  # $1B+ cash
+                cash_b = cash / 1_000_000_000
+                bullets.append(f"✓ Strong balance sheet - ${cash_b:.0f}B cash, low debt")
+            else:
+                bullets.append("✓ Strong balance sheet - Low debt")
+        elif debt_to_equity is not None and debt_to_equity < 1.5:
+            # Moderate debt
+            bullets.append("⚠ Moderate debt levels")
+        elif debt_to_equity is not None and debt_to_equity >= 1.5:
+            # High debt
+            bullets.append(f"✗ High debt - Debt-to-equity {debt_to_equity:.1f}x")
+        elif cash is not None and cash >= 5_000_000_000:
+            # Only cash data available - $5B+ cash
+            cash_b = cash / 1_000_000_000
+            bullets.append(f"✓ Strong cash position - ${cash_b:.0f}B on hand")
+
+    # Analyst ratings bullet
+    if analyst_buy_pct is not None:
+        buy_pct = analyst_buy_pct * 100
+        if analyst_buy_pct >= 0.70:  # 70%+ buy
+            bullets.append(f"✓ Analysts love it - {buy_pct:.0f}% buy ratings")
+        elif analyst_buy_pct >= 0.50:  # 50-70% buy
+            bullets.append(f"⚠ Mixed analyst views - {buy_pct:.0f}% buy ratings")
+        else:  # <50% buy
+            bullets.append(f"✗ Analysts cautious - Only {buy_pct:.0f}% buy ratings")
+
+    # Ensure we have at least 1 bullet
+    if len(bullets) == 0:
+        bullets.append("⚠ Limited fundamental data available")
+
+    return bullets[:5]  # Cap at 5 bullets
+
+
+def generate_action_plan(
+    signal_type: str,
+    entry_price: float | None,
+    stop_loss: float | None,
+    profit_target: float | None,
+) -> str:
+    """Generate plain-language action plan for the trade.
+
+    Args:
+        signal_type: Signal type (BUY, HOLD, or AVOID)
+        entry_price: Entry price for the trade
+        stop_loss: Stop loss price
+        profit_target: Profit target price
+
+    Returns:
+        Plain-language action plan text with entry, stop, target
+
+    Example:
+        >>> plan = generate_action_plan("BUY", 202.0, 195.0, 216.0)
+        >>> # Returns multi-line text with entry/stop/target details
+    """
+    if signal_type == "AVOID":
+        return (
+            "⚠ RECOMMENDATION: Avoid this trade\n"
+            "• Too many risk factors present\n"
+            "• Better opportunities elsewhere\n"
+            "• Stay on the sidelines for now"
+        )
+
+    if entry_price is None or stop_loss is None or profit_target is None:
+        return "⚠ Unable to calculate trade plan - missing price data"
+
+    # Calculate gain percentage
+    gain_pct = ((profit_target - entry_price) / entry_price) * 100
+    loss_pct = ((entry_price - stop_loss) / entry_price) * 100
+
+    if signal_type == "BUY":
+        return (
+            f"💰 ACTION PLAN:\n"
+            f"• BUY around ${entry_price:.2f} - quality setup\n"
+            f"• EXIT if drops below ${stop_loss:.2f} (protect capital -{loss_pct:.1f}%)\n"
+            f"• TAKE PROFIT at ${profit_target:.2f} (+{gain_pct:.1f}% gain)"
+        )
+
+    # HOLD signal
+    return (
+        f"👀 WATCH AND WAIT:\n"
+        f"• Consider entry around ${entry_price:.2f} if setup improves\n"
+        f"• Would exit below ${stop_loss:.2f} (risk -{loss_pct:.1f}%)\n"
+        f"• Potential target ${profit_target:.2f} (+{gain_pct:.1f}% gain)\n"
+        f"• Wait for stronger confirmation before buying"
+    )
+
+
+def generate_position_sizing_text(
+    shares: int,
+    entry_price: float,
+    stop_loss: float,
+    profit_target: float,
+) -> str:
+    """Generate plain-language position sizing narrative.
+
+    Args:
+        shares: Number of shares to buy
+        entry_price: Entry price per share
+        stop_loss: Stop loss price per share
+        profit_target: Profit target price per share
+
+    Returns:
+        Plain-language text explaining investment, gain, and loss
+
+    Example:
+        >>> text = generate_position_sizing_text(71, 202.0, 195.0, 216.0)
+        >>> # Returns text with investment amount, potential gain, max loss
+    """
+    if shares == 0:
+        return (
+            "⚠ HOW MUCH TO BUY: Too expensive for typical risk budget\n"
+            "• Stock price requires larger capital allocation\n"
+            "• Consider increasing risk budget or skip this trade\n"
+            "• Wait for better entry point or lower-priced opportunities"
+        )
+
+    # Calculate values
+    investment = shares * entry_price
+    potential_gain = shares * (profit_target - entry_price)
+    gain_pct = ((profit_target - entry_price) / entry_price) * 100
+    max_loss = shares * (entry_price - stop_loss)
+    loss_pct = ((entry_price - stop_loss) / entry_price) * 100
+
+    return (
+        f"📊 HOW MUCH TO BUY:\n"
+        f"• Buy {shares:,} shares = ${investment:,.0f} invested\n"
+        f"• Potential gain: +${potential_gain:,.0f} (+{gain_pct:.1f}%)\n"
+        f"• Maximum loss: -${max_loss:,.0f} (-{loss_pct:.1f}%)"
+    )
+
+
+def generate_special_notes(
+    signal_type: str,
+    signal_strength: int,
+    earnings_days_away: int | None,
+    company_health: str,
+) -> str:
+    """Generate special notes and warnings (earnings, WHY THIS WORKS).
+
+    Args:
+        signal_type: Signal type (BUY, HOLD, or AVOID)
+        signal_strength: Signal strength (0-10)
+        earnings_days_away: Days until next earnings (None if unknown)
+        company_health: Company health rating (EXCELLENT, GOOD, WEAK)
+
+    Returns:
+        Plain-language special notes text
+
+    Example:
+        >>> notes = generate_special_notes("BUY", 9, 3, "EXCELLENT")
+        >>> # Returns text with earnings warning + WHY THIS WORKS
+    """
+    sections: list[str] = []
+
+    # Earnings warnings (only if earnings soon)
+    if earnings_days_away is not None:
+        if earnings_days_away <= 5:
+            # Imminent earnings (0-5 days) - red alert
+            sections.append(
+                f"🔴 EARNINGS IN {earnings_days_away} DAYS - High volatility expected\n"
+                f"• Stock could move sharply on results\n"
+                f"• Consider waiting until after earnings\n"
+                f"• If entering, size smaller than usual"
+            )
+        elif earnings_days_away <= 14:
+            # Earnings soon (6-14 days) - caution
+            sections.append(
+                f"⚠ Next Earnings: {earnings_days_away} days away\n"
+                f"• Could see increased volatility ahead of report\n"
+                f"• Watch for position sizing"
+            )
+        elif earnings_days_away <= 30:
+            # Earnings approaching (15-30 days) - heads up
+            sections.append(f"💡 Next Earnings: {earnings_days_away} days away")
+
+    # WHY THIS WORKS explanation
+    if signal_type == "BUY":
+        why_text = "💡 WHY THIS WORKS:\n"
+        if signal_strength >= 8:
+            why_text += "• Strong technical setup + solid fundamentals align\n"
+            if company_health == "EXCELLENT":
+                why_text += "• Top-tier company with excellent growth metrics\n"
+            why_text += "• Multiple confirming indicators pointing to upside\n"
+            why_text += "• Good risk/reward at current levels"
+        else:
+            why_text += "• Decent technical setup with quality company\n"
+            why_text += "• Fundamentals support the technical picture\n"
+            why_text += "• Reasonable entry point for long-term holders"
+        sections.append(why_text.rstrip())
+
+    elif signal_type == "HOLD":
+        sections.append(
+            "💡 WHY HOLD:\n"
+            "• Mixed technical signals - not ideal entry yet\n"
+            "• Quality company but waiting for better setup\n"
+            "• Watch for improvement before committing capital"
+        )
+
+    elif signal_type == "AVOID":
+        sections.append(
+            "💡 WHY AVOID:\n"
+            "• Too many risk factors outweigh potential reward\n"
+            "• Better opportunities available elsewhere\n"
+            "• Protect capital and wait for clearer setup"
+        )
+
+    # Join sections with double newline
+    return "\n\n".join(sections) if sections else ""
+
+
 def classify_trading_style(
     symbol: str,
     signal_strength: int,

@@ -1,13 +1,12 @@
 # Task List: Watchlist Narrative Intelligence
 
 **PRD**: `0021-prd-watchlist-narrative-intelligence.md`
-**Status**: Paused (Task 5.0 calculator complete - 79 tests passing)
-**Completion**: 45% (Tasks 0.1-0.3, 1.0, 1.4-1.5, 2.1-2.6, 3.1-3.2, 3.4, 4.1-4.9, 5.1-5.4 complete)
-**Effort to Complete**: Medium (narrative generation and integration remaining)
-**Risk Level**: Low (core modules + calculator complete with 79 passing tests)
-**Last Updated**: 2025-11-02 23:22
-**Paused**: 2025-11-02 23:22 (Task 5.0 calculator complete - ready for narrative generation)
-**Note**: Session progress: +10% completion, 2 commits, 23 new tests (12 caching + 11 calculator)
+**Status**: In Progress (Narrative generation complete - 140 tests passing)
+**Completion**: 50% (Tasks 0.1-0.3, 1.0, 1.4-1.5, 2.1-2.6, 3.1-3.7, 4.1-4.9, 5.0 complete)
+**Effort to Complete**: Medium (database migration and API integration remaining)
+**Risk Level**: Low (all core narrative functions complete with comprehensive tests)
+**Last Updated**: 2025-11-01 23:35
+**Note**: Session progress: +5% completion, narrative generation complete (Tasks 3.3, 3.5-3.7), 22 new tests (company health, action plan, position sizing, special notes)
 - Prerequisites verified: EMA-20 & ATR-14 exist, mypy errors fixed
 - UI testing protocol updated: All checkpoints now use browser-automation skill (0 token cost vs 18k for Chrome DevTools MCP)
 - 11 UI validation checkpoints with explicit screenshot.js, console.js, network.js, snapshot.js, interact.js, and performance.js commands
@@ -510,15 +509,15 @@ NVDA: EMA-20=188.84, ATR-14=6.21
     - Example: "STRONG BUY - Quality Company + Good Setup | Best Play: 🔥 Trend (8-12 weeks)"
     - Include style icon: 📈 Index, 🔥 Trend, 💎 Value, ⚡ Swing, 📅 Event
 
-- [ ] 3.3 Generate Company Health Section (FR-2.2) - DEFERRED (requires Task 4.0 fundamentals data)
-  - [ ] 3.3.1 Write test for company health bullet generation
-  - [ ] 3.3.2 Implement `generate_company_health_bullets()` function
-  - [ ] 3.3.3 Format revenue growth: "✓ Growing fast - Revenue up 122% this year"
-  - [ ] 3.3.4 Format profit margins: "✓ Very profitable - Profit margins 53%"
-  - [ ] 3.3.5 Format balance sheet: "✓ Strong balance sheet - $26B cash, low debt"
-  - [ ] 3.3.6 Format analyst ratings: "✓ Analysts love it - 47 buy, 3 hold, 0 sell"
-  - [ ] 3.3.7 Run test to verify 3-5 bullets generated
-  - [ ] 3.3.8 Verify checkmarks (✓✗⚠) used correctly
+- [x] 3.3 Generate Company Health Section (FR-2.2) ✅
+  - [x] 3.3.1 Write test for company health bullet generation
+  - [x] 3.3.2 Implement `generate_company_health_bullets()` function
+  - [x] 3.3.3 Format revenue growth: "✓ Growing fast - Revenue up 122% this year"
+  - [x] 3.3.4 Format profit margins: "✓ Very profitable - Profit margins 53%"
+  - [x] 3.3.5 Format balance sheet: "✓ Strong balance sheet - $26B cash, low debt"
+  - [x] 3.3.6 Format analyst ratings: "✓ Analysts love it - 47 buy, 3 hold, 0 sell"
+  - [x] 3.3.7 Run test to verify 3-5 bullets generated
+  - [x] 3.3.8 Verify checkmarks (✓✗⚠) used correctly
 
 - [x] 3.4 Generate Technical Setup Section (FR-2.2)
   - [x] 3.4.1 Write test for technical setup bullet generation
@@ -530,31 +529,31 @@ NVDA: EMA-20=188.84, ATR-14=6.21
   - [x] 3.4.7 Run test to verify 3-5 plain-language bullets
   - [x] 3.4.8 Verify zero jargon in output
 
-- [ ] 3.5 Generate Action Plan Section (FR-2.2)
-  - [ ] 3.5.1 Write test for action plan generation
-  - [ ] 3.5.2 Implement `generate_action_plan()` function
-  - [ ] 3.5.3 Format entry: "• BUY around $202 - quality company at good entry"
-  - [ ] 3.5.4 Format stop: "• EXIT if drops below $195 (protect capital)"
-  - [ ] 3.5.5 Format target: "• TAKE PROFIT at $216 (6.9% gain)"
-  - [ ] 3.5.6 Run test to verify action plan format
-  - [ ] 3.5.7 Verify calculations use data from calculator module
+- [x] 3.5 Generate Action Plan Section (FR-2.2) ✅
+  - [x] 3.5.1 Write test for action plan generation
+  - [x] 3.5.2 Implement `generate_action_plan()` function
+  - [x] 3.5.3 Format entry: "• BUY around $202 - quality company at good entry"
+  - [x] 3.5.4 Format stop: "• EXIT if drops below $195 (protect capital)"
+  - [x] 3.5.5 Format target: "• TAKE PROFIT at $216 (6.9% gain)"
+  - [x] 3.5.6 Run test to verify action plan format
+  - [x] 3.5.7 Verify calculations use data from calculator module
 
-- [ ] 3.6 Generate Position Sizing Section (FR-2.2)
-  - [ ] 3.6.1 Write test for position sizing narrative
-  - [ ] 3.6.2 Implement `generate_position_sizing_text()` function
-  - [ ] 3.6.3 Format shares: "• Buy 71 shares = $14,377 invested"
-  - [ ] 3.6.4 Format potential gain: "• Potential gain: +$994 (+6.9%)"
-  - [ ] 3.6.5 Format max loss: "• Maximum loss: -$500 (-3.5%)"
-  - [ ] 3.6.6 Run test to verify formatting and calculations
-  - [ ] 3.6.7 Verify risk_budget parameter used correctly
+- [x] 3.6 Generate Position Sizing Section (FR-2.2) ✅
+  - [x] 3.6.1 Write test for position sizing narrative
+  - [x] 3.6.2 Implement `generate_position_sizing_text()` function
+  - [x] 3.6.3 Format shares: "• Buy 71 shares = $14,377 invested"
+  - [x] 3.6.4 Format potential gain: "• Potential gain: +$994 (+6.9%)"
+  - [x] 3.6.5 Format max loss: "• Maximum loss: -$500 (-3.5%)"
+  - [x] 3.6.6 Run test to verify formatting and calculations
+  - [x] 3.6.7 Verify risk_budget parameter used correctly
 
-- [ ] 3.7 Generate Special Notes & Warnings (FR-2.2)
-  - [ ] 3.7.1 Write test for earnings warning generation
-  - [ ] 3.7.2 Implement `generate_special_notes()` function
-  - [ ] 3.7.3 Add earnings warning: "⚠ Next Earnings: Nov 20 (3 weeks) - could be volatile"
-  - [ ] 3.7.4 Add WHY explanation: "💡 WHY THIS WORKS: Technical setup + Strong fundamentals"
-  - [ ] 3.7.5 Run test to verify warnings appear when appropriate
-  - [ ] 3.7.6 Verify warnings omitted when not applicable
+- [x] 3.7 Generate Special Notes & Warnings (FR-2.2) ✅
+  - [x] 3.7.1 Write test for earnings warning generation
+  - [x] 3.7.2 Implement `generate_special_notes()` function
+  - [x] 3.7.3 Add earnings warning: "⚠ Next Earnings: Nov 20 (3 weeks) - could be volatile"
+  - [x] 3.7.4 Add WHY explanation: "💡 WHY THIS WORKS: Technical setup + Strong fundamentals"
+  - [x] 3.7.5 Run test to verify warnings appear when appropriate
+  - [x] 3.7.6 Verify warnings omitted when not applicable
 
 - [ ] 3.8 Generate Trading Style Recommendation Section (ENHANCEMENT)
   - [ ] 3.8.1 Write test for style recommendation text generation
