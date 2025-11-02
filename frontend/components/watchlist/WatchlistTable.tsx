@@ -442,6 +442,7 @@ export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
                         itemId={item.id}
                         width={80}
                         height={24}
+                        recommendedStyle={item.recommended_style}
                       />
                     ) : (
                       <span className="text-text-muted">—</span>

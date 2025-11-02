@@ -8,19 +8,44 @@ interface SparklineWithHistoryProps {
   width?: number;
   height?: number;
   className?: string;
+  /**
+   * Trading style determines optimal timeframe for analysis
+   * Note: Backend API doesn't support dynamic days yet, but component is ready for when it does
+   * Index: 250 days (1 year), Trend: 60 days (3 months), Value: 60 days, Swing: 10 days, Event: 5 days
+   */
+  recommendedStyle?: "Index" | "Trend" | "Value" | "Swing" | "Event" | null;
 }
 
 /**
  * Sparkline component that fetches and displays real historical score data
  * Uses the useScoreHistory hook to fetch 7-day history from the API
+ *
+ * Future enhancement: When backend supports ?days=N parameter, this will fetch:
+ * - Index style: 250 days (1 year trend)
+ * - Trend style: 60 days (3 month trend)
+ * - Value style: 60 days (3 month trend)
+ * - Swing style: 10 days (2 week swing)
+ * - Event style: 5 days (1 week catalyst)
  */
 export function SparklineWithHistory({
   itemId,
   width = 80,
   height = 24,
   className,
+  recommendedStyle,
 }: SparklineWithHistoryProps) {
+  // Map style to desired days (for future use when backend supports it)
+  const styleToDays: Record<string, number> = {
+    Index: 250,
+    Trend: 60,
+    Value: 60,
+    Swing: 10,
+    Event: 5,
+  };
+  const desiredDays = recommendedStyle ? styleToDays[recommendedStyle] || 7 : 7;
+
   const { data: historyResponse, isLoading, error } = useScoreHistory(itemId);
+  // TODO: When backend supports days parameter, use: useScoreHistory(itemId, desiredDays)
 
   // Loading state
   if (isLoading) {

@@ -306,6 +306,47 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
                 </div>
               </div>
             )}
+
+            {/* Special Notes & Warnings */}
+            <div className="border-t border-border pt-3 space-y-2">
+              {/* Earnings Warning (if available) */}
+              {/* Note: Backend doesn't populate earnings_date yet, but UI is ready for when it does */}
+
+              {/* Why This Works - Signal-based explanation */}
+              {item.signal_type && (
+                <div className="text-xs">
+                  <p className="font-semibold text-text mb-1 flex items-center gap-1">
+                    <span>💡</span>
+                    <span>WHY THIS WORKS:</span>
+                  </p>
+                  <p className="text-text-muted leading-relaxed">
+                    {item.signal_type === "BUY" && (
+                      <>
+                        Technical setup shows {item.signal_strength !== null && item.signal_strength !== undefined && item.signal_strength >= 7 ? "strong" : "positive"} momentum with {item.recommended_style === "Trend" ? "trend-following characteristics" : item.recommended_style === "Value" ? "value opportunity" : item.recommended_style === "Swing" ? "reversal potential" : item.recommended_style === "Event" ? "catalyst-driven setup" : "favorable conditions"}.
+                        {item.signal_strength !== null && item.signal_strength !== undefined && item.signal_strength >= 8 && " Multiple confirming indicators align for high-probability setup."}
+                      </>
+                    )}
+                    {item.signal_type === "HOLD" && (
+                      <>
+                        Mixed signals suggest waiting for clearer setup. {item.recommended_style === "Value" && "Quality company but timing not optimal yet. "}
+                        Monitor for improvement in technical indicators before committing capital.
+                      </>
+                    )}
+                    {item.signal_type === "AVOID" && (
+                      <>
+                        Technical indicators show {item.signal_strength !== null && item.signal_strength !== undefined && item.signal_strength <= 3 ? "significant" : ""} weakness.
+                        Risk outweighs potential reward at current levels. Wait for stabilization and trend reversal confirmation.
+                      </>
+                    )}
+                  </p>
+                </div>
+              )}
+
+              {/* Risk Disclaimer */}
+              <div className="text-xs text-text-muted italic bg-surface-muted/20 rounded p-2">
+                ⚠️ This is automated analysis. Always do your own research and consider your risk tolerance before trading.
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}
