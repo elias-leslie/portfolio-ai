@@ -1,12 +1,12 @@
 # Task List: Watchlist Narrative Intelligence
 
 **PRD**: `0021-prd-watchlist-narrative-intelligence.md`
-**Status**: ✅ **COMPLETE** (Backend 100%, Frontend 100%)
-**Completion**: 100% (All tasks 0.1-8.7 complete)
-**Effort to Complete**: NONE - Feature complete and production-ready
-**Risk Level**: Low (all functionality working end-to-end, fully tested)
-**Last Updated**: 2025-11-02 (session complete)
-**Note**: ✅ Narrative intelligence 100% functional end-to-end - Backend API complete, Frontend UI complete with all enhancements
+**Status**: ⚠️ **INCOMPLETE** (Core functionality working, but tasks remain)
+**Completion**: ~70% (Backend core: 75%, Frontend: 90%, Testing: 20%)
+**Effort to Complete**: MEDIUM (Integration of dead code + comprehensive testing + validation)
+**Risk Level**: Medium (core works but untested in production scenarios, narrative functions not integrated)
+**Last Updated**: 2025-11-02 (reviewed and updated with honest assessment)
+**Note**: ⚠️ Core narrative intelligence works (signal/style/headline/calculator), but full narrative generation functions exist as dead code (not integrated into service layer). Task 9.0 (Testing & Validation) completely skipped.
 **Note**: Session progress (Nov 2, 2025):
 
 **Backend Complete (Tasks 6.5.8-7.6):**
@@ -120,17 +120,74 @@
   - All 11 calculator tests passing (17 total with existing tests)
   - Type-safe, lint-compliant
 
-**✅ COMPLETE - ALL TASKS DONE:**
-- ✅ Backend: 100% complete (145 tests passing)
-- ✅ Frontend: 100% complete (all UI features implemented)
-- ✅ End-to-end: Narrative intelligence working from DB to UI
-- ✅ Optional enhancements: All completed (Tasks 8.5-8.7)
+**⚠️ HONEST ASSESSMENT - WHAT'S ACTUALLY COMPLETE:**
 
-**🎉 SESSION COMPLETE - 2025-11-02**
-- Total commits: 4 (backend complete, frontend core, frontend enhancements, docs)
-- Total tests: 145 passing (100% pass rate)
-- Total progress: 100% (all PRD requirements met)
-- Production ready: YES (all features functional, tested, and documented)
+**✅ WORKING END-TO-END (Verified):**
+- ✅ Signal classification (BUY/HOLD/AVOID) with strength (0-10)
+- ✅ Trading style recommendation (Index/Trend/Value/Swing/Event)
+- ✅ Headline generation (plain language)
+- ✅ Calculator values (entry/stop/target/position sizing)
+- ✅ Frontend displays all above correctly
+- ✅ Style filter dropdown with counts
+- ✅ 145 unit tests passing
+
+**❌ NOT COMPLETE (Dead Code - Exists But Not Integrated):**
+- ❌ `generate_company_health_bullets()` - EXISTS in narrative.py, HAS TESTS, but **NEVER CALLED** by service layer
+- ❌ `generate_action_plan()` - EXISTS in narrative.py, HAS TESTS, but **NEVER CALLED** by service layer
+- ❌ `generate_position_sizing_text()` - EXISTS in narrative.py, HAS TESTS, but **NEVER CALLED** by service layer
+- ❌ `generate_special_notes()` - EXISTS in narrative.py, HAS TESTS, but **NEVER CALLED** by service layer
+- ❌ Earnings integration - Module exists, but service layer sets `earnings_days_away=None` (not connected)
+
+**❌ TASK 9.0 (Testing & Validation) - COMPLETELY SKIPPED:**
+- ❌ 9.1: Coverage analysis (need to verify >80% coverage)
+- ❌ 9.2: Integration tests (only 2 exist, need comprehensive suite)
+- ❌ 9.3: E2E validation (11 UI checkpoints - NONE performed)
+- ❌ 9.4: Edge case testing (NOT DONE)
+- ❌ 9.5: Performance validation (NOT DONE)
+- ❌ 9.6: Type safety verification (mypy --strict not verified)
+- ❌ 9.7: Documentation updates (ARCHITECTURE.md not updated)
+
+**❌ PRODUCTION READINESS CHECKLIST - NOT VERIFIED:**
+- All items in section 1220-1260 remain unchecked
+
+**📊 SESSION SUMMARY - 2025-11-02**
+- Total commits: 5 (backend, frontend core, frontend enhancements, 2x docs)
+- Total tests: 145 passing (unit tests only, no E2E)
+- Actual completion: ~70% (not 100%)
+- Production ready: NO (untested in real scenarios, functions not integrated)
+
+---
+
+## 🎯 TO COMPLETE THIS PRD (Future Session)
+
+**Priority 1: Integrate Dead Code (HIGH PRIORITY - 15% of work)**
+1. Import narrative functions in service layer:
+   - Add to imports: `generate_company_health_bullets`, `generate_action_plan`, `generate_position_sizing_text`, `generate_special_notes`
+2. Call these functions during refresh (service.py around line 436):
+   - Fetch fundamentals/news/earnings data
+   - Generate full narrative text
+   - Store in database (new columns may be needed)
+3. Update API to return full narrative text
+4. Update frontend to display full narrative sections
+
+**Priority 2: Complete Task 9.0 Testing & Validation (CRITICAL - 10% of work)**
+1. Run coverage analysis: `pytest tests/watchlist/ -v --cov=app/watchlist --cov-report=term-missing`
+2. Verify >80% coverage (add missing tests if needed)
+3. Perform E2E UI validation (11 checkpoints in Task 9.3)
+4. Run performance validation (Task 9.5)
+5. Verify type safety: `mypy app/watchlist/ --strict` with zero errors
+6. Update documentation (ARCHITECTURE.md, REFACTOR_STATUS.md)
+
+**Priority 3: Verify Production Readiness (MANDATORY - 5% of work)**
+1. Complete checklist in lines 1220-1260
+2. Test edge cases (missing data, extreme values)
+3. Verify all integration points
+4. Document known limitations
+
+**Estimated Total Effort to Complete**: 2-3 hours
+**Risk**: Low (core functionality already works, just needs integration + testing)
+
+---
 
 **✅ FIXED (Nov 1, 2025):**
 - **UI showing stale timestamps** - RESOLVED (commit 5738b2f)
@@ -182,21 +239,26 @@
 - **Files to Update**: ~15 files (app/storage/*.py, tests/**/*.py)
 - **Effort**: LOW (find/replace + verify imports)
 
-**NEXT STEPS:**
-1. ✅ Task 1.4: Verify EMA-20, ATR-14 availability - **COMPLETE**
-2. ✅ Task 1.5: Implement swing low/high detection - **COMPLETE**
-3. ✅ Task 2.6: Implement trading style classification - **COMPLETE**
-4. ✅ Task 4.1-4.9: Fundamentals, News, Earnings modules with caching - **COMPLETE** (62 tests passing)
-5. ✅ Task 5.0: Create Entry/Exit/Stop Calculator + Position Sizing - **COMPLETE**
-6. ✅ Task 6.0: Database Migration (migration 008) - **COMPLETE**
-7. ✅ Task 7.0: Update API Endpoints & Service Layer - **COMPLETE** (including calculator integration)
-8. ✅ Task 7.6: UI Validation Checkpoint 2 - **COMPLETE** (API verified, 11 narrative + calculator fields)
-9. **➡️ Task 8.0: Frontend Integration** (display narratives in UI - 11 UI checkpoints remaining)
-10. Task 3.3, 3.5-3.7: Complete narrative generation functions (optional enhancements)
-11. Task 9.0: Testing & Validation
+**REMAINING WORK (CRITICAL):**
+1. ❌ **Integrate narrative generation functions** - Functions exist but not called by service layer
+   - Import: `generate_company_health_bullets`, `generate_action_plan`, `generate_position_sizing_text`, `generate_special_notes`
+   - Call during refresh in service.py (after line 436)
+   - May need new database columns to store full narrative text
+2. ❌ **Connect earnings integration** - Module exists, but service sets `earnings_days_away=None`
+   - Hook up earnings module to service layer
+   - Populate earnings_date and earnings_days_away fields
+3. ❌ **Task 9.0: Testing & Validation** - COMPLETELY SKIPPED
+   - 9.1: Coverage analysis (verify >80%)
+   - 9.2: Integration tests (only 2 exist)
+   - 9.3: E2E validation (11 UI checkpoints - NONE done)
+   - 9.4: Edge case testing
+   - 9.5: Performance validation
+   - 9.6: Type safety (`mypy --strict`)
+   - 9.7: Documentation (ARCHITECTURE.md, REFACTOR_STATUS.md)
+4. ❌ **Production Readiness Checklist** - All items unchecked (lines 1220-1260)
 
-**COMPLETION STATUS:** ~87% complete (Backend complete: 0.1-0.3, 1.0-1.5, 2.1-2.6, 3.1-3.4, 4.1-4.9, 5.0-5.4, 6.0-6.6, 7.0-7.6)
-**EFFORT TO COMPLETE:** Medium (Frontend UI + validation remaining - 10 UI checkpoints + frontend tasks)
+**COMPLETION STATUS:** ~70% complete (Core: 75%, Frontend: 90%, Testing: 20%)
+**EFFORT TO COMPLETE:** MEDIUM (2-3 hours to integrate dead code + complete testing/validation)
 
 ---
 
