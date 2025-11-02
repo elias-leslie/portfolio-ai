@@ -192,6 +192,20 @@ async def list_watchlist_items(account_id: str) -> WatchlistListResponse:
                     style_confidence=item.get("style_confidence"),
                     optimal_holding_period=item.get("optimal_holding_period"),
                     risk_level=item.get("risk_level"),
+                    # Trade calculation fields
+                    entry_price=item.get("entry_price"),
+                    stop_loss=item.get("stop_loss"),
+                    profit_target=item.get("profit_target"),
+                    position_size_shares=item.get("position_size_shares"),
+                    # Narrative text fields
+                    narrative_action_plan=item.get("narrative_action_plan"),
+                    narrative_position_sizing=item.get("narrative_position_sizing"),
+                    narrative_company_health=item.get("narrative_company_health"),
+                    narrative_special_notes=item.get("narrative_special_notes"),
+                    # Fundamental/earnings fields
+                    company_health=item.get("company_health"),
+                    earnings_date=item.get("earnings_date"),
+                    earnings_days_away=item.get("earnings_days_away"),
                 )
                 for item in items
             ],
@@ -413,6 +427,20 @@ async def get_watchlist_item(item_id: str) -> WatchlistItemResponse:
             style_confidence=item.get("style_confidence"),
             optimal_holding_period=item.get("optimal_holding_period"),
             risk_level=item.get("risk_level"),
+            # Trade calculation fields
+            entry_price=item.get("entry_price"),
+            stop_loss=item.get("stop_loss"),
+            profit_target=item.get("profit_target"),
+            position_size_shares=item.get("position_size_shares"),
+            # Narrative text fields
+            narrative_action_plan=item.get("narrative_action_plan"),
+            narrative_position_sizing=item.get("narrative_position_sizing"),
+            narrative_company_health=item.get("narrative_company_health"),
+            narrative_special_notes=item.get("narrative_special_notes"),
+            # Fundamental/earnings fields
+            company_health=item.get("company_health"),
+            earnings_date=item.get("earnings_date"),
+            earnings_days_away=item.get("earnings_days_away"),
         )
     except HTTPException:
         raise
