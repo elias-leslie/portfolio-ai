@@ -1,12 +1,12 @@
 # Task List: Watchlist Narrative Intelligence
 
 **PRD**: `0021-prd-watchlist-narrative-intelligence.md`
-**Status**: Paused (2 tasks completed this session)
-**Completion**: 30% (Tasks 0.1-0.3, 1.0, 1.4-1.5, 2.1-2.6, 3.1-3.2, 3.4 complete)
-**Effort to Complete**: Medium (reduced from High after simplifications)
-**Risk Level**: Medium (reduced from High after critical fixes)
-**Last Updated**: 2025-11-01 19:15
-**Paused**: 2025-11-01 19:15 (Major milestone - 2 tasks complete, clean state)
+**Status**: In Progress (Task 4.0 data modules complete with caching - 62 tests passing)
+**Completion**: 40% (Tasks 0.1-0.3, 1.0, 1.4-1.5, 2.1-2.6, 3.1-3.2, 3.4, 4.1-4.9 complete)
+**Effort to Complete**: Medium (calculator and integration remaining)
+**Risk Level**: Low (core modules complete and tested with caching)
+**Last Updated**: 2025-11-02 (auto-updated)
+**Note**: Task 4.9 caching complete - 12 new tests added (62 total: 50 original + 12 caching)
 - Prerequisites verified: EMA-20 & ATR-14 exist, mypy errors fixed
 - UI testing protocol updated: All checkpoints now use browser-automation skill (0 token cost vs 18k for Chrome DevTools MCP)
 - 11 UI validation checkpoints with explicit screenshot.js, console.js, network.js, snapshot.js, interact.js, and performance.js commands
@@ -47,10 +47,32 @@
   - Celery refreshing correctly every ~2 minutes with 1-minute threshold ✅
   - Created REFRESH_ARCHITECTURE.md documentation (comprehensive guide with examples) ✅
 
-**🔄 IN PROGRESS:**
-- None
+**✅ COMPLETE (Nov 2, 2025):**
+- Task 4.1-4.4: Company Fundamentals & Health Classification - **NEW**
+  - Created `app/watchlist/fundamentals.py` with multi-source failover (YFinance → Finnhub → FMP)
+  - Implemented company health classification: EXCELLENT/GOOD/WEAK based on margins, growth, debt
+  - 20 passing tests, full type safety (mypy --strict), lint-compliant
+- Task 4.5-4.6: News Integration & Sentiment Analysis - **NEW**
+  - Created `app/watchlist/news.py` with Google News RSS integration
+  - VADER sentiment analysis for headlines (-1.0 to +1.0 scale)
+  - Sentiment categorization (positive/neutral/negative with ±0.2 thresholds)
+  - 17 passing tests, full type safety, lint-compliant
+- Task 4.7-4.8: Earnings Calendar & Warning System - **NEW**
+  - Created `app/watchlist/earnings.py` with multi-source failover (YFinance → Finnhub)
+  - 4-level warning system: 🔴 (0-5 days), ⚠ (6-14 days), 💡 (15-30 days), none (>30 days)
+  - Date normalization to prevent time precision issues
+  - 13 passing tests, full type safety, lint-compliant
 
-<!-- PAUSED: 2025-11-01 19:15 - Resume here with Task 4.0 or Task 5.0 -->
+**✅ COMPLETE (Nov 2, 2025):**
+- Task 4.9: Cache Fundamental & News Data - **COMPLETE**
+  - Implemented `fetch_fundamentals_cached()` with 24-hour TTL
+  - Implemented `fetch_news_headlines_cached()` with 6-hour TTL
+  - Implemented `fetch_earnings_date_cached()` with 30-day TTL
+  - All 12 caching tests passing (4 per module)
+  - Type-safe, lint-compliant
+
+**🔄 IN PROGRESS:**
+- Task 5.0: Create Entry/Exit/Stop Calculator + Position Sizing (next task)
 
 **✅ FIXED (Nov 1, 2025):**
 - **UI showing stale timestamps** - RESOLVED (commit 5738b2f)
@@ -91,34 +113,35 @@
 7. **Risk level reduced** - From HIGH to MEDIUM after fixes applied
 
 **NEXT STEPS:**
-1. ✅ Task 1.4: Verify EMA-20, ATR-14 availability - **COMPLETE** (verified: 5+ tickers have data)
-2. ✅ Task 1.5: Implement swing low/high detection - **COMPLETE** (all 6 tests passing)
-3. ✅ Task 2.6: Implement trading style classification - **COMPLETE** (all 8 tests passing)
-4. Task 4.0: Integrate Fundamentals & News Data (multi-source failover)
-5. Task 5.0: Create Entry/Exit/Stop Calculator + Position Sizing
+1. ✅ Task 1.4: Verify EMA-20, ATR-14 availability - **COMPLETE**
+2. ✅ Task 1.5: Implement swing low/high detection - **COMPLETE**
+3. ✅ Task 2.6: Implement trading style classification - **COMPLETE**
+4. ✅ Task 4.1-4.9: Fundamentals, News, Earnings modules with caching - **COMPLETE** (62 tests passing)
+5. **➡️ Task 5.0: Create Entry/Exit/Stop Calculator + Position Sizing** (in progress)
 6. Task 3.3, 3.5-3.7: Complete narrative generation functions
 7. Task 6.0: Database Migration (migration 008)
 8. Task 7.0: Update API Endpoints & Service Layer
 9. Task 8.0: Frontend Integration (Narrative Display)
 10. Task 9.0: Testing & Validation
 
-**COMPLETION STATUS:** ~30% complete (Tasks: 0.1-0.3 partial, 1.0-1.5, 2.1-2.6, 3.1-3.2, 3.4)
-**EFFORT TO COMPLETE:** Medium (Prerequisites verified, simplified trading styles, clear dependency order)
+**COMPLETION STATUS:** ~40% complete (Tasks: 0.1-0.3, 1.0-1.5, 2.1-2.6, 3.1-3.2, 3.4, 4.1-4.9)
+**EFFORT TO COMPLETE:** Medium (Calculator and integration remaining)
 
 ---
 
 ## Relevant Files
 
-### Files to Create (8 new files)
+### Files to Create (8 new files - 6 complete)
 
-- `backend/app/watchlist/narrative.py` (~300 lines) - Narrative generation engine (signal classification, plain language templates)
-- `backend/app/watchlist/fundamentals.py` (~250 lines) - Company health scoring with multi-source failover (YFinance, Finnhub, FMP)
-- `backend/app/watchlist/news.py` (~200 lines) - News headline fetching and sentiment scoring (Google News RSS + VADER)
-- `backend/app/watchlist/earnings.py` (~150 lines) - Earnings calendar integration with warning system
-- `backend/app/watchlist/calculator.py` (~200 lines) - Entry/Exit/Stop calculator + position sizing logic
+- ✅ `backend/app/watchlist/narrative.py` (~300 lines) - **EXISTS** - Narrative generation engine (signal classification, plain language templates)
+- ✅ `backend/app/watchlist/fundamentals.py` (~280 lines) - **COMPLETE** - Company health scoring with multi-source failover (YFinance, Finnhub, FMP)
+- ✅ `backend/app/watchlist/news.py` (~90 lines) - **COMPLETE** - News headline fetching and sentiment scoring (Google News RSS + VADER)
+- ✅ `backend/app/watchlist/earnings.py` (~125 lines) - **COMPLETE** - Earnings calendar integration with warning system
+- ✅ `backend/app/watchlist/calculator.py` (~100 lines) - **EXISTS** - Entry/Exit/Stop calculator + position sizing logic (swing detection complete)
 - `backend/migrations/008_narrative_intelligence.sql` (~80 lines) - Schema migration for new columns
-- `backend/tests/watchlist/test_narrative.py` (~400 lines) - Tests for signal classification and narrative generation
-- `backend/tests/watchlist/test_fundamentals.py` (~300 lines) - Tests for company health scoring
+- ✅ `backend/tests/watchlist/test_fundamentals.py` (~290 lines) - **COMPLETE** - Tests for company health scoring (20 tests)
+- ✅ `backend/tests/watchlist/test_news.py` (~250 lines) - **COMPLETE** - Tests for news and sentiment (17 tests)
+- ✅ `backend/tests/watchlist/test_earnings.py` (~180 lines) - **COMPLETE** - Tests for earnings calendar (13 tests)
 
 ### Files to Update (5 files)
 
@@ -630,13 +653,17 @@ NVDA: EMA-20=188.84, ATR-14=6.21
   - [ ] 4.8.5 Run tests to verify correct warning for each range
   - [ ] 4.8.6 Verify warnings omitted when >30 days away
 
-- [ ] 4.9 Cache Fundamental & News Data (FR-3.1, FR-3.2, FR-3.3)
-  - [ ] 4.9.1 Write test for reference_cache storage
-  - [ ] 4.9.2 Implement caching for fundamental data (24-hour TTL)
-  - [ ] 4.9.3 Implement caching for news headlines (6-hour TTL)
-  - [ ] 4.9.4 Implement caching for earnings dates (30-day TTL)
-  - [ ] 4.9.5 Run test to verify cache hit avoids re-fetch
-  - [ ] 4.9.6 Verify TTL expiration triggers refresh
+- [x] 4.9 Cache Fundamental & News Data (FR-3.1, FR-3.2, FR-3.3) ✅
+  - [x] 4.9.1 Write test for reference_cache storage (fundamentals, news, earnings)
+  - [x] 4.9.2 Implement caching for fundamental data (24-hour TTL)
+  - [x] 4.9.3 Implement caching for news headlines (6-hour TTL)
+  - [x] 4.9.4 Implement caching for earnings dates (30-day TTL)
+  - [x] 4.9.5 Run test to verify cache hit avoids re-fetch (all 3 modules)
+  - [x] 4.9.6 Verify TTL expiration triggers refresh (all 3 modules)
+  - **Implementation**: Added `fetch_*_cached()` functions with appropriate TTLs
+  - **Testing**: 12 new tests (4 per module) - all passing
+  - **Type Safety**: Strict mypy compliance
+  - **Linting**: Ruff compliant
 
 ### 5.0 Create Entry/Exit/Stop Calculator & Position Sizing
 
