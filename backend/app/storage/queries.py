@@ -126,29 +126,65 @@ class QueryManager:
         overall_score: float | None = None,
         is_stale: bool = False,
         raw_metrics: dict[str, Any] | None = None,
+        # Narrative intelligence fields
+        signal_type: str | None = None,
+        signal_strength: int | None = None,
+        narrative_headline: str | None = None,
+        narrative_why_bullets: dict[str, Any] | None = None,
+        narrative_company_health: dict[str, Any] | None = None,
+        narrative_technical: dict[str, Any] | None = None,
+        narrative_action_plan: str | None = None,
+        narrative_position_sizing: str | None = None,
+        narrative_special_notes: str | None = None,
+        # Trade calculation fields
+        entry_price: float | None = None,
+        stop_loss: float | None = None,
+        profit_target: float | None = None,
+        position_size_shares: int | None = None,
+        # Trading style fields
+        recommended_style: str | None = None,
+        style_confidence: int | None = None,
+        optimal_holding_period: str | None = None,
+        risk_level: str | None = None,
+        # Fundamental & news data fields
+        company_health: str | None = None,
+        earnings_date: datetime | None = None,
+        earnings_days_away: int | None = None,
+        news_sentiment_score: float | None = None,
+        recent_news_headlines: dict[str, Any] | None = None,
     ) -> None:
         """Insert or update a watchlist snapshot record."""
         raw_metrics_json = json.dumps(raw_metrics) if raw_metrics is not None else None
+        narrative_why_bullets_json = (
+            json.dumps(narrative_why_bullets) if narrative_why_bullets is not None else None
+        )
+        narrative_company_health_json = (
+            json.dumps(narrative_company_health) if narrative_company_health is not None else None
+        )
+        narrative_technical_json = (
+            json.dumps(narrative_technical) if narrative_technical is not None else None
+        )
+        recent_news_headlines_json = (
+            json.dumps(recent_news_headlines) if recent_news_headlines is not None else None
+        )
 
         sql = """
             INSERT INTO watchlist_snapshots (
-                item_id,
-                fetched_at,
-                price,
-                change_pct,
-                beta,
-                volatility,
-                news_score,
-                technical_score,
-                fundamental_score,
-                ai_score,
-                ai_confidence,
-                sector_score,
-                competitor_score,
-                overall_score,
-                is_stale,
-                raw_metrics
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                item_id, fetched_at, price, change_pct, beta, volatility,
+                news_score, technical_score, fundamental_score, ai_score, ai_confidence,
+                sector_score, competitor_score, overall_score, is_stale, raw_metrics,
+                signal_type, signal_strength, narrative_headline, narrative_why_bullets,
+                narrative_company_health, narrative_technical, narrative_action_plan,
+                narrative_position_sizing, narrative_special_notes,
+                entry_price, stop_loss, profit_target, position_size_shares,
+                recommended_style, style_confidence, optimal_holding_period, risk_level,
+                company_health, earnings_date, earnings_days_away,
+                news_sentiment_score, recent_news_headlines
+            ) VALUES (
+                ?, ?, ?, ?, ?, ?,  ?, ?, ?, ?, ?,  ?, ?, ?, ?, ?,
+                ?, ?, ?, ?,  ?, ?, ?, ?, ?,  ?, ?, ?, ?,
+                ?, ?, ?, ?,  ?, ?, ?,  ?, ?
+            )
             ON CONFLICT (item_id, fetched_at) DO UPDATE SET
                 price = EXCLUDED.price,
                 change_pct = EXCLUDED.change_pct,
@@ -163,7 +199,29 @@ class QueryManager:
                 competitor_score = EXCLUDED.competitor_score,
                 overall_score = EXCLUDED.overall_score,
                 is_stale = EXCLUDED.is_stale,
-                raw_metrics = EXCLUDED.raw_metrics
+                raw_metrics = EXCLUDED.raw_metrics,
+                signal_type = EXCLUDED.signal_type,
+                signal_strength = EXCLUDED.signal_strength,
+                narrative_headline = EXCLUDED.narrative_headline,
+                narrative_why_bullets = EXCLUDED.narrative_why_bullets,
+                narrative_company_health = EXCLUDED.narrative_company_health,
+                narrative_technical = EXCLUDED.narrative_technical,
+                narrative_action_plan = EXCLUDED.narrative_action_plan,
+                narrative_position_sizing = EXCLUDED.narrative_position_sizing,
+                narrative_special_notes = EXCLUDED.narrative_special_notes,
+                entry_price = EXCLUDED.entry_price,
+                stop_loss = EXCLUDED.stop_loss,
+                profit_target = EXCLUDED.profit_target,
+                position_size_shares = EXCLUDED.position_size_shares,
+                recommended_style = EXCLUDED.recommended_style,
+                style_confidence = EXCLUDED.style_confidence,
+                optimal_holding_period = EXCLUDED.optimal_holding_period,
+                risk_level = EXCLUDED.risk_level,
+                company_health = EXCLUDED.company_health,
+                earnings_date = EXCLUDED.earnings_date,
+                earnings_days_away = EXCLUDED.earnings_days_away,
+                news_sentiment_score = EXCLUDED.news_sentiment_score,
+                recent_news_headlines = EXCLUDED.recent_news_headlines
         """
 
         params = [
@@ -183,6 +241,28 @@ class QueryManager:
             overall_score,
             is_stale,
             raw_metrics_json,
+            signal_type,
+            signal_strength,
+            narrative_headline,
+            narrative_why_bullets_json,
+            narrative_company_health_json,
+            narrative_technical_json,
+            narrative_action_plan,
+            narrative_position_sizing,
+            narrative_special_notes,
+            entry_price,
+            stop_loss,
+            profit_target,
+            position_size_shares,
+            recommended_style,
+            style_confidence,
+            optimal_holding_period,
+            risk_level,
+            company_health,
+            earnings_date,
+            earnings_days_away,
+            news_sentiment_score,
+            recent_news_headlines_json,
         ]
 
         with self.connection_mgr.connection() as conn:

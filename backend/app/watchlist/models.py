@@ -149,8 +149,43 @@ class WatchlistSnapshot(BaseModel):
     is_stale: bool = False
     raw_metrics: dict[str, Any] = Field(default_factory=dict)
 
+    # Narrative intelligence fields
+    signal_type: str | None = None
+    signal_strength: int | None = None
+    narrative_headline: str | None = None
+    narrative_why_bullets: dict[str, Any] | None = None
+    narrative_company_health: dict[str, Any] | None = None
+    narrative_technical: dict[str, Any] | None = None
+    narrative_action_plan: str | None = None
+    narrative_position_sizing: str | None = None
+    narrative_special_notes: str | None = None
+
+    # Trade calculation fields
+    entry_price: float | None = None
+    stop_loss: float | None = None
+    profit_target: float | None = None
+    position_size_shares: int | None = None
+
+    # Trading style fields
+    recommended_style: str | None = None
+    style_confidence: int | None = None
+    optimal_holding_period: str | None = None
+    risk_level: str | None = None
+
+    # Fundamental & news data fields
+    company_health: str | None = None
+    earnings_date: datetime | None = None
+    earnings_days_away: int | None = None
+    news_sentiment_score: float | None = None
+    recent_news_headlines: dict[str, Any] | None = None
+
     def to_upsert_params(self) -> dict[str, Any]:
         """Return dictionary for persistence helpers."""
         payload = self.model_dump()
         payload["raw_metrics"] = self.raw_metrics or None
+        # Convert JSONB fields
+        payload["narrative_why_bullets"] = self.narrative_why_bullets or None
+        payload["narrative_company_health"] = self.narrative_company_health or None
+        payload["narrative_technical"] = self.narrative_technical or None
+        payload["recent_news_headlines"] = self.recent_news_headlines or None
         return payload
