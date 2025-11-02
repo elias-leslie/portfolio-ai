@@ -131,6 +131,50 @@ export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
     return "viz-0";
   };
 
+  // Get signal badge variant and icon
+  const getSignalDisplay = (signalType?: "BUY" | "HOLD" | "AVOID" | null) => {
+    switch (signalType) {
+      case "BUY":
+        return {
+          icon: "🟢",
+          color: "bg-green-500/10 text-green-600 border-green-500/20",
+          label: "BUY",
+        };
+      case "HOLD":
+        return {
+          icon: "🟡",
+          color: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
+          label: "HOLD",
+        };
+      case "AVOID":
+        return {
+          icon: "🔴",
+          color: "bg-red-500/10 text-red-600 border-red-500/20",
+          label: "AVOID",
+        };
+      default:
+        return null;
+    }
+  };
+
+  // Get trading style display
+  const getStyleDisplay = (style?: "Index" | "Trend" | "Value" | "Swing" | "Event" | null) => {
+    switch (style) {
+      case "Index":
+        return { icon: "📈", color: "bg-blue-500/10 text-blue-600 border-blue-500/20" };
+      case "Trend":
+        return { icon: "🔥", color: "bg-orange-500/10 text-orange-600 border-orange-500/20" };
+      case "Value":
+        return { icon: "💎", color: "bg-purple-500/10 text-purple-600 border-purple-500/20" };
+      case "Swing":
+        return { icon: "⚡", color: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20" };
+      case "Event":
+        return { icon: "📅", color: "bg-red-500/10 text-red-600 border-red-500/20" };
+      default:
+        return null;
+    }
+  };
+
   // Get timezone abbreviation (EST, PST, etc.)
   const getTimezoneAbbreviation = (timezone: string): string => {
     const date = new Date();
@@ -193,7 +237,7 @@ export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
                 onClick={() => handleSort("overall")}
                 className="flex items-center gap-1 font-medium hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
               >
-                Overall Score
+                Signal
                 {sortField === "overall" && (
                   <span className="text-xs">
                     {sortDirection === "asc" ? "↑" : "↓"}
@@ -201,6 +245,7 @@ export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
                 )}
               </button>
             </TableHead>
+            <TableHead>Style</TableHead>
             <TableHead>
               <button
                 onClick={() => handleSort("price")}
@@ -308,10 +353,53 @@ export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
                     </div>
                   </TableCell>
                   <TableCell>
-                    {hasScore ? (
-                      <Badge variant={getScoreBadgeVariant(overall)}>
-                        {overall.toFixed(1)}
-                      </Badge>
+                    {item.signal_type ? (
+                      (() => {
+                        const signalDisplay = getSignalDisplay(item.signal_type);
+                        return signalDisplay ? (
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={cn(
+                                "inline-flex items-center gap-1 rounded-md border px-2.5 py-0.5 text-xs font-semibold",
+                                signalDisplay.color
+                              )}
+                            >
+                              <span>{signalDisplay.icon}</span>
+                              <span>{signalDisplay.label}</span>
+                              {item.signal_strength !== null && item.signal_strength !== undefined && (
+                                <span className="ml-1 text-xs opacity-75">
+                                  {item.signal_strength}/10
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-text-muted">—</span>
+                        );
+                      })()
+                    ) : (
+                      <span className="text-text-muted">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {item.recommended_style ? (
+                      (() => {
+                        const styleDisplay = getStyleDisplay(item.recommended_style);
+                        return styleDisplay ? (
+                          <div
+                            className={cn(
+                              "inline-flex items-center gap-1 rounded-md border px-2.5 py-0.5 text-xs font-semibold",
+                              styleDisplay.color
+                            )}
+                            title={item.optimal_holding_period ?? undefined}
+                          >
+                            <span>{styleDisplay.icon}</span>
+                            <span>{item.recommended_style}</span>
+                          </div>
+                        ) : (
+                          <span className="text-text-muted">—</span>
+                        );
+                      })()
                     ) : (
                       <span className="text-text-muted">—</span>
                     )}
@@ -382,7 +470,7 @@ export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
                 </TableRow>
                 {isExpanded && (
                   <TableRow>
-                    <TableCell colSpan={8} className="bg-surface-muted/20 p-4">
+                    <TableCell colSpan={9} className="bg-surface-muted/20 p-4">
                       <ExpandedRow item={item} refreshStatus={refreshStatus} />
                     </TableCell>
                   </TableRow>

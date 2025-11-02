@@ -28,6 +28,19 @@ export interface WatchlistItem {
   updated_at: string;
   current_score?: ScoreBreakdown;
   score_alert?: boolean;
+  // Narrative Intelligence fields
+  signal_type?: "BUY" | "HOLD" | "AVOID" | null;
+  signal_strength?: number | null;
+  narrative_headline?: string | null;
+  recommended_style?: "Index" | "Trend" | "Value" | "Swing" | "Event" | null;
+  style_confidence?: number | null;
+  optimal_holding_period?: string | null;
+  risk_level?: "Low" | "Medium-Low" | "Medium" | "High" | null;
+  // Trade Calculator fields
+  entry_price?: number | null;
+  stop_loss?: number | null;
+  profit_target?: number | null;
+  position_size_shares?: number | null;
 }
 
 export interface WatchlistListResponse {
