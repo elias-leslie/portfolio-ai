@@ -98,8 +98,12 @@ class TechnicalSnapshot(BaseModel):
     """Technical indicator snapshot used for scoring."""
 
     rsi_14: float | None = None
+    sma_20: float | None = None  # 20-day simple moving average
     sma_50: float | None = None
     sma_200: float | None = None
+    ema_20: float | None = None  # 20-day exponential moving average
+    ema_50: float | None = None
+    ema_200: float | None = None
     macd: float | None = None
     macd_signal: float | None = None
     price: float | None = None

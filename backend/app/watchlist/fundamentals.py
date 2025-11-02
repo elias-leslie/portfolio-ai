@@ -136,13 +136,20 @@ class FinnhubSource(BaseFundamentalSource):
             metric = data.get("metric", {})
 
             # Extract and convert fields (Finnhub returns percentages)
-            profit_margin_pct = metric.get("netProfitMargin")
+            # Use TTM (trailing twelve months) fields for most current data
+            profit_margin_pct = metric.get("netProfitMarginTTM") or metric.get(
+                "netProfitMarginAnnual"
+            )
             profit_margin = profit_margin_pct / 100.0 if profit_margin_pct is not None else None
 
-            revenue_growth_pct = metric.get("revenueGrowthAnnual")
+            # Use 3-year growth as proxy for recent growth rate
+            revenue_growth_pct = metric.get("revenueGrowth3Y") or metric.get("revenueGrowth5Y")
             revenue_growth = revenue_growth_pct / 100.0 if revenue_growth_pct is not None else None
 
-            debt_to_equity = metric.get("debtEquityRatio")
+            # Use long-term debt to equity ratio
+            debt_to_equity = metric.get("longTermDebt/equityAnnual") or metric.get(
+                "longTermDebt/equityQuarterly"
+            )
 
             return FundamentalData(
                 symbol=symbol,

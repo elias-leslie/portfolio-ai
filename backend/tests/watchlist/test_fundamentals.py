@@ -115,10 +115,10 @@ class TestFinnhubSource:
         mock_response = MagicMock()
         mock_response.json.return_value = {
             "metric": {
-                "netProfitMargin": 53.0,  # Finnhub returns percentage
-                "revenueGrowthAnnual": 122.0,  # Finnhub returns percentage
+                "netProfitMarginTTM": 53.0,  # Finnhub returns percentage (TTM field)
+                "revenueGrowth3Y": 122.0,  # Finnhub returns percentage (3Y field)
                 "currentRatio": 2.5,
-                "debtEquityRatio": 0.45,
+                "longTermDebt/equityAnnual": 0.45,  # Finnhub uses this field name
             }
         }
         mock_response.raise_for_status = MagicMock()

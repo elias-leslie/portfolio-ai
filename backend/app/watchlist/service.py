@@ -97,8 +97,12 @@ def _load_latest_technical(
             calculated_at = calculated_at.replace(tzinfo=UTC)
         snapshots[row["ticker"]] = TechnicalSnapshot(
             rsi_14=row.get("rsi_14"),
+            sma_20=row.get("sma_20"),
             sma_50=row.get("sma_50"),
             sma_200=row.get("sma_200"),
+            ema_20=row.get("ema_20"),
+            ema_50=row.get("ema_50"),
+            ema_200=row.get("ema_200"),
             macd=row.get("macd"),
             macd_signal=row.get("macd_signal"),
             price=None,
@@ -463,14 +467,48 @@ def refresh_watchlist_scores(
                         error=str(earnings_error),
                     )
 
+            # Query volume data from day_bars (latest + 20-day average)
+            current_volume: float | None = None
+            avg_volume_20d: float | None = None
+            volume_df = storage.query(
+                """
+                SELECT volume
+                FROM day_bars
+                WHERE ticker = ?
+                ORDER BY date DESC
+                LIMIT 20
+                """,
+                [symbol],
+            )
+
+            if volume_df.height >= 20:
+                volumes = volume_df["volume"].to_list()
+                current_volume = float(volumes[0]) if volumes[0] is not None else None
+                avg_volume_20d = sum(v for v in volumes if v is not None) / len(
+                    [v for v in volumes if v is not None]
+                )
+            elif volume_df.height > 0:
+                # Less than 20 days available - use what we have
+                volumes = volume_df["volume"].to_list()
+                current_volume = float(volumes[0]) if volumes[0] is not None else None
+                logger.debug(
+                    "insufficient_volume_history",
+                    symbol=symbol,
+                    days_available=volume_df.height,
+                    message="Less than 20 days of volume data - skipping 20-day average",
+                )
+
             # Generate narrative intelligence
             # Classify signal based on technical indicators + fundamentals + earnings
             signal_inputs = {
                 "price": price_data.price,
-                "ema_20": technical_snapshot.price,  # Using current price as EMA approximation
+                "ema_20": technical_snapshot.ema_20,  # Use actual EMA_20 from indicators
+                "sma_5": technical_snapshot.sma_20,  # Approximate with SMA_20 (no SMA_5 in schema)
+                "sma_5_prev": None,  # Not available in current schema
                 "rsi_14": technical_snapshot.rsi_14,
                 "macd": technical_snapshot.macd,
-                "volume": None,  # Not available in current data
+                "volume": current_volume,  # Queried from day_bars
+                "volume_avg_20d": avg_volume_20d,  # Calculated 20-day average
                 "company_health": company_health_str,  # Fetched from fundamentals
                 "news_sentiment": None,  # Will be added in future iteration
                 "earnings_days_away": earnings_days_away_val,  # Calculated from earnings date
