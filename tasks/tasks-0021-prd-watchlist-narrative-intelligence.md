@@ -1,13 +1,13 @@
 # Task List: Watchlist Narrative Intelligence
 
 **PRD**: `0021-prd-watchlist-narrative-intelligence.md`
-**Status**: ⏸️ **PAUSED** at 80% - Core working, 2/4 narrative functions integrated, testing done
-**Completion**: ~80% (Backend: 85%, Frontend: 90%, Testing: 50%)
-**Effort to Complete**: LOW (2 narrative functions + E2E validation + docs remaining - 1-2 hours)
-**Risk Level**: Low (core tested at 85% coverage, type-safe, production-ready for current features)
-**Last Updated**: 2025-11-02 13:54
-**Note**: ✅ Core + partial narratives working end-to-end. Action plan and position sizing text NOW INTEGRATED. Company health bullets and special notes still require fundamentals/earnings data fetch. Task 9.0: Coverage done (85%), E2E validation remaining.
-**Paused**: 2025-11-02 13:54 (Context 89% used - natural breakpoint after narrative integration milestone)
+**Status**: 🔄 **IN PROGRESS** at 90% - All 4/4 narrative functions integrated, fundamentals & earnings connected
+**Completion**: ~90% (Backend: 95%, Frontend: 90%, Testing: 50%)
+**Effort to Complete**: LOW (E2E validation + docs remaining - 30 mins)
+**Risk Level**: Very Low (all narrative functions integrated, 145 tests passing, type-safe)
+**Last Updated**: 2025-11-02 14:20
+**Note**: ✅ All narrative functions NOW INTEGRATED. Fundamentals/earnings data fetched and cached. Company health and special notes generation complete. Remaining: E2E UI validation + ARCHITECTURE.md updates.
+**Resumed**: 2025-11-02 14:00 (Priority 1: Integrate narrative functions - COMPLETE)
 
 <!-- PAUSED: 2025-11-02 13:54 - Resume here: Priority 1 - Integrate generate_company_health_bullets() -->
 <!-- Handoff: tasks/PAUSE-HANDOFF-20251102-1354.md -->
@@ -45,12 +45,12 @@
 - ✅ Style filter dropdown with counts
 - ✅ 145 unit tests passing
 
-**✅ NARRATIVE FUNCTIONS - NOW INTEGRATED (2025-11-02 Update):**
-- ✅ `generate_action_plan()` - **NOW INTEGRATED** - Called by service layer, generates trade action text
-- ✅ `generate_position_sizing_text()` - **NOW INTEGRATED** - Called by service layer, generates position sizing text
-- ⚠️ `generate_company_health_bullets()` - EXISTS, HAS TESTS, but **NOT INTEGRATED** (requires fundamentals data fetch)
-- ⚠️ `generate_special_notes()` - EXISTS, HAS TESTS, but **NOT INTEGRATED** (requires earnings data fetch)
-- ❌ Earnings integration - Module exists, but service layer sets `earnings_days_away=None` (not connected)
+**✅ NARRATIVE FUNCTIONS - ALL INTEGRATED (2025-11-02 Update - COMPLETE):**
+- ✅ `generate_action_plan()` - **INTEGRATED** - Called by service layer, generates trade action text
+- ✅ `generate_position_sizing_text()` - **INTEGRATED** - Called by service layer, generates position sizing text
+- ✅ `generate_company_health_bullets()` - **NOW INTEGRATED** - Fetches fundamentals (cached 24hr), generates health bullets
+- ✅ `generate_special_notes()` - **NOW INTEGRATED** - Fetches earnings (cached 30d), generates special notes
+- ✅ Earnings integration - **CONNECTED** - Service layer fetches earnings_date, calculates earnings_days_away
 
 **✅ TASK 9.0 (Testing & Validation) - PARTIALLY COMPLETE:**
 - ✅ 9.1: Coverage analysis - **COMPLETE** - 85% coverage (exceeds 80% target)
@@ -65,28 +65,28 @@
 - All items in section 1220-1260 remain unchecked
 
 **📊 SESSION SUMMARY - 2025-11-02**
-- Total commits: 7 (backend, frontend core, frontend enhancements, 3x docs, narrative integration)
+- Total commits: 8 (backend, frontend core, frontend enhancements, 3x docs, 2x narrative integration)
 - Total tests: 145 passing (100% pass rate)
 - Coverage: 85% (exceeds 80% target)
 - Type safety: Verified with mypy --strict
-- Actual completion: ~80% (was 70%, now 80% after narrative integration)
-- Production ready: YES for current features (signal/style/headline/calculator/action plan/position sizing)
+- Actual completion: ~90% (was 80%, now 90% after full narrative integration)
+- Production ready: YES for current features (all 4 narrative functions + fundamentals/earnings)
 
 ---
 
-## 🎯 TO COMPLETE THIS PRD (Future Session) - UPDATED
+## 🎯 TO COMPLETE THIS PRD (Future Session) - UPDATED 2025-11-02 14:20
 
-**Priority 1: Integrate Remaining Narrative Functions (MEDIUM - 10% of work)**
+**Priority 1: Integrate Remaining Narrative Functions - ✅ COMPLETE**
 1. ✅ ~~Import and integrate generate_action_plan()~~ - **DONE**
 2. ✅ ~~Import and integrate generate_position_sizing_text()~~ - **DONE**
-3. ⚠️ **REMAINING**: Integrate `generate_company_health_bullets()`:
-   - Fetch fundamentals data during refresh (YFinance/Finnhub/FMP)
-   - Call function with fundamentals data
-   - Store in narrative_company_health JSONB column
-4. ⚠️ **REMAINING**: Integrate `generate_special_notes()`:
-   - Fetch earnings data during refresh
-   - Call function with earnings_date and earnings_days_away
-   - Store in narrative_special_notes TEXT column
+3. ✅ ~~Integrate `generate_company_health_bullets()`~~ - **DONE** (commit b490a07)
+   - ✅ Fetch fundamentals data during refresh (YFinance/Finnhub/FMP)
+   - ✅ Call function with fundamentals data
+   - ✅ Store in narrative_company_health JSONB column
+4. ✅ ~~Integrate `generate_special_notes()`~~ - **DONE** (commit b490a07)
+   - ✅ Fetch earnings data during refresh
+   - ✅ Call function with earnings_date and earnings_days_away
+   - ✅ Store in narrative_special_notes TEXT column
 
 **Priority 2: Complete Task 9.0 Testing & Validation (MEDIUM - 8% of work)**
 1. ✅ ~~9.1: Coverage analysis~~ - **DONE** (85% coverage)
