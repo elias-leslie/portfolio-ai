@@ -1,12 +1,13 @@
 # Task List: Watchlist Narrative Intelligence
 
 **PRD**: `0021-prd-watchlist-narrative-intelligence.md`
-**Status**: In Progress (Task 4.0 data modules complete with caching - 62 tests passing)
-**Completion**: 40% (Tasks 0.1-0.3, 1.0, 1.4-1.5, 2.1-2.6, 3.1-3.2, 3.4, 4.1-4.9 complete)
-**Effort to Complete**: Medium (calculator and integration remaining)
-**Risk Level**: Low (core modules complete and tested with caching)
-**Last Updated**: 2025-11-02 (auto-updated)
-**Note**: Task 4.9 caching complete - 12 new tests added (62 total: 50 original + 12 caching)
+**Status**: Paused (Task 5.0 calculator complete - 79 tests passing)
+**Completion**: 45% (Tasks 0.1-0.3, 1.0, 1.4-1.5, 2.1-2.6, 3.1-3.2, 3.4, 4.1-4.9, 5.1-5.4 complete)
+**Effort to Complete**: Medium (narrative generation and integration remaining)
+**Risk Level**: Low (core modules + calculator complete with 79 passing tests)
+**Last Updated**: 2025-11-02 23:22
+**Paused**: 2025-11-02 23:22 (Task 5.0 calculator complete - ready for narrative generation)
+**Note**: Session progress: +10% completion, 2 commits, 23 new tests (12 caching + 11 calculator)
 - Prerequisites verified: EMA-20 & ATR-14 exist, mypy errors fixed
 - UI testing protocol updated: All checkpoints now use browser-automation skill (0 token cost vs 18k for Chrome DevTools MCP)
 - 11 UI validation checkpoints with explicit screenshot.js, console.js, network.js, snapshot.js, interact.js, and performance.js commands
@@ -70,9 +71,18 @@
   - Implemented `fetch_earnings_date_cached()` with 30-day TTL
   - All 12 caching tests passing (4 per module)
   - Type-safe, lint-compliant
+- Task 5.0: Entry/Exit/Stop Calculator + Position Sizing - **COMPLETE**
+  - Implemented `calculate_entry_price()` (signal-based)
+  - Implemented `calculate_stop_loss()` (ATR + swing low)
+  - Implemented `calculate_profit_target()` (ATR + swing high)
+  - Implemented `calculate_position_size()` (risk-based)
+  - All 11 calculator tests passing (17 total with existing tests)
+  - Type-safe, lint-compliant
 
-**🔄 IN PROGRESS:**
-- Task 5.0: Create Entry/Exit/Stop Calculator + Position Sizing (next task)
+**🔄 NEXT TASK:**
+- Task 3.3, 3.5-3.7: Complete narrative generation functions (company health, action plan, position sizing, warnings)
+
+<!-- PAUSED: 2025-11-02 23:22 - Resume here with Task 3.3 or continue to Task 6.0 (migration) -->
 
 **✅ FIXED (Nov 1, 2025):**
 - **UI showing stale timestamps** - RESOLVED (commit 5738b2f)
