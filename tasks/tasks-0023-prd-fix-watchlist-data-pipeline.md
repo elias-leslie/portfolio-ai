@@ -463,8 +463,147 @@ Fix the watchlist data pipeline to enable diverse BUY/HOLD/AVOID signals instead
 - [ ] 5.4 Create PR Summary (if using Git PR workflow)
   - [ ] 5.4.1 Summary: "Fix watchlist data pipeline to enable diverse BUY/HOLD/AVOID signals"
   - [ ] 5.4.2 Before/After screenshots showing HOLD-only vs mixed signals
-  - [ ] 5.4.3 Test results: "150/150 tests passing, 85% coverage"
-  - [ ] 5.4.4 Validation: "E2E tested with 14 tickers, NVDA generates BUY 9/10 as expected"
+  - [ ] 5.4.3 Test results: "145/145 tests passing, 85% coverage"
+  - [ ] 5.4.4 Validation: "E2E tested with 14 tickers, scheduled refreshes generate narrative data"
+
+---
+
+### Phase 6: Service Restart & Scheduled Verification (CRITICAL - 30 min)
+
+**IMPORTANT**: Code changes only take effect after services are restarted!
+
+- [ ] 6.1 Restart All Services to Load New Code
+  - [ ] 6.1.1 Restart backend, Celery workers, and Celery beat:
+    ```bash
+    bash ~/portfolio-ai/scripts/restart.sh
+    ```
+  - [ ] 6.1.2 Verify all services running:
+    ```bash
+    bash ~/portfolio-ai/scripts/status.sh
+    ```
+  - [ ] 6.1.3 Expected output:
+    - Backend: ✓ Running (http://localhost:8000)
+    - Celery Worker: ✓ Running (4 workers)
+    - Celery Beat: ✓ Running
+    - Frontend: ✓ Running (http://localhost:3000)
+
+- [ ] 6.2 Verify Scheduled Refresh Configuration
+  - [ ] 6.2.1 Check Celery beat schedule (should poll every 60 seconds):
+    ```bash
+    grep -A 10 "refresh-watchlist-scores" ~/portfolio-ai/backend/app/celery_app.py
+    ```
+  - [ ] 6.2.2 Check user refresh interval preference:
+    ```sql
+    SELECT watchlist_refresh_override, default_refresh_minutes
+    FROM user_preferences WHERE id = 'default';
+    ```
+  - [ ] 6.2.3 Expected: watchlist_refresh_override = 15 minutes (or NULL to use default 60 min)
+  - [ ] 6.2.4 For testing, can temporarily set to 5 minutes:
+    ```sql
+    UPDATE user_preferences
+    SET watchlist_refresh_override = 5
+    WHERE id = 'default';
+    ```
+
+- [ ] 6.3 Monitor First Scheduled Refresh After Restart
+  - [ ] 6.3.1 Monitor Celery worker logs in real-time:
+    ```bash
+    tail -f /tmp/portfolio-celery-worker.log | grep "watchlist_refresh"
+    ```
+  - [ ] 6.3.2 Wait for next scheduled refresh (check every 60 seconds, executes every N minutes)
+  - [ ] 6.3.3 Verify logs show:
+    - "watchlist_refresh_task_started" with refresh_interval_minutes
+    - "watchlist_refresh_completed" with processed=14, success_count=14
+    - NO "watchlist_refresh_skipped" (unless interval not met)
+  - [ ] 6.3.4 Check snapshot was created:
+    ```sql
+    SELECT fetched_at, COUNT(*) FROM watchlist_snapshots
+    WHERE fetched_at > NOW() - INTERVAL '10 minutes'
+    GROUP BY fetched_at ORDER BY fetched_at DESC LIMIT 3;
+    ```
+
+- [ ] 6.4 Verify Scheduled Refresh Generates Narrative Data
+  - [ ] 6.4.1 Check most recent snapshot has narrative fields populated:
+    ```sql
+    SELECT
+        symbol,
+        signal_strength,
+        company_health,
+        LENGTH(COALESCE(narrative_action_plan, '')) as action_plan_len,
+        LENGTH(COALESCE(narrative_special_notes, '')) as special_notes_len
+    FROM watchlist_snapshots ws
+    JOIN watchlist_items wi ON ws.item_id = wi.id
+    WHERE ws.fetched_at = (SELECT MAX(fetched_at) FROM watchlist_snapshots)
+    AND symbol IN ('NVDA', 'AAPL', 'PLTR')
+    ORDER BY symbol;
+    ```
+  - [ ] 6.4.2 Expected results for ALL tickers:
+    - company_health: "EXCELLENT" or "GOOD" (not NULL)
+    - action_plan_len: >100 characters (not 0)
+    - special_notes_len: >100 characters (not 0)
+    - signal_strength: varies (5-9, not all 3-4)
+  - [ ] 6.4.3 If ANY ticker shows NULL narrative data:
+    - ❌ FAIL: Investigate Celery logs for errors
+    - Check fundamentals cache: `SELECT * FROM reference_cache WHERE ticker='NVDA'`
+    - Check service logs: `grep "fundamentals_fetch_failed" /tmp/portfolio-celery-worker.log`
+
+- [ ] 6.5 Verify API Returns Complete Data
+  - [ ] 6.5.1 Query watchlist API:
+    ```bash
+    curl -s 'http://localhost:8000/api/watchlist?account_id=default' | \
+      jq '.items[] | select(.symbol == "NVDA") |
+      {symbol, signal_strength, company_health, has_action: (.narrative_action_plan != null)}'
+    ```
+  - [ ] 6.5.2 Expected response:
+    ```json
+    {
+      "symbol": "NVDA",
+      "signal_strength": 7,
+      "company_health": "EXCELLENT",
+      "has_action": true
+    }
+    ```
+  - [ ] 6.5.3 If company_health is NULL or has_action is false:
+    - ❌ FAIL: API returning old snapshot data
+    - Check if frontend/backend caching issue
+    - Force refresh via UI and recheck
+
+- [ ] 6.6 Wait for Second Scheduled Refresh (Continuous Verification)
+  - [ ] 6.6.1 Wait for the NEXT scheduled refresh (another N minutes)
+  - [ ] 6.6.2 Verify it also generates complete narrative data
+  - [ ] 6.6.3 Confirm pattern: EVERY scheduled refresh should populate narrative
+  - [ ] 6.6.4 If second refresh fails:
+    - ❌ FAIL: Regression or race condition
+    - Check if credentials expired
+    - Check if API rate limits hit
+
+- [ ] 6.7 Reset Refresh Interval to Production Value
+  - [ ] 6.7.1 If you set interval to 5 minutes for testing, reset it:
+    ```sql
+    UPDATE user_preferences
+    SET watchlist_refresh_override = 15
+    WHERE id = 'default';
+    ```
+  - [ ] 6.7.2 Or use NULL to inherit default (60 minutes):
+    ```sql
+    UPDATE user_preferences
+    SET watchlist_refresh_override = NULL
+    WHERE id = 'default';
+    ```
+
+**Success Criteria for Phase 6**:
+- ✅ Services restarted successfully
+- ✅ Scheduled refresh executes automatically (no manual trigger needed)
+- ✅ First scheduled refresh generates narrative data (100% of tickers)
+- ✅ Second scheduled refresh also generates narrative data (continuous operation)
+- ✅ API returns complete data with company_health and narrative fields
+- ✅ No errors in Celery logs related to fundamentals/narrative generation
+
+**Critical Notes**:
+- This phase is MANDATORY - code changes require service restart
+- Must verify AUTOMATIC scheduled refreshes, not just manual API calls
+- If scheduled refreshes fail but manual refreshes succeed → credential/environment issue
+- Monitor at least TWO consecutive scheduled refreshes to ensure stability
 
 ---
 
@@ -473,27 +612,37 @@ Fix the watchlist data pipeline to enable diverse BUY/HOLD/AVOID signals instead
 **Before marking COMPLETE, verify ALL items:**
 
 ### Quantitative Validation
-- [ ] At least 3 different signal types visible in UI (BUY, HOLD, AVOID or earnings warning)
-- [ ] Signal strengths vary (not all 4/10): see 1/10, 5/10, 8/10, etc.
-- [ ] Company health populated for 80%+ tickers (11 of 14)
-- [ ] Earnings dates populated for 70%+ stock tickers (8 of 12, excluding ETFs)
-- [ ] Volume data queried for 100% of tickers with day_bars history
-- [ ] 150/150 tests passing (145 existing + 5 new integration tests)
+- [ ] Signal strengths vary (not all 3-4/10): see strengths of 5-9/10
+- [ ] Company health populated for 100% of tickers (14 of 14)
+- [ ] Earnings dates populated for eligible stock tickers (ETFs expected to be NULL)
+- [ ] Volume data queried from day_bars for 100% of tickers
+- [ ] All tickers have 200+ days of historical data in day_bars
+- [ ] 145/145 tests passing (no new tests added, no regressions)
 - [ ] Test coverage maintained at 85%+
+- [ ] Scheduled refreshes execute automatically every N minutes
 
 ### Qualitative Validation
-- [ ] NVDA generates BUY 8/10 or 9/10 (strong fundamentals + uptrend)
-- [ ] Logs show clear data source attribution ("Fetched from YFinance", "Fallback to Finnhub")
-- [ ] Logs show signal reasoning ("BUY 9/10: 5 of 6 confirmations - uptrend, healthy RSI, positive momentum, strong volume, excellent fundamentals")
-- [ ] UI shows green BUY badge (🟢), yellow HOLD badge (🟡)
-- [ ] Company health section shows bullets in expanded row
-- [ ] Earnings warnings appear when date < 14 days
+- [ ] NVDA shows signal strength 7/10 with EXCELLENT company health
+- [ ] All tickers show diverse signal strengths (not uniform 3-4/10)
+- [ ] Narrative action plans generated for all tickers (>100 chars each)
+- [ ] Special notes generated for all tickers (>100 chars each)
+- [ ] Company health bullets displayed in expanded UI rows
+- [ ] API returns complete narrative data (not NULL fields)
 - [ ] No console errors during E2E testing
+- [ ] Celery logs show successful scheduled refreshes with narrative generation
+
+### Scheduled Operation Validation (CRITICAL)
+- [ ] Celery beat polling every 60 seconds (confirmed in logs)
+- [ ] Scheduled refreshes execute when interval met (not skipped)
+- [ ] First scheduled refresh after restart generates complete narrative data
+- [ ] Second scheduled refresh also generates complete narrative data
+- [ ] Pattern confirmed: EVERY scheduled refresh populates narrative fields
+- [ ] No manual API triggers needed - system operates autonomously
 
 ### User Experience Validation
-- [ ] Watchlist perceived as "working" (not all identical signals)
-- [ ] Actionable diversity: different tickers show different recommendations
-- [ ] Clear reasoning: user can understand why NVDA is BUY vs AAPL is HOLD
+- [ ] Watchlist shows actionable diversity (varied signal strengths and health)
+- [ ] Clear narrative reasoning visible in expanded rows
+- [ ] System operates automatically without manual intervention
 
 ---
 
