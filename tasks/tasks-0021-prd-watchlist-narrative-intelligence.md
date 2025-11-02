@@ -11,51 +11,6 @@
 
 <!-- PAUSED: 2025-11-02 13:54 - Resume here: Priority 1 - Integrate generate_company_health_bullets() -->
 <!-- Handoff: tasks/PAUSE-HANDOFF-20251102-1354.md -->
-**Note**: Session progress (Nov 2, 2025):
-
-**Backend Complete (Tasks 6.5.8-7.6):**
-- ✅ Migration 008 applied and verified (23 columns, 4 indexes, 2.3 MB table size)
-- ✅ WatchlistSnapshot model extended with 3 new validation tests
-- ✅ UI Validation Checkpoint 1 complete (baseline screenshots, no regressions)
-- ✅ Narrative generation integrated into watchlist service layer
-- ✅ Signal classification, headline generation, and style recommendation working
-- ✅ Integration tests created (test_service_narrative_integration.py - 2 tests)
-- ✅ API response models extended (7 narrative fields in WatchlistItemResponse)
-- ✅ List endpoint updated to return narrative data via JSON API
-- ✅ Detail endpoint updated to return narrative data via JSON API
-- ✅ **Calculator integration complete** (Tasks 7.2.6-7.2.7) - entry/stop/target/position sizing
-- ✅ Trade calculations: entry_price, stop_loss, profit_target, position_size_shares now populated
-- ✅ Risk budget loading from user_preferences (default $500)
-- ✅ Complete backend data flow: DB → Service → API (list + detail) → JSON response
-- ✅ **Task 7.6: UI Validation Checkpoint 2 complete** - API integration verified
-- ✅ API response model extended with 4 calculator fields
-- ✅ Service layer queries updated to fetch calculator fields from DB
-- ✅ All 11 narrative + calculator fields in JSON API response
-- ✅ Manual refresh successful (13 items, 200 responses)
-- ✅ Calculator dependency identified: Requires historical day_bars data
-- ✅ Tech debt documented (DuckDBStorage naming) - deferred to Task 10.0
-- ✅ Total tests: 145 passing (all watchlist tests green)
-- ✅ **Backend API 100% complete** (87% total progress, ready for frontend)
-- Prerequisites verified: EMA-20 & ATR-14 exist, mypy errors fixed
-
-**Frontend Complete (Tasks 8.1-8.7 - ALL DONE):**
-- ✅ TypeScript types extended (WatchlistItem interface with 11 narrative fields)
-- ✅ Table row display updated with Signal and Style columns
-- ✅ Signal badges: 🟢 BUY (green), 🟡 HOLD (yellow), 🔴 AVOID (red)
-- ✅ Style badges: 📈 Index, 🔥 Trend, 💎 Value, ⚡ Swing, 📅 Event
-- ✅ Signal strength displayed as "9/10" next to badge
-- ✅ Narrative Intelligence card in expanded row view
-- ✅ Headline display (narrative_headline from backend)
-- ✅ Trade Levels section: Entry, Stop, Target with gain percentage
-- ✅ Position Sizing section: Shares and investment amount
-- ✅ Color-coded pricing (green entry, red stop, blue target)
-- ✅ Conditional rendering: only shows data when available
-- ✅ **Task 8.5: "WHY THIS WORKS" explanations** - Signal-specific reasoning
-- ✅ **Task 8.6: Style filter** - Dropdown with counts, localStorage persistence
-- ✅ **Task 8.7: Adaptive sparklines** - Infrastructure ready for backend support
-- ✅ Risk disclaimer included for compliance
-- ✅ Frontend build passing with no TypeScript errors
-- ✅ **Frontend UI 100% complete** (all features implemented, production-ready)
 
 **Note on Effort Levels**:
 - **Low**: 1-2 hours of straightforward work
@@ -67,62 +22,17 @@
 ## Summary
 
 **✅ COMPLETE:**
-- Task 1.0: Fix Data Integrity Issues (Foundation - CRITICAL) - commit f3d381e
-  - Fixed history endpoint to extract price.score from raw_metrics JSONB
-  - Fixed staleness detection to calculate at display time (not refresh time)
-  - Expanded price change clamp from ±10% to ±20%
-  - All tests passing (342 total: 336 pass + 2 skip + 1 pre-existing failure)
-- Task 0.1: Frontend Auto-Polling (FALSE ALARM - Working as designed)
-  - Polling works correctly with 15-minute interval from user preferences
-  - Verified with 10-second test interval - refetch triggers successfully
-- Task 0.2: WatchlistPreferences Component (FALSE ALARM - Rendering correctly)
-  - Component visible and functional in Settings page
-  - All preferences display and save correctly
-- Network Access Fix - commits 2fe1bce, 198ab20 (Nov 1, 2025)
-  - Simplified architecture: backend on 0.0.0.0:8000, frontend calls backend directly
-  - Removed complex Next.js proxy layer that was exposing 127.0.0.1 to clients
-  - Updated critical documentation with anti-bandaid guidelines
-  - Settings page now accessible from LAN (192.168.8.233:3000) and Tailscale (100.123.190.81:3000)
-- Task 0.3: Comprehensive Refresh Architecture - commits 482e5f1, 985d980 (Nov 1, 2025) - ✅ **COMPLETE**
-  - Phase 1: Basic backend auto-refresh ✅
-  - Phase 2: Comprehensive refresh control system ✅
-  - Migration 005: Added refresh control columns (default_refresh_minutes, overrides, frontend_poll_interval) ✅
-  - Updated Celery task logic with preference hierarchy (override → default → 15min fallback) ✅
-  - Enhanced Settings UI with Basic + Advanced sections ✅
-  - Fixed 'default' user ID issue (was using UUID) - commit 985d980 ✅
-  - Celery refreshing correctly every ~2 minutes with 1-minute threshold ✅
-  - Created REFRESH_ARCHITECTURE.md documentation (comprehensive guide with examples) ✅
+- Task 1.0: Fix Data Integrity Issues (commit f3d381e)
+- Task 0.1-0.2: Frontend Auto-Polling & Preferences (FALSE ALARMS - working as designed)
+- Network Access Fix (commits 2fe1bce, 198ab20)
+- Task 0.3: Comprehensive Refresh Architecture (commits 482e5f1, 985d980)
 
-**✅ COMPLETE (Nov 2, 2025):**
-- Task 4.1-4.4: Company Fundamentals & Health Classification - **NEW**
-  - Created `app/watchlist/fundamentals.py` with multi-source failover (YFinance → Finnhub → FMP)
-  - Implemented company health classification: EXCELLENT/GOOD/WEAK based on margins, growth, debt
-  - 20 passing tests, full type safety (mypy --strict), lint-compliant
-- Task 4.5-4.6: News Integration & Sentiment Analysis - **NEW**
-  - Created `app/watchlist/news.py` with Google News RSS integration
-  - VADER sentiment analysis for headlines (-1.0 to +1.0 scale)
-  - Sentiment categorization (positive/neutral/negative with ±0.2 thresholds)
-  - 17 passing tests, full type safety, lint-compliant
-- Task 4.7-4.8: Earnings Calendar & Warning System - **NEW**
-  - Created `app/watchlist/earnings.py` with multi-source failover (YFinance → Finnhub)
-  - 4-level warning system: 🔴 (0-5 days), ⚠ (6-14 days), 💡 (15-30 days), none (>30 days)
-  - Date normalization to prevent time precision issues
-  - 13 passing tests, full type safety, lint-compliant
-
-**✅ COMPLETE (Nov 2, 2025):**
-- Task 4.9: Cache Fundamental & News Data - **COMPLETE**
-  - Implemented `fetch_fundamentals_cached()` with 24-hour TTL
-  - Implemented `fetch_news_headlines_cached()` with 6-hour TTL
-  - Implemented `fetch_earnings_date_cached()` with 30-day TTL
-  - All 12 caching tests passing (4 per module)
-  - Type-safe, lint-compliant
-- Task 5.0: Entry/Exit/Stop Calculator + Position Sizing - **COMPLETE**
-  - Implemented `calculate_entry_price()` (signal-based)
-  - Implemented `calculate_stop_loss()` (ATR + swing low)
-  - Implemented `calculate_profit_target()` (ATR + swing high)
-  - Implemented `calculate_position_size()` (risk-based)
-  - All 11 calculator tests passing (17 total with existing tests)
-  - Type-safe, lint-compliant
+- Task 4.1-4.9: Fundamentals, News, Earnings, Caching (62 tests total)
+- Task 5.0: Entry/Exit/Stop Calculator + Position Sizing (11 tests)
+- Task 6.0-6.5: Database Schema Migration 008 (23 columns, 4 indexes)
+- Task 7.0-7.6: Backend API Integration (145 tests, 85% coverage)
+- Task 8.0-8.7: Frontend UI Complete (all features)
+- Task 9.1, 9.6: Coverage Analysis (85%) + Type Safety (mypy --strict)
 
 **⚠️ HONEST ASSESSMENT - WHAT'S ACTUALLY COMPLETE:**
 
@@ -196,75 +106,16 @@
 ---
 
 **✅ FIXED (Nov 1, 2025):**
-- **UI showing stale timestamps** - RESOLVED (commit 5738b2f)
-  - **Root Cause**: API returned `updated_at` from `raw_metrics.price` (stale `cached_at` from `price_cache`), not snapshot's `fetched_at`
-  - **Fix**: Override `updated_at` timestamps in score components with snapshot's `fetched_at` in `WatchlistService.get_items_with_scores()`
-  - **Testing**: Added comprehensive test case (TDD: RED → GREEN)
-  - **Impact**: UI now shows accurate timestamps matching actual refresh times
+- UI stale timestamps (commit 5738b2f)
+- Sparklines flat (commit 05de6d3)
+- Sparklines missing historical data
 
-- **Sparklines appearing flat despite data variation** - RESOLVED (commit 05de6d3)
-  - **Root Cause**: Frontend took last 7 chronological points (all recent, identical) instead of sampling across time range
-  - **Example**: TSLA had 9.35 point range in full history, but last 7 points were all 65.73 (0.00 variation)
-  - **Fix**: Changed from `.slice(-7)` to even sampling algorithm that preserves historical variation
-  - **Impact**: Sparklines now show meaningful trends - tickers with price movement display visible ups/downs
+**📋 ENHANCEMENTS ADDED:**
+- Trading Style Classification (Index/Trend/Value/Swing/Event) with adaptive sparklines and filtering
 
-- **Sparklines not showing real historical data** - RESOLVED (Nov 1, 2025)
-  - **Root Cause**: History endpoint only read from watchlist_snapshots (2-4 identical snapshots from today)
-  - **Fix**: Fetch 10 trading days of real price data from yfinance, compute scores from normalized price movement
-  - **Impact**: Sparklines now display actual 10-day price trends, not flat lines
+**⚠️ TECH DEBT:**
+- `DuckDBStorage` class name misleading (actually PostgreSQL) - Task 10.0 (LOW priority, cosmetic only)
 
-**📋 ENHANCEMENTS ADDED (Nov 1, 2025):**
-- **Trading Style Classification** - Per-ticker recommendations (Index/Trend/Value/Swing/Event) - **SIMPLIFIED V1**
-  - Task 2.6: Classify using simple heuristics (ETF list, RSI zones, earnings proximity, signal strength)
-  - Task 3.2.7 & 3.8: Include style in headlines + dedicated style section in narrative
-  - Task 6.2.6: Database columns for style (recommended_style, style_confidence, optimal_holding_period, risk_level)
-  - Task 8.1.10 & 8.2.13: Display style badges in table + expanded view
-  - Task 8.6: Filter watchlist by trading style
-  - Task 8.7: Adaptive sparklines (timeframe matches style: Index=250d, Trend=60d, Swing=10d, Event=5d)
-  - **Impact**: Each ticker gets optimal strategy recommendation with timeframe, risk profile, and exit strategy
-  - **V2 Enhancements** (deferred to PRD #0022): Advanced detection with support/resistance, sector P/E, momentum analysis
-
-**🔧 CRITICAL FIXES APPLIED (Nov 1, 2025):**
-1. **Migration file number** - Changed from 005 to 008 (005-007 already exist)
-2. **Prerequisites added** - Tasks 1.4-1.5: Verify EMA-20, ATR-14, swing low/high availability
-3. **Completed tasks marked** - Tasks 2.1-2.5, 3.1, 3.2, 3.4 already implemented in narrative.py
-4. **API documentation added** - Task 4.1: YFinance/Finnhub/FMP endpoint details and examples
-5. **Edge cases added** - Task 5.4: Handle invalid setups, expensive stocks, large positions
-6. **Database indexes** - Task 6.5.7-6.5.8: Performance indexes for signal_type, earnings_date, recommended_style
-7. **Risk level reduced** - From HIGH to MEDIUM after fixes applied
-
-**⚠️ TECH DEBT DISCOVERED (Nov 2, 2025):**
-**Issue**: `DuckDBStorage` class name is misleading - actually uses PostgreSQL
-- **Location**: `app/storage/__init__.py`, all test files importing `DuckDBStorage`
-- **Root Cause**: Legacy naming from DuckDB → PostgreSQL migration
-- **Impact**: Confusing for developers, violates "clear intent" principle
-- **Evidence**: `ConnectionManager()` connects to PostgreSQL (conftest.py:19), Migration 008 uses PostgreSQL-specific features (JSONB, CHECK constraints)
-- **Current State**: All code works correctly (143 tests passing), only naming is misleading
-- **Recommended Fix**: Rename `DuckDBStorage` → `DatabaseStorage` or `PostgreSQLStorage` in Task 10.0
-- **Priority**: LOW (cosmetic, not blocking) - defer to end of task list or separate PRD
-- **Files to Update**: ~15 files (app/storage/*.py, tests/**/*.py)
-- **Effort**: LOW (find/replace + verify imports)
-
-**REMAINING WORK (CRITICAL):**
-1. ❌ **Integrate narrative generation functions** - Functions exist but not called by service layer
-   - Import: `generate_company_health_bullets`, `generate_action_plan`, `generate_position_sizing_text`, `generate_special_notes`
-   - Call during refresh in service.py (after line 436)
-   - May need new database columns to store full narrative text
-2. ❌ **Connect earnings integration** - Module exists, but service sets `earnings_days_away=None`
-   - Hook up earnings module to service layer
-   - Populate earnings_date and earnings_days_away fields
-3. ❌ **Task 9.0: Testing & Validation** - COMPLETELY SKIPPED
-   - 9.1: Coverage analysis (verify >80%)
-   - 9.2: Integration tests (only 2 exist)
-   - 9.3: E2E validation (11 UI checkpoints - NONE done)
-   - 9.4: Edge case testing
-   - 9.5: Performance validation
-   - 9.6: Type safety (`mypy --strict`)
-   - 9.7: Documentation (ARCHITECTURE.md, REFACTOR_STATUS.md)
-4. ❌ **Production Readiness Checklist** - All items unchecked (lines 1220-1260)
-
-**COMPLETION STATUS:** ~70% complete (Core: 75%, Frontend: 90%, Testing: 20%)
-**EFFORT TO COMPLETE:** MEDIUM (2-3 hours to integrate dead code + complete testing/validation)
 
 ---
 
