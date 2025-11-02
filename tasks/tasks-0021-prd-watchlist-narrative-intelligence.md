@@ -1,12 +1,13 @@
 # Task List: Watchlist Narrative Intelligence
 
 **PRD**: `0021-prd-watchlist-narrative-intelligence.md`
-**Status**: In Progress (Migration 008 complete - ready for API integration)
-**Completion**: 55% (Tasks 0.1-0.3, 1.0, 1.4-1.5, 2.1-2.6, 3.1-3.7, 4.1-4.9, 5.0, 6.1-6.5 complete)
-**Effort to Complete**: Medium (API integration and frontend remaining)
-**Risk Level**: Low (database schema ready, all narrative functions tested)
-**Last Updated**: 2025-11-01 23:42
-**Note**: Session progress: Migration 008 applied (23 narrative columns + 4 indexes + 4 user preferences), idempotent and tested on both test and production databases
+**Status**: Paused (Data layer complete - ready for service integration)
+**Completion**: 60% (Tasks 0.1-0.3, 1.0, 1.4-1.5, 2.1-2.6, 3.1-3.7, 4.1-4.9, 5.0, 6.0, 7.1 complete)
+**Effort to Complete**: Medium (Service integration and frontend remaining)
+**Risk Level**: Low (all data layer components ready, 140 tests passing)
+**Last Updated**: 2025-11-01 23:43
+**Paused**: 2025-11-01 23:43 (Data layer complete - WatchlistSnapshot model extended, QueryManager updated, ready for narrative generation integration)
+**Note**: Session progress: +3 commits (narrative functions, migration 008, model/query manager), 22 new narrative tests, 23 DB columns added, all 140 watchlist tests passing
 - Prerequisites verified: EMA-20 & ATR-14 exist, mypy errors fixed
 - UI testing protocol updated: All checkpoints now use browser-automation skill (0 token cost vs 18k for Chrome DevTools MCP)
 - 11 UI validation checkpoints with explicit screenshot.js, console.js, network.js, snapshot.js, interact.js, and performance.js commands
