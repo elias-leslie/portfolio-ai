@@ -21,6 +21,8 @@ from .calculator import (
     calculate_profit_target,
     calculate_stop_loss,
 )
+from .earnings import fetch_earnings_date_cached
+from .fundamentals import classify_company_health, fetch_fundamentals_cached
 from .models import (
     ScoreWeights,
     SignalType,
@@ -32,8 +34,10 @@ from .narrative import (
     classify_signal,
     classify_trading_style,
     generate_action_plan,
+    generate_company_health_bullets,
     generate_headline,
     generate_position_sizing_text,
+    generate_special_notes,
 )
 from .scoring import _is_stale as scoring_is_stale
 from .scoring import calculate_watchlist_scores
@@ -426,17 +430,50 @@ def refresh_watchlist_scores(
                 )
             )
 
+            # Fetch fundamentals and earnings data for narrative generation
+            fundamentals_data = None
+            company_health_str: str | None = None
+            earnings_date_obj: datetime | None = None
+            earnings_days_away_val: int | None = None
+
+            with storage.connection() as conn:
+                # Fetch fundamentals (cached 24 hours)
+                try:
+                    fundamentals_data = fetch_fundamentals_cached(conn, symbol, ttl_days=1)
+                    if fundamentals_data:
+                        company_health_str = classify_company_health(fundamentals_data)
+                except Exception as fundamentals_error:
+                    logger.warning(
+                        "fundamentals_fetch_failed",
+                        symbol=symbol,
+                        error=str(fundamentals_error),
+                    )
+
+                # Fetch earnings date (cached 30 days)
+                try:
+                    earnings_date_obj = fetch_earnings_date_cached(conn, symbol, ttl_days=30)
+                    if earnings_date_obj:
+                        # Calculate days until earnings
+                        days_diff = (earnings_date_obj.date() - now.date()).days
+                        earnings_days_away_val = days_diff if days_diff >= 0 else None
+                except Exception as earnings_error:
+                    logger.warning(
+                        "earnings_fetch_failed",
+                        symbol=symbol,
+                        error=str(earnings_error),
+                    )
+
             # Generate narrative intelligence
-            # Classify signal based on technical indicators
+            # Classify signal based on technical indicators + fundamentals + earnings
             signal_inputs = {
                 "price": price_data.price,
                 "ema_20": technical_snapshot.price,  # Using current price as EMA approximation
                 "rsi_14": technical_snapshot.rsi_14,
                 "macd": technical_snapshot.macd,
                 "volume": None,  # Not available in current data
-                "company_health": None,  # Will be added in future iteration
+                "company_health": company_health_str,  # Fetched from fundamentals
                 "news_sentiment": None,  # Will be added in future iteration
-                "earnings_days_away": None,  # Will be added in future iteration
+                "earnings_days_away": earnings_days_away_val,  # Calculated from earnings date
             }
 
             try:
@@ -451,7 +488,7 @@ def refresh_watchlist_scores(
                     signal_strength=signal_strength_val,
                     signal_type=signal_type_str,
                     rsi_14=technical_snapshot.rsi_14 or 50.0,  # Default to neutral if missing
-                    earnings_days_away=None,
+                    earnings_days_away=earnings_days_away_val,
                 )
 
                 # Calculate trade levels (entry, stop, target, position size)
@@ -483,6 +520,8 @@ def refresh_watchlist_scores(
                 # Generate narrative texts (for fields we have data for)
                 narrative_action_plan_text: str | None = None
                 narrative_position_sizing_text: str | None = None
+                narrative_company_health_bullets: list[str] | None = None
+                narrative_special_notes_text: str | None = None
 
                 # Generate action plan if we have trade levels
                 if (
@@ -525,6 +564,53 @@ def refresh_watchlist_scores(
                             error=str(position_sizing_error),
                         )
 
+                # Generate company health bullets if we have fundamentals data
+                if fundamentals_data is not None:
+                    try:
+                        # Convert FundamentalData to dict for narrative generation
+                        fundamentals_dict = {
+                            "revenue_growth": fundamentals_data.revenue_growth,
+                            "profit_margin": fundamentals_data.profit_margin,
+                            "debt_to_equity": fundamentals_data.debt_to_equity,
+                            "cash": None,  # Not available in current fundamentals model
+                            "analyst_buy_pct": None,  # Will calculate from recommendation_mean
+                        }
+
+                        # Estimate analyst buy percentage from recommendation_mean
+                        # recommendation_mean: 1.0-5.0 (1=strong buy, 5=sell)
+                        if fundamentals_data.recommendation_mean is not None:
+                            # Convert to buy percentage (1.0 → 100%, 5.0 → 0%)
+                            analyst_buy_pct = (5.0 - fundamentals_data.recommendation_mean) / 4.0
+                            fundamentals_dict["analyst_buy_pct"] = max(
+                                0.0, min(1.0, analyst_buy_pct)
+                            )
+
+                        narrative_company_health_bullets = generate_company_health_bullets(
+                            fundamentals_dict
+                        )
+                    except Exception as company_health_error:
+                        logger.warning(
+                            "company_health_bullets_generation_failed",
+                            symbol=symbol,
+                            error=str(company_health_error),
+                        )
+
+                # Generate special notes if we have all required data
+                if company_health_str is not None:
+                    try:
+                        narrative_special_notes_text = generate_special_notes(
+                            signal_type=signal_type_str,
+                            signal_strength=signal_strength_val,
+                            earnings_days_away=earnings_days_away_val,
+                            company_health=company_health_str,
+                        )
+                    except Exception as special_notes_error:
+                        logger.warning(
+                            "special_notes_generation_failed",
+                            symbol=symbol,
+                            error=str(special_notes_error),
+                        )
+
             except Exception as e:
                 logger.warning(
                     "narrative_generation_failed",
@@ -549,6 +635,12 @@ def refresh_watchlist_scores(
                 # Initialize narrative texts as None on failure
                 narrative_action_plan_text = None
                 narrative_position_sizing_text = None
+                narrative_company_health_bullets = None
+                narrative_special_notes_text = None
+                # Initialize fundamentals/earnings as None on failure
+                company_health_str = None
+                earnings_date_obj = None
+                earnings_days_away_val = None
 
             # Calculate staleness based on market hours
             data_is_stale = is_stale(fetched_at=now, now=now)  # Just fetched, so not stale
@@ -580,6 +672,14 @@ def refresh_watchlist_scores(
                 # Narrative text fields
                 narrative_action_plan=narrative_action_plan_text,
                 narrative_position_sizing=narrative_position_sizing_text,
+                narrative_company_health={"bullets": narrative_company_health_bullets}
+                if narrative_company_health_bullets
+                else None,
+                narrative_special_notes=narrative_special_notes_text,
+                # Fundamental/earnings fields
+                company_health=company_health_str,
+                earnings_date=earnings_date_obj,
+                earnings_days_away=earnings_days_away_val,
             )
 
             storage.query_mgr.upsert_watchlist_snapshot(**snapshot.to_upsert_params())
@@ -694,7 +794,10 @@ class WatchlistService:
                 SELECT overall_score, technical_score, fetched_at, raw_metrics,
                        signal_type, signal_strength, narrative_headline,
                        recommended_style, style_confidence, optimal_holding_period, risk_level,
-                       entry_price, stop_loss, profit_target, position_size_shares
+                       entry_price, stop_loss, profit_target, position_size_shares,
+                       narrative_action_plan, narrative_position_sizing,
+                       narrative_company_health, narrative_special_notes,
+                       company_health, earnings_date, earnings_days_away
                 FROM watchlist_snapshots
                 WHERE item_id = ?
                 ORDER BY fetched_at DESC
@@ -769,7 +872,16 @@ class WatchlistService:
                 # Add narrative text fields
                 item_data["narrative_action_plan"] = snap_row.get("narrative_action_plan")
                 item_data["narrative_position_sizing"] = snap_row.get("narrative_position_sizing")
+                item_data["narrative_company_health"] = snap_row.get("narrative_company_health")
                 item_data["narrative_special_notes"] = snap_row.get("narrative_special_notes")
+
+                # Add fundamental/earnings fields
+                item_data["company_health"] = snap_row.get("company_health")
+                earnings_date_value = snap_row.get("earnings_date")
+                item_data["earnings_date"] = (
+                    earnings_date_value.isoformat() if earnings_date_value is not None else None
+                )
+                item_data["earnings_days_away"] = snap_row.get("earnings_days_away")
 
             results.append(item_data)
 
@@ -828,7 +940,10 @@ class WatchlistService:
             SELECT overall_score, technical_score, fetched_at, raw_metrics,
                    signal_type, signal_strength, narrative_headline,
                    recommended_style, style_confidence, optimal_holding_period, risk_level,
-                   entry_price, stop_loss, profit_target, position_size_shares
+                   entry_price, stop_loss, profit_target, position_size_shares,
+                   narrative_action_plan, narrative_position_sizing,
+                   narrative_company_health, narrative_special_notes,
+                   company_health, earnings_date, earnings_days_away
             FROM watchlist_snapshots
             WHERE item_id = ?
             ORDER BY fetched_at DESC
@@ -898,7 +1013,16 @@ class WatchlistService:
             # Add narrative text fields
             item_data["narrative_action_plan"] = snap_row.get("narrative_action_plan")
             item_data["narrative_position_sizing"] = snap_row.get("narrative_position_sizing")
+            item_data["narrative_company_health"] = snap_row.get("narrative_company_health")
             item_data["narrative_special_notes"] = snap_row.get("narrative_special_notes")
+
+            # Add fundamental/earnings fields
+            item_data["company_health"] = snap_row.get("company_health")
+            earnings_date_value = snap_row.get("earnings_date")
+            item_data["earnings_date"] = (
+                earnings_date_value.isoformat() if earnings_date_value is not None else None
+            )
+            item_data["earnings_days_away"] = snap_row.get("earnings_days_away")
 
         return item_data
 

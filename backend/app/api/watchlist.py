@@ -100,7 +100,13 @@ class WatchlistItemResponse(BaseModel):
     # Narrative text fields
     narrative_action_plan: str | None = None
     narrative_position_sizing: str | None = None
+    narrative_company_health: dict[str, Any] | None = None
     narrative_special_notes: str | None = None
+
+    # Fundamental/earnings fields
+    company_health: str | None = None
+    earnings_date: str | None = None  # ISO date string
+    earnings_days_away: int | None = None
 
 
 class WatchlistListResponse(BaseModel):
