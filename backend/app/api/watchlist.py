@@ -97,6 +97,11 @@ class WatchlistItemResponse(BaseModel):
     profit_target: float | None = None
     position_size_shares: int | None = None
 
+    # Narrative text fields
+    narrative_action_plan: str | None = None
+    narrative_position_sizing: str | None = None
+    narrative_special_notes: str | None = None
+
 
 class WatchlistListResponse(BaseModel):
     """Response model for list of watchlist items."""

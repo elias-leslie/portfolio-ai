@@ -28,7 +28,13 @@ from .models import (
     WatchlistScoreInputs,
     WatchlistSnapshot,
 )
-from .narrative import classify_signal, classify_trading_style, generate_headline
+from .narrative import (
+    classify_signal,
+    classify_trading_style,
+    generate_action_plan,
+    generate_headline,
+    generate_position_sizing_text,
+)
 from .scoring import _is_stale as scoring_is_stale
 from .scoring import calculate_watchlist_scores
 
@@ -474,6 +480,51 @@ def refresh_watchlist_scores(
                                 risk_budget=risk_budget,
                             )
 
+                # Generate narrative texts (for fields we have data for)
+                narrative_action_plan_text: str | None = None
+                narrative_position_sizing_text: str | None = None
+
+                # Generate action plan if we have trade levels
+                if (
+                    entry_price_val is not None
+                    and stop_loss_val is not None
+                    and profit_target_val is not None
+                ):
+                    try:
+                        narrative_action_plan_text = generate_action_plan(
+                            signal_type=signal_type_str,
+                            entry_price=entry_price_val,
+                            stop_loss=stop_loss_val,
+                            profit_target=profit_target_val,
+                        )
+                    except Exception as action_plan_error:
+                        logger.warning(
+                            "action_plan_generation_failed",
+                            symbol=symbol,
+                            error=str(action_plan_error),
+                        )
+
+                # Generate position sizing text if we have all required data
+                if (
+                    position_size_val is not None
+                    and entry_price_val is not None
+                    and profit_target_val is not None
+                    and stop_loss_val is not None
+                ):
+                    try:
+                        narrative_position_sizing_text = generate_position_sizing_text(
+                            shares=position_size_val,
+                            entry_price=entry_price_val,
+                            stop_loss=stop_loss_val,
+                            profit_target=profit_target_val,
+                        )
+                    except Exception as position_sizing_error:
+                        logger.warning(
+                            "position_sizing_text_generation_failed",
+                            symbol=symbol,
+                            error=str(position_sizing_error),
+                        )
+
             except Exception as e:
                 logger.warning(
                     "narrative_generation_failed",
@@ -495,6 +546,9 @@ def refresh_watchlist_scores(
                 stop_loss_val = None
                 profit_target_val = None
                 position_size_val = None
+                # Initialize narrative texts as None on failure
+                narrative_action_plan_text = None
+                narrative_position_sizing_text = None
 
             # Calculate staleness based on market hours
             data_is_stale = is_stale(fetched_at=now, now=now)  # Just fetched, so not stale
@@ -523,6 +577,9 @@ def refresh_watchlist_scores(
                 stop_loss=stop_loss_val,
                 profit_target=profit_target_val,
                 position_size_shares=position_size_val,
+                # Narrative text fields
+                narrative_action_plan=narrative_action_plan_text,
+                narrative_position_sizing=narrative_position_sizing_text,
             )
 
             storage.query_mgr.upsert_watchlist_snapshot(**snapshot.to_upsert_params())
@@ -709,6 +766,11 @@ class WatchlistService:
                 item_data["profit_target"] = snap_row.get("profit_target")
                 item_data["position_size_shares"] = snap_row.get("position_size_shares")
 
+                # Add narrative text fields
+                item_data["narrative_action_plan"] = snap_row.get("narrative_action_plan")
+                item_data["narrative_position_sizing"] = snap_row.get("narrative_position_sizing")
+                item_data["narrative_special_notes"] = snap_row.get("narrative_special_notes")
+
             results.append(item_data)
 
         return results
@@ -832,6 +894,11 @@ class WatchlistService:
             item_data["stop_loss"] = snap_row.get("stop_loss")
             item_data["profit_target"] = snap_row.get("profit_target")
             item_data["position_size_shares"] = snap_row.get("position_size_shares")
+
+            # Add narrative text fields
+            item_data["narrative_action_plan"] = snap_row.get("narrative_action_plan")
+            item_data["narrative_position_sizing"] = snap_row.get("narrative_position_sizing")
+            item_data["narrative_special_notes"] = snap_row.get("narrative_special_notes")
 
         return item_data
 
