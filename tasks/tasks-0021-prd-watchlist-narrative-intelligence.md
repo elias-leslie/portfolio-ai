@@ -1,12 +1,12 @@
 # Task List: Watchlist Narrative Intelligence
 
 **PRD**: `0021-prd-watchlist-narrative-intelligence.md`
-**Status**: In Progress (Narrative generation complete - 140 tests passing)
-**Completion**: 50% (Tasks 0.1-0.3, 1.0, 1.4-1.5, 2.1-2.6, 3.1-3.7, 4.1-4.9, 5.0 complete)
-**Effort to Complete**: Medium (database migration and API integration remaining)
-**Risk Level**: Low (all core narrative functions complete with comprehensive tests)
-**Last Updated**: 2025-11-01 23:35
-**Note**: Session progress: +5% completion, narrative generation complete (Tasks 3.3, 3.5-3.7), 22 new tests (company health, action plan, position sizing, special notes)
+**Status**: In Progress (Migration 008 complete - ready for API integration)
+**Completion**: 55% (Tasks 0.1-0.3, 1.0, 1.4-1.5, 2.1-2.6, 3.1-3.7, 4.1-4.9, 5.0, 6.1-6.5 complete)
+**Effort to Complete**: Medium (API integration and frontend remaining)
+**Risk Level**: Low (database schema ready, all narrative functions tested)
+**Last Updated**: 2025-11-01 23:42
+**Note**: Session progress: Migration 008 applied (23 narrative columns + 4 indexes + 4 user preferences), idempotent and tested on both test and production databases
 - Prerequisites verified: EMA-20 & ATR-14 exist, mypy errors fixed
 - UI testing protocol updated: All checkpoints now use browser-automation skill (0 token cost vs 18k for Chrome DevTools MCP)
 - 11 UI validation checkpoints with explicit screenshot.js, console.js, network.js, snapshot.js, interact.js, and performance.js commands
@@ -733,50 +733,51 @@ NVDA: EMA-20=188.84, ATR-14=6.21
   - [ ] 5.5.5 Run test to verify preference lookup
   - [ ] 5.5.6 Verify default works when no preference exists
 
-### 6.0 Database Migration & Schema Updates
+### 6.0 Database Migration & Schema Updates ✅
 
 **Goal**: Add new columns to `watchlist_snapshots` and `user_preferences` tables
 
-- [ ] 6.1 Create Migration Script
-  - [ ] 6.1.1 Create `backend/migrations/008_narrative_intelligence.sql` (005-007 already exist)
-  - [ ] 6.1.2 Add idempotent ALTER TABLE with `IF NOT EXISTS` clauses
-  - [ ] 6.1.3 Add `signal_type TEXT CHECK(signal_type IN ('BUY', 'HOLD', 'AVOID'))`
-  - [ ] 6.1.4 Add `signal_strength INTEGER CHECK(signal_strength BETWEEN 0 AND 10)`
-  - [ ] 6.1.5 Add `narrative_headline TEXT`
-  - [ ] 6.1.6 Add `narrative_why_bullets JSONB`
+- [x] 6.1 Create Migration Script ✅
+  - [x] 6.1.1 Create `backend/migrations/008_narrative_intelligence.sql` (005-007 already exist)
+  - [x] 6.1.2 Add idempotent ALTER TABLE with `IF NOT EXISTS` clauses
+  - [x] 6.1.3 Add `signal_type TEXT CHECK(signal_type IN ('BUY', 'HOLD', 'AVOID'))`
+  - [x] 6.1.4 Add `signal_strength INTEGER CHECK(signal_strength BETWEEN 0 AND 10)`
+  - [x] 6.1.5 Add `narrative_headline TEXT`
+  - [x] 6.1.6 Add `narrative_why_bullets JSONB`
 
-- [ ] 6.2 Add Trade Calculation Columns
-  - [ ] 6.2.1 Add `entry_price DOUBLE PRECISION`
-  - [ ] 6.2.2 Add `stop_loss DOUBLE PRECISION`
-  - [ ] 6.2.3 Add `profit_target DOUBLE PRECISION`
-  - [ ] 6.2.4 Add `position_size_shares INTEGER`
-  - [ ] 6.2.5 Add `narrative_action_plan TEXT`
-  - [ ] 6.2.6 ENHANCEMENT: Add trading style columns
+- [x] 6.2 Add Trade Calculation Columns ✅
+  - [x] 6.2.1 Add `entry_price DOUBLE PRECISION`
+  - [x] 6.2.2 Add `stop_loss DOUBLE PRECISION`
+  - [x] 6.2.3 Add `profit_target DOUBLE PRECISION`
+  - [x] 6.2.4 Add `position_size_shares INTEGER`
+  - [x] 6.2.5 Add `narrative_action_plan TEXT`
+  - [x] 6.2.6 ENHANCEMENT: Add trading style columns
     - Add `recommended_style TEXT CHECK(recommended_style IN ('Index', 'Trend', 'Value', 'Swing', 'Event'))`
     - Add `style_confidence INTEGER CHECK(style_confidence BETWEEN 0 AND 10)`
     - Add `optimal_holding_period TEXT` (e.g., "2-3 months", "1-3 weeks", "Hold indefinitely")
+    - Add `risk_level TEXT CHECK(risk_level IN ('Low', 'Medium-Low', 'Medium', 'High'))`
 
-- [ ] 6.3 Add Fundamental & News Columns
-  - [ ] 6.3.1 Add `company_health TEXT CHECK(company_health IN ('EXCELLENT', 'GOOD', 'WEAK'))`
-  - [ ] 6.3.2 Add `earnings_date DATE`
-  - [ ] 6.3.3 Add `earnings_days_away INTEGER`
-  - [ ] 6.3.4 Add `news_sentiment_score DOUBLE PRECISION CHECK(news_sentiment_score BETWEEN -1.0 AND 1.0)`
-  - [ ] 6.3.5 Add `recent_news_headlines JSONB`
+- [x] 6.3 Add Fundamental & News Columns ✅
+  - [x] 6.3.1 Add `company_health TEXT CHECK(company_health IN ('EXCELLENT', 'GOOD', 'WEAK'))`
+  - [x] 6.3.2 Add `earnings_date DATE`
+  - [x] 6.3.3 Add `earnings_days_away INTEGER`
+  - [x] 6.3.4 Add `news_sentiment_score DOUBLE PRECISION CHECK(news_sentiment_score BETWEEN -1.0 AND 1.0)`
+  - [x] 6.3.5 Add `recent_news_headlines JSONB`
 
-- [ ] 6.4 Add User Preference Columns
-  - [ ] 6.4.1 Add `watchlist_risk_budget INTEGER DEFAULT 500` to user_preferences
-  - [ ] 6.4.2 Add `watchlist_price_clamp INTEGER DEFAULT 20` (for ±20% clamp)
-  - [ ] 6.4.3 Add `watchlist_show_news BOOLEAN DEFAULT true`
-  - [ ] 6.4.4 Add `watchlist_show_fundamentals BOOLEAN DEFAULT true`
+- [x] 6.4 Add User Preference Columns ✅
+  - [x] 6.4.1 Add `watchlist_risk_budget INTEGER DEFAULT 500` to user_preferences
+  - [x] 6.4.2 Add `watchlist_price_clamp INTEGER DEFAULT 20` (for ±20% clamp)
+  - [x] 6.4.3 Add `watchlist_show_news BOOLEAN DEFAULT true`
+  - [x] 6.4.4 Add `watchlist_show_fundamentals BOOLEAN DEFAULT true`
 
-- [ ] 6.5 Test Migration Script
-  - [ ] 6.5.1 Write test for migration idempotence (run twice, no errors)
-  - [ ] 6.5.2 Run migration on test database
-  - [ ] 6.5.3 Verify all columns exist with correct types
-  - [ ] 6.5.4 Verify CHECK constraints enforce valid values
-  - [ ] 6.5.5 Verify defaults applied correctly
-  - [ ] 6.5.6 Run migration again to verify idempotence
-  - [ ] 6.5.7 **Add performance indexes** for new columns
+- [x] 6.5 Test Migration Script ✅
+  - [x] 6.5.1 Write test for migration idempotence (run twice, no errors)
+  - [x] 6.5.2 Run migration on test database
+  - [x] 6.5.3 Verify all columns exist with correct types
+  - [x] 6.5.4 Verify CHECK constraints enforce valid values
+  - [x] 6.5.5 Verify defaults applied correctly
+  - [x] 6.5.6 Run migration again to verify idempotence
+  - [x] 6.5.7 **Add performance indexes** for new columns
     ```sql
     CREATE INDEX IF NOT EXISTS idx_watchlist_snapshots_signal
       ON watchlist_snapshots(item_id, signal_type, fetched_at DESC);
