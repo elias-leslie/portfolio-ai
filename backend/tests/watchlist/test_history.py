@@ -26,25 +26,26 @@ def make_snapshot(
 
 
 def test_build_score_timeline_groups_by_day() -> None:
-    now = datetime.now(UTC)
+    # Use fixed time at noon UTC to avoid day boundary issues
+    now = datetime(2025, 11, 3, 12, 0, 0, tzinfo=UTC)
     snapshots = [
         make_snapshot(
             item_id="item-1",
-            fetched_at=now - timedelta(hours=2),
+            fetched_at=now - timedelta(hours=2),  # Nov 3, 10:00 UTC
             overall=75.0,
             price=70.0,
             technical=80.0,
         ),
         make_snapshot(
             item_id="item-1",
-            fetched_at=now - timedelta(hours=1),
+            fetched_at=now - timedelta(hours=1),  # Nov 3, 11:00 UTC
             overall=77.0,
             price=72.0,
             technical=82.0,
         ),
         make_snapshot(
             item_id="item-1",
-            fetched_at=now - timedelta(days=2),
+            fetched_at=now - timedelta(days=2),  # Nov 1, 12:00 UTC
             overall=60.0,
             price=58.0,
             technical=62.0,
@@ -53,7 +54,7 @@ def test_build_score_timeline_groups_by_day() -> None:
 
     timeline = build_score_timeline(snapshots, window_days=7, now=now)
 
-    assert len(timeline) == 2
+    assert len(timeline) == 2  # Nov 3 (2 snapshots) and Nov 1 (1 snapshot)
     today_point = max(timeline, key=lambda point: point.date)
     assert round(today_point.overall_score, 2) == 76.0
     assert round(today_point.price_score or 0, 2) == 71.0
