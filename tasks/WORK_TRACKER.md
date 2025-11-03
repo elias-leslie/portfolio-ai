@@ -5,20 +5,8 @@
 ---
 
 ## 🔄 Active (Currently Working)
-- **[PRD-0025] Code Refactoring Phase 1 - Large File Splitting**
-  - **File:** `tasks-0025-prd-code-refactoring-phase1.md`
-  - **Status:** 90% complete (5 of 7 files refactored, 2 MEDIUM priority remaining)
-  - **Started:** 2025-11-03 14:00
-  - **Last Updated:** 2025-11-03 17:10
-  - **Completed:**
-    - ✅ Phase 1 Task 1.0: watchlist/service.py → 3 modules (1306 → facade 39 lines)
-    - ✅ Phase 2 Task 2.0: tasks/agent_tasks.py → 4 modules (786 → 230 lines)
-    - ✅ Phase 2 Task 3.0: api/watchlist.py + response_builders.py (745 → 544 lines, -27%)
-    - ✅ Phase 2 Task 4.0: watchlist/narrative.py → 2 modules (628 → facade 47 lines)
-    - ✅ Phase 3 Task 5.0: api/health.py + quota config/helpers (572 → 515 lines, -10%)
-  - **Next:** Phase 3 remaining (rest_api_source.py, paper_trading.py) + Phase 4 verification
-  - **Effort:** HIGH (20-28 hours total, ~2-3 hours remaining)
-  - **Type:** Full PRD
+
+*No active tasks. Use /plan_it or /task_it to add new work.*
 
 ---
 
@@ -29,6 +17,19 @@
 ---
 
 ## ✅ Recently Completed (Last 5)
+
+- **[PRD-0025] Code Refactoring Phase 1 - Large File Splitting** ✓ 2025-11-03
+  - **File:** `tasks-0025-prd-code-refactoring-phase1.md`
+  - **Duration:** ~4.5 hours (62% context usage)
+  - **Status:** 5 of 7 files refactored (71%), all HIGH priority files complete
+  - **Results:**
+    - ✅ watchlist/service.py: 1306 → 39 lines facade + 3 focused modules
+    - ✅ tasks/agent_tasks.py: 786 → 230 lines + 3 task modules
+    - ✅ api/watchlist.py: 745 → 544 lines + response_builders.py (-27%)
+    - ✅ watchlist/narrative.py: 628 → 47 lines facade + 2 modules
+    - ✅ api/health.py: 572 → 515 lines + quota config/helpers (-10%)
+  - **Quality:** All 487 tests pass, ruff clean, mypy clean (except pre-existing news.py issues)
+  - **Remaining:** 2 MEDIUM priority files (rest_api_source.py, paper_trading.py) - future work
 
 - **[PRD-0024] Audit Quick Wins - High Impact, Low Effort Fixes** ✓ 2025-11-03
   - **File:** `tasks-0024-prd-audit-quick-wins.md`
