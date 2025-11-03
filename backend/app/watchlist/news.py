@@ -8,13 +8,15 @@ from __future__ import annotations
 
 import json
 from datetime import date, datetime, timedelta
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import feedparser  # type: ignore[import-not-found]
 from pydantic import BaseModel
 from vaderSentiment.vaderSentiment import (  # type: ignore[import-not-found]
     SentimentIntensityAnalyzer,
 )
+
+from app.storage.types import DatabaseConnection
 
 if TYPE_CHECKING:
     pass
@@ -99,7 +101,7 @@ def categorize_sentiment(sentiment_score: float) -> str:
 
 
 def fetch_news_headlines_cached(
-    conn: Any, symbol: str, max_results: int = 10, ttl_hours: int = 6
+    conn: DatabaseConnection, symbol: str, max_results: int = 10, ttl_hours: int = 6
 ) -> list[NewsHeadline]:
     """Fetch news headlines with caching support (default TTL: 6 hours).
 

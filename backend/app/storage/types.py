@@ -19,6 +19,7 @@ class DatabaseConnection(Protocol):
         execute: Execute a SQL query with optional parameters
         fetchdf: Fetch query results as a DataFrame
         pl: Return a Polars-compatible interface
+        commit: Commit the current transaction
     """
 
     def execute(self, query: str, params: list[Any] | None = None) -> Any:
@@ -46,5 +47,12 @@ class DatabaseConnection(Protocol):
 
         Returns:
             Polars DataFrame or lazy frame interface
+        """
+        ...
+
+    def commit(self) -> None:
+        """Commit the current transaction.
+
+        Persists all changes made since the last commit or rollback.
         """
         ...

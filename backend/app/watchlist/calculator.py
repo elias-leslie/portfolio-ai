@@ -10,13 +10,15 @@ This module provides functions for:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
+
+from app.storage.types import DatabaseConnection
 
 if TYPE_CHECKING:
     pass
 
 
-def get_swing_low(conn: Any, symbol: str, days: int = 10) -> float | None:
+def get_swing_low(conn: DatabaseConnection, symbol: str, days: int = 10) -> float | None:
     """Get the lowest close price over the last N trading days.
 
     Args:
@@ -54,7 +56,7 @@ def get_swing_low(conn: Any, symbol: str, days: int = 10) -> float | None:
     return float(row[0])
 
 
-def get_swing_high(conn: Any, symbol: str, days: int = 30) -> float | None:
+def get_swing_high(conn: DatabaseConnection, symbol: str, days: int = 30) -> float | None:
     """Get the highest close price over the last N trading days.
 
     Args:
@@ -116,7 +118,7 @@ def calculate_entry_price(current_price: float, signal_type: str) -> float | Non
     return current_price
 
 
-def calculate_stop_loss(conn: Any, symbol: str, entry_price: float) -> float | None:
+def calculate_stop_loss(conn: DatabaseConnection, symbol: str, entry_price: float) -> float | None:
     """Calculate stop loss using ATR-based and technical (swing low) methods.
 
     Uses the tighter (higher) of:
@@ -167,7 +169,9 @@ def calculate_stop_loss(conn: Any, symbol: str, entry_price: float) -> float | N
     return atr_stop
 
 
-def calculate_profit_target(conn: Any, symbol: str, entry_price: float) -> float | None:
+def calculate_profit_target(
+    conn: DatabaseConnection, symbol: str, entry_price: float
+) -> float | None:
     """Calculate profit target using ATR-based and technical (swing high) methods.
 
     Uses the higher of:

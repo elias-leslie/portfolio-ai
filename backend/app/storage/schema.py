@@ -10,10 +10,11 @@ Note:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from ..logging_config import get_logger
 from .migrations import MigrationManager
+from .types import DatabaseConnection
 
 if TYPE_CHECKING:
     from .connection import ConnectionManager
@@ -89,7 +90,7 @@ class SchemaManager:
         # Apply SQL file migrations (incremental schema updates)
         migration_mgr.apply_migrations()
 
-    def _apply_migrations(self, conn: Any) -> None:
+    def _apply_migrations(self, conn: DatabaseConnection) -> None:
         """Apply backward-compatible schema migrations.
 
         Uses ADD COLUMN IF NOT EXISTS to allow safe re-runs.
@@ -101,7 +102,7 @@ class SchemaManager:
             except Exception as e:
                 logger.warning(f"Migration {version} failed (may already exist): {e}")
 
-    def _populate_registry_metadata(self, conn: Any) -> None:
+    def _populate_registry_metadata(self, conn: DatabaseConnection) -> None:
         """Populate table_registry with metadata for all tables."""
         registry_entries = [
             ("source_registry", "config", "Data source definitions"),

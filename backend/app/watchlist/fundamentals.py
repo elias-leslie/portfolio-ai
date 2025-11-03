@@ -16,10 +16,12 @@ import json
 import os
 from abc import ABC, abstractmethod
 from datetime import date, timedelta
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import requests
 from pydantic import BaseModel
+
+from app.storage.types import DatabaseConnection
 
 if TYPE_CHECKING:
     pass
@@ -295,7 +297,9 @@ def classify_company_health(data: FundamentalData) -> str:
     return "GOOD"
 
 
-def fetch_fundamentals_cached(conn: Any, symbol: str, ttl_days: int = 1) -> FundamentalData | None:
+def fetch_fundamentals_cached(
+    conn: DatabaseConnection, symbol: str, ttl_days: int = 1
+) -> FundamentalData | None:
     """Fetch fundamental data with caching support (default TTL: 24 hours).
 
     This function checks the reference_cache table first. If valid cached data

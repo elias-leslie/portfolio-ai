@@ -9,9 +9,11 @@ from __future__ import annotations
 import json
 import os
 from datetime import date, datetime, timedelta
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import requests
+
+from app.storage.types import DatabaseConnection
 
 if TYPE_CHECKING:
     pass
@@ -125,7 +127,9 @@ def generate_earnings_warning(earnings_date: datetime | None) -> str | None:  # 
     return f"💡 Earnings in {days_away} days ({weeks} weeks) - plan ahead"
 
 
-def fetch_earnings_date_cached(conn: Any, symbol: str, ttl_days: int = 30) -> datetime | None:
+def fetch_earnings_date_cached(
+    conn: DatabaseConnection, symbol: str, ttl_days: int = 30
+) -> datetime | None:
     """Fetch earnings date with caching support (default TTL: 30 days).
 
     This function checks the reference_cache table first. If valid cached data

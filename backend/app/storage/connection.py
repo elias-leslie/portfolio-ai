@@ -39,7 +39,7 @@ class PostgreSQLDuckDBWrapper:
         """Initialize wrapper around psycopg2 connection.
 
         Args:
-            pg_conn: psycopg2 connection object
+            pg_conn: psycopg2 connection object (raw connection, not wrapper)
             engine: Optional SQLAlchemy engine (needed for DataFrame operations)
         """
         self._conn = pg_conn
