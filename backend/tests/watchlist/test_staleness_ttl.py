@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 import pytest
 
 from app.storage import get_storage
-from app.watchlist.service import _load_stale_ttl_minutes
+from app.watchlist.watchlist_service import _load_stale_ttl_minutes
 
 
 @pytest.fixture

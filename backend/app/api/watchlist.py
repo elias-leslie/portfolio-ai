@@ -22,12 +22,12 @@ from app.tasks.agent_tasks import (
 from app.watchlist.history import build_score_timeline
 from app.watchlist.models import WatchlistSnapshot
 from app.watchlist.service import (
-    WatchlistService,
     _get_redis_client,
 )
 from app.watchlist.service import (
     refresh_watchlist_scores as refresh_watchlist_scores_service,
 )
+from app.watchlist.watchlist_service import WatchlistService
 
 logger = get_logger(__name__)
 

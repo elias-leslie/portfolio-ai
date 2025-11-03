@@ -121,7 +121,7 @@ def test_api_returns_snapshot_timestamp_not_cache_timestamp(setup_test_data):
     BUG: API currently returns updated_at from raw_metrics.price (stale)
     FIX: API should return fetched_at from watchlist_snapshots (fresh)
     """
-    from app.watchlist.service import WatchlistService
+    from app.watchlist.watchlist_service import WatchlistService
 
     storage = get_storage()
     service = WatchlistService(storage)

@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import polars as pl
 import pytest
 
-from app.watchlist.service import _calculate_price_change
+from app.watchlist.watchlist_service import _calculate_price_change
 
 
 @pytest.fixture
