@@ -152,6 +152,11 @@ class QueryManager:
         earnings_days_away: int | None = None,
         news_sentiment_score: float | None = None,
         recent_news_headlines: dict[str, Any] | None = None,
+        # Volume & timeframe analysis fields (PRD #0022)
+        volume_relative: float | None = None,
+        timeframe_short_aligned: bool = False,
+        timeframe_long_aligned: bool = False,
+        percentile_rank_30d: float | None = None,
     ) -> None:
         """Insert or update a watchlist snapshot record."""
         raw_metrics_json = json.dumps(raw_metrics) if raw_metrics is not None else None
@@ -179,11 +184,12 @@ class QueryManager:
                 entry_price, stop_loss, profit_target, position_size_shares,
                 recommended_style, style_confidence, optimal_holding_period, risk_level,
                 company_health, earnings_date, earnings_days_away,
-                news_sentiment_score, recent_news_headlines
+                news_sentiment_score, recent_news_headlines,
+                volume_relative, timeframe_short_aligned, timeframe_long_aligned, percentile_rank_30d
             ) VALUES (
                 ?, ?, ?, ?, ?, ?,  ?, ?, ?, ?, ?,  ?, ?, ?, ?, ?,
                 ?, ?, ?, ?,  ?, ?, ?, ?, ?,  ?, ?, ?, ?,
-                ?, ?, ?, ?,  ?, ?, ?,  ?, ?
+                ?, ?, ?, ?,  ?, ?, ?,  ?, ?,  ?, ?, ?, ?
             )
             ON CONFLICT (item_id, fetched_at) DO UPDATE SET
                 price = EXCLUDED.price,
@@ -221,7 +227,11 @@ class QueryManager:
                 earnings_date = EXCLUDED.earnings_date,
                 earnings_days_away = EXCLUDED.earnings_days_away,
                 news_sentiment_score = EXCLUDED.news_sentiment_score,
-                recent_news_headlines = EXCLUDED.recent_news_headlines
+                recent_news_headlines = EXCLUDED.recent_news_headlines,
+                volume_relative = EXCLUDED.volume_relative,
+                timeframe_short_aligned = EXCLUDED.timeframe_short_aligned,
+                timeframe_long_aligned = EXCLUDED.timeframe_long_aligned,
+                percentile_rank_30d = EXCLUDED.percentile_rank_30d
         """
 
         params = [
@@ -263,6 +273,10 @@ class QueryManager:
             earnings_days_away,
             news_sentiment_score,
             recent_news_headlines_json,
+            volume_relative,
+            timeframe_short_aligned,
+            timeframe_long_aligned,
+            percentile_rank_30d,
         ]
 
         with self.connection_mgr.connection() as conn:

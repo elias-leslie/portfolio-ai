@@ -183,6 +183,12 @@ class WatchlistSnapshot(BaseModel):
     news_sentiment_score: float | None = None
     recent_news_headlines: dict[str, Any] | None = None
 
+    # Volume & timeframe analysis fields (PRD #0022)
+    volume_relative: float | None = None  # Current volume / 50-day avg (e.g., 2.3 = 2.3x)
+    timeframe_short_aligned: bool = False  # Price > SMA_20 > SMA_50
+    timeframe_long_aligned: bool = False  # SMA_50 > SMA_200
+    percentile_rank_30d: float | None = None  # 0-100 percentile vs 30-day history
+
     def to_upsert_params(self) -> dict[str, Any]:
         """Return dictionary for persistence helpers."""
         payload = self.model_dump()
