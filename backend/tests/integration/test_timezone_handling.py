@@ -184,29 +184,3 @@ class TestDatetimeArithmetic:
         fresh_timestamp = now - timedelta(minutes=5)
         result = scoring_is_stale(fresh_timestamp, ttl, now)
         assert result is False
-
-
-class TestDatabaseTimestampStorage:
-    """Test that database timestamps are stored and retrieved as UTC."""
-
-    @pytest.mark.skip(reason="Requires database migration 006 to be applied first")
-    def test_database_stores_utc_timestamps(self) -> None:
-        """Test that timestamps stored in database are TIMESTAMPTZ (UTC).
-
-        This test will be enabled after migration 006 is applied.
-        It verifies that all timestamp columns use TIMESTAMPTZ type
-        and store values in UTC.
-        """
-        # This will be implemented after migration
-        pass
-
-    @pytest.mark.skip(reason="Requires database migration 006 to be applied first")
-    def test_timestamp_retrieval_preserves_timezone(self) -> None:
-        """Test that timestamps retrieved from database are timezone-aware.
-
-        This test will be enabled after migration 006 is applied.
-        It verifies that datetime objects retrieved from database
-        have tzinfo set to UTC.
-        """
-        # This will be implemented after migration
-        pass
