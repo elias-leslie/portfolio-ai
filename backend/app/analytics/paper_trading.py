@@ -381,6 +381,63 @@ def update_paper_trades(storage: DuckDBStorage, max_holding_days: int = 60) -> d
     return stats
 
 
+def _check_exit_conditions(
+    trade: dict[str, Any],
+    current_price: float,
+    holding_days: int,
+    max_holding_days: int,
+) -> tuple[bool, str | None, str]:
+    """Check if trade should be closed based on exit conditions.
+
+    Args:
+        trade: Trade dictionary with entry_price, target_price, stop_loss_price, idea_type
+        current_price: Current market price
+        holding_days: Days since entry
+        max_holding_days: Maximum allowed holding period
+
+    Returns:
+        Tuple of (should_close, exit_reason, status)
+    """
+    should_close = False
+    exit_reason = None
+    status = "open"
+    idea_type = trade["idea_type"]
+
+    # Check if target price hit
+    if trade["target_price"] is not None:
+        if idea_type == "sell":
+            # For shorts, target is below entry
+            if current_price <= trade["target_price"]:
+                should_close = True
+                exit_reason = "target"
+                status = "target_hit"
+        elif current_price >= trade["target_price"]:
+            should_close = True
+            exit_reason = "target"
+            status = "target_hit"
+
+    # Check if stop loss hit
+    if not should_close and trade["stop_loss_price"] is not None:
+        if idea_type == "sell":
+            # For shorts, stop is above entry
+            if current_price >= trade["stop_loss_price"]:
+                should_close = True
+                exit_reason = "stop"
+                status = "stop_hit"
+        elif current_price <= trade["stop_loss_price"]:
+            should_close = True
+            exit_reason = "stop"
+            status = "stop_hit"
+
+    # Check if max holding period exceeded
+    if not should_close and holding_days >= max_holding_days:
+        should_close = True
+        exit_reason = "time_limit"
+        status = "expired"
+
+    return should_close, exit_reason, status
+
+
 def _extract_ticker_from_title(title: str) -> str | None:
     """Extract ticker symbol from idea title.
 
