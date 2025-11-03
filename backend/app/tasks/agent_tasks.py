@@ -12,7 +12,7 @@ For other background tasks, see:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING
 
 from app.agents.discovery import DiscoveryAgent
 from app.agents.portfolio_analyzer import PortfolioAnalyzerAgent
@@ -27,10 +27,13 @@ from app.sources.fred import FREDSource
 from app.sources.news import GoogleNewsSource
 from app.storage import get_storage
 
+if TYPE_CHECKING:
+    from app.storage import DuckDBStorage
+
 logger = get_logger(__name__)
 
 
-def _setup_agent_tools(storage: Any) -> AgentTools:
+def _setup_agent_tools(storage: DuckDBStorage) -> AgentTools:
     """Initialize agent tools with all required dependencies.
 
     Args:
@@ -55,7 +58,7 @@ def _setup_agent_tools(storage: Any) -> AgentTools:
     )
 
 
-def _update_celery_task_id(storage: Any, task_id: str, run_id: str) -> None:
+def _update_celery_task_id(storage: DuckDBStorage, task_id: str, run_id: str) -> None:
     """Update agent_runs table with Celery task ID.
 
     Args:

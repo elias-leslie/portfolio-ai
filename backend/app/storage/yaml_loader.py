@@ -7,11 +7,14 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
 from ..logging_config import get_logger
+
+if TYPE_CHECKING:
+    from .facade import DuckDBStorage
 
 logger = get_logger(__name__)
 
@@ -64,7 +67,7 @@ def load_source_config(yaml_path: str) -> dict[str, Any]:
     }
 
 
-def insert_source_to_db(source_config: dict[str, Any], storage: Any) -> None:
+def insert_source_to_db(source_config: dict[str, Any], storage: DuckDBStorage) -> None:
     """Insert source configuration into DuckDB tables.
 
     Args:
@@ -152,7 +155,7 @@ def insert_source_to_db(source_config: dict[str, Any], storage: Any) -> None:
         )
 
 
-def load_all_sources(storage: Any, sources_dir: str = "config/sources") -> None:
+def load_all_sources(storage: DuckDBStorage, sources_dir: str = "config/sources") -> None:
     """Load all YAML source configurations from directory.
 
     Args:
