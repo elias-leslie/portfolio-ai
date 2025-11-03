@@ -1,17 +1,20 @@
 # Portfolio AI - Work Tracker
 
-**Last Updated:** 2025-11-03 16:30
+**Last Updated:** 2025-11-03 17:45
 
 ---
 
 ## 🔄 Active (Currently Working)
 - **[PRD-0025] Code Refactoring Phase 1 - Large File Splitting**
   - **File:** `tasks-0025-prd-code-refactoring-phase1.md`
-  - **Status:** 40% complete (watchlist_service.py extracted, scoring service remaining)
+  - **Status:** 70% complete (2 of 3 priority files refactored)
   - **Started:** 2025-11-03 14:00
-  - **Last Updated:** 2025-11-03 16:30
-  - **Next:** Extract refresh_watchlist_scores (~600 lines) to scoring_service.py
-  - **Effort:** HIGH (20-28 hours total, ~12-16 hours remaining)
+  - **Last Updated:** 2025-11-03 17:45
+  - **Completed:**
+    - ✅ Phase 1 Task 1.0: watchlist/service.py → scoring_service.py (922 lines, facade 41 lines)
+    - ✅ Phase 2 Task 2.0: tasks/agent_tasks.py → 4 modules (786 → 230 lines)
+  - **Next:** Phase 2 remaining (api/watchlist.py, watchlist/narrative.py) + Phase 3
+  - **Effort:** HIGH (20-28 hours total, ~6-10 hours remaining)
   - **Type:** Full PRD
 
 ---
