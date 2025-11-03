@@ -799,8 +799,14 @@ def test_get_score_history_extracts_price_score_from_raw_metrics(
     client: TestClient, test_storage: DuckDBStorage
 ) -> None:
     """Test GET /api/watchlist/{item_id}/history extracts price.score from raw_metrics JSONB."""
-    # Insert watchlist item directly to database
+    # Clean up any existing data from previous test runs
     item_id = "test-item-history"
+    with test_storage.connection() as conn:
+        conn.execute("DELETE FROM watchlist_snapshots WHERE item_id = $1", [item_id])
+        conn.execute("DELETE FROM watchlist_items WHERE id = $1", [item_id])
+        conn.commit()
+
+    # Insert watchlist item directly to database
     with test_storage.connection() as conn:
         conn.execute(
             """
@@ -863,8 +869,8 @@ def test_get_score_history_extracts_price_score_from_raw_metrics(
             )
         conn.commit()
 
-    # Fetch score history
-    response = client.get(f"/api/watchlist/{item_id}/history")
+    # Fetch score history (request 7 days to match test data)
+    response = client.get(f"/api/watchlist/{item_id}/history?days=7")
 
     assert response.status_code == 200
     data = response.json()

@@ -17,6 +17,14 @@ def mock_storage() -> MagicMock:
     """Create a mock DuckDBStorage instance."""
     storage = MagicMock()
     storage.query_mgr = MagicMock()
+
+    # Mock connection context manager for fundamentals/earnings caching
+    mock_conn = MagicMock()
+    mock_conn.execute.return_value.fetchall.return_value = []  # Empty cache results
+    mock_conn.__enter__ = MagicMock(return_value=mock_conn)
+    mock_conn.__exit__ = MagicMock(return_value=False)
+    storage.connection.return_value = mock_conn
+
     return storage
 
 
@@ -42,8 +50,11 @@ def test_refresh_returns_detailed_results_all_success(
     def mock_query(sql: str, params: list[str] | None = None) -> pl.DataFrame:
         if "watchlist_items" in sql:
             return items_df
-        # Day_bars data exists
+        # Day_bars data - provide volume data (at least 20 rows as required by service)
         if "day_bars" in sql:
+            if "volume" in sql:
+                # Volume query returns 20 rows for RVOL calculation
+                return pl.DataFrame({"volume": [1000000.0 + (i * 10000) for i in range(20)]})
             return pl.DataFrame({"close": [100.0, 95.0]})
         # User preferences
         if "user_preferences" in sql:
@@ -112,8 +123,11 @@ def test_refresh_returns_detailed_results_partial_failure(
     def mock_query(sql: str, params: list[str] | None = None) -> pl.DataFrame:
         if "watchlist_items" in sql:
             return items_df
-        # Day_bars data
+        # Day_bars data - provide volume data (at least 20 rows as required by service)
         if "day_bars" in sql:
+            if "volume" in sql:
+                # Volume query returns 20 rows for RVOL calculation
+                return pl.DataFrame({"volume": [1000000.0 + (i * 10000) for i in range(20)]})
             return pl.DataFrame({"close": [100.0, 95.0]})
         # User preferences
         if "user_preferences" in sql:
@@ -196,6 +210,9 @@ def test_refresh_continues_after_individual_failures(
         if "watchlist_items" in sql:
             return items_df
         if "day_bars" in sql:
+            if "volume" in sql:
+                # Volume query returns 20 rows for RVOL calculation
+                return pl.DataFrame({"volume": [1000000.0 + (i * 10000) for i in range(20)]})
             # First call (AAPL) succeeds, second call (GOOGL) also succeeds
             return pl.DataFrame({"close": [100.0, 95.0]})
         if "user_preferences" in sql:

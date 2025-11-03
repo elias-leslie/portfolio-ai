@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 
-import yfinance as yf  # type: ignore[import-untyped]
 from fastapi import APIRouter, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
@@ -20,6 +19,8 @@ from app.tasks.agent_tasks import (
     refresh_watchlist_scores_task,
     update_technical_indicators,
 )
+from app.watchlist.history import build_score_timeline
+from app.watchlist.models import WatchlistSnapshot
 from app.watchlist.service import (
     WatchlistService,
     _get_redis_client,
@@ -545,17 +546,16 @@ async def delete_watchlist_item(item_id: str) -> None:
 @router.get("/{item_id}/history", response_model=ScoreHistoryResponse)
 async def get_score_history(item_id: str, days: int = 10) -> ScoreHistoryResponse:
     """
-    Get score history for a watchlist item.
+    Get score history for a watchlist item from snapshots.
 
-    Fetches actual historical price data from yfinance and computes scores
-    based on price trends to provide meaningful sparkline data.
+    Fetches historical snapshots and extracts scores from raw_metrics JSONB.
 
     Args:
         item_id: Watchlist item ID
-        days: Number of trading days of history to return (default 10)
+        days: Number of days of history to return (default 10)
 
     Returns:
-        Score history with computed scores from actual price data
+        Score history with price/technical scores extracted from snapshots
     """
     try:
         # Get item info
@@ -571,61 +571,55 @@ async def get_score_history(item_id: str, days: int = 10) -> ScoreHistoryRespons
 
         symbol = item_df.to_dicts()[0]["symbol"]
 
-        # Fetch historical price data from yfinance
-        # Request ~15 calendar days to ensure we get at least 10 trading days
-        end_date = datetime.now(UTC)
-        start_date = end_date - timedelta(days=15)
+        # Fetch snapshots from database
+        snapshots_df = storage.query(
+            """
+            SELECT item_id, fetched_at, price, technical_score, overall_score, raw_metrics
+            FROM watchlist_snapshots
+            WHERE item_id = ?
+            ORDER BY fetched_at DESC
+            """,
+            [item_id],
+        )
 
-        ticker = yf.Ticker(symbol)
-        hist = ticker.history(start=start_date, end=end_date, interval="1d")
-
-        if hist.empty:
-            logger.warning("No historical data available", symbol=symbol)
-            # Return empty history if no data available
+        if snapshots_df.is_empty():
+            logger.warning("No snapshot data available", symbol=symbol, item_id=item_id)
             return ScoreHistoryResponse(
                 item_id=item_id,
                 symbol=symbol,
                 history=[],
             )
 
-        # Take only the last N trading days (defaults to 10)
-        hist = hist.tail(days)
+        # Convert to WatchlistSnapshot objects
+        snapshots = []
+        for row in snapshots_df.to_dicts():
+            # Parse raw_metrics if it's a string (from JSON column)
+            raw_metrics = row.get("raw_metrics", {})
+            if isinstance(raw_metrics, str):
+                raw_metrics = json.loads(raw_metrics)
 
-        # Compute scores based on normalized price movement
-        # Use closing prices to calculate a score from 0-100
-        closes = hist["Close"].values
-        min_price = float(closes.min())
-        max_price = float(closes.max())
-        price_range = max_price - min_price if max_price > min_price else 1.0
+            snapshot = WatchlistSnapshot(
+                item_id=row["item_id"],
+                fetched_at=row["fetched_at"],
+                price=row.get("price"),
+                technical_score=row.get("technical_score"),
+                overall_score=row.get("overall_score"),
+                raw_metrics=raw_metrics,
+            )
+            snapshots.append(snapshot)
 
+        # Build timeline from snapshots
+        timeline = build_score_timeline(snapshots, window_days=days)
+
+        # Convert to API response format
         history = []
-        for idx, (timestamp, row) in enumerate(hist.iterrows()):
-            close_price = float(row["Close"])
-
-            # Normalize price to 0-100 scale based on range
-            price_score = ((close_price - min_price) / price_range) * 100
-
-            # For technical score, use a simple momentum indicator
-            # (comparing current price to first price in the period)
-            if idx > 0:
-                first_price = float(closes[0])
-                change_pct = ((close_price - first_price) / first_price) * 100
-                # Map ±10% change to 0-100 scale, clamped
-                technical_score = max(0, min(100, 50 + (change_pct * 5)))
-            else:
-                technical_score = 50.0  # Neutral for first point
-
-            # Overall score is weighted average (50/50)
-            overall_score = (price_score * 0.5) + (technical_score * 0.5)
-
+        for point in timeline:
             history.append(
                 ScoreHistoryPoint(
-                    timestamp=timestamp.isoformat()
-                    if hasattr(timestamp, "isoformat")
-                    else str(timestamp),
-                    overall=overall_score,
-                    price_score=price_score,
-                    technical_score=technical_score,
+                    timestamp=point.date.isoformat(),
+                    overall=point.overall_score,
+                    price_score=point.price_score or 0.0,
+                    technical_score=point.technical_score or 0.0,
                 )
             )
 
@@ -637,7 +631,7 @@ async def get_score_history(item_id: str, days: int = 10) -> ScoreHistoryRespons
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("Failed to get score history", item_id=item_id, symbol=symbol, error=str(e))
+        logger.error("Failed to get score history", item_id=item_id, error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to get history: {e}") from e
 
 
