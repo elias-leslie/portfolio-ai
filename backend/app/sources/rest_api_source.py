@@ -14,6 +14,7 @@ import datetime as dt
 import json
 import time
 from collections.abc import Iterable
+from typing import Any
 
 import httpx
 import polars as pl
@@ -248,6 +249,42 @@ class RestApiSource(BaseSource):
         result: dict[str, object] = response.json()
         return result
 
+    def _build_ticker_params(
+        self,
+        ticker: str,
+        endpoint: dict[str, Any],
+        date_range: tuple[dt.date, dt.date] | None = None,
+    ) -> tuple[dict[str, str], dict[str, str]]:
+        """Build path and query params for a ticker request.
+
+        Args:
+            ticker: Stock ticker symbol
+            endpoint: Endpoint configuration dictionary
+            date_range: Optional (start_date, end_date) tuple
+
+        Returns:
+            Tuple of (path_params, query_params)
+        """
+        path_params: dict[str, str] = {}
+        query_params: dict[str, str] = {}
+
+        # Check for ticker in path template
+        path_template = str(endpoint.get("path_template", ""))
+        if "{ticker}" in path_template or "{symbol}" in path_template:
+            path_params["ticker"] = ticker
+            path_params["symbol"] = ticker
+
+        # Add date range if path template uses it
+        if date_range and "{from}" in path_template:
+            path_params["from"] = date_range[0].isoformat()
+            path_params["to"] = date_range[1].isoformat()
+
+        # Add symbol to query params
+        query_params["symbol"] = ticker
+        query_params["ticker"] = ticker
+
+        return path_params, query_params
+
     def fetch_day_bars(self, request: DatasetRequest) -> pl.DataFrame | None:
         """Fetch daily OHLCV bars."""
         if not self.supports_day:
@@ -266,23 +303,10 @@ class RestApiSource(BaseSource):
 
         for ticker in request.tickers:
             try:
-                # Build params based on endpoint requirements
-                path_params: dict[str, str] = {}
-                query_params: dict[str, str] = {}
-
-                # Check for ticker in path template
-                path_template = str(endpoint.get("path_template", ""))
-                if "{ticker}" in path_template or "{symbol}" in path_template:
-                    path_params["ticker"] = ticker
-                    path_params["symbol"] = ticker
-
-                # Add date range if path template uses it
-                if "{from}" in path_template:
-                    path_params["from"] = request.start.isoformat()
-                    path_params["to"] = request.end.isoformat()
-
-                # Add symbol to query params if needed
-                query_params["symbol"] = ticker
+                # Build params for this ticker
+                path_params, query_params = self._build_ticker_params(
+                    ticker, endpoint, (request.start, request.end)
+                )
 
                 # Call API
                 response = self._call_endpoint(endpoint_key, path_params, query_params)
@@ -363,19 +387,8 @@ class RestApiSource(BaseSource):
 
         for ticker in tickers:
             try:
-                path_params: dict[str, str] = {}
-                query_params: dict[str, str] = {}
-
-                # Check path template for ticker placeholder
-                path_template = str(endpoint.get("path_template", ""))
-                if "{ticker}" in path_template:
-                    path_params["ticker"] = ticker
-                elif "{symbol}" in path_template:
-                    path_params["symbol"] = ticker
-
-                # Add to query params if needed
-                query_params["symbol"] = ticker
-                query_params["ticker"] = ticker
+                # Build params for this ticker
+                path_params, query_params = self._build_ticker_params(ticker, endpoint)
 
                 # Call API
                 response = self._call_endpoint(endpoint_key, path_params, query_params)
