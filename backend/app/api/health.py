@@ -6,7 +6,7 @@ system status, dependencies, and service availability including multi-source dat
 
 from __future__ import annotations
 
-import os
+import json
 import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 
 from ..logging_config import get_logger
 from ..storage import get_storage
+from ..utils.quota_helpers import build_quota_info, is_api_key_configured
 
 logger = get_logger(__name__)
 
@@ -24,6 +25,23 @@ router = APIRouter(prefix="/health", tags=["health"])
 
 # Track application start time for uptime calculation
 APP_START_TIME = datetime.now(UTC)
+
+
+def _load_quota_config() -> dict[str, dict[str, Any]]:
+    """Load API quota configuration from JSON file.
+
+    Returns:
+        Dictionary mapping source_id to quota configuration
+    """
+    config_path = Path(__file__).parent.parent / "config" / "quota_config.json"
+    try:
+        with config_path.open() as f:
+            config_data: dict[str, Any] = json.load(f)
+            sources: dict[str, dict[str, Any]] = config_data.get("sources", {})
+            return sources
+    except Exception as e:
+        logger.warning("failed_to_load_quota_config", error=str(e), path=str(config_path))
+        return {}
 
 
 class SourceHealthCheck(BaseModel):
@@ -387,93 +405,16 @@ class HealthCheckService:
                 logger.warning("get_api_quotas_no_config_dir", config_dir=str(config_dir))
                 return quotas
 
-            # Define quota metadata for each source
-            quota_map: dict[str, dict[str, Any]] = {
-                "yfinance": {
-                    "env_var": "YFINANCE_KEY",
-                    "rate_limit": "Unlimited",
-                    "daily_limit": "Unlimited",
-                    "capacity": None,
-                },
-                "twelvedata": {
-                    "env_var": "TWELVEDATA_API_KEY",
-                    "rate_limit": "8 req/min",
-                    "daily_limit": "800/day",
-                    "capacity": 50,
-                },
-                "fmp": {
-                    "env_var": "FMP_API_KEY",
-                    "rate_limit": None,
-                    "daily_limit": "~250/day",
-                    "capacity": 15,
-                },
-                "polygon": {
-                    "env_var": "POLYGON_API_KEY",
-                    "rate_limit": "5 req/min",
-                    "daily_limit": "7200/day",
-                    "capacity": 100,
-                },
-                "finnhub": {
-                    "env_var": "FINNHUB_API_KEY",
-                    "rate_limit": "60 req/min",
-                    "daily_limit": "Unlimited",
-                    "capacity": None,
-                },
-                "newsapi": {
-                    "env_var": "NEWSAPI_KEY",
-                    "rate_limit": None,
-                    "daily_limit": "100/day",
-                    "capacity": None,
-                },
-                "alphavantage": {
-                    "env_var": "ALPHAVANTAGE_API_KEY",
-                    "rate_limit": "5 req/min",
-                    "daily_limit": "25/day",
-                    "capacity": 1,
-                },
-                "fred": {
-                    "env_var": "FRED_API_KEY",
-                    "rate_limit": None,
-                    "daily_limit": "Unlimited",
-                    "capacity": None,
-                },
-            }
+            # Load quota metadata from configuration file
+            quota_map = _load_quota_config()
 
             for source_id, quota_info in quota_map.items():
-                # Check if API key is configured (database first, then environment)
-                configured = False
+                # Check if API key is configured
+                configured = is_api_key_configured(source_id, quota_info["env_var"], self.storage)
 
-                # Check database first
-                try:
-                    cred_df = self.storage.query(
-                        "SELECT value FROM source_credentials WHERE source_id = ? AND field = 'apikey'",
-                        [source_id],
-                    )
-                    if not cred_df.is_empty():
-                        db_value = cred_df.to_dicts()[0]["value"]
-                        configured = bool(
-                            db_value and db_value not in ("your_key_here", "PLACEHOLDER")
-                        )
-                except Exception:
-                    pass  # Database check failed, fall through to env var check
-
-                # Fall back to environment variable if not in database
-                if not configured:
-                    env_var = quota_info["env_var"]
-                    key_value = os.getenv(env_var, "")
-                    configured = bool(
-                        key_value and key_value not in ("your_key_here", "PLACEHOLDER")
-                    )
-
-                quotas.append(
-                    APIQuotaInfo(
-                        source_name=source_id,
-                        configured=configured,
-                        rate_limit=quota_info["rate_limit"],
-                        daily_limit=quota_info["daily_limit"],
-                        estimated_capacity=quota_info["capacity"],
-                    )
-                )
+                # Build and append quota info
+                quota_data = build_quota_info(source_id, quota_info, configured)
+                quotas.append(APIQuotaInfo(**quota_data))
 
         except Exception as e:
             logger.error("get_api_quotas_failed", error=str(e))

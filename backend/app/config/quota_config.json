@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "description": "API quota configuration for external data sources",
+  "sources": {
+    "yfinance": {
+      "env_var": "YFINANCE_KEY",
+      "rate_limit": "Unlimited",
+      "daily_limit": "Unlimited",
+      "capacity": null,
+      "description": "Yahoo Finance - Free tier, unlimited requests"
+    },
+    "twelvedata": {
+      "env_var": "TWELVEDATA_API_KEY",
+      "rate_limit": "8 req/min",
+      "daily_limit": "800/day",
+      "capacity": 50,
+      "description": "Twelve Data - 8 requests/min, 800/day limit"
+    },
+    "fmp": {
+      "env_var": "FMP_API_KEY",
+      "rate_limit": null,
+      "daily_limit": "~250/day",
+      "capacity": 15,
+      "description": "Financial Modeling Prep - ~250 requests/day"
+    },
+    "polygon": {
+      "env_var": "POLYGON_API_KEY",
+      "rate_limit": "5 req/min",
+      "daily_limit": "7200/day",
+      "capacity": 100,
+      "description": "Polygon.io - 5 requests/min, 7200/day limit"
+    },
+    "finnhub": {
+      "env_var": "FINNHUB_API_KEY",
+      "rate_limit": "60 req/min",
+      "daily_limit": "Unlimited",
+      "capacity": null,
+      "description": "Finnhub - 60 requests/min, unlimited daily"
+    },
+    "newsapi": {
+      "env_var": "NEWSAPI_KEY",
+      "rate_limit": null,
+      "daily_limit": "100/day",
+      "capacity": null,
+      "description": "NewsAPI - 100 requests/day limit"
+    },
+    "alphavantage": {
+      "env_var": "ALPHAVANTAGE_API_KEY",
+      "rate_limit": "5 req/min",
+      "daily_limit": "25/day",
+      "capacity": 1,
+      "description": "Alpha Vantage - 5 requests/min, 25/day limit (very restrictive)"
+    },
+    "fred": {
+      "env_var": "FRED_API_KEY",
+      "rate_limit": null,
+      "daily_limit": "Unlimited",
+      "capacity": null,
+      "description": "FRED (Federal Reserve Economic Data) - Unlimited"
+    }
+  }
+}
