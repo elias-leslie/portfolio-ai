@@ -551,10 +551,10 @@ def classify_signal(inputs: dict[str, Any]) -> SignalClassification:
         avoid_flags += 1
         reasons.append(f"Company health: {company_health}")
 
-    # If multiple AVOID flags, classify as AVOID with low strength
-    if avoid_flags >= 3:
+    # AVOID: 2 or more negative flags (lowered from 3 for better detection)
+    if avoid_flags >= 2:
         # More avoid flags = lower strength (inverted)
-        # 3 flags → 3, 4 flags → 2, 5 flags → 1, 6+ flags → 0
+        # 2 flags → 4, 3 flags → 3, 4 flags → 2, 5 flags → 1, 6+ flags → 0
         strength_value = max(0, 6 - avoid_flags)
         return SignalClassification(
             signal_type=SignalType.AVOID,

@@ -244,22 +244,25 @@ def test_calculate_indicators_sma_calculations(
     result = calculate_indicators(
         storage=mock_storage,
         ticker="AAPL",
-        indicators=["sma_20", "sma_50", "sma_200"],
+        indicators=["sma_5", "sma_20", "sma_50", "sma_200"],
         as_of_date="2025-02-05",
     )
 
+    sma_5 = result["indicators"]["sma_5"]
     sma_20 = result["indicators"]["sma_20"]
     sma_50 = result["indicators"]["sma_50"]
     sma_200 = result["indicators"]["sma_200"]
 
+    assert sma_5 is not None
+    assert isinstance(sma_5, float)
     assert sma_20 is not None
     assert sma_50 is not None
     assert sma_200 is not None
 
     # With uptrending data, shorter SMAs should be higher than longer SMAs
-    assert sma_20 > sma_50 > sma_200, (
-        f"Uptrending: Expected SMA-20 > SMA-50 > SMA-200, "
-        f"got {sma_20:.2f} > {sma_50:.2f} > {sma_200:.2f}"
+    assert sma_5 > sma_20 > sma_50 > sma_200, (
+        f"Uptrending: Expected SMA-5 > SMA-20 > SMA-50 > SMA-200, "
+        f"got {sma_5:.2f} > {sma_20:.2f} > {sma_50:.2f} > {sma_200:.2f}"
     )
 
 

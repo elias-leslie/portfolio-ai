@@ -429,14 +429,14 @@ def update_technical_indicators(  # type: ignore[no-untyped-def]
                     INSERT INTO technical_indicators (
                         ticker, date, rsi_14, macd, macd_signal, macd_histogram,
                         bb_upper, bb_middle, bb_lower,
-                        sma_20, sma_50, sma_200,
+                        sma_5, sma_20, sma_50, sma_200,
                         ema_20, ema_50, ema_200,
                         atr_14, stoch_k, stoch_d,
                         calculated_at
                     ) VALUES (
                         ?, ?, ?, ?, ?, ?,
                         ?, ?, ?,
-                        ?, ?, ?,
+                        ?, ?, ?, ?,
                         ?, ?, ?,
                         ?, ?, ?,
                         ?
@@ -449,6 +449,7 @@ def update_technical_indicators(  # type: ignore[no-untyped-def]
                         bb_upper = EXCLUDED.bb_upper,
                         bb_middle = EXCLUDED.bb_middle,
                         bb_lower = EXCLUDED.bb_lower,
+                        sma_5 = EXCLUDED.sma_5,
                         sma_20 = EXCLUDED.sma_20,
                         sma_50 = EXCLUDED.sma_50,
                         sma_200 = EXCLUDED.sma_200,
@@ -470,6 +471,7 @@ def update_technical_indicators(  # type: ignore[no-untyped-def]
                         indicator_data["bb_upper"],
                         indicator_data["bb_middle"],
                         indicator_data["bb_lower"],
+                        indicator_data["sma_5"],
                         indicator_data["sma_20"],
                         indicator_data["sma_50"],
                         indicator_data["sma_200"],

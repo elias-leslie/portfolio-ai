@@ -128,6 +128,10 @@ def calculate_indicators(
             }
 
     # Moving averages
+    if "sma_5" in indicators:
+        sma_5 = ta.sma(df["close"], length=5)
+        indicator_values["sma_5"] = float(sma_5.iloc[-1]) if not sma_5.empty else None
+
     if "sma_20" in indicators:
         sma_20 = ta.sma(df["close"], length=20)
         indicator_values["sma_20"] = float(sma_20.iloc[-1]) if not sma_20.empty else None

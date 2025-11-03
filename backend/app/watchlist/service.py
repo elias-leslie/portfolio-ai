@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import polars as pl
@@ -39,6 +39,7 @@ from .narrative import (
     generate_position_sizing_text,
     generate_special_notes,
 )
+from .news import fetch_news_headlines_cached
 from .scoring import _is_stale as scoring_is_stale
 from .scoring import calculate_watchlist_scores
 
@@ -98,6 +99,7 @@ def _load_latest_technical(
         snapshots[row["ticker"]] = TechnicalSnapshot(
             rsi_14=row.get("rsi_14"),
             sma_20=row.get("sma_20"),
+            sma_5=row.get("sma_5"),  # Add 5-day SMA
             sma_50=row.get("sma_50"),
             sma_200=row.get("sma_200"),
             ema_20=row.get("ema_20"),
@@ -498,19 +500,55 @@ def refresh_watchlist_scores(
                     message="Less than 20 days of volume data - skipping 20-day average",
                 )
 
+            # Query previous day's SMA_5 (Note: technical_indicators uses 'ticker' not 'symbol')
+            sma_5_prev = None
+            with storage.connection() as conn:
+                prev_date = (datetime.now(UTC) - timedelta(days=1)).date()
+                sma_5_prev_query = """
+                    SELECT sma_5 FROM technical_indicators
+                    WHERE ticker = %s AND DATE(calculated_at) = %s
+                    ORDER BY calculated_at DESC LIMIT 1
+                """
+                result = conn.execute(sma_5_prev_query, (symbol, prev_date)).fetchone()
+                sma_5_prev = result[0] if result else None
+
+            # Fetch news (cached 6 hours)
+            news_sentiment_value: float | None = None
+            recent_news_value: dict[str, Any] | None = None
+            with storage.connection() as conn:
+                try:
+                    news_headlines = fetch_news_headlines_cached(
+                        conn, symbol, max_results=10, ttl_hours=6
+                    )
+                    if news_headlines:
+                        avg_sentiment = sum(h.sentiment_score for h in news_headlines) / len(
+                            news_headlines
+                        )
+                        news_sentiment_value = avg_sentiment
+                        recent_news_value = {
+                            "headlines": [h.model_dump() for h in news_headlines[:5]]
+                        }
+                    else:
+                        news_sentiment_value = None
+                        recent_news_value = None
+                except Exception as e:
+                    logger.warning("news_fetch_failed", symbol=symbol, error=str(e))
+                    news_sentiment_value = None
+                    recent_news_value = None
+
             # Generate narrative intelligence
             # Classify signal based on technical indicators + fundamentals + earnings
             signal_inputs = {
                 "price": price_data.price,
                 "ema_20": technical_snapshot.ema_20,  # Use actual EMA_20 from indicators
-                "sma_5": technical_snapshot.sma_20,  # Approximate with SMA_20 (no SMA_5 in schema)
-                "sma_5_prev": None,  # Not available in current schema
+                "sma_5": technical_snapshot.sma_5,  # Now available in schema (PRD #0022)
+                "sma_5_prev": sma_5_prev,  # Queried from previous day
                 "rsi_14": technical_snapshot.rsi_14,
                 "macd": technical_snapshot.macd,
                 "volume": current_volume,  # Queried from day_bars
                 "volume_avg_20d": avg_volume_20d,  # Calculated 20-day average
                 "company_health": company_health_str,  # Fetched from fundamentals
-                "news_sentiment": None,  # Will be added in future iteration
+                "news_sentiment": news_sentiment_value,  # Fetched from news (cached 6h)
                 "earnings_days_away": earnings_days_away_val,  # Calculated from earnings date
             }
 
@@ -718,6 +756,9 @@ def refresh_watchlist_scores(
                 company_health=company_health_str,
                 earnings_date=earnings_date_obj,
                 earnings_days_away=earnings_days_away_val,
+                # News/sentiment fields (PRD #0022)
+                news_sentiment_score=news_sentiment_value,
+                recent_news_headlines=recent_news_value,
             )
 
             storage.query_mgr.upsert_watchlist_snapshot(**snapshot.to_upsert_params())
