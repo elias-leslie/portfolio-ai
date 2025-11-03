@@ -251,47 +251,19 @@ def update_paper_trades(storage: DuckDBStorage, max_holding_days: int = 60) -> d
         # Calculate holding days
         holding_days = (today - trade["entry_date"]).days
 
-        # Check exit conditions
-        should_close = False
-        exit_reason = None
-        status = "open"
+        # Check exit conditions using helper function
+        should_close, exit_reason, status = _check_exit_conditions(
+            trade, current_price, holding_days, max_holding_days
+        )
 
-        # Check if target price hit
-        if trade["target_price"] is not None:
-            if trade["idea_type"] == "sell":
-                # For shorts, target is below entry
-                if current_price <= trade["target_price"]:
-                    should_close = True
-                    exit_reason = "target"
-                    status = "target_hit"
-                    stats["target_hits"] += 1
-            elif current_price >= trade["target_price"]:
-                should_close = True
-                exit_reason = "target"
-                status = "target_hit"
+        # Update stats based on exit reason
+        if should_close:
+            if exit_reason == "target":
                 stats["target_hits"] += 1
-
-        # Check if stop loss hit
-        if not should_close and trade["stop_loss_price"] is not None:
-            if trade["idea_type"] == "sell":
-                # For shorts, stop is above entry
-                if current_price >= trade["stop_loss_price"]:
-                    should_close = True
-                    exit_reason = "stop"
-                    status = "stop_hit"
-                    stats["stop_hits"] += 1
-            elif current_price <= trade["stop_loss_price"]:
-                should_close = True
-                exit_reason = "stop"
-                status = "stop_hit"
+            elif exit_reason == "stop":
                 stats["stop_hits"] += 1
-
-        # Check if max holding period exceeded
-        if not should_close and holding_days >= max_holding_days:
-            should_close = True
-            exit_reason = "time_limit"
-            status = "expired"
-            stats["expired"] += 1
+            elif exit_reason == "time_limit":
+                stats["expired"] += 1
 
         # Update trade record
         if should_close:
