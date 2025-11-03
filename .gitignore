@@ -62,6 +62,7 @@ api_keys.md
 
 # Claude (ignore settings but track commands)
 .claude/settings.local.json
+# Note: .claude/skills/browser-automation/node_modules/ already ignored by global node_modules/ rule
 
 # Playwright artifacts (replaced with Chrome DevTools MCP)
 .playwright-mcp/
