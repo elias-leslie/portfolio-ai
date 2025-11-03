@@ -63,6 +63,9 @@ class IngestionManager:
             # Use explicit DataFrame insertion instead of DuckDB variable reference
             conn.insert_dataframe(table_name, df, if_exists="append")
 
+            # CRITICAL: Commit the INSERT to persist data
+            conn.commit()
+
             row_count = len(df)
 
             # Update metadata if manager exists
@@ -109,6 +112,9 @@ class IngestionManager:
             # Use explicit DataFrame insertion instead of DuckDB variable reference
             # Note: This opens a NEW transaction (via engine.connect())
             conn.insert_dataframe(table_name, df, if_exists="append")
+
+            # CRITICAL: Commit the INSERT to persist data
+            conn.commit()
 
             row_count = len(df)
 
