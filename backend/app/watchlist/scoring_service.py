@@ -370,7 +370,7 @@ def refresh_watchlist_scores(
     if tickers_needing_backfill:
         try:
             # Import here to avoid circular dependency
-            from ..tasks.agent_tasks import ingest_historical_ohlcv  # noqa: PLC0415
+            from ..tasks.data_ingestion_tasks import ingest_historical_ohlcv  # noqa: PLC0415
 
             logger.info(
                 "auto_backfill_triggered",
@@ -500,7 +500,7 @@ def refresh_watchlist_scores(
             # Note: Using try/except to handle celery not running (dev environments)
             if not has_historical_data:
                 try:
-                    from ..tasks.agent_tasks import (  # noqa: PLC0415 - avoid circular dependency
+                    from ..tasks.data_ingestion_tasks import (  # noqa: PLC0415 - avoid circular dependency
                         ingest_historical_ohlcv,
                     )
 

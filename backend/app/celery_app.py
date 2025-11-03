@@ -139,4 +139,9 @@ celery_app.conf.beat_schedule = {
 
 # Import tasks to register them with Celery
 # This must come after celery_app is defined
-from app.tasks import agent_tasks  # noqa: E402, F401
+from app.tasks import (  # noqa: E402, F401
+    agent_tasks,
+    data_ingestion_tasks,
+    indicator_tasks,
+    watchlist_tasks,
+)
