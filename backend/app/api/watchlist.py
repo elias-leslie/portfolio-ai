@@ -5,22 +5,33 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import UTC, datetime
-from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
 
 from app.logging_config import get_logger
 from app.storage import get_storage
-from app.tasks.agent_tasks import (
+from app.tasks import (
     ingest_historical_ohlcv,
     refresh_watchlist_scores_task,
     update_technical_indicators,
 )
 from app.watchlist.history import build_score_timeline
 from app.watchlist.models import WatchlistSnapshot
+from app.watchlist.response_builders import (
+    FailedTickerInfo,
+    RefreshRequest,
+    RefreshResponse,
+    RefreshStatusResponse,
+    ScoreHistoryPoint,
+    ScoreHistoryResponse,
+    WatchlistItemCreate,
+    WatchlistItemResponse,
+    WatchlistItemUpdate,
+    WatchlistListResponse,
+    build_watchlist_item_responses,
+)
 from app.watchlist.service import (
     _get_redis_client,
 )
@@ -36,119 +47,6 @@ router = APIRouter(prefix="/api/watchlist", tags=["watchlist"])
 # Initialize services
 storage = get_storage()
 watchlist_service = WatchlistService(storage)
-
-
-# Request/Response models
-class WatchlistItemCreate(BaseModel):
-    """Request model for creating a watchlist item."""
-
-    account_id: str = Field(..., description="Account ID")
-    symbol: str = Field(..., description="Stock symbol (e.g., AAPL)")
-    note: str | None = Field(None, description="Optional notes about this ticker")
-
-
-class WatchlistItemUpdate(BaseModel):
-    """Request model for updating a watchlist item."""
-
-    note: str | None = Field(None, description="Optional notes about this ticker")
-
-
-class ScoreComponentResponse(BaseModel):
-    """Response model for individual score component."""
-
-    score: float
-    weight: float
-    stale: bool
-    updated_at: str | None = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-
-class ScoreBreakdownResponse(BaseModel):
-    """Response model for score breakdown."""
-
-    price: ScoreComponentResponse
-    technical: ScoreComponentResponse
-    overall: float
-
-
-class WatchlistItemResponse(BaseModel):
-    """Response model for watchlist item with current scores."""
-
-    id: str
-    account_id: str
-    symbol: str
-    note: str | None = None
-    created_at: str
-    updated_at: str
-    current_score: ScoreBreakdownResponse | None = None
-    score_alert: bool = False  # True if score changed >10 points in last 7 days
-
-    # Narrative intelligence fields
-    signal_type: str | None = None
-    signal_strength: int | None = None
-    narrative_headline: str | None = None
-    recommended_style: str | None = None
-    style_confidence: int | None = None
-    optimal_holding_period: str | None = None
-    risk_level: str | None = None
-
-    # Trade calculation fields
-    entry_price: float | None = None
-    stop_loss: float | None = None
-    profit_target: float | None = None
-    position_size_shares: int | None = None
-
-    # Narrative text fields
-    narrative_action_plan: str | None = None
-    narrative_position_sizing: str | None = None
-    narrative_company_health: dict[str, Any] | None = None
-    narrative_special_notes: str | None = None
-
-    # Fundamental/earnings fields
-    company_health: str | None = None
-    earnings_date: str | None = None  # ISO date string
-    earnings_days_away: int | None = None
-
-
-class WatchlistListResponse(BaseModel):
-    """Response model for list of watchlist items."""
-
-    items: list[WatchlistItemResponse]
-    total_count: int
-
-
-class FailedTickerInfo(BaseModel):
-    """Information about a failed ticker refresh."""
-
-    symbol: str
-    reason: str
-
-
-class RefreshResponse(BaseModel):
-    """Response model for manual refresh request."""
-
-    status: str
-    message: str
-    refreshed_count: int
-    failed_count: int = 0
-    failed: list[FailedTickerInfo] = Field(default_factory=list)
-
-
-class ScoreHistoryPoint(BaseModel):
-    """Response model for a single score history point."""
-
-    timestamp: str
-    overall: float
-    price_score: float
-    technical_score: float
-
-
-class ScoreHistoryResponse(BaseModel):
-    """Response model for score history."""
-
-    item_id: str
-    symbol: str
-    history: list[ScoreHistoryPoint]
 
 
 # Endpoints
@@ -167,49 +65,7 @@ async def list_watchlist_items(account_id: str) -> WatchlistListResponse:
         items = await run_in_threadpool(watchlist_service.get_items_with_scores, account_id)
 
         return WatchlistListResponse(
-            items=[
-                WatchlistItemResponse(
-                    id=item["id"],
-                    account_id=item["account_id"],
-                    symbol=item["symbol"],
-                    note=item.get("note"),
-                    created_at=item["created_at"],
-                    updated_at=item["updated_at"],
-                    current_score=(
-                        ScoreBreakdownResponse(
-                            price=ScoreComponentResponse(**item["score"]["price"]),
-                            technical=ScoreComponentResponse(**item["score"]["technical"]),
-                            overall=item["score"]["overall"],
-                        )
-                        if item.get("score")
-                        else None
-                    ),
-                    score_alert=item.get("score_alert", False),
-                    # Narrative intelligence fields
-                    signal_type=item.get("signal_type"),
-                    signal_strength=item.get("signal_strength"),
-                    narrative_headline=item.get("narrative_headline"),
-                    recommended_style=item.get("recommended_style"),
-                    style_confidence=item.get("style_confidence"),
-                    optimal_holding_period=item.get("optimal_holding_period"),
-                    risk_level=item.get("risk_level"),
-                    # Trade calculation fields
-                    entry_price=item.get("entry_price"),
-                    stop_loss=item.get("stop_loss"),
-                    profit_target=item.get("profit_target"),
-                    position_size_shares=item.get("position_size_shares"),
-                    # Narrative text fields
-                    narrative_action_plan=item.get("narrative_action_plan"),
-                    narrative_position_sizing=item.get("narrative_position_sizing"),
-                    narrative_company_health=item.get("narrative_company_health"),
-                    narrative_special_notes=item.get("narrative_special_notes"),
-                    # Fundamental/earnings fields
-                    company_health=item.get("company_health"),
-                    earnings_date=item.get("earnings_date"),
-                    earnings_days_away=item.get("earnings_days_away"),
-                )
-                for item in items
-            ],
+            items=build_watchlist_item_responses(items),
             total_count=len(items),
         )
     except Exception as e:
@@ -305,18 +161,6 @@ async def create_watchlist_item(data: WatchlistItemCreate) -> WatchlistItemRespo
         raise HTTPException(status_code=500, detail=f"Failed to create item: {e}") from e
 
 
-class RefreshStatusResponse(BaseModel):
-    """Response model for refresh status query."""
-
-    is_refreshing: bool = Field(..., description="Whether a refresh is currently in progress")
-    started_at: str | None = Field(None, description="ISO timestamp when refresh started")
-    elapsed_seconds: float | None = Field(None, description="Seconds elapsed since start")
-    total_items: int | None = Field(None, description="Total number of items to process")
-    processed_items: int | None = Field(None, description="Number of items processed so far")
-    current_symbol: str | None = Field(None, description="Currently processing symbol")
-    percent_complete: float | None = Field(None, description="Percentage complete (0-100)")
-
-
 @router.get("/refresh-status", response_model=RefreshStatusResponse)
 async def get_refresh_status(account_id: str) -> RefreshStatusResponse:
     """
@@ -403,46 +247,7 @@ async def get_watchlist_item(item_id: str) -> WatchlistItemResponse:
         if item is None:
             raise HTTPException(status_code=404, detail="Watchlist item not found")
 
-        return WatchlistItemResponse(
-            id=item["id"],
-            account_id=item["account_id"],
-            symbol=item["symbol"],
-            note=item["note"],
-            created_at=item["created_at"],
-            updated_at=item["updated_at"],
-            current_score=(
-                ScoreBreakdownResponse(
-                    price=ScoreComponentResponse(**item["score"]["price"]),
-                    technical=ScoreComponentResponse(**item["score"]["technical"]),
-                    overall=item["score"]["overall"],
-                )
-                if item.get("score")
-                else None
-            ),
-            score_alert=item.get("score_alert", False),
-            # Narrative intelligence fields
-            signal_type=item.get("signal_type"),
-            signal_strength=item.get("signal_strength"),
-            narrative_headline=item.get("narrative_headline"),
-            recommended_style=item.get("recommended_style"),
-            style_confidence=item.get("style_confidence"),
-            optimal_holding_period=item.get("optimal_holding_period"),
-            risk_level=item.get("risk_level"),
-            # Trade calculation fields
-            entry_price=item.get("entry_price"),
-            stop_loss=item.get("stop_loss"),
-            profit_target=item.get("profit_target"),
-            position_size_shares=item.get("position_size_shares"),
-            # Narrative text fields
-            narrative_action_plan=item.get("narrative_action_plan"),
-            narrative_position_sizing=item.get("narrative_position_sizing"),
-            narrative_company_health=item.get("narrative_company_health"),
-            narrative_special_notes=item.get("narrative_special_notes"),
-            # Fundamental/earnings fields
-            company_health=item.get("company_health"),
-            earnings_date=item.get("earnings_date"),
-            earnings_days_away=item.get("earnings_days_away"),
-        )
+        return WatchlistItemResponse.from_service_dict(item)
     except HTTPException:
         raise
     except Exception as e:
@@ -633,12 +438,6 @@ async def get_score_history(item_id: str, days: int = 10) -> ScoreHistoryRespons
     except Exception as e:
         logger.error("Failed to get score history", item_id=item_id, error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to get history: {e}") from e
-
-
-class RefreshRequest(BaseModel):
-    """Request model for manual refresh."""
-
-    account_id: str = Field(..., description="Account ID to refresh")
 
 
 @router.post("/refresh", response_model=RefreshResponse)
