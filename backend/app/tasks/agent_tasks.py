@@ -670,6 +670,52 @@ def refresh_watchlist_scores_task(self, account_id: str | None = None) -> dict[s
 
             minutes_since_refresh = (now - last_refresh).total_seconds() / 60.0
 
+            # AUTO-BACKFILL: Check for missing historical data (runs BEFORE interval skip)
+            # This ensures data backfill happens independently of refresh interval
+            try:
+                from ..watchlist.service import detect_missing_historical_data  # noqa: PLC0415
+
+                # Load watchlist items to get symbols
+                with storage.connection() as conn:
+                    items_result = conn.execute(
+                        """
+                        SELECT DISTINCT symbol
+                        FROM watchlist_items
+                        WHERE account_id = %s
+                        """,
+                        [account_id],
+                    ).fetchall()
+                    symbols = [row[0] for row in items_result]
+
+                if symbols:
+                    tickers_needing_backfill = detect_missing_historical_data(
+                        storage=storage,
+                        symbols=symbols,
+                        min_days=30,
+                        stale_threshold_days=7,
+                    )
+
+                    if tickers_needing_backfill:
+                        logger.info(
+                            "auto_backfill_triggered_from_task",
+                            ticker_count=len(tickers_needing_backfill),
+                            tickers=tickers_needing_backfill,
+                        )
+
+                        # Trigger async backfill (non-blocking)
+                        ingest_historical_ohlcv.delay(tickers_needing_backfill, days=252)
+
+                        logger.info(
+                            "auto_backfill_task_dispatched_from_task",
+                            ticker_count=len(tickers_needing_backfill),
+                        )
+            except Exception as e:
+                logger.error(
+                    "auto_backfill_failed_from_task",
+                    error=str(e),
+                    error_type=type(e).__name__,
+                )
+
             # Skip if not enough time has passed
             if minutes_since_refresh < refresh_interval_minutes:
                 logger.info(
