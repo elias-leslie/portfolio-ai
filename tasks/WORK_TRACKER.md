@@ -6,7 +6,11 @@
 
 ## 🔄 Active (Currently Working)
 
-*No active work. Use /do_it to auto-continue from Planned, or /task_it to create new tasks.*
+- **[PRD-0026] Type System & Infrastructure Improvements**
+  - **File:** `tasks-0026-prd-type-system-infrastructure.md`
+  - **Status:** 0% complete - Starting Phase 1
+  - **Started:** 2025-11-03 (auto-resumed)
+  - **Next:** Task 1.0 - Define DatabaseConnection Protocol
 
 ---
 
