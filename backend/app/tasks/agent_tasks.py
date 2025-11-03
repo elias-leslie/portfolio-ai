@@ -291,14 +291,28 @@ def ingest_historical_ohlcv(  # type: ignore[no-untyped-def]
             ]
             result_df = result_df.select(column_order)
 
-            # Insert into database (replace existing data for same ticker/date)
+            # Insert into database: Delete only the specific (ticker, date) pairs we're updating
+            # to avoid wiping ALL day_bars data (which would break concurrent backfills)
             logger.info(
                 "ingest_inserting_data",
                 ingest_run_id=ingest_run_id,
                 rows=len(result_df),
             )
 
-            storage.insert_dataframe("day_bars", result_df, mode="replace")
+            # Get unique tickers from the result DataFrame
+            unique_tickers = result_df["ticker"].unique().to_list()
+
+            # Delete only the rows for these specific tickers
+            with storage.connection() as conn:
+                placeholders = ", ".join(["%s"] * len(unique_tickers))
+                conn.execute(
+                    f"DELETE FROM day_bars WHERE ticker IN ({placeholders})",
+                    unique_tickers,
+                )
+                conn.commit()
+
+            # Now insert the new data (using append since we already deleted the old rows)
+            storage.insert_dataframe("day_bars", result_df, mode="append")
             rows_inserted = len(result_df)
 
             logger.info(
