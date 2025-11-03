@@ -10,7 +10,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { SparklineWithHistory } from "@/components/watchlist/SparklineWithHistory";
+// TEMPORARILY DISABLED: Re-enable after 90 days of snapshot data accumulated (see sparkline removal decision)
+// import { SparklineWithHistory } from "@/components/watchlist/SparklineWithHistory";
 import { ExpandedRow } from "@/components/watchlist/ExpandedRow";
 import { WatchlistCard } from "@/components/watchlist/WatchlistCard";
 import { SourceBadge } from "@/components/watchlist/SourceBadge";
@@ -272,7 +273,8 @@ export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
                 )}
               </button>
             </TableHead>
-            <TableHead>7-Day Trend</TableHead>
+            {/* TEMPORARILY DISABLED: Sparkline column - re-enable after 90 days of data */}
+            {/* <TableHead>7-Day Trend</TableHead> */}
             <TableHead>
               <button
                 onClick={() => handleSort("updated")}
@@ -436,7 +438,8 @@ export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
                       <span className="text-text-muted">—</span>
                     )}
                   </TableCell>
-                  <TableCell>
+                  {/* TEMPORARILY DISABLED: Sparkline column - re-enable after 90 days of data */}
+                  {/* <TableCell>
                     {hasScore ? (
                       <SparklineWithHistory
                         itemId={item.id}
@@ -447,7 +450,7 @@ export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
                     ) : (
                       <span className="text-text-muted">—</span>
                     )}
-                  </TableCell>
+                  </TableCell> */}
                   <TableCell className="text-xs text-text-muted">
                     {item.current_score?.price?.updated_at
                       ? formatDate(item.current_score.price.updated_at, userTimezone)

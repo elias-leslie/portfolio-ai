@@ -5,9 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Sparkline } from "@/components/ui/sparkline";
+// TEMPORARILY DISABLED: Sparkline - re-enable after 90 days of data
+// import { Sparkline } from "@/components/ui/sparkline";
 import { Save, Edit2, X, Loader2 } from "lucide-react";
-import { useUpdateWatchlistItem, useScoreHistory } from "@/lib/hooks/useWatchlist";
+// TEMPORARILY DISABLED: Score history - re-enable with sparklines
+// import { useUpdateWatchlistItem, useScoreHistory } from "@/lib/hooks/useWatchlist";
+import { useUpdateWatchlistItem } from "@/lib/hooks/useWatchlist";
 import { usePreferences } from "@/lib/hooks/usePreferences";
 import { toast } from "sonner";
 import type { WatchlistItem, RefreshStatus } from "@/lib/api/watchlist";
@@ -21,11 +24,12 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [noteValue, setNoteValue] = useState(item.note || "");
   const updateMutation = useUpdateWatchlistItem();
-  const { data: historyResponse } = useScoreHistory(item.id);
+  // TEMPORARILY DISABLED: Score history - re-enable with sparklines
+  // const { data: historyResponse } = useScoreHistory(item.id);
   const { data: preferences } = usePreferences();
 
   const hasScore = !!item.current_score;
-  const history = historyResponse?.history || [];
+  // const history = historyResponse?.history || [];
   const priceScore = item.current_score?.price;
   const techScore = item.current_score?.technical;
 
@@ -440,8 +444,8 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
         </div>
       )}
 
-      {/* 7-Day Score Timeline */}
-      {history && history.length > 0 && (
+      {/* TEMPORARILY DISABLED: Score history sparklines - re-enable after 90 days of data */}
+      {/* {history && history.length > 0 && (
         <Card className="border-border">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">7-Day Score History</CardTitle>
@@ -490,7 +494,7 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
             </div>
           </CardContent>
         </Card>
-      )}
+      )} */}
 
       {/* Notes Section */}
       <Card className="border-border">
