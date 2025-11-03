@@ -77,6 +77,12 @@ fi
 # Stop any existing backend processes
 kill_process "uvicorn.*main:app" "existing Backend"
 
+# Configure database connection pool for production
+# Tests use DB_POOL_SIZE=1, DB_MAX_OVERFLOW=1 (configured in tests/conftest.py)
+# Production uses larger pools but stays within PostgreSQL max_connections limit
+export DB_POOL_SIZE=3
+export DB_MAX_OVERFLOW=2
+
 source .venv/bin/activate
 nohup uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 > /tmp/portfolio-backend.log 2>&1 &
 BACKEND_PID=$!
