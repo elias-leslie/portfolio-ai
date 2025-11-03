@@ -1,11 +1,13 @@
 # Task List: Watchlist Intelligence 2.0 - AI-First Data Foundation & UI Redesign
 
 **PRD**: `0022-prd-watchlist-intelligence-2.md`
-**Status**: Ready for Implementation (Reviewed & Corrected)
-**Completion**: 0%
+**Status**: Paused
+**Completion**: 19% (1.5/8 tasks complete)
 **Effort**: HIGH (23-28 hours, 3-4 days)
 **Created**: 2025-11-02
-**Updated**: 2025-11-02 (Accuracy review complete - Critical issues fixed)
+**Updated**: 2025-11-03 03:00 UTC
+**Last Session**: 2025-11-03 02:00-03:00 UTC
+**Paused At**: Task 2.4 - Update Service to Store SMA_5
 
 **🔍 ACCURACY REVIEW COMPLETED (2025-11-02)**:
 - ✅ Fixed: Non-existent `_classify_signal_and_generate_narrative()` → Changed to `refresh_watchlist_scores()`
@@ -19,9 +21,13 @@
 
 ## Summary
 
-**✅ COMPLETE:** (None)
-**🔄 IN PROGRESS:** (Not started)
-**⚠️ NEXT:** Task 1.0 - Database Migration & Schema Updates
+**✅ COMPLETE:** Task 1.0 - Database Migration & Schema Updates (committed: 9dd8d73)
+**🔄 IN PROGRESS:** Task 2.0 - Fix Critical AVOID Signal Bugs (3/13 subtasks done)
+**⏸️ PAUSED:** 2025-11-03 03:00 UTC - Resume at Task 2.4
+**⚠️ NEXT:** Task 2.4 - Update Service to Store SMA_5 (backend/app/watchlist/service.py ~line 100)
+
+<!-- PAUSED: 2025-11-03 03:00 UTC - Resume here at Task 2.4 -->
+<!-- Handoff doc: tasks/PAUSE-HANDOFF-20251103-0300.md -->
 
 ---
 
