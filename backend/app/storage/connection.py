@@ -266,18 +266,25 @@ class ConnectionManager:
             "postgresql://portfolio_ai_user:REDACTED_PASSWORD@localhost:5432/portfolio_ai",
         )  # type: ignore[assignment]
 
+        # Get pool size settings from environment or use defaults
+        # Tests should use smaller values to avoid connection exhaustion
+        pool_size_value = int(os.getenv("DB_POOL_SIZE", "20"))
+        max_overflow_value = int(os.getenv("DB_MAX_OVERFLOW", "10"))
+
         # Create SQLAlchemy engine with connection pooling
         self.engine: Engine = create_engine(
             self.database_url,
             poolclass=pool.QueuePool,
-            pool_size=20,  # Max connections to keep open
-            max_overflow=10,  # Max extra connections beyond pool_size
+            pool_size=pool_size_value,  # Max connections to keep open
+            max_overflow=max_overflow_value,  # Max extra connections beyond pool_size
             pool_pre_ping=True,  # Verify connections before using
             pool_recycle=3600,  # Recycle connections after 1 hour
             echo=False,  # Set to True for SQL query logging
         )
 
-        logger.info("ConnectionManager initialized with PostgreSQL (pool_size=20, max_overflow=10)")
+        logger.info(
+            f"ConnectionManager initialized with PostgreSQL (pool_size={pool_size_value}, max_overflow={max_overflow_value})"
+        )
 
     @contextmanager
     def connection(self) -> Iterator[PostgreSQLDuckDBWrapper]:

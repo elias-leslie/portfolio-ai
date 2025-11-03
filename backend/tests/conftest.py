@@ -20,6 +20,12 @@ TEST_DB_URL = (
 )
 os.environ["DATABASE_URL"] = TEST_DB_URL
 
+# Configure minimal connection pool for tests
+# PostgreSQL has max_connections=100, and production services have priority
+# Tests use minimal pools (1+1=2 connections) to avoid exhausting the connection limit
+os.environ["DB_POOL_SIZE"] = "1"
+os.environ["DB_MAX_OVERFLOW"] = "1"
+
 logger = logging.getLogger(__name__)
 
 # List of tables to clean between tests (ordered to respect foreign key constraints)
