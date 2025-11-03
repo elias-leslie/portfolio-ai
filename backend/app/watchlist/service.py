@@ -247,6 +247,72 @@ def _calculate_price_change(
     return (None, False)
 
 
+def detect_missing_historical_data(
+    storage: DuckDBStorage,
+    symbols: list[str],
+    min_days: int = 30,
+    stale_threshold_days: int = 7,
+) -> list[str]:
+    """Detect tickers that need historical data backfill.
+
+    Checks day_bars table to find tickers with:
+    - No historical data at all
+    - Insufficient data (< min_days of trading days)
+    - Stale data (most recent bar > stale_threshold_days old)
+
+    Args:
+        storage: Database storage instance
+        symbols: List of ticker symbols to check
+        min_days: Minimum number of trading days required (default: 30)
+        stale_threshold_days: Days threshold to consider data stale (default: 7)
+
+    Returns:
+        List of ticker symbols that need backfill
+    """
+    if not symbols:
+        return []
+
+    with storage.connection() as conn:
+        # Check each ticker's historical data status
+        query = """
+            WITH ticker_stats AS (
+                SELECT
+                    ticker,
+                    COUNT(*) as bar_count,
+                    MAX(date) as latest_date,
+                    CURRENT_DATE - MAX(date) as days_since_latest
+                FROM day_bars
+                WHERE ticker = ANY(?)
+                GROUP BY ticker
+            )
+            SELECT ticker
+            FROM UNNEST(?) as t(ticker)
+            LEFT JOIN ticker_stats USING (ticker)
+            WHERE
+                ticker_stats.ticker IS NULL  -- No data at all
+                OR bar_count < ?  -- Insufficient data
+                OR days_since_latest > ?  -- Stale data
+        """
+
+        result = conn.execute(
+            query,
+            [symbols, symbols, min_days, stale_threshold_days],
+        ).fetchall()
+
+        tickers_needing_backfill = [row[0] for row in result]
+
+        if tickers_needing_backfill:
+            logger.info(
+                "detected_tickers_needing_backfill",
+                count=len(tickers_needing_backfill),
+                tickers=tickers_needing_backfill,
+                min_days=min_days,
+                stale_threshold_days=stale_threshold_days,
+            )
+
+        return tickers_needing_backfill
+
+
 def refresh_watchlist_scores(
     storage: DuckDBStorage,
     *,
@@ -284,6 +350,42 @@ def refresh_watchlist_scores(
 
     symbols = sorted(set(items_df["symbol"]))
     total_items = len(items_df)
+
+    # AUTO-BACKFILL: Check for missing or stale historical data
+    # This ensures sparklines, trendlines, and indicators always have data
+    tickers_needing_backfill = detect_missing_historical_data(
+        storage=storage,
+        symbols=symbols,
+        min_days=30,  # Require at least 30 days of data
+        stale_threshold_days=7,  # Backfill if data is >7 days old
+    )
+
+    if tickers_needing_backfill:
+        try:
+            # Import here to avoid circular dependency
+            from ..tasks.agent_tasks import ingest_historical_ohlcv  # noqa: PLC0415
+
+            logger.info(
+                "auto_backfill_triggered",
+                ticker_count=len(tickers_needing_backfill),
+                tickers=tickers_needing_backfill,
+            )
+
+            # Trigger async backfill task (non-blocking)
+            # This runs in background while we continue with current price refresh
+            ingest_historical_ohlcv.delay(tickers_needing_backfill, days=252)
+
+            logger.info(
+                "auto_backfill_task_dispatched",
+                ticker_count=len(tickers_needing_backfill),
+                message="Historical data will be backfilled in background",
+            )
+        except Exception as e:
+            logger.error(
+                "auto_backfill_failed_to_trigger",
+                error=str(e),
+                error_type=type(e).__name__,
+            )
 
     # Initialize refresh status in Redis
     redis_key = f"watchlist:refresh:{account_id or 'all'}"
