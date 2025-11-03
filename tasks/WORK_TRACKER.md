@@ -1,12 +1,19 @@
 # Portfolio AI - Work Tracker
 
-**Last Updated:** 2025-11-03 17:10
+**Last Updated:** 2025-11-03 17:30
 
 ---
 
 ## 🔄 Active (Currently Working)
 
-*No active tasks. Use /plan_it or /task_it to add new work.*
+- **[PRD-0025] Code Refactoring Phase 1 - Large File Splitting** - **PAUSED** 2025-11-03 17:30
+  - **File:** `tasks-0025-prd-code-refactoring-phase1.md`
+  - **Status:** 86% complete (6/7 files) - **Task 7.0 in progress**
+  - **Started:** 2025-11-03 14:00
+  - **Last Updated:** 2025-11-03 17:30
+  - **Handoff:** `tasks/PAUSE-HANDOFF-2025-11-03-17-30.md`
+  - **Next:** Complete Task 7.0 (analytics/paper_trading.py) - replace exit condition logic with helper
+  - **Pause Reason:** User request (context at 64%)
 
 ---
 
