@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Activity, AlertCircle, CheckCircle2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Activity, AlertCircle, CheckCircle2, RotateCw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -14,9 +14,10 @@ interface ServiceCardProps {
   serviceName: string;
   status: ServiceStatus;
   showLogs?: boolean;
+  onRestart?: (serviceName: string) => void;
 }
 
-export function ServiceCard({ serviceName, status, showLogs = true }: ServiceCardProps) {
+export function ServiceCard({ serviceName, status, showLogs = true, onRestart }: ServiceCardProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   // Only fetch logs when expanded
@@ -66,13 +67,25 @@ export function ServiceCard({ serviceName, status, showLogs = true }: ServiceCar
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
             {icon}
             <span>{status.service_name}</span>
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <Badge variant={variant}>{status.status}</Badge>
+            {onRestart && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onRestart(serviceName)}
+                title={`Restart ${status.service_name}`}
+              >
+                <RotateCw className="h-4 w-4" />
+              </Button>
+            )}
           </div>
-          <Badge variant={variant}>{status.status}</Badge>
-        </CardTitle>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Process details */}

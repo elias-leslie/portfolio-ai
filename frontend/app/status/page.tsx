@@ -15,7 +15,7 @@ import { CeleryTaskTable } from "@/components/status/CeleryTaskTable";
 import { QueueDepthCard } from "@/components/status/QueueDepthCard";
 import { BeatScheduleCard } from "@/components/status/BeatScheduleCard";
 import { ServiceActionDialog } from "@/components/status/ServiceActionDialog";
-import { clearCache, refreshWatchlist } from "@/lib/api/service-control";
+import { clearCache, refreshWatchlist, restartService } from "@/lib/api/service-control";
 
 export default function StatusPage() {
   const { status: health, connectionState, isLoading, error, retryConnection } = useStatusStream();
@@ -94,6 +94,36 @@ export default function StatusPage() {
       setActionDialogOpen(true);
     } else {
       handleRefreshWatchlist();
+    }
+  };
+
+  // Restart service handler
+  const handleRestartService = async (serviceName: string) => {
+    setIsActionLoading(true);
+    try {
+      const result = await restartService(serviceName);
+      alert(`Success: ${result.message}`);
+    } catch (error) {
+      alert(`Error: ${error instanceof Error ? error.message : "Failed to restart service"}`);
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  // Restart service with confirmation
+  const triggerRestartService = (serviceName: string) => {
+    const storageKey = `status.confirm.restart.${serviceName}`;
+    if (shouldShowDialog(storageKey)) {
+      setActionDialogConfig({
+        title: `Restart ${serviceName}`,
+        description: `This will restart the ${serviceName} service. The service will be briefly unavailable during the restart.`,
+        actionLabel: "Restart Service",
+        onConfirm: () => handleRestartService(serviceName),
+        storageKey,
+      });
+      setActionDialogOpen(true);
+    } else {
+      handleRestartService(serviceName);
     }
   };
 
@@ -203,6 +233,7 @@ export default function StatusPage() {
             serviceName={serviceName}
             status={status}
             showLogs={true}
+            onRestart={triggerRestartService}
           />
         ))}
       </div>
