@@ -17,11 +17,16 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/api/status", tags=["status"])
 
 # Log file paths for each service
+# Service names match health endpoint (underscore format)
 LOG_PATHS: dict[str, str] = {
     "backend": "/tmp/portfolio-backend.log",
+    "celery_worker": "/tmp/portfolio-celery-worker.log",
+    "celery_beat": "/tmp/portfolio-celery-beat.log",
+    "frontend": "/tmp/portfolio-frontend.log",
+    "redis": "/var/log/redis/redis-server.log",  # System redis log
+    # Aliases for backward compatibility (hyphen format)
     "celery-worker": "/tmp/portfolio-celery-worker.log",
     "celery-beat": "/tmp/portfolio-celery-beat.log",
-    "frontend": "/tmp/portfolio-frontend.log",
 }
 
 # ANSI escape code pattern for stripping colors
