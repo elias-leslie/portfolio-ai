@@ -187,11 +187,12 @@ show_interactive_menu() {
         return 0
     fi
 
-    echo ""
-    echo "========================================="
-    echo "Non-Whitelisted Processes Found"
-    echo "========================================="
-    echo ""
+    # Display all output to stderr so it's not captured by command substitution
+    echo "" >&2
+    echo "=========================================" >&2
+    echo "Non-Whitelisted Processes Found" >&2
+    echo "=========================================" >&2
+    echo "" >&2
 
     local idx=1
     for entry in "${non_whitelisted[@]}"; do
@@ -199,20 +200,22 @@ show_interactive_menu() {
         pid=$(echo "${entry}" | cut -d: -f1)
         local cmd
         cmd=$(echo "${entry}" | cut -d: -f2-)
-        printf "%3d. PID %-6s %s\n" "${idx}" "${pid}" "${cmd}"
+        printf "%3d. PID %-6s %s\n" "${idx}" "${pid}" "${cmd}" >&2
         idx=$((idx + 1))
     done
 
-    echo ""
-    echo "========================================="
-    echo "Options:"
-    echo "  [k] Kill all listed processes"
-    echo "  [a] Add process(es) to whitelist"
-    echo "  [q] Quit without killing"
-    echo "========================================="
-    echo ""
+    echo "" >&2
+    echo "=========================================" >&2
+    echo "Options:" >&2
+    echo "  [k] Kill all listed processes" >&2
+    echo "  [a] Add process(es) to whitelist" >&2
+    echo "  [q] Quit without killing" >&2
+    echo "=========================================" >&2
+    echo "" >&2
 
-    read -r -p "Your choice [k/a/q]: " choice
+    # Read from terminal, display prompt to stderr
+    read -r -p "Your choice [k/a/q]: " choice </dev/tty >&2
+    # Return choice to stdout (captured by command substitution)
     echo "${choice}"
 }
 
@@ -222,8 +225,8 @@ process_whitelist_additions() {
 
     local non_whitelisted=("$@")
 
-    echo ""
-    read -r -p "Enter numbers to whitelist (comma-separated, e.g., 1,3,5): " selections
+    echo "" >&2
+    read -r -p "Enter numbers to whitelist (comma-separated, e.g., 1,3,5): " selections </dev/tty >&2
 
     # Parse selections
     IFS=',' read -ra selected_indices <<< "${selections}"
@@ -252,9 +255,9 @@ process_whitelist_additions() {
         cmd=$(echo "${entry}" | cut -d: -f2-)
 
         # Ask for pattern (default: full command)
-        echo ""
-        echo "Command: ${cmd}"
-        read -r -p "Enter pattern to whitelist (default: first word): " pattern
+        echo "" >&2
+        echo "Command: ${cmd}" >&2
+        read -r -p "Enter pattern to whitelist (default: first word): " pattern </dev/tty >&2
 
         if [ -z "${pattern}" ]; then
             # Default: extract first word (executable name)
@@ -386,6 +389,34 @@ clean_temp_files() {
     fi
 }
 
+stop_systemd_services() {
+    # Stop portfolio-ai systemd services if they exist
+
+    log_info "Checking for systemd services..."
+
+    local services=("portfolio-backend" "portfolio-celery" "portfolio-beat" "portfolio-frontend")
+    local stopped_count=0
+
+    for service in "${services[@]}"; do
+        if systemctl is-active --quiet "${service}.service" 2>/dev/null; then
+            log_info "Stopping systemd service: ${service}.service"
+            if sudo systemctl stop "${service}.service" 2>/dev/null; then
+                log_success "Stopped ${service}.service"
+                stopped_count=$((stopped_count + 1))
+            else
+                log_warning "Failed to stop ${service}.service (may require sudo)"
+            fi
+        fi
+    done
+
+    if [ ${stopped_count} -gt 0 ]; then
+        log_success "Stopped ${stopped_count} systemd services"
+        sleep 2  # Allow services to fully stop
+    else
+        log_info "No systemd services found (services may be manually managed)"
+    fi
+}
+
 verify_clean_state() {
     # Verify no portfolio-ai processes remain
 
@@ -409,17 +440,41 @@ verify_clean_state() {
 # ================================================
 
 start_services() {
-    # Start portfolio-ai services using start.sh
+    # Start portfolio-ai services (systemd or manual)
 
     log_info "Starting portfolio-ai services..."
 
-    if [ ! -f "${SCRIPT_DIR}/start.sh" ]; then
-        log_error "Start script not found: ${SCRIPT_DIR}/start.sh"
-        return 1
+    # Check if systemd services exist
+    local has_systemd=false
+    if systemctl list-unit-files | grep -q "portfolio-backend.service"; then
+        has_systemd=true
     fi
 
-    bash "${SCRIPT_DIR}/start.sh"
-    log_success "Services started"
+    if [ "${has_systemd}" = true ]; then
+        log_info "Starting services via systemd..."
+        local services=("portfolio-backend" "portfolio-celery" "portfolio-beat" "portfolio-frontend")
+        local started_count=0
+
+        for service in "${services[@]}"; do
+            if sudo systemctl start "${service}.service" 2>/dev/null; then
+                log_success "Started ${service}.service"
+                started_count=$((started_count + 1))
+            else
+                log_warning "Failed to start ${service}.service"
+            fi
+        done
+
+        log_success "Started ${started_count} systemd services"
+    else
+        # Fallback to start.sh script
+        if [ ! -f "${SCRIPT_DIR}/start.sh" ]; then
+            log_error "Start script not found: ${SCRIPT_DIR}/start.sh"
+            return 1
+        fi
+
+        bash "${SCRIPT_DIR}/start.sh"
+        log_success "Services started via start.sh"
+    fi
 }
 
 verify_startup() {
@@ -432,8 +487,16 @@ verify_startup() {
     local health_check
     health_check=$(curl -s http://localhost:8000/health || echo "FAILED")
 
-    if echo "${health_check}" | grep -q "healthy"; then
-        log_success "Backend health check passed"
+    # Accept both "healthy" and "degraded" statuses
+    # (degraded = external sources inactive, but backend functional)
+    if echo "${health_check}" | grep -qE '"status":"(healthy|degraded)"'; then
+        local status
+        status=$(echo "${health_check}" | grep -oP '"status":"\K[^"]+' | head -1)
+        if [ "${status}" = "degraded" ]; then
+            log_warning "Backend status: degraded (external sources inactive, but functional)"
+        else
+            log_success "Backend health check passed"
+        fi
     else
         log_error "Backend health check failed: ${health_check}"
         return 1
@@ -515,8 +578,11 @@ main() {
     log_info "Started: $(date '+%Y-%m-%d %H:%M:%S')"
     log_info ""
 
-    # Step 1: Find non-whitelisted processes
-    log_info "Step 1: Finding non-whitelisted processes..."
+    # Step 1: Stop systemd services first (if they exist)
+    stop_systemd_services
+
+    # Step 2: Find remaining non-whitelisted processes
+    log_info "Step 2: Finding remaining non-whitelisted processes..."
     local non_whitelisted
     mapfile -t non_whitelisted < <(find_non_whitelisted)
 
@@ -525,7 +591,7 @@ main() {
     else
         log_info "Found ${#non_whitelisted[@]} non-whitelisted processes"
 
-        # Step 2: Interactive menu (if enabled)
+        # Step 3: Interactive menu (if enabled)
         if [ "${INTERACTIVE_MODE}" = true ]; then
             while true; do
                 local choice
@@ -556,26 +622,26 @@ main() {
             done
         fi
 
-        # Step 3: Kill processes
+        # Step 4: Kill remaining processes
         if [ ${#non_whitelisted[@]} -gt 0 ]; then
             kill_processes "${non_whitelisted[@]}"
         fi
     fi
 
-    # Step 4: Clean temp files
+    # Step 5: Clean temp files
     clean_temp_files
 
-    # Step 5: Verify clean state
+    # Step 6: Verify clean state
     verify_clean_state || {
         log_error "Clean state verification failed"
         log_error "Manual intervention may be required"
         exit 1
     }
 
-    # Step 6: Start services
+    # Step 7: Start services
     start_services
 
-    # Step 7: Verify startup
+    # Step 8: Verify startup
     verify_startup || {
         log_warning "Service verification failed - check logs"
         log_info "Run: bash scripts/status.sh"
