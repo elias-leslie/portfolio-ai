@@ -6,20 +6,22 @@
 
 ## 🔄 Active (Currently Working)
 
-- **[TASK-0030] Status Dashboard - Phase 3 (Celery Deep Dive)** 🔄
-  - **File:** `tasks-0030-status-dashboard-phase3-celery.md`
-  - **PRD:** `tasks/0029-prd-status-page-advanced.md` (Phase 3)
-  - **Depends On:** TASK-0028 (COMPLETED ✅)
-  - **Effort:** MEDIUM (1-2 hours)
-  - **Priority:** HIGH
-  - **Started:** 2025-11-03
-  - **Type:** Enhancement (Phase 3 of 6)
-  - **Summary:** Comprehensive Celery task inspection, unified task table, queue depth, beat schedule
-  - **Progress:** 0% (Just started)
+*No active work. Use /do_it to auto-continue from Planned, or /task_it to create new tasks.*
 
 ---
 
 ## 📋 Planned (Up Next - Priority Order)
+
+- **[TASK-0030] Status Dashboard - Phase 3 (Frontend - INCOMPLETE)**
+  - **File:** `tasks-0030-status-dashboard-phase3-celery.md`
+  - **PRD:** `tasks/0029-prd-status-page-advanced.md` (Phase 3)
+  - **Depends On:** Backend complete ✅
+  - **Effort:** MEDIUM (1-2 hours for frontend)
+  - **Priority:** HIGH
+  - **Created:** 2025-11-03
+  - **Type:** Enhancement (Phase 3 of 6)
+  - **Summary:** Frontend Celery components: CeleryTaskTable, QueueDepthCard, BeatScheduleCard
+  - **Note:** Backend complete (Tasks 1.0-2.0), Frontend pending (Tasks 3.0-4.0)
 
 - **[TASK-0031] Status Dashboard - Phases 4-6 (Resources, Controls, History)**
   - **File:** `tasks-0031-status-dashboard-phases4-6.md`
@@ -34,6 +36,18 @@
 ---
 
 ## ✅ Recently Completed (Last 5)
+
+- **[TASK-0030] Status Dashboard - Phase 3 (Backend ONLY)** ✓ 2025-11-03 (PARTIAL)
+  - **File:** `tasks-0030-status-dashboard-phase3-celery.md`
+  - **Duration:** ~2 hours
+  - **Results:**
+    - ✅ Celery inspection service (6 functions, 220 lines)
+    - ✅ 3 REST API endpoints (/tasks, /queue, /schedule)
+    - ✅ 7 comprehensive tests (all passing)
+    - ✅ Full type hints (mypy --strict clean)
+    - ✅ API endpoints functional (curl verified)
+    - ⚠️  Frontend components NOT completed (Tasks 3.0-4.0 pending)
+    - ✅ Commit: 6a31709
 
 - **[TASK-0029] Status Dashboard - Phase 2 (SSE Updates)** ✓ 2025-11-03 (COMPLETE)
   - **File:** `tasks-0029-status-dashboard-phase2-sse.md`
