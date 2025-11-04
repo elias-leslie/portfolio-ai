@@ -1,20 +1,12 @@
 # Portfolio AI - Work Tracker
 
-**Last Updated:** 2025-11-03 (TASK-0028 started)
+**Last Updated:** 2025-11-03 (TASK-0028 completed)
 
 ---
 
 ## 🔄 Active (Currently Working)
 
-- **[TASK-0028] Status Dashboard MVP (PRD-0028)** ⚡ IN PROGRESS
-  - **File:** `tasks-0028-status-dashboard-mvp.md`
-  - **PRD:** `tasks/0028-prd-status-page-mvp.md`
-  - **Started:** 2025-11-03
-  - **Effort:** MEDIUM (2-3 hours)
-  - **Priority:** HIGH
-  - **Type:** Full PRD implementation (Phase 1 of 6)
-  - **Summary:** Real-time status dashboard at /status showing all service health, process details, log viewers, auto-refresh
-  - **Current:** Task 1.0 - Backend: Extend Health Endpoint with Service Status
+*No active work. Use /do_it to auto-continue from Planned, or /task_it to create new tasks.*
 
 ---
 
@@ -53,6 +45,21 @@
 ---
 
 ## ✅ Recently Completed (Last 5)
+
+- **[TASK-0028] Status Dashboard MVP (PRD-0028)** ✓ 2025-11-03 (COMPLETE)
+  - **File:** `tasks-0028-status-dashboard-mvp.md`
+  - **PRD:** `tasks/0028-prd-status-page-mvp.md`
+  - **Duration:** ~2 hours
+  - **Results:**
+    - ✅ Backend service monitoring with psutil (6 services tracked)
+    - ✅ Health endpoint extended with service process status
+    - ✅ Status API endpoints for log viewing with ANSI stripping
+    - ✅ Frontend status page at /status with auto-refresh (5s polling)
+    - ✅ ServiceCard components with process metrics (PID, uptime, memory)
+    - ✅ LogViewer with syntax highlighting and auto-scroll
+    - ✅ Responsive grid layout (1/2/3 columns)
+    - ✅ All 498 tests passing, ruff + mypy --strict clean
+    - ✅ Commit: 30f03e4
 
 - **[TASK-0027] Fix Mypy Errors & Rename DuckDB Legacy References** ✓ 2025-11-03 (COMPLETE)
   - **File:** `tasks-0027-mypy-cleanup-duckdb-rename.md`
