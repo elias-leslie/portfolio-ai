@@ -15,12 +15,12 @@ from app.portfolio.manager import PortfolioManager
 from app.portfolio.price_fetcher import PriceDataFetcher
 from app.sources.fred import FREDSource
 from app.sources.news import GoogleNewsSource
-from app.storage import DuckDBStorage
+from app.storage import PortfolioStorage
 
 
 @pytest.fixture
-def storage() -> DuckDBStorage:
-    """Create a DuckDBStorage instance with a temporary database."""
+def storage() -> PortfolioStorage:
+    """Create a PortfolioStorage instance with a temporary database."""
     temp_dir = tempfile.mkdtemp()
     db_path = Path(temp_dir) / "test.duckdb"
 
@@ -31,7 +31,7 @@ def storage() -> DuckDBStorage:
     from app.storage.queries import QueryManager
     from app.storage.schema import SchemaManager
 
-    storage_inst = DuckDBStorage.__new__(DuckDBStorage)
+    storage_inst = PortfolioStorage.__new__(PortfolioStorage)
     storage_inst.connection_mgr = ConnectionManager()
     storage_inst.schema_mgr = SchemaManager(storage_inst.connection_mgr)
     storage_inst.metadata_mgr = MetadataManager(storage_inst.connection_mgr)
@@ -85,7 +85,7 @@ def mock_fred_source() -> Mock:
 
 @pytest.fixture
 def agent_tools(
-    storage: DuckDBStorage,
+    storage: PortfolioStorage,
     mock_news_source: Mock,
     mock_fred_source: Mock,
 ) -> AgentTools:
@@ -175,7 +175,7 @@ def mock_anthropic_client() -> Mock:
     return mock
 
 
-def test_discovery_agent_initialization(storage: DuckDBStorage, agent_tools: AgentTools) -> None:
+def test_discovery_agent_initialization(storage: PortfolioStorage, agent_tools: AgentTools) -> None:
     """Test Discovery Agent initialization."""
     agent = DiscoveryAgent(storage=storage, tools=agent_tools)
 
@@ -185,7 +185,7 @@ def test_discovery_agent_initialization(storage: DuckDBStorage, agent_tools: Age
     assert agent.current_run_id is None
 
 
-def test_discovery_agent_system_prompt(storage: DuckDBStorage, agent_tools: AgentTools) -> None:
+def test_discovery_agent_system_prompt(storage: PortfolioStorage, agent_tools: AgentTools) -> None:
     """Test Discovery Agent system prompt."""
     agent = DiscoveryAgent(storage=storage, tools=agent_tools)
     prompt = agent.get_system_prompt()
@@ -197,7 +197,7 @@ def test_discovery_agent_system_prompt(storage: DuckDBStorage, agent_tools: Agen
     assert "store_idea" in prompt
 
 
-def test_discovery_agent_tools(storage: DuckDBStorage, agent_tools: AgentTools) -> None:
+def test_discovery_agent_tools(storage: PortfolioStorage, agent_tools: AgentTools) -> None:
     """Test Discovery Agent tool definitions."""
     agent = DiscoveryAgent(storage=storage, tools=agent_tools)
     tools = agent.get_tools()
@@ -208,7 +208,7 @@ def test_discovery_agent_tools(storage: DuckDBStorage, agent_tools: AgentTools) 
 
 
 def test_discovery_agent_execute_tool_get_news(
-    storage: DuckDBStorage,
+    storage: PortfolioStorage,
     agent_tools: AgentTools,
     mock_news_source: Mock,
 ) -> None:
@@ -223,7 +223,7 @@ def test_discovery_agent_execute_tool_get_news(
 
 
 def test_discovery_agent_execute_tool_get_economic_data(
-    storage: DuckDBStorage,
+    storage: PortfolioStorage,
     agent_tools: AgentTools,
     mock_fred_source: Mock,
 ) -> None:
@@ -238,7 +238,7 @@ def test_discovery_agent_execute_tool_get_economic_data(
 
 
 def test_discovery_agent_execute_tool_store_idea(
-    storage: DuckDBStorage, agent_tools: AgentTools
+    storage: PortfolioStorage, agent_tools: AgentTools
 ) -> None:
     """Test executing store_idea tool."""
     from datetime import datetime
@@ -289,7 +289,7 @@ def test_discovery_agent_execute_tool_store_idea(
 
 
 def test_discovery_agent_execute_tool_store_idea_without_run_id(
-    storage: DuckDBStorage, agent_tools: AgentTools
+    storage: PortfolioStorage, agent_tools: AgentTools
 ) -> None:
     """Test store_idea fails without active run_id."""
     agent = DiscoveryAgent(storage=storage, tools=agent_tools)
@@ -310,7 +310,7 @@ def test_discovery_agent_execute_tool_store_idea_without_run_id(
 
 
 def test_discovery_agent_execute_tool_unknown(
-    storage: DuckDBStorage, agent_tools: AgentTools
+    storage: PortfolioStorage, agent_tools: AgentTools
 ) -> None:
     """Test executing unknown tool raises error."""
     agent = DiscoveryAgent(storage=storage, tools=agent_tools)
@@ -320,7 +320,7 @@ def test_discovery_agent_execute_tool_unknown(
 
 
 def test_discovery_agent_run_full_execution(
-    storage: DuckDBStorage,
+    storage: PortfolioStorage,
     agent_tools: AgentTools,
     mock_anthropic_client: Mock,
     mock_news_source: Mock,
@@ -383,7 +383,7 @@ def test_discovery_agent_run_full_execution(
 
 
 def test_discovery_agent_run_records_tool_calls(
-    storage: DuckDBStorage,
+    storage: PortfolioStorage,
     agent_tools: AgentTools,
     mock_anthropic_client: Mock,
 ) -> None:
@@ -431,7 +431,7 @@ def test_discovery_agent_run_records_tool_calls(
 
 
 def test_discovery_agent_run_clears_run_id_after_execution(
-    storage: DuckDBStorage,
+    storage: PortfolioStorage,
     agent_tools: AgentTools,
     mock_anthropic_client: Mock,
 ) -> None:
@@ -462,7 +462,7 @@ def test_discovery_agent_run_clears_run_id_after_execution(
 
 
 def test_discovery_agent_handles_max_iterations(
-    storage: DuckDBStorage, agent_tools: AgentTools
+    storage: PortfolioStorage, agent_tools: AgentTools
 ) -> None:
     """Test agent respects max_iterations limit."""
     # Create mock that never stops
@@ -486,7 +486,9 @@ def test_discovery_agent_handles_max_iterations(
     assert result["iterations"] == 3
 
 
-def test_discovery_agent_handles_api_error(storage: DuckDBStorage, agent_tools: AgentTools) -> None:
+def test_discovery_agent_handles_api_error(
+    storage: PortfolioStorage, agent_tools: AgentTools
+) -> None:
     """Test agent handles API errors gracefully."""
     # Create mock that raises exception
     mock_client = Mock()

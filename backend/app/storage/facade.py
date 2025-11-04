@@ -1,8 +1,8 @@
 """PostgreSQL storage facade integrating all manager classes.
 
 This module provides the main PortfolioStorage class that delegates operations to
-specialized managers while maintaining a unified API. Uses PostgreSQLDuckDBWrapper
-to provide a DuckDB-compatible interface over PostgreSQL.
+specialized managers while maintaining a unified API. Uses PostgreSQLConnectionWrapper
+to provide a PostgreSQL interface over PostgreSQL.
 """
 
 from __future__ import annotations
@@ -15,10 +15,10 @@ import polars as pl
 
 from ..logging_config import get_logger
 
-# Type hint only - actual connection is PostgreSQL via PostgreSQLDuckDBWrapper
+# Type hint only - actual connection is PostgreSQL via PostgreSQLConnectionWrapper
 # See connection.py for wrapper implementation
 if TYPE_CHECKING:
-    import duckdb  # type: ignore[import-not-found]
+    pass  # Type hints use Any for cross-compatibility
 
 from .connection import get_connection_manager
 from .ingestion import IngestionManager
@@ -62,11 +62,11 @@ class PortfolioStorage:
         logger.info("PortfolioStorage initialized with modular managers")
 
     # Expose connection manager's connection method
-    def connection(self) -> AbstractContextManager[duckdb.DuckDBPyConnection]:
-        """Context manager for DuckDB connections.
+    def connection(self) -> AbstractContextManager[Any]:
+        """Context manager for PostgreSQL connections.
 
         Yields:
-            duckdb.DuckDBPyConnection: Active database connection.
+            PostgreSQL connection wrapper with query methods.
         """
         return self.connection_mgr.connection()
 
@@ -93,7 +93,7 @@ class PortfolioStorage:
         return self.ingestion_mgr.bulk_insert(table_name, rows)
 
     # Metadata methods (delegate to MetadataManager)
-    def _update_table_metadata(self, conn: duckdb.DuckDBPyConnection, table_name: str) -> None:
+    def _update_table_metadata(self, conn: Any, table_name: str) -> None:
         """Update table_registry metadata after data write."""
         return self.metadata_mgr.update_table_metadata(conn, table_name)
 
@@ -101,7 +101,7 @@ class PortfolioStorage:
         """Get row counts for all tables."""
         return self.metadata_mgr.get_table_counts()
 
-    def print_status(self, prefix: str = "[duckdb]") -> None:
+    def print_status(self, prefix: str = "[storage]") -> None:
         """Print current database status with row counts."""
         return self.metadata_mgr.print_status(prefix)
 
@@ -129,7 +129,3 @@ def get_storage(db_path: str | Path | None = None) -> PortfolioStorage:
         _storage = PortfolioStorage(db_path=db_path)
         logger.info("Created new PortfolioStorage singleton")
     return _storage
-
-
-# Backward compatibility alias (deprecated, will be removed in future version)
-DuckDBStorage = PortfolioStorage

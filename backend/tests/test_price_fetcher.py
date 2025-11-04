@@ -14,12 +14,12 @@ import polars as pl
 import pytest
 
 from app.portfolio.price_fetcher import PriceDataFetcher
-from app.storage import DuckDBStorage
+from app.storage import PortfolioStorage
 
 
 @pytest.fixture
-def storage() -> DuckDBStorage:
-    """Create a DuckDBStorage instance with a temporary database."""
+def storage() -> PortfolioStorage:
+    """Create a PortfolioStorage instance with a temporary database."""
     temp_dir = tempfile.mkdtemp()
     db_path = Path(temp_dir) / "test.duckdb"
 
@@ -30,7 +30,7 @@ def storage() -> DuckDBStorage:
     from app.storage.queries import QueryManager
     from app.storage.schema import SchemaManager
 
-    storage_inst = DuckDBStorage.__new__(DuckDBStorage)
+    storage_inst = PortfolioStorage.__new__(PortfolioStorage)
     storage_inst.connection_mgr = ConnectionManager()
     storage_inst.schema_mgr = SchemaManager(storage_inst.connection_mgr)
     storage_inst.metadata_mgr = MetadataManager(storage_inst.connection_mgr)
@@ -49,7 +49,7 @@ def storage() -> DuckDBStorage:
 
 
 @pytest.fixture
-def price_fetcher(storage: DuckDBStorage) -> PriceDataFetcher:
+def price_fetcher(storage: PortfolioStorage) -> PriceDataFetcher:
     """Create a PriceDataFetcher instance."""
     return PriceDataFetcher(storage)
 
@@ -269,7 +269,7 @@ def test_fetch_partial_success(
 
 
 def _insert_day_bars(
-    storage: DuckDBStorage,
+    storage: PortfolioStorage,
     ticker: str,
     start_date: datetime,
     closes: list[float],

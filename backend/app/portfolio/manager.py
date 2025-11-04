@@ -21,7 +21,7 @@ logger = get_logger(__name__)
 class PortfolioManager:
     """Manages portfolio accounts and positions.
 
-    Provides CRUD operations for accounts and positions with DuckDB storage.
+    Provides CRUD operations for accounts and positions with PostgreSQL storage.
     """
 
     def __init__(self, storage: PortfolioStorage) -> None:

@@ -2,7 +2,7 @@
 
 This module provides connection lifecycle management for PostgreSQL storage.
 Connections are pooled using SQLAlchemy QueuePool for concurrent access.
-A DuckDB-compatible wrapper is provided to minimize code changes.
+A PostgreSQL wrapper is provided to minimize code changes.
 """
 
 from __future__ import annotations
@@ -27,11 +27,11 @@ logger = get_logger(__name__)
 _connection_mgr: ConnectionManager | None = None
 
 
-class PostgreSQLDuckDBWrapper:
-    """Wrapper to make psycopg2 connections behave like DuckDB connections.
+class PostgreSQLConnectionWrapper:
+    """Wrapper to make psycopg2 connections behave like connections.
 
     This allows existing code using conn.execute() to work with PostgreSQL
-    without modification. The wrapper translates DuckDB-style ? placeholders
+    without modification. The wrapper translates ? placeholders
     to PostgreSQL-style %s placeholders.
     """
 
@@ -47,7 +47,7 @@ class PostgreSQLDuckDBWrapper:
         self._engine = engine
 
     def execute(self, query: str, parameters: list[Any] | None = None) -> Any:
-        """Execute SQL query with DuckDB-compatible interface.
+        """Execute SQL query with PostgreSQL interface.
 
         Args:
             query: SQL query string (may use ? or $n placeholders)
@@ -56,7 +56,7 @@ class PostgreSQLDuckDBWrapper:
         Returns:
             Self for method chaining (fetchall(), etc.)
         """
-        # Convert DuckDB ? placeholders to PostgreSQL %s placeholders
+        # Convert ? placeholders to PostgreSQL %s placeholders
         if "?" in query:
             query = query.replace("?", "%s")
 
@@ -68,8 +68,8 @@ class PostgreSQLDuckDBWrapper:
         else:
             self._cursor.execute(query)
 
-        # Auto-commit DDL statements (CREATE, ALTER, DROP) for DuckDB compatibility
-        # DuckDB auto-commits these, PostgreSQL needs explicit commit
+        # Auto-commit DDL statements (CREATE, ALTER, DROP) for compatibility
+        # auto-commits these, PostgreSQL needs explicit commit
         query_upper = query.strip().upper()
         if any(query_upper.startswith(ddl) for ddl in ["CREATE", "ALTER", "DROP"]):
             self._conn.commit()
@@ -85,7 +85,7 @@ class PostgreSQLDuckDBWrapper:
         return self._cursor.fetchone()  # type: ignore[no-any-return]
 
     def pl(self) -> Any:
-        """Convert query results to Polars DataFrame (DuckDB compatibility).
+        """Convert query results to Polars DataFrame (compatibility).
 
         Returns:
             Polars DataFrame with query results.
@@ -112,9 +112,9 @@ class PostgreSQLDuckDBWrapper:
             raise ImportError("Polars is required for .pl() method") from e
 
     def fetchdf(self) -> Any:
-        """Fetch results as Polars DataFrame (DuckDB compatibility).
+        """Fetch results as Polars DataFrame (compatibility).
 
-        Alias for .pl() method to match DuckDB's fetchdf() interface.
+        Alias for .pl() method to match fetchdf() interface.
 
         Returns:
             Polars DataFrame with query results.
@@ -122,7 +122,7 @@ class PostgreSQLDuckDBWrapper:
         return self.pl()
 
     def df(self) -> Any:
-        """Fetch results as pandas DataFrame (DuckDB compatibility).
+        """Fetch results as pandas DataFrame (compatibility).
 
         Returns:
             pandas DataFrame with query results.
@@ -162,7 +162,7 @@ class PostgreSQLDuckDBWrapper:
     def insert_dataframe(self, table_name: str, df: Any, if_exists: str = "append") -> int:
         """Insert pandas/polars DataFrame into table using efficient bulk insert.
 
-        This method provides a clean alternative to DuckDB's variable reference
+        This method provides a clean alternative to variable reference
         feature (SELECT * FROM pandas_df), which doesn't exist in PostgreSQL.
 
         Args:
@@ -287,14 +287,14 @@ class ConnectionManager:
         )
 
     @contextmanager
-    def connection(self) -> Iterator[PostgreSQLDuckDBWrapper]:
-        """Context manager for PostgreSQL connections with DuckDB-compatible interface.
+    def connection(self) -> Iterator[PostgreSQLConnectionWrapper]:
+        """Context manager for PostgreSQL connections with PostgreSQL interface.
 
-        Opens connection from pool, wraps it for DuckDB compatibility, yields it
+        Opens connection from pool, wraps it for compatibility, yields it
         for use, and returns it to pool on exit.
 
         Yields:
-            PostgreSQLDuckDBWrapper: Connection wrapper with methods:
+            PostgreSQLConnectionWrapper: Connection wrapper with methods:
                 - execute(query, params) → self
                 - fetchall() → list[tuple]
                 - fetchone() → tuple | None
@@ -311,7 +311,7 @@ class ConnectionManager:
         """
         logger.debug("Getting connection from PostgreSQL pool")
         pg_conn = self.engine.raw_connection()
-        wrapper = PostgreSQLDuckDBWrapper(pg_conn, engine=self.engine)
+        wrapper = PostgreSQLConnectionWrapper(pg_conn, engine=self.engine)
         try:
             yield wrapper
         finally:

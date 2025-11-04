@@ -9,7 +9,7 @@ import polars as pl
 import pytest
 
 from app.portfolio.models import PriceData
-from app.storage import DuckDBStorage
+from app.storage import PortfolioStorage
 from app.watchlist.service import refresh_watchlist_scores
 
 
@@ -22,7 +22,7 @@ class StubPriceFetcher:
 
 
 @pytest.fixture
-def storage() -> DuckDBStorage:
+def storage() -> PortfolioStorage:
     temp_dir = tempfile.mkdtemp()
     db_path = Path(temp_dir) / "watchlist.duckdb"
 
@@ -32,7 +32,7 @@ def storage() -> DuckDBStorage:
     from app.storage.queries import QueryManager
     from app.storage.schema import SchemaManager
 
-    storage_inst = DuckDBStorage.__new__(DuckDBStorage)
+    storage_inst = PortfolioStorage.__new__(PortfolioStorage)
     storage_inst.connection_mgr = ConnectionManager()
     storage_inst.schema_mgr = SchemaManager(storage_inst.connection_mgr)
     storage_inst.metadata_mgr = MetadataManager(storage_inst.connection_mgr)
@@ -50,7 +50,7 @@ def storage() -> DuckDBStorage:
 
 
 def _insert_user_preferences(
-    storage: DuckDBStorage, price_weight: float, technical_weight: float
+    storage: PortfolioStorage, price_weight: float, technical_weight: float
 ) -> None:
     with storage.connection() as conn:
         conn.execute(
@@ -82,7 +82,7 @@ def _insert_user_preferences(
         )
 
 
-def _insert_watchlist_item(storage: DuckDBStorage, item_id: str, symbol: str) -> None:
+def _insert_watchlist_item(storage: PortfolioStorage, item_id: str, symbol: str) -> None:
     with storage.connection() as conn:
         conn.execute(
             """
@@ -94,7 +94,7 @@ def _insert_watchlist_item(storage: DuckDBStorage, item_id: str, symbol: str) ->
         conn.commit()
 
 
-def _insert_day_bars(storage: DuckDBStorage, symbol: str, closes: list[float]) -> None:
+def _insert_day_bars(storage: PortfolioStorage, symbol: str, closes: list[float]) -> None:
     start_date = datetime.now(UTC) - timedelta(days=len(closes) + 5)
     rows = []
     for idx, close in enumerate(closes):
@@ -117,7 +117,7 @@ def _insert_day_bars(storage: DuckDBStorage, symbol: str, closes: list[float]) -
     storage.insert_dataframe("day_bars", pl.DataFrame(rows), mode="append")
 
 
-def _insert_technical(storage: DuckDBStorage, symbol: str, rsi: float) -> None:
+def _insert_technical(storage: PortfolioStorage, symbol: str, rsi: float) -> None:
     storage.insert_dataframe(
         "technical_indicators",
         pl.DataFrame(
@@ -149,7 +149,7 @@ def _insert_technical(storage: DuckDBStorage, symbol: str, rsi: float) -> None:
     )
 
 
-def _insert_account(storage: DuckDBStorage, account_id: str) -> None:
+def _insert_account(storage: PortfolioStorage, account_id: str) -> None:
     with storage.connection() as conn:
         conn.execute(
             """
@@ -161,7 +161,7 @@ def _insert_account(storage: DuckDBStorage, account_id: str) -> None:
         conn.commit()
 
 
-def test_refresh_watchlist_scores_persists_snapshots(storage: DuckDBStorage) -> None:
+def test_refresh_watchlist_scores_persists_snapshots(storage: PortfolioStorage) -> None:
     _insert_user_preferences(storage, price_weight=40.0, technical_weight=60.0)
     _insert_account(storage, "acct-1")
     _insert_watchlist_item(storage, "item-1", "AAPL")

@@ -10,12 +10,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.storage import DuckDBStorage
+from app.storage import PortfolioStorage
 
 
 @pytest.fixture
-def test_storage() -> DuckDBStorage:
-    """Create a DuckDBStorage instance with a temporary database."""
+def test_storage() -> PortfolioStorage:
+    """Create a PortfolioStorage instance with a temporary database."""
     temp_dir = tempfile.mkdtemp()
     db_path = Path(temp_dir) / "test_api_preferences.duckdb"
 
@@ -26,7 +26,7 @@ def test_storage() -> DuckDBStorage:
     from app.storage.queries import QueryManager
     from app.storage.schema import SchemaManager
 
-    storage_inst = DuckDBStorage.__new__(DuckDBStorage)
+    storage_inst = PortfolioStorage.__new__(PortfolioStorage)
     storage_inst.connection_mgr = ConnectionManager()
     storage_inst.schema_mgr = SchemaManager(storage_inst.connection_mgr)
     storage_inst.metadata_mgr = MetadataManager(storage_inst.connection_mgr)
@@ -45,7 +45,7 @@ def test_storage() -> DuckDBStorage:
 
 
 @pytest.fixture
-def client(test_storage: DuckDBStorage) -> TestClient:
+def client(test_storage: PortfolioStorage) -> TestClient:
     """Create a test client with patched storage."""
     # Patch storage at multiple import points
     with (
@@ -55,7 +55,9 @@ def client(test_storage: DuckDBStorage) -> TestClient:
         yield TestClient(app)
 
 
-def test_get_preferences_creates_defaults(client: TestClient, test_storage: DuckDBStorage) -> None:
+def test_get_preferences_creates_defaults(
+    client: TestClient, test_storage: PortfolioStorage
+) -> None:
     """Test GET /api/preferences creates default preferences if none exist."""
     # Verify no preferences exist
     with test_storage.connection() as conn:
@@ -82,7 +84,9 @@ def test_get_preferences_creates_defaults(client: TestClient, test_storage: Duck
         assert result[0] == 1
 
 
-def test_get_preferences_returns_existing(client: TestClient, test_storage: DuckDBStorage) -> None:
+def test_get_preferences_returns_existing(
+    client: TestClient, test_storage: PortfolioStorage
+) -> None:
     """Test GET /api/preferences returns existing preferences."""
     import uuid
     from datetime import datetime
@@ -127,7 +131,7 @@ def test_get_preferences_returns_existing(client: TestClient, test_storage: Duck
     assert data["max_position_size_pct"] == 20.0
 
 
-def test_update_preferences_all_fields(client: TestClient, test_storage: DuckDBStorage) -> None:
+def test_update_preferences_all_fields(client: TestClient, test_storage: PortfolioStorage) -> None:
     """Test POST /api/preferences updates all fields."""
     # First get/create defaults
     client.get("/api/preferences")
@@ -165,7 +169,9 @@ def test_update_preferences_all_fields(client: TestClient, test_storage: DuckDBS
         assert result[1] == 15.0
 
 
-def test_update_preferences_partial_update(client: TestClient, test_storage: DuckDBStorage) -> None:
+def test_update_preferences_partial_update(
+    client: TestClient, test_storage: PortfolioStorage
+) -> None:
     """Test POST /api/preferences with partial update (only some fields)."""
     # Create defaults first
     client.get("/api/preferences")
@@ -191,7 +197,7 @@ def test_update_preferences_partial_update(client: TestClient, test_storage: Duc
 
 
 def test_update_preferences_multiple_partial_updates(
-    client: TestClient, test_storage: DuckDBStorage
+    client: TestClient, test_storage: PortfolioStorage
 ) -> None:
     """Test multiple partial updates preserve previously set values."""
     # Create defaults
@@ -212,7 +218,7 @@ def test_update_preferences_multiple_partial_updates(
 
 
 def test_update_preferences_risk_tolerance_validation(
-    client: TestClient, test_storage: DuckDBStorage
+    client: TestClient, test_storage: PortfolioStorage
 ) -> None:
     """Test POST /api/preferences validates risk_tolerance range (1-10)."""
     # Create defaults first
@@ -235,7 +241,7 @@ def test_update_preferences_risk_tolerance_validation(
 
 
 def test_update_preferences_max_position_size_validation(
-    client: TestClient, test_storage: DuckDBStorage
+    client: TestClient, test_storage: PortfolioStorage
 ) -> None:
     """Test POST /api/preferences validates max_position_size_pct range (0-100)."""
     # Create defaults first
@@ -257,7 +263,9 @@ def test_update_preferences_max_position_size_validation(
     assert response.status_code == 200
 
 
-def test_update_preferences_boolean_fields(client: TestClient, test_storage: DuckDBStorage) -> None:
+def test_update_preferences_boolean_fields(
+    client: TestClient, test_storage: PortfolioStorage
+) -> None:
     """Test POST /api/preferences updates boolean fields correctly."""
     # Create defaults
     client.get("/api/preferences")
@@ -297,7 +305,7 @@ def test_update_preferences_boolean_fields(client: TestClient, test_storage: Duc
     assert data["allow_futures"] is True  # Should remain True
 
 
-def test_preferences_response_structure(client: TestClient, test_storage: DuckDBStorage) -> None:
+def test_preferences_response_structure(client: TestClient, test_storage: PortfolioStorage) -> None:
     """Test that preferences responses have correct structure and field types."""
     response = client.get("/api/preferences")
 
@@ -329,7 +337,7 @@ def test_preferences_response_structure(client: TestClient, test_storage: DuckDB
 
 
 def test_get_preferences_returns_default_timezone(
-    client: TestClient, test_storage: DuckDBStorage
+    client: TestClient, test_storage: PortfolioStorage
 ) -> None:
     """Test GET /api/preferences returns display_timezone field with default value."""
     response = client.get("/api/preferences")
@@ -343,7 +351,7 @@ def test_get_preferences_returns_default_timezone(
     assert isinstance(data["display_timezone"], str)
 
 
-def test_update_preferences_timezone(client: TestClient, test_storage: DuckDBStorage) -> None:
+def test_update_preferences_timezone(client: TestClient, test_storage: PortfolioStorage) -> None:
     """Test POST /api/preferences updates display_timezone."""
     # Create defaults first
     client.get("/api/preferences")
@@ -363,7 +371,7 @@ def test_update_preferences_timezone(client: TestClient, test_storage: DuckDBSto
 
 
 def test_update_preferences_timezone_validation(
-    client: TestClient, test_storage: DuckDBStorage
+    client: TestClient, test_storage: PortfolioStorage
 ) -> None:
     """Test POST /api/preferences validates timezone values (USA timezones only)."""
     # Create defaults first
@@ -395,7 +403,7 @@ def test_update_preferences_timezone_validation(
 
 
 def test_update_preferences_timezone_persists(
-    client: TestClient, test_storage: DuckDBStorage
+    client: TestClient, test_storage: PortfolioStorage
 ) -> None:
     """Test timezone preference persists across multiple updates."""
     # Create defaults

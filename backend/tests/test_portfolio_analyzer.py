@@ -19,12 +19,12 @@ from app.portfolio.models import (
 from app.portfolio.price_fetcher import PriceDataFetcher
 from app.sources.fred import FREDSource
 from app.sources.news import GoogleNewsSource
-from app.storage import DuckDBStorage
+from app.storage import PortfolioStorage
 
 
 @pytest.fixture
-def storage() -> DuckDBStorage:
-    """Create a DuckDBStorage instance with a temporary database."""
+def storage() -> PortfolioStorage:
+    """Create a PortfolioStorage instance with a temporary database."""
     temp_dir = tempfile.mkdtemp()
     db_path = Path(temp_dir) / "test.duckdb"
 
@@ -35,7 +35,7 @@ def storage() -> DuckDBStorage:
     from app.storage.queries import QueryManager
     from app.storage.schema import SchemaManager
 
-    storage_inst = DuckDBStorage.__new__(DuckDBStorage)
+    storage_inst = PortfolioStorage.__new__(PortfolioStorage)
     storage_inst.connection_mgr = ConnectionManager()
     storage_inst.schema_mgr = SchemaManager(storage_inst.connection_mgr)
     storage_inst.metadata_mgr = MetadataManager(storage_inst.connection_mgr)
@@ -54,7 +54,7 @@ def storage() -> DuckDBStorage:
 
 
 @pytest.fixture
-def portfolio_with_positions(storage: DuckDBStorage) -> PortfolioManager:
+def portfolio_with_positions(storage: PortfolioStorage) -> PortfolioManager:
     """Create a portfolio manager with test positions."""
     portfolio_mgr = PortfolioManager(storage)
 
@@ -132,7 +132,7 @@ def mock_price_fetcher() -> Mock:
 
 @pytest.fixture
 def agent_tools(
-    storage: DuckDBStorage,
+    storage: PortfolioStorage,
     portfolio_with_positions: PortfolioManager,
     mock_news_source: Mock,
     mock_fred_source: Mock,
@@ -236,7 +236,9 @@ def mock_anthropic_client() -> Mock:
     return mock
 
 
-def test_portfolio_analyzer_initialization(storage: DuckDBStorage, agent_tools: AgentTools) -> None:
+def test_portfolio_analyzer_initialization(
+    storage: PortfolioStorage, agent_tools: AgentTools
+) -> None:
     """Test Portfolio Analyzer Agent initialization."""
     agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools)
 
@@ -246,7 +248,9 @@ def test_portfolio_analyzer_initialization(storage: DuckDBStorage, agent_tools: 
     assert agent.current_run_id is None
 
 
-def test_portfolio_analyzer_system_prompt(storage: DuckDBStorage, agent_tools: AgentTools) -> None:
+def test_portfolio_analyzer_system_prompt(
+    storage: PortfolioStorage, agent_tools: AgentTools
+) -> None:
     """Test Portfolio Analyzer Agent system prompt."""
     agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools)
     prompt = agent.get_system_prompt()
@@ -258,7 +262,7 @@ def test_portfolio_analyzer_system_prompt(storage: DuckDBStorage, agent_tools: A
     assert "store_idea" in prompt
 
 
-def test_portfolio_analyzer_tools(storage: DuckDBStorage, agent_tools: AgentTools) -> None:
+def test_portfolio_analyzer_tools(storage: PortfolioStorage, agent_tools: AgentTools) -> None:
     """Test Portfolio Analyzer Agent tool definitions."""
     agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools)
     tools = agent.get_tools()
@@ -275,7 +279,7 @@ def test_portfolio_analyzer_tools(storage: DuckDBStorage, agent_tools: AgentTool
 
 
 def test_portfolio_analyzer_execute_tool_get_portfolio_data(
-    storage: DuckDBStorage,
+    storage: PortfolioStorage,
     agent_tools: AgentTools,
     mock_price_fetcher: Mock,
 ) -> None:
@@ -292,7 +296,7 @@ def test_portfolio_analyzer_execute_tool_get_portfolio_data(
 
 
 def test_portfolio_analyzer_execute_tool_get_price_data(
-    storage: DuckDBStorage,
+    storage: PortfolioStorage,
     agent_tools: AgentTools,
     mock_price_fetcher: Mock,
 ) -> None:
@@ -307,7 +311,7 @@ def test_portfolio_analyzer_execute_tool_get_price_data(
 
 
 def test_portfolio_analyzer_execute_tool_store_idea(
-    storage: DuckDBStorage, agent_tools: AgentTools
+    storage: PortfolioStorage, agent_tools: AgentTools
 ) -> None:
     """Test executing store_idea tool."""
     agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools)
@@ -347,7 +351,7 @@ def test_portfolio_analyzer_execute_tool_store_idea(
 
 
 def test_portfolio_analyzer_execute_tool_unknown(
-    storage: DuckDBStorage, agent_tools: AgentTools
+    storage: PortfolioStorage, agent_tools: AgentTools
 ) -> None:
     """Test executing unknown tool raises error."""
     agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools)
@@ -357,7 +361,7 @@ def test_portfolio_analyzer_execute_tool_unknown(
 
 
 def test_portfolio_analyzer_run_full_execution(
-    storage: DuckDBStorage,
+    storage: PortfolioStorage,
     agent_tools: AgentTools,
     mock_anthropic_client: Mock,
     mock_price_fetcher: Mock,
@@ -419,7 +423,7 @@ def test_portfolio_analyzer_run_full_execution(
 
 
 def test_portfolio_analyzer_run_with_empty_portfolio(
-    storage: DuckDBStorage,
+    storage: PortfolioStorage,
     mock_news_source: Mock,
     mock_fred_source: Mock,
     mock_price_fetcher: Mock,
@@ -448,7 +452,7 @@ def test_portfolio_analyzer_run_with_empty_portfolio(
 
 
 def test_portfolio_analyzer_run_records_tool_calls(
-    storage: DuckDBStorage,
+    storage: PortfolioStorage,
     agent_tools: AgentTools,
     mock_anthropic_client: Mock,
 ) -> None:
@@ -482,7 +486,7 @@ def test_portfolio_analyzer_run_records_tool_calls(
 
 
 def test_portfolio_analyzer_run_clears_run_id_after_execution(
-    storage: DuckDBStorage,
+    storage: PortfolioStorage,
     agent_tools: AgentTools,
     mock_anthropic_client: Mock,
 ) -> None:
@@ -509,7 +513,7 @@ def test_portfolio_analyzer_run_clears_run_id_after_execution(
 
 
 def test_portfolio_analyzer_handles_max_iterations(
-    storage: DuckDBStorage, agent_tools: AgentTools
+    storage: PortfolioStorage, agent_tools: AgentTools
 ) -> None:
     """Test agent respects max_iterations limit."""
     # Create mock that never stops
@@ -534,7 +538,7 @@ def test_portfolio_analyzer_handles_max_iterations(
 
 
 def test_portfolio_analyzer_handles_api_error(
-    storage: DuckDBStorage, agent_tools: AgentTools
+    storage: PortfolioStorage, agent_tools: AgentTools
 ) -> None:
     """Test agent handles API errors gracefully."""
     # Create mock that raises exception

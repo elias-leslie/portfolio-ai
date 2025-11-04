@@ -14,7 +14,7 @@ from app.watchlist.service import refresh_watchlist_scores
 
 @pytest.fixture
 def mock_storage() -> MagicMock:
-    """Create a mock DuckDBStorage instance."""
+    """Create a mock PortfolioStorage instance."""
     storage = MagicMock()
     storage.query_mgr = MagicMock()
 

@@ -13,7 +13,7 @@ class DatabaseConnection(Protocol):
 
     This protocol defines the interface for database connections used throughout
     the application. It enables type checking and IDE support while maintaining
-    compatibility with different connection implementations (psycopg3, DuckDB, etc.).
+    compatibility with different connection implementations (psycopg3, PostgreSQL, etc.).
 
     Methods:
         execute: Execute a SQL query with optional parameters

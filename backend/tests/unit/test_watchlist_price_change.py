@@ -12,7 +12,7 @@ from app.watchlist.watchlist_service import _calculate_price_change
 
 @pytest.fixture
 def mock_storage() -> MagicMock:
-    """Create a mock DuckDBStorage instance."""
+    """Create a mock PortfolioStorage instance."""
     return MagicMock()
 
 

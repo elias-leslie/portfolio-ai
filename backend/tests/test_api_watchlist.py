@@ -13,11 +13,11 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.portfolio.models import PriceData
-from app.storage import DuckDBStorage, get_storage
+from app.storage import PortfolioStorage, get_storage
 
 
 @pytest.fixture(autouse=True)
-def test_storage() -> Iterator[DuckDBStorage]:
+def test_storage() -> Iterator[PortfolioStorage]:
     """Get shared storage instance and set up test data.
 
     Uses the shared PostgreSQL database connection. This fixture runs
@@ -76,7 +76,7 @@ def test_storage() -> Iterator[DuckDBStorage]:
 
 
 @pytest.fixture
-def client(test_storage: DuckDBStorage) -> Iterator[TestClient]:
+def client(test_storage: PortfolioStorage) -> Iterator[TestClient]:
     """Create a test client with patched storage.
 
     Patches the storage at API import points to ensure the test client
@@ -91,7 +91,7 @@ def client(test_storage: DuckDBStorage) -> Iterator[TestClient]:
         yield TestClient(app)
 
 
-def _insert_day_bars(storage: DuckDBStorage, symbol: str, closes: list[float]) -> None:
+def _insert_day_bars(storage: PortfolioStorage, symbol: str, closes: list[float]) -> None:
     """Helper to insert historical price data."""
     start_date = datetime.now(UTC) - timedelta(days=len(closes) + 5)
     rows = []
@@ -115,7 +115,7 @@ def _insert_day_bars(storage: DuckDBStorage, symbol: str, closes: list[float]) -
     storage.insert_dataframe("day_bars", pl.DataFrame(rows), mode="append")
 
 
-def _insert_technical(storage: DuckDBStorage, symbol: str, rsi: float = 50.0) -> None:
+def _insert_technical(storage: PortfolioStorage, symbol: str, rsi: float = 50.0) -> None:
     """Helper to insert technical indicator data."""
     storage.insert_dataframe(
         "technical_indicators",
@@ -162,7 +162,7 @@ def test_list_watchlist_items_empty(client: TestClient) -> None:
     assert data["total_count"] == 0
 
 
-def test_create_watchlist_item_success(client: TestClient, test_storage: DuckDBStorage) -> None:
+def test_create_watchlist_item_success(client: TestClient, test_storage: PortfolioStorage) -> None:
     """Test POST /api/watchlist successfully creates a watchlist item."""
     request_data = {
         "account_id": "test-account",
@@ -188,7 +188,7 @@ def test_create_watchlist_item_success(client: TestClient, test_storage: DuckDBS
 
 
 def test_create_watchlist_item_normalizes_symbol(
-    client: TestClient, test_storage: DuckDBStorage
+    client: TestClient, test_storage: PortfolioStorage
 ) -> None:
     """Test POST /api/watchlist normalizes symbol to uppercase."""
     request_data = {
@@ -221,7 +221,7 @@ def test_create_watchlist_item_empty_symbol_fails(client: TestClient) -> None:
 
 
 def test_create_watchlist_item_duplicate_fails(
-    client: TestClient, test_storage: DuckDBStorage
+    client: TestClient, test_storage: PortfolioStorage
 ) -> None:
     """Test POST /api/watchlist rejects duplicate symbol for same account."""
     # Insert first item directly to database (to be visible across transactions)
@@ -254,7 +254,7 @@ def test_create_watchlist_item_duplicate_fails(
     assert "already in watchlist" in response.json()["detail"]
 
 
-def test_get_watchlist_item_success(client: TestClient, test_storage: DuckDBStorage) -> None:
+def test_get_watchlist_item_success(client: TestClient, test_storage: PortfolioStorage) -> None:
     """Test GET /api/watchlist/{item_id} returns item details."""
     # Insert item directly to database (to be visible across transactions)
     item_id = "test-item-msft"
@@ -294,7 +294,7 @@ def test_get_watchlist_item_not_found(client: TestClient) -> None:
     assert "not found" in response.json()["detail"]
 
 
-def test_update_watchlist_item_note(client: TestClient, test_storage: DuckDBStorage) -> None:
+def test_update_watchlist_item_note(client: TestClient, test_storage: PortfolioStorage) -> None:
     """Test PATCH /api/watchlist/{item_id} updates note field."""
     # Insert item directly to database (to be visible across transactions)
     item_id = "test-item-googl"
@@ -344,7 +344,7 @@ def test_update_watchlist_item_not_found(client: TestClient) -> None:
     assert "not found" in response.json()["detail"]
 
 
-def test_delete_watchlist_item_success(client: TestClient, test_storage: DuckDBStorage) -> None:
+def test_delete_watchlist_item_success(client: TestClient, test_storage: PortfolioStorage) -> None:
     """Test DELETE /api/watchlist/{item_id} removes item and snapshots."""
     # Insert item directly to database (to be visible across transactions)
     item_id = "test-item-nvda"
@@ -379,7 +379,9 @@ def test_delete_watchlist_item_not_found(client: TestClient) -> None:
     assert "not found" in response.json()["detail"]
 
 
-def test_list_watchlist_items_with_scores(client: TestClient, test_storage: DuckDBStorage) -> None:
+def test_list_watchlist_items_with_scores(
+    client: TestClient, test_storage: PortfolioStorage
+) -> None:
     """Test GET /api/watchlist returns items with current scores."""
     # Insert item directly to database (to be visible across transactions)
     item_id = "test-item-aapl-list"
@@ -434,7 +436,9 @@ def test_refresh_watchlist_scores_empty_watchlist(client: TestClient) -> None:
     assert "No items" in data["message"]
 
 
-def test_refresh_watchlist_scores_success(client: TestClient, test_storage: DuckDBStorage) -> None:
+def test_refresh_watchlist_scores_success(
+    client: TestClient, test_storage: PortfolioStorage
+) -> None:
     """Test POST /api/watchlist/refresh successfully refreshes scores."""
     # Insert watchlist items directly to database (to be visible across transactions)
     item_id_1 = "test-item-aapl-refresh"
@@ -492,7 +496,7 @@ def test_refresh_watchlist_scores_success(client: TestClient, test_storage: Duck
 
 
 def test_refresh_watchlist_scores_handles_partial_failure(
-    client: TestClient, test_storage: DuckDBStorage
+    client: TestClient, test_storage: PortfolioStorage
 ) -> None:
     """Test POST /api/watchlist/refresh continues when some items fail."""
     # Insert watchlist items directly to database (to be visible across transactions)
@@ -550,7 +554,7 @@ def test_refresh_watchlist_scores_handles_partial_failure(
 # Score Alert Tests
 
 
-def test_score_alert_detection(client: TestClient, test_storage: DuckDBStorage) -> None:
+def test_score_alert_detection(client: TestClient, test_storage: PortfolioStorage) -> None:
     """Test score_alert flag is set when score changes >10 points in 7 days."""
     # Insert watchlist item directly to database
     item_id = "test-item-alert"
@@ -612,7 +616,7 @@ def test_score_alert_detection(client: TestClient, test_storage: DuckDBStorage) 
 
 
 def test_score_alert_not_triggered_small_change(
-    client: TestClient, test_storage: DuckDBStorage
+    client: TestClient, test_storage: PortfolioStorage
 ) -> None:
     """Test score_alert is False when score changes <10 points."""
     # Insert watchlist item directly to database
@@ -697,7 +701,9 @@ def test_create_watchlist_item_missing_symbol(client: TestClient) -> None:
     assert response.status_code == 422  # Validation error
 
 
-def test_response_structure_matches_spec(client: TestClient, test_storage: DuckDBStorage) -> None:
+def test_response_structure_matches_spec(
+    client: TestClient, test_storage: PortfolioStorage
+) -> None:
     """Test all API responses match the expected schema."""
     # Create item
     create_response = client.post(
@@ -727,7 +733,7 @@ def test_response_structure_matches_spec(client: TestClient, test_storage: DuckD
 
 
 def test_staleness_detection_reflects_age_of_snapshot(
-    client: TestClient, test_storage: DuckDBStorage
+    client: TestClient, test_storage: PortfolioStorage
 ) -> None:
     """Test stale flag in score reflects age of snapshot, not snapshot-time staleness."""
     # Insert watchlist item directly to database
@@ -796,7 +802,7 @@ def test_staleness_detection_reflects_age_of_snapshot(
 
 
 def test_get_score_history_extracts_price_score_from_raw_metrics(
-    client: TestClient, test_storage: DuckDBStorage
+    client: TestClient, test_storage: PortfolioStorage
 ) -> None:
     """Test GET /api/watchlist/{item_id}/history extracts price.score from raw_metrics JSONB."""
     # Clean up any existing data from previous test runs

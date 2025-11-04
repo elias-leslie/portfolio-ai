@@ -1,6 +1,6 @@
 """YAML source configuration loader for portfolio-ai.
 
-Loads data source configurations from YAML files and populates DuckDB tables.
+Loads data source configurations from YAML files and populates tables.
 """
 
 from __future__ import annotations
@@ -68,7 +68,7 @@ def load_source_config(yaml_path: str) -> dict[str, Any]:
 
 
 def insert_source_to_db(source_config: dict[str, Any], storage: PortfolioStorage) -> None:
-    """Insert source configuration into DuckDB tables.
+    """Insert source configuration into tables.
 
     Args:
         source_config: Configuration dictionary from load_source_config().

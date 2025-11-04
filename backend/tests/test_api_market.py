@@ -11,12 +11,12 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.portfolio.models import PriceData
-from app.storage import DuckDBStorage
+from app.storage import PortfolioStorage
 
 
 @pytest.fixture
-def test_storage() -> DuckDBStorage:
-    """Create a DuckDBStorage instance with a temporary database."""
+def test_storage() -> PortfolioStorage:
+    """Create a PortfolioStorage instance with a temporary database."""
     temp_dir = tempfile.mkdtemp()
     db_path = Path(temp_dir) / "test_api_market.duckdb"
 
@@ -27,7 +27,7 @@ def test_storage() -> DuckDBStorage:
     from app.storage.queries import QueryManager
     from app.storage.schema import SchemaManager
 
-    storage_inst = DuckDBStorage.__new__(DuckDBStorage)
+    storage_inst = PortfolioStorage.__new__(PortfolioStorage)
     storage_inst.connection_mgr = ConnectionManager()
     storage_inst.schema_mgr = SchemaManager(storage_inst.connection_mgr)
     storage_inst.metadata_mgr = MetadataManager(storage_inst.connection_mgr)
@@ -46,7 +46,7 @@ def test_storage() -> DuckDBStorage:
 
 
 @pytest.fixture
-def client(test_storage: DuckDBStorage) -> TestClient:
+def client(test_storage: PortfolioStorage) -> TestClient:
     """Create a test client with patched storage."""
     # Patch storage at multiple import points
     with (

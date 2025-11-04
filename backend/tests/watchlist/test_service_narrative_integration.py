@@ -8,13 +8,13 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.portfolio.models import PriceData
-from app.storage import DuckDBStorage
+from app.storage import PortfolioStorage
 from app.watchlist.service import refresh_watchlist_scores
 
 
 @pytest.fixture
-def storage() -> DuckDBStorage:
-    """Create a DuckDBStorage instance for testing."""
+def storage() -> PortfolioStorage:
+    """Create a PortfolioStorage instance for testing."""
     temp_dir = tempfile.mkdtemp()
     db_path = Path(temp_dir) / "watchlist.duckdb"
 
@@ -24,7 +24,7 @@ def storage() -> DuckDBStorage:
     from app.storage.queries import QueryManager
     from app.storage.schema import SchemaManager
 
-    storage_inst = DuckDBStorage.__new__(DuckDBStorage)
+    storage_inst = PortfolioStorage.__new__(PortfolioStorage)
     storage_inst.connection_mgr = ConnectionManager()
     storage_inst.schema_mgr = SchemaManager(storage_inst.connection_mgr)
     storage_inst.metadata_mgr = MetadataManager(storage_inst.connection_mgr)
@@ -44,7 +44,7 @@ def storage() -> DuckDBStorage:
 class TestNarrativeGenerationIntegration:
     """Test that narrative generation is called during watchlist refresh."""
 
-    def test_refresh_generates_narrative_for_buy_signal(self, storage: DuckDBStorage) -> None:
+    def test_refresh_generates_narrative_for_buy_signal(self, storage: PortfolioStorage) -> None:
         """Verify refresh flow calls narrative generation and stores results."""
         # Setup: Create portfolio account first (foreign key requirement)
         with storage.connection() as conn:
@@ -166,7 +166,9 @@ class TestNarrativeGenerationIntegration:
         assert snapshot_dict["optimal_holding_period"] is not None
         assert snapshot_dict["risk_level"] in ["Low", "Medium-Low", "Medium", "High"]
 
-    def test_refresh_handles_missing_fundamentals_gracefully(self, storage: DuckDBStorage) -> None:
+    def test_refresh_handles_missing_fundamentals_gracefully(
+        self, storage: PortfolioStorage
+    ) -> None:
         """Verify refresh continues if fundamentals cannot be fetched."""
         # Setup: Create portfolio account first (foreign key requirement)
         with storage.connection() as conn:

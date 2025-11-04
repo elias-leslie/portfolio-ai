@@ -17,13 +17,13 @@ from app.sources.fmp_source import FMPSource
 from app.sources.polygon_source import PolygonSource
 from app.sources.twelvedata_source import TwelveDataSource
 from app.sources.yfinance_source import YFinanceSource
-from app.storage import DuckDBStorage
+from app.storage import PortfolioStorage
 
 
 @pytest.fixture
 def mock_storage() -> MagicMock:
     """Create a mock storage instance."""
-    return MagicMock(spec=DuckDBStorage)
+    return MagicMock(spec=PortfolioStorage)
 
 
 class TestSourceInitialization:

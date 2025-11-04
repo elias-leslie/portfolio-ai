@@ -1,7 +1,7 @@
 """PostgreSQL metadata management operations.
 
 This module handles table metadata tracking and database status operations.
-Uses PostgreSQLDuckDBWrapper for DuckDB-compatible interface over PostgreSQL.
+Uses PostgreSQLConnectionWrapper for PostgreSQL interface over PostgreSQL.
 """
 
 from __future__ import annotations
@@ -10,10 +10,10 @@ from typing import TYPE_CHECKING
 
 from ..logging_config import get_logger
 
-# Type hint only - actual connection is PostgreSQL via PostgreSQLDuckDBWrapper
+# Type hint only - actual connection is PostgreSQL via PostgreSQLConnectionWrapper
 # See connection.py for wrapper implementation
 if TYPE_CHECKING:
-    import duckdb  # type: ignore[import-not-found]
+    from typing import Any
 
     from .connection import ConnectionManager
 
@@ -34,13 +34,13 @@ class MetadataManager:
         """
         self.connection_mgr = connection_mgr
 
-    def update_table_metadata(self, conn: duckdb.DuckDBPyConnection, table_name: str) -> None:
+    def update_table_metadata(self, conn: Any, table_name: str) -> None:
         """Update table_registry metadata after data write.
 
         Updates last_written timestamp and row_count for the specified table.
 
         Args:
-            conn: Active DuckDB connection
+            conn: Active connection
             table_name: Name of the table that was updated
         """
         # Check if table_registry exists (PostgreSQL-compatible query)
@@ -98,7 +98,7 @@ class MetadataManager:
                     counts[table] = 0
             return counts
 
-    def print_status(self, prefix: str = "[duckdb]") -> None:
+    def print_status(self, prefix: str = "[storage]") -> None:
         """Print current database status with row counts."""
         counts = self.get_table_counts()
         print(f"{prefix} Database status:")

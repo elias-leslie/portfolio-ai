@@ -12,12 +12,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.storage import DuckDBStorage
+from app.storage import PortfolioStorage
 
 
 @pytest.fixture
-def test_storage() -> DuckDBStorage:
-    """Create a DuckDBStorage instance with a temporary database."""
+def test_storage() -> PortfolioStorage:
+    """Create a PortfolioStorage instance with a temporary database."""
     temp_dir = tempfile.mkdtemp()
     db_path = Path(temp_dir) / "test_api_ideas.duckdb"
 
@@ -28,7 +28,7 @@ def test_storage() -> DuckDBStorage:
     from app.storage.queries import QueryManager
     from app.storage.schema import SchemaManager
 
-    storage_inst = DuckDBStorage.__new__(DuckDBStorage)
+    storage_inst = PortfolioStorage.__new__(PortfolioStorage)
     # ConnectionManager for PostgreSQL doesn't need db_path, uses DATABASE_URL
     storage_inst.connection_mgr = ConnectionManager()
     storage_inst.schema_mgr = SchemaManager(storage_inst.connection_mgr)
@@ -48,7 +48,7 @@ def test_storage() -> DuckDBStorage:
 
 
 @pytest.fixture
-def client(test_storage: DuckDBStorage) -> TestClient:
+def client(test_storage: PortfolioStorage) -> TestClient:
     """Create a test client with patched storage."""
     # Patch storage at multiple import points
     with (
@@ -59,7 +59,7 @@ def client(test_storage: DuckDBStorage) -> TestClient:
 
 
 def _insert_test_agent_run(
-    storage: DuckDBStorage,
+    storage: PortfolioStorage,
     run_id: str = "run-123",
     agent_type: str = "discovery",
     num_ideas: int = 5,
@@ -88,7 +88,7 @@ def _insert_test_agent_run(
 
 
 def _insert_test_idea(
-    storage: DuckDBStorage,
+    storage: PortfolioStorage,
     agent_run_id: str = "run-123",
     idea_type: str = "long",
     title: str = "Test Idea",
@@ -146,7 +146,7 @@ def test_get_ideas_empty(client: TestClient) -> None:
     assert data["ideas"] == []
 
 
-def test_get_ideas_with_data(client: TestClient, test_storage: DuckDBStorage) -> None:
+def test_get_ideas_with_data(client: TestClient, test_storage: PortfolioStorage) -> None:
     """Test GET /api/ideas returns ideas sorted by confidence score."""
     # Insert test ideas with different confidence scores
     _insert_test_idea(
@@ -182,7 +182,7 @@ def test_get_ideas_with_data(client: TestClient, test_storage: DuckDBStorage) ->
     assert data["ideas"][2]["title"] == "Low Confidence Idea"
 
 
-def test_get_ideas_filter_by_type(client: TestClient, test_storage: DuckDBStorage) -> None:
+def test_get_ideas_filter_by_type(client: TestClient, test_storage: PortfolioStorage) -> None:
     """Test GET /api/ideas with idea_type filter."""
     _insert_test_idea(test_storage, idea_type="long", title="Long Idea")
     _insert_test_idea(test_storage, idea_type="short", title="Short Idea")
@@ -196,7 +196,7 @@ def test_get_ideas_filter_by_type(client: TestClient, test_storage: DuckDBStorag
     assert all(idea["idea_type"] == "long" for idea in data["ideas"])
 
 
-def test_get_ideas_filter_by_status(client: TestClient, test_storage: DuckDBStorage) -> None:
+def test_get_ideas_filter_by_status(client: TestClient, test_storage: PortfolioStorage) -> None:
     """Test GET /api/ideas with status filter."""
     _insert_test_idea(test_storage, title="Pending Idea", status="pending")
     _insert_test_idea(test_storage, title="Validated Idea", status="validated")
@@ -211,7 +211,7 @@ def test_get_ideas_filter_by_status(client: TestClient, test_storage: DuckDBStor
 
 
 def test_get_ideas_filter_by_type_and_status(
-    client: TestClient, test_storage: DuckDBStorage
+    client: TestClient, test_storage: PortfolioStorage
 ) -> None:
     """Test GET /api/ideas with multiple filters."""
     _insert_test_idea(test_storage, idea_type="long", title="Long Pending", status="pending")
@@ -226,7 +226,7 @@ def test_get_ideas_filter_by_type_and_status(
     assert data["ideas"][0]["title"] == "Long Pending"
 
 
-def test_get_ideas_with_limit(client: TestClient, test_storage: DuckDBStorage) -> None:
+def test_get_ideas_with_limit(client: TestClient, test_storage: PortfolioStorage) -> None:
     """Test GET /api/ideas with limit parameter."""
     for i in range(10):
         _insert_test_idea(test_storage, title=f"Idea {i}")
@@ -239,7 +239,7 @@ def test_get_ideas_with_limit(client: TestClient, test_storage: DuckDBStorage) -
     assert len(data["ideas"]) == 5
 
 
-def test_get_idea_details_success(client: TestClient, test_storage: DuckDBStorage) -> None:
+def test_get_idea_details_success(client: TestClient, test_storage: PortfolioStorage) -> None:
     """Test GET /api/ideas/{id} returns idea details."""
     idea_id = _insert_test_idea(test_storage, title="Detailed Test Idea", confidence_score=0.85)
 
@@ -264,7 +264,7 @@ def test_get_idea_details_not_found(client: TestClient) -> None:
     assert response.json()["detail"] == "Idea not found"
 
 
-def test_update_idea_status_success(client: TestClient, test_storage: DuckDBStorage) -> None:
+def test_update_idea_status_success(client: TestClient, test_storage: PortfolioStorage) -> None:
     """Test PATCH /api/ideas/{id}/status updates status."""
     idea_id = _insert_test_idea(test_storage, status="pending")
 
@@ -282,7 +282,7 @@ def test_update_idea_status_success(client: TestClient, test_storage: DuckDBStor
 
 
 def test_update_idea_status_all_transitions(
-    client: TestClient, test_storage: DuckDBStorage
+    client: TestClient, test_storage: PortfolioStorage
 ) -> None:
     """Test PATCH /api/ideas/{id}/status with all valid status transitions."""
     idea_id = _insert_test_idea(test_storage, status="pending")
@@ -313,7 +313,7 @@ def test_update_idea_status_not_found(client: TestClient) -> None:
 
 @patch("app.api.ideas.run_discovery_agent")
 def test_generate_ideas_discovery_agent(
-    mock_task: Mock, client: TestClient, test_storage: DuckDBStorage
+    mock_task: Mock, client: TestClient, test_storage: PortfolioStorage
 ) -> None:
     """Test POST /api/ideas/generate with discovery agent."""
     # Mock Celery task result
@@ -335,7 +335,7 @@ def test_generate_ideas_discovery_agent(
 
 @patch("app.api.ideas.run_portfolio_analyzer")
 def test_generate_ideas_portfolio_analyzer_agent(
-    mock_task: Mock, client: TestClient, test_storage: DuckDBStorage
+    mock_task: Mock, client: TestClient, test_storage: PortfolioStorage
 ) -> None:
     """Test POST /api/ideas/generate with portfolio_analyzer agent."""
     # Mock Celery task result
@@ -374,7 +374,7 @@ def test_generate_ideas_invalid_agent_type(client: TestClient) -> None:
     assert response.status_code == 422  # Validation error
 
 
-def test_ideas_api_fields_completeness(client: TestClient, test_storage: DuckDBStorage) -> None:
+def test_ideas_api_fields_completeness(client: TestClient, test_storage: PortfolioStorage) -> None:
     """Test that all idea fields are present in API responses."""
     idea_id = _insert_test_idea(test_storage)
 

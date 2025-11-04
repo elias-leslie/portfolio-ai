@@ -5,11 +5,11 @@ from __future__ import annotations
 import pytest
 
 from app.portfolio.manager import PortfolioManager
-from app.storage import DuckDBStorage, get_storage
+from app.storage import PortfolioStorage, get_storage
 
 
 @pytest.fixture
-def storage() -> DuckDBStorage:
+def storage() -> PortfolioStorage:
     """Get the storage instance (uses PostgreSQL test database).
 
     Test isolation is handled by the clean_database fixture in conftest.py.
@@ -18,7 +18,7 @@ def storage() -> DuckDBStorage:
 
 
 @pytest.fixture
-def portfolio_mgr(storage: DuckDBStorage) -> PortfolioManager:
+def portfolio_mgr(storage: PortfolioStorage) -> PortfolioManager:
     """Create a PortfolioManager instance."""
     return PortfolioManager(storage)
 

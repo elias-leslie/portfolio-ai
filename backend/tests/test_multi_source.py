@@ -16,7 +16,7 @@ from app.sources.base import DATASET_REFERENCE, DatasetRequest
 from app.sources.multi_source_fetcher import MultiSourceFetcher
 from app.sources.polygon_source import PolygonSource
 from app.sources.yfinance_source import YFinanceSource
-from app.storage import DuckDBStorage
+from app.storage import PortfolioStorage
 
 # Fixtures
 
@@ -79,7 +79,7 @@ def mock_polygon_source() -> Mock:
 
 
 def test_multi_source_fetcher_initialization(
-    mock_yfinance_source: Mock, mock_polygon_source: Mock, mock_storage: DuckDBStorage
+    mock_yfinance_source: Mock, mock_polygon_source: Mock, mock_storage: PortfolioStorage
 ) -> None:
     """Test MultiSourceFetcher initializes with sources sorted by priority."""
     fetcher = MultiSourceFetcher([mock_polygon_source, mock_yfinance_source], storage=mock_storage)
@@ -93,7 +93,7 @@ def test_multi_source_fetcher_initialization(
 def test_yfinance_primary_success(
     mock_yfinance_source: Mock,
     mock_polygon_source: Mock,
-    mock_storage: DuckDBStorage,
+    mock_storage: PortfolioStorage,
     sample_request: DatasetRequest,
 ) -> None:
     """Test successful fetch from yfinance (primary source)."""
@@ -130,7 +130,7 @@ def test_yfinance_primary_success(
 def test_polygon_failover_on_yfinance_429(
     mock_yfinance_source: Mock,
     mock_polygon_source: Mock,
-    mock_storage: DuckDBStorage,
+    mock_storage: PortfolioStorage,
     sample_request: DatasetRequest,
 ) -> None:
     """Test failover to Polygon when yfinance returns 429 (rate limit)."""
@@ -177,7 +177,7 @@ def test_polygon_failover_on_yfinance_429(
 def test_polygon_failover_on_yfinance_timeout(
     mock_yfinance_source: Mock,
     mock_polygon_source: Mock,
-    mock_storage: DuckDBStorage,
+    mock_storage: PortfolioStorage,
     sample_request: DatasetRequest,
 ) -> None:
     """Test failover to Polygon when yfinance times out."""
@@ -211,7 +211,7 @@ def test_polygon_failover_on_yfinance_timeout(
 def test_all_sources_fail(
     mock_yfinance_source: Mock,
     mock_polygon_source: Mock,
-    mock_storage: DuckDBStorage,
+    mock_storage: PortfolioStorage,
     sample_request: DatasetRequest,
 ) -> None:
     """Test all sources failing returns None with error details."""
@@ -236,7 +236,7 @@ def test_all_sources_fail(
 def test_rate_limit_cooldown_skips_source(
     mock_yfinance_source: Mock,
     mock_polygon_source: Mock,
-    mock_storage: DuckDBStorage,
+    mock_storage: PortfolioStorage,
     sample_request: DatasetRequest,
 ) -> None:
     """Test that source in cooldown is skipped."""
@@ -271,7 +271,7 @@ def test_rate_limit_cooldown_skips_source(
 
 
 def test_source_performance_tracking(
-    mock_yfinance_source: Mock, mock_storage: DuckDBStorage, sample_request: DatasetRequest
+    mock_yfinance_source: Mock, mock_storage: PortfolioStorage, sample_request: DatasetRequest
 ) -> None:
     """Test that source performance metrics are tracked correctly."""
     # Mock yfinance returning valid data
@@ -304,7 +304,7 @@ def test_source_performance_tracking(
 
 
 def test_source_metrics_persistence(
-    mock_yfinance_source: Mock, mock_storage: DuckDBStorage, sample_request: DatasetRequest
+    mock_yfinance_source: Mock, mock_storage: PortfolioStorage, sample_request: DatasetRequest
 ) -> None:
     """Test that source metrics are persisted to database."""
     # Mock yfinance returning valid data

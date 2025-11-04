@@ -60,7 +60,7 @@ class IngestionManager:
                 conn.execute(f"DELETE FROM {table_name}")
                 conn.commit()  # Commit the deletion before insert
 
-            # Use explicit DataFrame insertion instead of DuckDB variable reference
+            # Use explicit DataFrame insertion instead of variable reference
             conn.insert_dataframe(table_name, df, if_exists="append")
 
             # CRITICAL: Commit the INSERT to persist data
@@ -109,7 +109,7 @@ class IngestionManager:
             # insert_dataframe opens its own transaction, so we must commit first
             conn.commit()
 
-            # Use explicit DataFrame insertion instead of DuckDB variable reference
+            # Use explicit DataFrame insertion instead of variable reference
             # Note: This opens a NEW transaction (via engine.connect())
             conn.insert_dataframe(table_name, df, if_exists="append")
 
