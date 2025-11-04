@@ -1,12 +1,12 @@
 # Task List: Status Dashboard - Phase 3 (Celery Deep Dive)
 
 **PRD**: `tasks/0029-prd-status-page-advanced.md` (Phase 3)
-**Depends On**: tasks-0028-status-dashboard-mvp.md (MUST be complete)
-**Status**: Paused - UI Issues Found (Service Logs)
-**Completion**: 90% (Backend + Frontend Complete, UI Bug Found)
-**Last Updated**: 2025-11-04 09:05
+**Depends On**: tasks-0028-status-dashboard-mvp.md (COMPLETE ✅)
+**Status**: COMPLETE ✅
+**Completion**: 100% (Backend + Frontend + Bug Fix Complete)
+**Last Updated**: 2025-11-04 15:50
 
-<!-- PAUSED: 2025-11-04 09:05 - Service log loading broken for celery_worker, celery_beat, redis -->
+<!-- RESOLVED: 2025-11-04 15:50 - Service log loading fixed (underscore format added to LOG_PATHS) -->
 **Effort**: MEDIUM (1-2 hours)
 **Priority**: HIGH
 **Created**: 2025-11-03
@@ -16,10 +16,10 @@
 
 ## Summary
 
-**✅ COMPLETE:** Tasks 1.0-3.0 (Backend + Frontend Implementation)
-**🔄 IN PROGRESS:** Task 4.3 - UI Testing (Issues Found)
-**⚠️ NEXT:** Fix service log loading for celery_worker, celery_beat, redis
-**PAUSED:** 2025-11-04 09:05 (User found UI bugs during manual testing)
+**✅ COMPLETE:** All tasks (1.0-4.0) - Backend, Frontend, Integration, Bug Fix
+**✅ BUG FIX:** Service log loading for celery_worker, celery_beat, redis (2025-11-04)
+**✅ TESTED:** All log endpoints working correctly
+**✅ COMMIT:** 6fb9895 - fix: correct service log endpoint mappings
 
 ---
 

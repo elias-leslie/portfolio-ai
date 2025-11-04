@@ -1,12 +1,17 @@
 # Portfolio AI - Work Tracker
 
-**Last Updated:** 2025-11-04 (Moving to TASK-0030 - watchlist API issue resolved)
+**Last Updated:** 2025-11-04 (Starting TASK-0030 - Status Dashboard Phase 3)
 
 ---
 
 ## 🔄 Active (Currently Working)
 
-*(No active tasks - ready for next work)*
+- **[TASK-0030] Status Dashboard - Phase 3 (Celery Deep Dive)**
+  - **File:** `tasks/tasks-0030-status-dashboard-phase3-celery.md`
+  - **PRD:** `tasks/0029-prd-status-page-advanced.md` (Phase 3)
+  - **Status:** Backend/Frontend complete, UI bug FIXED
+  - **Fixed:** Service log loading for celery_worker, celery_beat, redis (commit: 6fb9895)
+  - **Next:** Verify UI works end-to-end, complete task list, commit final changes
 
 ---
 
