@@ -195,6 +195,6 @@ ls ~/portfolio-ai/scripts/lint.sh             # Should exist
 ---
 
 **See Also**:
-- [~/portfolio-ai/CLAUDE.md](~/portfolio-ai/CLAUDE.md) - Quick reference for common commands
-- [~/portfolio-ai/docs/core/DEVELOPMENT.md](~/portfolio-ai/docs/core/DEVELOPMENT.md) - Development workflows
-- [~/portfolio-ai/docs/core/ARCHITECTURE.md](~/portfolio-ai/docs/core/ARCHITECTURE.md) - System architecture
+- [CLAUDE.md](CLAUDE.md) - Quick reference for common commands
+- [docs/core/DEVELOPMENT.md](docs/core/DEVELOPMENT.md) - Development workflows
+- [docs/core/ARCHITECTURE.md](docs/core/ARCHITECTURE.md) - System architecture
