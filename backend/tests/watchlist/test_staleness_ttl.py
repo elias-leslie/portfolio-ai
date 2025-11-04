@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 import pytest
 
 from app.storage import get_storage
-from app.watchlist.watchlist_service import _load_stale_ttl_minutes
+from app.watchlist.data_loaders import load_stale_ttl_minutes
 
 
 @pytest.fixture
@@ -65,7 +65,7 @@ def test_staleness_ttl_uses_new_column_not_old(setup_preferences):
     storage = setup_preferences
 
     # Load staleness TTL
-    ttl = _load_stale_ttl_minutes(storage)
+    ttl = load_stale_ttl_minutes(storage)
 
     # Should use default_refresh_minutes (15 min) * 3 = 45 minutes
     # NOT watchlist_refresh_minutes (1 min) * 3 = 3 minutes
@@ -98,7 +98,7 @@ def test_staleness_ttl_respects_override(setup_preferences):
         conn.commit()
 
     # Should use override (5 min) * 3 = 15 minutes
-    ttl_with_override = _load_stale_ttl_minutes(storage)
+    ttl_with_override = load_stale_ttl_minutes(storage)
     assert ttl_with_override == 15, (
         f"Should use watchlist_refresh_override when set! "
         f"Expected: 15 min (5 min * 3), Got: {ttl_with_override} min"
@@ -116,7 +116,7 @@ def test_staleness_ttl_respects_override(setup_preferences):
         conn.commit()
 
     # Should fall back to default (15 min) * 3 = 45 minutes
-    ttl_without_override = _load_stale_ttl_minutes(storage)
+    ttl_without_override = load_stale_ttl_minutes(storage)
     assert ttl_without_override == 45, (
         f"Should use default_refresh_minutes when override is NULL! "
         f"Expected: 45 min (15 min * 3), Got: {ttl_without_override} min"

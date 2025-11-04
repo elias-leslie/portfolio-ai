@@ -14,15 +14,16 @@ import datetime as dt
 import json
 import time
 from collections.abc import Iterable
-from typing import Any
 
 import httpx
 import polars as pl
-from httpx import BasicAuth, HTTPStatusError, Request, Response
+from httpx import HTTPStatusError, Request, Response
 
 from ..logging_config import get_logger
+from .auth_resolver import resolve_auth_credentials
 from .base import BaseSource, DatasetRequest
 from .jsonpath_mapper import extract_with_path, map_response_to_schema
+from .request_builders import build_request_kwargs, build_ticker_params
 
 logger = get_logger(__name__)
 
@@ -89,58 +90,10 @@ class RestApiSource(BaseSource):
             temp_auth2 = self.connection.get("auth", {})
             if isinstance(temp_auth2, dict):
                 auth_def = temp_auth2
-        self.auth_config = self._resolve_auth(auth_def, credentials)
+        self.auth_config = resolve_auth_credentials(auth_def, credentials)
 
         # Create HTTP client
         self.client = self._create_client()
-
-    def _resolve_auth(
-        self, auth_config: dict[str, object], credentials: dict[str, str]
-    ) -> dict[str, object]:
-        """Replace credential placeholders with actual values.
-
-        Supported formats:
-        - {{secret.source/field}} or {{secret:source:field}} (placeholder)
-        - {"credential_field": "apiKey"} (direct field reference)
-        - {"type": "query", "query_param": "apikey"} (infer from param name)
-        """
-        resolved: dict[str, object] = dict(auth_config)
-
-        # Method 1: Resolve placeholder in value field
-        if "value" in resolved:
-            value = resolved["value"]
-            if isinstance(value, str) and "{{secret" in value:
-                placeholder = value.strip("{}")
-
-                # Handle both dot and colon notation
-                if ":" in placeholder:
-                    parts = placeholder.split(":")
-                    field = parts[2] if len(parts) == 3 else parts[-1]
-                else:
-                    _, source_field = placeholder.split(".", 1)
-                    _, field = source_field.rsplit("/", 1)
-
-                resolved["value"] = credentials.get(field, value)
-
-        # Method 2: Resolve using credential_field
-        elif "credential_field" in resolved:
-            field = str(resolved["credential_field"])
-            if field in credentials:
-                resolved["value"] = credentials[field]
-
-        # Method 3: Infer from query_param or key_name
-        elif "query_param" in resolved or "key_name" in resolved:
-            param_name = str(resolved.get("query_param") or resolved.get("key_name", ""))
-            if param_name in credentials:
-                resolved["value"] = credentials[param_name]
-            else:
-                # Try case-insensitive match
-                for cred_key, cred_val in credentials.items():
-                    if cred_key.lower() == param_name.lower():
-                        resolved["value"] = cred_val
-                        break
-
-        return resolved
 
     def _create_client(self) -> httpx.Client:
         """Create HTTP client with base URL and timeout."""
@@ -159,45 +112,6 @@ class RestApiSource(BaseSource):
             timeout=timeout,
             follow_redirects=True,
         )
-
-    def _build_request_kwargs(
-        self, endpoint: dict[str, object], params: dict[str, str]
-    ) -> dict[str, object]:
-        """Build httpx request kwargs with authentication."""
-        kwargs: dict[str, object] = {
-            "method": str(endpoint.get("http_method", "GET")),
-        }
-
-        auth_type = self.auth_config.get("type")
-
-        # Query parameter auth
-        if auth_type in ("query", "query_param"):
-            query_param = str(
-                self.auth_config.get("key_name") or self.auth_config.get("query_param") or "apiKey"
-            )
-            auth_value = self.auth_config.get("value")
-            if auth_value:
-                params[query_param] = str(auth_value)
-
-        # API key header auth
-        elif auth_type == "api_key":
-            header = str(self.auth_config.get("header", "Authorization"))
-            kwargs["headers"] = {header: str(self.auth_config["value"])}
-
-        # Bearer token auth
-        elif auth_type == "bearer":
-            token = str(self.auth_config.get("token", ""))
-            kwargs["headers"] = {"Authorization": f"Bearer {token}"}
-
-        # Basic auth
-        elif auth_type == "basic":
-            kwargs["auth"] = BasicAuth(
-                str(self.auth_config.get("username", "")),
-                str(self.auth_config.get("password", "")),
-            )
-
-        kwargs["params"] = params
-        return kwargs
 
     def _call_endpoint(
         self,
@@ -225,7 +139,7 @@ class RestApiSource(BaseSource):
         path = path_template.format(**path_params)
 
         # Build request with auth
-        request_kwargs = self._build_request_kwargs(endpoint, query_params)
+        request_kwargs = build_request_kwargs(endpoint, self.auth_config, query_params)
 
         # Track duration for performance logging
         start_time = time.time()
@@ -249,42 +163,6 @@ class RestApiSource(BaseSource):
         result: dict[str, object] = response.json()
         return result
 
-    def _build_ticker_params(
-        self,
-        ticker: str,
-        endpoint: dict[str, Any],
-        date_range: tuple[dt.date, dt.date] | None = None,
-    ) -> tuple[dict[str, str], dict[str, str]]:
-        """Build path and query params for a ticker request.
-
-        Args:
-            ticker: Stock ticker symbol
-            endpoint: Endpoint configuration dictionary
-            date_range: Optional (start_date, end_date) tuple
-
-        Returns:
-            Tuple of (path_params, query_params)
-        """
-        path_params: dict[str, str] = {}
-        query_params: dict[str, str] = {}
-
-        # Check for ticker in path template
-        path_template = str(endpoint.get("path_template", ""))
-        if "{ticker}" in path_template or "{symbol}" in path_template:
-            path_params["ticker"] = ticker
-            path_params["symbol"] = ticker
-
-        # Add date range if path template uses it
-        if date_range and "{from}" in path_template:
-            path_params["from"] = date_range[0].isoformat()
-            path_params["to"] = date_range[1].isoformat()
-
-        # Add symbol to query params
-        query_params["symbol"] = ticker
-        query_params["ticker"] = ticker
-
-        return path_params, query_params
-
     def fetch_day_bars(self, request: DatasetRequest) -> pl.DataFrame | None:
         """Fetch daily OHLCV bars."""
         if not self.supports_day:
@@ -304,7 +182,7 @@ class RestApiSource(BaseSource):
         for ticker in request.tickers:
             try:
                 # Build params for this ticker
-                path_params, query_params = self._build_ticker_params(
+                path_params, query_params = build_ticker_params(
                     ticker, endpoint, (request.start, request.end)
                 )
 
@@ -388,7 +266,7 @@ class RestApiSource(BaseSource):
         for ticker in tickers:
             try:
                 # Build params for this ticker
-                path_params, query_params = self._build_ticker_params(ticker, endpoint)
+                path_params, query_params = build_ticker_params(ticker, endpoint)
 
                 # Call API
                 response = self._call_endpoint(endpoint_key, path_params, query_params)

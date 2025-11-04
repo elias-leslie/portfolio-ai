@@ -6,10 +6,7 @@ system status, dependencies, and service availability including multi-source dat
 
 from __future__ import annotations
 
-import json
-import time
-from datetime import UTC, datetime, timedelta
-from pathlib import Path
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from fastapi import APIRouter, Response
@@ -18,7 +15,14 @@ from pydantic import BaseModel, Field
 from ..logging_config import get_logger
 from ..services.service_monitor import get_all_service_statuses
 from ..storage import get_storage
-from ..utils.quota_helpers import build_quota_info, is_api_key_configured
+from ..utils.health_checks import (
+    check_database,
+    check_sources,
+    get_agent_stats,
+    get_api_quotas,
+    get_cache_stats,
+    get_watchlist_stats,
+)
 
 logger = get_logger(__name__)
 
@@ -28,23 +32,7 @@ router = APIRouter(prefix="/health", tags=["health"])
 APP_START_TIME = datetime.now(UTC)
 
 
-def _load_quota_config() -> dict[str, dict[str, Any]]:
-    """Load API quota configuration from JSON file.
-
-    Returns:
-        Dictionary mapping source_id to quota configuration
-    """
-    config_path = Path(__file__).parent.parent / "config" / "quota_config.json"
-    try:
-        with config_path.open() as f:
-            config_data: dict[str, Any] = json.load(f)
-            sources: dict[str, dict[str, Any]] = config_data.get("sources", {})
-            return sources
-    except Exception as e:
-        logger.warning("failed_to_load_quota_config", error=str(e), path=str(config_path))
-        return {}
-
-
+# Pydantic models for API responses (wrap internal classes)
 class SourceHealthCheck(BaseModel):
     """Health check for individual data source."""
 
@@ -128,304 +116,6 @@ class HealthCheckService:
         """Initialize health check service."""
         self.storage = get_storage()
 
-    def check_database(self) -> CheckResult:
-        """Check database connectivity and performance.
-
-        Returns:
-            CheckResult with database health status
-        """
-        try:
-            start = time.time()
-
-            # Simple query to verify database is accessible
-            df = self.storage.query("SELECT 1 as test")
-
-            latency_ms = int((time.time() - start) * 1000)
-
-            if df.is_empty():
-                return CheckResult(
-                    status="down",
-                    latency_ms=latency_ms,
-                    message="Database query returned empty result",
-                )
-
-            return CheckResult(
-                status="ok",
-                latency_ms=latency_ms,
-                last_success=datetime.now(UTC),
-            )
-
-        except Exception as e:
-            logger.error("database_health_check_failed", error=str(e))
-            return CheckResult(
-                status="down",
-                message=f"Database error: {e!s}",
-            )
-
-    def check_sources(self) -> dict[str, SourceHealthCheck]:
-        """Check health of all data sources from source_performance table.
-
-        Returns:
-            Dict mapping source name to SourceHealthCheck
-        """
-        sources: dict[str, SourceHealthCheck] = {}
-
-        try:
-            df = self.storage.query(
-                """
-                SELECT
-                    source_name,
-                    success_count,
-                    failure_count,
-                    total_latency_ms,
-                    rate_limit_hits,
-                    last_success_at
-                FROM source_performance
-                """,
-                [],
-            )
-
-            if df.is_empty():
-                # No source data yet - return empty dict
-                return sources
-
-            for row in df.iter_rows(named=True):
-                source_name = row["source_name"]
-                success_count = row["success_count"] or 0
-                failure_count = row["failure_count"] or 0
-                total_latency_ms = row["total_latency_ms"] or 0
-                rate_limit_hits = row["rate_limit_hits"] or 0
-                last_success_at = row.get("last_success_at")
-
-                # Calculate success rate
-                total_requests = success_count + failure_count
-                success_rate = (success_count / total_requests * 100) if total_requests > 0 else 0.0
-
-                # Calculate average latency
-                avg_latency_ms = (
-                    int(total_latency_ms / success_count) if success_count > 0 else None
-                )
-
-                # Determine status based on last success and success rate
-                if last_success_at:
-                    time_since_success = datetime.now(UTC) - last_success_at
-                    if time_since_success < timedelta(minutes=15):
-                        if success_rate >= 80:
-                            status: Literal["ok", "degraded", "down"] = "ok"
-                        elif success_rate >= 50:
-                            status = "degraded"
-                        else:
-                            status = "down"
-                    elif time_since_success < timedelta(hours=1):
-                        status = "degraded"  # Stale but not completely down
-                    else:
-                        status = "down"  # Very stale
-                else:
-                    status = "down"  # Never succeeded
-
-                sources[source_name] = SourceHealthCheck(
-                    status=status,
-                    last_success=last_success_at,
-                    success_rate=round(success_rate, 1),
-                    avg_latency_ms=avg_latency_ms,
-                    rate_limit_hits=rate_limit_hits,
-                    in_cooldown=False,  # Would need real-time data from MultiSourceFetcher
-                    cooldown_remaining_seconds=0,
-                )
-
-        except Exception as e:
-            logger.error("check_sources_failed", error=str(e))
-
-        return sources
-
-    def get_last_price_fetch(self) -> datetime | None:
-        """Get timestamp of last successful price fetch.
-
-        Returns:
-            Datetime of last price fetch, or None if no data
-        """
-        try:
-            df = self.storage.query(
-                """
-                SELECT MAX(cached_at) as last_fetch
-                FROM price_cache
-                WHERE error IS NULL
-                """
-            )
-
-            if df.is_empty():
-                return None
-
-            last_fetch = df.to_dicts()[0]["last_fetch"]
-            return last_fetch if last_fetch else None
-
-        except Exception as e:
-            logger.error("get_last_price_fetch_failed", error=str(e))
-            return None
-
-    def get_cache_stats(self) -> CacheStats:
-        """Get price cache statistics.
-
-        Returns:
-            CacheStats with cache metrics
-        """
-        try:
-            df = self.storage.query(
-                """
-                SELECT
-                    COUNT(*) as total_cached,
-                    MAX(cached_at) as last_cached
-                FROM price_cache
-                WHERE error IS NULL
-                """
-            )
-
-            if df.is_empty():
-                return CacheStats(total_cached=0)
-
-            row = df.to_dicts()[0]
-            total_cached = row["total_cached"]
-            last_cached = row["last_cached"]
-
-            cache_age_minutes = None
-            if last_cached:
-                cache_age_minutes = (datetime.now(UTC) - last_cached).total_seconds() / 60
-
-            return CacheStats(
-                total_cached=total_cached,
-                cache_age_minutes=cache_age_minutes,
-            )
-
-        except Exception as e:
-            logger.error("get_cache_stats_failed", error=str(e))
-            return CacheStats(total_cached=0)
-
-    def get_agent_stats(self) -> AgentStats:
-        """Get agent execution statistics.
-
-        Returns:
-            AgentStats with agent metrics
-        """
-        try:
-            df = self.storage.query(
-                """
-                SELECT
-                    COUNT(*) as total_runs,
-                    SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_runs,
-                    SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_runs,
-                    AVG(CASE
-                        WHEN status = 'completed' AND completed_at IS NOT NULL
-                        THEN EXTRACT(EPOCH FROM (completed_at - started_at))
-                        ELSE NULL
-                    END) as avg_duration_s,
-                    AVG(cost_usd) as avg_cost_usd
-                FROM agent_runs
-                """
-            )
-
-            if df.is_empty():
-                return AgentStats(
-                    total_runs=0,
-                    completed_runs=0,
-                    failed_runs=0,
-                )
-
-            row = df.to_dicts()[0]
-
-            return AgentStats(
-                total_runs=row["total_runs"] or 0,
-                completed_runs=row["completed_runs"] or 0,
-                failed_runs=row["failed_runs"] or 0,
-                avg_duration_s=round(row["avg_duration_s"], 2) if row["avg_duration_s"] else None,
-                avg_cost_usd=round(row["avg_cost_usd"], 4) if row["avg_cost_usd"] else None,
-            )
-
-        except Exception as e:
-            logger.error("get_agent_stats_failed", error=str(e))
-            return AgentStats(
-                total_runs=0,
-                completed_runs=0,
-                failed_runs=0,
-            )
-
-    def get_watchlist_stats(self) -> WatchlistStats:
-        """Get watchlist statistics.
-
-        Returns:
-            WatchlistStats with watchlist metrics
-        """
-        try:
-            # Get total items
-            items_df = self.storage.query("SELECT COUNT(*) as total FROM watchlist_items")
-            total_items = items_df.to_dicts()[0]["total"] if not items_df.is_empty() else 0
-
-            # Get last refresh timestamp and count items with scores
-            snapshots_df = self.storage.query(
-                """
-                SELECT
-                    MAX(fetched_at) as last_refresh,
-                    COUNT(DISTINCT item_id) as items_with_scores
-                FROM watchlist_snapshots
-                """
-            )
-
-            if snapshots_df.is_empty():
-                return WatchlistStats(
-                    total_items=total_items,
-                    items_with_scores=0,
-                )
-
-            row = snapshots_df.to_dicts()[0]
-            last_refresh = row.get("last_refresh")
-            items_with_scores = row.get("items_with_scores") or 0
-
-            refresh_age_minutes = None
-            if last_refresh:
-                refresh_age_minutes = (datetime.now(UTC) - last_refresh).total_seconds() / 60
-
-            return WatchlistStats(
-                total_items=total_items,
-                last_refresh=last_refresh,
-                refresh_age_minutes=refresh_age_minutes,
-                items_with_scores=items_with_scores,
-            )
-
-        except Exception as e:
-            logger.error("get_watchlist_stats_failed", error=str(e))
-            return WatchlistStats(total_items=0)
-
-    def get_api_quotas(self) -> list[APIQuotaInfo]:
-        """Get API quota information from source configuration files.
-
-        Returns:
-            List of APIQuotaInfo for each configured data source
-        """
-        quotas: list[APIQuotaInfo] = []
-
-        try:
-            # Find config directory
-            config_dir = Path(__file__).parent.parent.parent.parent / "config" / "sources"
-
-            if not config_dir.exists():
-                logger.warning("get_api_quotas_no_config_dir", config_dir=str(config_dir))
-                return quotas
-
-            # Load quota metadata from configuration file
-            quota_map = _load_quota_config()
-
-            for source_id, quota_info in quota_map.items():
-                # Check if API key is configured
-                configured = is_api_key_configured(source_id, quota_info["env_var"], self.storage)
-
-                # Build and append quota info
-                quota_data = build_quota_info(source_id, quota_info, configured)
-                quotas.append(APIQuotaInfo(**quota_data))
-
-        except Exception as e:
-            logger.error("get_api_quotas_failed", error=str(e))
-
-        return quotas
-
     def perform_health_check(self) -> HealthCheckResponse:
         """Perform all health checks including multi-source data fetching.
 
@@ -434,15 +124,33 @@ class HealthCheckService:
         """
         checks: dict[str, CheckResult] = {}
 
-        # Critical checks
-        checks["database"] = self.check_database()
+        # Critical checks - convert internal to Pydantic models
+        db_result = check_database(self.storage)
+        checks["database"] = CheckResult(
+            status=db_result.status,
+            latency_ms=db_result.latency_ms,
+            last_success=db_result.last_success,
+            message=db_result.message,
+        )
 
-        # Data source checks (from source_performance table)
-        sources = self.check_sources()
+        # Data source checks (from source_performance table) - convert to Pydantic
+        sources_internal = check_sources(self.storage)
+        sources = {
+            name: SourceHealthCheck(
+                status=src.status,
+                last_success=src.last_success,
+                success_rate=src.success_rate,
+                avg_latency_ms=src.avg_latency_ms,
+                rate_limit_hits=src.rate_limit_hits,
+                in_cooldown=src.in_cooldown,
+                cooldown_remaining_seconds=src.cooldown_remaining_seconds,
+            )
+            for name, src in sources_internal.items()
+        }
 
         # Service process checks (skip slow Celery inspect for fast health checks)
         service_statuses = get_all_service_statuses(skip_slow_checks=True)
-        services = {name: status.model_dump() for name, status in service_statuses.items()}
+        services_dict = {name: status.model_dump() for name, status in service_statuses.items()}
 
         # Determine overall status
         if checks["database"].status == "down":
@@ -458,11 +166,41 @@ class HealthCheckService:
         else:
             overall_status = "healthy"
 
-        # Get statistics
-        cache_stats = self.get_cache_stats()
-        agent_stats = self.get_agent_stats()
-        watchlist_stats = self.get_watchlist_stats()
-        api_quotas = self.get_api_quotas()
+        # Get statistics - convert internal to Pydantic
+        cache_stats_internal = get_cache_stats(self.storage)
+        cache_stats_model = CacheStats(
+            total_cached=cache_stats_internal.total_cached,
+            cache_age_minutes=cache_stats_internal.cache_age_minutes,
+        )
+
+        agent_stats_internal = get_agent_stats(self.storage)
+        agent_stats_model = AgentStats(
+            total_runs=agent_stats_internal.total_runs,
+            completed_runs=agent_stats_internal.completed_runs,
+            failed_runs=agent_stats_internal.failed_runs,
+            avg_duration_s=agent_stats_internal.avg_duration_s,
+            avg_cost_usd=agent_stats_internal.avg_cost_usd,
+        )
+
+        watchlist_stats_internal = get_watchlist_stats(self.storage)
+        watchlist_stats_model = WatchlistStats(
+            total_items=watchlist_stats_internal.total_items,
+            last_refresh=watchlist_stats_internal.last_refresh,
+            refresh_age_minutes=watchlist_stats_internal.refresh_age_minutes,
+            items_with_scores=watchlist_stats_internal.items_with_scores,
+        )
+
+        api_quotas_internal = get_api_quotas(self.storage)
+        api_quotas_model = [
+            APIQuotaInfo(
+                source_name=q.source_name,
+                configured=q.configured,
+                rate_limit=q.rate_limit,
+                daily_limit=q.daily_limit,
+                estimated_capacity=q.estimated_capacity,
+            )
+            for q in api_quotas_internal
+        ]
 
         # Calculate uptime
         uptime_seconds = int((datetime.now(UTC) - APP_START_TIME).total_seconds())
@@ -472,11 +210,11 @@ class HealthCheckService:
             uptime_seconds=uptime_seconds,
             checks=checks,
             sources=sources,
-            services=services,
-            cache_stats=cache_stats,
-            agent_stats=agent_stats,
-            watchlist_stats=watchlist_stats,
-            api_quotas=api_quotas,
+            services=services_dict,
+            cache_stats=cache_stats_model,
+            agent_stats=agent_stats_model,
+            watchlist_stats=watchlist_stats_model,
+            api_quotas=api_quotas_model,
         )
 
 

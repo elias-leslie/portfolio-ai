@@ -12,123 +12,19 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
-import polars as pl
-
 from ..logging_config import get_logger
 from ..portfolio.price_fetcher import PriceDataFetcher
 from ..storage import PortfolioStorage
-from .models import ScoreWeights, TechnicalSnapshot, WatchlistScoreInputs, WatchlistSnapshot
+from .data_loaders import (
+    load_default_weights,
+    load_latest_technical,
+    load_stale_ttl_minutes,
+)
+from .models import TechnicalSnapshot, WatchlistScoreInputs, WatchlistSnapshot
 from .scoring import _is_stale as scoring_is_stale
 from .scoring import calculate_watchlist_scores
 
 logger = get_logger(__name__)
-
-
-def _load_latest_technical(
-    storage: PortfolioStorage, symbols: list[str]
-) -> dict[str, TechnicalSnapshot]:
-    """Load latest technical indicators for symbols."""
-    if not symbols:
-        return {}
-
-    placeholders = ",".join(["?"] * len(symbols))
-    df = storage.query(
-        f"""
-        SELECT *
-        FROM technical_indicators
-        WHERE ticker IN ({placeholders})
-        ORDER BY ticker, date DESC
-        """,
-        symbols,
-    )
-
-    if df.is_empty():
-        return {}
-
-    grouped = df.group_by("ticker").agg(pl.all().first())
-    snapshots: dict[str, TechnicalSnapshot] = {}
-    for row in grouped.iter_rows(named=True):
-        calculated_at = row.get("calculated_at")
-        if isinstance(calculated_at, datetime) and calculated_at.tzinfo is None:
-            calculated_at = calculated_at.replace(tzinfo=UTC)
-        snapshots[row["ticker"]] = TechnicalSnapshot(
-            rsi_14=row.get("rsi_14"),
-            sma_20=row.get("sma_20"),
-            sma_5=row.get("sma_5"),
-            sma_50=row.get("sma_50"),
-            sma_200=row.get("sma_200"),
-            ema_20=row.get("ema_20"),
-            ema_50=row.get("ema_50"),
-            ema_200=row.get("ema_200"),
-            macd=row.get("macd"),
-            macd_signal=row.get("macd_signal"),
-            price=None,
-            calculated_at=calculated_at,
-        )
-    return snapshots
-
-
-def _load_default_weights(storage: PortfolioStorage) -> ScoreWeights:
-    """Load default score weights from user preferences."""
-    df = storage.query(
-        """
-        SELECT watchlist_price_weight, watchlist_technical_weight
-        FROM user_preferences
-        ORDER BY updated_at DESC
-        LIMIT 1
-        """
-    )
-    if df.is_empty():
-        return ScoreWeights()
-
-    row = df.to_dicts()[0]
-    return ScoreWeights(
-        price=row.get("watchlist_price_weight", 50.0) or 0.0,
-        technical=row.get("watchlist_technical_weight", 50.0) or 0.0,
-    )
-
-
-def _load_stale_ttl_minutes(storage: PortfolioStorage) -> int:
-    """Load stale TTL from preferences (3x refresh interval)."""
-    df = storage.query(
-        """
-        SELECT watchlist_refresh_override, default_refresh_minutes
-        FROM user_preferences
-        ORDER BY updated_at DESC
-        LIMIT 1
-        """
-    )
-    if df.is_empty():
-        return 45  # Default: 3x 15min refresh = 45min
-
-    row = df.to_dicts()[0]
-    refresh_override = row.get("watchlist_refresh_override")
-    default_refresh = row.get("default_refresh_minutes", 15)
-
-    if refresh_override is not None:
-        refresh_minutes = int(refresh_override)
-    else:
-        refresh_minutes = int(default_refresh) if default_refresh is not None else 15
-
-    return int(refresh_minutes * 3)
-
-
-def _load_risk_budget(storage: PortfolioStorage) -> float:
-    """Load risk budget from user preferences for position sizing."""
-    df = storage.query(
-        """
-        SELECT watchlist_risk_budget
-        FROM user_preferences
-        ORDER BY updated_at DESC
-        LIMIT 1
-        """
-    )
-    if df.is_empty():
-        return 500.0
-
-    row = df.to_dicts()[0]
-    risk_budget = row.get("watchlist_risk_budget", 500)
-    return float(risk_budget) if risk_budget is not None else 500.0
 
 
 def _calculate_price_change(
@@ -256,7 +152,7 @@ class WatchlistService:
                     if isinstance(fetched_at, datetime) and fetched_at.tzinfo is None:
                         fetched_at = fetched_at.replace(tzinfo=UTC)
 
-                    stale_ttl_minutes = _load_stale_ttl_minutes(self.storage)
+                    stale_ttl_minutes = load_stale_ttl_minutes(self.storage)
                     current_time = datetime.now(UTC)
                     fetched_at_iso = fetched_at.isoformat().replace("+00:00", "Z")
 
@@ -372,7 +268,7 @@ class WatchlistService:
                 if isinstance(fetched_at, datetime) and fetched_at.tzinfo is None:
                     fetched_at = fetched_at.replace(tzinfo=UTC)
 
-                stale_ttl_minutes = _load_stale_ttl_minutes(self.storage)
+                stale_ttl_minutes = load_stale_ttl_minutes(self.storage)
                 current_time = datetime.now(UTC)
                 fetched_at_iso = fetched_at.isoformat().replace("+00:00", "Z")
 
@@ -467,12 +363,12 @@ class WatchlistService:
         if change_pct is None:
             raise ValueError(f"Insufficient historical data for {symbol} - need at least 2 days")
 
-        technical_map = _load_latest_technical(self.storage, [symbol])
+        technical_map = load_latest_technical(self.storage, [symbol])
         technical_snapshot = technical_map.get(symbol, TechnicalSnapshot())
         technical_snapshot.price = price_data.price
 
-        default_weights = _load_default_weights(self.storage)
-        stale_ttl_minutes = _load_stale_ttl_minutes(self.storage)
+        default_weights = load_default_weights(self.storage)
+        stale_ttl_minutes = load_stale_ttl_minutes(self.storage)
         now = datetime.now(UTC)
 
         breakdown = calculate_watchlist_scores(
@@ -505,8 +401,4 @@ class WatchlistService:
 __all__ = [
     "WatchlistService",
     "_calculate_price_change",
-    "_load_default_weights",
-    "_load_latest_technical",
-    "_load_risk_budget",
-    "_load_stale_ttl_minutes",
 ]

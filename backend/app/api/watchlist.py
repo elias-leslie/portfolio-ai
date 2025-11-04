@@ -12,11 +12,7 @@ from fastapi.responses import JSONResponse
 
 from app.logging_config import get_logger
 from app.storage import get_storage
-from app.tasks import (
-    ingest_historical_ohlcv,
-    refresh_watchlist_scores_task,
-    update_technical_indicators,
-)
+from app.watchlist.background_tasks import schedule_new_ticker_tasks, schedule_refresh_tasks
 from app.watchlist.history import build_score_timeline
 from app.watchlist.models import WatchlistSnapshot
 from app.watchlist.response_builders import (
@@ -38,6 +34,7 @@ from app.watchlist.service import (
 from app.watchlist.service import (
     refresh_watchlist_scores as refresh_watchlist_scores_service,
 )
+from app.watchlist.validators import validate_symbol
 from app.watchlist.watchlist_service import WatchlistService
 
 logger = get_logger(__name__)
@@ -85,11 +82,8 @@ async def create_watchlist_item(data: WatchlistItemCreate) -> WatchlistItemRespo
         Created watchlist item
     """
     try:
-        # Validate symbol format (basic check)
-        if not data.symbol or not data.symbol.strip():
-            raise HTTPException(status_code=400, detail="Symbol cannot be empty")
-
-        symbol = data.symbol.strip().upper()
+        # Validate and normalize symbol
+        symbol = validate_symbol(data.symbol)
 
         # Check if already exists
         existing_df = storage.query(
@@ -119,32 +113,7 @@ async def create_watchlist_item(data: WatchlistItemCreate) -> WatchlistItemRespo
         logger.info("Watchlist item created", item_id=item_id, symbol=symbol)
 
         # Trigger background data population for the new ticker
-        try:
-            # Ingest 200 days of historical OHLCV data
-            ingest_historical_ohlcv.delay(tickers=[symbol], days=200)
-            logger.info("Triggered historical data ingestion", symbol=symbol)
-
-            # Calculate technical indicators (will run after ingestion completes)
-            update_technical_indicators.apply_async(
-                args=[[symbol]], countdown=30
-            )  # Wait 30s for ingestion
-            logger.info("Scheduled technical indicators calculation", symbol=symbol)
-
-            # Refresh watchlist scores for the entire account after data ingestion
-            # Note: The refresh logic now safely skips tickers without sufficient historical data,
-            # preventing score degradation for existing tickers
-            refresh_watchlist_scores_task.apply_async(
-                args=[data.account_id], countdown=60
-            )  # Wait 60s for everything
-            logger.info("Scheduled watchlist score refresh", account_id=data.account_id)
-
-        except Exception as bg_error:
-            # Log but don't fail the request - background tasks are async
-            logger.warning(
-                "Failed to trigger background tasks",
-                symbol=symbol,
-                error=str(bg_error),
-            )
+        schedule_new_ticker_tasks(symbol, data.account_id)
 
         return WatchlistItemResponse(
             id=item_id,
@@ -477,25 +446,7 @@ async def refresh_watchlist_scores(data: RefreshRequest) -> RefreshResponse:
         logger.info("Refreshing tickers", tickers=tickers, count=len(tickers))
 
         # Trigger background data refresh for ALL tickers
-        try:
-            # Fetch latest OHLCV data (last 5 days to update recent bars)
-            ingest_historical_ohlcv.delay(tickers=tickers, days=5)
-            logger.info("Triggered OHLCV data refresh", tickers=tickers, account_id=account_id)
-
-            # Update technical indicators (will run after ingestion completes)
-            update_technical_indicators.apply_async(args=[tickers], countdown=15)
-            logger.info("Scheduled technical indicators update", tickers=tickers)
-
-            # Refresh watchlist scores (will run after indicators complete)
-            refresh_watchlist_scores_task.apply_async(args=[account_id], countdown=30)
-            logger.info("Scheduled watchlist score refresh", account_id=account_id)
-
-        except Exception as bg_error:
-            logger.warning(
-                "Failed to trigger background refresh tasks",
-                account_id=account_id,
-                error=str(bg_error),
-            )
+        schedule_refresh_tasks(tickers, account_id)
 
         # Do immediate synchronous refresh with Redis progress tracking
         result = refresh_watchlist_scores_service(storage, account_id=account_id)
