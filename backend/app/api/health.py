@@ -440,8 +440,8 @@ class HealthCheckService:
         # Data source checks (from source_performance table)
         sources = self.check_sources()
 
-        # Service process checks
-        service_statuses = get_all_service_statuses()
+        # Service process checks (skip slow Celery inspect for fast health checks)
+        service_statuses = get_all_service_statuses(skip_slow_checks=True)
         services = {name: status.model_dump() for name, status in service_statuses.items()}
 
         # Determine overall status

@@ -128,9 +128,14 @@ def get_celery_queue() -> QueueInfo:
     depth = get_queue_depth()
 
     # Get worker count from inspect
-    inspect = celery_app.control.inspect()
-    stats = inspect.stats()
-    consumers = len(stats) if stats else 0
+    inspect = celery_app.control.inspect(timeout=2.0)
+    try:
+        stats = inspect.stats()
+        consumers = len(stats) if stats else 0
+    finally:
+        # Close the inspect connection to prevent connection leaks
+        if hasattr(inspect, "close"):
+            inspect.close()
 
     return QueueInfo(depth=depth, consumers=consumers)
 
@@ -142,23 +147,28 @@ def get_celery_schedule() -> list[ScheduleInfo]:
     Returns:
         List of scheduled tasks with timing information
     """
-    inspect = celery_app.control.inspect()
-    scheduled = inspect.scheduled()
+    inspect = celery_app.control.inspect(timeout=2.0)
+    try:
+        scheduled = inspect.scheduled()
 
-    if not scheduled:
-        return []
+        if not scheduled:
+            return []
 
-    # Flatten scheduled tasks from all workers
-    schedule_list: list[ScheduleInfo] = []
-    for _worker_name, worker_tasks in scheduled.items():
-        for task in worker_tasks:
-            schedule_info = ScheduleInfo(
-                name=task.get("name", "unknown"),
-                task=task.get("name", "unknown"),
-                schedule="periodic",  # Simplified for now
-                last_run=None,  # Not available from inspect
-                next_run=None,  # Would need to calculate from eta
-            )
-            schedule_list.append(schedule_info)
+        # Flatten scheduled tasks from all workers
+        schedule_list: list[ScheduleInfo] = []
+        for _worker_name, worker_tasks in scheduled.items():
+            for task in worker_tasks:
+                schedule_info = ScheduleInfo(
+                    name=task.get("name", "unknown"),
+                    task=task.get("name", "unknown"),
+                    schedule="periodic",  # Simplified for now
+                    last_run=None,  # Not available from inspect
+                    next_run=None,  # Would need to calculate from eta
+                )
+                schedule_list.append(schedule_info)
 
-    return schedule_list
+        return schedule_list
+    finally:
+        # Close the inspect connection to prevent connection leaks
+        if hasattr(inspect, "close"):
+            inspect.close()

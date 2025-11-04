@@ -136,23 +136,32 @@ def check_backend_api() -> ServiceStatus:
     return status
 
 
-def check_celery_worker() -> ServiceStatus:
+def check_celery_worker(skip_inspect: bool = False) -> ServiceStatus:
     """Check Celery worker service status.
+
+    Args:
+        skip_inspect: If True, only check process status (fast).
+                     If False, also call inspect.stats() (slow, 2-40s).
 
     Returns:
         ServiceStatus for Celery worker
     """
     status = get_service_status("Celery Worker", r"celery.*worker")
 
-    if status.status == "running":
-        # Additional check: try to inspect worker
+    if status.status == "running" and not skip_inspect:
+        # Additional check: try to inspect worker (SLOW - only for detailed status page)
         try:
             inspect = celery_app.control.inspect(timeout=2.0)
-            stats = inspect.stats()
+            try:
+                stats = inspect.stats()
 
-            if not stats:
-                status.status = "degraded"
-                status.message = "Worker not responding to inspect"
+                if not stats:
+                    status.status = "degraded"
+                    status.message = "Worker not responding to inspect"
+            finally:
+                # Close the inspect connection to prevent connection leaks
+                if hasattr(inspect, "close"):
+                    inspect.close()
 
         except Exception as e:
             status.status = "degraded"
@@ -232,15 +241,19 @@ def check_redis() -> ServiceStatus:
     return status
 
 
-def get_all_service_statuses() -> dict[str, ServiceStatus]:
+def get_all_service_statuses(skip_slow_checks: bool = False) -> dict[str, ServiceStatus]:
     """Get status of all monitored services.
+
+    Args:
+        skip_slow_checks: If True, skip slow operations like Celery inspect() (fast health check).
+                         If False, perform all checks including slow ones (detailed status page).
 
     Returns:
         Dictionary mapping service name to ServiceStatus
     """
     return {
         "backend": check_backend_api(),
-        "celery_worker": check_celery_worker(),
+        "celery_worker": check_celery_worker(skip_inspect=skip_slow_checks),
         "celery_beat": check_celery_beat(),
         "frontend": check_frontend(),
         "redis": check_redis(),

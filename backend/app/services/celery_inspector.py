@@ -30,36 +30,41 @@ def get_active_tasks() -> list[dict[str, Any]]:
             "kwargs": JSON string,
         }, ...]
     """
-    inspect = celery_app.control.inspect()
-    active = inspect.active()
+    inspect = celery_app.control.inspect(timeout=2.0)
+    try:
+        active = inspect.active()
 
-    if not active:
-        return []
+        if not active:
+            return []
 
-    tasks: list[dict[str, Any]] = []
-    for worker_name, worker_tasks in active.items():
-        for task in worker_tasks:
-            normalized_task = {
-                "id": task["id"],
-                "name": task["name"],
-                "status": "ACTIVE",
-                "started_at": (
-                    datetime.fromtimestamp(task["time_start"]).isoformat()
-                    if "time_start" in task
-                    else None
-                ),
-                "duration": (
-                    (datetime.now().timestamp() - task["time_start"])
-                    if "time_start" in task
-                    else None
-                ),
-                "worker": worker_name,
-                "args": task.get("args", "[]"),
-                "kwargs": task.get("kwargs", "{}"),
-            }
-            tasks.append(normalized_task)
+        tasks: list[dict[str, Any]] = []
+        for worker_name, worker_tasks in active.items():
+            for task in worker_tasks:
+                normalized_task = {
+                    "id": task["id"],
+                    "name": task["name"],
+                    "status": "ACTIVE",
+                    "started_at": (
+                        datetime.fromtimestamp(task["time_start"]).isoformat()
+                        if "time_start" in task
+                        else None
+                    ),
+                    "duration": (
+                        (datetime.now().timestamp() - task["time_start"])
+                        if "time_start" in task
+                        else None
+                    ),
+                    "worker": worker_name,
+                    "args": task.get("args", "[]"),
+                    "kwargs": task.get("kwargs", "{}"),
+                }
+                tasks.append(normalized_task)
 
-    return tasks
+        return tasks
+    finally:
+        # Close the inspect connection to prevent connection leaks
+        if hasattr(inspect, "close"):
+            inspect.close()
 
 
 def get_pending_tasks() -> list[dict[str, Any]]:
@@ -76,28 +81,33 @@ def get_pending_tasks() -> list[dict[str, Any]]:
             "kwargs": JSON string,
         }, ...]
     """
-    inspect = celery_app.control.inspect()
-    reserved = inspect.reserved()
+    inspect = celery_app.control.inspect(timeout=2.0)
+    try:
+        reserved = inspect.reserved()
 
-    if not reserved:
-        return []
+        if not reserved:
+            return []
 
-    tasks: list[dict[str, Any]] = []
-    for worker_name, worker_tasks in reserved.items():
-        for task in worker_tasks:
-            normalized_task = {
-                "id": task["id"],
-                "name": task["name"],
-                "status": "PENDING",
-                "started_at": None,
-                "duration": None,
-                "worker": worker_name,
-                "args": task.get("args", "[]"),
-                "kwargs": task.get("kwargs", "{}"),
-            }
-            tasks.append(normalized_task)
+        tasks: list[dict[str, Any]] = []
+        for worker_name, worker_tasks in reserved.items():
+            for task in worker_tasks:
+                normalized_task = {
+                    "id": task["id"],
+                    "name": task["name"],
+                    "status": "PENDING",
+                    "started_at": None,
+                    "duration": None,
+                    "worker": worker_name,
+                    "args": task.get("args", "[]"),
+                    "kwargs": task.get("kwargs", "{}"),
+                }
+                tasks.append(normalized_task)
 
-    return tasks
+        return tasks
+    finally:
+        # Close the inspect connection to prevent connection leaks
+        if hasattr(inspect, "close"):
+            inspect.close()
 
 
 def get_recent_completed(limit: int = 50) -> list[dict[str, Any]]:

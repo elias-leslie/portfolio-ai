@@ -1,6 +1,6 @@
 # Portfolio AI - Work Tracker
 
-**Last Updated:** 2025-11-03 (TASK-0029 completed)
+**Last Updated:** 2025-11-03 (TASK-0030 backend complete, debugging API hang issue)
 
 ---
 
@@ -37,7 +37,7 @@
 
 ## ✅ Recently Completed (Last 5)
 
-- **[TASK-0030] Status Dashboard - Phase 3 (Backend ONLY)** ✓ 2025-11-03 (PARTIAL)
+- **[TASK-0030] Status Dashboard - Phase 3 (Backend ONLY)** ✓ 2025-11-03 (PARTIAL - ISSUE FOUND)
   - **File:** `tasks-0030-status-dashboard-phase3-celery.md`
   - **Duration:** ~2 hours
   - **Results:**
@@ -47,7 +47,11 @@
     - ✅ Full type hints (mypy --strict clean)
     - ✅ API endpoints functional (curl verified)
     - ⚠️  Frontend components NOT completed (Tasks 3.0-4.0 pending)
-    - ✅ Commit: 6a31709
+    - ✅ Commit: 6a31709, 2cf5e3d
+    - ⚠️  **CRITICAL ISSUE FOUND**: After service restart, /api/watchlist endpoint hangs indefinitely
+      - Symptom: UI pages (watchlist, settings) timeout on load
+      - Root cause: API endpoint blocking/hanging (curl test runs 5+ minutes without response)
+      - Status: DEBUGGING IN PROGRESS (as of context token ~150K/200K)
 
 - **[TASK-0029] Status Dashboard - Phase 2 (SSE Updates)** ✓ 2025-11-03 (COMPLETE)
   - **File:** `tasks-0029-status-dashboard-phase2-sse.md`
