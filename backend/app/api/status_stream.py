@@ -29,8 +29,8 @@ def gather_comprehensive_status() -> dict[str, Any]:
     # Get full health check (includes database, sources, stats)
     health_response = health_service.perform_health_check()
 
-    # Get service statuses
-    service_statuses = get_all_service_statuses()
+    # Get service statuses (skip slow Celery inspect for streaming performance)
+    service_statuses = get_all_service_statuses(skip_slow_checks=True)
     services = {name: status.model_dump() for name, status in service_statuses.items()}
 
     # Combine into comprehensive status

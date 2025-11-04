@@ -100,19 +100,23 @@ def get_service_status(
         )
 
 
-def check_backend_api() -> ServiceStatus:
+def check_backend_api(skip_http_check: bool = False) -> ServiceStatus:
     """Check backend API service status.
+
+    Args:
+        skip_http_check: If True, only check process status (fast, avoids self-HTTP calls).
+                        If False, also perform HTTP health check (slow, causes congestion).
 
     Returns:
         ServiceStatus for backend API
     """
     status = get_service_status("Backend API", r"uvicorn.*main:app")
 
-    if status.status == "running":
-        # Additional health check: try to ping /health endpoint
+    if status.status == "running" and not skip_http_check:
+        # Additional health check: try to ping /health/simple endpoint (avoid circular dependency)
         try:
             start_time = time.time()
-            response = httpx.get("http://localhost:8000/health", timeout=2.0)
+            response = httpx.get("http://localhost:8000/health/simple", timeout=2.0)
             latency_ms = int((time.time() - start_time) * 1000)
 
             if response.status_code == 200:
@@ -245,14 +249,14 @@ def get_all_service_statuses(skip_slow_checks: bool = False) -> dict[str, Servic
     """Get status of all monitored services.
 
     Args:
-        skip_slow_checks: If True, skip slow operations like Celery inspect() (fast health check).
+        skip_slow_checks: If True, skip slow operations like Celery inspect() and backend HTTP checks (fast).
                          If False, perform all checks including slow ones (detailed status page).
 
     Returns:
         Dictionary mapping service name to ServiceStatus
     """
     return {
-        "backend": check_backend_api(),
+        "backend": check_backend_api(skip_http_check=skip_slow_checks),
         "celery_worker": check_celery_worker(skip_inspect=skip_slow_checks),
         "celery_beat": check_celery_beat(),
         "frontend": check_frontend(),
