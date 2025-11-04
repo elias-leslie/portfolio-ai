@@ -27,7 +27,7 @@ connection:
 auth:
   type: none
 
-# Field mappings: RSS feed fields → DuckDB columns
+# Field mappings: RSS feed fields → database columns
 # RSS feeds use element names, not JSONPath
 field_mapping:
   news_cache:

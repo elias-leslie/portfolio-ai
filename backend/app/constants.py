@@ -17,7 +17,7 @@ DATABASE_URL = os.getenv(
     "postgresql://portfolio_ai_user:REDACTED_PASSWORD@localhost:5432/portfolio_ai",
 )
 
-DEFAULT_DUCKDB_PATH = Path("data/portfolio-ai.db")
+DEFAULT_DB_PATH = Path("data/portfolio-ai.db")
 
 # Default config directory
 DEFAULT_CONFIG_DIR = Path("config")
@@ -81,7 +81,7 @@ DEFAULT_RISK_FREE_RATE = 0.04
 # ENVIRONMENT VARIABLE NAMES
 # =============================================================================
 
-ENV_DUCKDB_PATH = "DUCKDB_PATH"
+ENV_DB_PATH = "DB_PATH"
 ENV_POLYGON_API_KEY = "POLYGON_API_KEY"
 ENV_FRED_API_KEY = "FRED_API_KEY"
 ENV_ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY"

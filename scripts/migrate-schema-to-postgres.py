@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""PostgreSQL schema migration script - converts DuckDB schema to PostgreSQL.
+"""PostgreSQL schema migration script - converts PostgreSQL schema to PostgreSQL.
 
-This script creates all 19 tables from the DuckDB schema in PostgreSQL with:
+This script creates all 19 tables from the PostgreSQL schema in PostgreSQL with:
 - Type conversions (TIMESTAMP → TIMESTAMPTZ, JSON → JSONB, etc.)
 - Foreign key constraints with CASCADE DELETE
 - Performance indexes

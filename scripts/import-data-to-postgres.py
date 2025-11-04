@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Import configuration data from JSON lines format to PostgreSQL.
 
-This script imports configuration data exported from DuckDB into PostgreSQL,
+This script imports configuration data exported from PostgreSQL into PostgreSQL,
 handling foreign key dependencies and data type conversions.
 """
 
@@ -156,7 +156,7 @@ def main() -> None:
     )
     if not input_dir.exists():
         logger.error(f"Input directory not found: {input_dir}")
-        logger.error("Run export-duckdb-data.py first!")
+        logger.error("Run export-postgres-data.py first!")
         sys.exit(1)
 
     logger.info(f"Input directory: {input_dir}")

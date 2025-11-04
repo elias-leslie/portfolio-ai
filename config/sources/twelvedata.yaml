@@ -25,7 +25,7 @@ auth:
   type: query
   query_param: apikey
 
-# Field mappings: API response field → DuckDB column
+# Field mappings: API response field → database column
 field_mapping:
   minute_bars:
     ts_utc: $.values[*].datetime

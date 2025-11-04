@@ -426,7 +426,7 @@ echo "✅ Phase 2 backup created"
 **Scan all instruction files for**:
 - Redundancy (same content in multiple places)
 - Assumptions (documented without verification)
-- Outdated references (DuckDB when using PostgreSQL)
+- Outdated references (legacy database when using PostgreSQL)
 - Missing automation opportunities
 - Conflicting directives
 
@@ -450,7 +450,7 @@ done | sort | uniq -d
 grep -r "should\|probably\|assume\|typically" docs/core/ .claude/commands/
 
 # Find outdated tech references
-grep -ri "duckdb\|sqlite" docs/ CLAUDE.md
+grep -ri "legacy-db\|sqlite" docs/ CLAUDE.md
 
 # Check for conflicting instructions
 grep -r "NEVER\|ALWAYS\|MUST" docs/core/ .claude/commands/ | \
@@ -626,7 +626,7 @@ grep -rh "\[.*\](.*\.md)" docs/ .claude/commands/ | \
   done
 
 # Find references to old tech
-grep -ri "duckdb\|sqlite\|localhost:8000" docs/
+grep -ri "legacy-db\|sqlite\|localhost:8000" docs/
 ```
 
 **Use Gemini for comprehensive check**:

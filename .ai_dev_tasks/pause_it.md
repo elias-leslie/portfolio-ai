@@ -123,7 +123,7 @@ Create `tasks/PAUSE-HANDOFF-[timestamp].md` with the following structure:
 - Backend: [running/stopped] - PID [N] or N/A
 - Frontend: [running/stopped] - PID [N] or N/A
 - Celery: [running/stopped] - PID [N] or N/A
-- Database: [PostgreSQL/DuckDB/etc.] - [status]
+- Database: [PostgreSQL] - [status]
 
 **Virtual Environment:**
 - Python venv: [activated location or "not activated"]

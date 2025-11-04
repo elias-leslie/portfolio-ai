@@ -52,8 +52,8 @@
 ### From INSTRUCTION_AUDIT.md
 
 **CRITICAL Priority #1 - Outdated DB References**:
-- ✅ Remove DuckDB references from OPERATIONS.md
-- ✅ Remove DuckDB references from SETUP.md
+- ✅ Remove legacy database references from OPERATIONS.md
+- ✅ Remove legacy database references from SETUP.md
 - ✅ Update backup/restore procedures to PostgreSQL
 
 **HIGH Priority #5 - Conflicting Service Directives**:
@@ -88,7 +88,7 @@
 - Test query performance improvement
 
 ### FR-2: Update OPERATIONS.md for PostgreSQL
-- Remove all DuckDB file references (`portfolio-ai.db`)
+- Remove all legacy database file references (`portfolio-ai.db`)
 - Remove .wal file and locking references
 - Update backup section to PostgreSQL pg_dump
 - Update restore section to psql restore
@@ -96,7 +96,7 @@
 - Verify all commands use PostgreSQL
 
 ### FR-3: Update SETUP.md for PostgreSQL
-- Remove DuckDB installation steps
+- Remove legacy database installation steps
 - Remove file database references
 - Update to PostgreSQL setup only
 - Verify consistency with OPERATIONS.md
@@ -156,8 +156,8 @@
 - ✅ Portfolio query response time <100ms
 
 ### Documentation (PostgreSQL Updates)
-- ✅ Zero DuckDB references in OPERATIONS.md
-- ✅ Zero DuckDB references in SETUP.md
+- ✅ Zero legacy database references in OPERATIONS.md
+- ✅ Zero legacy database references in SETUP.md
 - ✅ Backup/restore procedures use pg_dump/psql
 - ✅ All database commands reference PostgreSQL
 
@@ -182,13 +182,13 @@
 4. Test portfolio query performance
 
 ### Phase 2: Update OPERATIONS.md (30-45 min)
-1. Search for all "duckdb" and ".db" references
+1. Search for all "legacy-db" and ".db" references
 2. Replace with PostgreSQL equivalents
 3. Update backup/restore sections
 4. Verify all commands use correct connection string
 
 ### Phase 3: Update SETUP.md (15-30 min)
-1. Remove DuckDB steps
+1. Remove legacy database steps
 2. Ensure PostgreSQL setup is comprehensive
 3. Cross-reference with OPERATIONS.md for consistency
 
@@ -240,8 +240,8 @@ EXPLAIN ANALYZE SELECT * FROM portfolio_positions WHERE account_id = 'default';
 
 ### Documentation
 ```bash
-# Verify no DuckDB references
-grep -r "duckdb\|\.db\|\.wal" docs/core/OPERATIONS.md docs/core/SETUP.md
+# Verify no legacy database references
+grep -r "legacy-db\|\.db\|\.wal" docs/core/OPERATIONS.md docs/core/SETUP.md
 
 # Should return: nothing
 
@@ -286,8 +286,8 @@ grep -A 5 "service management" .claude/commands/do_it.md
 
 ✅ **COMPLETE when**:
 1. All 4 database indexes created and verified
-2. OPERATIONS.md has zero DuckDB references
-3. SETUP.md has zero DuckDB references
+2. OPERATIONS.md has zero legacy database references
+3. SETUP.md has zero legacy database references
 4. Service management policy clearly stated
 5. All documentation cross-referenced for consistency
 6. Query performance verified with EXPLAIN ANALYZE

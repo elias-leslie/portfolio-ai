@@ -1,4 +1,4 @@
-# Task List: Fix Mypy Errors & Rename DuckDB Legacy References
+# Task List: Fix Mypy Errors & Rename legacy database Legacy References
 
 **Status**: Ready for Implementation
 **Completion**: 0%
@@ -19,7 +19,7 @@
    - news.py: 2 `import-untyped` errors (feedparser, vaderSentiment)
    - news.py: 2 `unused-ignore` errors (wrong ignore type)
    - scoring_service.py: 1 `no-untyped-call` error (redis.from_url)
-2. Rename DuckDBStorage → PortfolioStorage throughout codebase (20 files)
+2. Rename legacy databaseStorage → PortfolioStorage throughout codebase (20 files)
 3. Update all documentation references to PostgreSQL
 
 ---
@@ -28,7 +28,7 @@
 
 ### Update (22+ files)
 
-**Python files with DuckDBStorage (20 files):**
+**Python files with legacy databaseStorage (20 files):**
 - `backend/app/storage/facade.py` - Class definition
 - `backend/app/storage/__init__.py` - Export
 - `backend/app/watchlist/watchlist_service.py` - Type hints
@@ -49,7 +49,7 @@
 - `backend/app/watchlist/scoring_service.py` - Fix redis.from_url type hint (1 error)
 
 **Documentation (5+ files):**
-- `CLAUDE.md` - References to DuckDB
+- `CLAUDE.md` - References to legacy database
 - `README.md` - Architecture descriptions
 - `docs/core/ARCHITECTURE.md` - System design
 - `docs/core/SETUP.md` - Installation instructions
@@ -103,48 +103,48 @@
 
 ---
 
-### Phase 2: Rename DuckDBStorage → PortfolioStorage (2-3 hours)
+### Phase 2: Rename legacy databaseStorage → PortfolioStorage (2-3 hours)
 
 - [ ] 2.0 Update core storage module (30 min, MEDIUM)
   - [ ] 2.1 Rename class in facade.py (15 min)
     - [ ] 2.1.1 Read backend/app/storage/facade.py
-    - [ ] 2.1.2 Rename `class DuckDBStorage:` → `class PortfolioStorage:`
-    - [ ] 2.1.3 Update docstring: "DuckDB storage facade" → "Portfolio storage facade"
-    - [ ] 2.1.4 Keep backward compat alias: `DuckDBStorage = PortfolioStorage  # Deprecated`
+    - [ ] 2.1.2 Rename `class legacy databaseStorage:` → `class PortfolioStorage:`
+    - [ ] 2.1.3 Update docstring: "legacy database storage facade" → "Portfolio storage facade"
+    - [ ] 2.1.4 Keep backward compat alias: `legacy databaseStorage = PortfolioStorage  # Deprecated`
 
   - [ ] 2.2 Update storage/__init__.py exports (10 min)
     - [ ] 2.2.1 Export PortfolioStorage as primary
-    - [ ] 2.2.2 Keep DuckDBStorage alias for backward compat
+    - [ ] 2.2.2 Keep legacy databaseStorage alias for backward compat
     - [ ] 2.2.3 Update __all__ list
 
   - [ ] 2.3 Verify storage module works (5 min)
-    - Run: `python -c "from app.storage import PortfolioStorage, DuckDBStorage; print('OK')"`
+    - Run: `python -c "from app.storage import PortfolioStorage, legacy databaseStorage; print('OK')"`
     - Both imports should work (alias)
 
 - [ ] 3.0 Update watchlist modules (45 min, MEDIUM)
   - [ ] 3.1 Update watchlist_service.py (15 min)
-    - [ ] 3.1.1 Replace all `DuckDBStorage` → `PortfolioStorage` (8 instances)
+    - [ ] 3.1.1 Replace all `legacy databaseStorage` → `PortfolioStorage` (8 instances)
     - [ ] 3.1.2 Update import: `from ..storage import PortfolioStorage`
     - Run: `mypy backend/app/watchlist/watchlist_service.py --strict`
 
   - [ ] 3.2 Update scoring_service.py (15 min)
-    - [ ] 3.2.1 Replace all `DuckDBStorage` → `PortfolioStorage` (10 instances)
+    - [ ] 3.2.1 Replace all `legacy databaseStorage` → `PortfolioStorage` (10 instances)
     - [ ] 3.2.2 Update import: `from ..storage import PortfolioStorage`
     - Run: `mypy backend/app/watchlist/scoring_service.py --strict`
 
   - [ ] 3.3 Update snapshot_service.py (15 min)
-    - [ ] 3.3.1 Replace all `DuckDBStorage` → `PortfolioStorage`
+    - [ ] 3.3.1 Replace all `legacy databaseStorage` → `PortfolioStorage`
     - [ ] 3.3.2 Update import
     - Run: `mypy backend/app/watchlist/snapshot_service.py --strict`
 
 - [ ] 4.0 Update task modules (30 min, MEDIUM)
   - [ ] 4.1 Update tasks/agent_tasks.py (10 min)
-    - [ ] 4.1.1 Replace `DuckDBStorage` → `PortfolioStorage` in TYPE_CHECKING import
+    - [ ] 4.1.1 Replace `legacy databaseStorage` → `PortfolioStorage` in TYPE_CHECKING import
     - [ ] 4.1.2 Update function type hints (2 functions)
     - Run: `mypy backend/app/tasks/agent_tasks.py --strict`
 
   - [ ] 4.2 Update tasks/watchlist_tasks.py (10 min)
-    - [ ] 4.2.1 Replace all `DuckDBStorage` → `PortfolioStorage`
+    - [ ] 4.2.1 Replace all `legacy databaseStorage` → `PortfolioStorage`
     - Run: `mypy backend/app/tasks/watchlist_tasks.py --strict`
 
   - [ ] 4.3 Update remaining task files (10 min)
@@ -159,8 +159,8 @@
     - Run: `mypy backend/app/storage/yaml_loader.py --strict`
 
   - [ ] 5.2 Find and update remaining app files (20 min)
-    - [ ] 5.2.1 Search for remaining DuckDBStorage in app/
-    - Run: `grep -rn "DuckDBStorage" backend/app --include="*.py"`
+    - [ ] 5.2.1 Search for remaining legacy databaseStorage in app/
+    - Run: `grep -rn "legacy databaseStorage" backend/app --include="*.py"`
     - [ ] 5.2.2 Update each file found (api, agents, portfolio modules)
     - [ ] 5.2.3 Verify mypy on each file
     - Run: `mypy backend/app/ --strict`
@@ -171,22 +171,22 @@
 
 - [ ] 6.0 Update documentation references (30 min, LOW)
   - [ ] 6.1 Update CLAUDE.md (10 min)
-    - [ ] 6.1.1 Search for "DuckDB" references
+    - [ ] 6.1.1 Search for "legacy database" references
     - [ ] 6.1.2 Replace with "PostgreSQL" or "PortfolioStorage"
     - [ ] 6.1.3 Update database description (line ~90+)
 
   - [ ] 6.2 Update core documentation (15 min)
     - [ ] 6.2.1 Update docs/core/ARCHITECTURE.md
-      - Replace "DuckDB" → "PostgreSQL"
+      - Replace "legacy database" → "PostgreSQL"
       - Update storage layer description
     - [ ] 6.2.2 Update docs/core/SETUP.md
-      - Fix any DuckDB installation references
+      - Fix any legacy database installation references
       - Ensure PostgreSQL is primary
     - [ ] 6.2.3 Update docs/core/DEVELOPMENT.md
       - Update storage class name references
 
   - [ ] 6.3 Update README.md (5 min)
-    - [ ] 6.3.1 Replace "DuckDB" → "PostgreSQL" in tech stack
+    - [ ] 6.3.1 Replace "legacy database" → "PostgreSQL" in tech stack
     - [ ] 6.3.2 Update architecture overview
 
 ---
@@ -212,12 +212,12 @@
     - [ ] 7.3.2 Run lint script
     - Run: `bash ~/portfolio-ai/scripts/lint.sh`
 
-  - [ ] 7.4 Search for remaining DuckDB references (5 min)
+  - [ ] 7.4 Search for remaining legacy database references (5 min)
     - [ ] 7.4.1 Search Python files
-    - Run: `grep -rn "DuckDB" backend/app --include="*.py" | grep -v "Deprecated"`
+    - Run: `grep -rn "legacy database" backend/app --include="*.py" | grep -v "Deprecated"`
     - Expected: Only deprecation aliases
     - [ ] 7.4.2 Check if backward compat works
-    - Run: `python -c "from app.storage import DuckDBStorage; print('Alias works')"`
+    - Run: `python -c "from app.storage import legacy databaseStorage; print('Alias works')"`
 
 ---
 
@@ -225,7 +225,7 @@
 
 - [ ] **Functional**: All code works identically
   - [ ] PortfolioStorage class works as before
-  - [ ] DuckDBStorage alias provides backward compatibility
+  - [ ] legacy databaseStorage alias provides backward compatibility
   - [ ] No runtime behavior changes
 - [ ] **Tests**: 100% passing
   - [ ] `pytest backend/tests/ -v` - ALL 490 PASS
@@ -236,13 +236,13 @@
   - [ ] scoring_service.py error RESOLVED
   - [ ] NO mypy errors remaining in entire codebase
   - [ ] `bash ~/portfolio-ai/scripts/lint.sh` - PASS
-- [ ] **Clean**: No DuckDB references except deprecation
-  - [ ] No DuckDB in active code (only backward compat alias)
+- [ ] **Clean**: No legacy database references except deprecation
+  - [ ] No legacy database in active code (only backward compat alias)
   - [ ] Documentation reflects PostgreSQL
   - [ ] Class name reflects purpose (PortfolioStorage)
 - [ ] **Docs**: Accurate and up-to-date
   - [ ] ARCHITECTURE.md reflects PostgreSQL
-  - [ ] CLAUDE.md has no DuckDB references (except history)
+  - [ ] CLAUDE.md has no legacy database references (except history)
   - [ ] README.md tech stack correct
 
 ---
@@ -270,20 +270,20 @@ app/watchlist/scoring_service.py:62: error: Call to untyped function "from_url" 
 - **Root cause:** redis.from_url() lacks type stubs
 - **Fix:** Add `# type: ignore[no-untyped-call]` to line 62
 
-### DuckDB → PortfolioStorage Rename Rationale
+### legacy database → PortfolioStorage Rename Rationale
 
 **Why rename:**
-- ✅ Migrated from DuckDB to PostgreSQL (completed)
-- ✅ "DuckDBStorage" is misleading (uses PostgreSQL now)
+- ✅ Migrated from legacy database to PostgreSQL (completed)
+- ✅ "legacy databaseStorage" is misleading (uses PostgreSQL now)
 - ✅ "PortfolioStorage" is accurate and clear
 - ✅ Reflects actual purpose (portfolio data storage)
 
 **Backward compatibility:**
-- Keep `DuckDBStorage = PortfolioStorage` alias
+- Keep `legacy databaseStorage = PortfolioStorage` alias
 - Mark as deprecated with comment
 - Remove alias in future major version
 
-**Scope: 20 Python files found with DuckDBStorage references**
+**Scope: 20 Python files found with legacy databaseStorage references**
 
 ### Success Criteria
 
@@ -292,7 +292,7 @@ app/watchlist/scoring_service.py:62: error: Call to untyped function "from_url" 
 ✅ scoring_service.py: 1 error fixed (no-untyped-call)
 ✅ All 490 tests passing
 ✅ mypy --strict passes with ZERO errors
-✅ DuckDBStorage → PortfolioStorage renamed throughout (20 files)
+✅ legacy databaseStorage → PortfolioStorage renamed throughout (20 files)
 ✅ Backward compat alias works
 ✅ Documentation reflects PostgreSQL
 

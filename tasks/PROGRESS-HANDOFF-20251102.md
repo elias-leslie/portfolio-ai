@@ -103,7 +103,7 @@ User sees narrative intelligence in UI
 
 **Calculator Dependency**: Calculator fields (entry/stop/target/position) require historical day_bars data. When missing, fields return NULL (expected behavior, not a bug).
 
-**Tech Debt**: DuckDBStorage naming (Task 10.0) - LOW priority, cosmetic only, deferred.
+**Tech Debt**: legacy databaseStorage naming (Task 10.0) - LOW priority, cosmetic only, deferred.
 
 **Completion Estimate**: 92% complete overall, ~8% remaining (optional enhancements + final validation).
 

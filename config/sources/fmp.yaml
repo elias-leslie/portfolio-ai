@@ -27,7 +27,7 @@ auth:
   query_param: apikey
   value: "{{secret:fmp:apikey}}"
 
-# Field mappings: API response field → DuckDB column
+# Field mappings: API response field → database column
 field_mapping:
   day_bars:
     date: $.historical[*].date

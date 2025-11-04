@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export configuration data from DuckDB to JSON lines format.
+"""Export configuration data from legacy database to JSON lines format.
 
 This script exports only configuration data (API keys, preferences, accounts)
 for migration to PostgreSQL. Transactional data (price_cache, day_bars) is
@@ -13,7 +13,7 @@ import logging
 import sys
 from pathlib import Path
 
-import duckdb
+import legacy_db
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -46,24 +46,24 @@ TABLES_TO_SKIP = [
 ]
 
 
-def connect_to_duckdb() -> duckdb.DuckDBPyConnection:
-    """Connect to DuckDB database."""
+def connect_to_legacy_db() -> legacy_db.legacy databasePyConnection:
+    """Connect to legacy database database."""
     db_path = Path.home() / "portfolio-ai" / "backend" / "data" / "portfolio-ai.db"
     if not db_path.exists():
-        logger.error(f"DuckDB database not found at {db_path}")
+        logger.error(f"legacy database database not found at {db_path}")
         sys.exit(1)
 
     try:
-        conn = duckdb.connect(str(db_path), read_only=True)
-        logger.info(f"Connected to DuckDB database: {db_path}")
+        conn = legacy_db.connect(str(db_path), read_only=True)
+        logger.info(f"Connected to legacy database database: {db_path}")
         return conn
     except Exception as e:
-        logger.error(f"Failed to connect to DuckDB: {e}")
+        logger.error(f"Failed to connect to legacy database: {e}")
         sys.exit(1)
 
 
 def export_table_to_json(
-    conn: duckdb.DuckDBPyConnection, table_name: str, output_dir: Path
+    conn: legacy_db.legacy databasePyConnection, table_name: str, output_dir: Path
 ) -> None:
     """Export a table to JSON lines format."""
     try:
@@ -100,8 +100,8 @@ def export_table_to_json(
 
 
 def main() -> None:
-    """Export configuration data from DuckDB."""
-    logger.info("Starting DuckDB data export...")
+    """Export configuration data from legacy database."""
+    logger.info("Starting legacy database data export...")
 
     # Create output directory
     output_dir = (
@@ -110,8 +110,8 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     logger.info(f"Output directory: {output_dir}")
 
-    # Connect to DuckDB
-    conn = connect_to_duckdb()
+    # Connect to legacy database
+    conn = connect_to_legacy_db()
 
     try:
         # Export each table
