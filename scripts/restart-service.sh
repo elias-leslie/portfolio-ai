@@ -49,8 +49,15 @@ restart_service() {
                 sudo systemctl restart portfolio-backend.service
                 log_info "Backend restarted (systemd)"
             else
-                log_error "Backend service not found or not running"
-                return 1
+                # Manual process restart
+                log_info "Stopping backend..."
+                pkill -f "uvicorn app.main:app" || true
+                sleep 1
+                log_info "Starting backend..."
+                cd "$(dirname "$0")/../backend"
+                nohup .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 > /tmp/portfolio-backend.log 2>&1 &
+                sleep 2
+                log_info "Backend restarted (manual)"
             fi
             ;;
 
@@ -60,8 +67,15 @@ restart_service() {
                 sudo systemctl restart portfolio-celery.service
                 log_info "Celery worker restarted (systemd)"
             else
-                log_error "Celery worker service not found or not running"
-                return 1
+                # Manual process restart
+                log_info "Stopping Celery worker..."
+                pkill -f "celery -A app.celery_app worker" || true
+                sleep 1
+                log_info "Starting Celery worker..."
+                cd "$(dirname "$0")/../backend"
+                nohup .venv/bin/celery -A app.celery_app worker --loglevel=info > /tmp/portfolio-celery-worker.log 2>&1 &
+                sleep 2
+                log_info "Celery worker restarted (manual)"
             fi
             ;;
 
@@ -71,8 +85,15 @@ restart_service() {
                 sudo systemctl restart portfolio-beat.service
                 log_info "Celery beat restarted (systemd)"
             else
-                log_error "Celery beat service not found or not running"
-                return 1
+                # Manual process restart
+                log_info "Stopping Celery beat..."
+                pkill -f "celery -A app.celery_app beat" || true
+                sleep 1
+                log_info "Starting Celery beat..."
+                cd "$(dirname "$0")/../backend"
+                nohup .venv/bin/celery -A app.celery_app beat --loglevel=info > /tmp/portfolio-celery-beat.log 2>&1 &
+                sleep 2
+                log_info "Celery beat restarted (manual)"
             fi
             ;;
 
@@ -82,8 +103,15 @@ restart_service() {
                 sudo systemctl restart portfolio-frontend.service
                 log_info "Frontend restarted (systemd)"
             else
-                log_error "Frontend service not found or not running"
-                return 1
+                # Manual process restart
+                log_info "Stopping frontend..."
+                pkill -f "next dev" || true
+                sleep 1
+                log_info "Starting frontend..."
+                cd "$(dirname "$0")/../frontend"
+                nohup npm run dev > /tmp/portfolio-frontend.log 2>&1 &
+                sleep 3
+                log_info "Frontend restarted (manual)"
             fi
             ;;
 
@@ -93,7 +121,9 @@ restart_service() {
                 sudo systemctl restart redis-server.service
                 log_info "Redis restarted (systemd)"
             else
-                log_error "Redis service not found or not running"
+                # Redis typically runs as system service, manual restart not supported
+                log_error "Redis not running under systemd and manual restart not supported"
+                log_error "Please restart Redis manually: sudo systemctl restart redis-server"
                 return 1
             fi
             ;;

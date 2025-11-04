@@ -277,7 +277,8 @@ def restart_service(service: str) -> ServiceRestartResponse:
 
     try:
         # Call restart script
-        script_path = Path(__file__).parent.parent.parent / "scripts" / "restart-service.sh"
+        # __file__ is backend/app/api/status.py, go up 4 levels to project root
+        script_path = Path(__file__).parent.parent.parent.parent / "scripts" / "restart-service.sh"
         subprocess.run(
             [str(script_path), service],
             capture_output=True,
