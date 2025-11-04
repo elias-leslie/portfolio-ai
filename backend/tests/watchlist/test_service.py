@@ -24,7 +24,7 @@ class StubPriceFetcher:
 @pytest.fixture
 def storage() -> PortfolioStorage:
     temp_dir = tempfile.mkdtemp()
-    db_path = Path(temp_dir) / "watchlist.duckdb"
+    db_path = Path(temp_dir) / "watchlist.db"
 
     from app.storage.connection import ConnectionManager
     from app.storage.ingestion import IngestionManager

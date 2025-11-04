@@ -18,7 +18,7 @@ from app.storage import PortfolioStorage
 def test_storage() -> PortfolioStorage:
     """Create a PortfolioStorage instance with a temporary database."""
     temp_dir = tempfile.mkdtemp()
-    db_path = Path(temp_dir) / "test_api_market.duckdb"
+    db_path = Path(temp_dir) / "test_api_market.db"
 
     # Create fresh storage instance (bypass singleton)
     from app.storage.connection import ConnectionManager

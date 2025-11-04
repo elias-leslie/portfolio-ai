@@ -26,7 +26,7 @@ def mock_storage(tmp_path):  # type: ignore[no-untyped-def]
     """Create a test storage instance."""
     from app.storage import get_storage
 
-    db_path = tmp_path / "test_multi_source.duckdb"
+    db_path = tmp_path / "test_multi_source.db"
     storage = get_storage(db_path=str(db_path))
 
     # Clean source_performance table to ensure fresh metrics for each test

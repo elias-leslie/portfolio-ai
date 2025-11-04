@@ -16,7 +16,7 @@ from app.watchlist.service import refresh_watchlist_scores
 def storage() -> PortfolioStorage:
     """Create a PortfolioStorage instance for testing."""
     temp_dir = tempfile.mkdtemp()
-    db_path = Path(temp_dir) / "watchlist.duckdb"
+    db_path = Path(temp_dir) / "watchlist.db"
 
     from app.storage.connection import ConnectionManager
     from app.storage.ingestion import IngestionManager

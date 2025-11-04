@@ -41,7 +41,7 @@ def temp_db_path() -> Path:
     """Create a temporary database path for testing."""
     # Create temp directory and path (don't create the file)
     temp_dir = tempfile.mkdtemp()
-    path = Path(temp_dir) / "test.duckdb"
+    path = Path(temp_dir) / "test.db"
     yield path
     # Cleanup
     if path.exists():
