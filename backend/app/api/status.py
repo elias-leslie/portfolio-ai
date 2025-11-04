@@ -259,35 +259,47 @@ def restart_service(service: str) -> ServiceRestartResponse:
     """Restart a specific service.
 
     Args:
-        service: Service name (backend, celery, beat, frontend, redis)
+        service: Service name (backend, celery_worker, celery_beat, frontend, redis)
 
     Returns:
         ServiceRestartResponse: Result of restart operation
     """
-    # Whitelist of valid service names
+    # Map service names from health endpoint to restart script names
+    service_name_map = {
+        "backend": "backend",
+        "celery_worker": "celery",
+        "celery_beat": "beat",
+        "frontend": "frontend",
+        "redis": "redis",
+    }
+
+    # Accept both underscore and non-underscore versions
+    mapped_service = service_name_map.get(service, service)
+
+    # Whitelist of valid mapped service names
     valid_services = ["backend", "celery", "beat", "frontend", "redis"]
 
-    if service not in valid_services:
+    if mapped_service not in valid_services:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid service name. Valid services: {', '.join(valid_services)}",
+            detail=f"Invalid service name. Valid services: {', '.join(service_name_map.keys())}",
         )
 
-    logger.info("restart_service_request", service=service)
+    logger.info("restart_service_request", service=service, mapped_service=mapped_service)
 
     try:
-        # Call restart script
+        # Call restart script with mapped service name
         # __file__ is backend/app/api/status.py, go up 4 levels to project root
         script_path = Path(__file__).parent.parent.parent.parent / "scripts" / "restart-service.sh"
         subprocess.run(
-            [str(script_path), service],
+            [str(script_path), mapped_service],
             capture_output=True,
             text=True,
             timeout=30,
             check=True,
         )
 
-        logger.info("restart_service_success", service=service)
+        logger.info("restart_service_success", service=service, mapped_service=mapped_service)
         return ServiceRestartResponse(
             success=True,
             service=service,
