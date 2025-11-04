@@ -1,12 +1,21 @@
 # Portfolio AI - Work Tracker
 
-**Last Updated:** 2025-11-03 (TASK-0030 backend complete, debugging API hang issue)
+**Last Updated:** 2025-11-04 (TASK-0032 created - baseline/whitelist system, awaiting reboot)
 
 ---
 
 ## 🔄 Active (Currently Working)
 
-*No active work. Use /do_it to auto-continue from Planned, or /task_it to create new tasks.*
+- **[TASK-0032] Baseline/Whitelist System for Clean State Management**
+  - **File:** `tasks/tasks-0032-baseline-whitelist-system.md`
+  - **PRD:** N/A (Infrastructure/tooling improvement)
+  - **Effort:** MEDIUM (~2 hours)
+  - **Priority:** HIGH (Foundational - prevents process conflicts)
+  - **Created:** 2025-11-04
+  - **Type:** Infrastructure
+  - **Status:** AWAITING REBOOT - Do not start until server rebooted!
+  - **Summary:** Capture process baseline after reboot, create whitelist system, implement fresh-start.sh with interactive mode
+  - **Next Step:** Reboot server, then run `/do_it` to execute Task 1.2 (baseline capture)
 
 ---
 
