@@ -21,6 +21,12 @@ web/.turbo/
 data/
 logs/
 
+# Celery runtime files (scheduler state database)
+celerybeat-schedule
+celerybeat-schedule.db
+celerybeat-schedule-shm
+celerybeat-schedule-wal
+
 # Tool caches (should only exist in backend/)
 /.mypy_cache/
 /.ruff_cache/
