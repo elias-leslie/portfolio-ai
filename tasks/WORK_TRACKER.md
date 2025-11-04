@@ -107,25 +107,6 @@
       - Documentation consolidation (single source of truth)
   - **Impact:** Improved type safety, IDE autocomplete, no runtime overhead
 
-- **[PRD-0025] Code Refactoring Phase 1 - Large File Splitting** ✓ 2025-11-03 (COMPLETE)
-  - **File:** `tasks-0025-prd-code-refactoring-phase1.md`
-  - **Duration:** ~6 hours total (resumed after pause)
-  - **Status:** 100% complete (7/7 files refactored)
-  - **Results:**
-    - ✅ watchlist/service.py: 1306 → 39 lines facade + 3 focused modules
-    - ✅ tasks/agent_tasks.py: 786 → 230 lines + 3 task modules
-    - ✅ api/watchlist.py: 745 → 544 lines + response_builders.py (-27%)
-    - ✅ watchlist/narrative.py: 628 → 47 lines facade + 2 modules
-    - ✅ api/health.py: 572 → 515 lines + quota config/helpers (-10%)
-    - ✅ sources/rest_api_source.py: 544 → 556 lines + _build_ticker_params helper
-    - ✅ analytics/paper_trading.py: 504 → 533 lines + _check_exit_conditions helper
-  - **Quality:** All 487 tests pass, ruff clean, mypy clean (except pre-existing news.py issues)
-  - **Impact:** 7 large files refactored, improved maintainability and code clarity
-
-- **[PRD-0024] Audit Quick Wins - High Impact, Low Effort Fixes** ✓ 2025-11-03
-  - **File:** `tasks-0024-prd-audit-quick-wins.md`
-  - **Duration:** ~2.5 hours
-  - **Summary:** Added database indexes, updated PostgreSQL docs, clarified service management
 
 ---
 
