@@ -15,7 +15,10 @@
 **⚠️ NEXT:** Task 1.0 - Fix mypy import errors in news.py
 
 **Scope:**
-1. Fix mypy `import-untyped` errors in news.py (2 imports)
+1. Fix ALL mypy errors (5 errors total):
+   - news.py: 2 `import-untyped` errors (feedparser, vaderSentiment)
+   - news.py: 2 `unused-ignore` errors (wrong ignore type)
+   - scoring_service.py: 1 `no-untyped-call` error (redis.from_url)
 2. Rename DuckDBStorage → PortfolioStorage throughout codebase (20 files)
 3. Update all documentation references to PostgreSQL
 
@@ -41,8 +44,9 @@
 - `backend/app/portfolio/*.py` - Multiple files
 - `backend/tests/**/*.py` - Test files
 
-**Python files with mypy errors:**
-- `backend/app/watchlist/news.py` - Fix import type hints
+**Python files with mypy errors (ALL will be fixed):**
+- `backend/app/watchlist/news.py` - Fix import type hints (4 errors)
+- `backend/app/watchlist/scoring_service.py` - Fix redis.from_url type hint (1 error)
 
 **Documentation (5+ files):**
 - `CLAUDE.md` - References to DuckDB
@@ -60,25 +64,42 @@
 
 ## Tasks
 
-### Phase 1: Fix Mypy Import Errors (30 minutes)
+### Phase 1: Fix ALL Mypy Errors (45 minutes)
 
-- [ ] 1.0 Fix mypy import-untyped errors in news.py (30 min, LOW)
-  - [ ] 1.1 Update feedparser import (10 min)
-    - [ ] 1.1.1 Change `# type: ignore[import-not-found]` to `# type: ignore[import-untyped]`
-    - [ ] 1.1.2 Verify mypy accepts the change
+- [ ] 1.0 Fix mypy import-untyped errors in news.py (20 min, LOW)
+  - [ ] 1.1 Update feedparser import (8 min)
+    - [ ] 1.1.1 Read backend/app/watchlist/news.py line 13
+    - [ ] 1.1.2 Change `# type: ignore[import-not-found]` to `# type: ignore[import-untyped]`
+    - [ ] 1.1.3 Verify mypy accepts the change
     - Run: `mypy backend/app/watchlist/news.py --strict`
 
-  - [ ] 1.2 Update vaderSentiment import (10 min)
-    - [ ] 1.2.1 Change `# type: ignore[import-not-found]` to `# type: ignore[import-untyped]`
-    - [ ] 1.2.2 Verify mypy accepts the change
+  - [ ] 1.2 Update vaderSentiment import (8 min)
+    - [ ] 1.2.1 Read backend/app/watchlist/news.py line 15
+    - [ ] 1.2.2 Change `# type: ignore[import-not-found]` to `# type: ignore[import-untyped]`
+    - [ ] 1.2.3 Verify mypy accepts the change
     - Run: `mypy backend/app/watchlist/news.py --strict`
 
-  - [ ] 1.3 Verify all mypy errors resolved (10 min)
-    - [ ] 1.3.1 Run mypy on entire codebase
-    - Run: `mypy backend/app/ --strict`
-    - Expected: Only pre-existing scoring_service.py error (from_url)
-    - [ ] 1.3.2 Run tests to ensure no breakage
+  - [ ] 1.3 Run tests to ensure no breakage (4 min)
     - Run: `cd backend && pytest tests/watchlist/test_news.py -v`
+
+- [ ] 1.4 Fix mypy no-untyped-call error in scoring_service.py (20 min, LOW)
+  - [ ] 1.4.1 Read backend/app/watchlist/scoring_service.py line 62
+    - Current: `_redis_client = redis.from_url(REDIS_URL, decode_responses=True)`
+    - Error: Call to untyped function "from_url" in typed context
+  - [ ] 1.4.2 Add type ignore comment for untyped redis call
+    - Change to: `_redis_client = redis.from_url(REDIS_URL, decode_responses=True)  # type: ignore[no-untyped-call]`
+  - [ ] 1.4.3 Verify mypy accepts the change
+    - Run: `mypy backend/app/watchlist/scoring_service.py --strict`
+  - [ ] 1.4.4 Run tests to ensure no breakage
+    - Run: `cd backend && pytest tests/watchlist/test_scoring.py -v`
+
+- [ ] 1.5 Final verification - ALL mypy errors resolved (5 min)
+  - [ ] 1.5.1 Run mypy on entire codebase
+    - Run: `mypy backend/app/ --strict`
+    - Expected: SUCCESS - no errors remaining
+  - [ ] 1.5.2 Verify error count is zero
+    - Run: `mypy backend/app/ --strict 2>&1 | grep "error:" | wc -l`
+    - Expected: 0
 
 ---
 
@@ -209,10 +230,11 @@
 - [ ] **Tests**: 100% passing
   - [ ] `pytest backend/tests/ -v` - ALL 490 PASS
   - [ ] No test regressions
-- [ ] **Quality**: Type checking clean
-  - [ ] `mypy backend/app/ --strict` - PASS
-  - [ ] news.py import-untyped errors RESOLVED
-  - [ ] Only pre-existing scoring_service.py error remains
+- [ ] **Quality**: Type checking 100% clean
+  - [ ] `mypy backend/app/ --strict` - PASS (ZERO errors)
+  - [ ] news.py ALL 4 errors RESOLVED
+  - [ ] scoring_service.py error RESOLVED
+  - [ ] NO mypy errors remaining in entire codebase
   - [ ] `bash ~/portfolio-ai/scripts/lint.sh` - PASS
 - [ ] **Clean**: No DuckDB references except deprecation
   - [ ] No DuckDB in active code (only backward compat alias)
@@ -227,18 +249,26 @@
 
 ## Notes
 
-### Mypy Import Error Context
+### Mypy Errors - Complete List (ALL will be fixed)
 
-**Current errors:**
+**Total: 5 errors across 2 files**
+
+**news.py (4 errors):**
 ```
 app/watchlist/news.py:13: error: Unused "type: ignore" comment  [unused-ignore]
 app/watchlist/news.py:13: error: Skipping analyzing "feedparser": module is installed, but missing library stubs or py.typed marker  [import-untyped]
-app/watchlist/news.py:13: note: Error code "import-untyped" not covered by "type: ignore" comment
+app/watchlist/news.py:15: error: Unused "type: ignore" comment  [unused-ignore]
+app/watchlist/news.py:15: error: Skipping analyzing "vaderSentiment.vaderSentiment": module is installed, but missing library stubs or py.typed marker  [import-untyped]
 ```
+- **Root cause:** Wrong ignore comment type
+- **Fix:** Change `# type: ignore[import-not-found]` → `# type: ignore[import-untyped]`
 
-**Root cause:** Wrong ignore comment type
-- Current: `# type: ignore[import-not-found]`
-- Should be: `# type: ignore[import-untyped]`
+**scoring_service.py (1 error):**
+```
+app/watchlist/scoring_service.py:62: error: Call to untyped function "from_url" in typed context  [no-untyped-call]
+```
+- **Root cause:** redis.from_url() lacks type stubs
+- **Fix:** Add `# type: ignore[no-untyped-call]` to line 62
 
 ### DuckDB → PortfolioStorage Rename Rationale
 
@@ -257,10 +287,12 @@ app/watchlist/news.py:13: note: Error code "import-untyped" not covered by "type
 
 ### Success Criteria
 
-✅ news.py mypy errors RESOLVED (import-untyped fixed)
+✅ ALL 5 mypy errors RESOLVED (ZERO errors remaining)
+✅ news.py: 4 errors fixed (import-untyped + unused-ignore)
+✅ scoring_service.py: 1 error fixed (no-untyped-call)
 ✅ All 490 tests passing
-✅ mypy --strict passes (except pre-existing scoring_service.py)
-✅ DuckDBStorage → PortfolioStorage renamed throughout
+✅ mypy --strict passes with ZERO errors
+✅ DuckDBStorage → PortfolioStorage renamed throughout (20 files)
 ✅ Backward compat alias works
 ✅ Documentation reflects PostgreSQL
 
