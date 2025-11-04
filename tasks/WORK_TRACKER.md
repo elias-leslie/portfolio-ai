@@ -1,17 +1,12 @@
 # Portfolio AI - Work Tracker
 
-**Last Updated:** 2025-11-03 (auto-resumed from Planned)
+**Last Updated:** 2025-11-03 (TASK-0027 complete)
 
 ---
 
 ## 🔄 Active (Currently Working)
 
-- **[TASK-0027] Fix Mypy Errors & Rename DuckDB Legacy References**
-  - **File:** `tasks-0027-mypy-cleanup-duckdb-rename.md`
-  - **Effort:** MEDIUM (3-4 hours)
-  - **Started:** 2025-11-03
-  - **Type:** Standalone cleanup task
-  - **Scope:** Fix mypy import-untyped errors (2 imports), rename DuckDBStorage → PortfolioStorage (20 files), update docs
+*No active work. Use /do_it to auto-continue from Planned, or /task_it to create new tasks.*
 
 ---
 
@@ -22,6 +17,17 @@
 ---
 
 ## ✅ Recently Completed (Last 5)
+
+- **[TASK-0027] Fix Mypy Errors & Rename DuckDB Legacy References** ✓ 2025-11-03 (COMPLETE)
+  - **File:** `tasks-0027-mypy-cleanup-duckdb-rename.md`
+  - **Duration:** ~2 hours
+  - **Results:**
+    - ✅ ALL 5 mypy errors fixed (news.py + scoring_service.py)
+    - ✅ DuckDBStorage → PortfolioStorage renamed (20 files)
+    - ✅ Backward compatibility alias preserved
+    - ✅ Lint script fixed (cd to backend/, add --strict)
+    - ✅ types-redis added to requirements.txt
+    - ✅ All 490 tests passing, mypy --strict clean
 
 - **[PRD-0026] Type System & Infrastructure Improvements** ✓ 2025-11-03 (COMPLETE)
   - **File:** `tasks-0026-prd-type-system-infrastructure.md`
