@@ -1,20 +1,12 @@
 # Portfolio AI - Work Tracker
 
-**Last Updated:** 2025-11-04 15:52 (Session paused - user testing fresh-start.sh)
+**Last Updated:** 2025-11-04 18:50 (Phases 4-5 complete - resources + service controls)
 
 ---
 
 ## 🔄 Active (Currently Working)
 
-- **[TASK-0031] Status Dashboard - Phase 4 Complete (Resources)**
-  - **File:** `tasks/tasks-0031-status-dashboard-phases4-6.md`
-  - **Status:** 33% complete - Phase 4 COMPLETE ✅
-  - **Started:** 2025-11-04
-  - **Last Updated:** 2025-11-04 12:20
-  - **Completed:** Phase 4 - System Resources (disk, memory, CPU, DB pool)
-  - **Next:** Phase 5 - Service Controls (optional)
-  - **PRD:** `tasks/0029-prd-status-page-advanced.md`
-  - **Summary:** Real-time system resource monitoring with auto-refresh (5s interval)
+*(Empty - no active tasks)*
 
 ---
 
@@ -25,6 +17,21 @@
 ---
 
 ## ✅ Recently Completed (Last 5)
+
+- **[TASK-0031] Status Dashboard - Phases 4-5 (Resources + Controls)** ✓ 2025-11-04 (COMPLETE)
+  - **File:** `tasks/tasks-0031-status-dashboard-phases4-6.md`
+  - **Duration:** ~3 hours
+  - **Status:** 67% complete (Phase 4 + Phase 5 done, Phase 6 optional)
+  - **Results:**
+    - ✅ Phase 4: System resource monitoring (disk, memory, CPU, DB pool)
+    - ✅ Resource usage endpoints with threshold-based status
+    - ✅ Frontend resource cards with color-coded progress bars
+    - ✅ Phase 5: Service control endpoints (restart, cache clear, refresh watchlist)
+    - ✅ Individual service restart script (scripts/restart-service.sh)
+    - ✅ Frontend confirmation dialogs with "Don't ask again" option
+    - ✅ 6 comprehensive tests for resource monitoring (all passing)
+    - ✅ All code passes ruff + mypy --strict
+    - ✅ Commit: b434ef9
 
 - **[TASK-0030] Status Dashboard - Phase 3 (Celery Deep Dive)** ✓ 2025-11-04 (COMPLETE)
   - **File:** `tasks/tasks-0030-status-dashboard-phase3-celery.md`
