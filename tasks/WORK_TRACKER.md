@@ -12,7 +12,22 @@
 
 ## 📋 Planned (Up Next - Priority Order)
 
-*(Empty - no planned tasks)*
+- **[TASK-0033] Code Quality Improvements (Health Check Remediation)**
+  - **File:** `tasks/tasks-0033-code-quality-improvements.md`
+  - **Source:** Health Check Report (docs/core/HEALTH_CHECK_REPORT.md)
+  - **Effort:** HIGH (12-17 hours, 2-3 sessions)
+  - **Created:** 2025-11-04
+  - **Priority:** High (improve health score 7.95 → 9.0)
+  - **Scope:**
+    - Phase 1: Refactor 6 files exceeding 500 lines (8-12 hours)
+    - Phase 2: Replace 56 Any types with proper types (6-8 hours)
+    - Phase 3: Document 7 missing API endpoints (2-3 hours)
+    - Phase 4: Minor improvements (holiday calendar, verification) (1-2 hours)
+  - **Expected Impact:**
+    - 0 file size violations (down from 6)
+    - 65% reduction in Any types (56 → <20)
+    - 100% API documentation coverage (up from 83%)
+    - Health score ≥9.0/10
 
 ---
 
