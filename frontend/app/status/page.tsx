@@ -7,6 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { useStatusStream } from "@/lib/hooks/useStatusStream";
 import { SystemStatusCard } from "@/components/status/SystemStatusCard";
 import { ServiceCard } from "@/components/status/ServiceCard";
+import { CeleryTaskTable } from "@/components/status/CeleryTaskTable";
+import { QueueDepthCard } from "@/components/status/QueueDepthCard";
+import { BeatScheduleCard } from "@/components/status/BeatScheduleCard";
 
 export default function StatusPage() {
   const { status: health, connectionState, isLoading, error, retryConnection } = useStatusStream();
@@ -112,6 +115,25 @@ export default function StatusPage() {
           </AlertDescription>
         </Alert>
       )}
+
+      {/* Celery Monitoring Section */}
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-2xl font-bold">Celery Monitoring</h2>
+          <p className="text-muted-foreground text-sm">
+            Task queue and worker status (manual refresh only to avoid performance issues)
+          </p>
+        </div>
+
+        {/* Queue depth and schedule cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <QueueDepthCard />
+          <BeatScheduleCard />
+        </div>
+
+        {/* Task table */}
+        <CeleryTaskTable />
+      </div>
     </div>
   );
 }

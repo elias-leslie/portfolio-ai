@@ -234,18 +234,46 @@ def get_unified_task_list(
 
     if status in ("all", "completed"):
         completed = get_recent_completed(limit=limit)
-        # Convert to unified schema
+        # Convert to unified schema with all required fields
         for task in completed:
             task["id"] = task.pop("task_id")
             task["name"] = "unknown"  # Not stored in taskmeta
+            task["started_at"] = None
+            task["duration"] = None
+            task["worker"] = None
+            task["args"] = None
+            task["kwargs"] = None
+            task["traceback"] = None
+            # Convert result memoryview to string
+            if task.get("result") and hasattr(task["result"], "tobytes"):
+                try:
+                    task["result"] = task["result"].tobytes().decode("utf-8")
+                except Exception:
+                    task["result"] = str(task["result"])
+            elif task.get("result"):
+                task["result"] = str(task["result"])
         tasks.extend(completed)
 
     if status in ("all", "failed"):
         failed = get_recent_failed(limit=limit)
-        # Convert to unified schema
+        # Convert to unified schema with all required fields
         for task in failed:
             task["id"] = task.pop("task_id")
             task["name"] = "unknown"  # Not stored in taskmeta
+            task["started_at"] = None
+            task["duration"] = None
+            task["worker"] = None
+            task["args"] = None
+            task["kwargs"] = None
+            task["result"] = None
+            # Convert traceback memoryview to string
+            if task.get("traceback") and hasattr(task["traceback"], "tobytes"):
+                try:
+                    task["traceback"] = task["traceback"].tobytes().decode("utf-8")
+                except Exception:
+                    task["traceback"] = str(task["traceback"])
+            elif task.get("traceback"):
+                task["traceback"] = str(task["traceback"])
         tasks.extend(failed)
 
     return tasks
