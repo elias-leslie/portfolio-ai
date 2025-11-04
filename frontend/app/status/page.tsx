@@ -1,24 +1,31 @@
 "use client";
 
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Wifi, WifiOff, Radio } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { useSystemStatus } from "@/lib/hooks/useSystemStatus";
+import { Badge } from "@/components/ui/badge";
+import { useStatusStream } from "@/lib/hooks/useStatusStream";
 import { SystemStatusCard } from "@/components/status/SystemStatusCard";
 import { ServiceCard } from "@/components/status/ServiceCard";
 
 export default function StatusPage() {
-  const { data: health, isLoading, error, refetch, dataUpdatedAt } = useSystemStatus();
+  const { status: health, connectionState, isLoading, error, retryConnection } = useStatusStream();
 
-  // Calculate "last updated" time
-  const getLastUpdated = (): string => {
-    if (!dataUpdatedAt) return "Never";
-    const secondsAgo = Math.floor((Date.now() - dataUpdatedAt) / 1000);
-    if (secondsAgo < 10) return "Just now";
-    if (secondsAgo < 60) return `${secondsAgo}s ago`;
-    const minutesAgo = Math.floor(secondsAgo / 60);
-    return `${minutesAgo}m ago`;
+  // Connection state badge
+  const getConnectionBadge = () => {
+    switch (connectionState) {
+      case "connected":
+        return { icon: <Wifi className="h-3 w-3" />, text: "Live", variant: "default" as const };
+      case "connecting":
+        return { icon: <Radio className="h-3 w-3 animate-pulse" />, text: "Connecting", variant: "secondary" as const };
+      case "disconnected":
+        return { icon: <WifiOff className="h-3 w-3" />, text: "Disconnected", variant: "destructive" as const };
+      case "fallback":
+        return { icon: <RefreshCw className="h-3 w-3" />, text: "Polling", variant: "secondary" as const };
+    }
   };
+
+  const connectionBadge = getConnectionBadge();
 
   if (error) {
     return (
@@ -29,9 +36,9 @@ export default function StatusPage() {
             {error instanceof Error ? error.message : "Failed to fetch system status"}
           </AlertDescription>
         </Alert>
-        <Button onClick={() => refetch()} className="mt-4">
+        <Button onClick={retryConnection} className="mt-4">
           <RefreshCw className="mr-2 h-4 w-4" />
-          Retry
+          Retry Connection
         </Button>
       </div>
     );
@@ -63,19 +70,21 @@ export default function StatusPage() {
             Real-time monitoring of all services and infrastructure
           </p>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="text-sm text-muted-foreground">
-            Last updated: {getLastUpdated()}
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetch()}
-            disabled={isLoading}
-          >
-            <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
+        <div className="flex items-center gap-3">
+          <Badge variant={connectionBadge.variant} className="flex items-center gap-1.5">
+            {connectionBadge.icon}
+            {connectionBadge.text}
+          </Badge>
+          {connectionState === "fallback" && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={retryConnection}
+            >
+              <Wifi className="mr-2 h-4 w-4" />
+              Retry Live Connection
+            </Button>
+          )}
         </div>
       </div>
 

@@ -20,6 +20,7 @@ from app.api import (
     portfolio,
     preferences,
     status,
+    status_stream,
     watchlist,
 )
 from app.logging_config import configure_logging, get_logger
@@ -105,6 +106,7 @@ app.add_middleware(RequestIDMiddleware)
 # Register routers
 app.include_router(health.router)
 app.include_router(status.router)
+app.include_router(status_stream.router)
 app.include_router(portfolio.router)
 app.include_router(ideas.router)
 app.include_router(market.router)

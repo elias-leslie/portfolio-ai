@@ -1,26 +1,24 @@
 # Portfolio AI - Work Tracker
 
-**Last Updated:** 2025-11-03 (TASK-0028 completed)
+**Last Updated:** 2025-11-03 (TASK-0029 started)
 
 ---
 
 ## 🔄 Active (Currently Working)
 
-*No active work. Use /do_it to auto-continue from Planned, or /task_it to create new tasks.*
+- **[TASK-0029] Status Dashboard - Phase 2 (Real-time SSE Updates)** ⚡ IN PROGRESS
+  - **File:** `tasks-0029-status-dashboard-phase2-sse.md`
+  - **PRD:** `tasks/0029-prd-status-page-advanced.md` (Phase 2)
+  - **Started:** 2025-11-03
+  - **Effort:** LOW-MEDIUM (1-2 hours)
+  - **Priority:** HIGH
+  - **Type:** Enhancement (Phase 2 of 6)
+  - **Summary:** Replace polling with Server-Sent Events for real-time updates with automatic fallback
+  - **Current:** Starting implementation
 
 ---
 
 ## 📋 Planned (Up Next - Priority Order)
-
-- **[TASK-0029] Status Dashboard - Phase 2 (Real-time SSE Updates)**
-  - **File:** `tasks-0029-status-dashboard-phase2-sse.md`
-  - **PRD:** `tasks/0029-prd-status-page-advanced.md` (Phase 2)
-  - **Depends On:** TASK-0028 (MUST complete first)
-  - **Effort:** LOW-MEDIUM (1-2 hours)
-  - **Priority:** HIGH
-  - **Created:** 2025-11-03
-  - **Type:** Enhancement (Phase 2 of 6)
-  - **Summary:** Replace polling with Server-Sent Events for real-time updates with automatic fallback
 
 - **[TASK-0030] Status Dashboard - Phase 3 (Celery Deep Dive)**
   - **File:** `tasks-0030-status-dashboard-phase3-celery.md`
