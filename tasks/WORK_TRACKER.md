@@ -1,21 +1,12 @@
 # Portfolio AI - Work Tracker
 
-**Last Updated:** 2025-11-04 (TASK-0032 created - baseline/whitelist system, awaiting reboot)
+**Last Updated:** 2025-11-04 (TASK-0032 completed - baseline/whitelist system)
 
 ---
 
 ## 🔄 Active (Currently Working)
 
-- **[TASK-0032] Baseline/Whitelist System for Clean State Management**
-  - **File:** `tasks/tasks-0032-baseline-whitelist-system.md`
-  - **PRD:** N/A (Infrastructure/tooling improvement)
-  - **Effort:** MEDIUM (~2 hours)
-  - **Priority:** HIGH (Foundational - prevents process conflicts)
-  - **Created:** 2025-11-04
-  - **Type:** Infrastructure
-  - **Status:** AWAITING REBOOT - Do not start until server rebooted!
-  - **Summary:** Capture process baseline after reboot, create whitelist system, implement fresh-start.sh with interactive mode
-  - **Next Step:** Reboot server, then run `/do_it` to execute Task 1.2 (baseline capture)
+*(No active tasks - ready for next work)*
 
 ---
 
@@ -45,6 +36,20 @@
 ---
 
 ## ✅ Recently Completed (Last 5)
+
+- **[TASK-0032] Baseline/Whitelist System for Clean State Management** ✓ 2025-11-04 (COMPLETE)
+  - **File:** `tasks/tasks-0032-baseline-whitelist-system.md`
+  - **Duration:** ~2 hours
+  - **Results:**
+    - ✅ Baseline capture script (scripts/capture-baseline.sh)
+    - ✅ Process baseline snapshot (scripts/baseline/processes.txt, 639 lines)
+    - ✅ Whitelist configuration (scripts/baseline/whitelist.conf, 50+ patterns)
+    - ✅ Fresh-start.sh with interactive/auto modes (450+ lines)
+    - ✅ Bug fix: start.sh now starts Celery Beat (parity with restart.sh)
+    - ✅ Comprehensive documentation (docs/reference/baseline-whitelist-system.md)
+    - ✅ OPERATIONS.md updated with fresh-start.sh reference
+    - ✅ All scripts syntax validated (bash -n)
+    - ✅ Commit: 0e95cf0
 
 - **[TASK-0030] Status Dashboard - Phase 3 (Backend ONLY)** ✓ 2025-11-03 (PARTIAL - ISSUE FOUND)
   - **File:** `tasks-0030-status-dashboard-phase3-celery.md`
