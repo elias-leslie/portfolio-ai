@@ -1,32 +1,16 @@
 # Portfolio AI - Work Tracker
 
-**Last Updated:** 2025-11-04 (Starting TASK-0030 - Status Dashboard Phase 3)
+**Last Updated:** 2025-11-04 (TASK-0030 and TASK-0032 completed)
 
 ---
 
 ## 🔄 Active (Currently Working)
 
-- **[TASK-0030] Status Dashboard - Phase 3 (Celery Deep Dive)**
-  - **File:** `tasks/tasks-0030-status-dashboard-phase3-celery.md`
-  - **PRD:** `tasks/0029-prd-status-page-advanced.md` (Phase 3)
-  - **Status:** Backend/Frontend complete, UI bug FIXED
-  - **Fixed:** Service log loading for celery_worker, celery_beat, redis (commit: 6fb9895)
-  - **Next:** Verify UI works end-to-end, complete task list, commit final changes
+*(No active tasks - ready for next work)*
 
 ---
 
 ## 📋 Planned (Up Next - Priority Order)
-
-- **[TASK-0030] Status Dashboard - Phase 3 (Frontend - INCOMPLETE)**
-  - **File:** `tasks-0030-status-dashboard-phase3-celery.md`
-  - **PRD:** `tasks/0029-prd-status-page-advanced.md` (Phase 3)
-  - **Depends On:** Backend complete ✅
-  - **Effort:** MEDIUM (1-2 hours for frontend)
-  - **Priority:** HIGH
-  - **Created:** 2025-11-03
-  - **Type:** Enhancement (Phase 3 of 6)
-  - **Summary:** Frontend Celery components: CeleryTaskTable, QueueDepthCard, BeatScheduleCard
-  - **Note:** Backend complete (Tasks 1.0-2.0), Frontend pending (Tasks 3.0-4.0)
 
 - **[TASK-0031] Status Dashboard - Phases 4-6 (Resources, Controls, History)**
   - **File:** `tasks-0031-status-dashboard-phases4-6.md`
@@ -41,6 +25,18 @@
 ---
 
 ## ✅ Recently Completed (Last 5)
+
+- **[TASK-0030] Status Dashboard - Phase 3 (Celery Deep Dive)** ✓ 2025-11-04 (COMPLETE)
+  - **File:** `tasks/tasks-0030-status-dashboard-phase3-celery.md`
+  - **Duration:** Bug fix session (~1 hour)
+  - **Results:**
+    - ✅ Backend Celery inspection service (existing from 2025-11-03)
+    - ✅ Frontend Celery components (existing from 2025-11-03)
+    - ✅ Fixed service log loading bug (celery_worker, celery_beat, redis)
+    - ✅ Updated LOG_PATHS to underscore format + aliases
+    - ✅ All log endpoints tested and working
+    - ✅ Services restarted successfully
+    - ✅ Commit: 6fb9895 (bug fix), 7d96744 (docs)
 
 - **[TASK-0032] Baseline/Whitelist System for Clean State Management** ✓ 2025-11-04 (COMPLETE)
   - **File:** `tasks/tasks-0032-baseline-whitelist-system.md`
