@@ -1,6 +1,6 @@
 # Portfolio AI - Work Tracker
 
-**Last Updated:** 2025-11-04 (TASK-0032 completed - baseline/whitelist system)
+**Last Updated:** 2025-11-04 (Moving to TASK-0030 - watchlist API issue resolved)
 
 ---
 
@@ -62,10 +62,11 @@
     - ✅ API endpoints functional (curl verified)
     - ⚠️  Frontend components NOT completed (Tasks 3.0-4.0 pending)
     - ✅ Commit: 6a31709, 2cf5e3d
-    - ⚠️  **CRITICAL ISSUE FOUND**: After service restart, /api/watchlist endpoint hangs indefinitely
+    - ⚠️  **CRITICAL ISSUE FOUND (RESOLVED)**: /api/watchlist endpoint was hanging indefinitely
       - Symptom: UI pages (watchlist, settings) timeout on load
-      - Root cause: API endpoint blocking/hanging (curl test runs 5+ minutes without response)
-      - Status: DEBUGGING IN PROGRESS (as of context token ~150K/200K)
+      - Root cause: Unknown (pre-existing state issue)
+      - Resolution: Server reboot on 2025-11-04 resolved issue
+      - Status: VERIFIED WORKING - API responds in <1s, returns 17 watchlist items
 
 - **[TASK-0029] Status Dashboard - Phase 2 (SSE Updates)** ✓ 2025-11-03 (COMPLETE)
   - **File:** `tasks-0029-status-dashboard-phase2-sse.md`
