@@ -1,23 +1,23 @@
 # Portfolio AI - Work Tracker
 
-**Last Updated:** 2025-11-03 (auto-resumed)
+**Last Updated:** 2025-11-03 (auto-resumed from Planned)
 
 ---
 
 ## 🔄 Active (Currently Working)
 
-*No active work. Use /do_it to auto-continue from Planned, or /task_it to create new tasks.*
+- **[TASK-0027] Fix Mypy Errors & Rename DuckDB Legacy References**
+  - **File:** `tasks-0027-mypy-cleanup-duckdb-rename.md`
+  - **Effort:** MEDIUM (3-4 hours)
+  - **Started:** 2025-11-03
+  - **Type:** Standalone cleanup task
+  - **Scope:** Fix mypy import-untyped errors (2 imports), rename DuckDBStorage → PortfolioStorage (20 files), update docs
 
 ---
 
 ## 📋 Planned (Up Next - Priority Order)
 
-- **[TASK-0027] Fix Mypy Errors & Rename DuckDB Legacy References**
-  - **File:** `tasks-0027-mypy-cleanup-duckdb-rename.md`
-  - **Effort:** MEDIUM (3-4 hours)
-  - **Created:** 2025-11-03
-  - **Type:** Standalone cleanup task
-  - **Scope:** Fix mypy import-untyped errors (2 imports), rename DuckDBStorage → PortfolioStorage (20 files), update docs
+*No planned work. Use /plan_it or /task_it to create new tasks.*
 
 ---
 

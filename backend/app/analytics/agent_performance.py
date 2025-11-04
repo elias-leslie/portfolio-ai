@@ -10,13 +10,13 @@ import datetime as dt
 from typing import Any
 
 from app.logging_config import get_logger
-from app.storage import DuckDBStorage
+from app.storage import PortfolioStorage
 
 logger = get_logger(__name__)
 
 
 def get_agent_performance(
-    storage: DuckDBStorage,
+    storage: PortfolioStorage,
     agent_type: str,
     days: int = 90,
 ) -> dict[str, Any]:
@@ -27,7 +27,7 @@ def get_agent_performance(
     the given time period.
 
     Args:
-        storage: DuckDBStorage instance for database access
+        storage: PortfolioStorage instance for database access
         agent_type: Type of agent (e.g., "DiscoveryAgent", "PortfolioAnalyzerAgent")
         days: Number of days to look back for performance calculation (default: 90)
 
@@ -240,14 +240,14 @@ def _empty_performance_metrics(
     }
 
 
-def get_agent_performance_summary(storage: DuckDBStorage, days: int = 30) -> dict[str, Any]:
+def get_agent_performance_summary(storage: PortfolioStorage, days: int = 30) -> dict[str, Any]:
     """Get performance summary for all agent types.
 
     Calculates performance metrics for all agents and returns a summary
     for easy comparison.
 
     Args:
-        storage: DuckDBStorage instance for database access
+        storage: PortfolioStorage instance for database access
         days: Number of days to look back (default: 30)
 
     Returns:

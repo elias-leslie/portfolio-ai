@@ -24,7 +24,7 @@ from ..sources.multi_source_fetcher import MultiSourceFetcher
 from ..sources.polygon_source import PolygonSource
 from ..sources.twelvedata_source import TwelveDataSource
 from ..sources.yfinance_source import YFinanceSource
-from ..storage import DuckDBStorage
+from ..storage import PortfolioStorage
 from .models import PriceData
 
 logger = get_logger(__name__)
@@ -44,11 +44,11 @@ class PriceDataFetcher:
     Implements 15-minute cache TTL for price data.
     """
 
-    def __init__(self, storage: DuckDBStorage) -> None:
+    def __init__(self, storage: PortfolioStorage) -> None:
         """Initialize price data fetcher.
 
         Args:
-            storage: DuckDBStorage instance for caching and metrics
+            storage: PortfolioStorage instance for caching and metrics
         """
         self.storage = storage
         self.cache_ttl_minutes = DEFAULT_PRICE_CACHE_TTL_MINUTES

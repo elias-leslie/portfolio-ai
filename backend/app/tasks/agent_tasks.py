@@ -28,12 +28,12 @@ from app.sources.news import GoogleNewsSource
 from app.storage import get_storage
 
 if TYPE_CHECKING:
-    from app.storage import DuckDBStorage
+    from app.storage import PortfolioStorage
 
 logger = get_logger(__name__)
 
 
-def _setup_agent_tools(storage: DuckDBStorage) -> AgentTools:
+def _setup_agent_tools(storage: PortfolioStorage) -> AgentTools:
     """Initialize agent tools with all required dependencies.
 
     Args:
@@ -58,7 +58,7 @@ def _setup_agent_tools(storage: DuckDBStorage) -> AgentTools:
     )
 
 
-def _update_celery_task_id(storage: DuckDBStorage, task_id: str, run_id: str) -> None:
+def _update_celery_task_id(storage: PortfolioStorage, task_id: str, run_id: str) -> None:
     """Update agent_runs table with Celery task ID.
 
     Args:

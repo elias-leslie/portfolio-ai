@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 from ..logging_config import get_logger
 
 if TYPE_CHECKING:
-    from app.storage.facade import DuckDBStorage
+    from app.storage.facade import PortfolioStorage
 
 from .base import Agent
 from .tools import (
@@ -33,11 +33,11 @@ class PortfolioAnalyzerAgent(Agent):
     tailored to their holdings, risk profile, and market conditions.
     """
 
-    def __init__(self, storage: DuckDBStorage, tools: AgentTools, **kwargs: Any) -> None:
+    def __init__(self, storage: PortfolioStorage, tools: AgentTools, **kwargs: Any) -> None:
         """Initialize Portfolio Analyzer Agent.
 
         Args:
-            storage: DuckDBStorage instance
+            storage: PortfolioStorage instance
             tools: AgentTools instance
             **kwargs: Additional arguments for base Agent
         """

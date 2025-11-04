@@ -14,7 +14,7 @@ import yaml
 from ..logging_config import get_logger
 
 if TYPE_CHECKING:
-    from .facade import DuckDBStorage
+    from .facade import PortfolioStorage
 
 logger = get_logger(__name__)
 
@@ -67,12 +67,12 @@ def load_source_config(yaml_path: str) -> dict[str, Any]:
     }
 
 
-def insert_source_to_db(source_config: dict[str, Any], storage: DuckDBStorage) -> None:
+def insert_source_to_db(source_config: dict[str, Any], storage: PortfolioStorage) -> None:
     """Insert source configuration into DuckDB tables.
 
     Args:
         source_config: Configuration dictionary from load_source_config().
-        storage: DuckDBStorage instance.
+        storage: PortfolioStorage instance.
     """
     with storage.connection() as conn:
         # Insert into source_registry
@@ -155,11 +155,11 @@ def insert_source_to_db(source_config: dict[str, Any], storage: DuckDBStorage) -
         )
 
 
-def load_all_sources(storage: DuckDBStorage, sources_dir: str = "config/sources") -> None:
+def load_all_sources(storage: PortfolioStorage, sources_dir: str = "config/sources") -> None:
     """Load all YAML source configurations from directory.
 
     Args:
-        storage: DuckDBStorage instance.
+        storage: PortfolioStorage instance.
         sources_dir: Directory containing YAML files (default: config/sources).
     """
     sources_path = Path(sources_dir)

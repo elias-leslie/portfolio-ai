@@ -1,8 +1,8 @@
 """PostgreSQL storage facade integrating all manager classes.
 
-This module provides the main StorageFacade class (DuckDBStorage name kept for backward compatibility)
-that delegates operations to specialized managers while maintaining a unified API.
-Uses PostgreSQLDuckDBWrapper to provide a DuckDB-compatible interface over PostgreSQL.
+This module provides the main PortfolioStorage class that delegates operations to
+specialized managers while maintaining a unified API. Uses PostgreSQLDuckDBWrapper
+to provide a DuckDB-compatible interface over PostgreSQL.
 """
 
 from __future__ import annotations
@@ -29,8 +29,8 @@ from .schema import SchemaManager
 logger = get_logger(__name__)
 
 
-class DuckDBStorage:
-    """DuckDB storage facade with modular manager delegation.
+class PortfolioStorage:
+    """Portfolio storage facade with modular manager delegation.
 
     This class provides a unified interface for database operations while
     delegating to specialized managers:
@@ -42,10 +42,10 @@ class DuckDBStorage:
     """
 
     def __init__(self, db_path: str | Path | None = None) -> None:
-        """Initialize DuckDB storage with all managers.
+        """Initialize portfolio storage with all managers.
 
         Args:
-            db_path: Path to DuckDB database file. If None, uses default path.
+            db_path: Path to database file. If None, uses default PostgreSQL connection.
         """
         # Initialize connection manager (singleton)
         self.connection_mgr = get_connection_manager(db_path)  # type: ignore[arg-type]
@@ -59,7 +59,7 @@ class DuckDBStorage:
         # Ensure schema is initialized
         self.schema_mgr.ensure_schema()
 
-        logger.info("DuckDBStorage initialized with modular managers")
+        logger.info("PortfolioStorage initialized with modular managers")
 
     # Expose connection manager's connection method
     def connection(self) -> AbstractContextManager[duckdb.DuckDBPyConnection]:
@@ -112,20 +112,24 @@ class DuckDBStorage:
 
 
 # Singleton instance
-_storage: DuckDBStorage | None = None
+_storage: PortfolioStorage | None = None
 
 
-def get_storage(db_path: str | Path | None = None) -> DuckDBStorage:
-    """Get or create the singleton DuckDB storage instance.
+def get_storage(db_path: str | Path | None = None) -> PortfolioStorage:
+    """Get or create the singleton portfolio storage instance.
 
     Args:
-        db_path: Optional path to DuckDB database file
+        db_path: Optional path to database file
 
     Returns:
-        DuckDBStorage instance
+        PortfolioStorage instance
     """
     global _storage  # noqa: PLW0603
     if _storage is None:
-        _storage = DuckDBStorage(db_path=db_path)
-        logger.info("Created new DuckDBStorage singleton")
+        _storage = PortfolioStorage(db_path=db_path)
+        logger.info("Created new PortfolioStorage singleton")
     return _storage
+
+
+# Backward compatibility alias (deprecated, will be removed in future version)
+DuckDBStorage = PortfolioStorage

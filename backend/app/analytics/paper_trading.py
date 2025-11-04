@@ -14,19 +14,19 @@ from typing import Any
 from app.analytics.indicators import calculate_indicators
 from app.logging_config import get_logger
 from app.portfolio.price_fetcher import PriceDataFetcher
-from app.storage import DuckDBStorage
+from app.storage import PortfolioStorage
 
 logger = get_logger(__name__)
 
 
-def create_paper_trade(storage: DuckDBStorage, idea_id: str) -> dict[str, Any] | None:
+def create_paper_trade(storage: PortfolioStorage, idea_id: str) -> dict[str, Any] | None:
     """Create a paper trade entry for an agent idea.
 
     Extracts idea details from agent_ideas table, fetches current price,
     calculates stop-loss based on ATR, and creates idea_outcomes record.
 
     Args:
-        storage: DuckDBStorage instance for database access
+        storage: PortfolioStorage instance for database access
         idea_id: ID of the agent idea to track
 
     Returns:
@@ -147,14 +147,14 @@ def create_paper_trade(storage: DuckDBStorage, idea_id: str) -> dict[str, Any] |
         return None
 
 
-def update_paper_trades(storage: DuckDBStorage, max_holding_days: int = 60) -> dict[str, Any]:
+def update_paper_trades(storage: PortfolioStorage, max_holding_days: int = 60) -> dict[str, Any]:
     """Update all open paper trades with current prices and check for exits.
 
     Fetches current prices for all open trades, updates returns, and closes
     trades that hit target/stop or exceed max holding period.
 
     Args:
-        storage: DuckDBStorage instance for database access
+        storage: PortfolioStorage instance for database access
         max_holding_days: Maximum days to hold before auto-closing (default: 60)
 
     Returns:
@@ -442,11 +442,13 @@ def _extract_ticker_from_title(title: str) -> str | None:
     return None
 
 
-def _calculate_stop_loss(storage: DuckDBStorage, ticker: str, entry_price: float) -> float | None:
+def _calculate_stop_loss(
+    storage: PortfolioStorage, ticker: str, entry_price: float
+) -> float | None:
     """Calculate stop-loss price using 2x ATR method.
 
     Args:
-        storage: DuckDBStorage instance
+        storage: PortfolioStorage instance
         ticker: Stock ticker symbol
         entry_price: Entry price for the trade
 

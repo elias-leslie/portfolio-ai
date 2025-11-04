@@ -16,7 +16,7 @@ import polars as pl
 
 from ..logging_config import get_logger
 from ..portfolio.price_fetcher import PriceDataFetcher
-from ..storage import DuckDBStorage
+from ..storage import PortfolioStorage
 from .models import ScoreWeights, TechnicalSnapshot, WatchlistScoreInputs, WatchlistSnapshot
 from .scoring import _is_stale as scoring_is_stale
 from .scoring import calculate_watchlist_scores
@@ -25,7 +25,7 @@ logger = get_logger(__name__)
 
 
 def _load_latest_technical(
-    storage: DuckDBStorage, symbols: list[str]
+    storage: PortfolioStorage, symbols: list[str]
 ) -> dict[str, TechnicalSnapshot]:
     """Load latest technical indicators for symbols."""
     if not symbols:
@@ -68,7 +68,7 @@ def _load_latest_technical(
     return snapshots
 
 
-def _load_default_weights(storage: DuckDBStorage) -> ScoreWeights:
+def _load_default_weights(storage: PortfolioStorage) -> ScoreWeights:
     """Load default score weights from user preferences."""
     df = storage.query(
         """
@@ -88,7 +88,7 @@ def _load_default_weights(storage: DuckDBStorage) -> ScoreWeights:
     )
 
 
-def _load_stale_ttl_minutes(storage: DuckDBStorage) -> int:
+def _load_stale_ttl_minutes(storage: PortfolioStorage) -> int:
     """Load stale TTL from preferences (3x refresh interval)."""
     df = storage.query(
         """
@@ -113,7 +113,7 @@ def _load_stale_ttl_minutes(storage: DuckDBStorage) -> int:
     return int(refresh_minutes * 3)
 
 
-def _load_risk_budget(storage: DuckDBStorage) -> float:
+def _load_risk_budget(storage: PortfolioStorage) -> float:
     """Load risk budget from user preferences for position sizing."""
     df = storage.query(
         """
@@ -132,7 +132,7 @@ def _load_risk_budget(storage: DuckDBStorage) -> float:
 
 
 def _calculate_price_change(
-    storage: DuckDBStorage, symbol: str, price: float | None, item_id: str | None = None
+    storage: PortfolioStorage, symbol: str, price: float | None, item_id: str | None = None
 ) -> tuple[float | None, bool]:
     """Calculate price change percentage for a symbol.
 
@@ -181,7 +181,7 @@ def _calculate_price_change(
 class WatchlistService:
     """Service layer for watchlist operations."""
 
-    def __init__(self, storage: DuckDBStorage):
+    def __init__(self, storage: PortfolioStorage):
         """Initialize watchlist service."""
         self.storage = storage
         self.price_fetcher = PriceDataFetcher(storage)

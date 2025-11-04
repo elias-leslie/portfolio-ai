@@ -26,7 +26,16 @@ fi
 PYTHON_CMD="python3"
 RUFF_CMD="ruff"
 MYPY_CMD="mypy"
-TARGET_DIRS="backend/app/"
+
+# Get script directory and project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+BACKEND_DIR="$PROJECT_ROOT/backend"
+
+# Change to backend directory for commands
+cd "$BACKEND_DIR" || exit 1
+
+TARGET_DIRS="app/"
 
 # Track failures
 FAILURES=0
@@ -53,7 +62,7 @@ echo ""
 
 echo "3. Running mypy type checker..."
 echo "---"
-if $MYPY_CMD $TARGET_DIRS; then
+if $MYPY_CMD $TARGET_DIRS --strict; then
     echo -e "${GREEN}✓ Type checking passed${NC}"
 else
     echo -e "${RED}✗ Type checking found issues${NC}"

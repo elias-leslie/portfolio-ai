@@ -19,7 +19,7 @@ import polars as pl
 from httpx import HTTPStatusError
 
 from ..logging_config import get_logger
-from ..storage import DuckDBStorage
+from ..storage import PortfolioStorage
 from .base import DATASET_DAY, DATASET_NEWS, DATASET_REFERENCE, BaseSource, DatasetRequest
 
 logger = get_logger(__name__)
@@ -79,12 +79,14 @@ class MultiSourceFetcher:
     - Database persistence of source performance metrics
     """
 
-    def __init__(self, sources: Iterable[BaseSource], storage: DuckDBStorage | None = None) -> None:
+    def __init__(
+        self, sources: Iterable[BaseSource], storage: PortfolioStorage | None = None
+    ) -> None:
         """Initialize multi-source fetcher.
 
         Args:
             sources: Iterable of BaseSource implementations
-            storage: DuckDBStorage instance for metrics persistence (optional)
+            storage: PortfolioStorage instance for metrics persistence (optional)
         """
         # Sort sources by priority (lower = preferred)
         self._sources = sorted([s for s in sources if s.is_enabled()], key=lambda s: s.priority)

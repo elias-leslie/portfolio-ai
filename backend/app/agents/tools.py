@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from app.portfolio.price_fetcher import PriceDataFetcher
     from app.sources.fred import FREDSource
     from app.sources.news import GoogleNewsSource
-    from app.storage.facade import DuckDBStorage
+    from app.storage.facade import PortfolioStorage
 
 from app.analytics.paper_trading import create_paper_trade
 from app.logging_config import get_logger
@@ -157,7 +157,7 @@ class AgentTools:
 
     def __init__(
         self,
-        storage: DuckDBStorage,
+        storage: PortfolioStorage,
         news_source: GoogleNewsSource,
         fred_source: FREDSource,
         price_fetcher: PriceDataFetcher,
@@ -167,7 +167,7 @@ class AgentTools:
         """Initialize agent tools.
 
         Args:
-            storage: DuckDBStorage instance
+            storage: PortfolioStorage instance
             news_source: GoogleNewsSource instance
             fred_source: FREDSource instance
             price_fetcher: PriceDataFetcher instance

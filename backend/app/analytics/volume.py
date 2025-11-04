@@ -9,13 +9,13 @@ from __future__ import annotations
 import datetime as dt
 
 from app.logging_config import get_logger
-from app.storage import DuckDBStorage
+from app.storage import PortfolioStorage
 
 logger = get_logger(__name__)
 
 
 def calculate_rvol(
-    storage: DuckDBStorage,
+    storage: PortfolioStorage,
     ticker: str,
     date: dt.date | str,
     lookback_days: int = 20,
@@ -29,7 +29,7 @@ def calculate_rvol(
     Formula: current_volume / avg(volume, lookback_days)
 
     Args:
-        storage: DuckDBStorage instance for database access
+        storage: PortfolioStorage instance for database access
         ticker: Stock ticker symbol (e.g., "AAPL")
         date: Date to calculate RVOL for (YYYY-MM-DD format or date object)
         lookback_days: Number of trading days to average (default: 20)
@@ -149,7 +149,7 @@ def calculate_rvol(
 
 
 def get_high_volume_tickers(
-    storage: DuckDBStorage,
+    storage: PortfolioStorage,
     date: dt.date | str,
     rvol_threshold: float = 1.5,
     lookback_days: int = 20,
@@ -158,7 +158,7 @@ def get_high_volume_tickers(
     """Find tickers with unusually high volume on a specific date.
 
     Args:
-        storage: DuckDBStorage instance for database access
+        storage: PortfolioStorage instance for database access
         date: Date to analyze (YYYY-MM-DD format or date object)
         rvol_threshold: Minimum RVOL to be considered high volume (default: 1.5)
         lookback_days: Number of trading days for RVOL calculation (default: 20)

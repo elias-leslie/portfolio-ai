@@ -11,13 +11,13 @@ import datetime as dt
 import polars as pl
 
 from app.logging_config import get_logger
-from app.storage import DuckDBStorage
+from app.storage import PortfolioStorage
 
 logger = get_logger(__name__)
 
 
 def _validate_and_get_group_data(
-    storage: DuckDBStorage,
+    storage: PortfolioStorage,
     ticker: str,
     group_by: str,
 ) -> tuple[str | None, list[str] | None]:
@@ -76,7 +76,7 @@ def _validate_and_get_group_data(
 
 
 def get_peer_comparison(
-    storage: DuckDBStorage,
+    storage: PortfolioStorage,
     ticker: str,
     date: dt.date | str,
     lookback_days: int = 20,
@@ -88,7 +88,7 @@ def get_peer_comparison(
     within its peer group over different time periods.
 
     Args:
-        storage: DuckDBStorage instance for database access
+        storage: PortfolioStorage instance for database access
         ticker: Stock ticker symbol (e.g., "AAPL")
         date: Date to calculate peer comparison for (YYYY-MM-DD format or date object)
         lookback_days: Lookback period for momentum calculation (default: 20)
@@ -310,7 +310,7 @@ def get_peer_comparison(
 
 
 def get_peer_group_detail(
-    storage: DuckDBStorage,
+    storage: PortfolioStorage,
     ticker: str,
     date: dt.date | str,
     lookback_days: int = 20,
@@ -323,7 +323,7 @@ def get_peer_group_detail(
     target ticker, showing their relative performance.
 
     Args:
-        storage: DuckDBStorage instance for database access
+        storage: PortfolioStorage instance for database access
         ticker: Stock ticker symbol to find peers for (e.g., "AAPL")
         date: Date to calculate peer performance for (YYYY-MM-DD format or date object)
         lookback_days: Lookback period for momentum calculation (default: 20)

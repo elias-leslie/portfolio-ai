@@ -19,7 +19,7 @@ import redis
 
 from ..logging_config import get_logger
 from ..portfolio.price_fetcher import PriceDataFetcher
-from ..storage import DuckDBStorage
+from ..storage import PortfolioStorage
 from ..utils.market_hours import is_stale
 from .calculator import (
     calculate_entry_price,
@@ -63,7 +63,7 @@ def _get_redis_client() -> Any:  # redis.Redis with decode_responses=True
     return _redis_client
 
 
-def _load_watchlist_items(storage: DuckDBStorage, account_id: str | None) -> pl.DataFrame:
+def _load_watchlist_items(storage: PortfolioStorage, account_id: str | None) -> pl.DataFrame:
     """Load watchlist items from database."""
     params: list[Any] = []
     sql = """
@@ -77,7 +77,7 @@ def _load_watchlist_items(storage: DuckDBStorage, account_id: str | None) -> pl.
 
 
 def _load_latest_technical(
-    storage: DuckDBStorage, symbols: list[str]
+    storage: PortfolioStorage, symbols: list[str]
 ) -> dict[str, TechnicalSnapshot]:
     """Load latest technical indicators for symbols."""
     if not symbols:
@@ -120,7 +120,7 @@ def _load_latest_technical(
     return snapshots
 
 
-def _load_default_weights(storage: DuckDBStorage) -> ScoreWeights:
+def _load_default_weights(storage: PortfolioStorage) -> ScoreWeights:
     """Load score weights from user preferences."""
     df = storage.query(
         """
@@ -140,7 +140,7 @@ def _load_default_weights(storage: DuckDBStorage) -> ScoreWeights:
     )
 
 
-def _load_stale_ttl_minutes(storage: DuckDBStorage) -> int:
+def _load_stale_ttl_minutes(storage: PortfolioStorage) -> int:
     """Load stale TTL from preferences (3x refresh interval).
 
     Priority: watchlist_refresh_override → default_refresh_minutes → fallback (15min)
@@ -170,7 +170,7 @@ def _load_stale_ttl_minutes(storage: DuckDBStorage) -> int:
     return int(refresh_minutes * 3)  # Stale = 3x refresh interval
 
 
-def _load_risk_budget(storage: DuckDBStorage) -> float:
+def _load_risk_budget(storage: PortfolioStorage) -> float:
     """Load risk budget from user preferences.
 
     Returns the amount a user is willing to risk per trade for position sizing.
@@ -195,7 +195,7 @@ def _load_risk_budget(storage: DuckDBStorage) -> float:
 
 
 def _calculate_price_change(
-    storage: DuckDBStorage, symbol: str, price: float | None, item_id: str | None = None
+    storage: PortfolioStorage, symbol: str, price: float | None, item_id: str | None = None
 ) -> tuple[float | None, bool]:
     """Calculate price change percentage for a symbol.
 
@@ -203,7 +203,7 @@ def _calculate_price_change(
     Falls back to previous watchlist snapshot if available.
 
     Args:
-        storage: DuckDBStorage instance
+        storage: PortfolioStorage instance
         symbol: Ticker symbol
         price: Current price
         item_id: Watchlist item ID (for snapshot fallback)
@@ -255,7 +255,7 @@ def _calculate_price_change(
 
 
 def detect_missing_historical_data(
-    storage: DuckDBStorage,
+    storage: PortfolioStorage,
     symbols: list[str],
     min_days: int = 30,
     stale_threshold_days: int = 7,
@@ -321,7 +321,7 @@ def detect_missing_historical_data(
 
 
 def refresh_watchlist_scores(
-    storage: DuckDBStorage,
+    storage: PortfolioStorage,
     *,
     account_id: str | None = None,
     price_fetcher: PriceDataFetcher | None = None,

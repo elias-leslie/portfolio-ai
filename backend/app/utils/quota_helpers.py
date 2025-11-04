@@ -10,13 +10,13 @@ import os
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from ..storage.facade import DuckDBStorage
+    from ..storage.facade import PortfolioStorage
 
 
 def is_api_key_configured(
     source_id: str,
     env_var: str,
-    storage: DuckDBStorage,
+    storage: PortfolioStorage,
 ) -> bool:
     """Check if an API key is configured for a given source.
 

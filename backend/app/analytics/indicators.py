@@ -11,7 +11,7 @@ from importlib import import_module
 from typing import Any, cast
 
 from app.logging_config import get_logger
-from app.storage import DuckDBStorage
+from app.storage import PortfolioStorage
 
 pd = cast(Any, import_module("pandas"))
 ta = cast(Any, import_module("pandas_ta"))
@@ -20,7 +20,7 @@ logger = get_logger(__name__)
 
 
 def calculate_indicators(
-    storage: DuckDBStorage,
+    storage: PortfolioStorage,
     ticker: str,
     indicators: list[str] | None = None,
     as_of_date: dt.date | str | None = None,
@@ -32,7 +32,7 @@ def calculate_indicators(
     interpretations (e.g., "oversold", "bullish_cross").
 
     Args:
-        storage: DuckDBStorage instance for database access
+        storage: PortfolioStorage instance for database access
         ticker: Stock ticker symbol (e.g., "AAPL")
         indicators: List of indicator names to calculate. If None, calculates all.
             Supported: ["rsi", "macd", "bbands", "sma_20", "sma_50", "sma_200",
@@ -180,7 +180,7 @@ def calculate_indicators(
 
 
 def _fetch_ohlcv_data(
-    storage: DuckDBStorage,
+    storage: PortfolioStorage,
     ticker: str,
     lookback_days: int = 250,
     as_of_date: dt.date | str | None = None,
@@ -188,7 +188,7 @@ def _fetch_ohlcv_data(
     """Fetch OHLCV data from day_bars table for indicator calculations.
 
     Args:
-        storage: DuckDBStorage instance
+        storage: PortfolioStorage instance
         ticker: Stock ticker symbol
         lookback_days: Number of days to fetch (default: 250 for 200+ trading days)
         as_of_date: Fetch data up to this date (default: latest available)

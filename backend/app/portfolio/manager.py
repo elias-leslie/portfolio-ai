@@ -12,7 +12,7 @@ from typing import Literal
 import polars as pl
 
 from ..logging_config import get_logger
-from ..storage import DuckDBStorage
+from ..storage import PortfolioStorage
 from .models import Account, Position
 
 logger = get_logger(__name__)
@@ -24,11 +24,11 @@ class PortfolioManager:
     Provides CRUD operations for accounts and positions with DuckDB storage.
     """
 
-    def __init__(self, storage: DuckDBStorage) -> None:
+    def __init__(self, storage: PortfolioStorage) -> None:
         """Initialize portfolio manager.
 
         Args:
-            storage: DuckDBStorage instance for database access
+            storage: PortfolioStorage instance for database access
         """
         self.storage = storage
 

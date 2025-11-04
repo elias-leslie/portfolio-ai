@@ -11,13 +11,13 @@ import datetime as dt
 import polars as pl
 
 from app.logging_config import get_logger
-from app.storage import DuckDBStorage
+from app.storage import PortfolioStorage
 
 logger = get_logger(__name__)
 
 
 def get_sector_rotation(
-    storage: DuckDBStorage,
+    storage: PortfolioStorage,
     date: dt.date | str,
     lookback_days: int = 20,
 ) -> pl.DataFrame | None:
@@ -27,7 +27,7 @@ def get_sector_rotation(
     time periods (5-day, 20-day, 60-day) to identify sector rotation patterns.
 
     Args:
-        storage: DuckDBStorage instance for database access
+        storage: PortfolioStorage instance for database access
         date: Date to calculate sector rotation for (YYYY-MM-DD format or date object)
         lookback_days: Maximum lookback period for momentum calculation (default: 20)
             Note: This determines data availability check, actual momentum uses fixed windows
@@ -193,7 +193,7 @@ def get_sector_rotation(
 
 
 def get_sector_performance_detail(
-    storage: DuckDBStorage,
+    storage: PortfolioStorage,
     sector: str,
     date: dt.date | str,
     lookback_days: int = 20,
@@ -201,7 +201,7 @@ def get_sector_performance_detail(
     """Get detailed performance metrics for all stocks in a specific sector.
 
     Args:
-        storage: DuckDBStorage instance for database access
+        storage: PortfolioStorage instance for database access
         sector: Sector name (e.g., "Technology", "Healthcare")
         date: Date to calculate performance for (YYYY-MM-DD format or date object)
         lookback_days: Lookback period for momentum calculation (default: 20)

@@ -16,7 +16,7 @@ from anthropic import Anthropic
 from ..logging_config import get_logger
 
 if TYPE_CHECKING:
-    from app.storage.facade import DuckDBStorage
+    from app.storage.facade import PortfolioStorage
 
 logger = get_logger(__name__)
 
@@ -30,14 +30,14 @@ class Agent(ABC):
 
     def __init__(
         self,
-        storage: DuckDBStorage,
+        storage: PortfolioStorage,
         anthropic_client: Anthropic | None = None,
         model: str = "claude-3-5-sonnet-20241022",
     ) -> None:
         """Initialize agent.
 
         Args:
-            storage: DuckDBStorage instance
+            storage: PortfolioStorage instance
             anthropic_client: Anthropic client (or create new one)
             model: Claude model to use
         """

@@ -10,9 +10,9 @@ import json
 from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING
 
-import feedparser  # type: ignore[import-not-found]
+import feedparser  # type: ignore[import-untyped]
 from pydantic import BaseModel
-from vaderSentiment.vaderSentiment import (  # type: ignore[import-not-found]
+from vaderSentiment.vaderSentiment import (  # type: ignore[import-untyped]
     SentimentIntensityAnalyzer,
 )
 
