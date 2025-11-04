@@ -101,19 +101,37 @@ echo ""
 
 # Start Celery Worker
 echo "Starting Celery worker..."
-kill_process "celery.*worker" "existing Celery"
+kill_process "celery.*worker" "existing Celery Worker"
 
 cd "$BACKEND_DIR"
-nohup celery -A app.celery_app worker --loglevel=info > /tmp/portfolio-celery.log 2>&1 &
+nohup celery -A app.celery_app worker --loglevel=info > /tmp/portfolio-celery-worker.log 2>&1 &
 CELERY_PID=$!
 sleep 2
 
 if pgrep -f "celery.*worker" > /dev/null; then
     echo "✓ Celery worker started (PID: $CELERY_PID)"
-    echo "  Log: /tmp/portfolio-celery.log"
+    echo "  Log: /tmp/portfolio-celery-worker.log"
 else
     echo "⚠ Warning: Celery worker may not have started properly"
-    echo "  Check logs: tail -f /tmp/portfolio-celery.log"
+    echo "  Check logs: tail -f /tmp/portfolio-celery-worker.log"
+fi
+echo ""
+
+# Start Celery Beat (periodic tasks scheduler)
+echo "Starting Celery beat..."
+kill_process "celery.*beat" "existing Celery Beat"
+
+cd "$BACKEND_DIR"
+nohup celery -A app.celery_app beat --loglevel=info > /tmp/portfolio-celery-beat.log 2>&1 &
+BEAT_PID=$!
+sleep 2
+
+if pgrep -f "celery.*beat" > /dev/null; then
+    echo "✓ Celery beat started (PID: $BEAT_PID)"
+    echo "  Log: /tmp/portfolio-celery-beat.log"
+else
+    echo "⚠ Warning: Celery beat may not have started properly"
+    echo "  Check logs: tail -f /tmp/portfolio-celery-beat.log"
 fi
 echo ""
 
@@ -155,15 +173,17 @@ echo "✓ All services started successfully!"
 echo "================================"
 echo ""
 echo "Service Status:"
-echo "  Redis:    $(pgrep -x redis-server > /dev/null && echo '✓ Running' || echo '✗ Stopped')"
-echo "  Backend:  $(pgrep -f 'uvicorn.*main:app' > /dev/null && echo '✓ Running (http://localhost:8000)' || echo '✗ Stopped')"
-echo "  Celery:   $(pgrep -f 'celery.*worker' > /dev/null && echo '✓ Running' || echo '✗ Stopped')"
-echo "  Frontend: $(pgrep -f 'next.*dev' > /dev/null && echo '✓ Running (http://localhost:3000)' || echo '✗ Stopped')"
+echo "  Redis:        $(pgrep -x redis-server > /dev/null && echo '✓ Running' || echo '✗ Stopped')"
+echo "  Backend:      $(pgrep -f 'uvicorn.*main:app' > /dev/null && echo '✓ Running (http://localhost:8000)' || echo '✗ Stopped')"
+echo "  Celery Worker:$(pgrep -f 'celery.*worker' > /dev/null && echo '✓ Running' || echo '✗ Stopped')"
+echo "  Celery Beat:  $(pgrep -f 'celery.*beat' > /dev/null && echo '✓ Running' || echo '✗ Stopped')"
+echo "  Frontend:     $(pgrep -f 'next.*dev' > /dev/null && echo '✓ Running (http://localhost:3000)' || echo '✗ Stopped')"
 echo ""
 echo "Logs:"
-echo "  Backend:  tail -f /tmp/portfolio-backend.log"
-echo "  Celery:   tail -f /tmp/portfolio-celery.log"
-echo "  Frontend: tail -f /tmp/portfolio-frontend.log"
+echo "  Backend:      tail -f /tmp/portfolio-backend.log"
+echo "  Celery Worker:tail -f /tmp/portfolio-celery-worker.log"
+echo "  Celery Beat:  tail -f /tmp/portfolio-celery-beat.log"
+echo "  Frontend:     tail -f /tmp/portfolio-frontend.log"
 echo ""
 echo "To stop all services: ./scripts/shutdown.sh"
 echo ""
