@@ -13,6 +13,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api import (
     analytics,
+    celery_endpoints,
     health,
     ideas,
     indicators,
@@ -107,6 +108,7 @@ app.add_middleware(RequestIDMiddleware)
 app.include_router(health.router)
 app.include_router(status.router)
 app.include_router(status_stream.router)
+app.include_router(celery_endpoints.router)
 app.include_router(portfolio.router)
 app.include_router(ideas.router)
 app.include_router(market.router)

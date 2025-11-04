@@ -1,34 +1,25 @@
 # Portfolio AI - Work Tracker
 
-**Last Updated:** 2025-11-03 (TASK-0029 started)
+**Last Updated:** 2025-11-03 (TASK-0029 completed)
 
 ---
 
 ## 🔄 Active (Currently Working)
 
-- **[TASK-0029] Status Dashboard - Phase 2 (Real-time SSE Updates)** ⚡ IN PROGRESS
-  - **File:** `tasks-0029-status-dashboard-phase2-sse.md`
-  - **PRD:** `tasks/0029-prd-status-page-advanced.md` (Phase 2)
-  - **Started:** 2025-11-03
-  - **Effort:** LOW-MEDIUM (1-2 hours)
+- **[TASK-0030] Status Dashboard - Phase 3 (Celery Deep Dive)** 🔄
+  - **File:** `tasks-0030-status-dashboard-phase3-celery.md`
+  - **PRD:** `tasks/0029-prd-status-page-advanced.md` (Phase 3)
+  - **Depends On:** TASK-0028 (COMPLETED ✅)
+  - **Effort:** MEDIUM (1-2 hours)
   - **Priority:** HIGH
-  - **Type:** Enhancement (Phase 2 of 6)
-  - **Summary:** Replace polling with Server-Sent Events for real-time updates with automatic fallback
-  - **Current:** Starting implementation
+  - **Started:** 2025-11-03
+  - **Type:** Enhancement (Phase 3 of 6)
+  - **Summary:** Comprehensive Celery task inspection, unified task table, queue depth, beat schedule
+  - **Progress:** 0% (Just started)
 
 ---
 
 ## 📋 Planned (Up Next - Priority Order)
-
-- **[TASK-0030] Status Dashboard - Phase 3 (Celery Deep Dive)**
-  - **File:** `tasks-0030-status-dashboard-phase3-celery.md`
-  - **PRD:** `tasks/0029-prd-status-page-advanced.md` (Phase 3)
-  - **Depends On:** TASK-0028 (MUST complete first)
-  - **Effort:** MEDIUM (1-2 hours)
-  - **Priority:** HIGH
-  - **Created:** 2025-11-03
-  - **Type:** Enhancement (Phase 3 of 6)
-  - **Summary:** Comprehensive Celery task inspection, unified task table, queue depth, beat schedule
 
 - **[TASK-0031] Status Dashboard - Phases 4-6 (Resources, Controls, History)**
   - **File:** `tasks-0031-status-dashboard-phases4-6.md`
@@ -43,6 +34,18 @@
 ---
 
 ## ✅ Recently Completed (Last 5)
+
+- **[TASK-0029] Status Dashboard - Phase 2 (SSE Updates)** ✓ 2025-11-03 (COMPLETE)
+  - **File:** `tasks-0029-status-dashboard-phase2-sse.md`
+  - **Duration:** ~1 hour
+  - **Results:**
+    - ✅ SSE streaming endpoint (/api/status/stream) with 2s updates
+    - ✅ useStatusStream hook with EventSource and automatic fallback
+    - ✅ Connection state tracking (connecting/connected/disconnected/fallback)
+    - ✅ Live connection indicator badges on status page
+    - ✅ Retry mechanism after 3 failures with manual retry button
+    - ✅ Graceful fallback to polling (5s interval)
+    - ✅ Commit: e109ebb
 
 - **[TASK-0028] Status Dashboard MVP (PRD-0028)** ✓ 2025-11-03 (COMPLETE)
   - **File:** `tasks-0028-status-dashboard-mvp.md`
