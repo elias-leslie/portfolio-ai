@@ -11,7 +11,17 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.api import analytics, health, ideas, indicators, market, portfolio, preferences, watchlist
+from app.api import (
+    analytics,
+    health,
+    ideas,
+    indicators,
+    market,
+    portfolio,
+    preferences,
+    status,
+    watchlist,
+)
 from app.logging_config import configure_logging, get_logger
 from app.storage import get_storage
 from app.storage.credential_loader import load_credentials_from_database
@@ -94,6 +104,7 @@ app.add_middleware(RequestIDMiddleware)
 
 # Register routers
 app.include_router(health.router)
+app.include_router(status.router)
 app.include_router(portfolio.router)
 app.include_router(ideas.router)
 app.include_router(market.router)

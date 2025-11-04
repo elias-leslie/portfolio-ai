@@ -16,6 +16,7 @@ from fastapi import APIRouter, Response
 from pydantic import BaseModel, Field
 
 from ..logging_config import get_logger
+from ..services.service_monitor import get_all_service_statuses
 from ..storage import get_storage
 from ..utils.quota_helpers import build_quota_info, is_api_key_configured
 
@@ -110,6 +111,10 @@ class HealthCheckResponse(BaseModel):
     uptime_seconds: int
     checks: dict[str, CheckResult]
     sources: dict[str, SourceHealthCheck] = Field(default_factory=dict)
+    services: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Service process status (backend, celery, frontend, redis)",
+    )
     cache_stats: CacheStats | None = None
     agent_stats: AgentStats | None = None
     watchlist_stats: WatchlistStats | None = None
@@ -435,6 +440,10 @@ class HealthCheckService:
         # Data source checks (from source_performance table)
         sources = self.check_sources()
 
+        # Service process checks
+        service_statuses = get_all_service_statuses()
+        services = {name: status.model_dump() for name, status in service_statuses.items()}
+
         # Determine overall status
         if checks["database"].status == "down":
             overall_status: Literal["healthy", "degraded", "down"] = "down"
@@ -463,6 +472,7 @@ class HealthCheckService:
             uptime_seconds=uptime_seconds,
             checks=checks,
             sources=sources,
+            services=services,
             cache_stats=cache_stats,
             agent_stats=agent_stats,
             watchlist_stats=watchlist_stats,

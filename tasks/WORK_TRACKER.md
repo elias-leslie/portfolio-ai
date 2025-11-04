@@ -1,18 +1,54 @@
 # Portfolio AI - Work Tracker
 
-**Last Updated:** 2025-11-03 (TASK-0027 complete)
+**Last Updated:** 2025-11-03 (TASK-0028 started)
 
 ---
 
 ## 🔄 Active (Currently Working)
 
-*No active work. Use /do_it to auto-continue from Planned, or /task_it to create new tasks.*
+- **[TASK-0028] Status Dashboard MVP (PRD-0028)** ⚡ IN PROGRESS
+  - **File:** `tasks-0028-status-dashboard-mvp.md`
+  - **PRD:** `tasks/0028-prd-status-page-mvp.md`
+  - **Started:** 2025-11-03
+  - **Effort:** MEDIUM (2-3 hours)
+  - **Priority:** HIGH
+  - **Type:** Full PRD implementation (Phase 1 of 6)
+  - **Summary:** Real-time status dashboard at /status showing all service health, process details, log viewers, auto-refresh
+  - **Current:** Task 1.0 - Backend: Extend Health Endpoint with Service Status
 
 ---
 
 ## 📋 Planned (Up Next - Priority Order)
 
-*No planned work. Use /plan_it or /task_it to create new tasks.*
+- **[TASK-0029] Status Dashboard - Phase 2 (Real-time SSE Updates)**
+  - **File:** `tasks-0029-status-dashboard-phase2-sse.md`
+  - **PRD:** `tasks/0029-prd-status-page-advanced.md` (Phase 2)
+  - **Depends On:** TASK-0028 (MUST complete first)
+  - **Effort:** LOW-MEDIUM (1-2 hours)
+  - **Priority:** HIGH
+  - **Created:** 2025-11-03
+  - **Type:** Enhancement (Phase 2 of 6)
+  - **Summary:** Replace polling with Server-Sent Events for real-time updates with automatic fallback
+
+- **[TASK-0030] Status Dashboard - Phase 3 (Celery Deep Dive)**
+  - **File:** `tasks-0030-status-dashboard-phase3-celery.md`
+  - **PRD:** `tasks/0029-prd-status-page-advanced.md` (Phase 3)
+  - **Depends On:** TASK-0028 (MUST complete first)
+  - **Effort:** MEDIUM (1-2 hours)
+  - **Priority:** HIGH
+  - **Created:** 2025-11-03
+  - **Type:** Enhancement (Phase 3 of 6)
+  - **Summary:** Comprehensive Celery task inspection, unified task table, queue depth, beat schedule
+
+- **[TASK-0031] Status Dashboard - Phases 4-6 (Resources, Controls, History)**
+  - **File:** `tasks-0031-status-dashboard-phases4-6.md`
+  - **PRD:** `tasks/0029-prd-status-page-advanced.md` (Phases 4, 5, 6)
+  - **Depends On:** TASK-0028 (MUST complete first)
+  - **Effort:** HIGH (4-6 hours)
+  - **Priority:** MEDIUM-LOW
+  - **Created:** 2025-11-03
+  - **Type:** Enhancement (Phases 4-6 combined)
+  - **Summary:** System resource monitoring, service control buttons, historical metrics/charts
 
 ---
 
