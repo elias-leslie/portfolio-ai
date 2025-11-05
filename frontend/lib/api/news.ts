@@ -19,6 +19,15 @@ export interface WatchlistNewsResponse {
   status?: "hidden" | "ok";
 }
 
+export interface NewsHealthResponse {
+  finbert_available: boolean;
+  market_last_refreshed_at: string | null;
+  watchlist_last_refreshed_at: string | null;
+  fallback_headlines_24h: number;
+  headlines_24h: number;
+  cache_ttl_hours: number;
+}
+
 type QueryParams = Record<string, string | number | boolean | undefined>;
 
 function buildQuery(params: QueryParams): string {
@@ -81,4 +90,8 @@ export async function searchNews(
     max_results: options?.maxResults,
   });
   return apiRequest<NewsBundle>(`/api/news/search${qs}`);
+}
+
+export async function fetchNewsHealth(): Promise<NewsHealthResponse> {
+  return apiRequest<NewsHealthResponse>("/api/news/health");
 }

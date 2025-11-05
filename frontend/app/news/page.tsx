@@ -125,7 +125,6 @@ function ArticleList({
   articles: SentimentArticle[];
   maxArticles?: number;
 }) {
-  const [expandedArticleId, setExpandedArticleId] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<"recent" | "sentiment" | "confidence">("recent");
   const [activeSentiments, setActiveSentiments] = useState<
     Array<"positive" | "neutral" | "negative">
@@ -139,17 +138,12 @@ function ArticleList({
     );
   }
 
-  const toggleArticle = (id: string) => {
-    setExpandedArticleId((prev) => (prev === id ? null : id));
-  };
-
   const toggleSentiment = (sentiment: "positive" | "neutral" | "negative") => {
-    setActiveSentiments((prev) => {
-      if (prev.includes(sentiment)) {
-        return prev.filter((item) => item !== sentiment);
-      }
-      return [...prev, sentiment];
-    });
+    setActiveSentiments((prev) =>
+      prev.includes(sentiment)
+        ? prev.filter((item) => item !== sentiment)
+        : [...prev, sentiment]
+    );
   };
 
   const processedArticles = useMemo(() => {
@@ -247,7 +241,6 @@ function ArticleList({
 
       {visibleArticles.map((article) => {
         const articleId = `${article.content_hash}-${article.headline}`;
-        const isExpanded = expandedArticleId === articleId;
         const sanitizedHeadline = sanitizeText(article.headline);
         return (
           <div
@@ -255,82 +248,47 @@ function ArticleList({
             className="rounded-md border border-border bg-surface-muted/30 p-3"
             data-testid="article-card"
           >
-            <div className="flex items-start gap-2">
-              <button
-                type="button"
-                onClick={() => toggleArticle(articleId)}
-                aria-expanded={isExpanded}
-                aria-controls={`${articleId}-details`}
-                className="mt-1 inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border border-border bg-surface-muted text-text-muted transition hover:text-text focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                {isExpanded ? (
-                  <ChevronDown className="h-4 w-4" aria-hidden="true" />
-                ) : (
-                  <ChevronRight className="h-4 w-4" aria-hidden="true" />
-                )}
-                <span className="sr-only">
-                  {isExpanded ? "Collapse headline details" : "Expand headline details"}
-                </span>
-              </button>
-
-              <div className="flex-1 space-y-2">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="flex-1 min-w-[200px] space-y-1">
-                    {article.url ? (
-                      <a
-                        href={article.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
-                      >
-                        {sanitizedHeadline}
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                    ) : (
-                      <p className="text-sm font-semibold text-text">{sanitizedHeadline}</p>
-                    )}
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-text-muted">
-                      {article.source && <span>{article.source}</span>}
-                      {(article.published_at || article.fetched_at) && (
-                        <span>
-                          {formatTimestamp(article.published_at ?? article.fetched_at)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end gap-1 text-xs min-w-[120px]">
-                    <Badge variant={getBadgeVariantFromLabel(article.sentiment.label)}>
-                      {article.sentiment.label.toUpperCase()}
-                    </Badge>
-                    <span className="text-text font-semibold">
-                      {formatSentimentScore(article.sentiment.score)}
-                    </span>
-                    <span className="text-text-muted">
-                      Confidence {formatConfidence(article.sentiment.confidence)}
-                    </span>
-                  </div>
-                </div>
-
-                {isExpanded && (
-                  <div
-                    id={`${articleId}-details`}
-                    className="space-y-2 text-xs text-text-muted leading-relaxed"
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex-1 min-w-[220px] space-y-1">
+                {article.url ? (
+                  <a
+                    href={article.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
                   >
-                    {article.summary && (
-                      <p className="text-text-muted">{sanitizeText(article.summary)}</p>
-                    )}
-                    <div className="flex flex-wrap items-center gap-3">
-                      <Badge
-                        variant={
-                          article.sentiment.model === "finbert" ? "secondary" : "loss"
-                        }
-                      >
-                        {article.sentiment.model.toUpperCase()}
-                      </Badge>
-                      {article.author && <span>By {article.author}</span>}
-                    </div>
-                  </div>
+                    {sanitizedHeadline}
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                ) : (
+                  <p className="text-sm font-semibold text-text">{sanitizedHeadline}</p>
                 )}
+                <div className="flex flex-wrap items-center gap-3 text-xs text-text-muted">
+                  {article.source && <span>{article.source}</span>}
+                  {(article.published_at || article.fetched_at) && (
+                    <span>
+                      {formatTimestamp(article.published_at ?? article.fetched_at)}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-col items-end gap-1 text-xs min-w-[120px]">
+                <Badge variant={getBadgeVariantFromLabel(article.sentiment.label)}>
+                  {article.sentiment.label.toUpperCase()}
+                </Badge>
+                <span className="text-text font-semibold">
+                  {formatSentimentScore(article.sentiment.score)}
+                </span>
+                <span className="text-text-muted">
+                  Confidence {formatConfidence(article.sentiment.confidence)}
+                </span>
+                <Badge
+                  variant={
+                    article.sentiment.model === "finbert" ? "secondary" : "loss"
+                  }
+                >
+                  {article.sentiment.model.toUpperCase()}
+                </Badge>
               </div>
             </div>
           </div>

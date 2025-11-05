@@ -815,3 +815,62 @@ class NewsService:
             weighted_scores.append(article.sentiment.score * weight)
 
         return sum(weighted_scores) / sum(weights) if weights else None
+
+    def _latest_fetched_at(self, *, market: bool) -> datetime | None:
+        query = (
+            "SELECT MAX(fetched_at) FROM news_cache WHERE ticker = %s"
+            if market
+            else "SELECT MAX(fetched_at) FROM news_cache WHERE ticker <> %s"
+        )
+        with self.storage.connection() as conn:
+            row = conn.execute(query, [MARKET_TICKER]).fetchone()
+        if not row:
+            return None
+        fetched_at = row[0]
+        if fetched_at is None:
+            return None
+        if not isinstance(fetched_at, datetime):
+            return None
+        return fetched_at if fetched_at.tzinfo else fetched_at.replace(tzinfo=UTC)
+
+    def get_health(self) -> dict[str, Any]:
+        """Return lightweight health metrics for the news pipeline."""
+        try:
+            finbert_available = self.finbert_analyzer.is_available()
+        except FinBertUnavailableError:
+            finbert_available = False
+
+        market_last = self._latest_fetched_at(market=True)
+        watchlist_last = self._latest_fetched_at(market=False)
+
+        now = datetime.now(UTC)
+        window_start = now - timedelta(hours=24)
+
+        with self.storage.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT
+                    SUM(CASE WHEN sentiment_model <> %s THEN 1 ELSE 0 END) AS fallback_count,
+                    COUNT(*) AS total_count
+                FROM news_cache
+                WHERE fetched_at >= %s
+                """,
+                ["finbert", window_start],
+            ).fetchone()
+
+        fallback_count = int(row[0] or 0) if row else 0
+        total_count = int(row[1] or 0) if row else 0
+
+        def _iso(dt: datetime | None) -> str | None:
+            if not dt:
+                return None
+            return dt.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+        return {
+            "finbert_available": finbert_available,
+            "market_last_refreshed_at": _iso(market_last),
+            "watchlist_last_refreshed_at": _iso(watchlist_last),
+            "fallback_headlines_24h": fallback_count,
+            "headlines_24h": total_count,
+            "cache_ttl_hours": round(self.ttl.total_seconds() / 3600.0, 2),
+        }

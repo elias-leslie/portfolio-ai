@@ -119,8 +119,10 @@
   - prune associated entries from `frontend/package-lock.json`
 - [x] Confirm location or substitute for `quality-report.sh`; current path missing. (`scripts/quality-report.sh` now runs ruff/mypy/pytest shims.)
 - [x] Add custom User-Agent + request timeout to `GoogleNewsSource` (reduce 403s / hangs).
+- [x] Simplify News article rows to remove redundant expansion (market/watchlist tabs) and keep concise inline summaries.
+- [x] Align watchlist expanded News & Sentiment card layout with the compact row styling.
+- [x] Expose `/api/news/health` endpoint and surface it on `/status` (Chrome DevTools MCP tile).
 - [ ] Emit structured metrics/logs when FinBERT inference falls back to VADER for visibility.
-- [ ] Expose lightweight `/api/news/health` endpoint reporting FinBERT availability & cache stats.
 - [ ] Revisit TTL/dedup filters in `NewsService._select_recent_articles` to surface more than 2–3 headlines when source returns 5+.
 - [ ] Add user-configurable news lookback window (e.g., 6/12/24/48h) surfaced in settings and honored by NewsService/refresh task TTL.
 - [ ] Implement secondary vendor support (e.g., Polygon, Finnhub, FMP) in `app/sources/*` and aggregate alongside Google News.

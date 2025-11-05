@@ -74,6 +74,17 @@ class WatchlistNewsResponse(BaseModel):
     items: list[NewsBundleResponse]
 
 
+class NewsHealthResponse(BaseModel):
+    """Health metrics for news ingestion and sentiment pipeline."""
+
+    finbert_available: bool
+    market_last_refreshed_at: str | None = None
+    watchlist_last_refreshed_at: str | None = None
+    fallback_headlines_24h: int
+    headlines_24h: int
+    cache_ttl_hours: float
+
+
 def _serialize_sentiment(payload: Any) -> SentimentScoreResponse:
     return SentimentScoreResponse(
         score=payload.score,
@@ -203,6 +214,13 @@ async def get_watchlist_news(
         serialized_items.append(_serialize_bundle(bundle, limit=max_results))
 
     return WatchlistNewsResponse(account_id=account_id, items=serialized_items)
+
+
+@router.get("/health", response_model=NewsHealthResponse)
+async def get_news_health() -> NewsHealthResponse:
+    """Return health information for the news ingestion pipeline."""
+    metrics = news_service.get_health()
+    return NewsHealthResponse(**metrics)
 
 
 @router.get("/search", response_model=NewsBundleResponse)

@@ -5,8 +5,10 @@ import { RefreshCw, Wifi, WifiOff, Radio, HardDrive, Cpu, MemoryStick, Trash2, L
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useStatusStream } from "@/lib/hooks/useStatusStream";
 import { useSystemResources } from "@/lib/hooks/useSystemResources";
+import { useNewsHealth } from "@/lib/hooks/useNewsHealth";
 import { SystemStatusCard } from "@/components/status/SystemStatusCard";
 import { ServiceCard } from "@/components/status/ServiceCard";
 import { ResourceCard } from "@/components/status/ResourceCard";
@@ -20,6 +22,12 @@ import { clearCache, refreshWatchlist, restartService } from "@/lib/api/service-
 export default function StatusPage() {
   const { status: health, connectionState, isLoading, error, retryConnection } = useStatusStream();
   const { resources, isLoading: resourcesLoading } = useSystemResources(5000); // Refresh every 5 seconds
+  const {
+    data: newsHealth,
+    isLoading: newsHealthLoading,
+    error: newsHealthError,
+    refresh: refreshNewsHealth,
+  } = useNewsHealth(60000);
 
   const [actionDialogOpen, setActionDialogOpen] = useState(false);
   const [actionDialogConfig, setActionDialogConfig] = useState<{
@@ -142,6 +150,17 @@ export default function StatusPage() {
   };
 
   const connectionBadge = getConnectionBadge();
+  const formatDateTime = (value?: string | null) =>
+    value ? new Date(value).toLocaleString() : "—";
+  const finbertStatus = newsHealth
+    ? newsHealth.finbert_available
+      ? { label: "FinBERT Available", variant: "default" as const }
+      : { label: "FinBERT Unavailable", variant: "destructive" as const }
+    : { label: "Loading...", variant: "secondary" as const };
+  const fallbackRate =
+    newsHealth && newsHealth.headlines_24h > 0
+      ? (newsHealth.fallback_headlines_24h / newsHealth.headlines_24h) * 100
+      : 0;
 
   if (error) {
     return (
@@ -224,6 +243,85 @@ export default function StatusPage() {
 
       {/* System overview card */}
       <SystemStatusCard health={health} />
+
+      {/* News health card */}
+      <Card className="border-border">
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle className="text-xl">News Health</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              FinBERT availability and cache freshness for the News surface
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant={finbertStatus.variant}>
+              {finbertStatus.label}
+            </Badge>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={refreshNewsHealth}
+              disabled={newsHealthLoading}
+            >
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Refresh
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {newsHealthError ? (
+            <Alert variant="destructive">
+              <AlertTitle>Failed to load news health</AlertTitle>
+              <AlertDescription>
+                {newsHealthError.message || "Unable to reach /api/news/health"}
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Market Last Refresh
+                </p>
+                <p className="text-sm font-medium">
+                  {newsHealthLoading && !newsHealth ? "Loading..." : formatDateTime(newsHealth?.market_last_refreshed_at)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Watchlist Last Refresh
+                </p>
+                <p className="text-sm font-medium">
+                  {newsHealthLoading && !newsHealth ? "Loading..." : formatDateTime(newsHealth?.watchlist_last_refreshed_at)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Headlines (24h)
+                </p>
+                <p className="text-sm font-medium">
+                  {newsHealth?.headlines_24h ?? 0}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  TTL: {newsHealth?.cache_ttl_hours ?? 0} hrs
+                </p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Fallback Usage (24h)
+                </p>
+                <p className="text-sm font-medium">
+                  {newsHealth?.fallback_headlines_24h ?? 0} headlines
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {newsHealth && newsHealth.headlines_24h > 0
+                    ? `${fallbackRate.toFixed(1)}% fallback`
+                    : "0% fallback"}
+                </p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Service cards grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

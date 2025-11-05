@@ -23,6 +23,22 @@ import { usePreferences } from "@/lib/hooks/usePreferences";
 import { toast } from "sonner";
 import type { WatchlistItem, RefreshStatus } from "@/lib/api/watchlist";
 
+function sanitizeText(input?: string | null): string {
+  if (!input) return "";
+  const value = input.trim();
+  if (!value) return "";
+  try {
+    if (typeof window !== "undefined" && typeof window.DOMParser !== "undefined") {
+      const parser = new window.DOMParser();
+      const doc = parser.parseFromString(value, "text/html");
+      return (doc.body?.textContent ?? "").replace(/\s+/g, " ").trim();
+    }
+  } catch {
+    // fallthrough to regex
+  }
+  return value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
 interface ExpandedRowProps {
   item: WatchlistItem;
   refreshStatus?: RefreshStatus;
@@ -533,7 +549,9 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
 
             {newsArticles.length > 0 && (
               <div className="space-y-2">
-                {newsArticles.slice(0, maxNewsArticles).map((article) => (
+                {newsArticles.slice(0, maxNewsArticles).map((article) => {
+                  const sanitizedHeadline = sanitizeText(article.headline);
+                  return (
                   <div
                     key={`${article.content_hash}-${article.headline}`}
                     className="rounded-md border border-border bg-surface-muted/30 p-3"
@@ -547,12 +565,12 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
                           >
-                            {article.headline}
+                            {sanitizedHeadline}
                             <ExternalLink className="h-3 w-3" />
                           </a>
                         ) : (
                           <p className="text-sm font-semibold text-text">
-                            {article.headline}
+                            {sanitizedHeadline}
                           </p>
                         )}
                         <div className="flex flex-wrap items-center gap-3 text-xs text-text-muted">
@@ -567,11 +585,6 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
                             </span>
                           )}
                         </div>
-                        {article.summary && (
-                          <p className="text-xs text-text-muted leading-relaxed">
-                            {article.summary}
-                          </p>
-                        )}
                       </div>
                       <div className="flex flex-col items-end gap-2 text-xs">
                         <Badge variant={getBadgeVariantFromLabel(article.sentiment.label)}>
@@ -593,7 +606,8 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
                       </div>
                     </div>
                   </div>
-                ))}
+                );
+              })}
                 {newsArticles.length > maxNewsArticles && (
                   <p className="text-xs text-text-muted">
                     Showing {maxNewsArticles} of {newsArticles.length} headlines
