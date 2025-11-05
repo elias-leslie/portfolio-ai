@@ -345,9 +345,9 @@ export default function NewsPage() {
           <section className="space-y-4">
             {marketQuery.isLoading && (
               <div className="flex items-center gap-2 text-sm text-text-muted">
-                <Loader2 className="h-4 w-4 animat
-              <Loader2 className="h-4 w-4 animate-spin" /> Loading market headlines...
-            </div>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading market headlines...
+              </div>
             )}
             {marketQuery.error && (
               <p className="text-sm text-loss">

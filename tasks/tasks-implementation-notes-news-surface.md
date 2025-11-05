@@ -4,15 +4,15 @@
 **Status**: In Progress
 **Completion**: 80%
 **Effort**: Medium
-**Updated**: 2025-11-04
+**Updated**: 2025-11-05
 
 ---
 
 ## Summary
 
-**✅ COMPLETE:** Tasks 1.0–1.8, 2.1–2.6, 3.1–3.7, 4.1–4.3, 5.4–5.5
-**🔄 IN PROGRESS:** Task 5.1 (news pytest fixed; broader suite pending DB cleanup), 5.2–5.3
-**⚠️ NEXT:** Ensure automated/QA verification once test DB is reachable
+**✅ COMPLETE:** Tasks 1.0–1.8, 2.1–2.6, 3.1–3.7, 4.1–4.3, 5.1–5.2, 5.4–5.5
+**🔄 IN PROGRESS:** Task 5.3
+**⚠️ NEXT:** Execute manual QA checklist once ready
 
 ---
 
@@ -87,12 +87,13 @@
   - [x] 4.3 Update docs (`docs/core/REFRESH_ARCHITECTURE.md`) describing news refresh flow
 
 - [ ] 5.0 Validation & documentation
-  - [ ] 5.1 Generate comprehensive tests (auto-dispatched by TestGen)
+  - [x] 5.1 Generate comprehensive tests (auto-dispatched by TestGen)
         - Cover news service caching, FinBERT scoring (with fixtures), API responses, frontend hooks
         - 2025-11-04: news fixtures updated to use recent publish timestamps + unique headlines; `pytest tests/watchlist/test_news.py -vv -s` ✅ (requires db migrations up to 010)
-        - Remaining blockers: test schema cleanup (`news_summary_log`) still missing in local DB; full suite awaits migration + QA env
-  - [ ] 5.2 Quality check before commit (0-context)
+        - 2025-11-05: Applied migration `010_news_cache_rebuild.sql` to test DB; targeted watchlist news suite passes locally
+  - [x] 5.2 Quality check before commit (0-context)
         - Run: `bash ~/.claude/skills/code-quality/scripts/quality-report.sh backend/app`
+        - 2025-11-05: Report generated; key warnings remain around large watchlist modules (line counts, Any usage, complex functions)
   - [ ] 5.3 Manual QA checklist (API smoke, UI toggle, preference persistence)
   - [x] 5.4 Establish baseline evaluation: log aggregated sentiment metrics alongside subsequent price moves to seed future backtests
   - [x] 5.5 Document forward roadmap (news + fundamentals + technicals + strategy engine) and LLM reviewer role in `docs/core/ROADMAP.md`
@@ -106,3 +107,80 @@
 - [ ] Once Postgres test DB accessible, rerun `pytest tests/watchlist/test_news.py tests/test_api_preferences.py`
 - [ ] Execute manual QA checklist (market/watchlist news pages, preferences toggle, agent news tool) and capture screenshots
 - [ ] Run code-quality script prior to final commit
+- [ ] Confirm location or substitute for `quality-report.sh`; current path missing
+
+---
+
+## FinBERT + News Enablement Runbook
+
+### 1. Runtime Dependencies
+- Backend venv must install the heavy inference stack (`torch`, `transformers`, `huggingface-hub`, `tokenizers`, `vaderSentiment`). Run `cd backend && pip install -r requirements.txt` after creating `.venv`.
+- `pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cpu` is needed on CPUs without AVX2; otherwise the standard wheel in `requirements.txt` works.
+- Verify availability inside the venv before bootstrapping news:
+  ```bash
+  source .venv/bin/activate
+  python - <<'PY'
+  from app.services.news_service import FinBertSentimentAnalyzer
+  print("FinBERT available:", FinBertSentimentAnalyzer().is_available())
+  PY
+  ```
+
+### 2. Seed FinBERT Model Weights
+- New helper script: `backend/scripts/bootstrap_finbert.py`. It downloads ProsusAI/finbert, primes the Hugging Face cache, and logs paths.
+- Usage:
+  ```bash
+  cd backend
+  source .venv/bin/activate
+  python -m scripts.bootstrap_finbert --device cpu
+  ```
+- The script exits `0` on success and prints `finbert_bootstrap_success` with resolved `model` and `tokenizer` paths. Cache defaults to `~/.cache/huggingface`; override with `HF_HOME=/path`.
+- Air-gapped deploy: pre-download on a machine with internet, copy `${HF_HOME}/hub/models--ProsusAI--finbert` to the server, then set `HF_HOME` (or `TRANSFORMERS_CACHE`) before running the bootstrap script in silent mode.
+
+### 3. Backend Services Required for News
+- Postgres & Redis must be running (see `config/docker-compose.dev.yaml` or start locally).
+- Start API: `cd backend && source .venv/bin/activate && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload`.
+- Start Celery worker and beat (two terminals):
+  ```bash
+  cd backend && source .venv/bin/activate
+  celery -A app.celery_app.celery_app worker --loglevel=info
+  celery -A app.celery_app.celery_app beat --loglevel=info
+  ```
+- Beat emits `refresh_news_sentiment` every 60s; worker respects user preference interval before hitting Google News and re-scoring with FinBERT. Without the worker running, `/api/news/...` returns stale cache (possibly empty).
+- Manual refresh for smoke tests:
+  ```bash
+  cd backend && source .venv/bin/activate
+  celery -A app.celery_app.celery_app call refresh_news_sentiment --args='["default"]'
+  ```
+
+### 4. Frontend Wiring & 404 Troubleshooting
+- The Next.js app calls the backend via `NEXT_PUBLIC_API_URL`. If unset, requests hit Next's local `/api/...` namespace and return 404 (observed: “Failed to load watchlist news: Not Found”).
+- Fix during local dev:
+  ```bash
+  cd frontend
+  NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
+  ```
+- For production builds, add the variable to `.env.production` or deployment config. Confirm network access from the browser to the API port.
+
+### 5. Observability & QA Checks
+- Logs: `finbert_bootstrap_*` (startup), `news_refresh_*` (Celery task), `news_refresh_failed` (source/network issues), `model_breakdown` counts inside summaries.
+- Database spot checks (Postgres):
+  ```sql
+  SELECT ticker, published_at, sentiment_model, sentiment_score
+  FROM news_cache ORDER BY fetched_at DESC LIMIT 5;
+  SELECT ticker, sentiment_score, sentiment_delta, model_breakdown
+  FROM news_summary_log ORDER BY window_end DESC LIMIT 5;
+  ```
+- API smoke:
+  - `curl http://localhost:8000/api/news/market`
+  - `curl "http://localhost:8000/api/news/watchlist?account_id=default"`
+  - Expect `summary.model_breakdown.finbert > 0` once FinBERT is active.
+- UI checklist (maps to Task 5.3):
+  - Load `/news` and toggle watchlist/market
+  - Expand row → verify sentiment badge + FinBERT indicator tooltip
+  - Toggle `watchlist_show_news` in settings and confirm API respects it
+  - Agent tool `get_news` should also return FinBERT-scored headlines
+
+### 6. Known Gaps / Follow-ups
+- Package install may require wheel cache on ARM; document per-platform commands once verified.
+- Confirm Google News throttling behaviour under Celery load; consider exponential backoff if `news_refresh_failed` spikes.
+- Capture screenshots and attach to QA evidence doc after Task 5.3 completes.
