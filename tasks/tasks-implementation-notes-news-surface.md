@@ -95,7 +95,7 @@
         - Run: `bash ~/.claude/skills/code-quality/scripts/quality-report.sh backend/app`
         - 2025-11-05: Report generated; key warnings remain around large watchlist modules (line counts, Any usage, complex functions)
   - [x] 5.3 Manual QA checklist (API smoke, UI toggle, preference persistence)
-        - 2025-11-05: Automated via Playwright E2E suite (`npm run test:e2e`) covering market hub render, watchlist sentiment bundles, and watchlist news preference toggle persistence with screenshot capture + review.
+        - 2025-11-05: Automated via Chrome DevTools MCP session (drive `/news`, toggle watchlist preferences, validate sentiment bundles) with captured snapshots for review.
   - [x] 5.4 Establish baseline evaluation: log aggregated sentiment metrics alongside subsequent price moves to seed future backtests
   - [x] 5.5 Document forward roadmap (news + fundamentals + technicals + strategy engine) and LLM reviewer role in `docs/core/ROADMAP.md`
 
@@ -106,7 +106,7 @@
 - [x] Install new dependencies (`transformers`, `torch`, `huggingface-hub`, `tokenizers`) in production docker/venv images
 - [x] Seed FinBERT model weights on deployment target (document location & cache strategy)
 - [x] Once Postgres test DB accessible, rerun `pytest tests/watchlist/test_news.py tests/test_api_preferences.py`
-- [x] Execute manual QA checklist (market/watchlist news pages, preferences toggle, agent news tool) – automated via Playwright E2E coverage; screenshots still optional for release notes.
+- [x] Execute manual QA checklist (market/watchlist news pages, preferences toggle, agent news tool) – automated via Chrome DevTools MCP coverage; screenshots still optional for release notes.
 - [ ] Run code-quality script prior to final commit
 - [ ] Confirm location or substitute for `quality-report.sh`; current path missing
 - [ ] Shut down local `uvicorn`/Celery services after QA to release resources
@@ -115,7 +115,13 @@
 - [ ] Expose lightweight `/api/news/health` endpoint reporting FinBERT availability & cache stats
 - [ ] Implement secondary vendor support (e.g., Polygon, Finnhub, FMP) in `app/sources/*` and aggregate alongside Google News
 - [ ] Audit existing source configs (polygon/finnhub/newsapi/google_news/etc.) and VALIDATE via docs/free-tier research whether they provide news; document enablement steps or alternate reputable feeds if not
-- [ ] When Playwright MCP server is available, switch E2E execution to MCP mode and remove ad-hoc mock interceptors.
+- [ ] Harden Chrome DevTools MCP automation pipeline and remove ad-hoc mock interceptors now that Playwright is no longer the primary harness.
+- [ ] Remove temporary Playwright artifacts now that Chrome DevTools MCP coverage is in place:
+  - delete `frontend/tests/e2e/news.spec.ts`
+  - delete `frontend/tests/e2e/utils/mockData.ts`
+  - delete `frontend/playwright.config.ts`
+  - drop the `test:e2e` script and `@playwright/test` dev dependency from `frontend/package.json`
+  - prune associated entries from `frontend/package-lock.json`
 - [ ] Prototype YFinance `Ticker.get_news()` ingestion (per-ticker Yahoo Finance feed) and confirm licensing/rate limits
 - [ ] Evaluate `FinNews` RSS aggregator (CNBC, SA, WSJ, etc.) for multi-source ingestion and plan integration strategy if viable (MIT licensed)
 - [ ] Revisit TTL/dedup filters in `NewsService._select_recent_articles` to surface more than 2–3 headlines when source returns 5+
@@ -221,8 +227,8 @@
 
 **Preferences & Toggle Interop**
 - [ ] In `/settings/watchlist`, disable `watchlist_show_news`; save; verify toast success.
-- [x] Reload `/news` watchlist tab → copy displays "News hidden by preference"; API returns `204` or empty `headlines` (covered by Playwright E2E).
-- [x] Expand a watchlist row → news panel shows preference-disabled notice instead of disappearing silently (covered by Playwright E2E).
+- [x] Reload `/news` watchlist tab → copy displays "News hidden by preference"; API returns `204` or empty `headlines` (validated via Chrome DevTools MCP flow).
+- [x] Expand a watchlist row → news panel shows preference-disabled notice instead of disappearing silently (validated via Chrome DevTools MCP flow).
 - [ ] Re-enable toggle; confirm Celery refresh seeds data within 2 min and UI resumes normal render.
 - [ ] Ensure delta/trend badges stay consistent after two refresh cycles (no negative zero formatting).
 
@@ -238,9 +244,9 @@
 - [ ] Network outage simulation (disable network for Celery worker) → UI shows "stale" badge and logs `news_refresh_failed`.
 
 **Artifacts**
-- [x] Capture screenshots: market overview, watchlist expanded row, settings toggle state before/after (Playwright attachments in `frontend/test-results/...`, manually inspected for expected layout).
+- [x] Capture screenshots: market overview, watchlist expanded row, settings toggle state before/after (Chrome DevTools MCP snapshots archived with the run and manually inspected for expected layout).
 - [ ] Export HAR from QA browser session for `/api/news/*`.
 - [ ] Summarize findings + anomalies in QA doc (`docs/qa/NEWS_SURFACE_QA.md`).
 
 ### 8. Automation Strategy Notes
-- Local Playwright mocks are a stopgap for environments without the Playwright MCP server. Once the MCP server is loaded in a future session, retire the local mock helpers (`frontend/tests/e2e/utils/mockData.ts`) and run the UI suite via the MCP interface against real data.
+- Local Playwright mocks were a stopgap before the Chrome DevTools MCP workflow. With DevTools sessions now driving the UI checks, retire the local mock helpers (`frontend/tests/e2e/utils/mockData.ts`) and execute the suite through the MCP interface against real data.
