@@ -26,6 +26,10 @@ export interface NewsHealthResponse {
   fallback_headlines_24h: number;
   headlines_24h: number;
   cache_ttl_hours: number;
+   fallback_rate_24h: number;
+   fallback_avg_latency_ms_24h: number | null;
+   fallback_p95_latency_ms_24h: number | null;
+   fallback_last_event_at: string | null;
 }
 
 type QueryParams = Record<string, string | number | boolean | undefined>;

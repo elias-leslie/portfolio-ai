@@ -12,6 +12,7 @@ from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from importlib import import_module
+from time import perf_counter
 from typing import Any, Literal, cast
 
 from dateutil import parser as date_parser  # type: ignore[import-untyped]
@@ -540,16 +541,38 @@ class NewsService:
 
         texts = [_compose_text(entry) for entry in entries]
         analyzer_used = "finbert"
+        fallback_details: dict[str, Any] | None = None
+        finbert_latency_ms: float | None = None
 
         try:
+            start = perf_counter()
             sentiments = self.finbert_analyzer.score_batch(texts)
+            finbert_latency_ms = (perf_counter() - start) * 1000.0
         except FinBertUnavailableError:
-            logger.warning("FinBERT unavailable, falling back to VADER", ticker=ticker)
+            finbert_latency_ms = (perf_counter() - start) * 1000.0
+            fallback_details = {
+                "reason": "unavailable",
+                "latency_ms": round(finbert_latency_ms, 2),
+            }
+            logger.warning(
+                "FinBERT unavailable, falling back to VADER",
+                ticker=ticker,
+                latency_ms=fallback_details["latency_ms"],
+            )
             sentiments = self.fallback_analyzer.score_batch(texts)
             analyzer_used = "vader"
         except Exception as exc:  # pragma: no cover - inference failure
+            finbert_latency_ms = (perf_counter() - start) * 1000.0
+            fallback_details = {
+                "reason": "error",
+                "latency_ms": round(finbert_latency_ms, 2),
+                "error": str(exc),
+            }
             logger.error(
-                "FinBERT scoring failed; falling back to VADER", error=str(exc), ticker=ticker
+                "FinBERT scoring failed; falling back to VADER",
+                error=str(exc),
+                ticker=ticker,
+                latency_ms=fallback_details["latency_ms"],
             )
             sentiments = self.fallback_analyzer.score_batch(texts)
             analyzer_used = "vader"
@@ -591,12 +614,36 @@ class NewsService:
                 )
             )
 
+        total_sentiments = len(sentiments)
+        fallback_rate = 0.0
+        if total_sentiments:
+            fallback_rate = (
+                sum(1 for sentiment in sentiments if sentiment.model != "finbert")
+                / total_sentiments
+            )
+
         if analyzer_used != "finbert":
+            latency_ms = round(finbert_latency_ms or 0.0, 2)
+            if fallback_details is None:
+                fallback_details = {"reason": "unknown", "latency_ms": latency_ms}
+            fallback_details.setdefault("latency_ms", latency_ms)
+            fallback_details.update(
+                {
+                    "rate": round(fallback_rate, 4),
+                    "article_count": len(articles),
+                }
+            )
+            for article in articles:
+                article.raw.setdefault("sentiment_fallback", dict(fallback_details))
+
             logger.info(
                 "news_sentiment_fallback_used",
                 ticker=ticker,
                 analyzer=analyzer_used,
                 articles=len(articles),
+                fallback_rate=round(fallback_rate, 4),
+                latency_ms=fallback_details.get("latency_ms"),
+                reason=fallback_details.get("reason"),
             )
 
         return articles
@@ -851,7 +898,17 @@ class NewsService:
                 """
                 SELECT
                     SUM(CASE WHEN sentiment_model <> %s THEN 1 ELSE 0 END) AS fallback_count,
-                    COUNT(*) AS total_count
+                    COUNT(*) AS total_count,
+                    AVG(
+                        CASE
+                            WHEN jsonb_exists(raw_payload, 'sentiment_fallback')
+                            THEN (raw_payload->'sentiment_fallback'->>'latency_ms')::DOUBLE PRECISION
+                        END
+                    ) AS avg_latency_ms,
+                    PERCENTILE_CONT(0.95) WITHIN GROUP (
+                        ORDER BY (raw_payload->'sentiment_fallback'->>'latency_ms')::DOUBLE PRECISION
+                    ) FILTER (WHERE jsonb_exists(raw_payload, 'sentiment_fallback')) AS p95_latency_ms,
+                    MAX(fetched_at) FILTER (WHERE jsonb_exists(raw_payload, 'sentiment_fallback')) AS last_fallback_at
                 FROM news_cache
                 WHERE fetched_at >= %s
                 """,
@@ -860,6 +917,11 @@ class NewsService:
 
         fallback_count = int(row[0] or 0) if row else 0
         total_count = int(row[1] or 0) if row else 0
+        avg_latency_ms = float(row[2]) if row and row[2] is not None else None
+        p95_latency_ms = float(row[3]) if row and row[3] is not None else None
+        last_fallback_at = row[4] if row else None
+
+        fallback_rate = (fallback_count / total_count) if total_count else 0.0
 
         def _iso(dt: datetime | None) -> str | None:
             if not dt:
@@ -873,4 +935,12 @@ class NewsService:
             "fallback_headlines_24h": fallback_count,
             "headlines_24h": total_count,
             "cache_ttl_hours": round(self.ttl.total_seconds() / 3600.0, 2),
+            "fallback_rate_24h": round(fallback_rate, 4),
+            "fallback_avg_latency_ms_24h": round(avg_latency_ms, 2)
+            if avg_latency_ms is not None
+            else None,
+            "fallback_p95_latency_ms_24h": round(p95_latency_ms, 2)
+            if p95_latency_ms is not None
+            else None,
+            "fallback_last_event_at": _iso(last_fallback_at) if last_fallback_at else None,
         }

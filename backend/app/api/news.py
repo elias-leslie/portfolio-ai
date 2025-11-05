@@ -83,6 +83,10 @@ class NewsHealthResponse(BaseModel):
     fallback_headlines_24h: int
     headlines_24h: int
     cache_ttl_hours: float
+    fallback_rate_24h: float
+    fallback_avg_latency_ms_24h: float | None = None
+    fallback_p95_latency_ms_24h: float | None = None
+    fallback_last_event_at: str | None = None
 
 
 def _serialize_sentiment(payload: Any) -> SentimentScoreResponse:

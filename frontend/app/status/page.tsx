@@ -157,10 +157,10 @@ export default function StatusPage() {
       ? { label: "FinBERT Available", variant: "default" as const }
       : { label: "FinBERT Unavailable", variant: "destructive" as const }
     : { label: "Loading...", variant: "secondary" as const };
-  const fallbackRate =
-    newsHealth && newsHealth.headlines_24h > 0
-      ? (newsHealth.fallback_headlines_24h / newsHealth.headlines_24h) * 100
-      : 0;
+  const fallbackRatePercent = (newsHealth?.fallback_rate_24h ?? 0) * 100;
+  const fallbackAvgLatency = newsHealth?.fallback_avg_latency_ms_24h ?? null;
+  const fallbackP95Latency = newsHealth?.fallback_p95_latency_ms_24h ?? null;
+  const fallbackLastEventAt = newsHealth?.fallback_last_event_at ?? null;
 
   if (error) {
     return (
@@ -313,10 +313,25 @@ export default function StatusPage() {
                   {newsHealth?.fallback_headlines_24h ?? 0} headlines
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {newsHealth && newsHealth.headlines_24h > 0
-                    ? `${fallbackRate.toFixed(1)}% fallback`
+                  {newsHealth
+                    ? `${fallbackRatePercent.toFixed(1)}% fallback`
                     : "0% fallback"}
                 </p>
+                {fallbackAvgLatency !== null && (
+                  <p className="text-xs text-muted-foreground">
+                    Avg latency: {Math.round(fallbackAvgLatency)} ms
+                  </p>
+                )}
+                {fallbackP95Latency !== null && (
+                  <p className="text-xs text-muted-foreground">
+                    P95 latency: {Math.round(fallbackP95Latency)} ms
+                  </p>
+                )}
+                {fallbackLastEventAt && (
+                  <p className="text-xs text-muted-foreground">
+                    Last fallback: {formatDateTime(fallbackLastEventAt)}
+                  </p>
+                )}
               </div>
             </div>
           )}

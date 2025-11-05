@@ -14,6 +14,11 @@
 **🔄 IN PROGRESS:** Task 5.3
 **⚠️ NEXT:** Execute manual QA checklist once ready
 
+### Working Style Guidance
+- Operate autonomously without pausing for confirmations; document progress directly in this file.
+- Only stop and surface a blocking note if external user action is required (e.g., privileged command, credentials, manual approval).
+- When blocked, clearly state the dependency and resume once the prerequisite is satisfied.
+
 ---
 
 ## Relevant Files
@@ -122,7 +127,7 @@
 - [x] Simplify News article rows to remove redundant expansion (market/watchlist tabs) and keep concise inline summaries.
 - [x] Align watchlist expanded News & Sentiment card layout with the compact row styling.
 - [x] Expose `/api/news/health` endpoint and surface it on `/status` (Chrome DevTools MCP tile).
-- [ ] Emit structured metrics/logs when FinBERT inference falls back to VADER for visibility (include rate, ticker, and latency in structured logger + metrics sink so `/status` can chart it).
+- [x] Emit structured metrics/logs when FinBERT inference falls back to VADER for visibility (include rate, ticker, and latency in structured logger + metrics sink so `/status` can chart it).
 - [ ] Revisit TTL/dedup filters in `NewsService._select_recent_articles` to surface more than 2–3 headlines when source returns 5+; document the new policy and ensure `maxArticles` obeys bundle limits.
 - [ ] Add user-configurable news lookback window (e.g., 6/12/24/48h) surfaced in settings and honored by NewsService/refresh task TTL; persist in prefs and reflect in News Health card.
 - [ ] Implement secondary vendor support (e.g., Polygon, Finnhub, FMP) in `app/sources/*` and aggregate alongside Google News; add toggles + failure fallbacks.
@@ -261,3 +266,27 @@
 - **Watchlist + preference toggles**: Trigger the tab change with `mcp__chrome-devtools__click` on the watchlist toggle, call `mcp__chrome-devtools__wait_for` on a representative ticker label, and drive the `/settings/watchlist` toggle gap with `mcp__chrome-devtools__navigate_page` + `mcp__chrome-devtools__fill`. Revisit `/news` to confirm the disabled-state copy; archive the state using `take_snapshot`.
 - **Agent parity**: Invoke `agent.execute(get_news, ...)` in a shell while the DevTools session remains open and compare payloads by evaluating `window.__DEVTOOLS_MCP_LAST_RESPONSE__` (populated by injecting a helper through `mcp__chrome-devtools__evaluate_script` when needed).
 - **Artifacts**: Generate visuals with `mcp__chrome-devtools__take_screenshot` (market tab, watchlist expanded row, settings toggle before/after). Capture network evidence by running `mcp__chrome-devtools__list_network_requests` after each flow and saving the JSON response as a surrogate HAR. Include snapshots in `docs/qa/NEWS_SURFACE_QA.md`.
+
+### 10. Source Configuration Audit Plan (Task: Audit existing configs)
+- Inventory current provider toggles under `backend/app/config/news_sources.py` (Google News, Polygon, Finnhub, NewsAPI) and confirm each has environment flag + credential mapping documented.
+- For active providers, script `python -m app.scripts.probe_news_provider --provider ...` to validate quota and auth; capture output in `docs/qa/NEWS_SURFACE_QA.md#provider-checks`.
+- Research legal/compliance notes (free-tier vs commercial use) for each provider; summarize allowable usage + attribution requirements in `docs/core/NEWS_FEEDS.md` (new file pending).
+- Flag gaps (e.g., NewsAPI limited categories) and recommend alternate reputable sources; note whether caching layer needs per-provider TTL overrides.
+
+### 11. YFinance Ticker Feed Prototype (Task: Prototype YFinance ingestion)
+- Quick spike script `backend/scripts/yfinance_probe.py` that wraps `yfinance.Ticker("AAPL").news`; log payload shape, rate limits, and headline count.
+- Build adapter skeleton in `backend/app/services/news_sources/yfinance_source.py` returning normalized `NewsHeadline` dataclass; add fixture for deterministic unit tests.
+- Integration test target: `pytest backend/tests/services/test_yfinance_source.py` verifying mapping + graceful handling when `Ticker.get_news()` fails or throttles.
+- Licensing check: confirm Yahoo Finance ToS (non-commercial vs commercial) and add gating flag (`enable_yfinance_news`) so deployments can disable if terms restrict usage.
+
+### 12. FinNews RSS Evaluation (Task: Evaluate FinNews aggregator)
+- Collect feed list + licensing from `https://github.com/philipperemy/fin-news`; confirm MIT license covers redistribution.
+- Prototype fetch using `feedparser` with caching via Redis key `news:finnews:<source>`; document rate-limit consensus to avoid hammering publishers.
+- Decide ingestion shape: either augment existing watchlist feed or treat as supplementary fallback when Google News yields < N items.
+- Outcome doc: expand `docs/core/NEWS_FEEDS.md` with matrix summarizing cadence, coverage, compliance, and integration complexity.
+
+### 13. Code Quality & Release Checklist (Task: Optional code-quality script)
+- Before RC, run `bash ~/.claude/skills/code-quality/scripts/quality-report.sh backend/app` and capture key findings in the QA doc.
+- If lint/test debt uncovered, log follow-up tickets in Linear (tags: `news-surface`, `tech-debt`).
+- Confirm `mypy backend/app --strict` and `npm run lint` pass post-merge; gate release candidate on green.
+- Prep changelog entry referencing news surface launch + FinBERT integration; queue documentation PR once Manual QA (Task 5.3) completes.

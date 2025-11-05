@@ -34,6 +34,9 @@ class FailingAnalyzer:
     def score_batch(self, texts: list[str]):  # pragma: no cover - simple stub
         raise FinBertUnavailableError("finbert unavailable")
 
+    def is_available(self) -> bool:  # pragma: no cover - simple stub
+        return False
+
 
 def _format_gmt(dt: datetime) -> str:
     return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
@@ -124,6 +127,41 @@ def test_news_service_falls_back_to_vader(storage):
     assert bundle.summary.article_count == 1
     assert bundle.summary.model_breakdown.get("vader") == 1
     assert bundle.summary.score is not None and bundle.summary.score < 0
+
+    fallback_meta = bundle.articles[0].raw.get("sentiment_fallback")
+    assert fallback_meta is not None
+    assert fallback_meta.get("reason") == "unavailable"
+    assert fallback_meta.get("rate") == pytest.approx(1.0)
+    assert fallback_meta.get("latency_ms") is not None
+
+
+def test_news_health_reports_fallback_metrics(storage):
+    news_source = MagicMock()
+    seed_entry = _sample_entries()[0]
+    news_source.fetch_headlines.return_value = [copy.deepcopy(seed_entry)]
+
+    failing_finbert = FailingAnalyzer()
+    vader_analyzer = StubAnalyzer(
+        [SentimentScore(score=-0.2, label="negative", confidence=0.6, model="vader")]
+    )
+
+    service = NewsService(
+        storage,
+        ttl=timedelta(hours=6),
+        news_source=news_source,
+        finbert_analyzer=failing_finbert,  # type: ignore[arg-type]
+        fallback_analyzer=vader_analyzer,
+    )
+
+    service.get_symbol_news("GOOG", max_articles=1, force_refresh=True)
+
+    health = service.get_health()
+    assert health["fallback_headlines_24h"] >= 1
+    assert health["headlines_24h"] >= 1
+    assert 0 < health["fallback_rate_24h"] <= 1
+    assert health["fallback_avg_latency_ms_24h"] is not None
+    assert health["fallback_p95_latency_ms_24h"] is not None
+    assert health["fallback_last_event_at"] is not None
 
 
 def test_news_service_tracks_score_change(storage):
