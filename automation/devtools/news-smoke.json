@@ -1,0 +1,56 @@
+{
+  "description": "Chrome DevTools MCP smoke checklist for the News surface",
+  "preconditions": [
+    "Backend API available on http://localhost:8000",
+    "Celery worker and beat running",
+    "Next.js frontend served on http://localhost:3000",
+    "NEXT_PUBLIC_API_URL set to backend origin",
+    "chrome-devtools MCP provider registered in .codex/config.toml"
+  ],
+  "steps": [
+    {
+      "label": "Open News hub",
+      "command": "mcp__chrome-devtools__new_page",
+      "args": {"url": "http://localhost:3000/news"}
+    },
+    {
+      "label": "Wait for Market overview",
+      "command": "mcp__chrome-devtools__wait_for",
+      "args": {"text": "Market Overview", "timeout": 5000}
+    },
+    {
+      "label": "Capture snapshot",
+      "command": "mcp__chrome-devtools__take_snapshot"
+    },
+    {
+      "label": "Validate headline count",
+      "command": "mcp__chrome-devtools__evaluate_script",
+      "args": {
+        "function": "() => ({ headlines: document.querySelectorAll('[data-testid=\\"article-card\\"]').length })"
+      }
+    },
+    {
+      "label": "Switch to watchlist tab",
+      "command": "mcp__chrome-devtools__click",
+      "args": {"text": "My Watchlist"}
+    },
+    {
+      "label": "Toggle preferences in settings",
+      "notes": "Manual: open settings, disable and re-enable watchlist news"
+    },
+    {
+      "label": "Re-run News hub snapshot",
+      "command": "mcp__chrome-devtools__navigate_page",
+      "args": {"type": "reload"}
+    },
+    {
+      "label": "Export network timeline",
+      "command": "mcp__chrome-devtools__list_network_requests"
+    },
+    {
+      "label": "Capture final screenshot",
+      "command": "mcp__chrome-devtools__take_screenshot",
+      "args": {"fullPage": true}
+    }
+  ]
+}

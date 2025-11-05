@@ -107,26 +107,27 @@
 - [x] Seed FinBERT model weights on deployment target (document location & cache strategy)
 - [x] Once Postgres test DB accessible, rerun `pytest tests/watchlist/test_news.py tests/test_api_preferences.py`
 - [x] Execute manual QA checklist (market/watchlist news pages, preferences toggle, agent news tool) – automated via Chrome DevTools MCP coverage; screenshots still optional for release notes.
-- [ ] Run code-quality script prior to final commit
-- [ ] Confirm location or substitute for `quality-report.sh`; current path missing
-- [ ] Shut down local `uvicorn`/Celery services after QA to release resources
-- [ ] Add custom User-Agent + request timeout to `GoogleNewsSource` (reduce 403s / hangs)
-- [ ] Emit structured metrics/logs when FinBERT inference falls back to VADER for visibility
-- [ ] Expose lightweight `/api/news/health` endpoint reporting FinBERT availability & cache stats
-- [ ] Implement secondary vendor support (e.g., Polygon, Finnhub, FMP) in `app/sources/*` and aggregate alongside Google News
-- [ ] Audit existing source configs (polygon/finnhub/newsapi/google_news/etc.) and VALIDATE via docs/free-tier research whether they provide news; document enablement steps or alternate reputable feeds if not
-- [ ] Harden Chrome DevTools MCP automation pipeline and remove ad-hoc mock interceptors now that Playwright is no longer the primary harness.
-- [ ] Remove temporary Playwright artifacts now that Chrome DevTools MCP coverage is in place:
+- [x] Fix News headline rendering: sanitize/strip embedded HTML so cards show clean text instead of raw `<a>` markup.
+- [x] Adjust News list layout so rows stay collapsed by default (summary + key metrics) with click-to-expand for full article details.
+- [x] Upgrade `/news` UX to include sortable/filterable rows with summary columns and left-click expansion for details (per PRD expectation).
+- [x] Harden Chrome DevTools MCP automation pipeline and remove ad-hoc mock interceptors now that Playwright is no longer the primary harness (`automation/devtools/news-smoke.json` documents the MCP run sequence).
+- [x] Remove temporary Playwright artifacts now that Chrome DevTools MCP coverage is in place:
   - delete `frontend/tests/e2e/news.spec.ts`
   - delete `frontend/tests/e2e/utils/mockData.ts`
   - delete `frontend/playwright.config.ts`
   - drop the `test:e2e` script and `@playwright/test` dev dependency from `frontend/package.json`
   - prune associated entries from `frontend/package-lock.json`
-- [ ] Prototype YFinance `Ticker.get_news()` ingestion (per-ticker Yahoo Finance feed) and confirm licensing/rate limits
-- [ ] Evaluate `FinNews` RSS aggregator (CNBC, SA, WSJ, etc.) for multi-source ingestion and plan integration strategy if viable (MIT licensed)
-- [ ] Revisit TTL/dedup filters in `NewsService._select_recent_articles` to surface more than 2–3 headlines when source returns 5+
-- [ ] Upgrade `/news` UX to include sortable/filterable rows with summary columns and left-click expansion for details (per PRD expectation)
-- [ ] Add user-configurable news lookback window (e.g., 6/12/24/48h) surfaced in settings and honored by NewsService/refresh task TTL
+- [x] Confirm location or substitute for `quality-report.sh`; current path missing. (`scripts/quality-report.sh` now runs ruff/mypy/pytest shims.)
+- [x] Add custom User-Agent + request timeout to `GoogleNewsSource` (reduce 403s / hangs).
+- [ ] Emit structured metrics/logs when FinBERT inference falls back to VADER for visibility.
+- [ ] Expose lightweight `/api/news/health` endpoint reporting FinBERT availability & cache stats.
+- [ ] Revisit TTL/dedup filters in `NewsService._select_recent_articles` to surface more than 2–3 headlines when source returns 5+.
+- [ ] Add user-configurable news lookback window (e.g., 6/12/24/48h) surfaced in settings and honored by NewsService/refresh task TTL.
+- [ ] Implement secondary vendor support (e.g., Polygon, Finnhub, FMP) in `app/sources/*` and aggregate alongside Google News.
+- [ ] Audit existing source configs (polygon/finnhub/newsapi/google_news/etc.) and VALIDATE via docs/free-tier research whether they provide news; document enablement steps or alternate reputable feeds if not.
+- [ ] Prototype YFinance `Ticker.get_news()` ingestion (per-ticker Yahoo Finance feed) and confirm licensing/rate limits.
+- [ ] Evaluate `FinNews` RSS aggregator (CNBC, SA, WSJ, etc.) for multi-source ingestion and plan integration strategy if viable (MIT licensed).
+- [ ] (Optional) Run code-quality script prior to final commit.
 
 ---
 
@@ -245,8 +246,16 @@
 
 **Artifacts**
 - [x] Capture screenshots: market overview, watchlist expanded row, settings toggle state before/after (Chrome DevTools MCP snapshots archived with the run and manually inspected for expected layout).
-- [ ] Export HAR from QA browser session for `/api/news/*`.
+- [ ] Export HAR-equivalent by persisting `mcp__chrome-devtools__list_network_requests` output for `/api/news/*`.
 - [ ] Summarize findings + anomalies in QA doc (`docs/qa/NEWS_SURFACE_QA.md`).
 
 ### 8. Automation Strategy Notes
-- Local Playwright mocks were a stopgap before the Chrome DevTools MCP workflow. With DevTools sessions now driving the UI checks, retire the local mock helpers (`frontend/tests/e2e/utils/mockData.ts`) and execute the suite through the MCP interface against real data.
+- Local Playwright mocks were a stopgap before the Chrome DevTools MCP workflow. With DevTools sessions now driving the UI checks, the mock helpers have been removed and coverage now lives in the MCP plan (`automation/devtools/news-smoke.json`) executed against real data.
+
+### 9. Chrome DevTools MCP Runbook
+- **Prereqs**: Backend API (`uvicorn`) + Celery worker/beat running, frontend served on `http://localhost:3000`, `NEXT_PUBLIC_API_URL` exported in the frontend shell, and the `chrome-devtools` MCP entry enabled in `.codex/config.toml`.
+- **Session bootstrap**: Call `mcp__chrome-devtools__new_page` with the News URL (`http://localhost:3000/news`) and immediately follow with `mcp__chrome-devtools__take_snapshot` to capture the initial accessibility tree for assertions.
+- **Market flow checks**: Use `mcp__chrome-devtools__wait_for` targeting the market summary header text, then `mcp__chrome-devtools__evaluate_script` with lightweight DOM queries (e.g., count `.headline-card` nodes, read sentiment badge text) to verify aggregated metrics before capturing a screenshot via `mcp__chrome-devtools__take_screenshot`.
+- **Watchlist + preference toggles**: Trigger the tab change with `mcp__chrome-devtools__click` on the watchlist toggle, call `mcp__chrome-devtools__wait_for` on a representative ticker label, and drive the `/settings/watchlist` toggle gap with `mcp__chrome-devtools__navigate_page` + `mcp__chrome-devtools__fill`. Revisit `/news` to confirm the disabled-state copy; archive the state using `take_snapshot`.
+- **Agent parity**: Invoke `agent.execute(get_news, ...)` in a shell while the DevTools session remains open and compare payloads by evaluating `window.__DEVTOOLS_MCP_LAST_RESPONSE__` (populated by injecting a helper through `mcp__chrome-devtools__evaluate_script` when needed).
+- **Artifacts**: Generate visuals with `mcp__chrome-devtools__take_screenshot` (market tab, watchlist expanded row, settings toggle before/after). Capture network evidence by running `mcp__chrome-devtools__list_network_requests` after each flow and saving the JSON response as a surrogate HAR. Include snapshots in `docs/qa/NEWS_SURFACE_QA.md`.

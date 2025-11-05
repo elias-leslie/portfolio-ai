@@ -10,6 +10,8 @@ import {
   TrendingUp,
   TrendingDown,
   ExternalLink,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import {
   useMarketNews,
@@ -21,6 +23,27 @@ import { useWatchlist } from "@/lib/hooks/useWatchlist";
 import { usePreferences } from "@/lib/hooks/usePreferences";
 
 const DEFAULT_ACCOUNT_ID = "default";
+
+function sanitizeText(input?: string | null): string {
+  if (!input) return "";
+  const value = input.trim();
+  if (!value) return "";
+
+  try {
+    if (typeof window !== "undefined" && typeof window.DOMParser !== "undefined") {
+      const parser = new window.DOMParser();
+      const doc = parser.parseFromString(value, "text/html");
+      const text = doc.body?.textContent ?? "";
+      if (text) {
+        return text.replace(/\s+/g, " ").trim();
+      }
+    }
+  } catch {
+    // Fall back to regex stripping below
+  }
+
+  return value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
 
 function formatSentimentScore(score?: number | null) {
   if (score === null || score === undefined || Number.isNaN(score)) {
@@ -102,6 +125,12 @@ function ArticleList({
   articles: SentimentArticle[];
   maxArticles?: number;
 }) {
+  const [expandedArticleId, setExpandedArticleId] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<"recent" | "sentiment" | "confidence">("recent");
+  const [activeSentiments, setActiveSentiments] = useState<
+    Array<"positive" | "neutral" | "negative">
+  >([]);
+
   if (!articles.length) {
     return (
       <p className="text-xs text-text-muted" data-testid="no-headlines">
@@ -110,70 +139,213 @@ function ArticleList({
     );
   }
 
-  const limited = articles.slice(0, maxArticles);
+  const toggleArticle = (id: string) => {
+    setExpandedArticleId((prev) => (prev === id ? null : id));
+  };
+
+  const toggleSentiment = (sentiment: "positive" | "neutral" | "negative") => {
+    setActiveSentiments((prev) => {
+      if (prev.includes(sentiment)) {
+        return prev.filter((item) => item !== sentiment);
+      }
+      return [...prev, sentiment];
+    });
+  };
+
+  const processedArticles = useMemo(() => {
+    const filtered =
+      activeSentiments.length === 0
+        ? articles
+        : articles.filter((article) =>
+            activeSentiments.includes(article.sentiment.label)
+          );
+
+    const getTimestamp = (article: SentimentArticle) => {
+      const value = article.published_at ?? article.fetched_at;
+      return value ? new Date(value).getTime() : 0;
+    };
+
+    const sorted = [...filtered].sort((a, b) => {
+      if (sortBy === "sentiment") {
+        const aScore = a.sentiment.score ?? -Infinity;
+        const bScore = b.sentiment.score ?? -Infinity;
+        return bScore - aScore;
+      }
+      if (sortBy === "confidence") {
+        const aConfidence = a.sentiment.confidence ?? -Infinity;
+        const bConfidence = b.sentiment.confidence ?? -Infinity;
+        return bConfidence - aConfidence;
+      }
+      return getTimestamp(b) - getTimestamp(a);
+    });
+
+    return sorted;
+  }, [articles, activeSentiments, sortBy]);
+
+  const visibleArticles = processedArticles.slice(0, maxArticles);
+  const filteredCount = processedArticles.length;
+  const filtersActive = activeSentiments.length > 0;
+
   return (
     <div className="space-y-2">
-      {limited.map((article) => (
-        <div
-          key={`${article.content_hash}-${article.headline}`}
-          className="rounded-md border border-border bg-surface-muted/30 p-3"
-          data-testid="article-card"
-        >
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="flex-1 space-y-1">
-              {article.url ? (
-                <a
-                  href={article.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
-                >
-                  {article.headline}
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              ) : (
-                <p className="text-sm font-semibold text-text">{article.headline}</p>
-              )}
-              <div className="flex flex-wrap items-center gap-3 text-xs text-text-muted">
-                {article.source && <span>{article.source}</span>}
-                {(article.published_at || article.fetched_at) && (
-                  <span>
-                    {formatTimestamp(article.published_at ?? article.fetched_at)}
-                  </span>
-                )}
-              </div>
-              {article.summary && (
-                <p className="text-xs text-text-muted leading-relaxed">
-                  {article.summary}
-                </p>
-              )}
-            </div>
-            <div className="flex flex-col items-end gap-2 text-xs">
-              <Badge variant={getBadgeVariantFromLabel(article.sentiment.label)}>
-                {article.sentiment.label.toUpperCase()}
-              </Badge>
-              <span className="text-text font-semibold">
-                {formatSentimentScore(article.sentiment.score)}
-              </span>
-              <span className="text-text-muted">
-                Confidence {formatConfidence(article.sentiment.confidence)}
-              </span>
-              <Badge
-                variant={
-                  article.sentiment.model === "finbert" ? "secondary" : "loss"
-                }
-              >
-                {article.sentiment.model.toUpperCase()}
-              </Badge>
-            </div>
-          </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-surface-muted/20 px-3 py-2 text-xs">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-semibold uppercase tracking-wide text-[11px] text-text-muted">
+            Sort
+          </span>
+          {[
+            { key: "recent", label: "Latest" },
+            { key: "sentiment", label: "Sentiment" },
+            { key: "confidence", label: "Confidence" },
+          ].map((option) => (
+            <Button
+              key={option.key}
+              variant={sortBy === option.key ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setSortBy(option.key as typeof sortBy)}
+            >
+              {option.label}
+            </Button>
+          ))}
         </div>
-      ))}
-      {articles.length > maxArticles && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-semibold uppercase tracking-wide text-[11px] text-text-muted">
+            Filter
+          </span>
+          {(["positive", "neutral", "negative"] as const).map((sentiment) => {
+            const isActive = activeSentiments.includes(sentiment);
+            return (
+              <Button
+                key={sentiment}
+                variant={isActive ? "default" : "outline"}
+                size="sm"
+                onClick={() => toggleSentiment(sentiment)}
+                className="capitalize"
+              >
+                {sentiment}
+              </Button>
+            );
+          })}
+          {filtersActive && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setActiveSentiments([])}
+              className="text-text-muted"
+            >
+              Clear
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {filteredCount === 0 && (
         <p className="text-xs text-text-muted">
-          Showing {maxArticles} of {articles.length} headlines
+          No headlines match the selected filters.
         </p>
       )}
+
+      {visibleArticles.map((article) => {
+        const articleId = `${article.content_hash}-${article.headline}`;
+        const isExpanded = expandedArticleId === articleId;
+        const sanitizedHeadline = sanitizeText(article.headline);
+        return (
+          <div
+            key={articleId}
+            className="rounded-md border border-border bg-surface-muted/30 p-3"
+            data-testid="article-card"
+          >
+            <div className="flex items-start gap-2">
+              <button
+                type="button"
+                onClick={() => toggleArticle(articleId)}
+                aria-expanded={isExpanded}
+                aria-controls={`${articleId}-details`}
+                className="mt-1 inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border border-border bg-surface-muted text-text-muted transition hover:text-text focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                {isExpanded ? (
+                  <ChevronDown className="h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                )}
+                <span className="sr-only">
+                  {isExpanded ? "Collapse headline details" : "Expand headline details"}
+                </span>
+              </button>
+
+              <div className="flex-1 space-y-2">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex-1 min-w-[200px] space-y-1">
+                    {article.url ? (
+                      <a
+                        href={article.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
+                      >
+                        {sanitizedHeadline}
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    ) : (
+                      <p className="text-sm font-semibold text-text">{sanitizedHeadline}</p>
+                    )}
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-text-muted">
+                      {article.source && <span>{article.source}</span>}
+                      {(article.published_at || article.fetched_at) && (
+                        <span>
+                          {formatTimestamp(article.published_at ?? article.fetched_at)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1 text-xs min-w-[120px]">
+                    <Badge variant={getBadgeVariantFromLabel(article.sentiment.label)}>
+                      {article.sentiment.label.toUpperCase()}
+                    </Badge>
+                    <span className="text-text font-semibold">
+                      {formatSentimentScore(article.sentiment.score)}
+                    </span>
+                    <span className="text-text-muted">
+                      Confidence {formatConfidence(article.sentiment.confidence)}
+                    </span>
+                  </div>
+                </div>
+
+                {isExpanded && (
+                  <div
+                    id={`${articleId}-details`}
+                    className="space-y-2 text-xs text-text-muted leading-relaxed"
+                  >
+                    {article.summary && (
+                      <p className="text-text-muted">{sanitizeText(article.summary)}</p>
+                    )}
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Badge
+                        variant={
+                          article.sentiment.model === "finbert" ? "secondary" : "loss"
+                        }
+                      >
+                        {article.sentiment.model.toUpperCase()}
+                      </Badge>
+                      {article.author && <span>By {article.author}</span>}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+
+      {filteredCount > maxArticles ? (
+        <p className="text-xs text-text-muted">
+          Showing {maxArticles} of {filteredCount} headlines
+        </p>
+      ) : filteredCount > 0 ? (
+        <p className="text-xs text-text-muted">
+          Showing {filteredCount} {filteredCount === 1 ? "headline" : "headlines"}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -250,7 +422,7 @@ function NewsBundleCard({ bundle, title }: { bundle: NewsBundle; title: string }
               Top Positive
             </p>
             <p className="text-text">
-              {bundle.summary.top_positive.headline}
+              {sanitizeText(bundle.summary.top_positive.headline)}
             </p>
           </div>
         )}
@@ -262,7 +434,7 @@ function NewsBundleCard({ bundle, title }: { bundle: NewsBundle; title: string }
               Top Negative
             </p>
             <p className="text-text">
-              {bundle.summary.top_negative.headline}
+              {sanitizeText(bundle.summary.top_negative.headline)}
             </p>
           </div>
         )}

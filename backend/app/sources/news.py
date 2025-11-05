@@ -9,7 +9,9 @@ import time
 from importlib import import_module
 from types import ModuleType
 from typing import Any
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
 from ..logging_config import get_logger
 
@@ -27,6 +29,8 @@ class GoogleNewsSource:
         """Initialize Google News source."""
         self.rate_limit_delay = 2.0  # 2 seconds between requests
         self.last_request_time = 0.0
+        self.user_agent = "PortfolioAI-NewsFetcher/1.0 (+https://github.com/kasadis/portfolio-ai)"
+        self.request_timeout = 10.0
 
     def is_enabled(self) -> bool:
         """Google News RSS is always available (no auth required)."""
@@ -56,17 +60,8 @@ class GoogleNewsSource:
         self._rate_limit_wait()
 
         try:
-            # Build RSS feed URL
-            params = {
-                "q": query,
-                "hl": "en-US",
-                "gl": "US",
-                "ceid": "US:en",
-            }
-            url = f"{self.BASE_URL}?{urlencode(params)}"
-
-            # Fetch and parse RSS feed
-            feed = feedparser.parse(url)
+            url = self._build_request_url(query)
+            feed = self._fetch_feed(url)
 
             headlines = []
             for entry in feed.entries[:max_results]:
@@ -82,9 +77,33 @@ class GoogleNewsSource:
             logger.info(f"Fetched {len(headlines)} headlines for query: {query}")
             return headlines
 
-        except Exception as e:
+        except (TimeoutError, HTTPError, URLError) as e:
             logger.error(f"Failed to fetch news for {query}: {e}")
             return []
+        except Exception as e:  # pragma: no cover - unexpected failure
+            logger.exception(f"Unexpected error fetching news for {query}: {e}")
+            return []
+
+    def _build_request_url(self, query: str) -> str:
+        params = {
+            "q": query,
+            "hl": "en-US",
+            "gl": "US",
+            "ceid": "US:en",
+        }
+        return f"{self.BASE_URL}?{urlencode(params)}"
+
+    def _fetch_feed(self, url: str) -> Any:
+        request = Request(
+            url,
+            headers={
+                "User-Agent": self.user_agent,
+                "Accept": "application/rss+xml, application/xml;q=0.9, */*;q=0.8",
+            },
+        )
+        with urlopen(request, timeout=self.request_timeout) as response:
+            data = response.read()
+        return feedparser.parse(data)
 
     def fetch_market_headlines(self, max_results: int = 10) -> list[dict[str, Any]]:
         """Fetch general market headlines.
