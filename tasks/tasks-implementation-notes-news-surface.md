@@ -122,13 +122,13 @@
 - [x] Simplify News article rows to remove redundant expansion (market/watchlist tabs) and keep concise inline summaries.
 - [x] Align watchlist expanded News & Sentiment card layout with the compact row styling.
 - [x] Expose `/api/news/health` endpoint and surface it on `/status` (Chrome DevTools MCP tile).
-- [ ] Emit structured metrics/logs when FinBERT inference falls back to VADER for visibility.
-- [ ] Revisit TTL/dedup filters in `NewsService._select_recent_articles` to surface more than 2–3 headlines when source returns 5+.
-- [ ] Add user-configurable news lookback window (e.g., 6/12/24/48h) surfaced in settings and honored by NewsService/refresh task TTL.
-- [ ] Implement secondary vendor support (e.g., Polygon, Finnhub, FMP) in `app/sources/*` and aggregate alongside Google News.
-- [ ] Audit existing source configs (polygon/finnhub/newsapi/google_news/etc.) and VALIDATE via docs/free-tier research whether they provide news; document enablement steps or alternate reputable feeds if not.
-- [ ] Prototype YFinance `Ticker.get_news()` ingestion (per-ticker Yahoo Finance feed) and confirm licensing/rate limits.
-- [ ] Evaluate `FinNews` RSS aggregator (CNBC, SA, WSJ, etc.) for multi-source ingestion and plan integration strategy if viable (MIT licensed).
+- [ ] Emit structured metrics/logs when FinBERT inference falls back to VADER for visibility (include rate, ticker, and latency in structured logger + metrics sink so `/status` can chart it).
+- [ ] Revisit TTL/dedup filters in `NewsService._select_recent_articles` to surface more than 2–3 headlines when source returns 5+; document the new policy and ensure `maxArticles` obeys bundle limits.
+- [ ] Add user-configurable news lookback window (e.g., 6/12/24/48h) surfaced in settings and honored by NewsService/refresh task TTL; persist in prefs and reflect in News Health card.
+- [ ] Implement secondary vendor support (e.g., Polygon, Finnhub, FMP) in `app/sources/*` and aggregate alongside Google News; add toggles + failure fallbacks.
+- [ ] Audit existing source configs (polygon/finnhub/newsapi/google_news/etc.) and VALIDATE via docs/free-tier research whether they provide news; document enablement steps or alternate reputable feeds if not (include legal/compliance notes).
+- [ ] Prototype YFinance `Ticker.get_news()` ingestion (per-ticker Yahoo Finance feed) and confirm licensing/rate limits; build adapter + integration tests.
+- [ ] Evaluate `FinNews` RSS aggregator (CNBC, SA, WSJ, etc.) for multi-source ingestion and plan integration strategy if viable (MIT licensed) including caching strategy + API limits.
 - [ ] (Optional) Run code-quality script prior to final commit.
 
 ---
