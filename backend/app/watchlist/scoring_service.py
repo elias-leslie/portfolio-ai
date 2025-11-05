@@ -21,6 +21,7 @@ import redis
 
 from ..logging_config import get_logger
 from ..portfolio.price_fetcher import PriceDataFetcher
+from ..services import NewsService
 from ..storage import PortfolioStorage
 from .models import ScoreWeights, TechnicalSnapshot
 from .refresh_processor import detect_missing_historical_data, process_ticker_snapshot
@@ -268,6 +269,7 @@ def refresh_watchlist_scores(
         logger.warning("Failed to initialize Redis refresh status", error=str(e))
 
     fetcher = price_fetcher or PriceDataFetcher(storage)
+    news_service = NewsService(storage)
     technical_map = _load_latest_technical(storage, symbols)
     default_weights = _load_default_weights(storage)
     stale_ttl_minutes = _load_stale_ttl_minutes(storage)
@@ -355,6 +357,7 @@ def refresh_watchlist_scores(
                 stale_ttl_minutes=stale_ttl_minutes,
                 risk_budget=risk_budget,
                 now=now,
+                news_service=news_service,
             )
 
             storage.query_mgr.upsert_watchlist_snapshot(**snapshot.to_upsert_params())

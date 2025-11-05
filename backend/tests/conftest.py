@@ -49,6 +49,8 @@ TABLES_TO_CLEAN = [
     "technical_indicators",
     "price_cache",
     "reference_cache",
+    "news_cache",
+    "news_summary_log",
     # Source metadata
     "source_performance",
     "validation_results",

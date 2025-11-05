@@ -25,6 +25,7 @@ export interface PreferencesResponse {
   watchlist_price_weight: number;
   watchlist_technical_weight: number;
   display_timezone: string;
+  watchlist_show_news: boolean;
 }
 
 export interface PreferencesUpdate {
@@ -47,6 +48,7 @@ export interface PreferencesUpdate {
   watchlist_price_weight?: number;
   watchlist_technical_weight?: number;
   display_timezone?: string;
+  watchlist_show_news?: boolean;
 }
 
 /**

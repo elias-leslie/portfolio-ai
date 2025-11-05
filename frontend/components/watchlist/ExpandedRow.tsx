@@ -7,7 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 // TEMPORARILY DISABLED: Sparkline - re-enable after 90 days of data
 // import { Sparkline } from "@/components/ui/sparkline";
-import { Save, Edit2, X, Loader2 } from "lucide-react";
+import {
+  Save,
+  Edit2,
+  X,
+  Loader2,
+  TrendingUp,
+  TrendingDown,
+  ExternalLink,
+} from "lucide-react";
 // TEMPORARILY DISABLED: Score history - re-enable with sparklines
 // import { useUpdateWatchlistItem, useScoreHistory } from "@/lib/hooks/useWatchlist";
 import { useUpdateWatchlistItem } from "@/lib/hooks/useWatchlist";
@@ -32,6 +40,20 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
   // const history = historyResponse?.history || [];
   const priceScore = item.current_score?.price;
   const techScore = item.current_score?.technical;
+  const showNews = preferences?.watchlist_show_news ?? true;
+  const newsSummary = item.recent_news?.summary;
+  const newsArticles = item.recent_news?.articles ?? [];
+  const totalModelCoverage =
+    newsSummary && newsSummary.model_breakdown
+      ? Object.values(newsSummary.model_breakdown).reduce(
+          (sum, value) => sum + value,
+          0
+        )
+      : 0;
+  const finbertCoverage =
+    newsSummary?.model_breakdown?.finbert ?? 0;
+  const fallbackCoverage = Math.max(totalModelCoverage - finbertCoverage, 0);
+  const maxNewsArticles = Math.min(newsArticles.length, 5);
 
   // Check if this item is currently being refreshed
   const isRefreshing =
@@ -58,6 +80,64 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
   const handleCancelEdit = () => {
     setNoteValue(item.note || "");
     setIsEditingNote(false);
+  };
+
+  const formatSentimentScore = (score?: number | null) => {
+    if (score === null || score === undefined || Number.isNaN(score)) {
+      return "—";
+    }
+    const rounded = score.toFixed(2);
+    return score > 0 ? `+${rounded}` : rounded;
+  };
+
+  const getBadgeVariantFromScore = (
+    score?: number | null
+  ): "gain" | "loss" | "neutral" => {
+    if (score === null || score === undefined) return "neutral";
+    if (score > 0.1) return "gain";
+    if (score < -0.1) return "loss";
+    return "neutral";
+  };
+
+  const getBadgeVariantFromLabel = (
+    label?: string | null
+  ): "gain" | "loss" | "neutral" => {
+    switch (label) {
+      case "positive":
+        return "gain";
+      case "negative":
+        return "loss";
+      default:
+        return "neutral";
+    }
+  };
+
+  const formatScoreChange = (change?: number | null) => {
+    if (change === null || change === undefined || Number.isNaN(change)) {
+      return null;
+    }
+    const formatted = change.toFixed(2);
+    return change >= 0 ? `+${formatted}` : formatted;
+  };
+
+  const formatConfidence = (confidence?: number) => {
+    if (confidence === null || confidence === undefined || Number.isNaN(confidence)) {
+      return "—";
+    }
+    return `${Math.round(confidence * 100)}%`;
+  };
+
+  const formatModelCoverage = () => {
+    if (totalModelCoverage === 0) {
+      return "No articles scored";
+    }
+    if (finbertCoverage === totalModelCoverage) {
+      return "FinBERT coverage";
+    }
+    if (finbertCoverage === 0) {
+      return "Fallback sentiment (VADER)";
+    }
+    return `FinBERT ${finbertCoverage}/${totalModelCoverage}`;
   };
 
   // Get score badge variant
@@ -351,6 +431,161 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
                 ⚠️ This is automated analysis. Always do your own research and consider your risk tolerance before trading.
               </div>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {showNews && (newsSummary || newsArticles.length > 0) && (
+        <Card className="border-border">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">News &amp; Sentiment</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {newsSummary ? (
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-text-muted">
+                    Sentiment Score
+                  </p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <Badge variant={getBadgeVariantFromScore(newsSummary.score)}>
+                      {formatSentimentScore(newsSummary.score)}
+                    </Badge>
+                    {newsSummary.score_change !== null &&
+                      newsSummary.score_change !== undefined && (
+                        <span
+                          className={`inline-flex items-center text-xs font-medium ${
+                            newsSummary.score_change >= 0 ? "text-gain" : "text-loss"
+                          }`}
+                        >
+                          {newsSummary.score_change >= 0 ? (
+                            <TrendingUp className="mr-1 h-3 w-3" />
+                          ) : (
+                            <TrendingDown className="mr-1 h-3 w-3" />
+                          )}
+                          {formatScoreChange(newsSummary.score_change)}
+                        </span>
+                      )}
+                  </div>
+                  {newsSummary.latest_published_at && (
+                    <p className="mt-1 text-xs text-text-muted">
+                      Latest headline:{" "}
+                      <span className="font-medium text-text">
+                        {formatTimestamp(newsSummary.latest_published_at)}
+                      </span>
+                    </p>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-6 text-xs text-text-muted">
+                  <div>
+                    <p className="font-semibold text-text">Headline Mix</p>
+                    <p>
+                      Positive:{" "}
+                      <span className="font-medium text-gain">
+                        {newsSummary.positive_count}
+                      </span>
+                    </p>
+                    <p>
+                      Neutral:{" "}
+                      <span className="font-medium text-text">
+                        {newsSummary.neutral_count}
+                      </span>
+                    </p>
+                    <p>
+                      Negative:{" "}
+                      <span className="font-medium text-loss">
+                        {newsSummary.negative_count}
+                      </span>
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-text">Model Coverage</p>
+                    <p>{formatModelCoverage()}</p>
+                    {fallbackCoverage > 0 && (
+                      <p className="text-xs text-text-muted">
+                        {fallbackCoverage} headline{fallbackCoverage === 1 ? "" : "s"} scored
+                        with fallback model
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-text-muted">
+                No scored headlines in the past 6 hours.
+              </p>
+            )}
+
+            {newsArticles.length > 0 && (
+              <div className="space-y-2">
+                {newsArticles.slice(0, maxNewsArticles).map((article) => (
+                  <div
+                    key={`${article.content_hash}-${article.headline}`}
+                    className="rounded-md border border-border bg-surface-muted/30 p-3"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="flex-1 space-y-1">
+                        {article.url ? (
+                          <a
+                            href={article.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
+                          >
+                            {article.headline}
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        ) : (
+                          <p className="text-sm font-semibold text-text">
+                            {article.headline}
+                          </p>
+                        )}
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-text-muted">
+                          {article.source && (
+                            <span>{article.source}</span>
+                          )}
+                          {(article.published_at || article.fetched_at) && (
+                            <span>
+                              {formatTimestamp(
+                                article.published_at ?? article.fetched_at
+                              )}
+                            </span>
+                          )}
+                        </div>
+                        {article.summary && (
+                          <p className="text-xs text-text-muted leading-relaxed">
+                            {article.summary}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-end gap-2 text-xs">
+                        <Badge variant={getBadgeVariantFromLabel(article.sentiment.label)}>
+                          {article.sentiment.label.toUpperCase()}
+                        </Badge>
+                        <span className="text-text font-semibold">
+                          {formatSentimentScore(article.sentiment.score)}
+                        </span>
+                        <span className="text-text-muted">
+                          Confidence {formatConfidence(article.sentiment.confidence)}
+                        </span>
+                        <Badge
+                          variant={
+                            article.sentiment.model === "finbert" ? "secondary" : "loss"
+                          }
+                        >
+                          {article.sentiment.model.toUpperCase()}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {newsArticles.length > maxNewsArticles && (
+                  <p className="text-xs text-text-muted">
+                    Showing {maxNewsArticles} of {newsArticles.length} headlines
+                  </p>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

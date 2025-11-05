@@ -18,6 +18,7 @@ from app.api import (
     ideas,
     indicators,
     market,
+    news,
     portfolio,
     preferences,
     status,
@@ -112,6 +113,7 @@ app.include_router(celery_endpoints.router)
 app.include_router(portfolio.router)
 app.include_router(ideas.router)
 app.include_router(market.router)
+app.include_router(news.router)
 app.include_router(preferences.router)
 app.include_router(analytics.router)
 app.include_router(indicators.router)

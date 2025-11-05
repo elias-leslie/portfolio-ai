@@ -105,15 +105,13 @@ celery_app.conf.beat_schedule = {
     #     "options": {"expires": 120},  # noqa: ERA001
     #     # Task checks: portfolio_refresh_override → default_refresh_minutes → 15 min
     # },
-    # Future: News sentiment refresh
-    # Note: Commented example for future implementation
-    # "refresh-news-sentiment": {
-    #     "task": "refresh_news_sentiment",  # noqa: ERA001
-    #     "schedule": 60.0,  # Poll every 60 seconds  # noqa: ERA001
-    #     "args": ["default"],  # noqa: ERA001
-    #     "options": {"expires": 120},  # noqa: ERA001
-    #     # Task checks: news_refresh_override → default_refresh_minutes → 15 min
-    # },
+    "refresh-news-sentiment": {
+        "task": "refresh_news_sentiment",
+        "schedule": 60.0,
+        "args": ["default"],
+        "options": {"expires": 120},
+        # Task checks: news_refresh_override → default_refresh_minutes → 15 min
+    },
     # ============================================================================
     # STATIC SCHEDULE TASKS (NOT CONFIGURABLE)
     # ============================================================================
@@ -143,5 +141,6 @@ from app.tasks import (  # noqa: E402, F401
     agent_tasks,
     data_ingestion_tasks,
     indicator_tasks,
+    news_tasks,
     watchlist_tasks,
 )

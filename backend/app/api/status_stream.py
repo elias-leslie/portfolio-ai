@@ -49,7 +49,7 @@ def gather_comprehensive_status() -> dict[str, Any]:
     }
 
 
-async def status_event_stream() -> AsyncGenerator[str]:
+async def status_event_stream(max_iterations: int | None = None) -> AsyncGenerator[str]:
     """Generate Server-Sent Events stream for status updates.
 
     Yields SSE-formatted messages every 2 seconds with current system status.
@@ -59,7 +59,10 @@ async def status_event_stream() -> AsyncGenerator[str]:
         SSE-formatted strings: "data: {json}\n\n"
     """
     try:
+        count = 0
         while True:
+            if max_iterations is not None and count >= max_iterations:
+                break
             # Gather current status
             status_data = gather_comprehensive_status()
 
@@ -68,6 +71,8 @@ async def status_event_stream() -> AsyncGenerator[str]:
             sse_message = f"data: {json_str}\n\n"
 
             yield sse_message
+
+            count += 1
 
             # Wait 2 seconds before next update
             await asyncio.sleep(2)

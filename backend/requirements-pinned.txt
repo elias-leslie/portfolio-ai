@@ -95,3 +95,7 @@ wcwidth==0.2.14
 websockets==15.0.1
 wheel==0.45.1
 yfinance==0.2.66
+huggingface-hub==0.26.3
+tokenizers==0.20.3
+torch==2.5.1
+transformers==4.46.3

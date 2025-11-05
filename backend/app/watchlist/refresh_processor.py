@@ -12,6 +12,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from ..logging_config import get_logger
+from ..services import NewsService
 from ..storage import PortfolioStorage
 from ..utils.market_hours import is_stale
 from .calculator import (
@@ -38,7 +39,6 @@ from .narrative import (
     generate_position_sizing_text,
     generate_special_notes,
 )
-from .news import fetch_news_headlines_cached
 from .scoring import calculate_watchlist_scores
 
 logger = get_logger(__name__)
@@ -180,6 +180,7 @@ def process_ticker_snapshot(
     stale_ttl_minutes: int,
     risk_budget: float,
     now: datetime,
+    news_service: NewsService,
 ) -> WatchlistSnapshot:
     """Process a single ticker and generate its watchlist snapshot.
 
@@ -196,6 +197,7 @@ def process_ticker_snapshot(
         stale_ttl_minutes: Staleness threshold in minutes
         risk_budget: Risk budget for position sizing
         now: Current timestamp (UTC)
+        news_service: NewsService instance for fetching scored news
 
     Returns:
         WatchlistSnapshot ready to be persisted
@@ -334,23 +336,20 @@ def process_ticker_snapshot(
         result = conn.execute(sma_5_prev_query, (symbol, prev_date)).fetchone()
         sma_5_prev = result[0] if result else None
 
-    # Fetch news (cached 6 hours)
+    # Fetch sentiment-scored news bundle
     news_sentiment_value: float | None = None
     recent_news_value: dict[str, Any] | None = None
-    with storage.connection() as conn:
-        try:
-            news_headlines = fetch_news_headlines_cached(conn, symbol, max_results=10, ttl_hours=6)
-            if news_headlines:
-                avg_sentiment = sum(h.sentiment_score for h in news_headlines) / len(news_headlines)
-                news_sentiment_value = avg_sentiment
-                recent_news_value = {"headlines": [h.model_dump() for h in news_headlines[:5]]}
-            else:
-                news_sentiment_value = None
-                recent_news_value = None
-        except Exception as e:
-            logger.warning("news_fetch_failed", symbol=symbol, error=str(e))
-            news_sentiment_value = None
-            recent_news_value = None
+    try:
+        news_bundle = news_service.get_symbol_news(symbol, max_articles=10)
+        news_sentiment_value = news_bundle.summary.score
+        recent_news_value = {
+            "summary": news_bundle.summary.model_dump(mode="json"),
+            "articles": [article.model_dump(mode="json") for article in news_bundle.articles[:5]],
+        }
+    except Exception as exc:  # pragma: no cover - downstream services may fail
+        logger.warning("news_fetch_failed", symbol=symbol, error=str(exc))
+        news_sentiment_value = None
+        recent_news_value = None
 
     # Generate narrative intelligence
     signal_inputs = {

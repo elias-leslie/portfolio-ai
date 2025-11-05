@@ -34,6 +34,12 @@ export function WatchlistPreferences({
   const [watchlistOverride, setWatchlistOverride] = useState(
     preferences.watchlist_refresh_override ?? preferences.default_refresh_minutes
   );
+  const [useNewsOverride, setUseNewsOverride] = useState(
+    preferences.news_refresh_override !== null
+  );
+  const [newsOverride, setNewsOverride] = useState(
+    preferences.news_refresh_override ?? preferences.default_refresh_minutes
+  );
 
   // Legacy watchlist settings
   const [autoExpand, setAutoExpand] = useState(
@@ -45,6 +51,7 @@ export function WatchlistPreferences({
   const [technicalWeight, setTechnicalWeight] = useState(
     preferences.watchlist_technical_weight
   );
+  const [showNews, setShowNews] = useState(preferences.watchlist_show_news);
 
   // Update local state when preferences change
   useEffect(() => {
@@ -53,18 +60,27 @@ export function WatchlistPreferences({
     setWatchlistOverride(
       preferences.watchlist_refresh_override ?? preferences.default_refresh_minutes
     );
+    setUseNewsOverride(preferences.news_refresh_override !== null);
+    setNewsOverride(
+      preferences.news_refresh_override ?? preferences.default_refresh_minutes
+    );
     setAutoExpand(preferences.watchlist_auto_expand);
     setPriceWeight(preferences.watchlist_price_weight);
     setTechnicalWeight(preferences.watchlist_technical_weight);
+    setShowNews(preferences.watchlist_show_news);
   }, [preferences]);
 
   const hasChanges = () => {
     const currentOverride = useWatchlistOverride ? watchlistOverride : null;
     const savedOverride = preferences.watchlist_refresh_override;
+    const currentNewsOverride = useNewsOverride ? newsOverride : null;
+    const savedNewsOverride = preferences.news_refresh_override;
 
     return (
       defaultRefreshMinutes !== preferences.default_refresh_minutes ||
       currentOverride !== savedOverride ||
+      currentNewsOverride !== savedNewsOverride ||
+      showNews !== preferences.watchlist_show_news ||
       autoExpand !== preferences.watchlist_auto_expand ||
       priceWeight !== preferences.watchlist_price_weight ||
       technicalWeight !== preferences.watchlist_technical_weight
@@ -83,9 +99,11 @@ export function WatchlistPreferences({
       await onUpdate({
         default_refresh_minutes: defaultRefreshMinutes,
         watchlist_refresh_override: useWatchlistOverride ? watchlistOverride : null,
+        news_refresh_override: useNewsOverride ? newsOverride : null,
         watchlist_auto_expand: autoExpand,
         watchlist_price_weight: priceWeight,
         watchlist_technical_weight: technicalWeight,
+        watchlist_show_news: showNews,
       });
       toast.success("Watchlist preferences updated");
     } catch {
@@ -99,9 +117,14 @@ export function WatchlistPreferences({
     setWatchlistOverride(
       preferences.watchlist_refresh_override ?? preferences.default_refresh_minutes
     );
+    setUseNewsOverride(preferences.news_refresh_override !== null);
+    setNewsOverride(
+      preferences.news_refresh_override ?? preferences.default_refresh_minutes
+    );
     setAutoExpand(preferences.watchlist_auto_expand);
     setPriceWeight(preferences.watchlist_price_weight);
     setTechnicalWeight(preferences.watchlist_technical_weight);
+    setShowNews(preferences.watchlist_show_news);
   };
 
   const handleEqualWeights = () => {
@@ -153,6 +176,22 @@ export function WatchlistPreferences({
             </Label>
             <p className="text-xs text-text-muted">
               How often the UI checks for new data. This is separate from backend refresh and optimized for responsiveness.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="toggle-news-visibility"
+                checked={showNews}
+                onCheckedChange={(checked) => setShowNews(checked === true)}
+              />
+              <Label htmlFor="toggle-news-visibility" className="cursor-pointer">
+                Show news sentiment and headlines in watchlist
+              </Label>
+            </div>
+            <p className="text-xs text-text-muted">
+              Disable this to hide the news expansion section for each ticker.
             </p>
           </div>
         </div>
@@ -210,6 +249,9 @@ export function WatchlistPreferences({
                     />
                   </div>
                 )}
+                <p className="text-xs text-text-muted">
+                  Effective interval: {useWatchlistOverride ? watchlistOverride : defaultRefreshMinutes} minutes
+                </p>
               </div>
 
               {/* Future: Portfolio Override */}
@@ -222,13 +264,48 @@ export function WatchlistPreferences({
                 </p>
               </div>
 
-              {/* Future: News Override */}
-              <div className="space-y-2 opacity-50">
-                <Label className="text-sm font-medium text-text-muted">
-                  News Refresh (Future)
-                </Label>
+              <div className="space-y-3 border-t border-border pt-4">
+                <Label className="text-sm font-medium">News Refresh</Label>
+                <RadioGroup
+                  value={useNewsOverride ? "custom" : "default"}
+                  onValueChange={(value) => setUseNewsOverride(value === "custom")}
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="default" id="news-default" />
+                    <Label htmlFor="news-default" className="cursor-pointer font-normal">
+                      Use Default ({defaultRefreshMinutes} min)
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="custom" id="news-custom" />
+                    <Label htmlFor="news-custom" className="cursor-pointer font-normal">
+                      Custom Interval
+                    </Label>
+                  </div>
+                </RadioGroup>
+
+                {useNewsOverride && (
+                  <div className="mt-3 space-y-2">
+                    <Label htmlFor="news-override-slider">
+                      News Interval: {newsOverride} minutes
+                    </Label>
+                    <Slider
+                      id="news-override-slider"
+                      min={1}
+                      max={60}
+                      step={1}
+                      value={[newsOverride]}
+                      onValueChange={(value) => setNewsOverride(value[0])}
+                      className="w-full"
+                      aria-label="News refresh override interval in minutes"
+                    />
+                  </div>
+                )}
                 <p className="text-xs text-text-muted">
-                  Per-feature override for news sentiment (coming soon)
+                  Effective interval: {useNewsOverride ? newsOverride : defaultRefreshMinutes} minutes
+                </p>
+                <p className="text-xs text-text-muted">
+                  Determines how frequently headline sentiment is refreshed for market and watchlist views.
                 </p>
               </div>
             </div>

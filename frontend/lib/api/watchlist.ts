@@ -19,6 +19,51 @@ export interface ScoreBreakdown {
   overall: number;
 }
 
+export interface SentimentProbabilities {
+  [label: string]: number;
+}
+
+export interface NewsSentimentDetail {
+  score: number | null;
+  score_change: number | null;
+  positive_count: number;
+  neutral_count: number;
+  negative_count: number;
+  article_count: number;
+  latest_published_at?: string | null;
+  top_positive?: SentimentArticle | null;
+  top_negative?: SentimentArticle | null;
+  model_breakdown: Record<string, number>;
+}
+
+export interface SentimentScoreMeta {
+  score: number;
+  label: "positive" | "neutral" | "negative";
+  confidence: number;
+  model: string;
+  probabilities?: SentimentProbabilities;
+}
+
+export interface SentimentArticle {
+  ticker: string;
+  headline: string;
+  url?: string | null;
+  summary?: string | null;
+  source?: string | null;
+  author?: string | null;
+  image_url?: string | null;
+  published_at?: string | null;
+  fetched_at: string;
+  sentiment: SentimentScoreMeta;
+  content_hash: string;
+  raw?: Record<string, unknown>;
+}
+
+export interface RecentNewsPayload {
+  summary?: NewsSentimentDetail;
+  articles: SentimentArticle[];
+}
+
 export interface WatchlistItem {
   id: string;
   account_id: string;
@@ -41,6 +86,9 @@ export interface WatchlistItem {
   stop_loss?: number | null;
   profit_target?: number | null;
   position_size_shares?: number | null;
+  // News sentiment
+  news_sentiment_score?: number | null;
+  recent_news?: RecentNewsPayload | null;
 }
 
 export interface WatchlistListResponse {

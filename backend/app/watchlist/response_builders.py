@@ -89,6 +89,9 @@ class WatchlistItemResponse(BaseModel):
     company_health: str | None = None
     earnings_date: str | None = None  # ISO date string
     earnings_days_away: int | None = None
+    # News & sentiment fields
+    news_sentiment_score: float | None = None
+    recent_news: dict[str, Any] | None = None
 
     @classmethod
     def from_service_dict(cls, item: dict[str, Any]) -> WatchlistItemResponse:
@@ -159,6 +162,9 @@ class WatchlistItemResponse(BaseModel):
             company_health=item.get("company_health"),
             earnings_date=item.get("earnings_date"),
             earnings_days_away=item.get("earnings_days_away"),
+            # News
+            news_sentiment_score=item.get("news_sentiment_score"),
+            recent_news=item.get("recent_news"),
         )
 
 

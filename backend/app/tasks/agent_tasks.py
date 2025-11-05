@@ -23,8 +23,8 @@ from app.logging_config import get_logger
 from app.portfolio.analytics import PortfolioAnalytics
 from app.portfolio.manager import PortfolioManager
 from app.portfolio.price_fetcher import PriceDataFetcher
+from app.services import NewsService
 from app.sources.fred import FREDSource
-from app.sources.news import GoogleNewsSource
 from app.storage import get_storage
 
 if TYPE_CHECKING:
@@ -42,7 +42,7 @@ def _setup_agent_tools(storage: PortfolioStorage) -> AgentTools:
     Returns:
         Configured AgentTools instance with all sources and managers
     """
-    news_source = GoogleNewsSource()
+    news_service = NewsService(storage)
     fred_source = FREDSource()
     price_fetcher = PriceDataFetcher(storage)
     portfolio_mgr = PortfolioManager(storage)
@@ -50,7 +50,7 @@ def _setup_agent_tools(storage: PortfolioStorage) -> AgentTools:
 
     return AgentTools(
         storage=storage,
-        news_source=news_source,
+        news_service=news_service,
         fred_source=fred_source,
         price_fetcher=price_fetcher,
         portfolio_mgr=portfolio_mgr,

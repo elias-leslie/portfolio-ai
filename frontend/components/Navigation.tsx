@@ -2,7 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Briefcase, Settings, Eye, Activity } from "lucide-react";
+import {
+  LayoutDashboard,
+  Briefcase,
+  Settings,
+  Eye,
+  Activity,
+  Newspaper,
+} from "lucide-react";
 
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { cn } from "@/lib/utils";
@@ -22,6 +29,11 @@ const links = [
     href: "/watchlist",
     label: "Watchlist",
     icon: Eye,
+  },
+  {
+    href: "/news",
+    label: "News",
+    icon: Newspaper,
   },
   {
     href: "/status",

@@ -128,7 +128,8 @@ class WatchlistService:
                        entry_price, stop_loss, profit_target, position_size_shares,
                        narrative_action_plan, narrative_position_sizing,
                        narrative_company_health, narrative_special_notes,
-                       company_health, earnings_date, earnings_days_away
+                       company_health, earnings_date, earnings_days_away,
+                       news_sentiment_score, recent_news_headlines
                 FROM watchlist_snapshots
                 WHERE item_id = ?
                 ORDER BY fetched_at DESC
@@ -146,6 +147,13 @@ class WatchlistService:
                         raw_metrics = json.loads(raw_metrics)
                     except (json.JSONDecodeError, TypeError):
                         raw_metrics = {}
+
+                news_payload = snap_row.get("recent_news_headlines")
+                if isinstance(news_payload, str):
+                    try:
+                        news_payload = json.loads(news_payload)
+                    except (json.JSONDecodeError, TypeError):
+                        news_payload = None
 
                 fetched_at = snap_row.get("fetched_at")
                 if fetched_at and isinstance(raw_metrics, dict):
@@ -196,6 +204,8 @@ class WatchlistService:
                     earnings_date_value.isoformat() if earnings_date_value is not None else None
                 )
                 item_data["earnings_days_away"] = snap_row.get("earnings_days_away")
+                item_data["news_sentiment_score"] = snap_row.get("news_sentiment_score")
+                item_data["recent_news"] = news_payload
 
             results.append(item_data)
 
@@ -244,7 +254,8 @@ class WatchlistService:
                    entry_price, stop_loss, profit_target, position_size_shares,
                    narrative_action_plan, narrative_position_sizing,
                    narrative_company_health, narrative_special_notes,
-                   company_health, earnings_date, earnings_days_away
+                   company_health, earnings_date, earnings_days_away,
+                   news_sentiment_score, recent_news_headlines
             FROM watchlist_snapshots
             WHERE item_id = ?
             ORDER BY fetched_at DESC
@@ -262,6 +273,13 @@ class WatchlistService:
                     raw_metrics = json.loads(raw_metrics)
                 except (json.JSONDecodeError, TypeError):
                     raw_metrics = {}
+
+            news_payload = snap_row.get("recent_news_headlines")
+            if isinstance(news_payload, str):
+                try:
+                    news_payload = json.loads(news_payload)
+                except (json.JSONDecodeError, TypeError):
+                    news_payload = None
 
             fetched_at = snap_row.get("fetched_at")
             if fetched_at and isinstance(raw_metrics, dict):
@@ -312,6 +330,8 @@ class WatchlistService:
                 earnings_date_value.isoformat() if earnings_date_value is not None else None
             )
             item_data["earnings_days_away"] = snap_row.get("earnings_days_away")
+            item_data["news_sentiment_score"] = snap_row.get("news_sentiment_score")
+            item_data["recent_news"] = news_payload
 
         return item_data
 

@@ -13,8 +13,8 @@ if TYPE_CHECKING:
     from app.portfolio.analytics import PortfolioAnalytics
     from app.portfolio.manager import PortfolioManager
     from app.portfolio.price_fetcher import PriceDataFetcher
+    from app.services import NewsService
     from app.sources.fred import FREDSource
-    from app.sources.news import GoogleNewsSource
     from app.storage.facade import PortfolioStorage
 
 from app.analytics.paper_trading import create_paper_trade
@@ -158,7 +158,7 @@ class AgentTools:
     def __init__(
         self,
         storage: PortfolioStorage,
-        news_source: GoogleNewsSource,
+        news_service: NewsService,
         fred_source: FREDSource,
         price_fetcher: PriceDataFetcher,
         portfolio_mgr: PortfolioManager,
@@ -168,14 +168,14 @@ class AgentTools:
 
         Args:
             storage: PortfolioStorage instance
-            news_source: GoogleNewsSource instance
+            news_service: NewsService instance
             fred_source: FREDSource instance
             price_fetcher: PriceDataFetcher instance
             portfolio_mgr: PortfolioManager instance
             analytics: PortfolioAnalytics instance
         """
         self.storage = storage
-        self.news_source = news_source
+        self.news_service = news_service
         self.fred_source = fred_source
         self.price_fetcher = price_fetcher
         self.portfolio_mgr = portfolio_mgr
@@ -183,8 +183,29 @@ class AgentTools:
 
     def execute_get_news(self, query: str, max_results: int = 10) -> dict[str, Any]:
         """Execute get_news tool."""
-        headlines = self.news_source.fetch_headlines(query, max_results)
-        return {"headlines": headlines, "count": len(headlines)}
+        normalized_query = query.strip()
+        try:
+            if normalized_query.lower() in {"market", "stock market", "overall"}:
+                bundle = self.news_service.get_market_news(max_articles=max_results)
+            elif normalized_query.isalpha() and len(normalized_query) <= 6:
+                bundle = self.news_service.get_symbol_news(
+                    normalized_query.upper(), max_articles=max_results
+                )
+            else:
+                bundle = self.news_service.get_custom_news(
+                    normalized_query, max_articles=max_results
+                )
+
+            return {
+                "query": normalized_query,
+                "ticker": bundle.ticker,
+                "summary": bundle.summary.model_dump(),
+                "articles": [article.model_dump() for article in bundle.articles[:max_results]],
+                "count": len(bundle.articles),
+            }
+        except Exception as exc:
+            logger.error("agent_get_news_failed", query=query, error=str(exc))
+            raise
 
     def execute_get_economic_data(self, indicators: list[str]) -> dict[str, Any]:
         """Execute get_economic_data tool."""

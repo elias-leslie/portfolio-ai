@@ -50,6 +50,7 @@ class PreferencesResponse(BaseModel):
         ..., description="Weight for technical score component"
     )
     display_timezone: str = Field(..., description="User's preferred display timezone")
+    watchlist_show_news: bool = Field(..., description="Show news sentiment in watchlist UI")
 
 
 class PreferencesUpdate(BaseModel):
@@ -103,6 +104,9 @@ class PreferencesUpdate(BaseModel):
     display_timezone: str | None = Field(
         None, description="User's preferred display timezone (USA timezones only)"
     )
+    watchlist_show_news: bool | None = Field(
+        None, description="Show news sentiment and headlines within the watchlist UI"
+    )
 
     @field_validator("display_timezone")
     @classmethod
@@ -136,6 +140,8 @@ def _get_or_create_preferences() -> dict[str, object]:
 
     if not result_df.empty:
         row = result_df.iloc[0].to_dict()
+        if "watchlist_show_news" not in row:
+            row["watchlist_show_news"] = True
         return dict(row)  # Explicitly cast to dict to satisfy mypy
 
     # Create default preferences
@@ -152,9 +158,10 @@ def _get_or_create_preferences() -> dict[str, object]:
                 frontend_poll_interval,
                 watchlist_refresh_minutes, watchlist_auto_expand,
                 watchlist_price_weight, watchlist_technical_weight,
+                watchlist_show_news,
                 display_timezone,
                 created_at, updated_at
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             [
                 user_id,
@@ -174,6 +181,7 @@ def _get_or_create_preferences() -> dict[str, object]:
                 False,
                 50.0,
                 50.0,
+                True,
                 "America/New_York",
                 datetime.now(UTC),
                 datetime.now(UTC),
@@ -201,6 +209,7 @@ def _get_or_create_preferences() -> dict[str, object]:
         "watchlist_auto_expand": False,
         "watchlist_price_weight": 50.0,
         "watchlist_technical_weight": 50.0,
+        "watchlist_show_news": True,
         "display_timezone": "America/New_York",
         "created_at": datetime.now(UTC),
         "updated_at": datetime.now(UTC),
@@ -232,6 +241,7 @@ async def get_preferences() -> PreferencesResponse:
         watchlist_price_weight=cast(float, prefs["watchlist_price_weight"]),
         watchlist_technical_weight=cast(float, prefs["watchlist_technical_weight"]),
         display_timezone=cast(str, prefs["display_timezone"]),
+        watchlist_show_news=cast(bool, prefs.get("watchlist_show_news", True)),
     )
 
 
@@ -278,6 +288,8 @@ async def update_preferences(update: PreferencesUpdate) -> PreferencesResponse:
         current["watchlist_technical_weight"] = update.watchlist_technical_weight
     if update.display_timezone is not None:
         current["display_timezone"] = update.display_timezone
+    if update.watchlist_show_news is not None:
+        current["watchlist_show_news"] = update.watchlist_show_news
 
     # Save to database
     with storage.connection() as conn:
@@ -300,6 +312,7 @@ async def update_preferences(update: PreferencesUpdate) -> PreferencesResponse:
                 watchlist_auto_expand = %s,
                 watchlist_price_weight = %s,
                 watchlist_technical_weight = %s,
+                watchlist_show_news = %s,
                 display_timezone = %s,
                 updated_at = %s
             WHERE id = %s
@@ -321,6 +334,7 @@ async def update_preferences(update: PreferencesUpdate) -> PreferencesResponse:
                 current["watchlist_auto_expand"],
                 current["watchlist_price_weight"],
                 current["watchlist_technical_weight"],
+                current.get("watchlist_show_news", True),
                 current["display_timezone"],
                 datetime.now(UTC),
                 current["id"],
@@ -348,4 +362,5 @@ async def update_preferences(update: PreferencesUpdate) -> PreferencesResponse:
         watchlist_price_weight=cast(float, current["watchlist_price_weight"]),
         watchlist_technical_weight=cast(float, current["watchlist_technical_weight"]),
         display_timezone=cast(str, current["display_timezone"]),
+        watchlist_show_news=cast(bool, current.get("watchlist_show_news", True)),
     )

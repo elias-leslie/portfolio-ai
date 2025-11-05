@@ -37,7 +37,7 @@ interface WatchlistTableProps {
   accountId: string;
 }
 
-type SortField = "symbol" | "overall" | "price" | "technical" | "updated";
+type SortField = "symbol" | "overall" | "price" | "technical" | "news" | "updated";
 type SortDirection = "asc" | "desc";
 
 export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
@@ -82,6 +82,10 @@ export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
       case "technical":
         aVal = a.current_score?.technical.score ?? -1;
         bVal = b.current_score?.technical.score ?? -1;
+        break;
+      case "news":
+        aVal = a.news_sentiment_score ?? -2;
+        bVal = b.news_sentiment_score ?? -2;
         break;
       case "updated":
         aVal = a.current_score?.price?.updated_at ?? a.updated_at;
@@ -130,6 +134,17 @@ export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
     if (score >= 20) return "viz-2";
     if (score >= 10) return "viz-1";
     return "viz-0";
+  };
+
+  const getNewsBadgeVariant = (score: number): "gain" | "loss" | "neutral" => {
+    if (score > 0.1) return "gain";
+    if (score < -0.1) return "loss";
+    return "neutral";
+  };
+
+  const formatNewsScore = (score: number): string => {
+    const rounded = score.toFixed(2);
+    return score >= 0 ? `+${rounded}` : rounded;
   };
 
   // Get signal badge variant and icon
@@ -267,6 +282,19 @@ export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
               >
                 Technical
                 {sortField === "technical" && (
+                  <span className="text-xs">
+                    {sortDirection === "asc" ? "↑" : "↓"}
+                  </span>
+                )}
+              </button>
+            </TableHead>
+            <TableHead>
+              <button
+                onClick={() => handleSort("news")}
+                className="flex items-center gap-1 font-medium hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              >
+                News
+                {sortField === "news" && (
                   <span className="text-xs">
                     {sortDirection === "asc" ? "↑" : "↓"}
                   </span>
@@ -438,6 +466,15 @@ export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
                       <span className="text-text-muted">—</span>
                     )}
                   </TableCell>
+                  <TableCell>
+                    {typeof item.news_sentiment_score === "number" ? (
+                      <Badge variant={getNewsBadgeVariant(item.news_sentiment_score)}>
+                        {formatNewsScore(item.news_sentiment_score)}
+                      </Badge>
+                    ) : (
+                      <span className="text-text-muted">—</span>
+                    )}
+                  </TableCell>
                   {/* TEMPORARILY DISABLED: Sparkline column - re-enable after 90 days of data */}
                   {/* <TableCell>
                     {hasScore ? (
@@ -474,7 +511,7 @@ export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
                 </TableRow>
                 {isExpanded && (
                   <TableRow>
-                    <TableCell colSpan={9} className="bg-surface-muted/20 p-4">
+                    <TableCell colSpan={10} className="bg-surface-muted/20 p-4">
                       <ExpandedRow item={item} refreshStatus={refreshStatus} />
                     </TableCell>
                   </TableRow>

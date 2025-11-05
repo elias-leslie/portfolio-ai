@@ -77,6 +77,7 @@ def test_get_preferences_creates_defaults(
     assert data["allow_crypto"] is False
     assert data["allow_futures"] is False
     assert data["max_position_size_pct"] == 10.0
+    assert data["watchlist_show_news"] is True
 
     # Verify defaults were saved to database
     with test_storage.connection() as conn:
@@ -99,8 +100,9 @@ def test_get_preferences_returns_existing(
             INSERT INTO user_preferences (
                 id, risk_tolerance, allow_long, allow_short,
                 allow_options, allow_crypto, allow_futures,
-                max_position_size_pct, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                max_position_size_pct, watchlist_show_news,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 user_id,
@@ -111,6 +113,7 @@ def test_get_preferences_returns_existing(
                 True,
                 False,
                 20.0,
+                False,
                 datetime.now(),
                 datetime.now(),
             ],
@@ -129,6 +132,7 @@ def test_get_preferences_returns_existing(
     assert data["allow_crypto"] is True
     assert data["allow_futures"] is False
     assert data["max_position_size_pct"] == 20.0
+    assert data["watchlist_show_news"] is False
 
 
 def test_update_preferences_all_fields(client: TestClient, test_storage: PortfolioStorage) -> None:
@@ -145,6 +149,7 @@ def test_update_preferences_all_fields(client: TestClient, test_storage: Portfol
         "allow_crypto": True,
         "allow_futures": True,
         "max_position_size_pct": 15.0,
+        "watchlist_show_news": False,
     }
 
     response = client.post("/api/preferences", json=update_data)
@@ -159,6 +164,7 @@ def test_update_preferences_all_fields(client: TestClient, test_storage: Portfol
     assert data["allow_crypto"] is True
     assert data["allow_futures"] is True
     assert data["max_position_size_pct"] == 15.0
+    assert data["watchlist_show_news"] is False
 
     # Verify persisted to database
     with test_storage.connection() as conn:

@@ -41,7 +41,41 @@ class TestExtendedWatchlistSnapshot:
             earnings_date=datetime(2025, 11, 20, tzinfo=UTC),
             earnings_days_away=18,
             news_sentiment_score=0.35,
-            recent_news_headlines={"headlines": [{"title": "Beats earnings"}]},
+            recent_news_headlines={
+                "summary": {
+                    "ticker": "TEST",
+                    "score": 0.35,
+                    "score_change": 0.1,
+                    "positive_count": 1,
+                    "neutral_count": 0,
+                    "negative_count": 0,
+                    "article_count": 1,
+                    "latest_published_at": now.isoformat(),
+                    "model_breakdown": {"finbert": 1},
+                },
+                "articles": [
+                    {
+                        "ticker": "TEST",
+                        "headline": "Beats earnings",
+                        "url": "https://example.com/article",
+                        "summary": "Shares rally after results",
+                        "source": "Example",
+                        "published_at": now.isoformat(),
+                        "fetched_at": now.isoformat(),
+                        "sentiment": {
+                            "score": 0.6,
+                            "label": "positive",
+                            "confidence": 0.9,
+                            "model": "finbert",
+                            "probabilities": {
+                                "positive": 0.9,
+                                "neutral": 0.08,
+                                "negative": 0.02,
+                            },
+                        },
+                    }
+                ],
+            },
         )
 
         assert snapshot.signal_type == "BUY"
