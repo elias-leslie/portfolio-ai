@@ -78,6 +78,7 @@ def test_get_preferences_creates_defaults(
     assert data["allow_futures"] is False
     assert data["max_position_size_pct"] == 10.0
     assert data["watchlist_show_news"] is True
+    assert data["news_lookback_hours"] == 6
 
     # Verify defaults were saved to database
     with test_storage.connection() as conn:
@@ -133,6 +134,7 @@ def test_get_preferences_returns_existing(
     assert data["allow_futures"] is False
     assert data["max_position_size_pct"] == 20.0
     assert data["watchlist_show_news"] is False
+    assert data["news_lookback_hours"] == 6
 
 
 def test_update_preferences_all_fields(client: TestClient, test_storage: PortfolioStorage) -> None:
@@ -150,6 +152,7 @@ def test_update_preferences_all_fields(client: TestClient, test_storage: Portfol
         "allow_futures": True,
         "max_position_size_pct": 15.0,
         "watchlist_show_news": False,
+        "news_lookback_hours": 12,
     }
 
     response = client.post("/api/preferences", json=update_data)
@@ -165,14 +168,16 @@ def test_update_preferences_all_fields(client: TestClient, test_storage: Portfol
     assert data["allow_futures"] is True
     assert data["max_position_size_pct"] == 15.0
     assert data["watchlist_show_news"] is False
+    assert data["news_lookback_hours"] == 12
 
     # Verify persisted to database
     with test_storage.connection() as conn:
         result = conn.execute(
-            "SELECT risk_tolerance, max_position_size_pct FROM user_preferences"
+            "SELECT risk_tolerance, max_position_size_pct, news_lookback_hours FROM user_preferences"
         ).fetchone()
         assert result[0] == 7
         assert result[1] == 15.0
+        assert result[2] == 12
 
 
 def test_update_preferences_partial_update(

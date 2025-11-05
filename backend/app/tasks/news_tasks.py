@@ -93,6 +93,7 @@ def _refresh_news_sentiment_task(self: Any, account_id: str = "default") -> dict
     """Refresh market and watchlist news sentiment caches."""
     storage = get_storage()
     news_service = NewsService(storage)
+    lookback_hours = news_service.refresh_ttl_from_preferences()
     watchlist_service = WatchlistService(storage)
 
     interval_minutes = _get_refresh_interval_minutes(storage)
@@ -107,6 +108,7 @@ def _refresh_news_sentiment_task(self: Any, account_id: str = "default") -> dict
         account_id=account_id,
         force_refresh=should_force_refresh,
         interval_minutes=interval_minutes,
+        lookback_hours=lookback_hours,
     )
 
     # Always fetch market bundle; service decides whether to hit external APIs
@@ -135,6 +137,7 @@ def _refresh_news_sentiment_task(self: Any, account_id: str = "default") -> dict
         symbols=len(symbols),
         market_articles=len(market_bundle.articles),
         watchlist_symbols=watchlist_count,
+        lookback_hours=news_service.lookback_hours,
     )
 
     return {

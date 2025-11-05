@@ -16,6 +16,9 @@ router = APIRouter(prefix="/api/preferences", tags=["preferences"])
 # Initialize services
 storage = get_storage()
 
+ALLOWED_NEWS_LOOKBACK_HOURS = (6, 12, 24, 48)
+DEFAULT_NEWS_LOOKBACK_HOURS = 6
+
 
 # Request/Response models
 class PreferencesResponse(BaseModel):
@@ -40,6 +43,9 @@ class PreferencesResponse(BaseModel):
     )
     news_refresh_override: int | None = Field(
         None, description="News-specific refresh override (NULL = use default)"
+    )
+    news_lookback_hours: int = Field(
+        ..., description="Lookback window (hours) used for news aggregation and summaries"
     )
     frontend_poll_interval: int = Field(..., description="Frontend polling interval in seconds")
     # Legacy watchlist fields (kept for backward compatibility)
@@ -87,6 +93,10 @@ class PreferencesUpdate(BaseModel):
         le=1440,
         description="News-specific refresh override (1-1440 minutes, NULL = use default)",
     )
+    news_lookback_hours: int | None = Field(
+        None,
+        description="Lookback window (hours) used for news aggregation (allowed: 6, 12, 24, 48)",
+    )
     frontend_poll_interval: int | None = Field(
         None, ge=10, le=300, description="Frontend polling interval (10-300 seconds)"
     )
@@ -130,6 +140,18 @@ class PreferencesUpdate(BaseModel):
 
         return v
 
+    @field_validator("news_lookback_hours")
+    @classmethod
+    def validate_news_lookback(cls, v: int | None) -> int | None:
+        """Validate news lookback window is within the allowed presets."""
+        if v is None:
+            return v
+        if v not in ALLOWED_NEWS_LOOKBACK_HOURS:
+            allowed = ", ".join(str(val) for val in ALLOWED_NEWS_LOOKBACK_HOURS)
+            msg = f"Invalid news lookback hours. Must be one of: {allowed}"
+            raise ValueError(msg)
+        return v
+
 
 def _get_or_create_preferences() -> dict[str, object]:
     """Get existing preferences or create default ones."""
@@ -142,6 +164,8 @@ def _get_or_create_preferences() -> dict[str, object]:
         row = result_df.iloc[0].to_dict()
         if "watchlist_show_news" not in row:
             row["watchlist_show_news"] = True
+        if "news_lookback_hours" not in row or row["news_lookback_hours"] is None:
+            row["news_lookback_hours"] = DEFAULT_NEWS_LOOKBACK_HOURS
         return dict(row)  # Explicitly cast to dict to satisfy mypy
 
     # Create default preferences
@@ -155,13 +179,13 @@ def _get_or_create_preferences() -> dict[str, object]:
                 allow_crypto, allow_futures, max_position_size_pct,
                 default_refresh_minutes, watchlist_refresh_override,
                 portfolio_refresh_override, news_refresh_override,
-                frontend_poll_interval,
+                news_lookback_hours, frontend_poll_interval,
                 watchlist_refresh_minutes, watchlist_auto_expand,
                 watchlist_price_weight, watchlist_technical_weight,
                 watchlist_show_news,
                 display_timezone,
                 created_at, updated_at
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             [
                 user_id,
@@ -176,6 +200,7 @@ def _get_or_create_preferences() -> dict[str, object]:
                 None,  # watchlist_refresh_override
                 None,  # portfolio_refresh_override
                 None,  # news_refresh_override
+                DEFAULT_NEWS_LOOKBACK_HOURS,
                 30,  # frontend_poll_interval
                 15,  # watchlist_refresh_minutes (legacy)
                 False,
@@ -203,6 +228,7 @@ def _get_or_create_preferences() -> dict[str, object]:
         "watchlist_refresh_override": None,
         "portfolio_refresh_override": None,
         "news_refresh_override": None,
+        "news_lookback_hours": DEFAULT_NEWS_LOOKBACK_HOURS,
         "frontend_poll_interval": 30,
         # Legacy watchlist fields
         "watchlist_refresh_minutes": 15,
@@ -234,6 +260,9 @@ async def get_preferences() -> PreferencesResponse:
         watchlist_refresh_override=cast(int | None, prefs.get("watchlist_refresh_override")),
         portfolio_refresh_override=cast(int | None, prefs.get("portfolio_refresh_override")),
         news_refresh_override=cast(int | None, prefs.get("news_refresh_override")),
+        news_lookback_hours=cast(
+            int, prefs.get("news_lookback_hours", DEFAULT_NEWS_LOOKBACK_HOURS)
+        ),
         frontend_poll_interval=cast(int, prefs["frontend_poll_interval"]),
         # Legacy watchlist fields
         watchlist_refresh_minutes=cast(int, prefs["watchlist_refresh_minutes"]),
@@ -275,6 +304,8 @@ async def update_preferences(update: PreferencesUpdate) -> PreferencesResponse:
         current["portfolio_refresh_override"] = update.portfolio_refresh_override
     if update.news_refresh_override is not None:
         current["news_refresh_override"] = update.news_refresh_override
+    if update.news_lookback_hours is not None:
+        current["news_lookback_hours"] = update.news_lookback_hours
     if update.frontend_poll_interval is not None:
         current["frontend_poll_interval"] = update.frontend_poll_interval
     # Legacy watchlist fields
@@ -307,6 +338,7 @@ async def update_preferences(update: PreferencesUpdate) -> PreferencesResponse:
                 watchlist_refresh_override = %s,
                 portfolio_refresh_override = %s,
                 news_refresh_override = %s,
+                news_lookback_hours = %s,
                 frontend_poll_interval = %s,
                 watchlist_refresh_minutes = %s,
                 watchlist_auto_expand = %s,
@@ -329,6 +361,7 @@ async def update_preferences(update: PreferencesUpdate) -> PreferencesResponse:
                 current["watchlist_refresh_override"],
                 current["portfolio_refresh_override"],
                 current["news_refresh_override"],
+                current.get("news_lookback_hours", DEFAULT_NEWS_LOOKBACK_HOURS),
                 current["frontend_poll_interval"],
                 current["watchlist_refresh_minutes"],
                 current["watchlist_auto_expand"],
@@ -355,6 +388,9 @@ async def update_preferences(update: PreferencesUpdate) -> PreferencesResponse:
         watchlist_refresh_override=cast(int | None, current.get("watchlist_refresh_override")),
         portfolio_refresh_override=cast(int | None, current.get("portfolio_refresh_override")),
         news_refresh_override=cast(int | None, current.get("news_refresh_override")),
+        news_lookback_hours=cast(
+            int, current.get("news_lookback_hours", DEFAULT_NEWS_LOOKBACK_HOURS)
+        ),
         frontend_poll_interval=cast(int, current["frontend_poll_interval"]),
         # Legacy watchlist fields
         watchlist_refresh_minutes=cast(int, current["watchlist_refresh_minutes"]),

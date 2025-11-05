@@ -15,6 +15,7 @@ router = APIRouter(prefix="/api/news", tags=["news"])
 
 storage = get_storage()
 news_service = NewsService(storage)
+news_service.refresh_ttl_from_preferences()
 watchlist_service = WatchlistService(storage)
 
 
@@ -83,6 +84,7 @@ class NewsHealthResponse(BaseModel):
     fallback_headlines_24h: int
     headlines_24h: int
     cache_ttl_hours: float
+    lookback_window_hours: int
     fallback_rate_24h: float
     fallback_avg_latency_ms_24h: float | None = None
     fallback_p95_latency_ms_24h: float | None = None
@@ -167,6 +169,7 @@ async def get_market_news(
     ),
 ) -> NewsBundleResponse:
     """Get aggregated market news with sentiment summary."""
+    news_service.refresh_ttl_from_preferences()
     bundle = news_service.get_market_news(
         max_articles=max_results,
         force_refresh=force_refresh,
@@ -184,6 +187,7 @@ async def get_symbol_news(
     if not symbol:
         raise HTTPException(status_code=400, detail="Symbol is required")
 
+    news_service.refresh_ttl_from_preferences()
     bundle = news_service.get_symbol_news(
         symbol,
         max_articles=max_results,
@@ -203,6 +207,7 @@ async def get_watchlist_news(
     if not items:
         return WatchlistNewsResponse(account_id=account_id, items=[])
 
+    news_service.refresh_ttl_from_preferences()
     symbols = [item["symbol"] for item in items]
     bundles = news_service.get_watchlist_news(
         symbols,
@@ -223,6 +228,7 @@ async def get_watchlist_news(
 @router.get("/health", response_model=NewsHealthResponse)
 async def get_news_health() -> NewsHealthResponse:
     """Return health information for the news ingestion pipeline."""
+    news_service.refresh_ttl_from_preferences()
     metrics = news_service.get_health()
     return NewsHealthResponse(**metrics)
 
@@ -233,5 +239,6 @@ async def search_news(
     max_results: int = Query(10, ge=1, le=50),
 ) -> NewsBundleResponse:
     """Search news without caching results."""
+    news_service.refresh_ttl_from_preferences()
     bundle = news_service.get_custom_news(query, max_articles=max_results)
     return _serialize_bundle(bundle, limit=max_results)

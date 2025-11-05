@@ -270,6 +270,7 @@ def refresh_watchlist_scores(
 
     fetcher = price_fetcher or PriceDataFetcher(storage)
     news_service = NewsService(storage)
+    news_service.refresh_ttl_from_preferences()
     technical_map = _load_latest_technical(storage, symbols)
     default_weights = _load_default_weights(storage)
     stale_ttl_minutes = _load_stale_ttl_minutes(storage)

@@ -44,6 +44,7 @@ DEFAULT_TTL_HOURS = 6
 DEFAULT_MAX_ARTICLES = 10
 ARTICLE_OVERFETCH_MULTIPLIER = 3
 ARTICLE_OVERFETCH_CAP = 45
+ALLOWED_LOOKBACK_HOURS = {6, 12, 24, 48}
 
 
 class SentimentScore(BaseModel):
@@ -288,7 +289,46 @@ class NewsService:
         self.news_source = news_source or GoogleNewsSource()
         self.finbert_analyzer = finbert_analyzer or FinBertSentimentAnalyzer()
         self.fallback_analyzer = fallback_analyzer or VaderSentimentAnalyzer()
+        self.lookback_hours = max(1, int(self.ttl.total_seconds() // 3600))
         self.selection_overfetch = max(1, selection_overfetch)
+
+    def set_ttl_hours(self, hours: int) -> None:
+        """Update the active TTL/lookback window (in hours)."""
+        validated = max(1, hours)
+        self.ttl = timedelta(hours=validated)
+        self.lookback_hours = validated
+
+    def refresh_ttl_from_preferences(self) -> int:
+        """Reload TTL configuration from user preferences.
+
+        Returns:
+            The active lookback window in hours after applying preferences.
+        """
+        hours = DEFAULT_TTL_HOURS
+        with self.storage.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT news_lookback_hours
+                FROM user_preferences
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """
+            ).fetchone()
+
+        if row:
+            raw_value = row[0] if isinstance(row, (list, tuple)) else None
+            if raw_value is None and hasattr(row, "news_lookback_hours"):
+                raw_value = row.news_lookback_hours
+            if raw_value is not None:
+                try:
+                    candidate = int(raw_value)
+                    if candidate in ALLOWED_LOOKBACK_HOURS or candidate > 0:
+                        hours = candidate
+                except (TypeError, ValueError):
+                    pass
+
+        self.set_ttl_hours(hours)
+        return self.lookback_hours
 
     # --------------------------------------------------------------------- #
     # Public API
@@ -980,6 +1020,7 @@ class NewsService:
             "fallback_headlines_24h": fallback_count,
             "headlines_24h": total_count,
             "cache_ttl_hours": round(self.ttl.total_seconds() / 3600.0, 2),
+            "lookback_window_hours": self.lookback_hours,
             "fallback_rate_24h": round(fallback_rate, 4),
             "fallback_avg_latency_ms_24h": round(avg_latency_ms, 2)
             if avg_latency_ms is not None
