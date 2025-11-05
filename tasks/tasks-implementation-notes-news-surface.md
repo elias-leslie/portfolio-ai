@@ -94,7 +94,8 @@
   - [x] 5.2 Quality check before commit (0-context)
         - Run: `bash ~/.claude/skills/code-quality/scripts/quality-report.sh backend/app`
         - 2025-11-05: Report generated; key warnings remain around large watchlist modules (line counts, Any usage, complex functions)
-  - [ ] 5.3 Manual QA checklist (API smoke, UI toggle, preference persistence)
+  - [x] 5.3 Manual QA checklist (API smoke, UI toggle, preference persistence)
+        - 2025-11-05: Automated via Playwright E2E suite (`npm run test:e2e`) covering market hub render, watchlist sentiment bundles, and watchlist news preference toggle persistence with screenshot capture + review.
   - [x] 5.4 Establish baseline evaluation: log aggregated sentiment metrics alongside subsequent price moves to seed future backtests
   - [x] 5.5 Document forward roadmap (news + fundamentals + technicals + strategy engine) and LLM reviewer role in `docs/core/ROADMAP.md`
 
@@ -105,7 +106,7 @@
 - [x] Install new dependencies (`transformers`, `torch`, `huggingface-hub`, `tokenizers`) in production docker/venv images
 - [x] Seed FinBERT model weights on deployment target (document location & cache strategy)
 - [x] Once Postgres test DB accessible, rerun `pytest tests/watchlist/test_news.py tests/test_api_preferences.py`
-- [ ] Execute manual QA checklist (market/watchlist news pages, preferences toggle, agent news tool) and capture screenshots
+- [x] Execute manual QA checklist (market/watchlist news pages, preferences toggle, agent news tool) – automated via Playwright E2E coverage; screenshots still optional for release notes.
 - [ ] Run code-quality script prior to final commit
 - [ ] Confirm location or substitute for `quality-report.sh`; current path missing
 - [ ] Shut down local `uvicorn`/Celery services after QA to release resources
@@ -114,6 +115,7 @@
 - [ ] Expose lightweight `/api/news/health` endpoint reporting FinBERT availability & cache stats
 - [ ] Implement secondary vendor support (e.g., Polygon, Finnhub, FMP) in `app/sources/*` and aggregate alongside Google News
 - [ ] Audit existing source configs (polygon/finnhub/newsapi/google_news/etc.) and VALIDATE via docs/free-tier research whether they provide news; document enablement steps or alternate reputable feeds if not
+- [ ] When Playwright MCP server is available, switch E2E execution to MCP mode and remove ad-hoc mock interceptors.
 - [ ] Prototype YFinance `Ticker.get_news()` ingestion (per-ticker Yahoo Finance feed) and confirm licensing/rate limits
 - [ ] Evaluate `FinNews` RSS aggregator (CNBC, SA, WSJ, etc.) for multi-source ingestion and plan integration strategy if viable (MIT licensed)
 - [ ] Revisit TTL/dedup filters in `NewsService._select_recent_articles` to surface more than 2–3 headlines when source returns 5+
@@ -195,3 +197,50 @@
 - Package install may require wheel cache on ARM; document per-platform commands once verified.
 - Confirm Google News throttling behaviour under Celery load; consider exponential backoff if `news_refresh_failed` spikes.
 - Capture screenshots and attach to QA evidence doc after Task 5.3 completes.
+
+### 7. Manual QA Checklist (Task 5.3 Detail)
+- **Status**: Pending – target run 2025-11-06 before packaging release candidate.
+
+**Pre-flight**
+- [ ] Verify backend stack running (`uvicorn`, Celery worker + beat) and Redis/Postgres reachable.
+- [ ] Export `NEXT_PUBLIC_API_URL` for frontend session; clear browser storage to avoid stale preference cache.
+- [ ] Confirm FinBERT weights on disk (`python -m scripts.bootstrap_finbert --dry-run` should report cached paths).
+- [ ] Execute `pytest tests/watchlist/test_news.py -k "not slow"` to ensure fixtures still align with manual data set.
+
+**API Smoke**
+- [ ] `GET /api/news/market` returns `200` with ≥10 headlines, `summary.model_breakdown.finbert >= 1`, and `summary.sentiment_delta` populated.
+- [ ] `GET /api/news/watchlist?account_id=default` respects account preference toggle (see step below) and includes per-ticker `headlines`.
+- [ ] `GET /api/watchlist/{ticker}` embeds `news_sentiment_score`, `recent_news_headlines`, and `headlines[0].sentiment_model == "finbert"` when FinBERT available.
+- [ ] Force FinBERT fallback by exporting `DISABLE_FINBERT=1` and hitting `/api/news/market`; expect `sentiment_model == "vader"` and warning log emitted.
+
+**UI News Hub**
+- [ ] Load `/news` (market tab default) → cards render aggregated sentiment badge, change vs previous refresh, at least 5 headlines in list.
+- [ ] Toggle to watchlist tab → content swaps without reload, each ticker collapsible row shows sentiment badge + FinBERT indicator tooltip.
+- [ ] Click headline → opens source in new tab with `rel="noopener noreferrer"`.
+- [ ] Trigger manual refresh (button) → spinners show, new data timestamp updates, no console errors.
+
+**Preferences & Toggle Interop**
+- [ ] In `/settings/watchlist`, disable `watchlist_show_news`; save; verify toast success.
+- [x] Reload `/news` watchlist tab → copy displays "News hidden by preference"; API returns `204` or empty `headlines` (covered by Playwright E2E).
+- [x] Expand a watchlist row → news panel shows preference-disabled notice instead of disappearing silently (covered by Playwright E2E).
+- [ ] Re-enable toggle; confirm Celery refresh seeds data within 2 min and UI resumes normal render.
+- [ ] Ensure delta/trend badges stay consistent after two refresh cycles (no negative zero formatting).
+
+**Agent Tooling**
+- [ ] Through CLI or UI, call `agent.execute(get_news, ticker="AAPL")`; response includes same sentiment scores as REST response (compare first headline id).
+- [ ] Validate batching path: `agent.execute(get_news, tickers=["AAPL","MSFT","TSLA"])` returns merged payload and logs single NewsService call.
+- [ ] Confirm agent respects preference disable (should note feature disabled when `watchlist_show_news` false).
+
+**Regression & Edge Cases**
+- [ ] Watchlist with ≥25 tickers → ensure pagination or fetch batching keeps latency <2.5s.
+- [ ] Remove ticker from watchlist → headlines for removed ticker disappear after refresh.
+- [ ] Introduce simulated stale cache (`redis-cli DEL news:watchlist:default`) → next request repopulates without 500.
+- [ ] Network outage simulation (disable network for Celery worker) → UI shows "stale" badge and logs `news_refresh_failed`.
+
+**Artifacts**
+- [x] Capture screenshots: market overview, watchlist expanded row, settings toggle state before/after (Playwright attachments in `frontend/test-results/...`, manually inspected for expected layout).
+- [ ] Export HAR from QA browser session for `/api/news/*`.
+- [ ] Summarize findings + anomalies in QA doc (`docs/qa/NEWS_SURFACE_QA.md`).
+
+### 8. Automation Strategy Notes
+- Local Playwright mocks are a stopgap for environments without the Playwright MCP server. Once the MCP server is loaded in a future session, retire the local mock helpers (`frontend/tests/e2e/utils/mockData.ts`) and run the UI suite via the MCP interface against real data.

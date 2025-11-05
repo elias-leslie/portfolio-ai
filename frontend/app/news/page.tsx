@@ -18,6 +18,7 @@ import {
 import type { NewsBundle } from "@/lib/api/news";
 import type { SentimentArticle } from "@/lib/api/watchlist";
 import { useWatchlist } from "@/lib/hooks/useWatchlist";
+import { usePreferences } from "@/lib/hooks/usePreferences";
 
 const DEFAULT_ACCOUNT_ID = "default";
 
@@ -102,7 +103,11 @@ function ArticleList({
   maxArticles?: number;
 }) {
   if (!articles.length) {
-    return <p className="text-xs text-text-muted">No recent headlines.</p>;
+    return (
+      <p className="text-xs text-text-muted" data-testid="no-headlines">
+        No recent headlines.
+      </p>
+    );
   }
 
   const limited = articles.slice(0, maxArticles);
@@ -112,6 +117,7 @@ function ArticleList({
         <div
           key={`${article.content_hash}-${article.headline}`}
           className="rounded-md border border-border bg-surface-muted/30 p-3"
+          data-testid="article-card"
         >
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex-1 space-y-1">
@@ -276,6 +282,7 @@ export default function NewsPage() {
 
   // Preload watchlist symbols (for messaging and context)
   const { data: watchlistData } = useWatchlist(accountId);
+  const { data: preferences } = usePreferences();
 
   const activeQuery = view === "market" ? marketQuery : watchlistQuery;
 
@@ -295,6 +302,17 @@ export default function NewsPage() {
     if (!watchlistQuery.data) return [];
     return watchlistQuery.data.items;
   }, [watchlistQuery.data]);
+
+  const hasWatchlistSymbols = (watchlistData?.items.length ?? 0) > 0;
+  const watchlistNewsHidden =
+    preferences?.watchlist_show_news === false ||
+    watchlistQuery.data?.status === "hidden";
+  const shouldShowHiddenNotice =
+    view === "watchlist" &&
+    !watchlistQuery.isLoading &&
+    !watchlistQuery.error &&
+    hasWatchlistSymbols &&
+    watchlistNewsHidden;
 
   return (
     <div className="bg-bg min-h-screen">
@@ -379,20 +397,29 @@ export default function NewsPage() {
                 Failed to load watchlist news: {watchlistQuery.error.message}
               </p>
             )}
-            {!watchlistQuery.isLoading && !watchlistQuery.error && watchlistBundles.length === 0 && (
-              <p className="text-sm text-text-muted">
-                {watchlistData?.items.length
-                  ? "No recent headlines for your watchlist symbols."
-                  : "Add tickers to your watchlist to see sentiment-scored headlines."}
+            {shouldShowHiddenNotice && (
+              <p className="text-sm text-text-muted" data-testid="news-hidden">
+                News hidden by preference. Enable watchlist news in Settings to restore headlines.
               </p>
             )}
-            {watchlistBundles.map((bundle) => (
-              <NewsBundleCard
-                key={bundle.ticker}
-                bundle={bundle}
-                title={`Symbol: ${bundle.ticker}`}
-              />
-            ))}
+            {!shouldShowHiddenNotice &&
+              !watchlistQuery.isLoading &&
+              !watchlistQuery.error &&
+              watchlistBundles.length === 0 && (
+                <p className="text-sm text-text-muted">
+                  {hasWatchlistSymbols
+                    ? "No recent headlines for your watchlist symbols."
+                    : "Add tickers to your watchlist to see sentiment-scored headlines."}
+                </p>
+              )}
+            {!shouldShowHiddenNotice &&
+              watchlistBundles.map((bundle) => (
+                <NewsBundleCard
+                  key={bundle.ticker}
+                  bundle={bundle}
+                  title={`Symbol: ${bundle.ticker}`}
+                />
+              ))}
           </section>
         )}
       </div>

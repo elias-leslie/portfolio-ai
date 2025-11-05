@@ -16,6 +16,7 @@ export interface MarketNewsResponse extends NewsBundle {}
 export interface WatchlistNewsResponse {
   account_id: string;
   items: NewsBundle[];
+  status?: "hidden" | "ok";
 }
 
 type QueryParams = Record<string, string | number | boolean | undefined>;

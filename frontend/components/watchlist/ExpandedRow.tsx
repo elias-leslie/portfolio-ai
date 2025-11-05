@@ -41,6 +41,7 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
   const priceScore = item.current_score?.price;
   const techScore = item.current_score?.technical;
   const showNews = preferences?.watchlist_show_news ?? true;
+  const newsHidden = preferences?.watchlist_show_news === false;
   const newsSummary = item.recent_news?.summary;
   const newsArticles = item.recent_news?.articles ?? [];
   const totalModelCoverage =
@@ -435,8 +436,22 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
         </Card>
       )}
 
-      {showNews && (newsSummary || newsArticles.length > 0) && (
-        <Card className="border-border">
+      {newsHidden && (
+        <Card className="border-border" data-testid="watchlist-news-hidden-card">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">News &amp; Sentiment</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-text-muted" data-testid="watchlist-news-hidden">
+              News headlines are hidden by your watchlist preferences. Enable the toggle in
+              Settings → Watchlist to view sentiment-scored articles here.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {!newsHidden && (newsSummary || newsArticles.length > 0) && (
+        <Card className="border-border" data-testid="watchlist-news-card">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">News &amp; Sentiment</CardTitle>
           </CardHeader>
