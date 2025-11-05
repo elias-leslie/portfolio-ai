@@ -11,13 +11,14 @@
 ## Summary
 
 **✅ COMPLETE:** Tasks 1.0–1.8, 2.1–2.6, 3.1–3.7, 4.1–4.3, 5.1–5.2, 5.4–5.5
-**🔄 IN PROGRESS:** Task 5.3
+**🔄 IN PROGRESS:** Task 5.3 (Manual QA & verification rerun with live-data screenshots)
 **⚠️ NEXT:** Execute manual QA checklist once ready
 
 ### Working Style Guidance
 - Operate autonomously without pausing for confirmations; document progress directly in this file.
 - Only stop and surface a blocking note if external user action is required (e.g., privileged command, credentials, manual approval).
 - When blocked, clearly state the dependency and resume once the prerequisite is satisfied.
+- After any change touching schedulers, data freshness, or UI rendering, run the Verification Checklist (see **Verification Checklist (Recurring)** below) and capture the required screenshots before marking work done.
 
 ---
 
@@ -99,8 +100,10 @@
   - [x] 5.2 Quality check before commit (0-context)
         - Run: `bash ~/.claude/skills/code-quality/scripts/quality-report.sh backend/app`
         - 2025-11-05: Report generated; key warnings remain around large watchlist modules (line counts, Any usage, complex functions)
-  - [x] 5.3 Manual QA checklist (API smoke, UI toggle, preference persistence)
-        - 2025-11-05: Automated via Chrome DevTools MCP session (drive `/news`, toggle watchlist preferences, validate sentiment bundles) with captured snapshots for review.
+- [ ] 5.3 Manual QA & verification rerun (API smoke, UI toggle, preference persistence, screenshot archive)
+        - 2025-11-05: Prior run automated via Chrome DevTools MCP session (drove `/news`, toggled watchlist preferences, validated sentiment bundles) but did not log screenshots to verification archive.
+        - [ ] 5.3.1 Execute the Verification Checklist (see **Verification Checklist (Recurring)**) logging scheduler state, API payload timestamps, and UI screenshot paths inside this task file's Verification Log.
+        - [ ] 5.3.2 Update `docs/qa/NEWS_SURFACE_QA.md` with verification notes + link to artifacts.
   - [x] 5.4 Establish baseline evaluation: log aggregated sentiment metrics alongside subsequent price moves to seed future backtests
   - [x] 5.5 Document forward roadmap (news + fundamentals + technicals + strategy engine) and LLM reviewer role in `docs/core/ROADMAP.md`
 
@@ -111,7 +114,7 @@
 - [x] Install new dependencies (`transformers`, `torch`, `huggingface-hub`, `tokenizers`) in production docker/venv images
 - [x] Seed FinBERT model weights on deployment target (document location & cache strategy)
 - [x] Once Postgres test DB accessible, rerun `pytest tests/watchlist/test_news.py tests/test_api_preferences.py`
-- [x] Execute manual QA checklist (market/watchlist news pages, preferences toggle, agent news tool) – automated via Chrome DevTools MCP coverage; screenshots still optional for release notes.
+- [ ] Re-run manual QA checklist + verification log (market/watchlist news pages, preferences toggle, agent news tool) and archive screenshots per **Verification Checklist (Recurring)**.
 - [x] Fix News headline rendering: sanitize/strip embedded HTML so cards show clean text instead of raw `<a>` markup.
 - [x] Adjust News list layout so rows stay collapsed by default (summary + key metrics) with click-to-expand for full article details.
 - [x] Upgrade `/news` UX to include sortable/filterable rows with summary columns and left-click expansion for details (per PRD expectation).
@@ -128,7 +131,8 @@
 - [x] Align watchlist expanded News & Sentiment card layout with the compact row styling.
 - [x] Expose `/api/news/health` endpoint and surface it on `/status` (Chrome DevTools MCP tile).
 - [x] Emit structured metrics/logs when FinBERT inference falls back to VADER for visibility (include rate, ticker, and latency in structured logger + metrics sink so `/status` can chart it).
-- [ ] Revisit TTL/dedup filters in `NewsService._select_recent_articles` to surface more than 2–3 headlines when source returns 5+; document the new policy and ensure `maxArticles` obeys bundle limits.
+- [x] Revisit TTL/dedup filters in `NewsService._select_recent_articles` to surface more than 2–3 headlines when source returns 5+; document the new policy and ensure `maxArticles` obeys bundle limits.
+  - Fresh headlines remain TTL constrained; stale backfill now limited to `maxArticles` with `raw.stale = true` so UI can flag degraded freshness.
 - [ ] Add user-configurable news lookback window (e.g., 6/12/24/48h) surfaced in settings and honored by NewsService/refresh task TTL; persist in prefs and reflect in News Health card.
 - [ ] Implement secondary vendor support (e.g., Polygon, Finnhub, FMP) in `app/sources/*` and aggregate alongside Google News; add toggles + failure fallbacks.
 - [ ] Audit existing source configs (polygon/finnhub/newsapi/google_news/etc.) and VALIDATE via docs/free-tier research whether they provide news; document enablement steps or alternate reputable feeds if not (include legal/compliance notes).
@@ -205,12 +209,36 @@
   - Load `/news` and toggle watchlist/market
   - Expand row → verify sentiment badge + FinBERT indicator tooltip
   - Toggle `watchlist_show_news` in settings and confirm API respects it
-  - Agent tool `get_news` should also return FinBERT-scored headlines
+- Agent tool `get_news` should also return FinBERT-scored headlines
+
+- Capture screenshots, store them under `backups/ui-verification/news/<date>/`, and record paths in this checklist plus the Verification Log after Task 5.3 completes.
+
+#### Verification Checklist (Recurring — run after data/UI changes)
+
+- [ ] 1. **Confirm Scheduler Health**
+  - [ ] 1.1 Execute `~/portfolio-ai/scripts/status.sh --schedules` and ensure all critical jobs show recent run times.
+  - [ ] 1.2 Investigate and resolve any delayed/missed schedules before proceeding.
+
+- [ ] 2. **Validate Data Freshness**
+  - [ ] 2.1 Inspect backend logs or API responses for fresh timestamps (`/api/status`, `/api/watchlist`, or task-specific endpoints).
+  - [ ] 2.2 If data seems stale, restart affected services and re-run the schedule check.
+  - [ ] 2.3 For news surface validation, run `curl http://localhost:8000/api/news/market` and `curl "http://localhost:8000/api/news/watchlist?account_id=default"`; confirm `fetched_at` / `summary.updated_at` fields match the latest scheduler run.
+
+- [ ] 3. **UI Rendering Check**
+  - [ ] 3.1 Load `/news` (and related routes such as `/watchlist`) to verify fresh data renders without errors.
+  - [ ] 3.2 Capture a timestamped screenshot using `~/portfolio-ai/.claude/skills/browser-automation/scripts/screenshot.js`.
+  - [ ] 3.3 Save the screenshot in `backups/ui-verification/news/<YYYYMMDD>/` (create directories as needed).
+
+- [ ] 4. **Log Results**
+  - [ ] 4.1 Append verification notes (command outputs, anomalies, screenshot paths) to the Verification Log below.
+  - [ ] 4.2 Reference this verification in the active task list before closing any related work items.
+
+#### Verification Log (capture entries per run)
+- _No verification entries logged yet this session — run the checklist above and record outcomes here._
 
 ### 6. Known Gaps / Follow-ups
 - Package install may require wheel cache on ARM; document per-platform commands once verified.
 - Confirm Google News throttling behaviour under Celery load; consider exponential backoff if `news_refresh_failed` spikes.
-- Capture screenshots and attach to QA evidence doc after Task 5.3 completes.
 
 ### 7. Manual QA Checklist (Task 5.3 Detail)
 - **Status**: Pending – target run 2025-11-06 before packaging release candidate.

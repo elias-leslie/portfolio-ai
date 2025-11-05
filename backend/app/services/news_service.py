@@ -42,6 +42,8 @@ logger = get_logger(__name__)
 MARKET_TICKER = "__MARKET__"
 DEFAULT_TTL_HOURS = 6
 DEFAULT_MAX_ARTICLES = 10
+ARTICLE_OVERFETCH_MULTIPLIER = 3
+ARTICLE_OVERFETCH_CAP = 45
 
 
 class SentimentScore(BaseModel):
@@ -279,12 +281,14 @@ class NewsService:
         news_source: GoogleNewsSource | None = None,
         finbert_analyzer: FinBertSentimentAnalyzer | None = None,
         fallback_analyzer: VaderSentimentAnalyzer | None = None,
+        selection_overfetch: int = ARTICLE_OVERFETCH_MULTIPLIER,
     ) -> None:
         self.storage = storage
         self.ttl = ttl or timedelta(hours=DEFAULT_TTL_HOURS)
         self.news_source = news_source or GoogleNewsSource()
         self.finbert_analyzer = finbert_analyzer or FinBertSentimentAnalyzer()
         self.fallback_analyzer = fallback_analyzer or VaderSentimentAnalyzer()
+        self.selection_overfetch = max(1, selection_overfetch)
 
     # --------------------------------------------------------------------- #
     # Public API
@@ -345,7 +349,12 @@ class NewsService:
         force_refresh: bool,
     ) -> NewsBundle:
         now = datetime.now(UTC)
-        cached = self._load_cached_articles(ticker, limit=max_articles)
+        initial_limit = max(max_articles * self.selection_overfetch, max_articles)
+        if max_articles <= ARTICLE_OVERFETCH_CAP:
+            overfetch_limit = min(initial_limit, ARTICLE_OVERFETCH_CAP)
+        else:
+            overfetch_limit = max_articles
+        cached = self._load_cached_articles(ticker, limit=overfetch_limit)
         is_stale = cached.is_stale(self.ttl, now)
 
         if force_refresh or is_stale:
@@ -359,9 +368,13 @@ class NewsService:
                 )
 
             # Reload after refresh attempt (fall back to previous cache if failure)
-            cached = self._load_cached_articles(ticker, limit=max_articles)
+            cached = self._load_cached_articles(ticker, limit=overfetch_limit)
 
-        recent_articles = self._select_recent_articles(cached.articles, now)
+        recent_articles = self._select_recent_articles(
+            cached.articles,
+            now,
+            max_articles=max_articles,
+        )
         previous_window_articles = self._load_articles_in_window(
             ticker=ticker,
             start=now - (self.ttl * 2),
@@ -379,10 +392,23 @@ class NewsService:
         return NewsBundle(ticker=ticker, summary=summary, articles=recent_articles)
 
     def _select_recent_articles(
-        self, articles: Sequence[NewsArticle], now: datetime
+        self,
+        articles: Sequence[NewsArticle],
+        now: datetime,
+        *,
+        max_articles: int,
     ) -> list[NewsArticle]:
-        """Filter articles to TTL window and limit duplicates by hash."""
-        recent: list[NewsArticle] = []
+        """Filter articles to TTL window with graceful stale backfill.
+
+        Headlines are sorted by recency and deduplicated on ``content_hash``. Items within
+        the TTL window are prioritised. If there are insufficient fresh headlines to reach
+        ``max_articles``, the method backfills with the most recent stale entries while
+        marking them via ``raw["stale"] = True`` so consumers can indicate degraded
+        freshness in the UI.
+        """
+
+        fresh: list[NewsArticle] = []
+        stale_candidates: list[NewsArticle] = []
         seen_hashes: set[str] = set()
         earliest = now - self.ttl
 
@@ -392,14 +418,29 @@ class NewsService:
             if article.content_hash in seen_hashes:
                 continue
 
+            seen_hashes.add(article.content_hash)
             reference_dt = article.published_at or article.fetched_at
-            if reference_dt < earliest:
+
+            if reference_dt >= earliest and len(fresh) < max_articles:
+                fresh.append(article)
                 continue
 
-            recent.append(article)
-            seen_hashes.add(article.content_hash)
+            if reference_dt < earliest:
+                payload = dict(article.raw)
+                payload["stale"] = True
+                stale_article = article.model_copy(update={"raw": payload})
+                stale_candidates.append(stale_article)
 
-        return recent
+        if len(fresh) >= max_articles:
+            return fresh[:max_articles]
+
+        result: list[NewsArticle] = list(fresh)
+        for article in stale_candidates:
+            result.append(article)
+            if len(result) >= max_articles:
+                break
+
+        return result
 
     # ----------------------- Database operations ----------------------- #
     def _load_cached_articles(self, ticker: str, limit: int) -> CachedArticles:
@@ -801,8 +842,12 @@ class NewsService:
         counts: Counter[str] = Counter()
         model_counts: Counter[str] = Counter()
 
+        summary_articles = [article for article in articles if not article.raw.get("stale")]
+        if not summary_articles:
+            summary_articles = list(articles)
+
         ttl_hours = max(self.ttl.total_seconds() / 3600.0, 0.1)
-        for article in articles:
+        for article in summary_articles:
             counts[article.sentiment.label] += 1
             model_counts[article.sentiment.model] += 1
 
@@ -833,7 +878,7 @@ class NewsService:
             positive_count=counts["positive"],
             neutral_count=counts["neutral"],
             negative_count=counts["negative"],
-            article_count=len(articles),
+            article_count=len(summary_articles),
             latest_published_at=latest_published_at,
             top_positive=top_positive
             if top_positive and top_positive.sentiment.score > 0

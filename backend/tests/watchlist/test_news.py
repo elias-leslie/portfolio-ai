@@ -67,6 +67,16 @@ def _sample_entries(now: datetime | None = None) -> list[dict[str, str]]:
     ]
 
 
+def _build_entry(title: str, published: datetime) -> dict[str, str]:
+    return {
+        "title": title,
+        "link": f"https://example.com/{title.lower().replace(' ', '-')}",
+        "published": _format_gmt(published),
+        "summary": f"Summary for {title}.",
+        "source": {"title": "Example News"},
+    }
+
+
 def test_news_service_caches_articles(storage):
     news_source = MagicMock()
     news_source.fetch_headlines.return_value = _sample_entries()
@@ -220,3 +230,46 @@ def test_news_service_tracks_score_change(storage):
     assert bundle.summary.score is not None and bundle.summary.score < 0
     assert bundle.summary.score_change is not None
     assert bundle.summary.score_change < 0
+
+
+def test_recent_selection_backfills_with_stale_articles(storage):
+    now = datetime.now(UTC)
+    stale_base = now - timedelta(hours=5)
+
+    entries = [
+        _build_entry("MSFT earnings beat", now - timedelta(minutes=20)),
+        _build_entry("MSFT launches new cloud", now - timedelta(minutes=50)),
+        _build_entry("MSFT historical analysis", stale_base),
+        _build_entry("Legacy revenue report", stale_base - timedelta(hours=1)),
+        _build_entry("Old partnership news", stale_base - timedelta(hours=2)),
+    ]
+
+    news_source = MagicMock()
+    news_source.fetch_headlines.return_value = copy.deepcopy(entries)
+
+    analyzer = StubAnalyzer(
+        [
+            SentimentScore(score=0.3, label="positive", confidence=0.8, model="finbert"),
+            SentimentScore(score=0.1, label="neutral", confidence=0.6, model="finbert"),
+            SentimentScore(score=-0.2, label="negative", confidence=0.7, model="finbert"),
+            SentimentScore(score=-0.3, label="negative", confidence=0.7, model="finbert"),
+            SentimentScore(score=0.05, label="neutral", confidence=0.5, model="finbert"),
+        ]
+    )
+
+    service = NewsService(
+        storage,
+        ttl=timedelta(hours=2),
+        news_source=news_source,
+        finbert_analyzer=analyzer,
+        fallback_analyzer=analyzer,
+    )
+
+    bundle = service.get_symbol_news("MSFT", max_articles=5, force_refresh=True)
+    assert len(bundle.articles) == 5
+
+    stale_count = sum(1 for article in bundle.articles if article.raw.get("stale"))
+    assert stale_count == 3
+
+    assert bundle.summary.article_count == 2
+    assert bundle.summary.model_breakdown.get("finbert") == 2
