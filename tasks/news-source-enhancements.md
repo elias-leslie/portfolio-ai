@@ -20,16 +20,17 @@ Scope covers extending the news ingestion pipeline beyond the current Google New
   - Notes: ensure defaults remain backward compatible (current 6h TTL) and migration handles missing prefs. **Completed:** Migration `011_news_lookback_preference.sql` adds `news_lookback_hours` defaulting to 6; settings UI now exposes a radio group (6/12/24/48h) and News Health card reports the active window.
 
 - [ ] 2. Integrate secondary vendors (Polygon, Finnhub, FMP)
-  - [ ] 2.1 Implement adapters under `app/sources/...` respecting provider SDKs/REST endpoints for news.
-  - [ ] 2.2 Add feature toggles + graceful fallback logic in `NewsService` so Google News remains baseline if vendor unavailable.
-  - [ ] 2.3 Extend aggregation pipeline to de-duplicate content across vendors (hash/title dedupe) and tag `sentiment.model` source metadata.
-  - Notes: document rate-limit handling and ensure adapters share retry/backoff utilities.
+  - [ ] 2.1 Define news-capable source classes (`PolygonNewsSource`, `FinnhubNewsSource`, `FMPNewsSource`) that wrap existing REST helpers, emitting a normalized article payload (headline, url, published_at, source, summary).
+  - [ ] 2.2 Introduce a `NewsMultiSourceFetcher` utility (leveraging `MultiSourceFetcher`) that loads enabled sources from `config/sources/*.yaml`, enforces rate-limit cooldowns, and records source metrics in `source_performance`.
+  - [ ] 2.3 Extend `NewsService` with pluggable vendor aggregation: fetch in priority order, merge articles (content-hash/title dedupe, prefer freshest), annotate `raw["vendor"]`, and fall back to Google News when vendors fail.
+  - [ ] 2.4 Surface per-vendor toggles/env checks (e.g., `POLYGON_NEWS_ENABLED`) and expose vendor status in `/api/news/health` for observability.
+  - Notes: document rate-limit handling, shared retry/backoff utilities, and ensure adapters share the existing `rest_api_source` auth helpers where possible.
 
 - [ ] 3. Audit existing source configurations + compliance
   - [ ] 3.1 Inventory current config entries (polygon/finnhub/newsapi/google news) and verify credential/env mappings.
   - [ ] 3.2 Research free-tier/legal allowances for distributing news content; capture findings with references.
   - [ ] 3.3 Update docs (e.g., `docs/core/NEWS_FEEDS.md`) with enablement steps, caveats, or alternate feeds where direct news unavailable.
-  - Notes: include gap analysis for sources lacking native news and recommend next actions.
+  - Notes: initial review indicates Polygon (`config/sources/polygon.yaml`) exposes `/v2/reference/news` with publisher metadata; Finnhub (`config/sources/finnhub.yaml`) expects `/company-news` payloads; FMP free tier does **not** include news (config marks `news: false`) and likely needs alternate feed or paid plan—document these constraints.
 
 - [ ] 4. Prototype Yahoo Finance ticker feed
   - [ ] 4.1 Spike `yfinance.Ticker.get_news()` ingestion for per-ticker headlines; measure response latency and rate limits.
