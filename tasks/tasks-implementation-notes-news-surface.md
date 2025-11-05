@@ -101,13 +101,24 @@
 ---
 
 ## Follow-up Actions
-- [ ] Apply migration `010_news_cache_rebuild.sql` in all environments (includes `news_summary_log`)
-- [ ] Install new dependencies (`transformers`, `torch`, `huggingface-hub`, `tokenizers`) in production docker/venv images
-- [ ] Seed FinBERT model weights on deployment target (document location & cache strategy)
-- [ ] Once Postgres test DB accessible, rerun `pytest tests/watchlist/test_news.py tests/test_api_preferences.py`
+- [x] Apply migration `010_news_cache_rebuild.sql` in all environments (includes `news_summary_log`)
+- [x] Install new dependencies (`transformers`, `torch`, `huggingface-hub`, `tokenizers`) in production docker/venv images
+- [x] Seed FinBERT model weights on deployment target (document location & cache strategy)
+- [x] Once Postgres test DB accessible, rerun `pytest tests/watchlist/test_news.py tests/test_api_preferences.py`
 - [ ] Execute manual QA checklist (market/watchlist news pages, preferences toggle, agent news tool) and capture screenshots
 - [ ] Run code-quality script prior to final commit
 - [ ] Confirm location or substitute for `quality-report.sh`; current path missing
+- [ ] Shut down local `uvicorn`/Celery services after QA to release resources
+- [ ] Add custom User-Agent + request timeout to `GoogleNewsSource` (reduce 403s / hangs)
+- [ ] Emit structured metrics/logs when FinBERT inference falls back to VADER for visibility
+- [ ] Expose lightweight `/api/news/health` endpoint reporting FinBERT availability & cache stats
+- [ ] Implement secondary vendor support (e.g., Polygon, Finnhub, FMP) in `app/sources/*` and aggregate alongside Google News
+- [ ] Audit existing source configs (polygon/finnhub/newsapi/google_news/etc.) and VALIDATE via docs/free-tier research whether they provide news; document enablement steps or alternate reputable feeds if not
+- [ ] Prototype YFinance `Ticker.get_news()` ingestion (per-ticker Yahoo Finance feed) and confirm licensing/rate limits
+- [ ] Evaluate `FinNews` RSS aggregator (CNBC, SA, WSJ, etc.) for multi-source ingestion and plan integration strategy if viable (MIT licensed)
+- [ ] Revisit TTL/dedup filters in `NewsService._select_recent_articles` to surface more than 2–3 headlines when source returns 5+
+- [ ] Upgrade `/news` UX to include sortable/filterable rows with summary columns and left-click expansion for details (per PRD expectation)
+- [ ] Add user-configurable news lookback window (e.g., 6/12/24/48h) surfaced in settings and honored by NewsService/refresh task TTL
 
 ---
 

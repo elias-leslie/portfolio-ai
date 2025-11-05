@@ -9,6 +9,7 @@ import time
 from importlib import import_module
 from types import ModuleType
 from typing import Any
+from urllib.parse import urlencode
 
 from ..logging_config import get_logger
 
@@ -62,7 +63,7 @@ class GoogleNewsSource:
                 "gl": "US",
                 "ceid": "US:en",
             }
-            url = f"{self.BASE_URL}?" + "&".join(f"{k}={v}" for k, v in params.items())
+            url = f"{self.BASE_URL}?{urlencode(params)}"
 
             # Fetch and parse RSS feed
             feed = feedparser.parse(url)
