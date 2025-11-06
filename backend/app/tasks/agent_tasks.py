@@ -26,6 +26,7 @@ from app.portfolio.price_fetcher import PriceDataFetcher
 from app.services import NewsService
 from app.sources.fred import FREDSource
 from app.storage import get_storage
+from app.storage.credential_loader import load_credentials_from_database
 
 if TYPE_CHECKING:
     from app.storage import PortfolioStorage
@@ -42,6 +43,7 @@ def _setup_agent_tools(storage: PortfolioStorage) -> AgentTools:
     Returns:
         Configured AgentTools instance with all sources and managers
     """
+    load_credentials_from_database()
     news_service = NewsService(storage)
     news_service.refresh_ttl_from_preferences()
     news_service.refresh_max_articles_from_preferences()

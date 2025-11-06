@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import copy
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import polars as pl
 import pytest
 
 from app.api.preferences import _get_or_create_preferences
@@ -106,6 +108,7 @@ def test_news_service_caches_articles(storage):
         finbert_analyzer=analyzer,
         fallback_analyzer=fallback,
         vendor_sources=[],
+        auto_load_credentials=False,
     )
 
     bundle = service.get_symbol_news("NVDA", max_articles=5, force_refresh=True)
@@ -138,6 +141,7 @@ def test_news_service_falls_back_to_vader(storage):
         finbert_analyzer=failing_finbert,  # type: ignore[arg-type]
         fallback_analyzer=vader_analyzer,
         vendor_sources=[],
+        auto_load_credentials=False,
     )
 
     bundle = service.get_symbol_news("TSLA", max_articles=1, force_refresh=True)
@@ -169,6 +173,7 @@ def test_news_health_reports_fallback_metrics(storage):
         finbert_analyzer=failing_finbert,  # type: ignore[arg-type]
         fallback_analyzer=vader_analyzer,
         vendor_sources=[],
+        auto_load_credentials=False,
     )
 
     service.get_symbol_news("GOOG", max_articles=1, force_refresh=True)
@@ -207,6 +212,7 @@ def test_news_service_tracks_score_change(storage):
         finbert_analyzer=positive_analyzer,
         fallback_analyzer=fallback,
         vendor_sources=[],
+        auto_load_credentials=False,
     )
 
     # Initial refresh (positive sentiment)
@@ -276,6 +282,7 @@ def test_recent_selection_backfills_with_stale_articles(storage):
         finbert_analyzer=analyzer,
         fallback_analyzer=analyzer,
         vendor_sources=[],
+        auto_load_credentials=False,
     )
 
     bundle = service.get_symbol_news("MSFT", max_articles=5, force_refresh=True)
@@ -340,8 +347,81 @@ def test_build_recent_news_payload_includes_vendor_and_publisher():
     assert article_payload["publisher"] == "Example Publisher"
 
 
+def test_vendor_entries_round_robin_selection(storage):
+    now = datetime.now(UTC)
+    rows = [
+        {
+            "ticker": "AAPL",
+            "headline": "Polygon headline 1",
+            "url": "https://example.com/polygon-1",
+            "summary": "P1 summary",
+            "news_source_name": "Polygon Publisher",
+            "author": None,
+            "image_url": None,
+            "published_at": now,
+            "source": "polygon",
+        },
+        {
+            "ticker": "AAPL",
+            "headline": "Polygon headline 2",
+            "url": "https://example.com/polygon-2",
+            "summary": "P2 summary",
+            "news_source_name": "Polygon Publisher",
+            "author": None,
+            "image_url": None,
+            "published_at": now - timedelta(minutes=5),
+            "source": "polygon",
+        },
+        {
+            "ticker": "AAPL",
+            "headline": "Finnhub headline 1",
+            "url": "https://example.com/finnhub-1",
+            "summary": "F1 summary",
+            "news_source_name": "Finnhub Publisher",
+            "author": None,
+            "image_url": None,
+            "published_at": now - timedelta(minutes=2),
+            "source": "finnhub",
+        },
+    ]
+    dataframe = pl.from_dicts(rows)
+
+    class StubFetcher:
+        def __init__(self) -> None:
+            self.sources = [
+                SimpleNamespace(name="polygon", priority=10),
+                SimpleNamespace(name="finnhub", priority=20),
+            ]
+
+        def fetch_with_fallback(self, request, verbose=False):
+            return dataframe, {}
+
+    news_source = MagicMock()
+    news_source.fetch_headlines.return_value = []
+
+    with storage.connection() as conn:
+        conn.execute("DELETE FROM news_cache WHERE ticker = %s", ["AAPL"])
+        conn.commit()
+
+    service = NewsService(
+        storage,
+        ttl=timedelta(hours=6),
+        news_source=news_source,
+        multi_source_fetcher=StubFetcher(),
+        vendor_sources=[],
+        selection_overfetch=1,
+        auto_load_credentials=False,
+    )
+
+    bundle = service.get_symbol_news("AAPL", max_articles=3, force_refresh=True)
+    vendors = {article.vendor for article in bundle.articles}
+
+    assert vendors == {"polygon", "finnhub"}
+    assert len(bundle.articles) == 3
+
+
 def test_refresh_max_articles_from_preferences(storage):
-    service = NewsService(storage)
+    service = NewsService(storage, auto_load_credentials=False)
     _get_or_create_preferences()
     with storage.connection() as conn:
         conn.execute(

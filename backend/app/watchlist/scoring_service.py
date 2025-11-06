@@ -23,6 +23,7 @@ from ..logging_config import get_logger
 from ..portfolio.price_fetcher import PriceDataFetcher
 from ..services import NewsService
 from ..storage import PortfolioStorage
+from ..storage.credential_loader import load_credentials_from_database
 from .models import ScoreWeights, TechnicalSnapshot
 from .refresh_processor import detect_missing_historical_data, process_ticker_snapshot
 
@@ -269,6 +270,7 @@ def refresh_watchlist_scores(
         logger.warning("Failed to initialize Redis refresh status", error=str(e))
 
     fetcher = price_fetcher or PriceDataFetcher(storage)
+    load_credentials_from_database()
     news_service = NewsService(storage)
     news_service.refresh_ttl_from_preferences()
     news_max_articles = news_service.refresh_max_articles_from_preferences()

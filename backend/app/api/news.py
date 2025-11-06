@@ -9,11 +9,13 @@ from pydantic import BaseModel, Field
 
 from app.services import NewsService
 from app.storage import get_storage
+from app.storage.credential_loader import load_credentials_from_database
 from app.watchlist.watchlist_service import WatchlistService
 
 router = APIRouter(prefix="/api/news", tags=["news"])
 
 storage = get_storage()
+load_credentials_from_database()
 news_service = NewsService(storage)
 news_service.refresh_ttl_from_preferences()
 news_service.refresh_max_articles_from_preferences()

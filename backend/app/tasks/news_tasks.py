@@ -11,6 +11,7 @@ from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.services import NewsBundle, NewsService, NewsSummary
 from app.storage import PortfolioStorage, get_storage
+from app.storage.credential_loader import load_credentials_from_database
 from app.watchlist.watchlist_service import WatchlistService
 
 logger = get_logger(__name__)
@@ -92,6 +93,7 @@ def _record_summary(
 def _refresh_news_sentiment_task(self: Any, account_id: str = "default") -> dict[str, int | str]:
     """Refresh market and watchlist news sentiment caches."""
     storage = get_storage()
+    load_credentials_from_database()
     news_service = NewsService(storage)
     lookback_hours = news_service.refresh_ttl_from_preferences()
     news_max_articles = news_service.refresh_max_articles_from_preferences()

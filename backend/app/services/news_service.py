@@ -7,7 +7,7 @@ import json
 import math
 import os
 import threading
-from collections import Counter
+from collections import Counter, deque
 from collections.abc import Iterable, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
@@ -52,8 +52,33 @@ from ..sources.rss_source import (
 )
 from ..sources.yfinance_source import YFinanceSource
 from ..storage import PortfolioStorage
+from ..storage.credential_loader import load_credentials_from_database
 
 logger = get_logger(__name__)
+
+_CREDENTIALS_LOADED = False
+_CREDENTIALS_LOCK = threading.Lock()
+
+
+def _ensure_credentials_loaded(*, force: bool = False) -> None:
+    """Load credentials from database into environment once per process."""
+    global _CREDENTIALS_LOADED  # noqa: PLW0603
+
+    if not force and _CREDENTIALS_LOADED:
+        return
+
+    with _CREDENTIALS_LOCK:
+        if not force and _CREDENTIALS_LOADED:
+            return
+        try:
+            load_credentials_from_database()
+            _CREDENTIALS_LOADED = True
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.warning(
+                "news_credentials_load_failed",
+                error=str(exc),
+            )
+
 
 MARKET_TICKER = "__MARKET__"
 DEFAULT_TTL_HOURS = 6
@@ -302,7 +327,12 @@ class NewsService:
         selection_overfetch: int = ARTICLE_OVERFETCH_MULTIPLIER,
         multi_source_fetcher: MultiSourceFetcher | None = None,
         vendor_sources: Sequence[BaseSource] | None = None,
+        auto_load_credentials: bool = True,
+        force_credential_reload: bool = False,
     ) -> None:
+        if auto_load_credentials:
+            _ensure_credentials_loaded(force=force_credential_reload)
+
         self.storage = storage
         self.ttl = ttl or timedelta(hours=DEFAULT_TTL_HOURS)
         self.news_source = news_source or GoogleNewsSource()
@@ -314,6 +344,7 @@ class NewsService:
 
         self._vendor_config: dict[str, dict[str, Any]] = {}
         self._vendor_runtime: dict[str, dict[str, Any]] = {}
+        self._recent_mix_summary: dict[str, dict[str, Any]] = {}
 
         # Always register Google News fallback vendor
         self._register_vendor(
@@ -382,6 +413,7 @@ class NewsService:
                 "last_error_at": None,
                 "last_error": None,
                 "articles_last_fetch": 0,
+                "articles_last_fetch_post": 0,
             },
         )
 
@@ -751,6 +783,7 @@ class NewsService:
                 "last_error_at": None,
                 "last_error": None,
                 "articles_last_fetch": 0,
+                "articles_last_fetch_post": 0,
             },
         )
         runtime["last_attempt_at"] = attempt_at
@@ -882,8 +915,11 @@ class NewsService:
             metadata["counts"] = {}
             return [], metadata
 
-        entries: list[dict[str, Any]] = []
         vendor_counts: Counter[str] = Counter()
+        vendor_buckets: dict[str, deque[dict[str, Any]]] = {}
+        priority_lookup = {
+            source.name: index for index, source in enumerate(self.multi_source_fetcher.sources)
+        }
 
         for row in dataframe.to_dicts():
             vendor_name = str(row.get("source") or "").strip() or "unknown"
@@ -894,13 +930,43 @@ class NewsService:
             )
             if not normalized.get("headline"):
                 continue
+
             vendor_counts[vendor_name] += 1
-            entries.append(normalized)
-            if len(entries) >= max_entries:
-                break
+            bucket = vendor_buckets.setdefault(vendor_name, deque())
+            bucket.append(normalized)
 
         metadata["counts"] = dict(vendor_counts)
-        return entries, metadata
+
+        if not vendor_buckets or max_entries <= 0:
+            return [], metadata
+
+        vendor_order = sorted(
+            vendor_buckets.keys(),
+            key=lambda name: priority_lookup.get(name, len(priority_lookup) + 1),
+        )
+
+        selected: list[dict[str, Any]] = []
+        while vendor_order and len(selected) < max_entries:
+            progressed = False
+            for vendor_name in list(vendor_order):
+                queue = vendor_buckets.get(vendor_name)
+                if not queue:
+                    vendor_order.remove(vendor_name)
+                    continue
+
+                selected.append(queue.popleft())
+                progressed = True
+
+                if not queue:
+                    vendor_order.remove(vendor_name)
+
+                if len(selected) >= max_entries:
+                    break
+
+            if not progressed:
+                break
+
+        return selected, metadata
 
     def _fetch_google_entries(
         self,
@@ -942,7 +1008,7 @@ class NewsService:
         vendor_entries: Sequence[dict[str, Any]],
         google_entries: Sequence[dict[str, Any]],
         max_entries: int,
-    ) -> list[dict[str, Any]]:
+    ) -> tuple[list[dict[str, Any]], dict[str, int]]:
         seen: set[tuple[str, str]] = set()
         merged: list[dict[str, Any]] = []
 
@@ -975,7 +1041,13 @@ class NewsService:
         if len(merged) < max_entries:
             _iter_source(google_entries)
 
-        return merged[:max_entries]
+        limited = merged[:max_entries]
+        post_counts: Counter[str] = Counter()
+        for entry in limited:
+            vendor = str(entry.get("vendor") or "unknown").strip() or "unknown"
+            post_counts[vendor] += 1
+
+        return limited, {vendor: int(count) for vendor, count in post_counts.items()}
 
     def _select_recent_articles(
         self,
@@ -1349,7 +1421,13 @@ class NewsService:
             now=now,
         )
 
-        combined_entries = self._merge_entries(
+        pre_counts: dict[str, int] = {
+            str(name): int(count) for name, count in (vendor_metadata.get("counts") or {}).items()
+        }
+        if google_entries:
+            pre_counts["google_news"] = pre_counts.get("google_news", 0) + len(google_entries)
+
+        combined_entries, post_counts = self._merge_entries(
             ticker=ticker,
             vendor_entries=vendor_entries,
             google_entries=google_entries,
@@ -1359,6 +1437,28 @@ class NewsService:
         if not combined_entries:
             logger.info("No headlines returned from sources", ticker=ticker)
             return
+
+        for vendor_name, post_count in post_counts.items():
+            runtime = self._vendor_runtime.setdefault(
+                vendor_name,
+                {
+                    "last_attempt_at": None,
+                    "last_success_at": None,
+                    "last_error_at": None,
+                    "last_error": None,
+                    "articles_last_fetch": 0,
+                    "articles_last_fetch_post": 0,
+                },
+            )
+            runtime["articles_last_fetch_post"] = int(post_count)
+
+        self._recent_mix_summary[ticker.upper()] = {
+            "timestamp": now,
+            "total_pre": int(sum(pre_counts.values())),
+            "total_post": len(combined_entries),
+            "per_vendor_pre": pre_counts,
+            "per_vendor_post": post_counts,
+        }
 
         articles = self._score_entries(ticker=ticker, entries=combined_entries, now=now)
         rows_to_insert = [self._article_to_db_row(article) for article in articles]
@@ -1607,6 +1707,32 @@ class NewsService:
 
         fallback_rate = (fallback_count / total_count) if total_count else 0.0
 
+        mix_total_pre = 0
+        mix_total_post = 0
+        mix_vendor_pre: Counter[str] = Counter()
+        mix_vendor_post: Counter[str] = Counter()
+        last_mix_timestamp: datetime | None = None
+
+        pruning_threshold = now - (self.ttl * 2)
+        for ticker_key, stats in list(self._recent_mix_summary.items()):
+            timestamp = stats.get("timestamp")
+            if isinstance(timestamp, datetime) and timestamp < pruning_threshold:
+                self._recent_mix_summary.pop(ticker_key, None)
+                continue
+
+            if isinstance(timestamp, datetime) and (
+                not last_mix_timestamp or timestamp > last_mix_timestamp
+            ):
+                last_mix_timestamp = timestamp
+
+            mix_total_pre += int(stats.get("total_pre", 0) or 0)
+            mix_total_post += int(stats.get("total_post", 0) or 0)
+
+            for vendor_name, count in (stats.get("per_vendor_pre") or {}).items():
+                mix_vendor_pre[vendor_name] += int(count or 0)
+            for vendor_name, count in (stats.get("per_vendor_post") or {}).items():
+                mix_vendor_post[vendor_name] += int(count or 0)
+
         with self.storage.connection() as conn:
             vendor_rows = conn.execute(
                 """
@@ -1666,6 +1792,7 @@ class NewsService:
                 "last_error_at": _iso(runtime.get("last_error_at")),
                 "last_error": runtime.get("last_error"),
                 "articles_last_fetch": int(runtime.get("articles_last_fetch", 0)),
+                "articles_last_fetch_post_dedupe": int(runtime.get("articles_last_fetch_post", 0)),
                 "articles_last_24h": int(stats.get("articles_last_24h", 0)),
                 "last_article_at": _iso(last_article_at_dt),
                 "notes": config.get("notes"),
@@ -1688,5 +1815,13 @@ class NewsService:
             if p95_latency_ms is not None
             else None,
             "fallback_last_event_at": _iso(last_fallback_at) if last_fallback_at else None,
+            "article_mix": {
+                "total_pre_dedupe": mix_total_pre,
+                "total_post_dedupe": mix_total_post,
+                "dedupe_ratio": round(mix_total_post / mix_total_pre, 4) if mix_total_pre else None,
+                "per_vendor_pre_dedupe": {k: int(v) for k, v in mix_vendor_pre.items()},
+                "per_vendor_post_dedupe": {k: int(v) for k, v in mix_vendor_post.items()},
+                "last_updated_at": _iso(last_mix_timestamp) if last_mix_timestamp else None,
+            },
             "vendors": vendor_health,
         }

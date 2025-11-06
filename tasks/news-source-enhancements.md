@@ -9,6 +9,11 @@
 
 Scope covers extending the news ingestion pipeline beyond the current Google News + FinBERT setup. Key deliverables: configurable lookback windows, multi-vendor aggregation, documentation/validation of provider capabilities, Yahoo Finance prototype, and FinNews RSS evaluation.
 
+**Working Instructions (active)**
+- After every meaningful chunk, update this task list with progress/next steps so we can resume if tokens/context interrupt.
+- Record blockers explicitly (e.g., need sudo, missing credential) before pausing.
+- Commit to git at logical milestones instead of stacking all work into a single commit; include migration/schema changes promptly.
+
 ---
 
 ## Tasks
@@ -86,6 +91,26 @@ Scope covers extending the news ingestion pipeline beyond the current Google New
   - [x] 10.5 Add Financial Times RSS (with attribution text) and evaluate Seeking Alpha RSS legality; only ingest if compliance ok.
   - [x] 10.6 Update source health reporting/tests to tag new RSS vendors and capture fetch latency + last success/error timestamps.
         - ✅ `rss_source.py` introduces dedicated adapters (CNBC, MarketWatch, Nasdaq, Fortune, Investing.com, FT, Seeking Alpha) with env toggles and vendor registration so `/api/news/health` reports them.
+
+- [ ] 11. Ensure API credentials reach NewsService before vendor initialization
+  - [x] 11.1 Diagnose why `/api/news/health` reports `missing_api_key` despite credentials in `source_credentials` and `.env`.
+        - ✅ Root cause: NewsService read env vars before credential loader ran in some contexts; service now auto-loads credentials to avoid race.
+  - [x] 11.2 Adjust startup order (e.g., call `load_credentials_from_database()` prior to `NewsService` instantiation or lazy-load keys) so Polygon/Finnhub see their API keys.
+        - ✅ NewsService now calls `_ensure_credentials_loaded()` (cached) on init; tests opt-out with `auto_load_credentials=False`.
+  - [ ] 11.3 Verify by restarting services and confirming `/api/news/health` shows vendors configured/enabled with non-zero counts.
+
+- [ ] 12. Update multi-vendor aggregation to combine, not short-circuit
+  - [x] 12.1 Modify `MultiSourceFetcher` / `NewsService` selection pipeline so multiple enabled sources contribute within `news_max_articles`.
+        - ✅ Vendor article buckets now round-robin by priority, preventing a single feed from consuming the entire limit.
+  - [x] 12.2 Ensure dedupe logic still prevents duplicate headlines when mixing vendors.
+        - ✅ Existing `_merge_entries` dedupe unaffected; vendor normalization retains content hash stability.
+  - [x] 12.3 Add tests covering mixed vendor ingestion (e.g., Google + RSS + YFinance) to guarantee we don’t over-fetch or double count.
+        - ✅ Added `test_vendor_entries_round_robin_selection` covering multi-source mix.
+
+- [ ] 13. Enhance news health/status metrics for visibility
+  - [ ] 13.1 Extend `/api/news/health` payload with per-vendor article counts from the latest refresh, dedupe ratios, and total articles pulled vs. retained.
+  - [ ] 13.2 Update Status page UI to display the new metrics so bias (vendor dominance) is obvious to operators.
+  - [ ] 13.3 Document the new metrics in `docs/core/NEWS_FEEDS.md` and add operational guidance for interpreting them.
 
 ---
 

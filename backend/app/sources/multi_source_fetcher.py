@@ -301,9 +301,10 @@ class MultiSourceFetcher:
         all_data = []
         errors_by_source: dict[str, list[str]] = {}
         tickers_remaining = set(request.tickers)
+        news_dataset = request.dataset == DATASET_NEWS
 
         for source in sources:
-            if not tickers_remaining:
+            if not news_dataset and not tickers_remaining:
                 break  # All tickers fetched successfully
 
             # Check rate limit cooldown
@@ -323,7 +324,10 @@ class MultiSourceFetcher:
                 continue
 
             # Create request for remaining tickers
-            remaining_request = dataclasses.replace(request, tickers=list(tickers_remaining))
+            remaining_request = dataclasses.replace(
+                request,
+                tickers=list(tickers_remaining) if not news_dataset else list(request.tickers),
+            )
 
             try:
                 if verbose:
@@ -372,7 +376,7 @@ class MultiSourceFetcher:
                     all_data.append(data)
 
                     # Track which tickers were successfully fetched
-                    if "ticker" in data.columns:
+                    if "ticker" in data.columns and not news_dataset:
                         fetched_tickers = set(data["ticker"].unique().to_list())
                         tickers_remaining -= fetched_tickers
 
@@ -388,7 +392,8 @@ class MultiSourceFetcher:
                         # Assume all tickers fetched if no ticker column
                         if verbose:
                             logger.info("source_fetched_all", source=source.name, rows=len(data))
-                        tickers_remaining.clear()
+                        if not news_dataset:
+                            tickers_remaining.clear()
 
                     # Record success metrics
                     self._record_success(source.name, fetch_duration_ms)
