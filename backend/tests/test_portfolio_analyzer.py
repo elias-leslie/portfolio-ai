@@ -81,7 +81,7 @@ def portfolio_with_positions(storage: PortfolioStorage) -> PortfolioManager:
 
 
 @pytest.fixture
-def mock_news_source() -> Mock:
+def mock_news_service() -> Mock:
     """Create a mock news source."""
     mock = Mock(spec=GoogleNewsSource)
     mock.fetch_headlines.return_value = [
@@ -134,7 +134,7 @@ def mock_price_fetcher() -> Mock:
 def agent_tools(
     storage: PortfolioStorage,
     portfolio_with_positions: PortfolioManager,
-    mock_news_source: Mock,
+    mock_news_service: Mock,
     mock_fred_source: Mock,
     mock_price_fetcher: Mock,
 ) -> AgentTools:
@@ -143,7 +143,7 @@ def agent_tools(
 
     return AgentTools(
         storage=storage,
-        news_source=mock_news_source,
+        news_service=mock_news_service,
         fred_source=mock_fred_source,
         price_fetcher=mock_price_fetcher,
         portfolio_mgr=portfolio_with_positions,
@@ -424,7 +424,7 @@ def test_portfolio_analyzer_run_full_execution(
 
 def test_portfolio_analyzer_run_with_empty_portfolio(
     storage: PortfolioStorage,
-    mock_news_source: Mock,
+    mock_news_service: Mock,
     mock_fred_source: Mock,
     mock_price_fetcher: Mock,
 ) -> None:
@@ -435,7 +435,7 @@ def test_portfolio_analyzer_run_with_empty_portfolio(
 
     tools = AgentTools(
         storage=storage,
-        news_source=mock_news_source,
+        news_service=mock_news_service,
         fred_source=mock_fred_source,
         price_fetcher=mock_price_fetcher,
         portfolio_mgr=portfolio_mgr,

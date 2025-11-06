@@ -269,6 +269,51 @@ class MultiSourceFetcher:
         candidates = self.get_sources_for_dataset(dataset)
         return candidates[0] if candidates else None
 
+    def _normalize_news_schema(self, df: pl.DataFrame) -> pl.DataFrame:
+        """Normalize dataframe schema to ensure consistent types across sources.
+
+        This prevents Polars concat errors when one source has a column with
+        all None values (inferred as Null type) and another has String values.
+
+        Args:
+            df: Dataframe from any news source
+
+        Returns:
+            Dataframe with normalized column types
+        """
+        # Define expected schema for standard news columns
+        # All nullable columns must be explicitly cast to Utf8 (not Null type)
+        standard_casts = {
+            "ticker": pl.Utf8,
+            "headline": pl.Utf8,
+            "url": pl.Utf8,
+            "summary": pl.Utf8,
+            "news_source_name": pl.Utf8,
+            "author": pl.Utf8,  # Often null, needs explicit cast
+            "image_url": pl.Utf8,  # Often null, needs explicit cast
+            "raw_payload": pl.Utf8,  # Often null, needs explicit cast
+            "source": pl.Utf8,
+            "vendor": pl.Utf8,
+        }
+
+        # SEC EDGAR-specific columns (may not exist in other sources)
+        sec_edgar_casts = {
+            "filing_type": pl.Utf8,
+            "plain_language_headline": pl.Utf8,
+            "is_material_event": pl.Boolean,
+        }
+
+        # Apply casts only for columns that exist in this dataframe
+        cast_exprs = []
+        for col, dtype in {**standard_casts, **sec_edgar_casts}.items():
+            if col in df.columns:
+                cast_exprs.append(pl.col(col).cast(dtype, strict=False))
+
+        if cast_exprs:
+            df = df.with_columns(cast_exprs)
+
+        return df
+
     def fetch_with_fallback(
         self, request: DatasetRequest, verbose: bool = True
     ) -> tuple[pl.DataFrame | None, dict[str, list[str]]]:
@@ -417,7 +462,13 @@ class MultiSourceFetcher:
         # Combine data from all sources
         # Use diagonal concat to handle different schemas (e.g., SEC EDGAR has extra fields)
         if all_data:
-            combined = pl.concat(all_data, how="diagonal") if len(all_data) > 1 else all_data[0]
+            # Normalize schemas before concat to avoid type incompatibility errors
+            normalized_data = [self._normalize_news_schema(df) for df in all_data]
+            combined = (
+                pl.concat(normalized_data, how="diagonal")
+                if len(normalized_data) > 1
+                else normalized_data[0]
+            )
 
             if verbose:
                 logger.info(

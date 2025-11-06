@@ -31,8 +31,8 @@ def mock_storage() -> Mock:
 
 
 @pytest.fixture
-def mock_news_source() -> Mock:
-    """Create a mock news source."""
+def mock_news_service() -> Mock:
+    """Create a mock news service."""
     return Mock()
 
 
@@ -63,7 +63,7 @@ def mock_analytics() -> Mock:
 @pytest.fixture
 def agent_tools(
     mock_storage: Mock,
-    mock_news_source: Mock,
+    mock_news_service: Mock,
     mock_fred_source: Mock,
     mock_price_fetcher: Mock,
     mock_portfolio_mgr: Mock,
@@ -72,7 +72,7 @@ def agent_tools(
     """Create an AgentTools instance with all mocks."""
     return AgentTools(
         storage=mock_storage,
-        news_source=mock_news_source,
+        news_service=mock_news_service,
         fred_source=mock_fred_source,
         price_fetcher=mock_price_fetcher,
         portfolio_mgr=mock_portfolio_mgr,

@@ -50,7 +50,7 @@ def storage() -> PortfolioStorage:
 
 
 @pytest.fixture
-def mock_news_source() -> Mock:
+def mock_news_service() -> Mock:
     """Create a mock news source."""
     mock = Mock(spec=GoogleNewsSource)
     mock.fetch_headlines.return_value = [
@@ -86,7 +86,7 @@ def mock_fred_source() -> Mock:
 @pytest.fixture
 def agent_tools(
     storage: PortfolioStorage,
-    mock_news_source: Mock,
+    mock_news_service: Mock,
     mock_fred_source: Mock,
 ) -> AgentTools:
     """Create AgentTools with mocked external sources."""
@@ -99,7 +99,7 @@ def agent_tools(
 
     return AgentTools(
         storage=storage,
-        news_source=mock_news_source,
+        news_service=mock_news_service,
         fred_source=mock_fred_source,
         price_fetcher=mock_price_fetcher,
         portfolio_mgr=portfolio_mgr,
@@ -210,7 +210,7 @@ def test_discovery_agent_tools(storage: PortfolioStorage, agent_tools: AgentTool
 def test_discovery_agent_execute_tool_get_news(
     storage: PortfolioStorage,
     agent_tools: AgentTools,
-    mock_news_source: Mock,
+    mock_news_service: Mock,
 ) -> None:
     """Test executing get_news tool."""
     agent = DiscoveryAgent(storage=storage, tools=agent_tools)
@@ -219,7 +219,7 @@ def test_discovery_agent_execute_tool_get_news(
 
     assert "headlines" in result
     assert "count" in result
-    mock_news_source.fetch_headlines.assert_called_once_with("technology", 5)
+    mock_news_service.fetch_headlines.assert_called_once_with("technology", 5)
 
 
 def test_discovery_agent_execute_tool_get_economic_data(
@@ -323,7 +323,7 @@ def test_discovery_agent_run_full_execution(
     storage: PortfolioStorage,
     agent_tools: AgentTools,
     mock_anthropic_client: Mock,
-    mock_news_source: Mock,
+    mock_news_service: Mock,
     mock_fred_source: Mock,
 ) -> None:
     """Test full Discovery Agent execution with mocked Claude API."""
