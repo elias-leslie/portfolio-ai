@@ -1,10 +1,12 @@
 # Task List: News Phase 1 - SEC EDGAR Integration
 
-**Status**: Not Started
+**Status**: BLOCKED - SEC IP Rate Limiting
 **Created**: 2025-11-06
+**Updated**: 2025-11-06 14:45
 **Priority**: CRITICAL
 **Estimated Effort**: 12-16 hours (2-3 days)
 **Dependencies**: None (free tier, no API keys needed)
+**Blocker**: SEC.gov blocking dev IP with 403 errors - see docs/known-issues/sec-edgar-ip-rate-limit.md
 
 ---
 
