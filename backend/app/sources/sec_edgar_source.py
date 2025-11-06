@@ -203,7 +203,21 @@ class SECEdgarSource(BaseSource):
             unique_tickers=len({r["ticker"] for r in records}),
         )
 
-        return pl.from_dicts(records)
+        # Create dataframe with explicit schema to avoid type inference issues during concat
+        df = pl.from_dicts(records)
+
+        # Explicitly cast nullable columns to ensure consistent types across sources
+        df = df.with_columns(
+            [
+                pl.col("author").cast(pl.Utf8),
+                pl.col("image_url").cast(pl.Utf8),
+                pl.col("raw_payload").cast(pl.Utf8),
+                pl.col("filing_type").cast(pl.Utf8),
+                pl.col("plain_language_headline").cast(pl.Utf8),
+            ]
+        )
+
+        return df
 
     def _process_filing(self, filings: Any, index: int, ticker: str) -> dict[str, Any] | None:
         """Process a single filing into a news record.
