@@ -181,26 +181,26 @@ class AgentTools:
         self.portfolio_mgr = portfolio_mgr
         self.analytics = analytics
 
-    def execute_get_news(self, query: str, max_results: int = 10) -> dict[str, Any]:
+    def execute_get_news(self, query: str, max_results: int | None = None) -> dict[str, Any]:
         """Execute get_news tool."""
         normalized_query = query.strip()
+        pref_limit = self.news_service.refresh_max_articles_from_preferences()
+        limit = max_results or pref_limit
         try:
             if normalized_query.lower() in {"market", "stock market", "overall"}:
-                bundle = self.news_service.get_market_news(max_articles=max_results)
+                bundle = self.news_service.get_market_news(max_articles=limit)
             elif normalized_query.isalpha() and len(normalized_query) <= 6:
                 bundle = self.news_service.get_symbol_news(
-                    normalized_query.upper(), max_articles=max_results
+                    normalized_query.upper(), max_articles=limit
                 )
             else:
-                bundle = self.news_service.get_custom_news(
-                    normalized_query, max_articles=max_results
-                )
+                bundle = self.news_service.get_custom_news(normalized_query, max_articles=limit)
 
             return {
                 "query": normalized_query,
                 "ticker": bundle.ticker,
                 "summary": bundle.summary.model_dump(),
-                "articles": [article.model_dump() for article in bundle.articles[:max_results]],
+                "articles": [article.model_dump() for article in bundle.articles[:limit]],
                 "count": len(bundle.articles),
             }
         except Exception as exc:

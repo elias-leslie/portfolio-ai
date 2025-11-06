@@ -44,6 +44,7 @@ def _setup_agent_tools(storage: PortfolioStorage) -> AgentTools:
     """
     news_service = NewsService(storage)
     news_service.refresh_ttl_from_preferences()
+    news_service.refresh_max_articles_from_preferences()
     fred_source = FREDSource()
     price_fetcher = PriceDataFetcher(storage)
     portfolio_mgr = PortfolioManager(storage)

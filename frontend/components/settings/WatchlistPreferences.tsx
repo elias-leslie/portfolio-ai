@@ -51,6 +51,9 @@ export function WatchlistPreferences({
     const [newsLookbackHours, setNewsLookbackHours] = useState(
         preferences.news_lookback_hours,
     );
+    const [newsMaxArticles, setNewsMaxArticles] = useState(
+        preferences.news_max_articles,
+    );
 
     // Legacy watchlist settings
     const [autoExpand, setAutoExpand] = useState(
@@ -80,6 +83,7 @@ export function WatchlistPreferences({
                 preferences.default_refresh_minutes,
         );
         setNewsLookbackHours(preferences.news_lookback_hours);
+        setNewsMaxArticles(preferences.news_max_articles);
         setAutoExpand(preferences.watchlist_auto_expand);
         setPriceWeight(preferences.watchlist_price_weight);
         setTechnicalWeight(preferences.watchlist_technical_weight);
@@ -97,6 +101,7 @@ export function WatchlistPreferences({
             currentOverride !== savedOverride ||
             currentNewsOverride !== savedNewsOverride ||
             newsLookbackHours !== preferences.news_lookback_hours ||
+            newsMaxArticles !== preferences.news_max_articles ||
             showNews !== preferences.watchlist_show_news ||
             autoExpand !== preferences.watchlist_auto_expand ||
             priceWeight !== preferences.watchlist_price_weight ||
@@ -120,6 +125,7 @@ export function WatchlistPreferences({
                     : null,
                 news_refresh_override: useNewsOverride ? newsOverride : null,
                 news_lookback_hours: newsLookbackHours,
+                news_max_articles: newsMaxArticles,
                 watchlist_auto_expand: autoExpand,
                 watchlist_price_weight: priceWeight,
                 watchlist_technical_weight: technicalWeight,
@@ -146,6 +152,7 @@ export function WatchlistPreferences({
                 preferences.default_refresh_minutes,
         );
         setNewsLookbackHours(preferences.news_lookback_hours);
+        setNewsMaxArticles(preferences.news_max_articles);
         setAutoExpand(preferences.watchlist_auto_expand);
         setPriceWeight(preferences.watchlist_price_weight);
         setTechnicalWeight(preferences.watchlist_technical_weight);
@@ -231,6 +238,40 @@ export function WatchlistPreferences({
                         <p className="text-xs text-text-muted">
                             Controls how far back the News service samples
                             headlines before calculating sentiment scores.
+                        </p>
+                    </div>
+
+                    <div className="space-y-3">
+                        <Label>Max Headlines Per Ticker</Label>
+                        <RadioGroup
+                            value={String(newsMaxArticles)}
+                            onValueChange={(value) =>
+                                setNewsMaxArticles(Number(value))
+                            }
+                            className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3"
+                        >
+                            {[5, 10, 15, 20].map((count) => (
+                                <div
+                                    key={count}
+                                    className="flex items-center space-x-2 rounded-md border border-border/60 px-3 py-2"
+                                >
+                                    <RadioGroupItem
+                                        id={`news-max-${count}`}
+                                        value={String(count)}
+                                    />
+                                    <Label
+                                        htmlFor={`news-max-${count}`}
+                                        className="cursor-pointer"
+                                    >
+                                        {count} headlines
+                                    </Label>
+                                </div>
+                            ))}
+                        </RadioGroup>
+                        <p className="text-xs text-text-muted">
+                            Sets the default number of headlines returned for
+                            each ticker and the Market view. API calls can still
+                            request fewer or more (up to 20).
                         </p>
                     </div>
 

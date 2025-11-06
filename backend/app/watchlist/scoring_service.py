@@ -271,6 +271,7 @@ def refresh_watchlist_scores(
     fetcher = price_fetcher or PriceDataFetcher(storage)
     news_service = NewsService(storage)
     news_service.refresh_ttl_from_preferences()
+    news_max_articles = news_service.refresh_max_articles_from_preferences()
     technical_map = _load_latest_technical(storage, symbols)
     default_weights = _load_default_weights(storage)
     stale_ttl_minutes = _load_stale_ttl_minutes(storage)
@@ -359,6 +360,7 @@ def refresh_watchlist_scores(
                 risk_budget=risk_budget,
                 now=now,
                 news_service=news_service,
+                max_news_articles=news_max_articles,
             )
 
             storage.query_mgr.upsert_watchlist_snapshot(**snapshot.to_upsert_params())

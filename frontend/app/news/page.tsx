@@ -133,6 +133,7 @@ const VENDOR_LABELS: Record<string, string> = {
     finnhub: "Finnhub",
     fmp: "FMP",
     google_news: "Google News",
+    yfinance: "Yahoo Finance",
 };
 
 function formatVendorLabel(vendor?: string | null): string {

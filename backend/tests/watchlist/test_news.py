@@ -8,12 +8,17 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from app.api.preferences import _get_or_create_preferences
 from app.services.news_service import (
     FinBertUnavailableError,
+    NewsArticle,
+    NewsBundle,
     NewsService,
+    NewsSummary,
     SentimentScore,
 )
 from app.storage import get_storage
+from app.watchlist.refresh_processor import build_recent_news_payload
 
 
 @pytest.fixture()
@@ -100,6 +105,7 @@ def test_news_service_caches_articles(storage):
         news_source=news_source,
         finbert_analyzer=analyzer,
         fallback_analyzer=fallback,
+        vendor_sources=[],
     )
 
     bundle = service.get_symbol_news("NVDA", max_articles=5, force_refresh=True)
@@ -131,6 +137,7 @@ def test_news_service_falls_back_to_vader(storage):
         news_source=news_source,
         finbert_analyzer=failing_finbert,  # type: ignore[arg-type]
         fallback_analyzer=vader_analyzer,
+        vendor_sources=[],
     )
 
     bundle = service.get_symbol_news("TSLA", max_articles=1, force_refresh=True)
@@ -161,6 +168,7 @@ def test_news_health_reports_fallback_metrics(storage):
         news_source=news_source,
         finbert_analyzer=failing_finbert,  # type: ignore[arg-type]
         fallback_analyzer=vader_analyzer,
+        vendor_sources=[],
     )
 
     service.get_symbol_news("GOOG", max_articles=1, force_refresh=True)
@@ -198,6 +206,7 @@ def test_news_service_tracks_score_change(storage):
         news_source=news_source,
         finbert_analyzer=positive_analyzer,
         fallback_analyzer=fallback,
+        vendor_sources=[],
     )
 
     # Initial refresh (positive sentiment)
@@ -266,6 +275,7 @@ def test_recent_selection_backfills_with_stale_articles(storage):
         news_source=news_source,
         finbert_analyzer=analyzer,
         fallback_analyzer=analyzer,
+        vendor_sources=[],
     )
 
     bundle = service.get_symbol_news("MSFT", max_articles=5, force_refresh=True)
@@ -276,3 +286,69 @@ def test_recent_selection_backfills_with_stale_articles(storage):
 
     assert bundle.summary.article_count == 2
     assert bundle.summary.model_breakdown.get("finbert") == 2
+
+
+def test_build_recent_news_payload_includes_vendor_and_publisher():
+    now = datetime.now(UTC)
+    summary = NewsSummary(
+        ticker="AAPL",
+        score=0.42,
+        score_change=0.1,
+        positive_count=1,
+        neutral_count=0,
+        negative_count=0,
+        article_count=1,
+        latest_published_at=now,
+        model_breakdown={"finbert": 1},
+        top_positive=None,
+        top_negative=None,
+    )
+    sentiment = SentimentScore(
+        score=0.6,
+        label="positive",
+        confidence=0.9,
+        model="finbert",
+        probabilities={"positive": 0.9, "neutral": 0.08, "negative": 0.02},
+    )
+    raw_entry = {
+        "vendor": "polygon",
+        "source": {"title": "Example Publisher"},
+    }
+    article = NewsArticle(
+        ticker="AAPL",
+        headline="Example headline",
+        url="https://example.com/article",
+        summary="Example summary",
+        source=None,
+        author="Reporter",
+        image_url=None,
+        published_at=now,
+        fetched_at=now,
+        sentiment=sentiment,
+        content_hash="hash-123",
+        raw={"raw": raw_entry},
+        vendor=None,
+    )
+    bundle = NewsBundle(ticker="AAPL", summary=summary, articles=[article])
+
+    payload = build_recent_news_payload(bundle, max_articles=5)
+    assert payload["summary"]["ticker"] == "AAPL"
+    assert len(payload["articles"]) == 1
+    article_payload = payload["articles"][0]
+    assert article_payload["vendor"] == "polygon"
+    assert article_payload["source"] == "Example Publisher"
+    assert article_payload["publisher"] == "Example Publisher"
+
+
+def test_refresh_max_articles_from_preferences(storage):
+    service = NewsService(storage)
+    _get_or_create_preferences()
+    with storage.connection() as conn:
+        conn.execute(
+            "UPDATE user_preferences SET news_max_articles = %s",
+            [15],
+        )
+        conn.commit()
+
+    assert service.refresh_max_articles_from_preferences() == 15
+    assert service.max_articles == 15

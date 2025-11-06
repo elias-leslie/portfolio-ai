@@ -16,6 +16,7 @@ router = APIRouter(prefix="/api/news", tags=["news"])
 storage = get_storage()
 news_service = NewsService(storage)
 news_service.refresh_ttl_from_preferences()
+news_service.refresh_max_articles_from_preferences()
 watchlist_service = WatchlistService(storage)
 
 
@@ -183,24 +184,28 @@ def _serialize_bundle(bundle: Any, *, limit: int) -> NewsBundleResponse:
 
 @router.get("/market", response_model=NewsBundleResponse)
 async def get_market_news(
-    max_results: int = Query(10, ge=1, le=50, description="Maximum number of articles to return"),
+    max_results: int | None = Query(
+        None, ge=1, le=50, description="Maximum number of articles to return"
+    ),
     force_refresh: bool = Query(
         False, description="Force refresh of cached headlines before returning results"
     ),
 ) -> NewsBundleResponse:
     """Get aggregated market news with sentiment summary."""
     news_service.refresh_ttl_from_preferences()
+    pref_limit = news_service.refresh_max_articles_from_preferences()
+    limit = max_results or pref_limit
     bundle = news_service.get_market_news(
-        max_articles=max_results,
+        max_articles=limit,
         force_refresh=force_refresh,
     )
-    return _serialize_bundle(bundle, limit=max_results)
+    return _serialize_bundle(bundle, limit=limit)
 
 
 @router.get("/symbol/{symbol}", response_model=NewsBundleResponse)
 async def get_symbol_news(
     symbol: str,
-    max_results: int = Query(10, ge=1, le=50),
+    max_results: int | None = Query(None, ge=1, le=50),
     force_refresh: bool = Query(False),
 ) -> NewsBundleResponse:
     """Get news for a single symbol."""
@@ -208,18 +213,22 @@ async def get_symbol_news(
         raise HTTPException(status_code=400, detail="Symbol is required")
 
     news_service.refresh_ttl_from_preferences()
+    pref_limit = news_service.refresh_max_articles_from_preferences()
+    limit = max_results or pref_limit
     bundle = news_service.get_symbol_news(
         symbol,
-        max_articles=max_results,
+        max_articles=limit,
         force_refresh=force_refresh,
     )
-    return _serialize_bundle(bundle, limit=max_results)
+    return _serialize_bundle(bundle, limit=limit)
 
 
 @router.get("/watchlist", response_model=WatchlistNewsResponse)
 async def get_watchlist_news(
     account_id: str = Query(..., description="Account ID to load watchlist symbols for"),
-    max_results: int = Query(5, ge=1, le=20, description="Maximum number of articles per symbol"),
+    max_results: int | None = Query(
+        None, ge=1, le=20, description="Maximum number of articles per symbol"
+    ),
     force_refresh: bool = Query(False),
 ) -> WatchlistNewsResponse:
     """Get news bundles for all symbols in a watchlist."""
@@ -228,10 +237,12 @@ async def get_watchlist_news(
         return WatchlistNewsResponse(account_id=account_id, items=[])
 
     news_service.refresh_ttl_from_preferences()
+    pref_limit = news_service.refresh_max_articles_from_preferences()
+    limit = max_results or pref_limit
     symbols = [item["symbol"] for item in items]
     bundles = news_service.get_watchlist_news(
         symbols,
-        max_articles=max_results,
+        max_articles=limit,
         force_refresh=force_refresh,
     )
 
@@ -240,7 +251,7 @@ async def get_watchlist_news(
         bundle = bundles.get(symbol.upper())
         if not bundle:
             continue
-        serialized_items.append(_serialize_bundle(bundle, limit=max_results))
+        serialized_items.append(_serialize_bundle(bundle, limit=limit))
 
     return WatchlistNewsResponse(account_id=account_id, items=serialized_items)
 
@@ -249,6 +260,7 @@ async def get_watchlist_news(
 async def get_news_health() -> NewsHealthResponse:
     """Return health information for the news ingestion pipeline."""
     news_service.refresh_ttl_from_preferences()
+    news_service.refresh_max_articles_from_preferences()
     metrics = news_service.get_health()
     return NewsHealthResponse(**metrics)
 
@@ -256,9 +268,11 @@ async def get_news_health() -> NewsHealthResponse:
 @router.get("/search", response_model=NewsBundleResponse)
 async def search_news(
     query: str = Query(..., description="Free-form news query"),
-    max_results: int = Query(10, ge=1, le=50),
+    max_results: int | None = Query(None, ge=1, le=50),
 ) -> NewsBundleResponse:
     """Search news without caching results."""
     news_service.refresh_ttl_from_preferences()
-    bundle = news_service.get_custom_news(query, max_articles=max_results)
-    return _serialize_bundle(bundle, limit=max_results)
+    pref_limit = news_service.refresh_max_articles_from_preferences()
+    limit = max_results or pref_limit
+    bundle = news_service.get_custom_news(query, max_articles=limit)
+    return _serialize_bundle(bundle, limit=limit)

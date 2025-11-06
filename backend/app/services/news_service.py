@@ -41,6 +41,16 @@ from ..sources.fmp_source import FMPSource
 from ..sources.multi_source_fetcher import MultiSourceFetcher
 from ..sources.news import GoogleNewsSource
 from ..sources.polygon_source import PolygonSource
+from ..sources.rss_source import (
+    CNBCRssSource,
+    FinancialTimesRssSource,
+    FortuneRssSource,
+    InvestingRssSource,
+    MarketWatchRssSource,
+    NasdaqRssSource,
+    SeekingAlphaRssSource,
+)
+from ..sources.yfinance_source import YFinanceSource
 from ..storage import PortfolioStorage
 
 logger = get_logger(__name__)
@@ -300,6 +310,7 @@ class NewsService:
         self.fallback_analyzer = fallback_analyzer or VaderSentimentAnalyzer()
         self.lookback_hours = max(1, int(self.ttl.total_seconds() // 3600))
         self.selection_overfetch = max(1, selection_overfetch)
+        self.max_articles = DEFAULT_MAX_ARTICLES
 
         self._vendor_config: dict[str, dict[str, Any]] = {}
         self._vendor_runtime: dict[str, dict[str, Any]] = {}
@@ -464,6 +475,84 @@ class NewsService:
             reason=fmp_reason,
         )
 
+        # YFinance (free ticker feed)
+        yfinance_flag = self._env_flag("YFINANCE_NEWS_ENABLED", default=True)
+        yfinance_enabled = bool(yfinance_flag)
+        yfinance_reason: str | None = None
+        yfinance_notes = "Yahoo Finance ticker feed via yfinance; no API key required."
+        if yfinance_enabled:
+            try:
+                sources.append(YFinanceSource())
+            except Exception as exc:
+                yfinance_reason = f"init_failed: {exc}"
+                yfinance_enabled = False
+                logger.warning("yfinance_news_source_init_failed", error=str(exc))
+        self._register_vendor(
+            "yfinance",
+            configured=True,
+            enabled=yfinance_enabled,
+            notes=yfinance_notes,
+            reason=yfinance_reason,
+        )
+
+        rss_configs: list[tuple[str, type[BaseSource], str, str]] = [
+            ("cnbc_rss", CNBCRssSource, "CNBC finance/earnings RSS feed", "CNBC_RSS_ENABLED"),
+            (
+                "marketwatch_rss",
+                MarketWatchRssSource,
+                "MarketWatch Top Stories RSS feed",
+                "MARKETWATCH_RSS_ENABLED",
+            ),
+            (
+                "nasdaq_rss",
+                NasdaqRssSource,
+                "Nasdaq original & ticker RSS feeds",
+                "NASDAQ_RSS_ENABLED",
+            ),
+            ("fortune_rss", FortuneRssSource, "Fortune business RSS feed", "FORTUNE_RSS_ENABLED"),
+            (
+                "investing_rss",
+                InvestingRssSource,
+                "Investing.com market overview RSS feed",
+                "INVESTING_RSS_ENABLED",
+            ),
+            (
+                "ft_rss",
+                FinancialTimesRssSource,
+                "Financial Times global markets RSS feed",
+                "FT_RSS_ENABLED",
+            ),
+            (
+                "seeking_alpha_rss",
+                SeekingAlphaRssSource,
+                "Seeking Alpha combined RSS feed",
+                "SEEKING_ALPHA_RSS_ENABLED",
+            ),
+        ]
+
+        for vendor_name, source_cls, notes, env_var in rss_configs:
+            flag = self._env_flag(env_var, default=True)
+            enabled = bool(flag)
+            reason: str | None = None
+            instance: BaseSource | None = None
+
+            if enabled:
+                try:
+                    instance = source_cls()
+                    sources.append(instance)
+                except Exception as exc:  # pragma: no cover - initialization issues logged
+                    enabled = False
+                    reason = f"init_failed: {exc}"
+                    logger.warning("%s_init_failed", vendor_name, error=str(exc))
+
+            self._register_vendor(
+                vendor_name,
+                configured=True,
+                enabled=enabled,
+                notes=notes,
+                reason=reason,
+            )
+
         return [source for source in sources if source.is_enabled()]
 
     def set_ttl_hours(self, hours: int) -> None:
@@ -503,6 +592,36 @@ class NewsService:
 
         self.set_ttl_hours(hours)
         return self.lookback_hours
+
+    def refresh_max_articles_from_preferences(self) -> int:
+        """Reload max-article preference from user settings."""
+        max_articles = DEFAULT_MAX_ARTICLES
+        with self.storage.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT news_max_articles
+                FROM user_preferences
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """
+            ).fetchone()
+
+        if row:
+            raw_value = row[0] if isinstance(row, (list, tuple)) else None
+            if raw_value is None and hasattr(row, "news_max_articles"):
+                raw_value = row.news_max_articles
+            if raw_value is not None:
+                try:
+                    candidate = int(raw_value)
+                    if candidate > 0:
+                        max_articles = candidate
+                except (TypeError, ValueError):
+                    pass
+
+        # Clamp to avoid unbounded fetches (match selection cap)
+        max_articles = max(1, min(max_articles, ARTICLE_OVERFETCH_CAP))
+        self.max_articles = max_articles
+        return self.max_articles
 
     # --------------------------------------------------------------------- #
     # Public API

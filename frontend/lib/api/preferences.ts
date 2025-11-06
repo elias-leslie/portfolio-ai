@@ -19,6 +19,7 @@ export interface PreferencesResponse {
     portfolio_refresh_override: number | null;
     news_refresh_override: number | null;
     news_lookback_hours: number;
+    news_max_articles: number;
     frontend_poll_interval: number;
     // Legacy watchlist fields (kept for backward compatibility)
     watchlist_refresh_minutes: number;
@@ -43,6 +44,7 @@ export interface PreferencesUpdate {
     portfolio_refresh_override?: number | null;
     news_refresh_override?: number | null;
     news_lookback_hours?: number | null;
+    news_max_articles?: number | null;
     frontend_poll_interval?: number;
     // Legacy watchlist fields (kept for backward compatibility)
     watchlist_refresh_minutes?: number;

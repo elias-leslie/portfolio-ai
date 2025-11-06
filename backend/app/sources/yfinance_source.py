@@ -6,9 +6,11 @@ daily OHLCV data and company reference information.
 
 from __future__ import annotations
 
+import contextlib
 import datetime as dt
 import json
 from collections.abc import Iterable
+from typing import Any
 
 import polars as pl
 import yfinance as yf  # type: ignore[import-untyped]  # yfinance doesn't ship type stubs
@@ -30,7 +32,9 @@ class YFinanceSource(BaseSource):
     priority = 1  # Highest priority (free, no rate limits for basic usage)
     supports_day = True
     supports_reference = True
-    supports_news = False  # News not implemented yet
+    supports_news = True
+
+    MARKET_SYMBOL = "^GSPC"
 
     def fetch_day_bars(self, request: DatasetRequest) -> pl.DataFrame | None:
         """Fetch daily OHLCV bars from yfinance.
@@ -238,6 +242,103 @@ class YFinanceSource(BaseSource):
     def fetch_news_payload(
         self, tickers: Iterable[str], start: dt.datetime, end: dt.datetime
     ) -> pl.DataFrame | None:
-        """Fetch news articles from yfinance (not implemented yet)."""
-        logger.warning("yfinance_news_not_implemented")
-        return None
+        """Fetch news articles using yfinance's ticker news feed."""
+        records: list[dict[str, Any]] = []
+        start_utc = start.astimezone(dt.UTC)
+        end_utc = end.astimezone(dt.UTC)
+
+        ticker_list = list(tickers) or ["__MARKET__"]
+
+        for ticker in ticker_list:
+            is_market = ticker in (None, "__MARKET__")
+            target_symbol = self.MARKET_SYMBOL if is_market else ticker
+
+            try:
+                news_items = yf.Ticker(target_symbol).get_news()
+            except Exception as exc:  # pragma: no cover - passthrough to fallback vendors
+                logger.warning(
+                    "yfinance_news_error",
+                    ticker=target_symbol,
+                    error=str(exc),
+                    error_type=type(exc).__name__,
+                )
+                continue
+
+            if not news_items:
+                logger.debug(
+                    "yfinance_news_empty",
+                    ticker=target_symbol,
+                )
+                continue
+
+            for item in news_items:
+                content = item.get("content") or {}
+                headline = content.get("title") or item.get("title")
+                if not headline:
+                    continue
+
+                summary = (
+                    content.get("summary")
+                    or content.get("description")
+                    or item.get("summary")
+                    or item.get("description")
+                )
+                canonical = content.get("canonicalUrl") or item.get("canonicalUrl") or {}
+                click_through = content.get("clickThroughUrl") or item.get("clickThroughUrl") or {}
+                url = canonical.get("url") or click_through.get("url") or item.get("link")
+
+                published_at = None
+                publish_ts = (
+                    content.get("pubDate")
+                    or content.get("displayTime")
+                    or item.get("providerPublishTime")
+                    or item.get("published_at")
+                )
+                if isinstance(publish_ts, (int, float)):
+                    published_at = dt.datetime.fromtimestamp(float(publish_ts), tz=dt.UTC)
+                elif isinstance(publish_ts, str):
+                    with contextlib.suppress(ValueError):
+                        published_at = dt.datetime.fromisoformat(publish_ts.replace("Z", "+00:00"))
+
+                if published_at and (published_at < start_utc or published_at > end_utc):
+                    continue
+
+                provider = content.get("provider") or item.get("provider") or {}
+                publisher = (
+                    provider.get("displayName") or provider.get("sourceId") or item.get("publisher")
+                )
+
+                thumb = content.get("thumbnail") or item.get("thumbnail") or {}
+                resolutions = thumb.get("resolutions")
+                image_url = None
+                if isinstance(resolutions, list) and resolutions:
+                    image_url = resolutions[0].get("url")
+                else:
+                    image_url = thumb.get("originalUrl")
+
+                records.append(
+                    {
+                        "ticker": "__MARKET__" if is_market else ticker,
+                        "headline": headline,
+                        "url": url,
+                        "summary": summary,
+                        "news_source_name": publisher,
+                        "author": None,
+                        "image_url": image_url,
+                        "published_at": published_at,
+                        "raw_payload": json.dumps(item),
+                        "source": "yfinance",
+                    }
+                )
+
+            logger.debug(
+                "yfinance_news_fetched",
+                ticker=target_symbol,
+                articles=len(news_items),
+            )
+
+        if not records:
+            logger.info("yfinance_news_no_articles", tickers=ticker_list)
+            return None
+
+        return pl.DataFrame(records)

@@ -8,11 +8,13 @@ Extracted from scoring_service.py to reduce file size and improve modularity.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from ..logging_config import get_logger
 from ..services import NewsService
+from ..services.news_service import NewsArticle, NewsBundle
 from ..storage import PortfolioStorage
 from ..utils.market_hours import is_stale
 from .calculator import (
@@ -42,6 +44,99 @@ from .narrative import (
 from .scoring import calculate_watchlist_scores
 
 logger = get_logger(__name__)
+
+WATCHLIST_NEWS_ARTICLE_LIMIT = 5
+
+
+def _normalize_publisher_field(value: Any) -> str | None:
+    if isinstance(value, dict):
+        for key in ("title", "name"):
+            candidate = value.get(key)
+            if isinstance(candidate, str) and candidate.strip():
+                return candidate.strip()
+    elif isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
+def _get_article_attr(article: NewsArticle | Mapping[str, Any], field: str) -> Any:
+    if isinstance(article, dict):
+        return article.get(field)
+    return getattr(article, field, None)
+
+
+def _extract_article_vendor(article: NewsArticle | Mapping[str, Any]) -> str | None:
+    vendor = _get_article_attr(article, "vendor")
+    if isinstance(vendor, str) and vendor.strip():
+        return vendor.strip()
+
+    raw_payload = _get_article_attr(article, "raw") or {}
+    fallback_vendor = raw_payload.get("vendor")
+    if isinstance(fallback_vendor, str) and fallback_vendor.strip():
+        return fallback_vendor.strip()
+
+    inner_raw = raw_payload.get("raw")
+    if isinstance(inner_raw, dict):
+        nested_vendor = inner_raw.get("vendor")
+        if isinstance(nested_vendor, str) and nested_vendor.strip():
+            return nested_vendor.strip()
+
+    return None
+
+
+def _extract_article_publisher(article: NewsArticle | Mapping[str, Any]) -> str | None:
+    publisher = _get_article_attr(article, "source")
+    if isinstance(publisher, str) and publisher.strip():
+        return publisher.strip()
+
+    raw_payload = _get_article_attr(article, "raw") or {}
+    for key in ("news_source_name", "source"):
+        candidate = _normalize_publisher_field(raw_payload.get(key))
+        if candidate:
+            return candidate
+
+    inner_raw = raw_payload.get("raw")
+    if isinstance(inner_raw, dict):
+        for key in ("news_source_name", "source"):
+            candidate = _normalize_publisher_field(inner_raw.get(key))
+            if candidate:
+                return candidate
+
+    return None
+
+
+def build_recent_news_payload(
+    news_bundle: NewsBundle,
+    *,
+    max_articles: int = WATCHLIST_NEWS_ARTICLE_LIMIT,
+) -> dict[str, Any]:
+    """Serialize recent news bundle for watchlist snapshots."""
+
+    articles_payload: list[dict[str, Any]] = []
+    for article in news_bundle.articles[:max_articles]:
+        article_payload = article.model_dump(mode="json")
+
+        vendor = _extract_article_vendor(article)
+        if vendor:
+            article_payload["vendor"] = vendor
+        elif "vendor" not in article_payload:
+            article_payload["vendor"] = None
+
+        publisher = _extract_article_publisher(article)
+        if publisher:
+            article_payload["source"] = publisher
+        elif not article_payload.get("source"):
+            article_payload["source"] = None
+
+        # Explicit publisher alias to simplify UI rendering logic
+        article_payload.setdefault("publisher", article_payload.get("source"))
+
+        articles_payload.append(article_payload)
+
+    return {
+        "summary": news_bundle.summary.model_dump(mode="json"),
+        "articles": articles_payload,
+    }
 
 
 def calculate_price_change(
@@ -181,6 +276,7 @@ def process_ticker_snapshot(
     risk_budget: float,
     now: datetime,
     news_service: NewsService,
+    max_news_articles: int,
 ) -> WatchlistSnapshot:
     """Process a single ticker and generate its watchlist snapshot.
 
@@ -340,12 +436,11 @@ def process_ticker_snapshot(
     news_sentiment_value: float | None = None
     recent_news_value: dict[str, Any] | None = None
     try:
-        news_bundle = news_service.get_symbol_news(symbol, max_articles=10)
+        news_bundle = news_service.get_symbol_news(symbol, max_articles=max_news_articles)
         news_sentiment_value = news_bundle.summary.score
-        recent_news_value = {
-            "summary": news_bundle.summary.model_dump(mode="json"),
-            "articles": [article.model_dump(mode="json") for article in news_bundle.articles[:5]],
-        }
+        recent_news_value = build_recent_news_payload(
+            news_bundle, max_articles=WATCHLIST_NEWS_ARTICLE_LIMIT
+        )
     except Exception as exc:  # pragma: no cover - downstream services may fail
         logger.warning("news_fetch_failed", symbol=symbol, error=str(exc))
         news_sentiment_value = None

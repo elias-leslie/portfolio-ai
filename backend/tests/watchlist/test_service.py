@@ -11,6 +11,7 @@ import pytest
 from app.portfolio.models import PriceData
 from app.storage import PortfolioStorage
 from app.watchlist.service import refresh_watchlist_scores
+from app.watchlist.watchlist_service import _normalize_recent_news_payload
 
 
 class StubPriceFetcher:
@@ -191,3 +192,28 @@ def test_refresh_watchlist_scores_persists_snapshots(storage: PortfolioStorage) 
     assert row["overall_score"] is not None
     assert row["price"] == pytest.approx(162.0)
     assert row["raw_metrics"] is not None
+
+
+def test_normalize_recent_news_payload_backfills_vendor_and_publisher() -> None:
+    payload = {
+        "summary": {"ticker": "AAPL"},
+        "articles": [
+            {
+                "headline": "Example",
+                "vendor": None,
+                "source": None,
+                "raw": {
+                    "vendor": "finnhub",
+                    "raw": {
+                        "vendor": "finnhub",
+                        "source": {"title": "Example Publisher"},
+                    },
+                },
+            }
+        ],
+    }
+
+    normalized = _normalize_recent_news_payload(payload)
+    assert normalized["articles"][0]["vendor"] == "finnhub"
+    assert normalized["articles"][0]["source"] == "Example Publisher"
+    assert normalized["articles"][0]["publisher"] == "Example Publisher"

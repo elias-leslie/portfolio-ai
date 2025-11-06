@@ -21,10 +21,55 @@ from .data_loaders import (
     load_stale_ttl_minutes,
 )
 from .models import TechnicalSnapshot, WatchlistScoreInputs, WatchlistSnapshot
+from .refresh_processor import _extract_article_publisher, _extract_article_vendor
 from .scoring import _is_stale as scoring_is_stale
 from .scoring import calculate_watchlist_scores
 
 logger = get_logger(__name__)
+
+
+def _normalize_recent_news_payload(news_payload: dict[str, Any]) -> dict[str, Any]:
+    """Ensure vendor + publisher metadata is surfaced for stored news payloads."""
+    if not isinstance(news_payload, dict):
+        return news_payload
+
+    articles = news_payload.get("articles")
+    if not isinstance(articles, list):
+        return news_payload
+
+    normalized_articles: list[dict[str, Any]] = []
+    changed = False
+
+    for article in articles:
+        if not isinstance(article, dict):
+            normalized_articles.append(article)
+            continue
+
+        normalized_article = dict(article)
+
+        vendor = _extract_article_vendor(normalized_article)
+        if vendor and vendor != normalized_article.get("vendor"):
+            normalized_article["vendor"] = vendor
+            changed = True
+
+        publisher = _extract_article_publisher(normalized_article)
+        if publisher and publisher != normalized_article.get("source"):
+            normalized_article["source"] = publisher
+            changed = True
+
+        if normalized_article.setdefault(
+            "publisher", normalized_article.get("source")
+        ) != article.get("publisher"):
+            changed = True
+
+        normalized_articles.append(normalized_article)
+
+    if not changed:
+        return news_payload
+
+    payload = dict(news_payload)
+    payload["articles"] = normalized_articles
+    return payload
 
 
 def _calculate_price_change(
@@ -280,6 +325,10 @@ class WatchlistService:
                     news_payload = json.loads(news_payload)
                 except (json.JSONDecodeError, TypeError):
                     news_payload = None
+            if isinstance(news_payload, dict):
+                news_payload = _normalize_recent_news_payload(news_payload)
+            if isinstance(news_payload, dict):
+                news_payload = _normalize_recent_news_payload(news_payload)
 
             fetched_at = snap_row.get("fetched_at")
             if fetched_at and isinstance(raw_metrics, dict):

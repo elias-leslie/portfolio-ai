@@ -94,6 +94,7 @@ def _refresh_news_sentiment_task(self: Any, account_id: str = "default") -> dict
     storage = get_storage()
     news_service = NewsService(storage)
     lookback_hours = news_service.refresh_ttl_from_preferences()
+    news_max_articles = news_service.refresh_max_articles_from_preferences()
     watchlist_service = WatchlistService(storage)
 
     interval_minutes = _get_refresh_interval_minutes(storage)
@@ -109,11 +110,12 @@ def _refresh_news_sentiment_task(self: Any, account_id: str = "default") -> dict
         force_refresh=should_force_refresh,
         interval_minutes=interval_minutes,
         lookback_hours=lookback_hours,
+        max_articles=news_max_articles,
     )
 
     # Always fetch market bundle; service decides whether to hit external APIs
     market_bundle = news_service.get_market_news(
-        max_articles=15,
+        max_articles=news_max_articles,
         force_refresh=should_force_refresh,
     )
     _record_summary(storage, market_bundle.summary, news_service.ttl, now)
@@ -124,7 +126,7 @@ def _refresh_news_sentiment_task(self: Any, account_id: str = "default") -> dict
     if symbols:
         bundles: dict[str, NewsBundle] = news_service.get_watchlist_news(
             symbols,
-            max_articles=10,
+            max_articles=news_max_articles,
             force_refresh=should_force_refresh,
         )
         watchlist_count = len(bundles)
