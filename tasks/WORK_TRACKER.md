@@ -1,6 +1,6 @@
 # Portfolio AI - Work Tracker
 
-**Last Updated:** 2025-11-06 18:20 (TASK-0035: News Intelligence - Phase 2 - PAUSED at 20%)
+**Last Updated:** 2025-11-06 18:35 (TASK-0035: News Intelligence - Phase 2 - PAUSED at 25%)
 
 ---
 
@@ -8,19 +8,20 @@
 
 - **[TASK-0035] News Intelligence - Phase 2: Plain Language UI**
   - **File:** `tasks/news-phase2-plain-language-ui.md`
-  - **Status:** 20% complete - **PAUSED** 2025-11-06 18:20
+  - **Status:** 25% complete - **PAUSED** 2025-11-06 18:35
   - **Effort:** HIGH (10-14 hours, 2-3 days)
   - **Started:** 2025-11-06
-  - **Last Updated:** 2025-11-06 18:20
+  - **Last Updated:** 2025-11-06 18:35
   - **Priority:** HIGH
   - **Goal:** Transform news into actionable intelligence with plain-language narratives and story clustering
   - **Progress:**
     - ✅ Task 1: Story Clustering (COMPLETE - tested and working)
     - ✅ Task 2: Plain Language Translator (COMPLETE - 56 event types, insights)
-    - ⏹️ Tasks 3-10: Pending (API integration, UI components, settings, testing, docs, optimization)
-  - **Next:** Task 3.1 - Create database migration for impact_summary/actionable_insight fields
-  - **Pause Reason:** Context limit (86% used, 172k/200k tokens)
-  - **Handoff:** `tasks/PAUSE-HANDOFF-20251106-1820.md`
+    - ✅ Task 3.1-3.2: Database + NewsService Integration (COMPLETE - migration 017, plain language in news_cache)
+    - ⏹️ Tasks 3.3-10: Pending (Watchlist API, UI components, settings, testing, docs, optimization)
+  - **Next:** Task 3.3 - Create NewsIntelligence API models and integrate into watchlist
+  - **Pause Reason:** Natural checkpoint (foundation complete, 47% context used)
+  - **Handoff:** `tasks/PAUSE-HANDOFF-20251106-1835.md`
 
 ---
 
