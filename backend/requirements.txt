@@ -106,3 +106,4 @@ websockets==15.0.1
 wheel==0.45.1
 yfinance==0.2.66
 types-psycopg2==2.9.21.20251012
+edgartools>=4.26.0
