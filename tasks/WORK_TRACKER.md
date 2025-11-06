@@ -1,23 +1,23 @@
 # Portfolio AI - Work Tracker
 
-**Last Updated:** 2025-11-06 17:31 (TASK-0034: News Intelligence - Phase 1 - COMPLETE)
+**Last Updated:** 2025-11-06 17:35 (TASK-0035: News Intelligence - Phase 2 - STARTED)
 
 ---
 
 ## 🔄 Active (Currently Working)
 
-None - Ready for next task
+- **[TASK-0035] News Intelligence - Phase 2: Plain Language UI**
+  - **File:** `tasks/news-phase2-plain-language-ui.md`
+  - **Status:** In Progress - 0% complete
+  - **Effort:** HIGH (10-14 hours, 2-3 days)
+  - **Started:** 2025-11-06
+  - **Priority:** HIGH
+  - **Goal:** Transform news into actionable intelligence with plain-language narratives and story clustering
+  - **Next:** Task 1 - Implement semantic story clustering with sentence-transformers
 
 ---
 
 ## 📋 Planned (Up Next - Priority Order)
-
-1. **[TASK-0035] News Intelligence - Phase 2: Plain Language UI**
-   - **File:** `tasks/news-phase2-plain-language-ui.md`
-   - **Effort:** HIGH (10-14 hours)
-   - **Dependencies:** Phase 1 complete
-   - **Priority:** HIGH
-   - **Description:** Story clustering, News Intelligence card in watchlist, priority indicators
 
 2. **[TASK-0036] News Intelligence - Phase 3: Cleanup & Polish**
    - **File:** `tasks/news-phase3-cleanup-and-polish.md`
