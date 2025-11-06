@@ -46,6 +46,10 @@ class NewsArticleResponse(BaseModel):
     fetched_at: str
     sentiment: SentimentScoreResponse
     vendor: str | None = None
+    # SEC filing metadata
+    filing_type: str | None = None
+    is_material_event: bool = False
+    plain_language_headline: str | None = None
 
 
 class NewsSummaryResponse(BaseModel):

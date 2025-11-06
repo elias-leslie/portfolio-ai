@@ -50,6 +50,7 @@ from ..sources.rss_source import (
     NasdaqRssSource,
     SeekingAlphaRssSource,
 )
+from ..sources.sec_edgar_source import SECEdgarSource
 from ..sources.yfinance_source import YFinanceSource
 from ..storage import PortfolioStorage
 from ..storage.credential_loader import load_credentials_from_database
@@ -116,6 +117,10 @@ class NewsArticle(BaseModel):
     content_hash: str
     raw: dict[str, Any] = Field(default_factory=dict)
     vendor: str | None = None
+    # SEC filing metadata
+    filing_type: str | None = None
+    is_material_event: bool = False
+    plain_language_headline: str | None = None
 
 
 class NewsSummary(BaseModel):
@@ -430,6 +435,28 @@ class NewsService:
                     source.name, configured=True, enabled=True, notes=None, reason=None
                 )
             return sources
+
+        # SEC EDGAR (free, highest priority)
+        sec_edgar_flag = self._env_flag("SEC_EDGAR_ENABLED", default=True)
+        sec_edgar_enabled = bool(sec_edgar_flag)
+        sec_edgar_reason: str | None = None
+        sec_edgar_notes = "SEC EDGAR filings (8-K, 10-Q, 10-K, Form 4) - highest quality free source."
+        if not sec_edgar_flag:
+            sec_edgar_reason = "disabled_by_flag"
+        if sec_edgar_enabled:
+            try:
+                sources.append(SECEdgarSource(self.storage))
+            except Exception as exc:
+                sec_edgar_reason = f"init_failed: {exc}"
+                sec_edgar_enabled = False
+                logger.warning("sec_edgar_source_init_failed", error=str(exc))
+        self._register_vendor(
+            "sec_edgar",
+            configured=True,
+            enabled=sec_edgar_enabled,
+            notes=sec_edgar_notes,
+            reason=sec_edgar_reason,
+        )
 
         # Polygon
         polygon_key = os.getenv("POLYGON_API_KEY")
@@ -1121,7 +1148,10 @@ class NewsService:
                     raw_payload,
                     content_hash,
                     fetched_at,
-                    updated_at
+                    updated_at,
+                    filing_type,
+                    is_material_event,
+                    plain_language_headline
                 FROM news_cache
                 WHERE ticker = %s
                 ORDER BY fetched_at DESC, published_at DESC NULLS LAST
@@ -1161,7 +1191,10 @@ class NewsService:
                     raw_payload,
                     content_hash,
                     fetched_at,
-                    updated_at
+                    updated_at,
+                    filing_type,
+                    is_material_event,
+                    plain_language_headline
                 FROM news_cache
                 WHERE ticker = %s
                   AND fetched_at >= %s
@@ -1192,6 +1225,9 @@ class NewsService:
             content_hash,
             fetched_at,
             _updated_at,
+            filing_type,
+            is_material_event,
+            plain_language_headline,
         ) = row
 
         published_dt = published_at.astimezone(UTC) if isinstance(published_at, datetime) else None
@@ -1233,6 +1269,9 @@ class NewsService:
             content_hash=content_hash,
             raw=raw_dict,
             vendor=vendor,
+            filing_type=filing_type,
+            is_material_event=bool(is_material_event),
+            plain_language_headline=plain_language_headline,
         )
 
     def _score_entries(
@@ -1391,6 +1430,9 @@ class NewsService:
             "fetched_at": article.fetched_at,
             "created_at": article.fetched_at,
             "updated_at": article.fetched_at,
+            "filing_type": article.filing_type,
+            "is_material_event": article.is_material_event,
+            "plain_language_headline": article.plain_language_headline,
         }
 
     def _refresh_cache(self, *, ticker: str, query: str, max_articles: int) -> None:
@@ -1487,7 +1529,10 @@ class NewsService:
                         content_hash,
                         fetched_at,
                         created_at,
-                        updated_at
+                        updated_at,
+                        filing_type,
+                        is_material_event,
+                        plain_language_headline
                     ) VALUES (
                         %(ticker)s,
                         %(headline)s,
@@ -1505,7 +1550,10 @@ class NewsService:
                         %(content_hash)s,
                         %(fetched_at)s,
                         %(created_at)s,
-                        %(updated_at)s
+                        %(updated_at)s,
+                        %(filing_type)s,
+                        %(is_material_event)s,
+                        %(plain_language_headline)s
                     )
                     ON CONFLICT (ticker, content_hash) DO UPDATE SET
                         url = EXCLUDED.url,

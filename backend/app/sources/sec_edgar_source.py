@@ -33,7 +33,7 @@ def _get_edgar() -> Any:
     global _edgar, _set_identity_called  # noqa: PLW0603
 
     if _edgar is None:
-        import edgar as edgar_module  # type: ignore[import-not-found]  # noqa: PLC0415
+        import edgar as edgar_module  # noqa: PLC0415
 
         _edgar = edgar_module
 
