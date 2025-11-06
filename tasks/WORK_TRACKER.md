@@ -1,34 +1,51 @@
 # Portfolio AI - Work Tracker
 
-**Last Updated:** 2025-11-04 20:30 (TASK-0033: Phase 1.1 Complete)
+**Last Updated:** 2025-11-06 14:00 (TASK-0034: News Intelligence - Phase 1 Starting)
 
 ---
 
 ## 🔄 Active (Currently Working)
 
-- **[TASK-0033] Code Quality Improvements (Health Check Remediation)**
-  - **File:** `tasks/tasks-0033-code-quality-improvements.md`
-  - **Source:** Health Check Report (docs/core/HEALTH_CHECK_REPORT.md)
-  - **Status:** 50% complete (Phase 1: 6/6 files refactored) - **PAUSED** 2025-11-04 23:39
-  - **Effort:** HIGH (12-17 hours, 2-3 sessions)
-  - **Started:** 2025-11-04
-  - **Last Updated:** 2025-11-04 23:39
-  - **Priority:** High (improve health score 7.95 → 9.0)
-  - **Next:** Verify full test suite, commit Phase 1, start Phase 2 or Phase 3
-  - **Pause Reason:** User request (tests verifying, 62% context used)
-  - **Handoff:** `tasks/PAUSE-HANDOFF-20251104-2339.md`
+- **[TASK-0034] News Intelligence - Phase 1: SEC EDGAR Integration**
+  - **File:** `tasks/news-phase1-sec-edgar-integration.md`
+  - **Status:** 0% complete (just started)
+  - **Effort:** HIGH (12-16 hours, 2-3 days)
+  - **Started:** 2025-11-06
+  - **Priority:** CRITICAL (institutional-grade free news source)
+  - **Goal:** Integrate SEC EDGAR filings as PRIMARY news source with plain-language translation
   - **Progress:**
-    - ✅ Phase 1: All 6 files refactored (702 lines removed, 8 modules created)
-    - ⏳ Phase 1.7: Final verification (tests running)
-    - ⏹️ Phase 2: Type safety improvements (pending)
-    - ⏹️ Phase 3: Documentation completeness (pending)
-    - ⏹️ Phase 4: Minor improvements (pending)
+    - ⏹️ Task 1: Research SEC EDGAR API and RSS capabilities
+    - ⏹️ Task 2: Create SECEdgarSource adapter
+    - ⏹️ Task 3: Add database schema for SEC filing metadata
+    - ⏹️ Task 4: Implement content classification system
+    - ⏹️ Task 5: Register SEC EDGAR source in NewsService
+    - ⏹️ Tasks 6-10: Testing, translation, docs, optimization
 
 ---
 
 ## 📋 Planned (Up Next - Priority Order)
 
-*(Empty - no planned tasks)*
+1. **[TASK-0035] News Intelligence - Phase 2: Plain Language UI**
+   - **File:** `tasks/news-phase2-plain-language-ui.md`
+   - **Effort:** HIGH (10-14 hours)
+   - **Dependencies:** Phase 1 complete
+   - **Priority:** HIGH
+   - **Description:** Story clustering, News Intelligence card in watchlist, priority indicators
+
+2. **[TASK-0036] News Intelligence - Phase 3: Cleanup & Polish**
+   - **File:** `tasks/news-phase3-cleanup-and-polish.md`
+   - **Effort:** MEDIUM (6-8 hours)
+   - **Dependencies:** Phase 1 & 2 complete
+   - **Priority:** MEDIUM
+   - **Description:** Fix Finnhub, remove Polygon news, optimize RSS feeds, performance tuning
+
+3. **[TASK-0033] Code Quality Improvements (Health Check Remediation)** - PAUSED
+   - **File:** `tasks/tasks-0033-code-quality-improvements.md`
+   - **Status:** 50% complete (Phase 1: 6/6 files refactored) - **PAUSED** 2025-11-04 23:39
+   - **Effort:** HIGH (12-17 hours, 2-3 sessions)
+   - **Priority:** High (improve health score 7.95 → 9.0)
+   - **Pause Reason:** User request (tests verifying, 62% context used)
+   - **Handoff:** `tasks/PAUSE-HANDOFF-20251104-2339.md`
 
 ---
 
