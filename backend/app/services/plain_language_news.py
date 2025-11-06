@@ -177,9 +177,13 @@ def classify_event_category(  # noqa: PLR0911
             return EventCategory.M_AND_A_COMPLETED
 
     # Executive change patterns
-    if "ceo" in text and any(word in text for word in ["new", "appoint", "hire", "resign", "step down"]):
+    if "ceo" in text and any(
+        word in text for word in ["new", "appoint", "hire", "resign", "step down"]
+    ):
         return EventCategory.EXEC_CHANGE_CEO
-    if "cfo" in text and any(word in text for word in ["new", "appoint", "hire", "resign", "step down"]):
+    if "cfo" in text and any(
+        word in text for word in ["new", "appoint", "hire", "resign", "step down"]
+    ):
         return EventCategory.EXEC_CHANGE_CFO
 
     # Guidance patterns
@@ -301,9 +305,7 @@ def generate_actionable_insight(  # noqa: PLR0911
     return "News reported - read the details before acting"
 
 
-def generate_impact_summary(
-    category: EventCategory, sentiment_score: float | None = None
-) -> str:
+def generate_impact_summary(category: EventCategory, sentiment_score: float | None = None) -> str:
     """Generate impact summary explaining 'What does this mean for traders?'
 
     Args:

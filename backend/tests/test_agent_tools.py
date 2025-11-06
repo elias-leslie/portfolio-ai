@@ -153,14 +153,14 @@ def test_get_store_idea_tool_definition() -> None:
     assert "risk_level" in required
 
 
-def test_execute_get_news(agent_tools: AgentTools, mock_news_source: Mock) -> None:
+def test_execute_get_news(agent_tools: AgentTools, mock_news_service: Mock) -> None:
     """Test executing get_news tool."""
     # Setup mock
     mock_headlines = [
         {"title": "Market rallies", "url": "http://example.com/1"},
         {"title": "Tech stocks surge", "url": "http://example.com/2"},
     ]
-    mock_news_source.fetch_headlines.return_value = mock_headlines
+    mock_news_service.fetch_headlines.return_value = mock_headlines
 
     # Execute
     result = agent_tools.execute_get_news("stock market", max_results=10)
@@ -168,18 +168,18 @@ def test_execute_get_news(agent_tools: AgentTools, mock_news_source: Mock) -> No
     # Verify
     assert result["headlines"] == mock_headlines
     assert result["count"] == 2
-    mock_news_source.fetch_headlines.assert_called_once_with("stock market", 10)
+    mock_news_service.fetch_headlines.assert_called_once_with("stock market", 10)
 
 
 def test_execute_get_news_default_max_results(
-    agent_tools: AgentTools, mock_news_source: Mock
+    agent_tools: AgentTools, mock_news_service: Mock
 ) -> None:
     """Test get_news with default max_results."""
-    mock_news_source.fetch_headlines.return_value = []
+    mock_news_service.fetch_headlines.return_value = []
 
     agent_tools.execute_get_news("technology")
 
-    mock_news_source.fetch_headlines.assert_called_once_with("technology", 10)
+    mock_news_service.fetch_headlines.assert_called_once_with("technology", 10)
 
 
 def test_execute_get_economic_data(agent_tools: AgentTools, mock_fred_source: Mock) -> None:
@@ -403,7 +403,7 @@ def test_execute_store_idea_minimal_fields(agent_tools: AgentTools, mock_storage
 
 def test_agent_tools_initialization(
     mock_storage: Mock,
-    mock_news_source: Mock,
+    mock_news_service: Mock,
     mock_fred_source: Mock,
     mock_price_fetcher: Mock,
     mock_portfolio_mgr: Mock,
@@ -412,7 +412,7 @@ def test_agent_tools_initialization(
     """Test AgentTools initialization stores all dependencies."""
     tools = AgentTools(
         storage=mock_storage,
-        news_source=mock_news_source,
+        news_source=mock_news_service,
         fred_source=mock_fred_source,
         price_fetcher=mock_price_fetcher,
         portfolio_mgr=mock_portfolio_mgr,
@@ -420,7 +420,7 @@ def test_agent_tools_initialization(
     )
 
     assert tools.storage is mock_storage
-    assert tools.news_source is mock_news_source
+    assert tools.news_source is mock_news_service
     assert tools.fred_source is mock_fred_source
     assert tools.price_fetcher is mock_price_fetcher
     assert tools.portfolio_mgr is mock_portfolio_mgr

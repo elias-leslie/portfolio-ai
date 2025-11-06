@@ -34,7 +34,7 @@ repos:
         language_version: python3.13
         types: [python]
         files: ^backend/app/
-        args: [--strict]
+        args: [--strict, --config-file=backend/pyproject.toml]
         additional_dependencies:
           - pydantic>=2.7.0
           - types-requests>=2.31.0

@@ -39,6 +39,19 @@ except Exception:  # pragma: no cover - handled via availability checks
     ClustererArticle = cast(Any, None)  # type: ignore[misc]
     StoryClusterer = cast(Any, None)  # type: ignore[misc]
 
+try:
+    from .plain_language_news import (
+        classify_event_category,
+        generate_actionable_insight,
+        generate_impact_summary,
+        translate_to_plain_language,
+    )
+except Exception:  # pragma: no cover - handled via availability checks
+    classify_event_category = cast(Any, None)
+    generate_actionable_insight = cast(Any, None)
+    generate_impact_summary = cast(Any, None)
+    translate_to_plain_language = cast(Any, None)
+
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer  # type: ignore[import-untyped]
 
 from ..logging_config import get_logger
@@ -132,6 +145,9 @@ class NewsArticle(BaseModel):
     story_id: str | None = None
     is_primary_article: bool = False
     coverage_count: int = 1
+    # Plain language insights
+    impact_summary: str | None = None
+    actionable_insight: str | None = None
 
 
 class NewsSummary(BaseModel):
@@ -451,7 +467,9 @@ class NewsService:
         sec_edgar_flag = self._env_flag("SEC_EDGAR_ENABLED", default=True)
         sec_edgar_enabled = bool(sec_edgar_flag)
         sec_edgar_reason: str | None = None
-        sec_edgar_notes = "SEC EDGAR filings (8-K, 10-Q, 10-K, Form 4) - highest quality free source."
+        sec_edgar_notes = (
+            "SEC EDGAR filings (8-K, 10-Q, 10-K, Form 4) - highest quality free source."
+        )
         if not sec_edgar_flag:
             sec_edgar_reason = "disabled_by_flag"
         if sec_edgar_enabled:
@@ -1162,7 +1180,12 @@ class NewsService:
                     updated_at,
                     filing_type,
                     is_material_event,
-                    plain_language_headline
+                    plain_language_headline,
+                    story_id,
+                    is_primary_article,
+                    coverage_count,
+                    impact_summary,
+                    actionable_insight
                 FROM news_cache
                 WHERE ticker = %s
                 ORDER BY fetched_at DESC, published_at DESC NULLS LAST
@@ -1205,7 +1228,12 @@ class NewsService:
                     updated_at,
                     filing_type,
                     is_material_event,
-                    plain_language_headline
+                    plain_language_headline,
+                    story_id,
+                    is_primary_article,
+                    coverage_count,
+                    impact_summary,
+                    actionable_insight
                 FROM news_cache
                 WHERE ticker = %s
                   AND fetched_at >= %s
@@ -1239,6 +1267,11 @@ class NewsService:
             filing_type,
             is_material_event,
             plain_language_headline,
+            story_id,
+            is_primary_article,
+            coverage_count,
+            impact_summary,
+            actionable_insight,
         ) = row
 
         published_dt = published_at.astimezone(UTC) if isinstance(published_at, datetime) else None
@@ -1283,6 +1316,11 @@ class NewsService:
             filing_type=filing_type,
             is_material_event=bool(is_material_event),
             plain_language_headline=plain_language_headline,
+            story_id=story_id,
+            is_primary_article=bool(is_primary_article),
+            coverage_count=int(coverage_count) if coverage_count is not None else 1,
+            impact_summary=impact_summary,
+            actionable_insight=actionable_insight,
         )
 
     def _score_entries(
@@ -1475,6 +1513,76 @@ class NewsService:
 
         return articles
 
+    def _apply_plain_language_translation(
+        self, articles: list[NewsArticle], watchlist_tickers: list[str] | None = None
+    ) -> list[NewsArticle]:
+        """Apply plain language translation to articles.
+
+        Args:
+            articles: List of scored NewsArticle objects
+            watchlist_tickers: Optional list of tickers in user's watchlist for context-aware insights
+
+        Returns:
+            List of NewsArticle objects with impact_summary and actionable_insight set
+        """
+        if (
+            not articles
+            or classify_event_category is None
+            or generate_actionable_insight is None
+            or generate_impact_summary is None
+            or translate_to_plain_language is None
+        ):
+            return articles
+
+        try:
+            for article in articles:
+                # Classify event category
+                event_category = classify_event_category(
+                    headline=article.headline,
+                    summary=article.summary,
+                    filing_type=article.filing_type,
+                )
+
+                # Generate plain language headline if not already set
+                if not article.plain_language_headline:
+                    translation_result = translate_to_plain_language(
+                        headline=article.headline,
+                        summary=article.summary,
+                        filing_type=article.filing_type,
+                        sentiment_score=article.sentiment.score,
+                        ticker=article.ticker,
+                    )
+                    article.plain_language_headline = translation_result["plain_language_headline"]
+
+                # Generate impact summary
+                article.impact_summary = generate_impact_summary(
+                    category=event_category,
+                    sentiment_score=article.sentiment.score,
+                )
+
+                # Generate actionable insight
+                in_watchlist = article.ticker in watchlist_tickers if watchlist_tickers else False
+                article.actionable_insight = generate_actionable_insight(
+                    category=event_category,
+                    sentiment_score=article.sentiment.score,
+                    ticker=article.ticker,
+                    in_watchlist=in_watchlist,
+                )
+
+            logger.info(
+                "plain_language_translation_applied",
+                num_articles=len(articles),
+                num_with_insights=sum(1 for a in articles if a.actionable_insight),
+            )
+
+        except Exception as exc:
+            # Non-fatal: plain language translation is enhancement, not critical
+            logger.warning(
+                "plain_language_translation_failed", error=str(exc), error_type=type(exc).__name__
+            )
+
+        return articles
+
     def _article_to_db_row(self, article: NewsArticle) -> dict[str, Any]:
         payload = article.raw
         if "sentiment_probabilities" not in payload:
@@ -1507,6 +1615,8 @@ class NewsService:
             "story_id": article.story_id,
             "is_primary_article": article.is_primary_article,
             "coverage_count": article.coverage_count,
+            "impact_summary": article.impact_summary,
+            "actionable_insight": article.actionable_insight,
         }
 
     def _refresh_cache(self, *, ticker: str, query: str, max_articles: int) -> None:
@@ -1581,6 +1691,11 @@ class NewsService:
         # Apply story clustering to group articles by semantic similarity
         articles = self._apply_story_clustering(articles)
 
+        # Apply plain language translation and generate insights
+        # Note: We don't have watchlist context at cache refresh time, so pass None
+        # Insights will be context-aware when fetched from watchlist API
+        articles = self._apply_plain_language_translation(articles, watchlist_tickers=None)
+
         rows_to_insert = [self._article_to_db_row(article) for article in articles]
 
         if not rows_to_insert:
@@ -1613,7 +1728,9 @@ class NewsService:
                         plain_language_headline,
                         story_id,
                         is_primary_article,
-                        coverage_count
+                        coverage_count,
+                        impact_summary,
+                        actionable_insight
                     ) VALUES (
                         %(ticker)s,
                         %(headline)s,
@@ -1637,7 +1754,9 @@ class NewsService:
                         %(plain_language_headline)s,
                         %(story_id)s,
                         %(is_primary_article)s,
-                        %(coverage_count)s
+                        %(coverage_count)s,
+                        %(impact_summary)s,
+                        %(actionable_insight)s
                     )
                     ON CONFLICT (ticker, content_hash) DO UPDATE SET
                         url = EXCLUDED.url,
@@ -1655,7 +1774,9 @@ class NewsService:
                         updated_at = EXCLUDED.updated_at,
                         story_id = EXCLUDED.story_id,
                         is_primary_article = EXCLUDED.is_primary_article,
-                        coverage_count = EXCLUDED.coverage_count
+                        coverage_count = EXCLUDED.coverage_count,
+                        impact_summary = EXCLUDED.impact_summary,
+                        actionable_insight = EXCLUDED.actionable_insight
                     """,
                     row,
                 )
