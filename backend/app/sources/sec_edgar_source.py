@@ -10,12 +10,16 @@ from __future__ import annotations
 
 import datetime as dt
 from collections.abc import Iterable
-from typing import Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import polars as pl
 
 from ..logging_config import get_logger
 from .base import BaseSource
+from .sec_cik_fetcher import get_cik
+
+if TYPE_CHECKING:
+    from ..storage import PortfolioStorage
 
 # Lazy import to avoid startup overhead
 _edgar = None
@@ -24,18 +28,20 @@ _set_identity_called = False
 logger = get_logger(__name__)
 
 
-def _get_edgar():
+def _get_edgar() -> Any:
     """Lazy import edgartools and set User-Agent identity."""
     global _edgar, _set_identity_called  # noqa: PLW0603
 
     if _edgar is None:
-        import edgar as edgar_module
+        import edgar as edgar_module  # type: ignore[import-not-found]  # noqa: PLC0415
 
         _edgar = edgar_module
 
         # Set User-Agent for SEC compliance (required)
+        # SEC requests traffic identification with company/contact info
+        # See: https://www.sec.gov/os/webmaster-faq#developers
         if not _set_identity_called:
-            edgar_module.set_identity("Portfolio AI https://github.com/kasadis/portfolio-ai")
+            edgar_module.set_identity("Summit Flow Solutions")
             _set_identity_called = True
             logger.info("sec_edgar_identity_set")
 
@@ -62,10 +68,10 @@ class SECEdgarSource(BaseSource):
     supports_news = True
 
     # Filing types to fetch
-    FILING_TYPES = ["8-K", "10-Q", "10-K", "4"]
+    FILING_TYPES: ClassVar[list[str]] = ["8-K", "10-Q", "10-K", "4"]
 
     # Material 8-K items (trigger news alerts)
-    MATERIAL_8K_ITEMS = {
+    MATERIAL_8K_ITEMS: ClassVar[set[str]] = {
         "1.01",  # Material Agreement
         "1.02",  # Termination of Agreement
         "2.01",  # Completion of Acquisition/Disposition
@@ -75,9 +81,15 @@ class SECEdgarSource(BaseSource):
         "8.01",  # Other Events (catchall for material news)
     }
 
-    def __init__(self) -> None:
-        """Initialize SEC EDGAR source."""
+    def __init__(self, storage: PortfolioStorage | None = None) -> None:
+        """Initialize SEC EDGAR source.
+
+        Args:
+            storage: Optional PortfolioStorage instance for CIK cache lookups.
+                    If not provided, will create one on first use.
+        """
         # edgartools will be imported lazily on first use
+        self._storage = storage
         logger.info("sec_edgar_source_initialized")
 
     def fetch_day_bars(self, request: Any) -> pl.DataFrame | None:
@@ -126,8 +138,20 @@ class SECEdgarSource(BaseSource):
                 continue
 
             try:
-                # Get company
-                company = edgar.Company(ticker)
+                # Get CIK from local cache (bypasses SEC API ticker lookup)
+                if self._storage is None:
+                    # Lazy import to avoid circular dependency
+                    from ..storage import PortfolioStorage  # noqa: PLC0415
+
+                    self._storage = PortfolioStorage()
+
+                cik = get_cik(ticker, self._storage)
+                if not cik:
+                    logger.warning("sec_edgar_cik_not_found", ticker=ticker)
+                    continue
+
+                # Get company by CIK (bypasses ticker lookup, works despite IP block)
+                company = edgar.Company(cik)
 
                 # Fetch filings in date range
                 filings = company.get_filings(
@@ -211,10 +235,7 @@ class SECEdgarSource(BaseSource):
         # Determine if material event
         is_material = self._is_material_event(form)
 
-        # Extract 8-K items if applicable (future enhancement)
-        # filing_items = []
-        # if form == "8-K":
-        #     filing_items = ["2.02"]  # Most common: earnings
+        # TODO: Extract 8-K items if applicable (future enhancement)
 
         # Build record
         record = {
@@ -280,8 +301,5 @@ class SECEdgarSource(BaseSource):
 
         # Form 4 (insider trades) are material if significant
         # For now, mark all as material (will enhance with transaction value check)
-        if form == "4":
-            return True
-
         # Quarterly/annual reports are important but not "breaking news"
-        return False
+        return form == "4"
