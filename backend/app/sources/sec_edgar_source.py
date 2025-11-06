@@ -237,17 +237,26 @@ class SECEdgarSource(BaseSource):
 
         # TODO: Extract 8-K items if applicable (future enhancement)
 
-        # Build record
+        # Plain language headline for plain_language_headline field
+        plain_language = self._generate_headline(form, ticker)
+
+        # Build record with ALL standard news fields (for schema compatibility)
         record = {
             "ticker": ticker,
             "headline": headline,
             "url": filing_url,
-            "published_at": dt.datetime.combine(filing_date, dt.time.min).replace(tzinfo=dt.UTC),
-            "source": "SEC EDGAR",
             "summary": f"{form} filed on {filing_date}",
+            "news_source_name": "SEC EDGAR",  # Standard field name
+            "author": None,  # SEC filings don't have authors
+            "image_url": None,  # SEC filings don't have images
+            "published_at": dt.datetime.combine(filing_date, dt.time.min).replace(tzinfo=dt.UTC),
+            "raw_payload": None,  # Will be populated later if needed
+            "source": "sec_edgar",  # Source identifier
+            # SEC-specific fields
             "vendor": "sec_edgar",
             "filing_type": form,
             "is_material_event": is_material,
+            "plain_language_headline": plain_language,
         }
 
         return record

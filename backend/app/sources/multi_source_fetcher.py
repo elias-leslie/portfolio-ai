@@ -415,8 +415,9 @@ class MultiSourceFetcher:
                 # Continue to next source for failover
 
         # Combine data from all sources
+        # Use diagonal concat to handle different schemas (e.g., SEC EDGAR has extra fields)
         if all_data:
-            combined = pl.concat(all_data) if len(all_data) > 1 else all_data[0]
+            combined = pl.concat(all_data, how="diagonal") if len(all_data) > 1 else all_data[0]
 
             if verbose:
                 logger.info(
