@@ -31,6 +31,22 @@ export interface NewsHealthResponse {
     fallback_avg_latency_ms_24h: number | null;
     fallback_p95_latency_ms_24h: number | null;
     fallback_last_event_at: string | null;
+    vendors: Record<string, VendorHealth>;
+}
+
+export interface VendorHealth {
+    configured: boolean;
+    enabled: boolean;
+    active: boolean;
+    last_attempt_at: string | null;
+    last_success_at: string | null;
+    last_error_at: string | null;
+    last_error: string | null;
+    articles_last_fetch: number;
+    articles_last_24h: number;
+    last_article_at: string | null;
+    notes: string | null;
+    reason: string | null;
 }
 
 type QueryParams = Record<string, string | number | boolean | undefined>;

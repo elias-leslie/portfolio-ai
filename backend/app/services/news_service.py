@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 import threading
 from collections import Counter
 from collections.abc import Iterable, Sequence
@@ -34,7 +35,12 @@ except Exception:  # pragma: no cover - handled via availability checks
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer  # type: ignore[import-untyped]
 
 from ..logging_config import get_logger
+from ..sources.base import DATASET_NEWS, BaseSource, DatasetRequest
+from ..sources.finnhub_source import FinnhubSource
+from ..sources.fmp_source import FMPSource
+from ..sources.multi_source_fetcher import MultiSourceFetcher
 from ..sources.news import GoogleNewsSource
+from ..sources.polygon_source import PolygonSource
 from ..storage import PortfolioStorage
 
 logger = get_logger(__name__)
@@ -74,6 +80,7 @@ class NewsArticle(BaseModel):
     sentiment: SentimentScore
     content_hash: str
     raw: dict[str, Any] = Field(default_factory=dict)
+    vendor: str | None = None
 
 
 class NewsSummary(BaseModel):
@@ -283,6 +290,8 @@ class NewsService:
         finbert_analyzer: FinBertSentimentAnalyzer | None = None,
         fallback_analyzer: VaderSentimentAnalyzer | None = None,
         selection_overfetch: int = ARTICLE_OVERFETCH_MULTIPLIER,
+        multi_source_fetcher: MultiSourceFetcher | None = None,
+        vendor_sources: Sequence[BaseSource] | None = None,
     ) -> None:
         self.storage = storage
         self.ttl = ttl or timedelta(hours=DEFAULT_TTL_HOURS)
@@ -291,6 +300,171 @@ class NewsService:
         self.fallback_analyzer = fallback_analyzer or VaderSentimentAnalyzer()
         self.lookback_hours = max(1, int(self.ttl.total_seconds() // 3600))
         self.selection_overfetch = max(1, selection_overfetch)
+
+        self._vendor_config: dict[str, dict[str, Any]] = {}
+        self._vendor_runtime: dict[str, dict[str, Any]] = {}
+
+        # Always register Google News fallback vendor
+        self._register_vendor(
+            "google_news",
+            configured=True,
+            enabled=True,
+            notes="Google News RSS fallback feed",
+            reason=None,
+        )
+
+        self.vendor_sources = self._prepare_vendor_sources(vendor_sources)
+        self.multi_source_fetcher = multi_source_fetcher
+
+        if self.multi_source_fetcher is not None:
+            self.vendor_sources = list(self.multi_source_fetcher.sources)
+            for source in self.vendor_sources:
+                self._register_vendor(
+                    source.name,
+                    configured=True,
+                    enabled=True,
+                    notes=None,
+                    reason=None,
+                )
+        elif self.vendor_sources:
+            self.multi_source_fetcher = MultiSourceFetcher(self.vendor_sources, storage)
+        else:
+            self.multi_source_fetcher = None
+
+    @staticmethod
+    def _env_flag(name: str, default: bool = False) -> bool:
+        """Parse boolean-like environment variables."""
+        value = os.getenv(name)
+        if value is None:
+            return default
+        return value.strip().lower() in {"1", "true", "yes", "on", "y"}
+
+    def _register_vendor(
+        self,
+        name: str,
+        *,
+        configured: bool,
+        enabled: bool,
+        notes: str | None,
+        reason: str | None,
+    ) -> None:
+        """Ensure vendor metadata/runtime tracking entries exist."""
+        existing = self._vendor_config.get(name, {})
+        existing.update(
+            {
+                "configured": bool(configured),
+                "enabled": bool(enabled),
+            }
+        )
+        if notes is not None:
+            existing["notes"] = notes
+        existing.setdefault("notes", notes)
+        if reason is not None or "reason" not in existing:
+            existing["reason"] = reason
+        self._vendor_config[name] = existing
+
+        self._vendor_runtime.setdefault(
+            name,
+            {
+                "last_attempt_at": None,
+                "last_success_at": None,
+                "last_error_at": None,
+                "last_error": None,
+                "articles_last_fetch": 0,
+            },
+        )
+
+    def _prepare_vendor_sources(
+        self, vendor_sources: Sequence[BaseSource] | None
+    ) -> list[BaseSource]:
+        """Initialise vendor sources either from overrides or environment configuration."""
+        sources: list[BaseSource] = []
+
+        if vendor_sources is not None:
+            for source in vendor_sources:
+                sources.append(source)
+                self._register_vendor(
+                    source.name, configured=True, enabled=True, notes=None, reason=None
+                )
+            return sources
+
+        # Polygon
+        polygon_key = os.getenv("POLYGON_API_KEY")
+        polygon_flag = self._env_flag("POLYGON_NEWS_ENABLED", default=True)
+        polygon_configured = bool(polygon_key)
+        polygon_enabled = bool(polygon_configured and polygon_flag)
+        polygon_reason: str | None = None
+        if not polygon_configured:
+            polygon_reason = "missing_api_key"
+        elif not polygon_flag:
+            polygon_reason = "disabled_by_flag"
+        if polygon_enabled:
+            try:
+                sources.append(PolygonSource())
+            except Exception as exc:
+                polygon_reason = f"init_failed: {exc}"
+                polygon_enabled = False
+                logger.warning("polygon_news_source_init_failed", error=str(exc))
+        self._register_vendor(
+            "polygon",
+            configured=polygon_configured,
+            enabled=polygon_enabled,
+            notes=None,
+            reason=polygon_reason,
+        )
+
+        # Finnhub
+        finnhub_key = os.getenv("FINNHUB_API_KEY")
+        finnhub_flag = self._env_flag("FINNHUB_NEWS_ENABLED", default=True)
+        finnhub_configured = bool(finnhub_key)
+        finnhub_enabled = bool(finnhub_configured and finnhub_flag)
+        finnhub_reason: str | None = None
+        if not finnhub_configured:
+            finnhub_reason = "missing_api_key"
+        elif not finnhub_flag:
+            finnhub_reason = "disabled_by_flag"
+        if finnhub_enabled:
+            try:
+                sources.append(FinnhubSource())
+            except Exception as exc:
+                finnhub_reason = f"init_failed: {exc}"
+                finnhub_enabled = False
+                logger.warning("finnhub_news_source_init_failed", error=str(exc))
+        self._register_vendor(
+            "finnhub",
+            configured=finnhub_configured,
+            enabled=finnhub_enabled,
+            notes=None,
+            reason=finnhub_reason,
+        )
+
+        # FMP (news requires paid tier; default disabled)
+        fmp_key = os.getenv("FMP_API_KEY")
+        fmp_flag = self._env_flag("FMP_NEWS_ENABLED", default=False)
+        fmp_configured = bool(fmp_key)
+        fmp_enabled = bool(fmp_configured and fmp_flag)
+        fmp_reason: str | None = None
+        fmp_notes = "FMP news endpoints require paid tier; enable via FMP_NEWS_ENABLED=1."
+        if not fmp_configured:
+            fmp_reason = "missing_api_key"
+        elif not fmp_flag:
+            fmp_reason = "disabled_by_flag"
+        if fmp_enabled:
+            try:
+                sources.append(FMPSource())
+            except Exception as exc:
+                fmp_reason = f"init_failed: {exc}"
+                fmp_enabled = False
+                logger.warning("fmp_news_source_init_failed", error=str(exc))
+        self._register_vendor(
+            "fmp",
+            configured=fmp_configured,
+            enabled=fmp_enabled,
+            notes=fmp_notes,
+            reason=fmp_reason,
+        )
+
+        return [source for source in sources if source.is_enabled()]
 
     def set_ttl_hours(self, hours: int) -> None:
         """Update the active TTL/lookback window (in hours)."""
@@ -430,6 +604,259 @@ class NewsService:
         )
 
         return NewsBundle(ticker=ticker, summary=summary, articles=recent_articles)
+
+    # ------------------------------------------------------------------ #
+    # Vendor aggregation helpers
+    # ------------------------------------------------------------------ #
+    def _update_vendor_runtime(
+        self,
+        vendor: str,
+        *,
+        attempt_at: datetime,
+        article_count: int,
+        success: bool,
+        error: str | None = None,
+    ) -> None:
+        self._register_vendor(
+            vendor,
+            configured=self._vendor_config.get(vendor, {}).get("configured", True),
+            enabled=self._vendor_config.get(vendor, {}).get("enabled", True),
+            notes=self._vendor_config.get(vendor, {}).get("notes"),
+            reason=self._vendor_config.get(vendor, {}).get("reason"),
+        )
+        runtime = self._vendor_runtime.setdefault(
+            vendor,
+            {
+                "last_attempt_at": None,
+                "last_success_at": None,
+                "last_error_at": None,
+                "last_error": None,
+                "articles_last_fetch": 0,
+            },
+        )
+        runtime["last_attempt_at"] = attempt_at
+        runtime["articles_last_fetch"] = int(article_count)
+        if success:
+            runtime["last_success_at"] = attempt_at
+            runtime["last_error"] = None
+            runtime["last_error_at"] = None
+        elif error:
+            runtime["last_error"] = error
+            runtime["last_error_at"] = attempt_at
+
+    def _apply_vendor_metadata(self, metadata: dict[str, Any], attempt_at: datetime) -> None:
+        if not metadata:
+            return
+
+        counts_data = metadata.get("counts") or {}
+        if isinstance(counts_data, Counter):
+            counts = dict(counts_data)
+        else:
+            counts = {str(k): int(v) for k, v in counts_data.items()}
+
+        errors = metadata.get("errors") or {}
+        if not isinstance(errors, dict):
+            errors = {}
+
+        for vendor_name, count in counts.items():
+            if not vendor_name:
+                continue
+            self._update_vendor_runtime(
+                vendor_name,
+                attempt_at=attempt_at,
+                article_count=count,
+                success=True,
+            )
+
+        for vendor_name, error_messages in errors.items():
+            if not vendor_name or vendor_name in counts:
+                continue
+            error_list = error_messages
+            if not isinstance(error_list, list):
+                error_list = [str(error_list)]
+            error_text = "; ".join(str(message) for message in error_list if message)
+            self._update_vendor_runtime(
+                vendor_name,
+                attempt_at=attempt_at,
+                article_count=0,
+                success=False,
+                error=error_text or None,
+            )
+
+    def _normalize_vendor_row(
+        self,
+        row: dict[str, Any],
+        *,
+        vendor_name: str,
+        default_ticker: str,
+    ) -> dict[str, Any]:
+        entry = dict(row)
+        headline = entry.get("headline") or entry.get("title")
+        summary = entry.get("summary") or entry.get("description")
+        url = entry.get("url") or entry.get("link") or entry.get("article_url")
+        news_source_name = entry.get("news_source_name") or entry.get("publisher")
+        if isinstance(news_source_name, dict):
+            news_source_name = news_source_name.get("name") or news_source_name.get("title")
+
+        published_value = entry.get("published_at") or entry.get("published")
+        published_iso = None
+        if isinstance(published_value, datetime):
+            published_iso = published_value.astimezone(UTC).isoformat()
+        elif isinstance(published_value, str):
+            published_iso = published_value
+        elif isinstance(published_value, (int, float)):
+            published_iso = datetime.fromtimestamp(float(published_value), tz=UTC).isoformat()
+
+        ticker_value = entry.get("ticker") or default_ticker
+        if isinstance(ticker_value, str):
+            ticker_value = ticker_value.upper()
+
+        vendor_payload = entry.get("raw_payload") or entry.get("vendor_payload")
+        if isinstance(vendor_payload, str):
+            with suppress(Exception):
+                vendor_payload = json.loads(vendor_payload)
+
+        normalized = {
+            "headline": headline,
+            "summary": summary,
+            "description": summary,
+            "url": url,
+            "link": url,
+            "source": news_source_name or vendor_name,
+            "news_source_name": news_source_name or vendor_name,
+            "author": entry.get("author"),
+            "image_url": entry.get("image_url"),
+            "published": published_iso,
+            "published_at": published_iso,
+            "vendor": vendor_name,
+            "ticker": ticker_value or default_ticker,
+        }
+        if vendor_payload is not None:
+            normalized["vendor_payload"] = vendor_payload
+
+        return normalized
+
+    def _fetch_vendor_entries(
+        self,
+        *,
+        ticker: str,
+        query: str,
+        now: datetime,
+        max_entries: int,
+    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        metadata: dict[str, Any] = {"counts": {}, "errors": {}}
+        if self.multi_source_fetcher is None:
+            return [], metadata
+
+        request = DatasetRequest(
+            dataset=DATASET_NEWS,
+            profile=None,
+            tickers=[ticker],
+            start=now - self.ttl,
+            end=now,
+            timezone="UTC",
+        )
+        dataframe, errors = self.multi_source_fetcher.fetch_with_fallback(request, verbose=False)
+        metadata["errors"] = errors or {}
+
+        if dataframe is None or len(dataframe) == 0:
+            metadata["counts"] = {}
+            return [], metadata
+
+        entries: list[dict[str, Any]] = []
+        vendor_counts: Counter[str] = Counter()
+
+        for row in dataframe.to_dicts():
+            vendor_name = str(row.get("source") or "").strip() or "unknown"
+            normalized = self._normalize_vendor_row(
+                row,
+                vendor_name=vendor_name,
+                default_ticker=ticker,
+            )
+            if not normalized.get("headline"):
+                continue
+            vendor_counts[vendor_name] += 1
+            entries.append(normalized)
+            if len(entries) >= max_entries:
+                break
+
+        metadata["counts"] = dict(vendor_counts)
+        return entries, metadata
+
+    def _fetch_google_entries(
+        self,
+        *,
+        query: str,
+        limit: int,
+        ticker: str,
+        now: datetime,
+    ) -> list[dict[str, Any]]:
+        if limit <= 0:
+            return []
+
+        entries = self.news_source.fetch_headlines(query, limit)
+        normalized_entries: list[dict[str, Any]] = []
+        for entry in entries:
+            normalized = dict(entry)
+            normalized["vendor"] = "google_news"
+            if isinstance(normalized.get("source"), dict):
+                source_title = normalized["source"].get("title")
+                normalized.setdefault("news_source_name", source_title)
+            else:
+                normalized.setdefault("news_source_name", normalized.get("source"))
+            normalized.setdefault("source", normalized.get("news_source_name") or "Google News")
+            normalized.setdefault("ticker", ticker)
+            normalized_entries.append(normalized)
+
+        self._update_vendor_runtime(
+            "google_news",
+            attempt_at=now,
+            article_count=len(normalized_entries),
+            success=True,
+        )
+        return normalized_entries
+
+    def _merge_entries(
+        self,
+        *,
+        ticker: str,
+        vendor_entries: Sequence[dict[str, Any]],
+        google_entries: Sequence[dict[str, Any]],
+        max_entries: int,
+    ) -> list[dict[str, Any]]:
+        seen: set[tuple[str, str]] = set()
+        merged: list[dict[str, Any]] = []
+
+        def _iter_source(entries: Sequence[dict[str, Any]]) -> Iterable[dict[str, Any]]:
+            for entry in entries:
+                headline = (entry.get("headline") or entry.get("title") or "").strip()
+                if not headline:
+                    continue
+                source_name = entry.get("news_source_name")
+                if isinstance(source_name, dict):
+                    source_name = source_name.get("title")
+                if not source_name:
+                    raw_source = entry.get("source")
+                    if isinstance(raw_source, dict):
+                        source_name = raw_source.get("title")
+                    else:
+                        source_name = raw_source
+                key = (headline.lower(), (source_name or "").lower())
+                if key in seen:
+                    continue
+                seen.add(key)
+                normalized = dict(entry)
+                normalized.setdefault("ticker", ticker)
+                merged.append(normalized)
+                if len(merged) >= max_entries:
+                    break
+            return ()
+
+        _iter_source(vendor_entries)
+        if len(merged) < max_entries:
+            _iter_source(google_entries)
+
+        return merged[:max_entries]
 
     def _select_recent_articles(
         self,
@@ -589,6 +1016,12 @@ class NewsService:
                 with suppress(Exception):
                     raw_dict = json.loads(raw_payload)
 
+        vendor = raw_dict.get("vendor")
+        if vendor is None:
+            inner_raw = raw_dict.get("raw")
+            if isinstance(inner_raw, dict):
+                vendor = inner_raw.get("vendor")
+
         return NewsArticle(
             ticker=ticker,
             headline=headline,
@@ -608,6 +1041,7 @@ class NewsService:
             ),
             content_hash=content_hash,
             raw=raw_dict,
+            vendor=vendor,
         )
 
     def _score_entries(
@@ -672,11 +1106,21 @@ class NewsService:
             summary = entry.get("summary") or entry.get("description")
             published = _parse_datetime(entry.get("published") or entry.get("published_at"))
             content_hash = _hash_content(ticker, headline, source_name)
+            vendor = entry.get("vendor")
+            if vendor is None:
+                raw_entry = entry.get("raw")
+                if isinstance(raw_entry, dict):
+                    vendor = raw_entry.get("vendor")
+            if vendor is None and isinstance(self.news_source, GoogleNewsSource):
+                vendor = "google_news"
+
             article_payload = {
                 "raw": entry,
                 "sentiment_probabilities": sentiment.probabilities,
                 "sentiment_model": sentiment.model,
             }
+            if vendor:
+                article_payload["vendor"] = vendor
 
             articles.append(
                 NewsArticle(
@@ -692,6 +1136,7 @@ class NewsService:
                     sentiment=sentiment,
                     content_hash=content_hash,
                     raw=article_payload,
+                    vendor=vendor,
                 )
             )
 
@@ -734,6 +1179,8 @@ class NewsService:
         if "sentiment_probabilities" not in payload:
             payload["sentiment_probabilities"] = article.sentiment.probabilities
         payload.setdefault("sentiment_model", article.sentiment.model)
+        if article.vendor:
+            payload.setdefault("vendor", article.vendor)
 
         return {
             "ticker": article.ticker,
@@ -757,13 +1204,44 @@ class NewsService:
 
     def _refresh_cache(self, *, ticker: str, query: str, max_articles: int) -> None:
         logger.info("Refreshing news cache", ticker=ticker, query=query, max_articles=max_articles)
-        raw_entries = self.news_source.fetch_headlines(query, max_articles)
-        if not raw_entries:
-            logger.info("No headlines returned from source", ticker=ticker)
-            return
 
         now = datetime.now(UTC)
-        articles = self._score_entries(ticker=ticker, entries=raw_entries, now=now)
+        fetch_limit = max(
+            max_articles, min(max_articles * self.selection_overfetch, ARTICLE_OVERFETCH_CAP)
+        )
+
+        vendor_entries, vendor_metadata = self._fetch_vendor_entries(
+            ticker=ticker,
+            query=query,
+            now=now,
+            max_entries=fetch_limit,
+        )
+        self._apply_vendor_metadata(vendor_metadata, now)
+
+        vendor_count = len(vendor_entries)
+        google_limit = max(fetch_limit - vendor_count, 0)
+        if google_limit == 0 and vendor_count < max_articles:
+            google_limit = max_articles - vendor_count
+
+        google_entries = self._fetch_google_entries(
+            query=query,
+            limit=google_limit,
+            ticker=ticker,
+            now=now,
+        )
+
+        combined_entries = self._merge_entries(
+            ticker=ticker,
+            vendor_entries=vendor_entries,
+            google_entries=google_entries,
+            max_entries=fetch_limit,
+        )
+
+        if not combined_entries:
+            logger.info("No headlines returned from sources", ticker=ticker)
+            return
+
+        articles = self._score_entries(ticker=ticker, entries=combined_entries, now=now)
         rows_to_insert = [self._article_to_db_row(article) for article in articles]
 
         if not rows_to_insert:
@@ -833,6 +1311,8 @@ class NewsService:
             "news_cache_refreshed",
             ticker=ticker,
             articles=len(rows_to_insert),
+            vendor_counts=vendor_metadata.get("counts", {}),
+            google_articles=len(google_entries),
         )
 
     def get_custom_news(
@@ -1008,10 +1488,70 @@ class NewsService:
 
         fallback_rate = (fallback_count / total_count) if total_count else 0.0
 
+        with self.storage.connection() as conn:
+            vendor_rows = conn.execute(
+                """
+                SELECT
+                    raw_payload->'raw'->>'vendor' AS vendor,
+                    COUNT(*) AS article_count,
+                    MAX(fetched_at) AS last_article_at
+                FROM news_cache
+                WHERE fetched_at >= %s
+                GROUP BY vendor
+                """,
+                [window_start],
+            ).fetchall()
+
+        vendor_stats: dict[str, dict[str, Any]] = {}
+        for vendor_name, article_count, last_article_at in vendor_rows:
+            key = (vendor_name or "unknown").strip()
+            last_at = last_article_at
+            if isinstance(last_at, datetime) and last_at.tzinfo is None:
+                last_at = last_at.replace(tzinfo=UTC)
+            vendor_stats[key] = {
+                "articles_last_24h": int(article_count or 0),
+                "last_article_at": last_at,
+            }
+            if key not in self._vendor_config:
+                self._register_vendor(key, configured=True, enabled=True, notes=None, reason=None)
+
         def _iso(dt: datetime | None) -> str | None:
             if not dt:
                 return None
             return dt.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+        vendor_health: dict[str, Any] = {}
+        for vendor_name, config in self._vendor_config.items():
+            runtime = self._vendor_runtime.get(
+                vendor_name,
+                {
+                    "last_attempt_at": None,
+                    "last_success_at": None,
+                    "last_error_at": None,
+                    "last_error": None,
+                    "articles_last_fetch": 0,
+                },
+            )
+            stats = vendor_stats.get(vendor_name, {})
+            last_article_at_dt = stats.get("last_article_at")
+            active = False
+            if config.get("enabled") and isinstance(last_article_at_dt, datetime):
+                active = (now - last_article_at_dt) <= (self.ttl * 2)
+
+            vendor_health[vendor_name] = {
+                "configured": bool(config.get("configured")),
+                "enabled": bool(config.get("enabled")),
+                "active": active,
+                "last_attempt_at": _iso(runtime.get("last_attempt_at")),
+                "last_success_at": _iso(runtime.get("last_success_at")),
+                "last_error_at": _iso(runtime.get("last_error_at")),
+                "last_error": runtime.get("last_error"),
+                "articles_last_fetch": int(runtime.get("articles_last_fetch", 0)),
+                "articles_last_24h": int(stats.get("articles_last_24h", 0)),
+                "last_article_at": _iso(last_article_at_dt),
+                "notes": config.get("notes"),
+                "reason": config.get("reason"),
+            }
 
         return {
             "finbert_available": finbert_available,
@@ -1029,4 +1569,5 @@ class NewsService:
             if p95_latency_ms is not None
             else None,
             "fallback_last_event_at": _iso(last_fallback_at) if last_fallback_at else None,
+            "vendors": vendor_health,
         }

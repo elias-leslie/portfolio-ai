@@ -8,6 +8,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 from collections.abc import Iterable
+from typing import Any
 
 import polars as pl
 
@@ -26,7 +27,7 @@ class PolygonSource(BaseSource):
     priority = 10  # Medium priority - rate limited on free tier (5/min)
     supports_day = True
     supports_reference = True
-    supports_news = False  # Not implemented yet
+    supports_news = True
 
     def __init__(self, include_otc: bool = True) -> None:
         """Initialize Polygon source.
@@ -182,9 +183,87 @@ class PolygonSource(BaseSource):
     def fetch_news_payload(
         self, tickers: Iterable[str], start: dt.datetime, end: dt.datetime
     ) -> pl.DataFrame | None:
-        """Fetch news articles from Polygon (not implemented yet)."""
-        logger.warning("polygon_news_not_implemented")
-        return None
+        """Fetch news articles from Polygon reference news endpoint."""
+        records: list[dict[str, Any]] = []
+        start_iso = start.astimezone(dt.UTC).isoformat()
+        end_iso = end.astimezone(dt.UTC).isoformat()
+
+        ticker_list = list(tickers) or ["__MARKET__"]
+
+        for ticker in ticker_list:
+            is_market_request = ticker in (None, "__MARKET__")
+            try:
+                params = {
+                    "published_utc.gte": start_iso,
+                    "published_utc.lte": end_iso,
+                    "order": "desc",
+                    "sort": "published_utc",
+                    "limit": 50,
+                }
+                if not is_market_request:
+                    params["ticker"] = ticker
+
+                response = self.client.get("/v2/reference/news", params)
+                results = response.get("results", [])
+                if not results:
+                    logger.debug(
+                        "polygon_news_empty",
+                        ticker="__MARKET__" if is_market_request else ticker,
+                    )
+                    continue
+
+                for item in results:
+                    published_raw = item.get("published_utc")
+                    try:
+                        published_dt = (
+                            dt.datetime.fromisoformat(published_raw.replace("Z", "+00:00"))
+                            if isinstance(published_raw, str)
+                            else None
+                        )
+                    except Exception:
+                        published_dt = None
+
+                    records.append(
+                        {
+                            "ticker": ticker if not is_market_request else "__MARKET__",
+                            "headline": item.get("title"),
+                            "url": item.get("article_url"),
+                            "summary": item.get("description"),
+                            "news_source_name": (item.get("publisher") or {}).get("name"),
+                            "author": item.get("author"),
+                            "image_url": item.get("image_url"),
+                            "published_at": published_dt,
+                            "raw_payload": json.dumps(item),
+                            "source": "polygon",
+                        }
+                    )
+
+                logger.debug(
+                    "polygon_news_fetched",
+                    ticker="__MARKET__" if is_market_request else ticker,
+                    articles=len(results),
+                )
+
+            except Exception as exc:
+                logger.warning(
+                    "polygon_news_error",
+                    ticker="__MARKET__" if is_market_request else ticker,
+                    error=str(exc),
+                    error_type=type(exc).__name__,
+                )
+                continue
+
+        if not records:
+            logger.info("polygon_news_no_articles", tickers=list(tickers))
+            return None
+
+        logger.info(
+            "polygon_news_complete",
+            total_articles=len(records),
+            tickers=len({record["ticker"] for record in records}),
+        )
+
+        return pl.DataFrame(records)
 
 
 def _iterate_dates(start: dt.date | dt.datetime, end: dt.date | dt.datetime) -> list[str]:

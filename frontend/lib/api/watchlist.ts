@@ -6,235 +6,236 @@ import { apiRequest } from "./client";
 
 // Types matching backend Pydantic models
 export interface ScoreComponent {
-  score: number;
-  weight: number;
-  stale: boolean;
-  updated_at?: string;
-  metadata?: Record<string, unknown>;
+    score: number;
+    weight: number;
+    stale: boolean;
+    updated_at?: string;
+    metadata?: Record<string, unknown>;
 }
 
 export interface ScoreBreakdown {
-  price: ScoreComponent;
-  technical: ScoreComponent;
-  overall: number;
+    price: ScoreComponent;
+    technical: ScoreComponent;
+    overall: number;
 }
 
 export interface SentimentProbabilities {
-  [label: string]: number;
+    [label: string]: number;
 }
 
 export interface NewsSentimentDetail {
-  score: number | null;
-  score_change: number | null;
-  positive_count: number;
-  neutral_count: number;
-  negative_count: number;
-  article_count: number;
-  latest_published_at?: string | null;
-  top_positive?: SentimentArticle | null;
-  top_negative?: SentimentArticle | null;
-  model_breakdown: Record<string, number>;
+    score: number | null;
+    score_change: number | null;
+    positive_count: number;
+    neutral_count: number;
+    negative_count: number;
+    article_count: number;
+    latest_published_at?: string | null;
+    top_positive?: SentimentArticle | null;
+    top_negative?: SentimentArticle | null;
+    model_breakdown: Record<string, number>;
 }
 
 export interface SentimentScoreMeta {
-  score: number;
-  label: "positive" | "neutral" | "negative";
-  confidence: number;
-  model: string;
-  probabilities?: SentimentProbabilities;
+    score: number;
+    label: "positive" | "neutral" | "negative";
+    confidence: number;
+    model: string;
+    probabilities?: SentimentProbabilities;
 }
 
 export interface SentimentArticle {
-  ticker: string;
-  headline: string;
-  url?: string | null;
-  summary?: string | null;
-  source?: string | null;
-  author?: string | null;
-  image_url?: string | null;
-  published_at?: string | null;
-  fetched_at: string;
-  sentiment: SentimentScoreMeta;
-  content_hash: string;
-  raw?: Record<string, unknown>;
+    ticker: string;
+    headline: string;
+    url?: string | null;
+    summary?: string | null;
+    source?: string | null;
+    vendor?: string | null;
+    author?: string | null;
+    image_url?: string | null;
+    published_at?: string | null;
+    fetched_at: string;
+    sentiment: SentimentScoreMeta;
+    content_hash: string;
+    raw?: Record<string, unknown>;
 }
 
 export interface RecentNewsPayload {
-  summary?: NewsSentimentDetail;
-  articles: SentimentArticle[];
+    summary?: NewsSentimentDetail;
+    articles: SentimentArticle[];
 }
 
 export interface WatchlistItem {
-  id: string;
-  account_id: string;
-  symbol: string;
-  note?: string;
-  created_at: string;
-  updated_at: string;
-  current_score?: ScoreBreakdown;
-  score_alert?: boolean;
-  // Narrative Intelligence fields
-  signal_type?: "BUY" | "HOLD" | "AVOID" | null;
-  signal_strength?: number | null;
-  narrative_headline?: string | null;
-  recommended_style?: "Index" | "Trend" | "Value" | "Swing" | "Event" | null;
-  style_confidence?: number | null;
-  optimal_holding_period?: string | null;
-  risk_level?: "Low" | "Medium-Low" | "Medium" | "High" | null;
-  // Trade Calculator fields
-  entry_price?: number | null;
-  stop_loss?: number | null;
-  profit_target?: number | null;
-  position_size_shares?: number | null;
-  // News sentiment
-  news_sentiment_score?: number | null;
-  recent_news?: RecentNewsPayload | null;
+    id: string;
+    account_id: string;
+    symbol: string;
+    note?: string;
+    created_at: string;
+    updated_at: string;
+    current_score?: ScoreBreakdown;
+    score_alert?: boolean;
+    // Narrative Intelligence fields
+    signal_type?: "BUY" | "HOLD" | "AVOID" | null;
+    signal_strength?: number | null;
+    narrative_headline?: string | null;
+    recommended_style?: "Index" | "Trend" | "Value" | "Swing" | "Event" | null;
+    style_confidence?: number | null;
+    optimal_holding_period?: string | null;
+    risk_level?: "Low" | "Medium-Low" | "Medium" | "High" | null;
+    // Trade Calculator fields
+    entry_price?: number | null;
+    stop_loss?: number | null;
+    profit_target?: number | null;
+    position_size_shares?: number | null;
+    // News sentiment
+    news_sentiment_score?: number | null;
+    recent_news?: RecentNewsPayload | null;
 }
 
 export interface WatchlistListResponse {
-  items: WatchlistItem[];
-  total_count: number;
+    items: WatchlistItem[];
+    total_count: number;
 }
 
 export interface WatchlistItemCreate {
-  account_id: string;
-  symbol: string;
-  note?: string;
+    account_id: string;
+    symbol: string;
+    note?: string;
 }
 
 export interface WatchlistItemUpdate {
-  note?: string;
+    note?: string;
 }
 
 export interface FailedTickerInfo {
-  symbol: string;
-  reason: string;
+    symbol: string;
+    reason: string;
 }
 
 export interface RefreshResponse {
-  status: string;
-  message: string;
-  refreshed_count: number;
-  failed_count?: number;
-  failed?: FailedTickerInfo[];
+    status: string;
+    message: string;
+    refreshed_count: number;
+    failed_count?: number;
+    failed?: FailedTickerInfo[];
 }
 
 export interface ScoreHistory {
-  timestamp: string;
-  overall: number;
-  price_score: number;
-  technical_score: number;
+    timestamp: string;
+    overall: number;
+    price_score: number;
+    technical_score: number;
 }
 
 export interface ScoreHistoryResponse {
-  item_id: string;
-  symbol: string;
-  history: ScoreHistory[];
+    item_id: string;
+    symbol: string;
+    history: ScoreHistory[];
 }
 
 export interface RefreshStatus {
-  is_refreshing: boolean;
-  started_at?: string;
-  elapsed_seconds?: number;
-  total_items?: number;
-  processed_items?: number;
-  current_symbol?: string;
-  percent_complete?: number;
+    is_refreshing: boolean;
+    started_at?: string;
+    elapsed_seconds?: number;
+    total_items?: number;
+    processed_items?: number;
+    current_symbol?: string;
+    percent_complete?: number;
 }
 
 /**
  * Get all watchlist items for an account
  */
 export async function fetchWatchlistItems(
-  accountId: string
+    accountId: string,
 ): Promise<WatchlistListResponse> {
-  return apiRequest<WatchlistListResponse>(
-    `/api/watchlist?account_id=${encodeURIComponent(accountId)}`
-  );
+    return apiRequest<WatchlistListResponse>(
+        `/api/watchlist?account_id=${encodeURIComponent(accountId)}`,
+    );
 }
 
 /**
  * Get a single watchlist item with details
  */
 export async function fetchWatchlistItem(
-  itemId: string
+    itemId: string,
 ): Promise<WatchlistItem> {
-  return apiRequest<WatchlistItem>(`/api/watchlist/${itemId}`);
+    return apiRequest<WatchlistItem>(`/api/watchlist/${itemId}`);
 }
 
 /**
  * Add a ticker to the watchlist
  */
 export async function createWatchlistItem(
-  data: WatchlistItemCreate
+    data: WatchlistItemCreate,
 ): Promise<WatchlistItem> {
-  return apiRequest<WatchlistItem>("/api/watchlist", {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
+    return apiRequest<WatchlistItem>("/api/watchlist", {
+        method: "POST",
+        body: JSON.stringify(data),
+    });
 }
 
 /**
  * Update a watchlist item (notes)
  */
 export async function updateWatchlistItem(
-  itemId: string,
-  data: WatchlistItemUpdate
+    itemId: string,
+    data: WatchlistItemUpdate,
 ): Promise<WatchlistItem> {
-  return apiRequest<WatchlistItem>(`/api/watchlist/${itemId}`, {
-    method: "PATCH",
-    body: JSON.stringify(data),
-  });
+    return apiRequest<WatchlistItem>(`/api/watchlist/${itemId}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+    });
 }
 
 /**
  * Delete a watchlist item
  */
 export async function deleteWatchlistItem(itemId: string): Promise<void> {
-  await apiRequest<void>(`/api/watchlist/${itemId}`, {
-    method: "DELETE",
-  });
+    await apiRequest<void>(`/api/watchlist/${itemId}`, {
+        method: "DELETE",
+    });
 }
 
 /**
  * Get refresh status for an account's watchlist
  */
 export async function fetchRefreshStatus(
-  accountId: string
+    accountId: string,
 ): Promise<RefreshStatus> {
-  return apiRequest<RefreshStatus>(
-    `/api/watchlist/refresh-status?account_id=${encodeURIComponent(accountId)}`
-  );
+    return apiRequest<RefreshStatus>(
+        `/api/watchlist/refresh-status?account_id=${encodeURIComponent(accountId)}`,
+    );
 }
 
 /**
  * Manually refresh watchlist scores for an account
  */
 export async function refreshWatchlistScores(
-  accountId: string
+    accountId: string,
 ): Promise<RefreshResponse> {
-  return apiRequest<RefreshResponse>("/api/watchlist/refresh", {
-    method: "POST",
-    body: JSON.stringify({ account_id: accountId }),
-  });
+    return apiRequest<RefreshResponse>("/api/watchlist/refresh", {
+        method: "POST",
+        body: JSON.stringify({ account_id: accountId }),
+    });
 }
 
 /**
  * Get 7-day score history for a watchlist item
  */
 export async function fetchScoreHistory(
-  itemId: string
+    itemId: string,
 ): Promise<ScoreHistoryResponse> {
-  try {
-    return await apiRequest<ScoreHistoryResponse>(
-      `/api/watchlist/${itemId}/history`
-    );
-  } catch {
-    // History endpoint may not exist yet, return empty response
-    return {
-      item_id: itemId,
-      symbol: "",
-      history: [],
-    };
-  }
+    try {
+        return await apiRequest<ScoreHistoryResponse>(
+            `/api/watchlist/${itemId}/history`,
+        );
+    } catch {
+        // History endpoint may not exist yet, return empty response
+        return {
+            item_id: itemId,
+            symbol: "",
+            history: [],
+        };
+    }
 }

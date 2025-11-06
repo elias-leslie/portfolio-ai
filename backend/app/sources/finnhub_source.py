@@ -273,7 +273,7 @@ class FinnhubSource(BaseSource):
     priority = 10  # Same as Polygon - medium priority
     supports_day = True
     supports_reference = True
-    supports_news = False  # Not implemented yet
+    supports_news = True
 
     def __init__(self) -> None:
         """Initialize Finnhub source."""
@@ -487,6 +487,80 @@ class FinnhubSource(BaseSource):
     def fetch_news_payload(
         self, tickers: Iterable[str], start: dt.datetime, end: dt.datetime
     ) -> pl.DataFrame | None:
-        """Fetch news articles from Finnhub (not implemented yet)."""
-        logger.warning("finnhub_news_not_implemented")
-        return None
+        """Fetch news articles from Finnhub company-news and general news endpoints."""
+        records: list[dict[str, Any]] = []
+        start_date = start.astimezone(dt.UTC).date().isoformat()
+        end_date = end.astimezone(dt.UTC).date().isoformat()
+
+        ticker_list = list(tickers) or ["__MARKET__"]
+
+        for ticker in ticker_list:
+            is_market = ticker in (None, "__MARKET__")
+            try:
+                if is_market:
+                    response = self.client.get("/news", {"category": "general"})
+                else:
+                    response = self.client.get(
+                        "/company-news",
+                        {"symbol": ticker, "from": start_date, "to": end_date},
+                    )
+            except Exception as exc:
+                logger.warning(
+                    "finnhub_news_error",
+                    ticker="__MARKET__" if is_market else ticker,
+                    error=str(exc),
+                    error_type=type(exc).__name__,
+                )
+                continue
+
+            items = response if isinstance(response, list) else []
+            if not items:
+                logger.debug(
+                    "finnhub_news_empty",
+                    ticker="__MARKET__" if is_market else ticker,
+                )
+                continue
+
+            for item in items:
+                headline = item.get("headline") or item.get("title")
+                if not headline:
+                    continue
+
+                published_at = None
+                published_raw = item.get("datetime") or item.get("published_at")
+                if isinstance(published_raw, (int, float)):
+                    published_at = dt.datetime.fromtimestamp(float(published_raw), tz=dt.UTC)
+                elif isinstance(published_raw, str):
+                    try:
+                        published_at = dt.datetime.fromisoformat(
+                            published_raw.replace("Z", "+00:00")
+                        )
+                    except ValueError:
+                        published_at = None
+
+                records.append(
+                    {
+                        "ticker": "__MARKET__" if is_market else ticker,
+                        "headline": headline,
+                        "url": item.get("url"),
+                        "summary": item.get("summary"),
+                        "news_source_name": item.get("source"),
+                        "author": item.get("author"),
+                        "image_url": item.get("image"),
+                        "published_at": published_at,
+                        "raw_payload": json.dumps(item),
+                        "source": "finnhub",
+                    }
+                )
+
+            logger.debug(
+                "finnhub_news_fetched",
+                ticker="__MARKET__" if is_market else ticker,
+                articles=len(items),
+            )
+
+        if not records:
+            logger.info("finnhub_news_no_articles", tickers=list(ticker_list))
+            return None
+
+        return pl.DataFrame(records)

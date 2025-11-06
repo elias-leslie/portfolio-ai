@@ -173,6 +173,8 @@ def test_news_health_reports_fallback_metrics(storage):
     assert health["fallback_p95_latency_ms_24h"] is not None
     assert health["fallback_last_event_at"] is not None
     assert health["lookback_window_hours"] == service.lookback_hours
+    assert "vendors" in health
+    assert "google_news" in health["vendors"]
 
 
 def test_news_service_tracks_score_change(storage):

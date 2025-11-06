@@ -42,6 +42,7 @@ class NewsArticleResponse(BaseModel):
     published_at: str | None = None
     fetched_at: str
     sentiment: SentimentScoreResponse
+    vendor: str | None = None
 
 
 class NewsSummaryResponse(BaseModel):
@@ -75,6 +76,23 @@ class WatchlistNewsResponse(BaseModel):
     items: list[NewsBundleResponse]
 
 
+class VendorHealthResponse(BaseModel):
+    """Vendor-specific health metadata for news ingestion."""
+
+    configured: bool
+    enabled: bool
+    active: bool
+    last_attempt_at: str | None = None
+    last_success_at: str | None = None
+    last_error_at: str | None = None
+    last_error: str | None = None
+    articles_last_fetch: int = 0
+    articles_last_24h: int = 0
+    last_article_at: str | None = None
+    notes: str | None = None
+    reason: str | None = None
+
+
 class NewsHealthResponse(BaseModel):
     """Health metrics for news ingestion and sentiment pipeline."""
 
@@ -89,6 +107,7 @@ class NewsHealthResponse(BaseModel):
     fallback_avg_latency_ms_24h: float | None = None
     fallback_p95_latency_ms_24h: float | None = None
     fallback_last_event_at: str | None = None
+    vendors: dict[str, VendorHealthResponse] = Field(default_factory=dict)
 
 
 def _serialize_sentiment(payload: Any) -> SentimentScoreResponse:
@@ -124,6 +143,7 @@ def _serialize_article(article: Any) -> NewsArticleResponse:
         published_at=published_at,
         fetched_at=fetched_at or "",
         sentiment=_serialize_sentiment(article.sentiment),
+        vendor=getattr(article, "vendor", None),
     )
 
 

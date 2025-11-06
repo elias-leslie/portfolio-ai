@@ -31,7 +31,7 @@ def fmp_source(mock_fmp_client: Mock) -> FMPSource:
     source.priority = 3
     source.supports_day = True
     source.supports_reference = True
-    source.supports_news = False
+    source.supports_news = True
     source.client = mock_fmp_client
     return source
 
@@ -48,7 +48,7 @@ def test_fmp_source_initialization() -> None:
         assert source.priority == 3
         assert source.supports_day is True
         assert source.supports_reference is True
-        assert source.supports_news is False
+        assert source.supports_news is True
         assert source.client == mock_client
 
 
@@ -188,6 +188,61 @@ def test_fmp_fetch_day_bars_no_vwap(fmp_source: FMPSource, mock_fmp_client: Mock
     assert result is not None
     assert len(result) == 1
     assert result["vwap"][0] is None  # Should handle missing VWAP gracefully
+
+
+def test_fmp_fetch_news_payload_ticker(fmp_source: FMPSource, mock_fmp_client: Mock) -> None:
+    """Test fetching ticker-specific news."""
+    mock_response = [
+        {
+            "symbol": "AAPL",
+            "title": "Apple announces new product",
+            "text": "More details about the launch.",
+            "url": "https://example.com/aapl-news",
+            "site": "ExampleWire",
+            "publishedDate": "2025-01-28T12:34:56Z",
+        }
+    ]
+    mock_fmp_client.get.return_value = mock_response
+
+    start = dt.datetime(2025, 1, 20, tzinfo=dt.UTC)
+    end = dt.datetime(2025, 1, 28, tzinfo=dt.UTC)
+    result = fmp_source.fetch_news_payload(["AAPL"], start, end)
+
+    assert result is not None
+    assert len(result) == 1
+    row = result.to_dicts()[0]
+    assert row["ticker"] == "AAPL"
+    assert row["headline"] == "Apple announces new product"
+    assert row["source"] == "fmp"
+
+    mock_fmp_client.get.assert_called_once_with(
+        "/stock_news",
+        {
+            "from": start.date().isoformat(),
+            "to": end.date().isoformat(),
+            "limit": 50,
+            "tickers": "AAPL",
+        },
+    )
+
+
+def test_fmp_fetch_news_payload_market(fmp_source: FMPSource, mock_fmp_client: Mock) -> None:
+    """Test fetching market news without tickers."""
+    mock_fmp_client.get.return_value = []
+
+    start = dt.datetime(2025, 1, 1, tzinfo=dt.UTC)
+    end = dt.datetime(2025, 1, 2, tzinfo=dt.UTC)
+    result = fmp_source.fetch_news_payload(["__MARKET__"], start, end)
+
+    assert result is None
+    mock_fmp_client.get.assert_called_once_with(
+        "/stock_news",
+        {
+            "from": start.date().isoformat(),
+            "to": end.date().isoformat(),
+            "limit": 50,
+        },
+    )
 
 
 def test_fmp_fetch_reference_payload_success(fmp_source: FMPSource, mock_fmp_client: Mock) -> None:

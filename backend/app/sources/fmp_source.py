@@ -17,6 +17,7 @@ import threading
 import time
 from collections import deque
 from collections.abc import Iterable
+from contextlib import suppress
 from typing import Any
 
 import httpx
@@ -280,7 +281,7 @@ class FMPSource(BaseSource):
     priority = 3  # Lower priority than YFinance (1) and Twelve Data (2)
     supports_day = True
     supports_reference = True
-    supports_news = False  # Not implemented yet
+    supports_news = True
 
     def __init__(self) -> None:
         """Initialize FMP source."""
@@ -493,6 +494,77 @@ class FMPSource(BaseSource):
     def fetch_news_payload(
         self, tickers: Iterable[str], start: dt.datetime, end: dt.datetime
     ) -> pl.DataFrame | None:
-        """Fetch news articles from FMP (not implemented yet)."""
-        logger.warning("fmp_news_not_implemented")
-        return None
+        """Fetch news articles from FMP stock news endpoint."""
+        records: list[dict[str, Any]] = []
+        start_date = start.astimezone(dt.UTC).date().isoformat()
+        end_date = end.astimezone(dt.UTC).date().isoformat()
+
+        ticker_list = list(tickers) or ["__MARKET__"]
+        for ticker in ticker_list:
+            is_market = ticker in (None, "__MARKET__")
+            params: dict[str, Any] = {
+                "from": start_date,
+                "to": end_date,
+                "limit": 50,
+            }
+            if not is_market:
+                params["tickers"] = ticker
+
+            try:
+                response = self.client.get("/stock_news", params)
+            except Exception as exc:
+                logger.warning(
+                    "fmp_news_error",
+                    ticker="__MARKET__" if is_market else ticker,
+                    error=str(exc),
+                    error_type=type(exc).__name__,
+                )
+                continue
+
+            items = response if isinstance(response, list) else []
+            if not items:
+                logger.debug(
+                    "fmp_news_empty",
+                    ticker="__MARKET__" if is_market else ticker,
+                )
+                continue
+
+            for item in items:
+                headline = item.get("title")
+                if not headline:
+                    continue
+
+                published_at = None
+                published_raw = item.get("publishedDate")
+                if isinstance(published_raw, str):
+                    with suppress(Exception):
+                        published_at = dt.datetime.fromisoformat(
+                            published_raw.replace("Z", "+00:00")
+                        )
+
+                records.append(
+                    {
+                        "ticker": "__MARKET__" if is_market else (item.get("symbol") or ticker),
+                        "headline": headline,
+                        "url": item.get("url"),
+                        "summary": item.get("text"),
+                        "news_source_name": item.get("site"),
+                        "author": item.get("author"),
+                        "image_url": item.get("image"),
+                        "published_at": published_at,
+                        "raw_payload": json.dumps(item),
+                        "source": "fmp",
+                    }
+                )
+
+            logger.debug(
+                "fmp_news_fetched",
+                ticker="__MARKET__" if is_market else ticker,
+                articles=len(items),
+            )
+
+        if not records:
+            logger.info("fmp_news_no_articles", tickers=list(ticker_list))
+            return None
+
+        return pl.DataFrame(records)

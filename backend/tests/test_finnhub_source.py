@@ -31,7 +31,7 @@ def finnhub_source(mock_finnhub_client: Mock) -> FinnhubSource:
     source.priority = 10
     source.supports_day = True
     source.supports_reference = True
-    source.supports_news = False
+    source.supports_news = True
     source.client = mock_finnhub_client
     return source
 
@@ -48,7 +48,7 @@ def test_finnhub_source_initialization() -> None:
         assert source.priority == 10
         assert source.supports_day is True
         assert source.supports_reference is True
-        assert source.supports_news is False
+        assert source.supports_news is True
         assert source.client == mock_client
 
 
@@ -248,17 +248,57 @@ def test_finnhub_fetch_reference_payload_multiple_tickers(
     assert set(result["ticker"].to_list()) == {"AAPL", "GOOGL"}
 
 
-def test_finnhub_fetch_news_not_implemented(
-    finnhub_source: FinnhubSource,
+def test_finnhub_fetch_news_payload_ticker(
+    finnhub_source: FinnhubSource, mock_finnhub_client: Mock
 ) -> None:
-    """Test that news fetching returns None (not implemented)."""
-    result = finnhub_source.fetch_news_payload(
-        tickers=["AAPL"],
-        start=dt.datetime(2025, 1, 28, 0, 0),
-        end=dt.datetime(2025, 1, 28, 23, 59),
+    """Test fetching company-specific news payload."""
+    published_ts = dt.datetime(2025, 1, 28, tzinfo=dt.UTC).timestamp()
+    mock_response = [
+        {
+            "headline": "AAPL launches new product",
+            "summary": "Details about the launch.",
+            "url": "https://example.com/aapl-news",
+            "source": "ExampleWire",
+            "datetime": published_ts,
+            "image": "https://example.com/image.png",
+        }
+    ]
+    mock_finnhub_client.get.return_value = mock_response
+
+    start = dt.datetime(2025, 1, 20, tzinfo=dt.UTC)
+    end = dt.datetime(2025, 1, 28, tzinfo=dt.UTC)
+
+    result = finnhub_source.fetch_news_payload(["AAPL"], start, end)
+
+    assert result is not None
+    assert len(result) == 1
+    row = result.to_dicts()[0]
+    assert row["ticker"] == "AAPL"
+    assert row["headline"] == "AAPL launches new product"
+    assert row["source"] == "finnhub"
+
+    mock_finnhub_client.get.assert_called_once_with(
+        "/company-news",
+        {
+            "symbol": "AAPL",
+            "from": start.date().isoformat(),
+            "to": end.date().isoformat(),
+        },
     )
 
+
+def test_finnhub_fetch_news_payload_market(
+    finnhub_source: FinnhubSource, mock_finnhub_client: Mock
+) -> None:
+    """Test fetching market-wide news payload."""
+    mock_finnhub_client.get.return_value = []
+
+    start = dt.datetime(2025, 1, 1, tzinfo=dt.UTC)
+    end = dt.datetime(2025, 1, 2, tzinfo=dt.UTC)
+    result = finnhub_source.fetch_news_payload(["__MARKET__"], start, end)
+
     assert result is None
+    mock_finnhub_client.get.assert_called_once_with("/news", {"category": "general"})
 
 
 def test_finnhub_client_rate_limiting() -> None:
