@@ -6,7 +6,6 @@ This module defines background tasks for ingesting market data (OHLCV, fundament
 from __future__ import annotations
 
 import datetime as dt
-import json
 import uuid
 
 from app.celery_app import celery_app
@@ -15,7 +14,6 @@ from app.sources.alphavantage_source import AlphaVantageSource
 from app.sources.base import DatasetRequest
 from app.sources.finnhub_source import FinnhubSource
 from app.sources.fmp_source import FMPSource
-from app.sources.fred import FREDSource
 from app.sources.multi_source_fetcher import MultiSourceFetcher
 from app.sources.polygon_source import PolygonSource
 from app.sources.twelvedata_source import TwelveDataSource
