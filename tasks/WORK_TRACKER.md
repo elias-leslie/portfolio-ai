@@ -1,6 +1,6 @@
 # Portfolio AI - Work Tracker
 
-**Last Updated:** 2025-11-07 (Market Conditions per-item timestamps complete)
+**Last Updated:** 2025-11-07 (TASK-0035: Database Query Deduplication added to Planned)
 
 **📊 Implementation Reality Check:** Narrative Intelligence 100% complete, News Intelligence 75% complete, Market Conditions enhanced with per-item timestamps
 
@@ -88,7 +88,45 @@ None - Latest work completed (Market Conditions per-item timestamps)
 
 ### TIER 3: Code Health (Not user-facing)
 
-5. **[TASK-0033] Code Quality Improvements (Health Check Remediation)** - PAUSED
+5. **[TASK-0034] HTTP Client Deduplication (Critical Code Cleanup)** - NEW
+   - **File:** `tasks/tasks-0034-http-client-deduplication.md`
+   - **Status:** 0% complete
+   - **Effort:** MEDIUM (2-3 days)
+   - **Priority:** ⭐⭐⭐ MEDIUM (high ROI for code health)
+   - **Created:** 2025-11-07
+   - **What it does:**
+     - Eliminate 1,469 lines of duplicate code (61% reduction) across 5 API clients
+     - Create BaseHTTPClient abstraction (solves 3 critical issues in 1 refactoring)
+     - Single source of truth for retry logic, rate limiting, HTTP handling
+   - **Impact:**
+     - 🔴 HTTP Client Duplication: 5 clients with 95% identical code → eliminated
+     - 🔴 Retry Logic Duplication: Same function copied 5 times → eliminated
+     - 🔴 Rate Limiting Duplication: Same algorithm copied 5 times → eliminated
+   - **Dependencies:** None - can start immediately
+   - **Value:** High ROI (1 refactoring fixes 3 critical issues), easier maintenance, easier to add new API sources
+
+6. **[TASK-0035] Database Query & Data Fetching Deduplication** - NEW
+   - **File:** `tasks/tasks-0035-database-query-deduplication.md`
+   - **Status:** 0% complete
+   - **Effort:** MEDIUM-HIGH (8-12 hours, 2-3 sessions)
+   - **Priority:** ⭐⭐⭐⭐ HIGH (critical performance + API quota waste)
+   - **Created:** 2025-11-07
+   - **What it does:**
+     - Fix duplicate queries and redundant API calls identified in database analysis
+     - **VALIDATION-FIRST approach**: Prove each issue exists with measurements before fixing
+     - Target: 60-80% reduction in duplicate queries/API calls
+   - **Issues to Investigate & Fix** (validate first, then fix):
+     1. 🔴 Overlapping news fetches between 2 Celery tasks (both run every 60s)
+     2. 🔴 Per-symbol news fetching in loop (N calls vs 1 batch)
+     3. 🟡 User preferences queried 5 times per task (could be 1 query)
+     4. 🟡 Watchlist items queried twice by different tasks
+     5. 🔴 N+1 query pattern in get_items_with_scores() (snapshots queried individually)
+   - **Approach:** VALIDATE → FIX → VERIFY (facts only, no assumptions)
+   - **Impact:** Massive API quota savings + 30-50% faster watchlist refresh
+   - **Dependencies:** None - can start immediately
+   - **Value:** Critical for performance, reduces API costs, improves responsiveness
+
+7. **[TASK-0033] Code Quality Improvements (Health Check Remediation)** - PAUSED
    - **File:** `tasks/tasks-0033-code-quality-improvements.md`
    - **Status:** 50% complete (Phase 1: 6/6 files refactored) - PAUSED 2025-11-04
    - **Effort:** HIGH (10-15 hours, 2-3 sessions)
