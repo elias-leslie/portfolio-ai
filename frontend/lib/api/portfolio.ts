@@ -76,6 +76,13 @@ export async function fetchPortfolio(): Promise<PortfolioResponse> {
 }
 
 /**
+ * Fetch all accounts
+ */
+export async function fetchAccounts(): Promise<Account[]> {
+  return apiRequest<Account[]>("/api/portfolio/accounts");
+}
+
+/**
  * Create a new account
  */
 export async function createAccount(
@@ -88,6 +95,15 @@ export async function createAccount(
 }
 
 /**
+ * Delete an account by ID
+ */
+export async function deleteAccount(accountId: string): Promise<void> {
+  await apiRequest<void>(`/api/portfolio/account/${accountId}`, {
+    method: "DELETE",
+  });
+}
+
+/**
  * Add or update a position
  */
 export async function addPosition(
@@ -95,6 +111,19 @@ export async function addPosition(
 ): Promise<Position> {
   return apiRequest<Position>("/api/portfolio/position", {
     method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Update an existing position
+ */
+export async function updatePosition(
+  positionId: string,
+  data: AddPositionRequest
+): Promise<Position> {
+  return apiRequest<Position>(`/api/portfolio/position/${positionId}`, {
+    method: "PUT",
     body: JSON.stringify(data),
   });
 }

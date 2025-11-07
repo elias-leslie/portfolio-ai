@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { PositionTable } from "@/components/portfolio/PositionTable";
 import { PortfolioOverview } from "@/components/portfolio/PortfolioOverview";
+import { AccountsCard } from "@/components/portfolio/AccountsCard";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
@@ -30,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useAddPosition, useCreateAccount } from "@/lib/hooks/usePortfolio";
+import { useAddPosition, useCreateAccount, useAccounts } from "@/lib/hooks/usePortfolio";
 import { PlusCircle } from "lucide-react";
 
 type PositionType = "long" | "short";
@@ -39,6 +40,7 @@ type AccountType = "IRA" | "Taxable" | "401k" | "Roth" | "HSA";
 export default function PortfolioPage() {
   const addPosition = useAddPosition();
   const createAccount = useCreateAccount();
+  const { data: accounts, isLoading: accountsLoading } = useAccounts();
 
   // Add Position form state
   const [positionOpen, setPositionOpen] = useState(false);
@@ -210,16 +212,34 @@ export default function PortfolioPage() {
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="account-id">Account ID</Label>
-                    <Input
-                      id="account-id"
-                      placeholder="Account ID"
+                    <Label htmlFor="account-select">Account</Label>
+                    <Select
                       value={accountId}
-                      onChange={(e) => setAccountId(e.target.value)}
-                    />
-                    <p className="text-xs text-text-muted">
-                      Create an account first if you don&apos;t have one
-                    </p>
+                      onValueChange={setAccountId}
+                      disabled={accountsLoading || !accounts?.length}
+                    >
+                      <SelectTrigger id="account-select">
+                        <SelectValue placeholder={
+                          accountsLoading
+                            ? "Loading accounts..."
+                            : !accounts?.length
+                            ? "No accounts available"
+                            : "Select an account"
+                        } />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {accounts?.map((account) => (
+                          <SelectItem key={account.id} value={account.id}>
+                            {account.name} ({account.account_type})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {!accounts?.length && !accountsLoading && (
+                      <p className="text-xs text-text-muted">
+                        Create an account first using the &quot;Add Account&quot; button
+                      </p>
+                    )}
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="symbol">Symbol</Label>
@@ -288,6 +308,11 @@ export default function PortfolioPage() {
         {/* Portfolio Analytics */}
         <div className="mb-10">
           <PortfolioOverview />
+        </div>
+
+        {/* Accounts Section */}
+        <div className="mb-10">
+          <AccountsCard />
         </div>
 
         {/* Positions Table */}

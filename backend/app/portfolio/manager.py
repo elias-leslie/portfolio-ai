@@ -129,15 +129,21 @@ class PortfolioManager:
     def update_position(
         self,
         position_id: str,
+        account_id: str | None = None,
+        symbol: str | None = None,
         shares: float | None = None,
         cost_basis: float | None = None,
+        position_type: Literal["long", "short"] | None = None,
     ) -> Position:
         """Update an existing position.
 
         Args:
             position_id: ID of the position to update
+            account_id: New account ID (optional)
+            symbol: New stock symbol (optional)
             shares: New number of shares (optional)
             cost_basis: New cost basis (optional)
+            position_type: New position type (optional)
 
         Returns:
             Updated Position instance
@@ -158,10 +164,16 @@ class PortfolioManager:
         position = Position(**position_data)
 
         # Update fields
+        if account_id is not None:
+            position.account_id = account_id
+        if symbol is not None:
+            position.symbol = symbol.upper()
         if shares is not None:
             position.shares = shares
         if cost_basis is not None:
             position.cost_basis = cost_basis
+        if position_type is not None:
+            position.position_type = position_type
 
         position.updated_at = datetime.now(UTC)
 
