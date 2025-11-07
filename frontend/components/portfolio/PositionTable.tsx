@@ -12,7 +12,7 @@ import {
   ColumnDef,
   SortingState,
 } from "@tanstack/react-table";
-import { usePortfolio, useDeletePosition } from "@/lib/hooks/usePortfolio";
+import { usePortfolio, useDeletePosition, useUpdatePosition, useAccounts } from "@/lib/hooks/usePortfolio";
 import { PositionWithValue } from "@/lib/api/portfolio";
 import { toast } from "sonner";
 import {
@@ -24,11 +24,42 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Pencil } from "lucide-react";
+
+type PositionType = "long" | "short";
 
 export function PositionTable() {
   const { data: portfolio, isLoading } = usePortfolio();
+  const { data: accounts } = useAccounts();
   const deletePosition = useDeletePosition();
+  const updatePosition = useUpdatePosition();
   const [sorting, setSorting] = useState<SortingState>([]);
+
+  // Edit dialog state
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingPosition, setEditingPosition] = useState<PositionWithValue | null>(null);
+  const [editAccountId, setEditAccountId] = useState("");
+  const [editSymbol, setEditSymbol] = useState("");
+  const [editShares, setEditShares] = useState("");
+  const [editCostBasis, setEditCostBasis] = useState("");
+  const [editPositionType, setEditPositionType] = useState<PositionType>("long");
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -40,6 +71,52 @@ export function PositionTable() {
 
   const formatPercent = (value: number) => {
     return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+  };
+
+  const handleEdit = (position: PositionWithValue) => {
+    setEditingPosition(position);
+    setEditAccountId(position.account_id);
+    setEditSymbol(position.symbol);
+    setEditShares(position.shares.toString());
+    setEditCostBasis(position.cost_basis.toString());
+    setEditPositionType(position.position_type as PositionType);
+    setEditOpen(true);
+  };
+
+  const handleUpdatePosition = () => {
+    if (!editingPosition) return;
+
+    updatePosition.mutate(
+      {
+        positionId: editingPosition.id,
+        data: {
+          account_id: editAccountId,
+          symbol: editSymbol.toUpperCase().trim(),
+          shares: parseFloat(editShares),
+          cost_basis: parseFloat(editCostBasis),
+          position_type: editPositionType,
+        },
+      },
+      {
+        onSuccess: () => {
+          setEditOpen(false);
+          setEditingPosition(null);
+          toast.success("Position updated successfully!");
+        },
+        onError: (error) => {
+          toast.error(`Failed to update position: ${error.message}`);
+        },
+      }
+    );
+  };
+
+  const isEditFormValid = () => {
+    return (
+      editAccountId.trim() !== "" &&
+      editSymbol.trim() !== "" &&
+      parseFloat(editShares) > 0 &&
+      parseFloat(editCostBasis) > 0
+    );
   };
 
   const columns: ColumnDef<PositionWithValue>[] = [
@@ -116,25 +193,35 @@ export function PositionTable() {
       id: "actions",
       header: "Actions",
       cell: ({ row }) => (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            if (confirm("Are you sure you want to delete this position?")) {
-              deletePosition.mutate(row.original.id, {
-                onSuccess: () => {
-                  toast.success("Position deleted successfully!");
-                },
-                onError: (error) => {
-                  toast.error(`Failed to delete position: ${error.message}`);
-                },
-              });
-            }
-          }}
-          disabled={deletePosition.isPending}
-        >
-          Delete
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleEdit(row.original)}
+          >
+            <Pencil className="h-3 w-3 mr-1" />
+            Edit
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              if (confirm("Are you sure you want to delete this position?")) {
+                deletePosition.mutate(row.original.id, {
+                  onSuccess: () => {
+                    toast.success("Position deleted successfully!");
+                  },
+                  onError: (error) => {
+                    toast.error(`Failed to delete position: ${error.message}`);
+                  },
+                });
+              }
+            }}
+            disabled={deletePosition.isPending}
+          >
+            Delete
+          </Button>
+        </div>
       ),
     },
   ];
@@ -173,36 +260,128 @@ export function PositionTable() {
   }
 
   return (
-    <div className="rounded-md border border-border bg-surface/40">
-      <Table>
-        <TableHeader>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
-              {headerGroup.headers.map((header) => (
-                <TableHead key={header.id}>
-                  {header.isPlaceholder
-                    ? null
-                    : flexRender(
-                        header.column.columnDef.header,
-                        header.getContext()
-                      )}
-                </TableHead>
-              ))}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows.map((row) => (
-            <TableRow key={row.id}>
-              {row.getVisibleCells().map((cell) => (
-                <TableCell key={cell.id}>
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </TableCell>
-              ))}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+    <>
+      <div className="rounded-md border border-border bg-surface/40">
+        <Table>
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id}>
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {table.getRowModel().rows.map((row) => (
+              <TableRow key={row.id}>
+                {row.getVisibleCells().map((cell) => (
+                  <TableCell key={cell.id}>
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* Edit Position Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Position</DialogTitle>
+            <DialogDescription>
+              Update the details of your position.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="edit-account-select">Account</Label>
+              <Select
+                value={editAccountId}
+                onValueChange={setEditAccountId}
+              >
+                <SelectTrigger id="edit-account-select">
+                  <SelectValue placeholder="Select an account" />
+                </SelectTrigger>
+                <SelectContent>
+                  {accounts?.map((account) => (
+                    <SelectItem key={account.id} value={account.id}>
+                      {account.name} ({account.account_type})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-symbol">Symbol</Label>
+              <Input
+                id="edit-symbol"
+                placeholder="e.g., AAPL"
+                value={editSymbol}
+                onChange={(e) => setEditSymbol(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-shares">Shares</Label>
+              <Input
+                id="edit-shares"
+                type="number"
+                placeholder="e.g., 100"
+                value={editShares}
+                onChange={(e) => setEditShares(e.target.value)}
+                step="0.01"
+                min="0"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-cost-basis">Cost Basis (per share)</Label>
+              <Input
+                id="edit-cost-basis"
+                type="number"
+                placeholder="e.g., 150.00"
+                value={editCostBasis}
+                onChange={(e) => setEditCostBasis(e.target.value)}
+                step="0.01"
+                min="0"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-position-type">Position Type</Label>
+              <Select
+                value={editPositionType}
+                onValueChange={(value: string) =>
+                  setEditPositionType(value as PositionType)
+                }
+              >
+                <SelectTrigger id="edit-position-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="long">Long</SelectItem>
+                  <SelectItem value="short">Short</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={handleUpdatePosition}
+              disabled={!isEditFormValid() || updatePosition.isPending}
+            >
+              {updatePosition.isPending ? "Updating..." : "Update Position"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

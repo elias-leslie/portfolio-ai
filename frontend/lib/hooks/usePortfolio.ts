@@ -8,9 +8,12 @@ import {
   CreateAccountRequest,
   addPosition,
   createAccount,
+  deleteAccount,
   deletePosition,
+  fetchAccounts,
   fetchAnalytics,
   fetchPortfolio,
+  updatePosition,
 } from "../api/portfolio";
 
 /**
@@ -40,6 +43,17 @@ export function usePortfolioAnalytics() {
 }
 
 /**
+ * Hook to fetch all accounts
+ */
+export function useAccounts() {
+  return useQuery({
+    queryKey: ["accounts"],
+    queryFn: fetchAccounts,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+}
+
+/**
  * Hook to create a new account
  */
 export function useCreateAccount() {
@@ -48,7 +62,24 @@ export function useCreateAccount() {
   return useMutation({
     mutationFn: (data: CreateAccountRequest) => createAccount(data),
     onSuccess: () => {
-      // Invalidate portfolio query to refetch
+      // Invalidate accounts and portfolio queries
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["portfolio"] });
+    },
+  });
+}
+
+/**
+ * Hook to delete an account
+ */
+export function useDeleteAccount() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (accountId: string) => deleteAccount(accountId),
+    onSuccess: () => {
+      // Invalidate all portfolio-related queries
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
       queryClient.invalidateQueries({ queryKey: ["portfolio"] });
     },
   });
@@ -62,6 +93,27 @@ export function useAddPosition() {
 
   return useMutation({
     mutationFn: (data: AddPositionRequest) => addPosition(data),
+    onSuccess: () => {
+      // Invalidate both portfolio and analytics queries
+      queryClient.invalidateQueries({ queryKey: ["portfolio"] });
+    },
+  });
+}
+
+/**
+ * Hook to update a position
+ */
+export function useUpdatePosition() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      positionId,
+      data,
+    }: {
+      positionId: string;
+      data: AddPositionRequest;
+    }) => updatePosition(positionId, data),
     onSuccess: () => {
       // Invalidate both portfolio and analytics queries
       queryClient.invalidateQueries({ queryKey: ["portfolio"] });
