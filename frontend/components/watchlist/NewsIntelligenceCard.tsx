@@ -103,7 +103,7 @@ export function NewsIntelligenceCard({
                         <div className="space-y-2">
                             {newsIntelligence.key_events.map((event, idx) => (
                                 <div
-                                    key={idx}
+                                    key={`event-${idx}-${event.text.substring(0, 20)}`}
                                     className="flex items-start gap-2 text-xs"
                                 >
                                     <span className="text-base flex-shrink-0">
@@ -136,9 +136,12 @@ export function NewsIntelligenceCard({
                                     const displayHeadline =
                                         article.plain_language_headline ||
                                         article.headline;
+                                    const articleKey =
+                                        article.url ||
+                                        `news-${idx}-${article.headline.substring(0, 30)}`;
                                     return (
                                         <div
-                                            key={idx}
+                                            key={articleKey}
                                             className="rounded-md border border-border bg-surface-muted/20 p-2 space-y-1"
                                         >
                                             {article.url ? (

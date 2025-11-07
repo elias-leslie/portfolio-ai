@@ -772,7 +772,7 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
                             <div className="space-y-2">
                                 {newsArticles
                                     .slice(0, maxNewsArticles)
-                                    .map((article) => {
+                                    .map((article, index) => {
                                         const sanitizedHeadline = sanitizeText(
                                             article.headline,
                                         );
@@ -784,9 +784,13 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
                                             article.source.trim().length > 0
                                                 ? article.source.trim()
                                                 : "Publisher Unknown";
+                                        const articleKey =
+                                            article.content_hash
+                                                ? `${article.content_hash}-${article.headline}`
+                                                : `article-${index}-${article.headline}`;
                                         return (
                                             <div
-                                                key={`${article.content_hash}-${article.headline}`}
+                                                key={articleKey}
                                                 className="rounded-md border border-border bg-surface-muted/30 p-3"
                                             >
                                                 <div className="flex flex-wrap items-start justify-between gap-3">
