@@ -11,6 +11,7 @@ export interface ComponentScore {
   value: number | null;
   interpretation: string;
   signal: "Bullish" | "Neutral" | "Bearish";
+  last_updated?: string | null;
 }
 
 export interface SectorScore {
@@ -19,6 +20,7 @@ export interface SectorScore {
   price: number | null;
   change_pct: number | null;
   signal: "Leading" | "Neutral" | "Lagging" | "Unknown";
+  last_updated?: string | null;
 }
 
 export interface MarketHealthScore {
@@ -33,16 +35,20 @@ export interface MarketConditionsResponse {
   sp500: {
     price: number | null;
     change_pct: number | null;
+    last_updated?: string;
   };
   vix: {
     price: number | null;
     level: number | null;
+    last_updated?: string;
   };
   tnx: {
     yield: number | null;
+    last_updated?: string;
   };
   dxy: {
     price: number | null;
+    last_updated?: string;
   };
   health: MarketHealthScore;
 }

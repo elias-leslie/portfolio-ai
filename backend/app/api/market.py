@@ -26,6 +26,7 @@ class ComponentScore(BaseModel):
     value: float | None = Field(None, description="Raw metric value")
     interpretation: str = Field(..., description="Human-readable interpretation")
     signal: str = Field(..., description="Bullish/Neutral/Bearish")
+    last_updated: str | None = Field(None, description="Last update timestamp (ISO 8601)")
 
 
 class SectorScore(BaseModel):
@@ -36,6 +37,7 @@ class SectorScore(BaseModel):
     price: float | None = Field(None, description="Current price")
     change_pct: float | None = Field(None, description="Daily change percentage")
     signal: str = Field(..., description="Leading/Neutral/Lagging")
+    last_updated: str | None = Field(None, description="Last update timestamp (ISO 8601)")
 
 
 class MarketHealthScore(BaseModel):
@@ -53,10 +55,10 @@ class MarketHealthScore(BaseModel):
 class MarketConditionsResponse(BaseModel):
     """Response model for market conditions."""
 
-    sp500: dict[str, float | None] = Field(..., description="S&P 500 data")
-    vix: dict[str, float | None] = Field(..., description="VIX volatility index")
-    tnx: dict[str, float | None] = Field(..., description="10-Year Treasury yield")
-    dxy: dict[str, float | None] = Field(..., description="US Dollar Index")
+    sp500: dict[str, float | None | str] = Field(..., description="S&P 500 data")
+    vix: dict[str, float | None | str] = Field(..., description="VIX volatility index")
+    tnx: dict[str, float | None | str] = Field(..., description="10-Year Treasury yield")
+    dxy: dict[str, float | None | str] = Field(..., description="US Dollar Index")
     health: MarketHealthScore = Field(..., description="Market health scoring")
 
 
@@ -82,7 +84,8 @@ def calculate_market_health(
     sp500_price: float | None,
     tnx_yield: float | None,
     dxy_price: float | None,
-    sector_data: dict[str, tuple[float | None, float | None]] | None = None,
+    sector_data: dict[str, tuple[float | None, float | None, str | None]] | None = None,
+    current_timestamp: str | None = None,
 ) -> MarketHealthScore:
     """Calculate overall market health score from indicators.
 
@@ -97,7 +100,8 @@ def calculate_market_health(
         sp500_price: Current S&P 500 price
         tnx_yield: Current 10Y Treasury yield
         dxy_price: Current US Dollar Index price
-        sector_data: Dict mapping sector ETF symbol to (price, change_pct) tuple
+        sector_data: Dict mapping sector ETF symbol to (price, change_pct, timestamp) tuple
+        current_timestamp: Current fetch timestamp (ISO 8601) for real-time data
 
     Returns:
         MarketHealthScore with overall score and component breakdown
@@ -137,6 +141,7 @@ def calculate_market_health(
                 value=vix_price,
                 interpretation=vix_interp,
                 signal=vix_signal,
+                last_updated=current_timestamp,
             )
         )
         total_score += vix_score
@@ -170,6 +175,7 @@ def calculate_market_health(
                 value=sp500_price,
                 interpretation=sp_interp,
                 signal=sp_signal,
+                last_updated=current_timestamp,
             )
         )
         total_score += sp_score
@@ -206,6 +212,7 @@ def calculate_market_health(
                 value=tnx_yield,
                 interpretation=tnx_interp,
                 signal=tnx_signal,
+                last_updated=current_timestamp,
             )
         )
         total_score += tnx_score
@@ -234,6 +241,7 @@ def calculate_market_health(
                 value=dxy_price,
                 interpretation=dxy_interp,
                 signal=dxy_signal,
+                last_updated=current_timestamp,
             )
         )
         total_score += dxy_score
@@ -274,7 +282,7 @@ def calculate_market_health(
 
         # Collect all valid change_pct values for relative comparison
         changes = [
-            change_pct for _, (_, change_pct) in sector_data.items() if change_pct is not None
+            change_pct for _, (_, change_pct, _) in sector_data.items() if change_pct is not None
         ]
 
         # Calculate thresholds for Leading/Neutral/Lagging
@@ -292,7 +300,7 @@ def calculate_market_health(
             bottom_threshold = -0.5
 
         # Create sector scores
-        for symbol, (price, change_pct) in sector_data.items():
+        for symbol, (price, change_pct, timestamp) in sector_data.items():
             name = sector_names.get(symbol, symbol)
 
             # Determine signal based on change_pct
@@ -313,6 +321,7 @@ def calculate_market_health(
                     price=price,
                     change_pct=change_pct,
                     signal=signal,
+                    last_updated=timestamp,
                 )
             )
 
@@ -348,20 +357,26 @@ async def get_market_conditions() -> MarketConditionsResponse:
     tnx_data = price_data.get("^TNX")
     dxy_data = price_data.get("DX-Y.NYB")
 
+    # Get actual timestamp from fetched data (respects 15-min cache)
+    # Note: cached_at already has timezone info, isoformat() includes it
+    current_timestamp = (
+        sp500_data.cached_at.isoformat() if sp500_data else datetime.utcnow().isoformat() + "Z"
+    )
+
     # Fetch sector ETF data
     sector_symbols = ["XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLU", "XLRE", "XLB", "XLC"]
     sector_price_data = price_fetcher.fetch_price_data(sector_symbols)
 
     # Query OHLCV data for previous close to calculate daily change %
-    sector_data: dict[str, tuple[float | None, float | None]] = {}
+    sector_data: dict[str, tuple[float | None, float | None, str | None]] = {}
     with storage.connection() as conn:
         for symbol in sector_symbols:
             current_price = sector_price_data.get(symbol)
             if not current_price:
-                sector_data[symbol] = (None, None)
+                sector_data[symbol] = (None, None, None)
                 continue
 
-            # Get previous close from OHLCV data
+            # Get previous close from OHLCV data (for calculating daily change %)
             result = conn.execute(
                 """
                 SELECT close
@@ -377,10 +392,13 @@ async def get_market_conditions() -> MarketConditionsResponse:
             if row and row[0]:
                 prev_close = float(row[0])
                 change_pct = ((current_price.price - prev_close) / prev_close) * 100
-                sector_data[symbol] = (current_price.price, change_pct)
+                # Use actual cached_at timestamp from price data (respects 15-min cache)
+                sector_timestamp = current_price.cached_at.isoformat()
+                sector_data[symbol] = (current_price.price, change_pct, sector_timestamp)
             else:
                 # No historical data, just use current price
-                sector_data[symbol] = (current_price.price, None)
+                sector_timestamp = current_price.cached_at.isoformat()
+                sector_data[symbol] = (current_price.price, None, sector_timestamp)
 
     # Calculate market health score with sector data
     health_score = calculate_market_health(
@@ -389,22 +407,27 @@ async def get_market_conditions() -> MarketConditionsResponse:
         tnx_yield=tnx_data.price if tnx_data else None,
         dxy_price=dxy_data.price if dxy_data else None,
         sector_data=sector_data,
+        current_timestamp=current_timestamp,
     )
 
     return MarketConditionsResponse(
         sp500={
             "price": sp500_data.price if sp500_data else None,
             "change_pct": None,  # Would need historical data
+            "last_updated": sp500_data.cached_at.isoformat() if sp500_data else None,
         },
         vix={
             "price": vix_data.price if vix_data else None,
             "level": None,
+            "last_updated": vix_data.cached_at.isoformat() if vix_data else None,
         },
         tnx={
             "yield": tnx_data.price if tnx_data else None,
+            "last_updated": tnx_data.cached_at.isoformat() if tnx_data else None,
         },
         dxy={
             "price": dxy_data.price if dxy_data else None,
+            "last_updated": dxy_data.cached_at.isoformat() if dxy_data else None,
         },
         health=health_score,
     )

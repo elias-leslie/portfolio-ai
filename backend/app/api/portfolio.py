@@ -195,12 +195,9 @@ async def delete_account(account_id: str) -> dict[str, str]:
         if pos.account_id == account_id:
             portfolio_mgr.delete_position(pos.id)
 
-    # Delete the account (assuming storage has delete_account method)
-    # Note: We need to add this to PortfolioManager if it doesn't exist
-    storage.execute(
-        "DELETE FROM portfolio_accounts WHERE id = %s",
-        (account_id,)
-    )
+    # Delete the account
+    with storage.connection() as conn:
+        conn.execute("DELETE FROM portfolio_accounts WHERE id = %s", (account_id,))
 
     return {"status": "deleted", "account_id": account_id}
 

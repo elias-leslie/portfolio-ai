@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useMarketConditions } from "@/lib/hooks/useMarket";
 import { Card } from "@/components/ui/card";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import { formatRelativeTime } from "@/lib/utils";
 
 export function MarketConditions() {
   const { data: market, isLoading } = useMarketConditions();
@@ -22,22 +23,26 @@ export function MarketConditions() {
       name: "S&P 500",
       value: market?.sp500.price,
       change: market?.sp500.change_pct,
+      timestamp: market?.sp500.last_updated,
     },
     {
       name: "VIX",
       value: market?.vix.price,
       change: null,
+      timestamp: market?.vix.last_updated,
     },
     {
       name: "10Y Treasury",
       value: market?.tnx.yield,
       suffix: "%",
       change: null,
+      timestamp: market?.tnx.last_updated,
     },
     {
       name: "US Dollar",
       value: market?.dxy.price,
       change: null,
+      timestamp: market?.dxy.last_updated,
     },
   ];
 
@@ -110,6 +115,11 @@ export function MarketConditions() {
                 {indicator.change.toFixed(2)}%
               </div>
             )}
+            {indicator.timestamp && (
+              <div className="text-xs text-text-muted/70">
+                {formatRelativeTime(indicator.timestamp)}
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -139,8 +149,15 @@ export function MarketConditions() {
                   className="rounded-lg border border-border bg-surface-elev/50 p-3"
                 >
                   <div className="mb-2 flex items-center justify-between">
-                    <div className="font-medium text-text text-sm">
-                      {component.name}
+                    <div className="flex flex-col">
+                      <div className="font-medium text-text text-sm">
+                        {component.name}
+                      </div>
+                      {component.last_updated && (
+                        <div className="text-xs text-text-muted/60">
+                          {formatRelativeTime(component.last_updated)}
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <div className={`text-xs font-semibold ${getSignalColor(component.signal)}`}>
@@ -195,6 +212,11 @@ export function MarketConditions() {
                           <span className="text-xs text-text-muted">
                             {sector.symbol}
                           </span>
+                          {sector.last_updated && (
+                            <span className="text-xs text-text-muted/60">
+                              {formatRelativeTime(sector.last_updated)}
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
                           {sector.change_pct !== null && sector.change_pct !== undefined ? (
