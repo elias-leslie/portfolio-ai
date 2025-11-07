@@ -1,31 +1,27 @@
 # Portfolio AI - Work Tracker
 
-**Last Updated:** 2025-11-07 00:47 (TASK-0035: News Intelligence - Phase 2 - In Progress at 40%)
+**Last Updated:** 2025-11-06 (TASK-0034: Folder Structure Reorganization - COMPLETE)
 
 ---
 
 ## 🔄 Active (Currently Working)
 
-- **[TASK-0035] News Intelligence - Phase 2: Plain Language UI**
-  - **File:** `tasks/news-phase2-plain-language-ui.md`
-  - **Status:** 40% complete - **IN PROGRESS** 2025-11-07 00:47
-  - **Effort:** HIGH (10-14 hours, 2-3 days)
-  - **Started:** 2025-11-06
-  - **Last Updated:** 2025-11-07 00:47
-  - **Priority:** HIGH
-  - **Goal:** Transform news into actionable intelligence with plain-language narratives and story clustering
-  - **Progress:**
-    - ✅ Task 1: Story Clustering (COMPLETE)
-    - ✅ Task 2: Plain Language Translator (COMPLETE - 56 event types, insights)
-    - ✅ Task 3: NewsIntelligence API Integration (COMPLETE - models, service, response builders)
-    - ✅ Task 4: Frontend NewsIntelligenceCard Component (COMPLETE - Card + ExpandedRow integration)
-    - ⏹️ Tasks 5-10: Pending (Priority indicators, standalone news page, settings, testing, docs, optimization)
-  - **Next:** Task 5 - Add priority indicators to main watchlist table
-  - **Commits:** 2 (Phase 2 Tasks 3-4 complete)
+(None - Ready for next task)
 
 ---
 
 ## 📋 Planned (Up Next - Priority Order)
+
+1. **[TASK-0035] News Intelligence - Phase 2: Plain Language UI** - PAUSED
+   - **File:** `tasks/news-phase2-plain-language-ui.md`
+   - **Status:** 40% complete - **PAUSED** 2025-11-06
+   - **Effort:** HIGH (10-14 hours, 2-3 days)
+   - **Priority:** HIGH
+   - **Pause Reason:** User requested folder structure reorganization (Priority shift)
+   - **Progress:**
+     - ✅ Tasks 1-4: Complete (clustering, translation, API, frontend card)
+     - ⏹️ Tasks 5-10: Pending (priority indicators, news page, settings, testing, docs, optimization)
+   - **Commits:** 2 (Phase 2 Tasks 3-4 complete)
 
 2. **[TASK-0036] News Intelligence - Phase 3: Cleanup & Polish**
    - **File:** `tasks/news-phase3-cleanup-and-polish.md`
@@ -46,7 +42,26 @@
 
 ## ✅ Recently Completed (Last 5)
 
-- **[TASK-0034] News Intelligence - Phase 1: SEC EDGAR Integration** ✓ 2025-11-06 (COMPLETE)
+- **[TASK-0034] Folder Structure Reorganization** ✓ 2025-11-06 (COMPLETE)
+  - **File:** `tasks/tasks-0034-folder-structure-reorganization.md`
+  - **Duration:** ~1 session (HIGH complexity completed efficiently)
+  - **Status:** 100% complete - All 5 phases done
+  - **Results:**
+    - ✅ Phase 1: Backend test reorganization (26 files moved to unit/ & integration/)
+    - ✅ Phase 2: Frontend test infrastructure (Vitest + Playwright configured)
+    - ✅ Phase 3: Cross-stack documentation created
+    - ✅ Phase 4: Documentation updates (merged PROJECT_STRUCTURE.md → DEVELOPMENT.md)
+    - ✅ Phase 5: Final verification (all tests passing, quality checks passing)
+    - ✅ 508 backend tests reorganized and passing
+    - ✅ 8 frontend component tests created and passing
+    - ✅ 14 E2E test cases created (Playwright)
+    - ✅ 5 comprehensive documentation files created/updated
+    - ✅ Unified test runner script (test-all.sh)
+    - ✅ All quality checks passing (mypy --strict, pytest)
+  - **Impact:** Significantly improved test organization, developer experience, and maintainability
+  - **Summary:** `FOLDER-REORGANIZATION-SUMMARY.md`
+
+- **[PRD-News Intelligence - Phase 1: SEC EDGAR Integration** ✓ 2025-11-06 (COMPLETE)
   - **File:** `tasks/news-phase1-sec-edgar-integration.md`
   - **Duration:** ~4 hours (schema fix session: 30 minutes)
   - **Status:** 100% complete - All 10 tasks done
