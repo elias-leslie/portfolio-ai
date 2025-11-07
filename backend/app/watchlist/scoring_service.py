@@ -308,6 +308,20 @@ def refresh_watchlist_scores(
         if batch_idx < total_batches and batch_delay_seconds > 0:
             time.sleep(batch_delay_seconds)
 
+    # Batch-fetch news for all symbols BEFORE processing loop (Issue #2 fix)
+    # This reduces N individual API calls to 1 batch call
+    logger.info("watchlist_refresh_news_batch", total_symbols=len(symbols))
+    news_bundles: dict[str, Any] = {}
+    try:
+        news_bundles = news_service.get_watchlist_news(
+            symbols=symbols,
+            max_articles=news_max_articles,
+            force_refresh=False,  # Respect cache
+        )
+    except Exception as e:
+        logger.warning("watchlist_refresh_news_batch_failed", error=str(e))
+        # Continue with empty news_bundles - individual symbols will handle gracefully
+
     processed = 0
     now = datetime.now(UTC)
     processed_symbols: list[str] = []
@@ -351,6 +365,7 @@ def refresh_watchlist_scores(
                 continue
 
             # Process ticker and generate snapshot (extracted to refresh_processor.py)
+            # Pass pre-fetched news bundle (Issue #2 fix)
             snapshot = process_ticker_snapshot(
                 storage=storage,
                 symbol=symbol,
@@ -363,6 +378,7 @@ def refresh_watchlist_scores(
                 now=now,
                 news_service=news_service,
                 max_news_articles=news_max_articles,
+                news_bundle=news_bundles.get(symbol),  # Use pre-fetched bundle
             )
 
             storage.query_mgr.upsert_watchlist_snapshot(**snapshot.to_upsert_params())

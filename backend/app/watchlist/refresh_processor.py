@@ -277,6 +277,7 @@ def process_ticker_snapshot(
     now: datetime,
     news_service: NewsService,
     max_news_articles: int,
+    news_bundle: Any | None = None,
 ) -> WatchlistSnapshot:
     """Process a single ticker and generate its watchlist snapshot.
 
@@ -294,6 +295,8 @@ def process_ticker_snapshot(
         risk_budget: Risk budget for position sizing
         now: Current timestamp (UTC)
         news_service: NewsService instance for fetching scored news
+        max_news_articles: Maximum articles to fetch (if news_bundle not provided)
+        news_bundle: Optional pre-fetched NewsBundle (Issue #2 fix - batch fetching)
 
     Returns:
         WatchlistSnapshot ready to be persisted
@@ -433,10 +436,14 @@ def process_ticker_snapshot(
         sma_5_prev = result[0] if result else None
 
     # Fetch sentiment-scored news bundle
+    # Use pre-fetched bundle if provided (Issue #2 fix), otherwise fetch individually
     news_sentiment_value: float | None = None
     recent_news_value: dict[str, Any] | None = None
     try:
-        news_bundle = news_service.get_symbol_news(symbol, max_articles=max_news_articles)
+        if news_bundle is None:
+            # Fallback: Individual fetch (backwards compatibility)
+            news_bundle = news_service.get_symbol_news(symbol, max_articles=max_news_articles)
+
         news_sentiment_value = news_bundle.summary.score
         recent_news_value = build_recent_news_payload(
             news_bundle, max_articles=WATCHLIST_NEWS_ARTICLE_LIMIT
