@@ -85,7 +85,7 @@ class AnalyticsResponse(BaseModel):
     portfolio_beta: float | None
     portfolio_volatility: float | None
     sector_exposure: dict[str, float]
-    concentration_metrics: dict[str, float]
+    concentration: dict[str, float]
     num_positions: int
     num_symbols: int
 
@@ -338,7 +338,7 @@ async def get_analytics() -> AnalyticsResponse:
         portfolio_beta=analytics.portfolio_beta,
         portfolio_volatility=analytics.portfolio_volatility,
         sector_exposure=analytics.sector_exposure,
-        concentration_metrics={
+        concentration={
             "top_holding_pct": analytics.concentration_metrics.top_holding_pct,
             "top_3_pct": analytics.concentration_metrics.top_3_pct,
             "top_10_pct": analytics.concentration_metrics.top_10_pct,
