@@ -10,20 +10,26 @@
 
 - **[TASK-0037] Fear & Greed Index - Market Regime Intelligence**
   - **File:** `tasks/tasks-0037-fear-greed-index.md`
-  - **Status:** 50% complete - **PAUSED** 2025-11-07 10:38
+  - **Status:** 75% complete - **ACTIVE** (resumed 11:15)
   - **Started:** 2025-11-07
-  - **Last Updated:** 2025-11-07 10:38
-  - **Progress:** Phases 0-7 complete (infrastructure), 8 critical issues identified
-  - **Next:** Fix Celery Beat schedule + SPY data ingestion automation
-  - **Pause Reason:** User request - low tokens, need fresh session for critical fixes
-  - **Handoff:** `tasks/PAUSE-HANDOFF-20251107-103800.md`
-  - **Critical Issues:**
-    - No scheduled SPY data ingestion (automatic daily pulls)
-    - Fear & Greed task not in Celery Beat schedule
-    - Put/Call data source discontinued (CBOE CSV stops at 2019)
-    - Insufficient historical data for percentiles (only 2 rows)
-    - PortfolioOverview broken (analytics.concentration error)
-    - Investment Ideas status unknown (working or abandoned?)
+  - **Last Updated:** 2025-11-07 11:16
+  - **Progress:** Infrastructure + tests complete, automation configured but not verified
+  - **Completed since pause:**
+    - ✅ Celery Beat schedule configured (3 new tasks)
+    - ✅ 21 tests written (all passing)
+    - ✅ 2 commits (feat + test)
+    - ✅ SPY data backfilled (259 days)
+    - ✅ Put/Call limitation documented (graceful degradation)
+  - **Remaining work:**
+    - ❌ Debug task execution timeout (manual trigger fails)
+    - ❌ Verify scheduled tasks execute correctly (need 24h or fix)
+    - ❌ Find Put/Call alternative source
+    - ❌ Backfill VIX/HY Spread historical data (252 days)
+    - ❌ Fix or remove PortfolioOverview
+    - ❌ Audit Investment Ideas
+    - ❌ Documentation updates (API_REFERENCE.md, ARCHITECTURE.md)
+    - ❌ Final verification checklist (V.1-V.6)
+  - **Handoff:** `tasks/PAUSE-HANDOFF-20251107-103800.md` (updated with status)
 
 ---
 
