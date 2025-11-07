@@ -11,6 +11,28 @@ from pydantic import BaseModel, Field, field_validator
 from ..portfolio.models import PriceData
 
 
+class KeyEvent(BaseModel):
+    """Key event for news intelligence display."""
+
+    icon: str  # "📋", "📈", "📰"
+    text: str  # Plain language event description
+    time_ago: str  # "8 hours ago"
+    is_material: bool
+    event_category: str | None = None
+    published_at: datetime | None = None
+
+
+class NewsIntelligence(BaseModel):
+    """News intelligence summary for watchlist items."""
+
+    headline: str  # "Insider confidence + positive earnings surprise"
+    sentiment_score: float  # +0.45
+    sentiment_label: str  # "Positive"
+    article_count_24h: int  # 12
+    key_events: list[KeyEvent] = Field(default_factory=list)  # Top 3 events
+    recent_articles: list[dict[str, Any]] = Field(default_factory=list)  # Top 5 articles
+
+
 class SignalType(str, Enum):
     """Signal classification type for watchlist items."""
 
@@ -190,6 +212,9 @@ class WatchlistSnapshot(BaseModel):
     timeframe_long_aligned: bool = False  # SMA_50 > SMA_200
     percentile_rank_30d: float | None = None  # 0-100 percentile vs 30-day history
 
+    # News Intelligence (Phase 2)
+    news_intelligence: NewsIntelligence | None = None
+
     def to_upsert_params(self) -> dict[str, Any]:
         """Return dictionary for persistence helpers."""
         payload = self.model_dump()
@@ -199,4 +224,6 @@ class WatchlistSnapshot(BaseModel):
         payload["narrative_company_health"] = self.narrative_company_health or None
         payload["narrative_technical"] = self.narrative_technical or None
         payload["recent_news_headlines"] = self.recent_news_headlines or None
+        # Exclude computed fields (not persisted)
+        payload.pop("news_intelligence", None)
         return payload

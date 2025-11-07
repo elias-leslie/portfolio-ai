@@ -9,7 +9,7 @@ This module handles:
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from ..logging_config import get_logger
@@ -20,12 +20,71 @@ from .data_loaders import (
     load_latest_technical,
     load_stale_ttl_minutes,
 )
-from .models import TechnicalSnapshot, WatchlistScoreInputs, WatchlistSnapshot
+from .models import (
+    KeyEvent,
+    NewsIntelligence,
+    TechnicalSnapshot,
+    WatchlistScoreInputs,
+    WatchlistSnapshot,
+)
 from .refresh_processor import _extract_article_publisher, _extract_article_vendor
 from .scoring import _is_stale as scoring_is_stale
 from .scoring import calculate_watchlist_scores
 
 logger = get_logger(__name__)
+
+
+def _format_time_ago(dt: datetime | None) -> str:
+    """Format datetime as 'X hours/days ago'."""
+    if dt is None:
+        return "unknown"
+
+    now = datetime.now(UTC)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+
+    delta = now - dt
+    hours = delta.total_seconds() / 3600
+
+    if hours < 1:
+        minutes = int(delta.total_seconds() / 60)
+        return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+    if hours < 24:
+        hours_int = int(hours)
+        return f"{hours_int} hour{'s' if hours_int != 1 else ''} ago"
+    days = int(hours / 24)
+    return f"{days} day{'s' if days != 1 else ''} ago"
+
+
+def _get_event_icon(event_category: str | None, is_material: bool) -> str:
+    """Get icon for event category."""
+    if not event_category:
+        return "📰"
+
+    # Map event categories to icons
+    icon_map = {
+        "earnings": "📋",
+        "insider_buy": "📈",
+        "insider_sell": "📉",
+        "analyst_upgrade": "📈",
+        "analyst_downgrade": "📉",
+        "m_and_a": "🤝",
+        "exec_change": "👔",
+        "fda_approval": "✅",
+        "fda_rejection": "❌",
+        "lawsuit": "⚖️",
+        "guidance_raised": "📈",
+        "guidance_lowered": "📉",
+        "dividend": "💰",
+        "sec_investigation": "⚠️",
+    }
+
+    # Match category prefix
+    for prefix, icon in icon_map.items():
+        if event_category.startswith(prefix):
+            return icon
+
+    return "⚠️" if is_material else "📰"
 
 
 def _normalize_recent_news_payload(news_payload: dict[str, Any]) -> dict[str, Any]:
@@ -252,6 +311,20 @@ class WatchlistService:
                 item_data["news_sentiment_score"] = snap_row.get("news_sentiment_score")
                 item_data["recent_news"] = news_payload
 
+            # Build news intelligence summary
+            try:
+                news_intel = self.build_news_intelligence(row["symbol"])
+                item_data["news_intelligence"] = (
+                    news_intel.model_dump(mode="json") if news_intel else None
+                )
+            except Exception as e:
+                logger.warning(
+                    "watchlist_news_intelligence_failed",
+                    symbol=row["symbol"],
+                    error=str(e),
+                )
+                item_data["news_intelligence"] = None
+
             results.append(item_data)
 
         return results
@@ -382,6 +455,20 @@ class WatchlistService:
             item_data["news_sentiment_score"] = snap_row.get("news_sentiment_score")
             item_data["recent_news"] = news_payload
 
+        # Build news intelligence summary
+        try:
+            news_intel = self.build_news_intelligence(row["symbol"])
+            item_data["news_intelligence"] = (
+                news_intel.model_dump(mode="json") if news_intel else None
+            )
+        except Exception as e:
+            logger.warning(
+                "watchlist_news_intelligence_failed",
+                symbol=row["symbol"],
+                error=str(e),
+            )
+            item_data["news_intelligence"] = None
+
         return item_data
 
     def _check_score_alert(self, item_id: str, current_score: float) -> bool:
@@ -403,6 +490,180 @@ class WatchlistService:
 
         week_ago_score = float(history_df["overall_score"][0])
         return abs(current_score - week_ago_score) > 10.0
+
+    def build_news_intelligence(self, symbol: str) -> NewsIntelligence | None:
+        """Build news intelligence summary for a ticker.
+
+        Args:
+            symbol: Ticker symbol
+
+        Returns:
+            NewsIntelligence object or None if no recent news
+        """
+        # Query news_cache for articles in last 24h
+        now = datetime.now(UTC)
+        start_time = now - timedelta(hours=24)
+
+        with self.storage.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    ticker,
+                    headline,
+                    url,
+                    summary,
+                    news_source_name,
+                    author,
+                    image_url,
+                    published_at,
+                    sentiment_score,
+                    sentiment_label,
+                    sentiment_confidence,
+                    sentiment_model,
+                    raw_payload,
+                    content_hash,
+                    fetched_at,
+                    filing_type,
+                    is_material_event,
+                    plain_language_headline,
+                    story_id,
+                    is_primary_article,
+                    coverage_count,
+                    impact_summary,
+                    actionable_insight
+                FROM news_cache
+                WHERE ticker = %s
+                  AND published_at >= %s
+                  AND (is_primary_article = true OR is_primary_article IS NULL)
+                ORDER BY published_at DESC, is_material_event DESC
+                LIMIT 20
+                """,
+                [symbol, start_time],
+            ).fetchall()
+
+        if not rows:
+            return None
+
+        # Parse articles
+        articles: list[dict[str, Any]] = []
+        sentiment_scores: list[float] = []
+        key_events: list[KeyEvent] = []
+
+        for row in rows:
+            (
+                ticker,
+                headline,
+                url,
+                summary_text,
+                news_source_name,
+                author,
+                image_url,
+                published_at,
+                sentiment_score,
+                sentiment_label,
+                sentiment_confidence,
+                _sentiment_model,
+                raw_payload,
+                _content_hash,
+                _fetched_at,
+                filing_type,
+                is_material_event,
+                plain_language_headline,
+                _story_id,
+                _is_primary_article,
+                _coverage_count,
+                impact_summary,
+                actionable_insight,
+            ) = row
+
+            # Build article dict
+            article = {
+                "ticker": ticker,
+                "headline": headline,
+                "url": url,
+                "summary": summary_text,
+                "source": news_source_name,
+                "author": author,
+                "image_url": image_url,
+                "published_at": published_at.isoformat() if published_at else None,
+                "sentiment_score": float(sentiment_score) if sentiment_score else 0.0,
+                "sentiment_label": sentiment_label or "neutral",
+                "sentiment_confidence": (
+                    float(sentiment_confidence) if sentiment_confidence else 0.0
+                ),
+                "filing_type": filing_type,
+                "is_material_event": bool(is_material_event),
+                "plain_language_headline": plain_language_headline or headline,
+                "impact_summary": impact_summary,
+                "actionable_insight": actionable_insight,
+            }
+
+            articles.append(article)
+
+            # Track sentiment scores
+            if sentiment_score is not None:
+                sentiment_scores.append(float(sentiment_score))
+
+            # Extract key events (material events only, max 3)
+            if is_material_event and len(key_events) < 3:
+                # Try to extract event category from raw_payload
+                event_category = None
+                if raw_payload:
+                    try:
+                        payload_dict = (
+                            json.loads(raw_payload) if isinstance(raw_payload, str) else raw_payload
+                        )
+                        event_category = payload_dict.get("event_category")
+                    except Exception:
+                        pass
+
+                key_events.append(
+                    KeyEvent(
+                        icon=_get_event_icon(event_category, True),
+                        text=plain_language_headline or headline,
+                        time_ago=_format_time_ago(published_at),
+                        is_material=True,
+                        event_category=event_category,
+                        published_at=published_at,
+                    )
+                )
+
+        # Calculate average sentiment
+        avg_sentiment = sum(sentiment_scores) / len(sentiment_scores) if sentiment_scores else 0.0
+
+        # Determine sentiment label
+        if avg_sentiment > 0.15:
+            sentiment_label = "Positive"
+        elif avg_sentiment < -0.15:
+            sentiment_label = "Negative"
+        else:
+            sentiment_label = "Neutral"
+
+        # Generate headline summary
+        if len(key_events) >= 2:
+            # Multiple events - summarize
+            event_types = [
+                evt.text.split(" - ")[0] if " - " in evt.text else evt.text[:30]
+                for evt in key_events[:2]
+            ]
+            headline = f"{event_types[0]} + {event_types[1]}"
+        elif len(key_events) == 1:
+            headline = key_events[0].text
+        elif avg_sentiment > 0.3:
+            headline = f"Positive news flow ({len(articles)} articles)"
+        elif avg_sentiment < -0.3:
+            headline = f"Negative news flow ({len(articles)} articles)"
+        else:
+            headline = f"Mixed news ({len(articles)} articles in 24h)"
+
+        return NewsIntelligence(
+            headline=headline[:100],  # Limit headline length
+            sentiment_score=round(avg_sentiment, 2),
+            sentiment_label=sentiment_label,
+            article_count_24h=len(articles),
+            key_events=key_events,
+            recent_articles=articles[:5],  # Top 5 most recent
+        )
 
     def refresh_scores(self, item_id: str, symbol: str) -> None:
         """Refresh scores for a single watchlist item."""

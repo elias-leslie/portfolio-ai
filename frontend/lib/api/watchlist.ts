@@ -65,6 +65,24 @@ export interface RecentNewsPayload {
     articles: SentimentArticle[];
 }
 
+export interface KeyEvent {
+    icon: string;
+    text: string;
+    time_ago: string;
+    is_material: boolean;
+    event_category?: string | null;
+    published_at?: string | null;
+}
+
+export interface NewsIntelligence {
+    headline: string;
+    sentiment_score: number;
+    sentiment_label: string;
+    article_count_24h: number;
+    key_events: KeyEvent[];
+    recent_articles: Record<string, unknown>[];
+}
+
 export interface WatchlistItem {
     id: string;
     account_id: string;
@@ -90,6 +108,8 @@ export interface WatchlistItem {
     // News sentiment
     news_sentiment_score?: number | null;
     recent_news?: RecentNewsPayload | null;
+    // News Intelligence
+    news_intelligence?: NewsIntelligence | null;
 }
 
 export interface WatchlistListResponse {

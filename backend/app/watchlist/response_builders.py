@@ -92,6 +92,7 @@ class WatchlistItemResponse(BaseModel):
     # News & sentiment fields
     news_sentiment_score: float | None = None
     recent_news: dict[str, Any] | None = None
+    news_intelligence: dict[str, Any] | None = None  # NewsIntelligence summary
 
     @classmethod
     def from_service_dict(cls, item: dict[str, Any]) -> WatchlistItemResponse:
@@ -165,6 +166,7 @@ class WatchlistItemResponse(BaseModel):
             # News
             news_sentiment_score=item.get("news_sentiment_score"),
             recent_news=item.get("recent_news"),
+            news_intelligence=item.get("news_intelligence"),
         )
 
 

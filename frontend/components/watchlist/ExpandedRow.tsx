@@ -22,6 +22,7 @@ import { useUpdateWatchlistItem } from "@/lib/hooks/useWatchlist";
 import { usePreferences } from "@/lib/hooks/usePreferences";
 import { toast } from "sonner";
 import type { WatchlistItem, RefreshStatus } from "@/lib/api/watchlist";
+import { NewsIntelligenceCard } from "./NewsIntelligenceCard";
 
 const VENDOR_LABELS: Record<string, string> = {
     polygon: "Polygon",
@@ -629,6 +630,12 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
                     </CardContent>
                 </Card>
             )}
+
+            {/* News Intelligence Card */}
+            <NewsIntelligenceCard
+                newsIntelligence={item.news_intelligence}
+                newsHidden={newsHidden}
+            />
 
             {newsHidden && (
                 <Card
