@@ -107,7 +107,7 @@ class PostgreSQLConnectionWrapper:
 
             # Convert to dict format for Polars
             data = {col: [row[i] for row in rows] for i, col in enumerate(columns)}
-            return pl.DataFrame(data)
+            return pl.DataFrame(data, strict=False)
         except ImportError as e:
             raise ImportError("Polars is required for .pl() method") from e
 
