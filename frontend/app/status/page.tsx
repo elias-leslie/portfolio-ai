@@ -27,6 +27,8 @@ import { CeleryTaskTable } from "@/components/status/CeleryTaskTable";
 import { QueueDepthCard } from "@/components/status/QueueDepthCard";
 import { BeatScheduleCard } from "@/components/status/BeatScheduleCard";
 import { ServiceActionDialog } from "@/components/status/ServiceActionDialog";
+import { DataSourcesCard } from "@/components/status/DataSourcesCard";
+import { APIQuotasCard } from "@/components/status/APIQuotasCard";
 import {
     clearCache,
     refreshWatchlist,
@@ -404,6 +406,12 @@ export default function StatusPage() {
                     )}
                 </CardContent>
             </Card>
+
+            {/* Data Sources card */}
+            <DataSourcesCard health={health} />
+
+            {/* API Quotas card */}
+            <APIQuotasCard health={health} />
 
             {/* Service cards grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
