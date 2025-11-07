@@ -14,7 +14,6 @@ from app.portfolio.analytics import PortfolioAnalytics
 from app.portfolio.manager import PortfolioManager
 from app.portfolio.price_fetcher import PriceDataFetcher
 from app.sources.fred import FREDSource
-from app.sources.news import GoogleNewsSource
 from app.storage import PortfolioStorage
 
 
@@ -51,24 +50,57 @@ def storage() -> PortfolioStorage:
 
 @pytest.fixture
 def mock_news_service() -> Mock:
-    """Create a mock news source."""
-    mock = Mock(spec=GoogleNewsSource)
-    mock.fetch_headlines.return_value = [
-        {
-            "title": "Stock market reaches new highs",
-            "link": "http://example.com/1",
-            "published": "2025-10-27",
-            "summary": "Markets rally on strong earnings",
-            "source": "Financial Times",
-        },
-        {
-            "title": "Tech sector leads gains",
-            "link": "http://example.com/2",
-            "published": "2025-10-27",
-            "summary": "Technology stocks surge",
-            "source": "Bloomberg",
-        },
+    """Create a mock news service."""
+    from datetime import UTC, datetime
+
+    from app.services.news_service import NewsArticle, NewsBundle, NewsSummary, SentimentScore
+
+    # Create realistic mock articles
+    mock_articles = [
+        NewsArticle(
+            ticker="MARKET",
+            headline="Stock market reaches new highs",
+            url="http://example.com/1",
+            summary="Markets rally on strong earnings",
+            source="Financial Times",
+            published_at=datetime(2025, 10, 27, tzinfo=UTC),
+            fetched_at=datetime.now(UTC),
+            sentiment=SentimentScore(score=0.8, label="positive", confidence=0.95, model="finbert"),
+            content_hash="hash1",
+        ),
+        NewsArticle(
+            ticker="MARKET",
+            headline="Tech sector leads gains",
+            url="http://example.com/2",
+            summary="Technology stocks surge",
+            source="Bloomberg",
+            published_at=datetime(2025, 10, 27, tzinfo=UTC),
+            fetched_at=datetime.now(UTC),
+            sentiment=SentimentScore(score=0.9, label="positive", confidence=0.98, model="finbert"),
+            content_hash="hash2",
+        ),
     ]
+    mock_summary = NewsSummary(
+        ticker="MARKET",
+        score=0.85,
+        score_change=0.1,
+        positive_count=2,
+        neutral_count=0,
+        negative_count=0,
+        article_count=2,
+        latest_published_at=datetime(2025, 10, 27, tzinfo=UTC),
+    )
+    mock_bundle = NewsBundle(
+        ticker="MARKET",
+        summary=mock_summary,
+        articles=mock_articles,
+    )
+
+    mock = Mock()
+    mock.refresh_max_articles_from_preferences.return_value = 20
+    mock.get_market_news.return_value = mock_bundle
+    mock.get_symbol_news.return_value = mock_bundle
+    mock.get_custom_news.return_value = mock_bundle
     return mock
 
 
@@ -217,9 +249,12 @@ def test_discovery_agent_execute_tool_get_news(
 
     result = agent.execute_tool("get_news", {"query": "technology", "max_results": 5})
 
-    assert "headlines" in result
+    assert "articles" in result
     assert "count" in result
-    mock_news_service.fetch_headlines.assert_called_once_with("technology", 5)
+    assert "ticker" in result
+    assert result["count"] == 2
+    assert len(result["articles"]) == 2
+    mock_news_service.get_custom_news.assert_called_once_with("technology", max_articles=5)
 
 
 def test_discovery_agent_execute_tool_get_economic_data(

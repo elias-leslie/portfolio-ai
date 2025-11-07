@@ -1,17 +1,17 @@
 # Task List: News Phase 2 - Plain Language UI & News Intelligence
 
-**Status**: Paused (25% complete, 2.5/10 tasks done)
+**Status**: In Progress (40% complete, 4/10 tasks done)
 **Created**: 2025-11-06
 **Priority**: HIGH
 **Estimated Effort**: 10-14 hours (2-3 days)
 **Dependencies**: Phase 1 (SEC EDGAR Integration) complete
-**Last Updated**: 2025-11-06 18:35
-**Paused**: 2025-11-06 18:35 (Natural checkpoint - foundation complete)
+**Last Updated**: 2025-11-07 00:46
+**Session**: 2025-11-07 00:38-00:46 (Tasks 3.3 + 4.1-4.3 complete)
 
-**✅ COMPLETE**: Task 1 (Story Clustering), Task 2 (Plain Language Translator), Task 3.1-3.2 (Database + NewsService)
-**⏹️ NEXT**: Task 3.3 - Create NewsIntelligence API models and watchlist integration
+**✅ COMPLETE**: Tasks 1-2 (Clustering + Translation), Task 3 (API Integration), Task 4 (Frontend Components)
+**⏹️ NEXT**: Task 5 - Priority indicators in main watchlist table
 
-<!-- PAUSED: 2025-11-06 18:35 - Resume with Task 3.3 (API models + watchlist) -->
+<!-- Progress: Backend API + Frontend UI complete. Next: Priority indicators, standalone news page, settings UI -->
 
 ---
 
@@ -104,8 +104,8 @@ Transform news from raw headlines into actionable intelligence with plain-langua
         ALTER TABLE news_cache ADD COLUMN IF NOT EXISTS actionable_insight TEXT;
         ```
 
-- [ ] 3. Create News Intelligence component for watchlist expanded row
-  - [ ] 3.1 Update watchlist API response model
+- [x] 3. Create News Intelligence component for watchlist expanded row
+  - [x] 3.1 Update watchlist API response model
         ```python
         class NewsIntelligence(BaseModel):
             headline: str  # "Insider confidence + positive earnings surprise"
@@ -121,20 +121,20 @@ Transform news from raw headlines into actionable intelligence with plain-langua
             time_ago: str  # "8 hours ago"
             is_material: bool
         ```
-  - [ ] 3.2 Implement `build_news_intelligence()` in watchlist service
+  - [x] 3.2 Implement `build_news_intelligence()` in watchlist service
         - Query news_cache for ticker articles in last 24h
         - Filter to PRIMARY and SECONDARY content_type only
         - Calculate average sentiment
         - Extract top 3 material events (is_material_event=true)
         - Format key events with icons and plain language
         - Return NewsIntelligence object
-  - [ ] 3.3 Add to watchlist snapshot response
+  - [x] 3.3 Add to watchlist snapshot response
         - Include `news_intelligence` field in WatchlistItemResponse
         - Populate during watchlist refresh
         - Cache for 6 hours (same as news TTL)
 
-- [ ] 4. Build frontend News Intelligence card
-  - [ ] 4.1 Create `frontend/components/watchlist/NewsIntelligenceCard.tsx`
+- [x] 4. Build frontend News Intelligence card
+  - [x] 4.1 Create `frontend/components/watchlist/NewsIntelligenceCard.tsx`
         ```tsx
         export function NewsIntelligenceCard({ newsIntelligence, newsHidden }) {
           if (newsHidden) return null;
@@ -170,11 +170,11 @@ Transform news from raw headlines into actionable intelligence with plain-langua
           );
         }
         ```
-  - [ ] 4.2 Add NewsIntelligenceCard to ExpandedRow component
-        - Place between "Trading Intelligence" and "Trade Levels"
+  - [x] 4.2 Add NewsIntelligenceCard to ExpandedRow component
+        - Place between "Trading Intelligence" and "News & Sentiment"
         - Respect user preference `watchlist_show_news`
         - Show/hide toggle in settings
-  - [ ] 4.3 Style with shadcn/ui components
+  - [x] 4.3 Style with shadcn/ui components
         - Match existing card styling
         - Use Badge components for sentiment
         - Add icons for event types (📋📈📰📉⚠️)

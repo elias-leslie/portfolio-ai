@@ -1,6 +1,6 @@
 # Portfolio AI - Work Tracker
 
-**Last Updated:** 2025-11-06 18:35 (TASK-0035: News Intelligence - Phase 2 - PAUSED at 25%)
+**Last Updated:** 2025-11-07 00:47 (TASK-0035: News Intelligence - Phase 2 - In Progress at 40%)
 
 ---
 
@@ -8,20 +8,20 @@
 
 - **[TASK-0035] News Intelligence - Phase 2: Plain Language UI**
   - **File:** `tasks/news-phase2-plain-language-ui.md`
-  - **Status:** 25% complete - **PAUSED** 2025-11-06 18:35
+  - **Status:** 40% complete - **IN PROGRESS** 2025-11-07 00:47
   - **Effort:** HIGH (10-14 hours, 2-3 days)
   - **Started:** 2025-11-06
-  - **Last Updated:** 2025-11-06 18:35
+  - **Last Updated:** 2025-11-07 00:47
   - **Priority:** HIGH
   - **Goal:** Transform news into actionable intelligence with plain-language narratives and story clustering
   - **Progress:**
-    - ✅ Task 1: Story Clustering (COMPLETE - tested and working)
+    - ✅ Task 1: Story Clustering (COMPLETE)
     - ✅ Task 2: Plain Language Translator (COMPLETE - 56 event types, insights)
-    - ✅ Task 3.1-3.2: Database + NewsService Integration (COMPLETE - migration 017, plain language in news_cache)
-    - ⏹️ Tasks 3.3-10: Pending (Watchlist API, UI components, settings, testing, docs, optimization)
-  - **Next:** Task 3.3 - Create NewsIntelligence API models and integrate into watchlist
-  - **Pause Reason:** Natural checkpoint (foundation complete, 47% context used)
-  - **Handoff:** `tasks/PAUSE-HANDOFF-20251106-1835.md`
+    - ✅ Task 3: NewsIntelligence API Integration (COMPLETE - models, service, response builders)
+    - ✅ Task 4: Frontend NewsIntelligenceCard Component (COMPLETE - Card + ExpandedRow integration)
+    - ⏹️ Tasks 5-10: Pending (Priority indicators, standalone news page, settings, testing, docs, optimization)
+  - **Next:** Task 5 - Add priority indicators to main watchlist table
+  - **Commits:** 2 (Phase 2 Tasks 3-4 complete)
 
 ---
 

@@ -155,31 +155,97 @@ def test_get_store_idea_tool_definition() -> None:
 
 def test_execute_get_news(agent_tools: AgentTools, mock_news_service: Mock) -> None:
     """Test executing get_news tool."""
-    # Setup mock
-    mock_headlines = [
-        {"title": "Market rallies", "url": "http://example.com/1"},
-        {"title": "Tech stocks surge", "url": "http://example.com/2"},
+    from datetime import UTC, datetime
+
+    from app.services.news_service import NewsArticle, NewsBundle, NewsSummary, SentimentScore
+
+    # Setup mock with proper NewsBundle structure
+    mock_articles = [
+        NewsArticle(
+            ticker="MARKET",
+            headline="Market rallies",
+            url="http://example.com/1",
+            summary="Markets are up",
+            source="TestSource",
+            published_at=datetime.now(UTC),
+            fetched_at=datetime.now(UTC),
+            sentiment=SentimentScore(score=0.8, label="positive", confidence=0.95, model="finbert"),
+            content_hash="hash1",
+        ),
+        NewsArticle(
+            ticker="MARKET",
+            headline="Tech stocks surge",
+            url="http://example.com/2",
+            summary="Tech is booming",
+            source="TestSource",
+            published_at=datetime.now(UTC),
+            fetched_at=datetime.now(UTC),
+            sentiment=SentimentScore(score=0.9, label="positive", confidence=0.98, model="finbert"),
+            content_hash="hash2",
+        ),
     ]
-    mock_news_service.fetch_headlines.return_value = mock_headlines
+    mock_summary = NewsSummary(
+        ticker="MARKET",
+        score=0.85,
+        score_change=0.1,
+        positive_count=2,
+        neutral_count=0,
+        negative_count=0,
+        article_count=2,
+        latest_published_at=datetime.now(UTC),
+    )
+    mock_bundle = NewsBundle(
+        ticker="MARKET",
+        summary=mock_summary,
+        articles=mock_articles,
+    )
+
+    mock_news_service.refresh_max_articles_from_preferences.return_value = 20
+    mock_news_service.get_market_news.return_value = mock_bundle
 
     # Execute
     result = agent_tools.execute_get_news("stock market", max_results=10)
 
     # Verify
-    assert result["headlines"] == mock_headlines
+    assert result["query"] == "stock market"
+    assert result["ticker"] == "MARKET"
     assert result["count"] == 2
-    mock_news_service.fetch_headlines.assert_called_once_with("stock market", 10)
+    assert len(result["articles"]) == 2
+    assert result["articles"][0]["headline"] == "Market rallies"
+    assert result["articles"][1]["headline"] == "Tech stocks surge"
+    mock_news_service.get_market_news.assert_called_once_with(max_articles=10)
 
 
 def test_execute_get_news_default_max_results(
     agent_tools: AgentTools, mock_news_service: Mock
 ) -> None:
     """Test get_news with default max_results."""
-    mock_news_service.fetch_headlines.return_value = []
+    from app.services.news_service import NewsBundle, NewsSummary
+
+    # Setup mock with empty NewsBundle
+    mock_summary = NewsSummary(
+        ticker="MARKET",
+        score=None,
+        score_change=None,
+        positive_count=0,
+        neutral_count=0,
+        negative_count=0,
+        article_count=0,
+        latest_published_at=None,
+    )
+    mock_bundle = NewsBundle(
+        ticker="MARKET",
+        summary=mock_summary,
+        articles=[],
+    )
+
+    mock_news_service.refresh_max_articles_from_preferences.return_value = 20
+    mock_news_service.get_custom_news.return_value = mock_bundle
 
     agent_tools.execute_get_news("technology")
 
-    mock_news_service.fetch_headlines.assert_called_once_with("technology", 10)
+    # Should use preferences limit (20) since max_results not specified
+    mock_news_service.get_custom_news.assert_called_once_with("technology", max_articles=20)
 
 
 def test_execute_get_economic_data(agent_tools: AgentTools, mock_fred_source: Mock) -> None:
@@ -412,7 +478,7 @@ def test_agent_tools_initialization(
     """Test AgentTools initialization stores all dependencies."""
     tools = AgentTools(
         storage=mock_storage,
-        news_source=mock_news_service,
+        news_service=mock_news_service,
         fred_source=mock_fred_source,
         price_fetcher=mock_price_fetcher,
         portfolio_mgr=mock_portfolio_mgr,
@@ -420,7 +486,7 @@ def test_agent_tools_initialization(
     )
 
     assert tools.storage is mock_storage
-    assert tools.news_source is mock_news_service
+    assert tools.news_service is mock_news_service
     assert tools.fred_source is mock_fred_source
     assert tools.price_fetcher is mock_price_fetcher
     assert tools.portfolio_mgr is mock_portfolio_mgr

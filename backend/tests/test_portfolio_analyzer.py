@@ -18,7 +18,6 @@ from app.portfolio.models import (
 )
 from app.portfolio.price_fetcher import PriceDataFetcher
 from app.sources.fred import FREDSource
-from app.sources.news import GoogleNewsSource
 from app.storage import PortfolioStorage
 
 
@@ -82,17 +81,46 @@ def portfolio_with_positions(storage: PortfolioStorage) -> PortfolioManager:
 
 @pytest.fixture
 def mock_news_service() -> Mock:
-    """Create a mock news source."""
-    mock = Mock(spec=GoogleNewsSource)
-    mock.fetch_headlines.return_value = [
-        {
-            "title": "Tech stocks rally on AI optimism",
-            "link": "http://example.com/1",
-            "published": "2025-10-27",
-            "summary": "Technology sector leads gains",
-            "source": "Financial Times",
-        },
+    """Create a mock news service."""
+    from datetime import UTC, datetime
+
+    from app.services.news_service import NewsArticle, NewsBundle, NewsSummary, SentimentScore
+
+    # Create realistic mock articles
+    mock_articles = [
+        NewsArticle(
+            ticker="MARKET",
+            headline="Tech stocks rally on AI optimism",
+            url="http://example.com/1",
+            summary="Technology sector leads gains",
+            source="Financial Times",
+            published_at=datetime(2025, 10, 27, tzinfo=UTC),
+            fetched_at=datetime.now(UTC),
+            sentiment=SentimentScore(score=0.8, label="positive", confidence=0.95, model="finbert"),
+            content_hash="hash1",
+        ),
     ]
+    mock_summary = NewsSummary(
+        ticker="MARKET",
+        score=0.8,
+        score_change=0.1,
+        positive_count=1,
+        neutral_count=0,
+        negative_count=0,
+        article_count=1,
+        latest_published_at=datetime(2025, 10, 27, tzinfo=UTC),
+    )
+    mock_bundle = NewsBundle(
+        ticker="MARKET",
+        summary=mock_summary,
+        articles=mock_articles,
+    )
+
+    mock = Mock()
+    mock.refresh_max_articles_from_preferences.return_value = 20
+    mock.get_market_news.return_value = mock_bundle
+    mock.get_symbol_news.return_value = mock_bundle
+    mock.get_custom_news.return_value = mock_bundle
     return mock
 
 
