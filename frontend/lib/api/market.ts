@@ -5,6 +5,30 @@
 import { apiRequest } from "./client";
 
 // Types matching backend Pydantic models
+export interface ComponentScore {
+  name: string;
+  score: number;
+  value: number | null;
+  interpretation: string;
+  signal: "Bullish" | "Neutral" | "Bearish";
+}
+
+export interface SectorScore {
+  symbol: string;
+  name: string;
+  price: number | null;
+  change_pct: number | null;
+  signal: "Leading" | "Neutral" | "Lagging" | "Unknown";
+}
+
+export interface MarketHealthScore {
+  overall_score: number;
+  overall_label: string;
+  components: ComponentScore[];
+  sectors: SectorScore[];
+  last_updated: string;
+}
+
 export interface MarketConditionsResponse {
   sp500: {
     price: number | null;
@@ -20,6 +44,7 @@ export interface MarketConditionsResponse {
   dxy: {
     price: number | null;
   };
+  health: MarketHealthScore;
 }
 
 export interface PriceResponse {

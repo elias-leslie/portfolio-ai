@@ -26,12 +26,23 @@ class ComponentScore(BaseModel):
     signal: str = Field(..., description="Bullish/Neutral/Bearish")
 
 
+class SectorScore(BaseModel):
+    """Sector performance score."""
+
+    symbol: str = Field(..., description="Sector ETF symbol (e.g., XLK)")
+    name: str = Field(..., description="Sector name (e.g., Technology)")
+    price: float | None = Field(None, description="Current price")
+    change_pct: float | None = Field(None, description="Daily change percentage")
+    signal: str = Field(..., description="Leading/Neutral/Lagging")
+
+
 class MarketHealthScore(BaseModel):
     """Overall market health scoring."""
 
     overall_score: int = Field(..., ge=0, le=100, description="Overall market health 0-100")
     overall_label: str = Field(..., description="Extreme Fear/Fear/Neutral/Bullish/Very Bullish")
     components: list[ComponentScore] = Field(..., description="Individual component scores")
+    sectors: list[SectorScore] = Field(default_factory=list, description="Sector performance breakdown")
     last_updated: str = Field(..., description="Last update timestamp")
 
 
@@ -67,6 +78,7 @@ def calculate_market_health(
     sp500_price: float | None,
     tnx_yield: float | None,
     dxy_price: float | None,
+    sector_data: dict[str, tuple[float | None, float | None]] | None = None,
 ) -> MarketHealthScore:
     """Calculate overall market health score from indicators.
 
@@ -75,6 +87,13 @@ def calculate_market_health(
     - S&P 500: Use absolute level as proxy for sentiment
     - Treasury yield: Moderate yields = healthy, extremes = concern
     - Dollar: Stable/slightly weak = bullish for stocks
+
+    Args:
+        vix_price: Current VIX price
+        sp500_price: Current S&P 500 price
+        tnx_yield: Current 10Y Treasury yield
+        dxy_price: Current US Dollar Index price
+        sector_data: Dict mapping sector ETF symbol to (price, change_pct) tuple
 
     Returns:
         MarketHealthScore with overall score and component breakdown
@@ -233,10 +252,77 @@ def calculate_market_health(
     else:
         label = "Extreme Fear"
 
+    # Calculate sector scores
+    sectors: list[SectorScore] = []
+    if sector_data:
+        # Sector ETF mapping
+        sector_names = {
+            "XLK": "Technology",
+            "XLF": "Financials",
+            "XLE": "Energy",
+            "XLV": "Healthcare",
+            "XLY": "Consumer Discretionary",
+            "XLP": "Consumer Staples",
+            "XLI": "Industrials",
+            "XLU": "Utilities",
+            "XLRE": "Real Estate",
+            "XLB": "Materials",
+            "XLC": "Communication Services",
+        }
+
+        # Collect all valid change_pct values for relative comparison
+        changes = [
+            change_pct
+            for _, (_, change_pct) in sector_data.items()
+            if change_pct is not None
+        ]
+
+        # Calculate thresholds for Leading/Neutral/Lagging
+        if changes:
+            changes_sorted = sorted(changes)
+            # Top 33% = Leading, Middle 34% = Neutral, Bottom 33% = Lagging
+            top_threshold = changes_sorted[int(len(changes_sorted) * 0.67)] if len(changes_sorted) > 2 else 0.5
+            bottom_threshold = changes_sorted[int(len(changes_sorted) * 0.33)] if len(changes_sorted) > 2 else -0.5
+        else:
+            top_threshold = 0.5
+            bottom_threshold = -0.5
+
+        # Create sector scores
+        for symbol, (price, change_pct) in sector_data.items():
+            name = sector_names.get(symbol, symbol)
+
+            # Determine signal based on change_pct
+            if change_pct is not None:
+                if change_pct >= top_threshold:
+                    signal = "Leading"
+                elif change_pct <= bottom_threshold:
+                    signal = "Lagging"
+                else:
+                    signal = "Neutral"
+            else:
+                signal = "Unknown"
+
+            sectors.append(
+                SectorScore(
+                    symbol=symbol,
+                    name=name,
+                    price=price,
+                    change_pct=change_pct,
+                    signal=signal,
+                )
+            )
+
+        # Sort sectors by change_pct descending (best performers first)
+        sectors.sort(
+            key=lambda s: s.change_pct if s.change_pct is not None else -999,
+            reverse=True,
+        )
+
     return MarketHealthScore(
         overall_score=overall_score,
         overall_label=label,
         components=components,
+        sectors=sectors,
         last_updated=datetime.utcnow().isoformat(),
     )
 
@@ -258,12 +344,47 @@ async def get_market_conditions() -> MarketConditionsResponse:
     tnx_data = price_data.get("^TNX")
     dxy_data = price_data.get("DX-Y.NYB")
 
-    # Calculate market health score
+    # Fetch sector ETF data
+    sector_symbols = ["XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLU", "XLRE", "XLB", "XLC"]
+    sector_price_data = price_fetcher.fetch_price_data(sector_symbols)
+
+    # Query OHLCV data for previous close to calculate daily change %
+    sector_data: dict[str, tuple[float | None, float | None]] = {}
+    with storage.connection() as conn:
+        for symbol in sector_symbols:
+            current_price = sector_price_data.get(symbol)
+            if not current_price:
+                sector_data[symbol] = (None, None)
+                continue
+
+            # Get previous close from OHLCV data
+            result = conn.execute(
+                """
+                SELECT close
+                FROM daily_ohlcv
+                WHERE symbol = %s
+                ORDER BY date DESC
+                LIMIT 1 OFFSET 1
+                """,
+                (symbol,),
+            )
+            row = result.fetchone()
+
+            if row and row[0]:
+                prev_close = float(row[0])
+                change_pct = ((current_price.price - prev_close) / prev_close) * 100
+                sector_data[symbol] = (current_price.price, change_pct)
+            else:
+                # No historical data, just use current price
+                sector_data[symbol] = (current_price.price, None)
+
+    # Calculate market health score with sector data
     health_score = calculate_market_health(
         vix_price=vix_data.price if vix_data else None,
         sp500_price=sp500_data.price if sp500_data else None,
         tnx_yield=tnx_data.price if tnx_data else None,
         dxy_price=dxy_data.price if dxy_data else None,
+        sector_data=sector_data,
     )
 
     return MarketConditionsResponse(

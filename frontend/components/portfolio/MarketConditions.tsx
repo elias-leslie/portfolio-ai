@@ -175,6 +175,62 @@ export function MarketConditions() {
                   </div>
                 </div>
               ))}
+
+              {/* Sector Performance */}
+              {health.sectors && health.sectors.length > 0 && (
+                <div className="mt-4 rounded-lg border border-border bg-surface-elev/50 p-3">
+                  <h3 className="mb-3 text-sm font-medium text-text">
+                    Sector Performance (Today)
+                  </h3>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {health.sectors.map((sector, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between rounded bg-surface-muted/30 px-2 py-1.5"
+                      >
+                        <div className="flex flex-col">
+                          <span className="text-xs font-medium text-text">
+                            {sector.name}
+                          </span>
+                          <span className="text-xs text-text-muted">
+                            {sector.symbol}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {sector.change_pct !== null && sector.change_pct !== undefined ? (
+                            <span
+                              className={`text-xs font-semibold ${
+                                sector.change_pct > 0
+                                  ? "text-green-500"
+                                  : sector.change_pct < 0
+                                  ? "text-red-500"
+                                  : "text-yellow-500"
+                              }`}
+                            >
+                              {sector.change_pct > 0 ? "+" : ""}
+                              {sector.change_pct.toFixed(2)}%
+                            </span>
+                          ) : (
+                            <span className="text-xs text-text-muted">N/A</span>
+                          )}
+                          <span
+                            className={`text-xs font-medium ${
+                              sector.signal === "Leading"
+                                ? "text-green-500"
+                                : sector.signal === "Lagging"
+                                ? "text-red-500"
+                                : "text-yellow-500"
+                            }`}
+                          >
+                            {sector.signal === "Leading" ? "🟢" : sector.signal === "Lagging" ? "🔴" : "🟡"}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="mt-3 rounded-lg bg-surface-muted/30 p-3 text-xs text-text-muted">
                 <p className="mb-1 font-medium text-text">How scores are calculated:</p>
                 <ul className="list-inside list-disc space-y-1">
@@ -182,6 +238,7 @@ export function MarketConditions() {
                   <li>S&P 500: Higher levels = stronger market sentiment</li>
                   <li>Treasury Yields: Moderate yields preferred (Goldilocks)</li>
                   <li>US Dollar: Stable/weak dollar supports stock prices</li>
+                  <li>Sectors: Ranked by daily performance (Leading/Neutral/Lagging)</li>
                 </ul>
                 <p className="mt-2 text-xs">
                   Overall score is the average of all components. Updates in real-time as market data refreshes.
