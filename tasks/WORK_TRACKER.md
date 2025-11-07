@@ -1,34 +1,18 @@
 # Portfolio AI - Work Tracker
 
-**Last Updated:** 2025-11-07 (Market Conditions Enhancement Complete)
+**Last Updated:** 2025-11-07 (Market Conditions per-item timestamps complete)
 
-**📊 Implementation Reality Check:** Narrative Intelligence 100% complete, News Intelligence 75% complete, Market Conditions enhanced with real-time scoring
+**📊 Implementation Reality Check:** Narrative Intelligence 100% complete, News Intelligence 75% complete, Market Conditions enhanced with per-item timestamps
 
 ---
 
 ## 🔄 Active (Currently Working)
 
-None - Latest work completed (Status page fixes + Market Conditions data pipeline)
+None - Latest work completed (Market Conditions per-item timestamps)
 
 ---
 
 ## 📋 Planned (Prioritized by User Goal & Dependencies)
-
-### TIER 0: Quick UX Improvements (Low effort, high value)
-
-1. **[TODO] Market Conditions - Add Per-Item Timestamps**
-   - **File:** `tasks/TODO-market-conditions-timestamps.md`
-   - **Status:** 0% complete - NOT STARTED
-   - **Effort:** LOW (30-45 minutes)
-   - **Priority:** ⭐⭐⭐ MEDIUM
-   - **User Goal Alignment:** GOOD - Data freshness visibility
-   - **What it does:**
-     - Add individual timestamps to S&P 500, VIX, Treasury, Dollar indicators
-     - Add timestamps to each of 11 sector ETFs
-     - Add timestamps to health component breakdown
-     - Display relative time ("2m ago", "1h ago") in UI
-   - **Dependencies:** None - follow-up to Market Conditions merge
-   - **Value:** Users can verify data freshness per-item (not just overall)
 
 ### TIER 1: Critical for User Goal (Easy-to-digest market intelligence)
 
@@ -145,6 +129,27 @@ None - Latest work completed (Status page fixes + Market Conditions data pipelin
 
 ## ✅ Recently Completed (Last 5)
 
+- **Market Conditions - Per-Item Timestamps** ✓ 2025-11-07 (COMPLETE)
+  - **Implementation:** Added accurate data freshness timestamps to all market indicators
+  - **Commit:** f87f271 (feat: Add per-item timestamps to Market Conditions card)
+  - **Changes:**
+    - ✅ Backend: Added last_updated to ComponentScore, SectorScore, and indicator dicts
+    - ✅ Backend: Use PriceData.cached_at for accurate timestamps (respects 15-min cache TTL)
+    - ✅ Frontend: Created formatRelativeTime() utility ("12m ago", "1h ago" format)
+    - ✅ Frontend: Display timestamps on all 4 top indicators
+    - ✅ Frontend: Display timestamps on all 4 component breakdowns
+    - ✅ Frontend: Display timestamps on all 11 sector ETFs
+    - ✅ Testing: Created expand-click-screenshot.js for expandable UI testing
+    - ✅ Documentation: Comprehensive browser automation README.md
+  - **Files Modified:**
+    - backend/app/api/market.py (accurate cache timestamps)
+    - frontend/lib/utils.ts (formatRelativeTime)
+    - frontend/lib/api/market.ts (TypeScript types)
+    - frontend/components/portfolio/MarketConditions.tsx (timestamp display)
+    - .claude/skills/browser-automation/ (testing infrastructure)
+  - **User Impact:** See actual data age per indicator - identify stale data sources immediately
+  - **Screenshot:** Shows "12m ago" on all indicators (actual 15-min cache age)
+
 - **Status Page Display Alignment Fixes** ✓ 2025-11-07 (COMPLETE)
   - **Implementation:** Fixed three major misalignments between status page and reality
   - **Commit:** 8ce859f (Merge to main)
@@ -164,8 +169,8 @@ None - Latest work completed (Status page fixes + Market Conditions data pipelin
 
 - **Market Conditions - Sector Performance Data Pipeline** ✓ 2025-11-07 (COMPLETE)
   - **Implementation:** Fixed table names and added automated sector ETF data refresh
-  - **Commit:** 6974a42 (Merge to main)
-  - **Status:** ⭐⭐⭐⭐⭐ 95% COMPLETE (missing per-item timestamps)
+  - **Commit:** 6974a42 + f87f271 (Merge to main + timestamps)
+  - **Status:** ⭐⭐⭐⭐⭐ 100% COMPLETE
   - **Changes:**
     - ✅ Fixed table reference: daily_ohlcv → day_bars, symbol → ticker
     - ✅ Added 11 sector ETFs to Beat schedule (XLK, XLF, XLE, XLV, XLY, XLP, XLI, XLU, XLRE, XLB, XLC)
@@ -173,11 +178,11 @@ None - Latest work completed (Status page fixes + Market Conditions data pipelin
     - ✅ Automated daily refresh via Celery Beat (02:00 UTC)
     - ✅ API returns sector performance with change % and signals
     - ✅ Frontend displays 11 sectors with 🟢🟡🔴 indicators
-    - ⚠️ TODO: Per-item timestamps (follow-up task created)
+    - ✅ Per-item timestamps added (f87f271)
   - **Files Modified:**
     - backend/app/api/market.py
     - backend/app/celery_app.py
-  - **User Impact:** Sector breakdown shows live data with daily change %
+  - **User Impact:** Sector breakdown shows live data with daily change % and actual freshness
 
 - **Market Conditions Enhancement - Real-Time Scoring** ✓ 2025-11-07 (COMPLETE)
   - **Implementation:** Replaced Fear & Greed Index with enhanced Market Conditions card
