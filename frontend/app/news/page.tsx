@@ -279,8 +279,10 @@ function ArticleList({
                 </p>
             )}
 
-            {visibleArticles.map((article) => {
-                const articleId = `${article.content_hash}-${article.headline}`;
+            {visibleArticles.map((article, idx) => {
+                const articleId = article.content_hash
+                    || article.url
+                    || `${article.vendor}-${article.published_at || article.fetched_at}-${idx}`;
                 const sanitizedHeadline = sanitizeText(article.headline);
                 const vendorLabel = formatVendorLabel(article.vendor);
                 const publisherLabel =
