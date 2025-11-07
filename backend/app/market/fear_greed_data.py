@@ -111,9 +111,19 @@ class FearGreedDataFetcher:
             Put/call ratio, or None if unavailable (always None for dates > 2019)
         """
         try:
-            # Fetch CSV if not cached
+            # OPTIMIZATION: Skip HTTP call entirely for dates after 2019
+            # CBOE CSV was discontinued, so data won't exist anyway
+            if target_date.year > 2019:
+                logger.info(
+                    "put_call_skipped_post2019",
+                    date=target_date,
+                    reason="CBOE data discontinued after 2019-12-31",
+                )
+                return None
+
+            # Fetch CSV if not cached (only for pre-2020 dates)
             if self._put_call_cache is None:
-                response = httpx.get(self.CBOE_PUT_CALL_URL, timeout=15.0)
+                response = httpx.get(self.CBOE_PUT_CALL_URL, timeout=10.0)
                 response.raise_for_status()
 
                 # Parse CSV (skip first 2 header rows)

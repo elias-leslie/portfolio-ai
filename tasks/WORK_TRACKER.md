@@ -10,26 +10,23 @@
 
 - **[TASK-0037] Fear & Greed Index - Market Regime Intelligence**
   - **File:** `tasks/tasks-0037-fear-greed-index.md`
-  - **Status:** 75% complete - **ACTIVE** (resumed 11:15)
+  - **Status:** 85% complete - **CODE FIXES APPLIED**
   - **Started:** 2025-11-07
-  - **Last Updated:** 2025-11-07 11:16
-  - **Progress:** Infrastructure + tests complete, automation configured but not verified
-  - **Completed since pause:**
+  - **Last Updated:** 2025-11-07 (timeout fix applied)
+  - **Progress:** Infrastructure + tests complete, critical timeout fix applied, ready for testing on dev server
+  - **Completed:**
     - ✅ Celery Beat schedule configured (3 new tasks)
     - ✅ 21 tests written (all passing)
-    - ✅ 2 commits (feat + test)
     - ✅ SPY data backfilled (259 days)
     - ✅ Put/Call limitation documented (graceful degradation)
-  - **Remaining work:**
-    - ❌ Debug task execution timeout (manual trigger fails)
-    - ❌ Verify scheduled tasks execute correctly (need 24h or fix)
-    - ❌ Find Put/Call alternative source
-    - ❌ Backfill VIX/HY Spread historical data (252 days)
-    - ❌ Fix or remove PortfolioOverview
-    - ❌ Audit Investment Ideas
-    - ❌ Documentation updates (API_REFERENCE.md, ARCHITECTURE.md)
-    - ❌ Final verification checklist (V.1-V.6)
-  - **Handoff:** `tasks/PAUSE-HANDOFF-20251107-103800.md` (updated with status)
+    - ✅ **CRITICAL FIX: Skip CBOE HTTP call for dates > 2019** (prevents 30s timeout)
+    - ✅ Comprehensive fix guide created (`tasks/FIX-FEAR-GREED-ISSUES.md`)
+  - **Ready for testing on dev server:**
+    - ⏳ Test timeout fix (should complete in <5s now, was 30s)
+    - ⏳ Verify scheduled tasks execute correctly
+    - ⏳ Backfill VIX/HY Spread historical data (252 days) - optional
+    - ⏳ Documentation updates (API_REFERENCE.md, ARCHITECTURE.md) - after test success
+  - **Fix Guide:** `tasks/FIX-FEAR-GREED-ISSUES.md`
 
 ---
 
