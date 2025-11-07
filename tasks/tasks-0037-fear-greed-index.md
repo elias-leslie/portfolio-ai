@@ -1,11 +1,41 @@
 # Task List: Fear & Greed Index (5-Signal + Optional Breadth)
 
 **PRD**: `tasks/prd-fear_and_greed.md` (simplified to 5 core signals)
-**Status**: Ready for Implementation
-**Completion**: 0%
+**Status**: PAUSED
+**Completion**: 75% (Phases 1-7 complete, verification incomplete)
 **Effort**: MEDIUM (6-8 hours core, +2-3 hours if breadth included)
 **Created**: 2025-11-07
-**Updated**: 2025-11-07
+**Updated**: 2025-11-07 11:18
+**Last Updated**: 2025-11-07 11:18
+**Paused**: 2025-11-07 11:18 (User request - tracking updates complete)
+
+**✅ COMPLETE:**
+- Phase 0: Breadth test (DEFERRED - insufficient S&P 500 data)
+- Phase 1: Database Schema (3 tables, migration 016)
+- Phase 2: Data Fetching Module (VIX, HY Spread, SPY, Put/Call)
+- Phase 3: Calculation Engine (percentiles, composition)
+- Phase 4: Service Layer (orchestration, persistence)
+- Phase 5: API & Tasks (3 endpoints, Celery task)
+- Phase 6: Frontend (FearGreedGauge component)
+- Phase 7: Testing & Validation (21 tests passing, all quality checks pass)
+- 2 commits made (feat + test)
+- Celery Beat schedule configured (3 new tasks)
+- SPY backfill (259 days)
+
+**🔄 IN PROGRESS:**
+- Manual task execution debugging (trigger times out)
+- Scheduled task verification (configured but not proven to execute)
+
+**⚠️ NEXT:**
+- Debug task timeout (manual trigger fails at 30s)
+- Find Put/Call alternative data source
+- Backfill VIX/HY Spread historical data (252 days)
+- Fix or remove PortfolioOverview
+- Audit Investment Ideas
+- Update documentation (API_REFERENCE.md, ARCHITECTURE.md)
+- Complete Final Verification checklist (V.1-V.6)
+
+<!-- PAUSED: 2025-11-07 11:18 - Resume with task execution debugging -->
 
 ---
 
