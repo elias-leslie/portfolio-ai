@@ -8,11 +8,27 @@
 
 ## 🔄 Active (Currently Working)
 
-None - Latest work completed (Market Conditions enhancements)
+None - Latest work completed (Status page fixes + Market Conditions data pipeline)
 
 ---
 
 ## 📋 Planned (Prioritized by User Goal & Dependencies)
+
+### TIER 0: Quick UX Improvements (Low effort, high value)
+
+1. **[TODO] Market Conditions - Add Per-Item Timestamps**
+   - **File:** `tasks/TODO-market-conditions-timestamps.md`
+   - **Status:** 0% complete - NOT STARTED
+   - **Effort:** LOW (30-45 minutes)
+   - **Priority:** ⭐⭐⭐ MEDIUM
+   - **User Goal Alignment:** GOOD - Data freshness visibility
+   - **What it does:**
+     - Add individual timestamps to S&P 500, VIX, Treasury, Dollar indicators
+     - Add timestamps to each of 11 sector ETFs
+     - Add timestamps to health component breakdown
+     - Display relative time ("2m ago", "1h ago") in UI
+   - **Dependencies:** None - follow-up to Market Conditions merge
+   - **Value:** Users can verify data freshness per-item (not just overall)
 
 ### TIER 1: Critical for User Goal (Easy-to-digest market intelligence)
 
@@ -129,9 +145,43 @@ None - Latest work completed (Market Conditions enhancements)
 
 ## ✅ Recently Completed (Last 5)
 
+- **Status Page Display Alignment Fixes** ✓ 2025-11-07 (COMPLETE)
+  - **Implementation:** Fixed three major misalignments between status page and reality
+  - **Commit:** 8ce859f (Merge to main)
+  - **Changes:**
+    - ✅ Data Sources: RSS sources now use news_cache timestamps (accurate "1m ago")
+    - ✅ Beat Schedule: Shows user-configured intervals ("Every 15 min") not polling (60s)
+    - ✅ Celery Tasks: Proper names, metadata, dark mode colors
+    - ✅ Enabled result_extended=True for task metadata storage
+    - ✅ Cleaned up 23,629 old celery_taskmeta records
+  - **Files Modified:**
+    - backend/app/utils/health_checks.py
+    - backend/app/api/celery_endpoints.py
+    - backend/app/celery_app.py
+    - backend/app/services/celery_inspector.py
+    - frontend/components/status/CeleryTaskTable.tsx
+  - **User Impact:** Status page now accurately reflects system behavior
+
+- **Market Conditions - Sector Performance Data Pipeline** ✓ 2025-11-07 (COMPLETE)
+  - **Implementation:** Fixed table names and added automated sector ETF data refresh
+  - **Commit:** 6974a42 (Merge to main)
+  - **Status:** ⭐⭐⭐⭐⭐ 95% COMPLETE (missing per-item timestamps)
+  - **Changes:**
+    - ✅ Fixed table reference: daily_ohlcv → day_bars, symbol → ticker
+    - ✅ Added 11 sector ETFs to Beat schedule (XLK, XLF, XLE, XLV, XLY, XLP, XLI, XLU, XLRE, XLB, XLC)
+    - ✅ Populated 5 days of historical data (Oct 31 - Nov 6)
+    - ✅ Automated daily refresh via Celery Beat (02:00 UTC)
+    - ✅ API returns sector performance with change % and signals
+    - ✅ Frontend displays 11 sectors with 🟢🟡🔴 indicators
+    - ⚠️ TODO: Per-item timestamps (follow-up task created)
+  - **Files Modified:**
+    - backend/app/api/market.py
+    - backend/app/celery_app.py
+  - **User Impact:** Sector breakdown shows live data with daily change %
+
 - **Market Conditions Enhancement - Real-Time Scoring** ✓ 2025-11-07 (COMPLETE)
   - **Implementation:** Replaced Fear & Greed Index with enhanced Market Conditions card
-  - **Status:** ⭐⭐⭐⭐⭐ READY FOR TESTING
+  - **Status:** ⭐⭐⭐⭐⭐ MERGED TO MAIN
   - **What Changed:**
     - ✅ Removed Fear & Greed Index (outdated daily EOD data)
     - ✅ Removed Investment Ideas section from homepage
