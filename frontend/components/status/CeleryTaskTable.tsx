@@ -87,6 +87,41 @@ export function CeleryTaskTable() {
     }
   };
 
+  const getTaskDescription = (taskName: string): string => {
+    // Map task names to human-readable descriptions
+    const taskDescriptions: Record<string, string> = {
+      // Watchlist tasks
+      "app.tasks.watchlist_tasks.refresh_watchlist_scores_task": "Refresh Watchlist Scores",
+      "refresh_watchlist_scores_task": "Refresh Watchlist Scores",
+
+      // Agent tasks
+      "app.tasks.agent_tasks.run_discovery_agent": "Run Discovery Agent",
+      "app.tasks.agent_tasks.run_portfolio_analyzer": "Run Portfolio Analyzer",
+      "run_discovery_agent": "Run Discovery Agent",
+      "run_portfolio_analyzer": "Run Portfolio Analyzer",
+
+      // Data ingestion tasks
+      "app.tasks.data_ingestion_tasks.refresh_daily_ohlcv": "Refresh Daily Price Data (OHLCV)",
+      "app.tasks.data_ingestion_tasks.ingest_historical_ohlcv": "Ingest Historical Price Data",
+      "refresh_daily_ohlcv": "Refresh Daily Price Data (OHLCV)",
+      "ingest_historical_ohlcv": "Ingest Historical Price Data",
+
+      // Indicator tasks
+      "app.tasks.indicator_tasks.update_technical_indicators": "Update Technical Indicators",
+      "update_technical_indicators": "Update Technical Indicators",
+
+      // Fear & Greed tasks
+      "app.tasks.fear_greed_tasks.compute_fear_greed_daily": "Compute Fear & Greed Index",
+      "compute_fear_greed_daily": "Compute Fear & Greed Index",
+
+      // Paper trading tasks
+      "app.tasks.update_paper_trades_task": "Update Paper Trades",
+      "update_paper_trades_task": "Update Paper Trades",
+    };
+
+    return taskDescriptions[taskName] || taskName.split(".").pop() || taskName;
+  };
+
   return (
     <div className="space-y-4">
       {/* Header with filter and refresh */}
@@ -143,11 +178,11 @@ export function CeleryTaskTable() {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[40px]"></TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Task Name</TableHead>
-                <TableHead>Started</TableHead>
-                <TableHead>Duration</TableHead>
-                <TableHead>Worker</TableHead>
+                <TableHead className="w-[120px]">Status</TableHead>
+                <TableHead>Task Description</TableHead>
+                <TableHead className="w-[180px]">Started/Completed</TableHead>
+                <TableHead className="w-[100px]">Duration</TableHead>
+                <TableHead className="w-[150px]">Worker</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -162,42 +197,74 @@ export function CeleryTaskTable() {
                       )}
                     </TableCell>
                     <TableCell>{getStatusBadge(task.status)}</TableCell>
-                    <TableCell className="font-mono text-sm">{task.name}</TableCell>
-                    <TableCell className="text-sm">{formatTimestamp(task.started_at || task.date_done)}</TableCell>
-                    <TableCell className="text-sm">{formatDuration(task.duration)}</TableCell>
-                    <TableCell className="text-sm">{task.worker || "-"}</TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        <div className="font-medium">{getTaskDescription(task.name)}</div>
+                        <div className="text-xs text-muted-foreground font-mono">{task.name}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {formatTimestamp(task.started_at || task.date_done)}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {task.status === "ACTIVE" && task.duration ? (
+                        <span className="text-blue-600 dark:text-blue-400 font-medium animate-pulse">
+                          {formatDuration(task.duration)}
+                        </span>
+                      ) : (
+                        formatDuration(task.duration)
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {task.worker ? (
+                        <span className="font-mono text-xs">{task.worker.split("@")[0]}</span>
+                      ) : (
+                        "-"
+                      )}
+                    </TableCell>
                   </TableRow>
                   {expandedRows.has(task.id) && (
                     <TableRow key={`${task.id}-details`}>
                       <TableCell colSpan={6} className="bg-muted/20">
-                        <div className="p-4 space-y-2 text-sm">
-                          <div>
-                            <span className="font-semibold">Task ID:</span> {task.id}
-                          </div>
-                          {task.args && (
+                        <div className="p-4 space-y-3 text-sm">
+                          <div className="grid grid-cols-2 gap-4">
                             <div>
-                              <span className="font-semibold">Args:</span>{" "}
-                              <code className="bg-muted px-1 rounded">{task.args}</code>
+                              <span className="font-semibold text-muted-foreground uppercase text-xs">Task ID</span>
+                              <p className="font-mono text-xs mt-1">{task.id}</p>
+                            </div>
+                            <div>
+                              <span className="font-semibold text-muted-foreground uppercase text-xs">Full Task Name</span>
+                              <p className="font-mono text-xs mt-1">{task.name}</p>
+                            </div>
+                          </div>
+                          {task.args && task.args !== "[]" && task.args !== "()" && (
+                            <div>
+                              <span className="font-semibold text-muted-foreground uppercase text-xs">Arguments</span>
+                              <pre className="bg-muted p-2 rounded mt-1 overflow-x-auto text-xs font-mono">
+                                {task.args}
+                              </pre>
                             </div>
                           )}
-                          {task.kwargs && (
+                          {task.kwargs && task.kwargs !== "{}" && (
                             <div>
-                              <span className="font-semibold">Kwargs:</span>{" "}
-                              <code className="bg-muted px-1 rounded">{task.kwargs}</code>
+                              <span className="font-semibold text-muted-foreground uppercase text-xs">Keyword Arguments</span>
+                              <pre className="bg-muted p-2 rounded mt-1 overflow-x-auto text-xs font-mono">
+                                {task.kwargs}
+                              </pre>
                             </div>
                           )}
                           {task.result && (
                             <div>
-                              <span className="font-semibold">Result:</span>{" "}
-                              <pre className="bg-muted p-2 rounded mt-1 overflow-x-auto">
+                              <span className="font-semibold text-green-600 dark:text-green-400 uppercase text-xs">Result</span>
+                              <pre className="bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800 p-2 rounded mt-1 overflow-x-auto text-xs font-mono text-foreground">
                                 {task.result}
                               </pre>
                             </div>
                           )}
                           {task.traceback && (
                             <div>
-                              <span className="font-semibold text-destructive">Error:</span>{" "}
-                              <pre className="bg-destructive/10 p-2 rounded mt-1 overflow-x-auto text-destructive">
+                              <span className="font-semibold text-destructive uppercase text-xs">Error Traceback</span>
+                              <pre className="bg-destructive/10 border border-destructive/20 p-2 rounded mt-1 overflow-x-auto text-xs font-mono text-destructive">
                                 {task.traceback}
                               </pre>
                             </div>

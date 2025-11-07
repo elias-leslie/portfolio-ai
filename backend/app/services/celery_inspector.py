@@ -7,11 +7,55 @@ Provides functions to inspect Celery tasks from multiple sources:
 - Failed tasks (from celery_taskmeta table)
 """
 
+import json
+import pickle
 from datetime import datetime
 from typing import Any, Literal
 
 from app.celery_app import celery_app
 from app.storage.connection import ConnectionManager
+
+
+def _deserialize_celery_field(value: Any) -> str | None:
+    """Safely deserialize a Celery result/traceback field.
+
+    Celery stores results/tracebacks as pickled objects in bytea columns.
+    When read from the database, they come back as memoryview objects.
+
+    Args:
+        value: Raw field value from database (memoryview, bytes, or already deserialized)
+
+    Returns:
+        JSON-serializable string representation, or None if empty/invalid
+    """
+    if value is None:
+        return None
+
+    try:
+        # Convert memoryview to bytes
+        bytes_value = value.tobytes() if isinstance(value, memoryview) else value
+
+        # If it's bytes, try to unpickle
+        if isinstance(bytes_value, bytes):
+            # Try unpickling first
+            try:
+                unpickled = pickle.loads(bytes_value)
+                # Convert to JSON-safe string
+                return (
+                    json.dumps(unpickled) if isinstance(unpickled, (dict, list)) else str(unpickled)
+                )
+            except (pickle.UnpicklingError, Exception):
+                # If unpickling fails, try UTF-8 decode as fallback
+                try:
+                    return bytes_value.decode("utf-8")
+                except UnicodeDecodeError:
+                    return f"<binary data: {len(bytes_value)} bytes>"
+
+        # Already a string or other type
+        return str(value)
+
+    except Exception as e:
+        return f"<error deserializing: {e!s}>"
 
 
 def get_active_tasks() -> list[dict[str, Any]]:
@@ -40,6 +84,12 @@ def get_active_tasks() -> list[dict[str, Any]]:
         tasks: list[dict[str, Any]] = []
         for worker_name, worker_tasks in active.items():
             for task in worker_tasks:
+                # Normalize args and kwargs to JSON strings
+                args = task.get("args", [])
+                kwargs = task.get("kwargs", {})
+                args_str = json.dumps(args) if isinstance(args, (list, tuple)) else str(args)
+                kwargs_str = json.dumps(kwargs) if isinstance(kwargs, dict) else str(kwargs)
+
                 normalized_task = {
                     "id": task["id"],
                     "name": task["name"],
@@ -55,8 +105,8 @@ def get_active_tasks() -> list[dict[str, Any]]:
                         else None
                     ),
                     "worker": worker_name,
-                    "args": task.get("args", "[]"),
-                    "kwargs": task.get("kwargs", "{}"),
+                    "args": args_str,
+                    "kwargs": kwargs_str,
                 }
                 tasks.append(normalized_task)
 
@@ -91,6 +141,12 @@ def get_pending_tasks() -> list[dict[str, Any]]:
         tasks: list[dict[str, Any]] = []
         for worker_name, worker_tasks in reserved.items():
             for task in worker_tasks:
+                # Normalize args and kwargs to JSON strings
+                args = task.get("args", [])
+                kwargs = task.get("kwargs", {})
+                args_str = json.dumps(args) if isinstance(args, (list, tuple)) else str(args)
+                kwargs_str = json.dumps(kwargs) if isinstance(kwargs, dict) else str(kwargs)
+
                 normalized_task = {
                     "id": task["id"],
                     "name": task["name"],
@@ -98,8 +154,8 @@ def get_pending_tasks() -> list[dict[str, Any]]:
                     "started_at": None,
                     "duration": None,
                     "worker": worker_name,
-                    "args": task.get("args", "[]"),
-                    "kwargs": task.get("kwargs", "{}"),
+                    "args": args_str,
+                    "kwargs": kwargs_str,
                 }
                 tasks.append(normalized_task)
 
@@ -130,7 +186,7 @@ def get_recent_completed(limit: int = 50) -> list[dict[str, Any]]:
     with cm.connection() as conn:
         result = conn.execute(
             """
-            SELECT task_id, status, result, date_done, traceback
+            SELECT task_id, status, result, date_done, traceback, name, args, kwargs, worker
             FROM celery_taskmeta
             WHERE status = 'SUCCESS'
             ORDER BY date_done DESC
@@ -145,8 +201,13 @@ def get_recent_completed(limit: int = 50) -> list[dict[str, Any]]:
             task = {
                 "task_id": row[0],
                 "status": row[1],
-                "result": row[2],
+                "result": _deserialize_celery_field(row[2]),
                 "date_done": row[3].isoformat() if row[3] else None,
+                "traceback": _deserialize_celery_field(row[4]),
+                "name": row[5] or "unknown",  # Handle NULL names
+                "args": _deserialize_celery_field(row[6]),
+                "kwargs": _deserialize_celery_field(row[7]),
+                "worker": row[8],
             }
             tasks.append(task)
 
@@ -173,7 +234,7 @@ def get_recent_failed(limit: int = 50) -> list[dict[str, Any]]:
     with cm.connection() as conn:
         result = conn.execute(
             """
-            SELECT task_id, status, result, date_done, traceback
+            SELECT task_id, status, result, date_done, traceback, name, args, kwargs, worker
             FROM celery_taskmeta
             WHERE status = 'FAILURE'
             ORDER BY date_done DESC
@@ -188,8 +249,13 @@ def get_recent_failed(limit: int = 50) -> list[dict[str, Any]]:
             task = {
                 "task_id": row[0],
                 "status": row[1],
-                "traceback": row[4],
+                "result": _deserialize_celery_field(row[2]),
                 "date_done": row[3].isoformat() if row[3] else None,
+                "traceback": _deserialize_celery_field(row[4]),
+                "name": row[5] or "unknown",  # Handle NULL names
+                "args": _deserialize_celery_field(row[6]),
+                "kwargs": _deserialize_celery_field(row[7]),
+                "worker": row[8],
             }
             tasks.append(task)
 
@@ -237,21 +303,9 @@ def get_unified_task_list(
         # Convert to unified schema with all required fields
         for task in completed:
             task["id"] = task.pop("task_id")
-            task["name"] = "unknown"  # Not stored in taskmeta
-            task["started_at"] = None
-            task["duration"] = None
-            task["worker"] = None
-            task["args"] = None
-            task["kwargs"] = None
-            task["traceback"] = None
-            # Convert result memoryview to string
-            if task.get("result") and hasattr(task["result"], "tobytes"):
-                try:
-                    task["result"] = task["result"].tobytes().decode("utf-8")
-                except Exception:
-                    task["result"] = str(task["result"])
-            elif task.get("result"):
-                task["result"] = str(task["result"])
+            # name, args, kwargs, worker, result, traceback are already populated from DB
+            task["started_at"] = None  # Not available for completed tasks
+            task["duration"] = None  # Not available for completed tasks
         tasks.extend(completed)
 
     if status in ("all", "failed"):
@@ -259,21 +313,9 @@ def get_unified_task_list(
         # Convert to unified schema with all required fields
         for task in failed:
             task["id"] = task.pop("task_id")
-            task["name"] = "unknown"  # Not stored in taskmeta
-            task["started_at"] = None
-            task["duration"] = None
-            task["worker"] = None
-            task["args"] = None
-            task["kwargs"] = None
-            task["result"] = None
-            # Convert traceback memoryview to string
-            if task.get("traceback") and hasattr(task["traceback"], "tobytes"):
-                try:
-                    task["traceback"] = task["traceback"].tobytes().decode("utf-8")
-                except Exception:
-                    task["traceback"] = str(task["traceback"])
-            elif task.get("traceback"):
-                task["traceback"] = str(task["traceback"])
+            # name, args, kwargs, worker, result, traceback are already populated from DB
+            task["started_at"] = None  # Not available for failed tasks
+            task["duration"] = None  # Not available for failed tasks
         tasks.extend(failed)
 
     return tasks
