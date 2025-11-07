@@ -13,43 +13,20 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
-import threading
-import time
-from collections import deque
 from collections.abc import Iterable
 from contextlib import suppress
 from typing import Any
 
-import httpx
 import polars as pl
-from tenacity import (
-    retry,
-    retry_if_exception,
-    stop_after_attempt,
-    wait_exponential,
-)
 
 from ..logging_config import get_logger
 from .base import BaseSource, DatasetRequest
+from .base_http_client import BaseHTTPClient
 
 logger = get_logger(__name__)
 
 
-def _should_retry_exception(exc: BaseException) -> bool:
-    """Determine if exception should trigger a retry.
-
-    Retries on:
-    - 429 (rate limit)
-    - 500, 502, 503, 504 (server errors)
-    - Network errors (timeout, connection errors)
-    """
-    if isinstance(exc, httpx.HTTPStatusError):
-        status = exc.response.status_code if exc.response is not None else None
-        return status in {429, 500, 502, 503, 504}
-    return isinstance(exc, httpx.RequestError)
-
-
-class FMPClient:
+class FMPClient(BaseHTTPClient):
     """Synchronous FMP REST API client with rate limiting.
 
     Features:
@@ -63,120 +40,30 @@ class FMPClient:
     def __init__(
         self,
         api_key: str | None = None,
-        rate_calls_per_day: int = 250,
         timeout: float = 30.0,
     ) -> None:
         """Initialize FMP client.
 
         Args:
             api_key: FMP API key (defaults to FMP_API_KEY env var)
-            rate_calls_per_day: Maximum requests per day (default: 250)
             timeout: Request timeout in seconds (default: 30)
 
         Raises:
             RuntimeError: If API key not provided and not in environment
         """
-        self.api_key = api_key or os.getenv("FMP_API_KEY")
-        if not self.api_key:
-            raise RuntimeError("FMP_API_KEY is not set")
+        super().__init__(api_key=api_key, rate_calls_per_day=250, timeout=timeout)
 
-        self._client = httpx.Client(timeout=timeout)
-        self._lock = threading.Lock()
-        # Track requests in last 24 hours
-        self._last_request_times: deque[float] = deque(maxlen=rate_calls_per_day)
-        self._rate_calls_per_day = rate_calls_per_day
-        self.request_count = 0
+    def get_api_key_env_var(self) -> str:
+        """Return environment variable name for API key."""
+        return "FMP_API_KEY"
 
-        logger.info(
-            "fmp_client_initialized",
-            rate_limit=f"{rate_calls_per_day}/day",
-            timeout=timeout,
-        )
+    def get_client_name(self) -> str:
+        """Return client name for logging."""
+        return "fmp_client"
 
-    def close(self) -> None:
-        """Close HTTP client and release resources."""
-        self._client.close()
-        logger.debug("fmp_client_closed", request_count=self.request_count)
-
-    def _throttle(self) -> None:
-        """Thread-safe rate limiting using sliding 24-hour window.
-
-        Blocks until a request slot is available based on daily rate limit.
-        """
-        with self._lock:
-            now = time.monotonic()
-
-            # Remove requests older than 24 hours
-            cutoff_time = now - 86400  # 24 hours in seconds
-            while self._last_request_times and self._last_request_times[0] < cutoff_time:
-                self._last_request_times.popleft()
-
-            # If we've hit the daily limit, wait until oldest request is 24h old
-            if len(self._last_request_times) >= self._rate_calls_per_day:
-                oldest = self._last_request_times[0]
-                wait_for = 86400 - (now - oldest)
-                if wait_for > 0:
-                    logger.warning(
-                        "fmp_rate_limit_hit",
-                        wait_seconds=wait_for,
-                        daily_limit=self._rate_calls_per_day,
-                    )
-                    # Don't actually wait 24 hours in practice - just raise error
-                    raise RuntimeError(
-                        f"FMP daily rate limit ({self._rate_calls_per_day} calls) exceeded. "
-                        f"Reset in {wait_for:.0f} seconds"
-                    )
-
-            self._last_request_times.append(now)
-
-    @retry(
-        stop=stop_after_attempt(5),
-        wait=wait_exponential(multiplier=1, max=30),
-        retry=retry_if_exception(_should_retry_exception),
-        reraise=True,
-    )
-    def _request_json(
-        self,
-        method: str,
-        path: str,
-        params: dict[str, Any] | None = None,
-    ) -> Any:
-        """Execute HTTP request with rate limiting and retries.
-
-        Args:
-            method: HTTP method (GET, POST, etc.)
-            path: API path (e.g., "/historical-price-full/AAPL")
-            params: Query parameters
-
-        Returns:
-            Parsed JSON response (can be dict or list)
-
-        Raises:
-            HTTPStatusError: On HTTP errors after retries exhausted
-            RequestError: On network errors after retries exhausted
-        """
-        self._throttle()
-
-        query: dict[str, Any] = dict(params or {})
-        query["apikey"] = self.api_key
-
-        start_time = time.time()
-        response = self._client.request(method.upper(), f"{self.BASE_URL}{path}", params=query)
-        duration_ms = int((time.time() - start_time) * 1000)
-
-        response.raise_for_status()
-        self.request_count += 1
-
-        logger.info(
-            "fmp_request_success",
-            method=method.upper(),
-            path=path,
-            status_code=response.status_code,
-            duration_ms=duration_ms,
-            request_count=self.request_count,
-        )
-
-        return response.json()
+    def get_api_key_param_name(self) -> str:
+        """Return query parameter name for API key."""
+        return "apikey"
 
     def get(self, path: str, params: dict[str, Any] | None = None) -> Any:
         """Execute GET request.
@@ -188,7 +75,7 @@ class FMPClient:
         Returns:
             Parsed JSON response
         """
-        return self._request_json("GET", path, params)
+        return self.request(path, params, method="GET")
 
     def get_historical_price(
         self,
@@ -237,10 +124,6 @@ class FMPClient:
         result: list[dict[str, Any]] = self.get(path)
         return result
 
-    def __del__(self) -> None:
-        """Close client on garbage collection."""
-        if hasattr(self, "_client"):
-            self.close()
 
 
 # Module-level singleton state
