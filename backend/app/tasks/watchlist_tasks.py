@@ -6,6 +6,7 @@ This module defines background tasks for refreshing watchlist scores asynchronou
 from __future__ import annotations
 
 import datetime as dt
+import time
 from typing import Any
 
 from app.celery_app import celery_app
@@ -27,6 +28,7 @@ def refresh_watchlist_scores_task(self, account_id: str | None = None) -> dict[s
 
     Note: This task checks market hours for logging, but refreshes 24/7.
     """
+    start_time = time.time()  # Track task duration
     task_id = self.request.id
     account_id = account_id or "default"
 
@@ -162,6 +164,7 @@ def refresh_watchlist_scores_task(self, account_id: str | None = None) -> dict[s
                     "reason": "refresh_interval_not_met",
                     "minutes_since_refresh": round(minutes_since_refresh, 1),
                     "refresh_interval_minutes": refresh_interval_minutes,
+                    "duration_seconds": round(time.time() - start_time, 2),
                 }
 
         # Proceed with refresh
@@ -180,6 +183,7 @@ def refresh_watchlist_scores_task(self, account_id: str | None = None) -> dict[s
                 "task_id": task_id,
                 "markets_open": markets_open,
                 "refresh_interval_minutes": refresh_interval_minutes,
+                "duration_seconds": round(time.time() - start_time, 2),
             }
         )
 
@@ -189,6 +193,7 @@ def refresh_watchlist_scores_task(self, account_id: str | None = None) -> dict[s
             processed=result.get("processed", 0),
             markets_open=markets_open,
             refresh_interval_minutes=refresh_interval_minutes,
+            duration_seconds=result["duration_seconds"],
         )
         return result
 

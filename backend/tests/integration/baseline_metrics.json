@@ -1,0 +1,42 @@
+{
+  "test_name": "baseline_watchlist_refresh_10_symbols",
+  "timestamp": "2025-11-07T22:01:45.707900+00:00",
+  "metrics": {
+    "total_queries": 240,
+    "duplicate_queries": 25,
+    "preference_queries": 5,
+    "watchlist_item_queries": 1,
+    "snapshot_queries": 23,
+    "api_calls": 1,
+    "unique_symbols": 23,
+    "symbols_fetched_multiple_times": 0,
+    "execution_time_seconds": 2.3410348892211914
+  },
+  "duplicates_detail": [
+    {
+      "query": "SELECT source_name, success_count, failure_count, total_latency_ms, rate_limit_hits, last_success_at",
+      "params": "[]",
+      "count": 2
+    },
+    {
+      "query": "SELECT source_id, field, value FROM source_credentials ORDER BY source_id, field",
+      "params": "[]",
+      "count": 2
+    },
+    {
+      "query": "SELECT atr_14 FROM technical_indicators WHERE ticker = %s ORDER BY date DESC LIMIT 1",
+      "params": "['META']",
+      "count": 2
+    },
+    {
+      "query": "SELECT atr_14 FROM technical_indicators WHERE ticker = %s ORDER BY date DESC LIMIT 1",
+      "params": "['NFLX']",
+      "count": 2
+    },
+    {
+      "query": "SELECT atr_14 FROM technical_indicators WHERE ticker = %s ORDER BY date DESC LIMIT 1",
+      "params": "['INTC']",
+      "count": 2
+    }
+  ]
+}

@@ -305,7 +305,22 @@ def get_unified_task_list(
             task["id"] = task.pop("task_id")
             # name, args, kwargs, worker, result, traceback are already populated from DB
             task["started_at"] = None  # Not available for completed tasks
-            task["duration"] = None  # Not available for completed tasks
+
+            # Extract duration from result if available (tasks include duration_seconds in result)
+            duration = None
+            if task.get("result"):
+                try:
+                    result_data = (
+                        json.loads(task["result"])
+                        if isinstance(task["result"], str)
+                        else task["result"]
+                    )
+                    if isinstance(result_data, dict) and "duration_seconds" in result_data:
+                        duration = result_data["duration_seconds"]
+                except (json.JSONDecodeError, TypeError):
+                    pass  # If result isn't JSON or doesn't have duration, duration stays None
+
+            task["duration"] = duration
         tasks.extend(completed)
 
     if status in ("all", "failed"):
@@ -315,7 +330,22 @@ def get_unified_task_list(
             task["id"] = task.pop("task_id")
             # name, args, kwargs, worker, result, traceback are already populated from DB
             task["started_at"] = None  # Not available for failed tasks
-            task["duration"] = None  # Not available for failed tasks
+
+            # Extract duration from result if available (tasks include duration_seconds in result)
+            duration = None
+            if task.get("result"):
+                try:
+                    result_data = (
+                        json.loads(task["result"])
+                        if isinstance(task["result"], str)
+                        else task["result"]
+                    )
+                    if isinstance(result_data, dict) and "duration_seconds" in result_data:
+                        duration = result_data["duration_seconds"]
+                except (json.JSONDecodeError, TypeError):
+                    pass  # If result isn't JSON or doesn't have duration, duration stays None
+
+            task["duration"] = duration
         tasks.extend(failed)
 
     return tasks
