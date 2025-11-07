@@ -128,11 +128,27 @@ celery_app.conf.beat_schedule = {
     "refresh-daily-ohlcv": {
         "task": "refresh_daily_ohlcv",
         "schedule": 86400.0,  # Daily (24 hours)
-        "args": [["SPY"]],  # Refresh SPY by default
+        "args": [
+            [
+                "SPY",  # S&P 500 (market regime indicators)
+                # Sector ETFs for Market Conditions sector breakdown
+                "XLK",  # Technology
+                "XLF",  # Financials
+                "XLE",  # Energy
+                "XLV",  # Healthcare
+                "XLY",  # Consumer Discretionary
+                "XLP",  # Consumer Staples
+                "XLI",  # Industrials
+                "XLU",  # Utilities
+                "XLRE",  # Real Estate
+                "XLB",  # Materials
+                "XLC",  # Communication Services
+            ]
+        ],
         "options": {"expires": 3600},  # Task expires after 1 hour
         # Notes:
         # - Runs daily at ~02:00 UTC
-        # - Ensures SPY data is fresh for market regime indicators
+        # - Ensures SPY + sector ETFs fresh for market indicators
         # - Fetches last 5 days to account for holidays/weekends
     },
     "update-technical-indicators-daily": {

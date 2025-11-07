@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
@@ -42,7 +44,9 @@ class MarketHealthScore(BaseModel):
     overall_score: int = Field(..., ge=0, le=100, description="Overall market health 0-100")
     overall_label: str = Field(..., description="Extreme Fear/Fear/Neutral/Bullish/Very Bullish")
     components: list[ComponentScore] = Field(..., description="Individual component scores")
-    sectors: list[SectorScore] = Field(default_factory=list, description="Sector performance breakdown")
+    sectors: list[SectorScore] = Field(
+        default_factory=list, description="Sector performance breakdown"
+    )
     last_updated: str = Field(..., description="Last update timestamp")
 
 
@@ -98,8 +102,6 @@ def calculate_market_health(
     Returns:
         MarketHealthScore with overall score and component breakdown
     """
-    from datetime import datetime
-
     components: list[ComponentScore] = []
     total_score = 0
     component_count = 0
@@ -272,17 +274,19 @@ def calculate_market_health(
 
         # Collect all valid change_pct values for relative comparison
         changes = [
-            change_pct
-            for _, (_, change_pct) in sector_data.items()
-            if change_pct is not None
+            change_pct for _, (_, change_pct) in sector_data.items() if change_pct is not None
         ]
 
         # Calculate thresholds for Leading/Neutral/Lagging
         if changes:
             changes_sorted = sorted(changes)
             # Top 33% = Leading, Middle 34% = Neutral, Bottom 33% = Lagging
-            top_threshold = changes_sorted[int(len(changes_sorted) * 0.67)] if len(changes_sorted) > 2 else 0.5
-            bottom_threshold = changes_sorted[int(len(changes_sorted) * 0.33)] if len(changes_sorted) > 2 else -0.5
+            top_threshold = (
+                changes_sorted[int(len(changes_sorted) * 0.67)] if len(changes_sorted) > 2 else 0.5
+            )
+            bottom_threshold = (
+                changes_sorted[int(len(changes_sorted) * 0.33)] if len(changes_sorted) > 2 else -0.5
+            )
         else:
             top_threshold = 0.5
             bottom_threshold = -0.5
@@ -361,8 +365,8 @@ async def get_market_conditions() -> MarketConditionsResponse:
             result = conn.execute(
                 """
                 SELECT close
-                FROM daily_ohlcv
-                WHERE symbol = %s
+                FROM day_bars
+                WHERE ticker = %s
                 ORDER BY date DESC
                 LIMIT 1 OFFSET 1
                 """,
