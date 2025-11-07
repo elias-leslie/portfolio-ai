@@ -1,35 +1,14 @@
 # Portfolio AI - Work Tracker
 
-**Last Updated:** 2025-11-07 (Comprehensive Task Review Complete)
+**Last Updated:** 2025-11-07 (Market Conditions Enhancement Complete)
 
-**📊 Implementation Reality Check:** Narrative Intelligence 100% complete, News Intelligence 75% complete
+**📊 Implementation Reality Check:** Narrative Intelligence 100% complete, News Intelligence 75% complete, Market Conditions enhanced with real-time scoring
 
 ---
 
 ## 🔄 Active (Currently Working)
 
-- **[TASK-0037] Fear & Greed Index - Market Regime Intelligence**
-  - **File:** `tasks/tasks-0037-fear-greed-index.md`
-  - **Status:** 75% complete - **ACTIVE** (resumed 11:15)
-  - **Started:** 2025-11-07
-  - **Last Updated:** 2025-11-07 11:16
-  - **Progress:** Infrastructure + tests complete, automation configured but not verified
-  - **Completed since pause:**
-    - ✅ Celery Beat schedule configured (3 new tasks)
-    - ✅ 21 tests written (all passing)
-    - ✅ 2 commits (feat + test)
-    - ✅ SPY data backfilled (259 days)
-    - ✅ Put/Call limitation documented (graceful degradation)
-  - **Remaining work:**
-    - ❌ Debug task execution timeout (manual trigger fails)
-    - ❌ Verify scheduled tasks execute correctly (need 24h or fix)
-    - ❌ Find Put/Call alternative source
-    - ❌ Backfill VIX/HY Spread historical data (252 days)
-    - ❌ Fix or remove PortfolioOverview
-    - ❌ Audit Investment Ideas
-    - ❌ Documentation updates (API_REFERENCE.md, ARCHITECTURE.md)
-    - ❌ Final verification checklist (V.1-V.6)
-  - **Handoff:** `tasks/PAUSE-HANDOFF-20251107-103800.md` (updated with status)
+None - Latest work completed (Market Conditions enhancements)
 
 ---
 
@@ -37,22 +16,7 @@
 
 ### TIER 1: Critical for User Goal (Easy-to-digest market intelligence)
 
-1. **[TASK-0037] Fear & Greed Index - Market Regime Intelligence** - NEW
-   - **File:** `tasks/prd-fear_and_greed.md`
-   - **Status:** 0% complete - Ready to start
-   - **Effort:** HIGH (3-5 dev-days)
-   - **Priority:** ⭐⭐⭐⭐⭐ CRITICAL
-   - **User Goal Alignment:** EXCELLENT - Provides easy-to-digest market regime context (0-100 score, color-coded)
-   - **What it does:**
-     - 10-component Fear & Greed index (7 equities signals + 3 cross-asset overlays)
-     - 10-year percentile engine for historical context
-     - Dashboard gauge with regime labels (Extreme Fear → Extreme Greed)
-     - Integration with watchlist narratives (risk management by regime)
-     - Data-backed edge: Cross-asset awareness (VIX, credit spreads, USD, Treasury vol)
-   - **Dependencies:** None - can start immediately
-   - **Value:** Helps amateur investor understand "where we are in the cycle" at a glance
-
-2. **[TASK-0035] News Intelligence - Phase 2: Plain Language UI** - PAUSED
+1. **[TASK-0035] News Intelligence - Phase 2: Plain Language UI** - PAUSED
    - **File:** `tasks/news-phase2-plain-language-ui.md`
    - **Status:** 40% complete - PAUSED 2025-11-06
    - **Effort:** MEDIUM (6-8 hours remaining, 1-2 days)
@@ -76,7 +40,7 @@
    - **Dependencies:** Benefits from Phase 3 cleanup (can run in parallel)
    - **Critical Gap:** Actionable insights generated in backend but NOT displayed in UI
 
-3. **[TASK-0036] News Intelligence - Phase 3: Cleanup & Polish**
+2. **[TASK-0036] News Intelligence - Phase 3: Cleanup & Polish**
    - **File:** `tasks/news-phase3-cleanup-and-polish.md`
    - **Status:** 0% complete
    - **Effort:** MEDIUM (6-8 hours, 1-2 days)
@@ -94,7 +58,7 @@
 
 ### TIER 2: Verification & Final Polish
 
-4. **[TASK-0038] News Source Enhancements - Final Verification** - MERGE
+3. **[TASK-0038] News Source Enhancements - Final Verification** - MERGE
    - **File:** `tasks/news-source-enhancements.md`
    - **Status:** 95% complete (only Task 11.3 remaining)
    - **Effort:** LOW (1 hour)
@@ -107,7 +71,7 @@
      - ✅ Max articles configurable (news_max_articles preference)
      - ✅ Round-robin vendor selection (prevents single-source dominance)
 
-5. **[TASK-0039] News Surface Implementation - Final QA** - VERIFICATION
+4. **[TASK-0039] News Surface Implementation - Final QA** - VERIFICATION
    - **File:** `tasks/tasks-implementation-notes-news-surface.md`
    - **Status:** 80% complete (just needs QA sign-off)
    - **Effort:** LOW (2 hours - manual QA checklist)
@@ -124,7 +88,7 @@
 
 ### TIER 3: Code Health (Not user-facing)
 
-6. **[TASK-0033] Code Quality Improvements (Health Check Remediation)** - PAUSED
+5. **[TASK-0033] Code Quality Improvements (Health Check Remediation)** - PAUSED
    - **File:** `tasks/tasks-0033-code-quality-improvements.md`
    - **Status:** 50% complete (Phase 1: 6/6 files refactored) - PAUSED 2025-11-04
    - **Effort:** HIGH (10-15 hours, 2-3 sessions)
@@ -142,7 +106,7 @@
 
 ### TIER 4: Future Vision (Strategic Roadmap)
 
-7. **[TASK-0040] Integrated Trading Intelligence Roadmap**
+6. **[TASK-0040] Integrated Trading Intelligence Roadmap**
    - **File:** `tasks/tasks-trading-intelligence-roadmap.md`
    - **Status:** 0% complete - FUTURE WORK
    - **Effort:** VERY HIGH (multi-week effort)
@@ -156,7 +120,7 @@
      - Performance metrics, attribution, drift detection
    - **Dependencies:**
      - News Intelligence Phase 2+3 complete
-     - Fear & Greed Index implemented
+     - Market Conditions enhancements complete (✅ DONE)
      - Fundamental scoring service complete (exists but not fully utilized)
    - **Timeline:** Q1 2026 earliest
    - **Value:** Ultimate destination for data-backed trading strategies
@@ -164,6 +128,21 @@
 ---
 
 ## ✅ Recently Completed (Last 5)
+
+- **Market Conditions Enhancement - Real-Time Scoring** ✓ 2025-11-07 (COMPLETE)
+  - **Implementation:** Replaced Fear & Greed Index with enhanced Market Conditions card
+  - **Status:** ⭐⭐⭐⭐⭐ READY FOR TESTING
+  - **What Changed:**
+    - ✅ Removed Fear & Greed Index (outdated daily EOD data)
+    - ✅ Removed Investment Ideas section from homepage
+    - ✅ Added real-time market health scoring (0-100 scale)
+    - ✅ 4 component scores: VIX, S&P 500, Treasury Yields, US Dollar
+    - ✅ Expandable details with interpretations and methodology
+    - ✅ Color-coded signals (Bullish/Neutral/Bearish)
+    - ✅ Cleaned up 1,777 lines of unused backend code
+  - **Backend:** ComponentScore and MarketHealthScore models in /api/market/conditions
+  - **Frontend:** Completely rewritten MarketConditions.tsx with expandable UI
+  - **User Impact:** Real-time market sentiment (not stale), clear visual indicators, educational context
 
 - **[PRD-0021] Narrative Intelligence System** ✓ 2025-11-06 (100% COMPLETE)
   - **Implementation:** Fully operational, all features working in production
@@ -209,13 +188,6 @@
     - ✅ Frontend resource cards with color-coded progress
     - ✅ 6 comprehensive tests passing
 
-- **[TASK-0032] Baseline/Whitelist System for Clean State Management** ✓ 2025-11-04 (COMPLETE)
-  - **Results:**
-    - ✅ Baseline capture script
-    - ✅ Process whitelist with 50+ patterns
-    - ✅ Fresh-start.sh with interactive/auto modes
-    - ✅ Comprehensive documentation
-
 ---
 
 ## 🗄️ Archived (Moved to archive/)
@@ -256,7 +228,7 @@
 - ✅ Status Dashboard: 100% complete (resources, controls, Celery monitoring)
 
 **Task List Health:**
-- Planned: 7 tasks (3 high priority, 2 medium, 1 low, 1 future)
+- Planned: 6 tasks (2 high priority, 2 medium, 1 low, 1 future)
 - Paused: 2 tasks (News Phase 2, Code Quality)
 - Completed: 5 recent + ~30 archived
 - Archived: 6 completed + 8 handoffs + 1 deprecated
@@ -274,19 +246,18 @@
 ## 🎯 Next Actions (Recommended Priority)
 
 **Immediate (User-Facing Value):**
-1. Start TASK-0037 (Fear & Greed Index) - No dependencies, high user value
-2. Resume TASK-0035 (News Phase 2) - Complete priority indicators + actionable insights display
-3. Start TASK-0036 (News Phase 3) - Fix source quality issues (Finnhub, SEC EDGAR, RSS)
+1. Resume TASK-0035 (News Phase 2) - Complete priority indicators + actionable insights display
+2. Start TASK-0036 (News Phase 3) - Fix source quality issues (Finnhub, SEC EDGAR, RSS)
 
 **Short-Term (Polish):**
-4. Complete TASK-0039 (News Surface QA) - Final verification, then archive
-5. Merge TASK-0038 into TASK-0036 - Consolidate news cleanup work
+3. Complete TASK-0039 (News Surface QA) - Final verification, then archive
+4. Merge TASK-0038 into TASK-0036 - Consolidate news cleanup work
 
 **Defer (Code Health):**
-6. TASK-0033 (Code Quality) - When user-facing features complete
+5. TASK-0033 (Code Quality) - When user-facing features complete
 
 **Future (Strategic):**
-7. TASK-0040 (Trading Intelligence) - After Tier 1-2 complete
+6. TASK-0040 (Trading Intelligence) - After Tier 1-2 complete
 
 ---
 
