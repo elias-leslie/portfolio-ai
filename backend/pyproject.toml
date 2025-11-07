@@ -121,6 +121,7 @@ ignore = [
 "__init__.py" = ["F401"]
 "app/main.py" = ["ARG001", "E402"]
 "tests/**/*.py" = ["PLC0415", "F841", "RUF043"]  # Test-specific: imports in fixtures, unused vars, raw regex in pytest.raises
+"app/api/**/*.py" = ["B008"]  # FastAPI Depends/Query in argument defaults is intentional
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]

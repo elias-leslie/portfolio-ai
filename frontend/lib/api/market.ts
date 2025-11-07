@@ -35,6 +35,30 @@ export interface PricesResponse {
   count: number;
 }
 
+export interface FearGreedReading {
+  date: string;
+  score: number;
+  label: "Extreme Fear" | "Fear" | "Neutral" | "Greed" | "Extreme Greed";
+  previous_score?: number;
+  score_change?: number;
+  signal_count: number;
+}
+
+export interface FearGreedComponent {
+  date: string;
+  vix_pct?: number;
+  momentum_pct?: number;
+  rsi_pct?: number;
+  pcr_pct?: number;
+  credit_pct?: number;
+  window_days: number;
+}
+
+export interface FearGreedResponse {
+  reading: FearGreedReading;
+  components?: FearGreedComponent;
+}
+
 /**
  * Get current market conditions (S&P 500, VIX, 10Y yield, USD index)
  */
@@ -51,4 +75,23 @@ export async function fetchPrices(symbols: string[]): Promise<PricesResponse> {
   return apiRequest<PricesResponse>(
     `/api/market/prices?symbols=${encodeURIComponent(symbolsParam)}`
   );
+}
+
+/**
+ * Get Fear & Greed Index reading (latest or specific date)
+ */
+export async function fetchFearGreed(
+  date?: string,
+  includeComponents?: boolean
+): Promise<FearGreedResponse> {
+  const params = new URLSearchParams();
+  if (date) params.append("date", date);
+  if (includeComponents) params.append("include_components", "true");
+
+  const queryString = params.toString();
+  const url = queryString
+    ? `/api/market/fear-greed?${queryString}`
+    : "/api/market/fear-greed";
+
+  return apiRequest<FearGreedResponse>(url);
 }

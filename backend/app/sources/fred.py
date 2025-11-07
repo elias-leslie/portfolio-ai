@@ -28,6 +28,7 @@ class FREDSource:
         "FEDFUNDS": "FEDFUNDS",  # Fed Funds Rate
         "CPI_YOY": "CPIAUCSL",  # Consumer Price Index
         "UNEMPLOYMENT": "UNRATE",  # Unemployment Rate
+        "HY_SPREAD": "BAMLH0A0HYM2",  # High-Yield Corporate Bond OAS (basis points)
     }
 
     def __init__(self, api_key: str | None = None) -> None:

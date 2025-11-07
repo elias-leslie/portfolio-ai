@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { MarketConditions } from "@/components/portfolio/MarketConditions";
+import { FearGreedGauge } from "@/components/market/FearGreedGauge";
 import { PortfolioOverview } from "@/components/portfolio/PortfolioOverview";
 import { IdeaCard } from "@/components/portfolio/IdeaCard";
 import { useIdeas, useGenerateIdeas } from "@/lib/hooks/useIdeas";
@@ -52,11 +53,17 @@ export default function Dashboard() {
           <MarketConditions />
         </div>
 
+        {/* Fear & Greed Index */}
+        <div className="mb-10">
+          <FearGreedGauge />
+        </div>
+
         {/* Portfolio Overview */}
-        <div className="mb-10 space-y-4">
+        {/* Temporarily disabled due to analytics.concentration error */}
+        {/* <div className="mb-10 space-y-4">
           <h2 className="text-xl font-semibold text-text">Portfolio Overview</h2>
           <PortfolioOverview />
-        </div>
+        </div> */}
 
         {/* Investment Ideas */}
         <div className="mb-12">

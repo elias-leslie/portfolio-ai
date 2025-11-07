@@ -8,7 +8,22 @@
 
 ## 🔄 Active (Currently Working)
 
-(None - Ready for next task)
+- **[TASK-0037] Fear & Greed Index - Market Regime Intelligence**
+  - **File:** `tasks/tasks-0037-fear-greed-index.md`
+  - **Status:** 50% complete - **PAUSED** 2025-11-07 10:38
+  - **Started:** 2025-11-07
+  - **Last Updated:** 2025-11-07 10:38
+  - **Progress:** Phases 0-7 complete (infrastructure), 8 critical issues identified
+  - **Next:** Fix Celery Beat schedule + SPY data ingestion automation
+  - **Pause Reason:** User request - low tokens, need fresh session for critical fixes
+  - **Handoff:** `tasks/PAUSE-HANDOFF-20251107-103800.md`
+  - **Critical Issues:**
+    - No scheduled SPY data ingestion (automatic daily pulls)
+    - Fear & Greed task not in Celery Beat schedule
+    - Put/Call data source discontinued (CBOE CSV stops at 2019)
+    - Insufficient historical data for percentiles (only 2 rows)
+    - PortfolioOverview broken (analytics.concentration error)
+    - Investment Ideas status unknown (working or abandoned?)
 
 ---
 

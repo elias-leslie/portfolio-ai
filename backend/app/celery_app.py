@@ -125,6 +125,35 @@ celery_app.conf.beat_schedule = {
         # - Runs daily at 4:30 PM ET (market close + 30 min)
         # - Not configurable by user (business logic requirement)
     },
+    "refresh-daily-ohlcv": {
+        "task": "refresh_daily_ohlcv",
+        "schedule": 86400.0,  # Daily (24 hours)
+        "args": [["SPY"]],  # Refresh SPY by default
+        "options": {"expires": 3600},  # Task expires after 1 hour
+        # Notes:
+        # - Runs daily at ~02:00 UTC (before Fear & Greed computation)
+        # - Ensures SPY data is fresh for market regime indicators
+        # - Fetches last 5 days to account for holidays/weekends
+    },
+    "update-technical-indicators-daily": {
+        "task": "update_technical_indicators",
+        "schedule": 86400.0,  # Daily (24 hours)
+        "args": [["SPY"]],  # Update SPY indicators
+        "options": {"expires": 3600},  # Task expires after 1 hour
+        # Notes:
+        # - Runs daily at ~02:30 UTC (after OHLCV refresh, before Fear & Greed)
+        # - Calculates RSI, SMA_200, and other indicators needed for Fear & Greed
+        # - Must run after refresh-daily-ohlcv completes
+    },
+    "compute-fear-greed-daily": {
+        "task": "compute_fear_greed_daily",
+        "schedule": 86400.0,  # Daily (24 hours)
+        "options": {"expires": 3600},  # Task expires after 1 hour
+        # Notes:
+        # - Runs daily at 03:30 UTC (after market close + data availability)
+        # - Depends on refresh-daily-ohlcv completing first
+        # - Not configurable by user (business logic requirement)
+    },
     # Future: Data cleanup task
     # Note: Commented example for future implementation
     # "cleanup-old-data": {
@@ -140,6 +169,7 @@ celery_app.conf.beat_schedule = {
 from app.tasks import (  # noqa: E402, F401
     agent_tasks,
     data_ingestion_tasks,
+    fear_greed_tasks,
     indicator_tasks,
     news_tasks,
     watchlist_tasks,

@@ -23,6 +23,57 @@ from app.storage import get_storage
 logger = get_logger(__name__)
 
 
+@celery_app.task(name="refresh_daily_ohlcv", bind=True)  # type: ignore[misc]
+def refresh_daily_ohlcv(  # type: ignore[no-untyped-def]
+    self, tickers: list[str] | None = None
+) -> dict[str, int | str]:
+    """Refresh latest OHLCV data for critical tickers (SPY by default).
+
+    Fetches the most recent 5 trading days to ensure fresh data,
+    scheduled to run daily to keep day_bars table current.
+
+    Args:
+        tickers: List of ticker symbols (default: ["SPY"])
+
+    Returns:
+        Dict with task results:
+        - task_id: Celery task ID
+        - ingest_run_id: Unique ID for this ingestion run
+        - tickers_count: Number of tickers processed
+        - rows_inserted: Total rows inserted into day_bars table
+        - errors: Number of tickers that failed to fetch
+
+    Example:
+        >>> refresh_daily_ohlcv.delay()  # Refreshes SPY
+        >>> refresh_daily_ohlcv.delay(["SPY", "QQQ", "IWM"])  # Custom list
+    """
+    if tickers is None:
+        tickers = ["SPY"]  # Default to SPY for Fear & Greed calculations
+
+    task_id = self.request.id
+
+    logger.info(
+        "refresh_daily_ohlcv_started",
+        task_id=task_id,
+        tickers=tickers,
+    )
+
+    try:
+        # Fetch last 5 trading days to ensure we have the latest data
+        # (accounts for holidays, weekends, and delayed data feeds)
+        result: dict[str, int | str] = ingest_historical_ohlcv(self, tickers=tickers, days=5)
+        return result
+
+    except Exception as e:
+        logger.error(
+            "refresh_daily_ohlcv_failed",
+            task_id=task_id,
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+        raise
+
+
 @celery_app.task(name="ingest_historical_ohlcv", bind=True)  # type: ignore[misc]
 def ingest_historical_ohlcv(  # type: ignore[no-untyped-def]
     self, tickers: list[str], days: int = 252
