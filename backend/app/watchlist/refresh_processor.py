@@ -24,7 +24,15 @@ from .calculator import (
     calculate_stop_loss,
 )
 from .earnings import fetch_earnings_date_cached
-from .fundamentals import classify_company_health, fetch_fundamentals_cached
+from .fundamentals import (
+    calculate_fundamental_score,
+    calculate_growth_score,
+    calculate_health_score,
+    calculate_sentiment_score,
+    calculate_valuation_score,
+    classify_company_health,
+    fetch_fundamentals_cached,
+)
 from .models import (
     ScoreWeights,
     SignalType,
@@ -347,19 +355,7 @@ def process_ticker_snapshot(
     technical_snapshot = technical_map.get(symbol, TechnicalSnapshot())
     technical_snapshot.price = price_data.price
 
-    # Calculate scores
-    breakdown = calculate_watchlist_scores(
-        WatchlistScoreInputs(
-            price=price_data,
-            price_change_pct=change_pct,
-            technical=technical_snapshot,
-            weights=default_weights,
-            now=now,
-            stale_ttl_minutes=stale_ttl_minutes,
-        )
-    )
-
-    # Fetch fundamentals and earnings data for narrative generation
+    # Fetch fundamentals and earnings data (needed for both scoring and narrative)
     fundamentals_data = None
     company_health_str: str | None = None
     earnings_date_obj: datetime | None = None
@@ -370,6 +366,12 @@ def process_ticker_snapshot(
         try:
             fundamentals_data = fetch_fundamentals_cached(conn, symbol, ttl_days=1)
             if fundamentals_data:
+                # Calculate 4-pillar fundamental scores
+                fundamentals_data.valuation_score = calculate_valuation_score(fundamentals_data)
+                fundamentals_data.growth_score = calculate_growth_score(fundamentals_data)
+                fundamentals_data.health_score = calculate_health_score(fundamentals_data)
+                fundamentals_data.sentiment_score = calculate_sentiment_score(fundamentals_data)
+                fundamentals_data.fundamental_score = calculate_fundamental_score(fundamentals_data)
                 company_health_str = classify_company_health(fundamentals_data)
         except Exception as fundamentals_error:
             logger.warning(
@@ -391,6 +393,19 @@ def process_ticker_snapshot(
                 symbol=symbol,
                 error=str(earnings_error),
             )
+
+    # Calculate scores (3-pillar: price/technical/fundamental)
+    breakdown = calculate_watchlist_scores(
+        WatchlistScoreInputs(
+            price=price_data,
+            price_change_pct=change_pct,
+            technical=technical_snapshot,
+            fundamental=fundamentals_data,  # NEW: Include fundamental data
+            weights=default_weights,
+            now=now,
+            stale_ttl_minutes=stale_ttl_minutes,
+        )
+    )
 
     # Query volume data from day_bars (latest + 20-day average)
     current_volume: float | None = None
