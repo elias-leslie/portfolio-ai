@@ -6,6 +6,8 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Function to kill process gracefully, with force-kill fallback
 kill_process() {
     local pattern="$1"
@@ -54,8 +56,7 @@ echo ""
 
 # Stop services
 kill_process "next.*dev" "Frontend"
-kill_process "celery.*worker" "Celery worker"
-kill_process "celery.*beat" "Celery beat"
+"$SCRIPT_DIR/stop-celery.sh" 2>/dev/null || { kill_process "celery.*worker" "Celery worker"; kill_process "celery.*beat" "Celery beat"; }
 kill_process "uvicorn.*main:app" "Backend API"
 
 # Ask about Redis

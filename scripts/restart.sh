@@ -12,32 +12,47 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 BACKEND_DIR="$PROJECT_ROOT/backend"
 FRONTEND_DIR="$PROJECT_ROOT/frontend"
 
-# Function to kill process gracefully, with force-kill fallback
+# Function to kill process tree (parent + all children) gracefully, with force-kill fallback
 kill_process() {
     local pattern="$1"
     local name="$2"
     local timeout=5
 
-    # Try graceful kill
-    if pkill -f "$pattern" 2>/dev/null; then
-        # Wait for process to die
-        for i in $(seq 1 $timeout); do
-            if ! pgrep -f "$pattern" > /dev/null 2>&1; then
-                return 0
-            fi
-            sleep 1
-        done
+    # Get all matching PIDs
+    local pids=$(pgrep -f "$pattern" 2>/dev/null || true)
 
-        # Process didn't die, force kill
-        echo "⚠ $name didn't stop gracefully, force killing..."
-        pkill -9 -f "$pattern" 2>/dev/null || true
-        sleep 1
+    if [ -z "$pids" ]; then
+        return 0  # No processes to kill
+    fi
 
-        # Check if we need sudo
-        if pgrep -f "$pattern" > /dev/null 2>&1; then
-            echo "⚠ Need elevated permissions to kill $name"
-            sudo pkill -9 -f "$pattern" 2>/dev/null || true
+    # Try graceful kill (SIGTERM)
+    for pid in $pids; do
+        # Kill the process and all its children
+        pkill -TERM -P "$pid" 2>/dev/null || true
+        kill -TERM "$pid" 2>/dev/null || true
+    done
+
+    # Wait for processes to die
+    for i in $(seq 1 $timeout); do
+        if ! pgrep -f "$pattern" > /dev/null 2>&1; then
+            return 0
         fi
+        sleep 1
+    done
+
+    # Processes didn't die, force kill (SIGKILL)
+    echo "⚠ $name didn't stop gracefully, force killing..."
+    pids=$(pgrep -f "$pattern" 2>/dev/null || true)
+    for pid in $pids; do
+        # Kill the process tree
+        pkill -9 -P "$pid" 2>/dev/null || true
+        kill -9 "$pid" 2>/dev/null || true
+    done
+    sleep 1
+
+    # Final check
+    if pgrep -f "$pattern" > /dev/null 2>&1; then
+        echo "⚠ Some $name processes may still be running (check manually)"
     fi
 }
 
@@ -49,8 +64,7 @@ echo ""
 # Stop services (but not Redis)
 echo "Stopping services..."
 kill_process "next.*dev" "Frontend"
-kill_process "celery.*beat" "Celery Beat"
-kill_process "celery.*worker" "Celery Worker"
+"$SCRIPT_DIR/stop-celery.sh" 2>/dev/null || kill_process "celery" "Celery"
 kill_process "uvicorn.*main:app" "Backend"
 sleep 1
 echo "✓ Services stopped"
@@ -86,34 +100,8 @@ else
 fi
 echo ""
 
-# Start Celery Worker
-echo "Starting Celery worker..."
-cd "$BACKEND_DIR"
-nohup celery -A app.celery_app worker --concurrency=2 --loglevel=info > /tmp/portfolio-celery-worker.log 2>&1 &
-CELERY_PID=$!
-sleep 2
-
-if pgrep -f "celery.*worker" > /dev/null; then
-    echo "✓ Celery worker started (PID: $CELERY_PID)"
-else
-    echo "⚠ Warning: Celery worker may not have started properly"
-    echo "  Check logs: tail -f /tmp/portfolio-celery-worker.log"
-fi
-echo ""
-
-# Start Celery Beat (periodic tasks scheduler)
-echo "Starting Celery beat..."
-cd "$BACKEND_DIR"
-nohup celery -A app.celery_app beat --loglevel=info > /tmp/portfolio-celery-beat.log 2>&1 &
-BEAT_PID=$!
-sleep 2
-
-if pgrep -f "celery.*beat" > /dev/null; then
-    echo "✓ Celery beat started (PID: $BEAT_PID)"
-else
-    echo "⚠ Warning: Celery beat may not have started properly"
-    echo "  Check logs: tail -f /tmp/portfolio-celery-beat.log"
-fi
+# Start Celery Worker and Beat using dedicated script
+"$SCRIPT_DIR/start-celery.sh"
 echo ""
 
 # Start Frontend
