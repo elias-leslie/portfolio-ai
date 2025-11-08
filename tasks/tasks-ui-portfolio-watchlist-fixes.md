@@ -22,10 +22,35 @@
 ❌ **You CANNOT (or should avoid):**
 - Run Python venv commands (they hang in sandbox)
 - Start backend/frontend services
-- Run tests (pytest, npm test)
+- Run tests (pytest, npm test, vitest)
 - Execute database migrations
 - Test API endpoints
 - Use browser automation
+- **ANY commands from these scripts**: restart.sh, start.sh, status.sh
+- **ANY curl/http requests** to localhost or 192.168.8.233
+- **ANY psql/database commands**
+- **ANY npm/pip install or runtime commands**
+
+**❌ EXAMPLES OF WHAT NOT TO RUN:**
+```bash
+# DON'T run these - they only work in dev environment:
+source backend/.venv/bin/activate          # ❌ Hangs in sandbox
+bash ~/portfolio-ai/scripts/restart.sh     # ❌ No dev environment access
+pytest tests/                               # ❌ No venv in sandbox
+npm test                                    # ❌ No runtime environment
+curl http://localhost:8000/api/health      # ❌ No services running
+psql -U portfolio_ai_user -d portfolio_ai  # ❌ No database access
+python backend/app/main.py                 # ❌ No runtime execution
+```
+
+**✅ INSTEAD, DO THIS:**
+```bash
+# Read code to understand what to change:
+cat backend/app/api/portfolio.py           # ✅ Read files
+grep -r "account_id" frontend/             # ✅ Search code
+git status                                  # ✅ Check changes
+git add -A && git commit                   # ✅ Commit code
+```
 
 **Your Workflow:**
 1. **Research thoroughly** - Read code, understand architecture, document findings
