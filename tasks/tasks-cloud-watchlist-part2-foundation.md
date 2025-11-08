@@ -20,6 +20,34 @@
 
 ---
 
+## 🎨 Design References (MUST FOLLOW)
+
+**All UI implementation must align with these design references:**
+
+1. **Text Guide**: `docs/watchlist_design_guide.md`
+   - ASCII mockups showing exact layout for all views
+   - Complete feature descriptions
+   - Data flow architecture
+
+2. **Visual Mockups**: `docs/design_references/watchlist_design_reference/`
+   - High-fidelity UI mockups with exact spacing, colors, fonts
+   - Each folder contains: `screen.png` (visual) + `code.html` (Tailwind implementation)
+   - Main table view, expanded row, settings panel, search/filter bar
+
+**Implementation Priority:**
+- Backend: Follow text guide for data structures and API responses
+- Frontend: Use `code.html` files as reference for exact Tailwind classes, spacing, colors
+  - Tailwind config in HTML: `primary: #135bec`, `background-dark: #101622`
+  - Font: Inter (already configured)
+  - Dark mode: `dark:` prefix throughout
+
+**⚠️ Known Discrepancy - Sentiment Placement:**
+- **Mockup**: Shows Sentiment as 4th top-level pillar (Price/Technical/Fundamental/Sentiment)
+- **Implementation**: Sentiment is sub-weight of Fundamental (one of 4 pillars: Valuation/Growth/Health/Sentiment)
+- **Decision**: Using implementation approach (3 main pillars) - architecturally cleaner
+
+---
+
 ## ⚠️ IMPORTANT: Cloud Environment Constraints
 
 **See Part 1 (tasks-cloud-watchlist-part1-quick-wins.md) for full cloud environment constraints.**

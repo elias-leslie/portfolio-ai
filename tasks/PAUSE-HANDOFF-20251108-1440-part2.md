@@ -6,6 +6,23 @@
 
 ---
 
+## 🎨 Design References (Critical)
+
+**All remaining work MUST align with design references:**
+
+1. **Text Guide**: `docs/watchlist_design_guide.md`
+2. **Visual Mockups**: `docs/design_references/watchlist_design_reference/`
+   - **Settings panel**: `watchlist_settings_panel/code.html` - Exact Tailwind implementation for sliders
+   - **Expanded row**: `expanded_row_-_full_intelligence_view/code.html` - Score breakdown HTML/CSS
+   - Each mockup has `screen.png` (visual) + `code.html` (implementation)
+
+**⚠️ Sentiment Weight Discrepancy:**
+- Mockup shows Sentiment as 4th top-level pillar
+- Implementation has Sentiment as sub-weight of Fundamental
+- **Using implementation approach** (cleaner architecture)
+
+---
+
 ## Current Status
 
 ### ✅ **Done This Session (Local Agent #1):**

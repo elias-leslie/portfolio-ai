@@ -28,6 +28,29 @@ Completed 3 of 9 tasks from Part 2 Foundation. Core architecture and models are 
 
 ---
 
+## 🎨 Design References
+
+**IMPORTANT:** All UI implementation must align with these design references:
+
+1. **Text Guide**: `docs/watchlist_design_guide.md`
+   - Complete ASCII mockups of all views
+   - Column descriptions and data flow
+   - Color scheme and accessibility guidelines
+
+2. **Visual Mockups**: `docs/design_references/watchlist_design_reference/`
+   - `watchlist_main_table_view/` - Main table layout (screen.png + code.html)
+   - `expanded_row_-_full_intelligence_view/` - Expanded row details (screen.png + code.html)
+   - `watchlist_settings_panel/` - Settings sliders (screen.png + code.html)
+   - `search_and_filter_bar/` - Search and filter UI (screen.png + code.html)
+   - **NOTE**: Each folder has `code.html` with Tailwind CSS implementation - USE THIS for exact styling!
+
+**⚠️ Known Discrepancy:**
+- Mockup shows Sentiment as 4th top-level weight (Price/Technical/Fundamental/Sentiment)
+- Implementation has Sentiment as sub-weight of Fundamental (Valuation/Growth/Health/Sentiment)
+- **Current approach:** Keep implementation (3-pillar), update mockup if needed
+
+---
+
 ## ✅ Changes Completed by Cloud Agent
 
 ### Backend (3 files modified)
