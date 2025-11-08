@@ -24,14 +24,20 @@
 ❌ **You CANNOT (or should avoid):**
 - Run Python venv commands (they hang in sandbox)
 - Start backend/frontend services
-- Run tests (pytest, npm test, vitest)
-- Execute database migrations
-- Test API endpoints
-- Use browser automation
+- Run runtime tests (pytest, npm test, vitest - need running services)
+- Execute database migrations (provide SQL scripts instead)
+- Test API endpoints (no services running)
+- Use browser automation (no services running)
 - **ANY commands from these scripts**: restart.sh, start.sh, status.sh
 - **ANY curl/http requests** to localhost or 192.168.8.233
 - **ANY psql/database commands**
 - **ANY npm/pip install or runtime commands**
+
+✅ **You SHOULD run (static analysis - no services needed):**
+- `ruff check backend/` - Python linting
+- `ruff format --check backend/` - Python formatting check
+- `mypy backend/app/` - Python type checking
+- `npx eslint frontend/` - TypeScript/React linting (if needed)
 
 **❌ EXAMPLES OF WHAT NOT TO RUN:**
 ```bash
@@ -50,6 +56,13 @@ python backend/app/main.py                 # ❌ No runtime execution
 # Read code to understand what to change:
 cat backend/app/api/portfolio.py           # ✅ Read files
 grep -r "account_id" frontend/             # ✅ Search code
+
+# Run static analysis after making changes:
+ruff check backend/                         # ✅ Check Python code quality
+ruff format backend/                        # ✅ Format Python code
+mypy backend/app/                           # ✅ Check Python types
+
+# Commit your work:
 git status                                  # ✅ Check changes
 git add -A && git commit                   # ✅ Commit code
 ```
@@ -57,13 +70,16 @@ git add -A && git commit                   # ✅ Commit code
 **Your Workflow:**
 1. **Research thoroughly** - Read code, understand architecture, document findings
 2. **Expand task list** - Add detailed subtasks based on your research
-3. **Implement what you can** - Write code changes (no need to test)
-4. **Commit to git** - Create feature branch, commit all changes
-5. **Provide handoff** - Give user git commands and testing steps for dev environment
+3. **Implement code changes** - Write/edit Python and TypeScript files
+4. **Run static analysis** - Use ruff, mypy, eslint to catch issues early
+5. **Fix any linting errors** - Clean code before committing
+6. **Commit to git** - Create feature branch, commit all changes
+7. **Provide handoff** - Give user git commands and testing steps for dev environment
 
 **When Done:**
-- Commit all changes to a new branch: `git checkout -b feature/portfolio-watchlist-fixes`
-- Provide: (1) git pull command, (2) testing steps, (3) what's left to do
+- Work on whatever branch cloud session created (check `git branch`)
+- Commit all changes to that branch
+- Provide: (1) branch name, (2) testing steps, (3) what's left to do
 - User will pull your branch and continue in dev environment with full testing
 
 ---
@@ -87,17 +103,22 @@ Fix data model confusion and UI issues with portfolio accounts, watchlist items,
 **Objective**: Fully understand current implementation and flesh out detailed task list
 
 - [ ] Research current data model relationships
+  - Read backend/app/storage/ files for database schema
   - How are watchlist_items related to accounts? (currently: account_id FK)
   - How are portfolio positions related to accounts? (expected relationship)
   - What is the actual intended use case for each?
-- [ ] Test current UI behavior
-  - Portfolio page: How do accounts and positions display?
-  - Watchlist page: How does it use account_id?
-  - News page: Current filtering options
+- [ ] Read and analyze current UI code
+  - Portfolio page: Read frontend/app/portfolio/page.tsx and components
+  - Watchlist page: Read frontend/app/watchlist/page.tsx
+  - News page: Read frontend/app/news/page.tsx - current filtering implementation
 - [ ] Identify all affected files
   - Backend: API endpoints, data models, database schema
   - Frontend: Pages, components, API clients
+  - Make comprehensive list with file paths
 - [ ] Document findings and create detailed implementation plan
+  - What currently exists vs what needs to change
+  - Specific code changes per file
+  - Any database migrations needed (provide SQL)
 - [ ] Expand this task list with specific subtasks based on findings
 
 **Output**: Updated task list with detailed subtasks for items 2-4 below
@@ -213,9 +234,12 @@ Fix data model confusion and UI issues with portfolio accounts, watchlist items,
 
 **Before finishing, do this:**
 
-1. **Commit all changes**:
+1. **Check your branch and commit all changes**:
    ```bash
-   git checkout -b feature/portfolio-watchlist-fixes
+   # Check which branch cloud session created:
+   git branch
+
+   # Commit all changes to that branch:
    git add -A
    git commit -m "feat: portfolio/watchlist UI and data model fixes
 
@@ -228,9 +252,9 @@ Fix data model confusion and UI issues with portfolio accounts, watchlist items,
    ```
 
 2. **Provide to user**:
-   - Git branch name: `feature/portfolio-watchlist-fixes`
-   - Pull command: `git fetch origin && git checkout feature/portfolio-watchlist-fixes`
-   - List of files changed
+   - **Git branch name**: (output of `git branch --show-current`)
+   - Pull command: `git fetch origin && git checkout <branch-name>`
+   - List of files changed (output of `git diff --name-only main`)
    - Testing steps (what to test in dev environment)
    - What's implemented vs what needs dev environment to complete
 
