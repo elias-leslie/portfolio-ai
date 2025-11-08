@@ -1,8 +1,10 @@
 # Portfolio AI - Work Tracker
 
-**Last Updated:** 2025-11-07 (Service Account Post-Reboot Verification completed)
+**Last Updated:** 2025-11-07 (Service Account Verification + Portfolio/Watchlist Data Model Issues Identified)
 
-**📊 Implementation Reality Check:** Narrative Intelligence 100% complete, News Intelligence 75% complete, Market Conditions enhanced with per-item timestamps, System resource usage optimized (48% RAM reduction), Service account setup verified and hardened
+**📊 Implementation Reality Check:** Narrative Intelligence 100% complete, News Intelligence 75% complete, Market Conditions enhanced with per-item timestamps, System resource usage optimized (48% RAM reduction), Service account setup verified and hardened, CASCADE delete fixed, watchlist restored
+
+**⚠️ Critical Issue Fixed This Session**: CASCADE delete removed all watchlist items when deleting portfolio accounts - temporarily fixed with RESTRICT, but deeper UI/data model issues need addressing
 
 ---
 
@@ -13,6 +15,27 @@
 ---
 
 ## 📋 Planned (Prioritized by User Goal & Dependencies)
+
+### TIER 0: Critical Bug Fixes & UI Issues (URGENT)
+
+1. **[TASK-NEW] Portfolio/Watchlist UI & Data Model Fixes** - NEW
+   - **File:** `tasks/tasks-ui-portfolio-watchlist-fixes.md`
+   - **Status:** 0% complete - needs research first
+   - **Effort:** MEDIUM-HIGH (research + implementation, 8-12 hours)
+   - **Priority:** ⭐⭐⭐⭐⭐ URGENT (data model confusion, UX issues)
+   - **Created:** 2025-11-07
+   - **What it fixes:**
+     - Portfolio page UI: Accounts should have expandable positions (not separate cards)
+     - Watchlist independence: Remove/fix account_id relationship (watchlist != positions)
+     - News page: Add "My Portfolio" filter (Market/Watchlist/Portfolio toggle)
+     - Data model: Clarify "monitoring stocks" (watchlist) vs "owning stocks" (positions)
+   - **Root Cause:**
+     - CASCADE delete on watchlist_items → portfolio_accounts caused data loss
+     - UI confusion between accounts/positions
+     - Watchlist incorrectly tied to accounts (should be global)
+   - **First Task:** Research current implementation and expand task list with details
+   - **Impact:** Prevents future data loss, improves UX, clarifies data model
+   - **Dependencies:** None - can start immediately
 
 ### TIER 1: Critical for User Goal (Easy-to-digest market intelligence)
 
