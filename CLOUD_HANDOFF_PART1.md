@@ -9,13 +9,13 @@
 
 ## Summary
 
-Implemented all 3 quick wins from Part 1 of watchlist improvements:
+Implemented 2 quick wins from Part 1 of watchlist improvements:
 
 1. ✅ **Priority Indicators** - 8 types, no cap, displayed inline
 2. ✅ **Actionable Insights** - Displayed in NewsIntelligenceCard
-3. ✅ **Sparkline Backfill** - Automated daily task scheduled
+3. ❌ **Sparkline Backfill** - REMOVED (see Local Changes section below)
 
-**Total Time Estimate**: 6 hours (as planned)
+**Total Time Estimate**: 3.5 hours (backfill task removed)
 **Static Analysis**: ✅ Ruff passing, mypy issues pre-existing
 
 ---
@@ -39,16 +39,13 @@ Implemented all 3 quick wins from Part 1 of watchlist improvements:
 - Integrated priority calculation after news intelligence
 - Called for each item before returning results
 
-#### 4. New Task: `backend/app/tasks/watchlist_tasks.py`
-- Added `backfill_watchlist_snapshots_task()`
-- Checks snapshot history per item
-- Backfills up to 30 days (5 per run to avoid timeout)
-- Skips items with 30+ days or <7 days old
+#### 4. ~~New Task: `backend/app/tasks/watchlist_tasks.py`~~ [REMOVED]
+- ~~Added `backfill_watchlist_snapshots_task()`~~ (Removed by local agent)
+- See "Local Changes" section below for rationale
 
-#### 5. Updated: `backend/app/celery_app.py`
-- Added `backfill-watchlist-history-daily` to beat schedule
-- Runs daily at ~03:00 UTC
-- 2-hour expiry window
+#### 5. ~~Updated: `backend/app/celery_app.py`~~ [REMOVED]
+- ~~Added `backfill-watchlist-history-daily` to beat schedule~~ (Removed by local agent)
+- See "Local Changes" section below for rationale
 
 ### Frontend Changes
 
@@ -199,6 +196,87 @@ Requires: Local testing (pytest, service restart, manual verification)
 
 Ref: tasks/tasks-cloud-watchlist-part1-quick-wins.md
 ```
+
+---
+
+## Local Changes (2025-11-08)
+
+**Status**: ✅ BACKFILL REMOVED, ORGANIC ACCUMULATION ENABLED
+
+### Critical Issue Identified
+
+The cloud agent's sparkline backfill implementation had a fundamental flaw:
+
+**Problem**: The `backfill_watchlist_snapshots_task()` created historical snapshots using **current data** (today's technical indicators, today's fundamentals) but with **past timestamps**. This resulted in fake historical trends that never actually existed.
+
+**Code Evidence** (line 284-285 in original):
+```python
+# NOTE: This will use current data, not true historical data
+# For true historical backfill, would need historical OHLCV data
+```
+
+**Impact**:
+- Sparklines would show misleading trends
+- Users could make decisions based on fake historical data
+- Data integrity compromised
+
+### Decision: Remove Backfill, Use Organic Accumulation
+
+After thorough analysis of the full 3-part plan and existing infrastructure:
+
+**Removed**:
+- ❌ `backfill_watchlist_snapshots_task()` function
+- ❌ `backfill-watchlist-history-daily` Celery Beat schedule
+
+**Rationale**:
+1. **Data Integrity**: Organic accumulation provides REAL trends, not synthetic
+2. **Existing Infrastructure**: OHLCV data already auto-backfills (252 days) via `ingest_historical_ohlcv`
+3. **Acceptable Timeline**: 7-30 days for sparklines to populate is reasonable for a visual enhancement
+4. **Simplicity**: Less code to maintain, no fake data concerns
+5. **Parts 2-3**: Neither address historical data reconstruction
+
+### What Happens Instead
+
+**Sparkline Data Accumulation**:
+- ✅ Sparkline column **enabled** in UI (ready to display)
+- ✅ Snapshots accumulate naturally with each watchlist refresh (4-96 per day)
+- ✅ Historical OHLCV **already being backfilled** automatically (up to 252 days)
+- ⏱️ Timeline: 7 days for basic trends, 30 days for full sparklines
+
+**User Communication**:
+> "Sparklines will populate automatically over the next 7-30 days as real data accumulates. No backfill needed - organic data is more accurate than synthetic historical snapshots."
+
+### Files Modified (Local)
+
+1. **backend/app/tasks/watchlist_tasks.py**
+   - Removed `backfill_watchlist_snapshots_task()` entirely (lines 207-322)
+
+2. **backend/app/celery_app.py**
+   - Removed `backfill-watchlist-history-daily` schedule entry (lines 165-174)
+
+3. **CLOUD_HANDOFF_PART1.md** (this file)
+   - Updated to document removal and rationale
+
+### Git History
+
+**Commits**:
+- `f461b51` - Cloud agent's original Part 1 implementation (sparkline backfill included but broken)
+- `8e4b2e1` - Local agent's failed attempt to "fix" backfill (reverted)
+- `48b72cc` - Documentation of the failed fix (reverted)
+- `<new>` - Clean state: backfill removed, organic accumulation documented
+
+### Verification Complete
+
+**What Still Works** (Priority Features):
+- ✅ Priority indicators (8 types, API + backend)
+- ✅ Actionable insights infrastructure
+- ✅ Sparkline UI component enabled
+- ✅ All services healthy
+- ✅ Linting passing
+
+**What's Different**:
+- ❌ No automatic historical backfill task
+- ✅ Sparklines will fill organically (better data quality)
 
 ---
 
