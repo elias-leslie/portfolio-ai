@@ -1,19 +1,14 @@
 # Portfolio AI - Work Tracker
 
-**Last Updated:** 2025-11-07 (System Resource Optimization completed)
+**Last Updated:** 2025-11-07 (Service Account Post-Reboot Verification completed)
 
-**📊 Implementation Reality Check:** Narrative Intelligence 100% complete, News Intelligence 75% complete, Market Conditions enhanced with per-item timestamps, System resource usage optimized (48% RAM reduction)
+**📊 Implementation Reality Check:** Narrative Intelligence 100% complete, News Intelligence 75% complete, Market Conditions enhanced with per-item timestamps, System resource usage optimized (48% RAM reduction), Service account setup verified and hardened
 
 ---
 
 ## 🔄 Active (Currently Working)
 
-- **[INFRA] Service Account Setup - Post-Reboot Verification**
-  - **File:** `tasks/PAUSE-HANDOFF-20251107-2116-reboot.md`
-  - **Status:** PAUSED - Awaiting server reboot
-  - **Started:** 2025-11-07
-  - **Pause Reason:** Reboot required to verify service account setup
-  - **Next:** Reboot server, run verification steps 1-6 from handoff
+*No active work - ready for next task*
 
 ---
 
@@ -171,6 +166,51 @@
 ---
 
 ## ✅ Recently Completed (Last 5)
+
+- **Service Account Setup - Post-Reboot Verification** ✓ 2025-11-07 (COMPLETE)
+  - **Implementation:** Verified service account setup survives reboot, fixed 3 post-reboot issues
+  - **Duration:** ~30 minutes (verification + fixes + documentation)
+  - **Commits:** 4c3c595 (feat: service account post-reboot verification and fixes)
+  - **Status:** ✅ All services auto-start on boot as portfolio-ai user
+  - **Verification Results:**
+    - ✅ All 4 services (backend, celery, beat, frontend) auto-started on boot
+    - ✅ Services running as portfolio-ai user (system account)
+    - ✅ RuntimeDirectory /run/portfolio-ai created automatically by systemd
+    - ✅ Backend API fully functional (health check passing)
+    - ✅ Celery tasks executing successfully
+    - ✅ Services persist after user logout
+  - **Issues Found & Fixed:**
+    1. Frontend permissions: app/status had 700 (owner-only) → fixed to 750 (group readable)
+    2. Frontend .next cache: Ownership conflict → cleaned and recreated by portfolio-ai user
+    3. HuggingFace cache: portfolio-ai can't write to ~/.cache → created /var/cache/portfolio-ai/huggingface
+  - **Scripts Created:**
+    - `scripts/fix-post-reboot-issues.sh` - Automated fix script
+    - `scripts/fix-cache-permissions.sh` - HuggingFace cache helper
+    - `scripts/fix-numba-cache.sh` - Numba cache helper
+    - `scripts/apply-fixes-manual.sh` - Manual fix script (sudo workaround)
+    - `scripts/update-to-hf-home.sh` - Future-proof HF_HOME migration
+  - **setup-service-account.sh Updates:**
+    - Added HuggingFace cache directory creation
+    - Added HF_HOME env var to backend, celery, beat services (future-proof)
+    - Added frontend app/ and components/ permission fixes
+    - All fixes incorporated for future deployments
+  - **Documentation:**
+    - `tasks/POST-REBOOT-VERIFICATION-RESULTS.md` - Comprehensive verification report
+    - `tasks/PAUSE-HANDOFF-20251107-2116-reboot.md` - Pre-reboot state
+  - **Files Modified:**
+    - `/etc/systemd/system/portfolio-backend.service` - Added TRANSFORMERS_CACHE env var
+    - `/etc/systemd/system/portfolio-celery.service` - Added TRANSFORMERS_CACHE env var
+    - `/etc/systemd/system/portfolio-beat.service` - Added TRANSFORMERS_CACHE env var
+    - `/var/cache/portfolio-ai/huggingface` - Created for transformers cache
+    - `~/portfolio-ai/frontend/{app,components}` - Fixed permissions (g+rX)
+    - `~/portfolio-ai/frontend/.next` - Removed and recreated with correct ownership
+  - **Final State:**
+    - All services: active and running as portfolio-ai
+    - Backend: healthy (142s uptime after fixes)
+    - Frontend: HTTP 200 OK (accessible from network)
+    - Cache errors: eliminated (TRANSFORMERS_CACHE working, deprecation warning only)
+  - **User Impact:** Production-ready service account setup confirmed, all services auto-start on boot
+  - **Next:** Optional HF_HOME migration (TRANSFORMERS_CACHE deprecated but still works)
 
 - **System Resource Optimization** ✓ 2025-11-07 (COMPLETE)
   - **Implementation:** Comprehensive systemd service optimization and resource usage reduction

@@ -129,7 +129,7 @@ Environment="PATH=$BACKEND_DIR/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbi
 Environment="DB_POOL_SIZE=3"
 Environment="DB_MAX_OVERFLOW=2"
 Environment="NUMBA_CACHE_DIR=/var/cache/portfolio-ai/numba"
-Environment="TRANSFORMERS_CACHE=/var/cache/portfolio-ai/huggingface"
+Environment="HF_HOME=/var/cache/portfolio-ai/huggingface"
 EnvironmentFile=-$BACKEND_DIR/.env
 RuntimeDirectory=portfolio-ai
 ExecStart=$BACKEND_DIR/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
@@ -157,7 +157,7 @@ Group=$SERVICE_GROUP
 WorkingDirectory=$BACKEND_DIR
 Environment="PATH=$BACKEND_DIR/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="NUMBA_CACHE_DIR=/var/cache/portfolio-ai/numba"
-Environment="TRANSFORMERS_CACHE=/var/cache/portfolio-ai/huggingface"
+Environment="HF_HOME=/var/cache/portfolio-ai/huggingface"
 EnvironmentFile=-$BACKEND_DIR/.env
 RuntimeDirectory=portfolio-ai
 ExecStart=$BACKEND_DIR/.venv/bin/celery -A app.celery_app worker --loglevel=info --concurrency=2
@@ -185,7 +185,7 @@ Group=$SERVICE_GROUP
 WorkingDirectory=$BACKEND_DIR
 Environment="PATH=$BACKEND_DIR/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="NUMBA_CACHE_DIR=/var/cache/portfolio-ai/numba"
-Environment="TRANSFORMERS_CACHE=/var/cache/portfolio-ai/huggingface"
+Environment="HF_HOME=/var/cache/portfolio-ai/huggingface"
 EnvironmentFile=-$BACKEND_DIR/.env
 RuntimeDirectory=portfolio-ai
 ExecStart=$BACKEND_DIR/.venv/bin/celery -A app.celery_app beat --loglevel=info
