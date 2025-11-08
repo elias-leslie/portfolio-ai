@@ -11,11 +11,13 @@ export interface ScoreComponent {
     stale: boolean;
     updated_at?: string;
     metadata?: Record<string, unknown>;
+    sub_scores?: Record<string, number>; // NEW: Sub-metric scores
 }
 
 export interface ScoreBreakdown {
     price: ScoreComponent;
     technical: ScoreComponent;
+    fundamental?: ScoreComponent | null; // NEW: Fundamental pillar (optional)
     overall: number;
 }
 

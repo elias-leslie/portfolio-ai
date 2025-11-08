@@ -620,6 +620,231 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
                                 </div>
                             )}
 
+                            {/* Score Breakdown (3-Pillar) */}
+                            {hasScore && (
+                                <div className="border-t border-border pt-3">
+                                    <h5 className="text-xs font-semibold text-text mb-3">
+                                        📊 Score Breakdown
+                                    </h5>
+                                    <div className="space-y-2">
+                                        {/* Overall Score */}
+                                        <div>
+                                            <div className="flex items-center justify-between text-sm mb-1">
+                                                <span className="text-text-muted">
+                                                    Overall
+                                                </span>
+                                                <span className="font-bold text-text">
+                                                    {item.current_score?.overall.toFixed(
+                                                        0,
+                                                    )}
+                                                </span>
+                                            </div>
+                                            <div className="h-2 bg-surface-muted rounded-full overflow-hidden">
+                                                <div
+                                                    className="h-full bg-primary"
+                                                    style={{
+                                                        width: `${item.current_score?.overall || 0}%`,
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Price Component */}
+                                        {priceScore && (
+                                            <div>
+                                                <div className="flex items-center justify-between text-xs mb-1">
+                                                    <span className="text-text-muted">
+                                                        💰 Price (
+                                                        {(
+                                                            priceScore.weight *
+                                                            100
+                                                        ).toFixed(0)}
+                                                        %)
+                                                    </span>
+                                                    <span className="font-medium">
+                                                        {priceScore.score.toFixed(
+                                                            0,
+                                                        )}
+                                                    </span>
+                                                </div>
+                                                <div className="h-1.5 bg-surface-muted rounded-full overflow-hidden">
+                                                    <div
+                                                        className="h-full bg-gain"
+                                                        style={{
+                                                            width: `${priceScore.score}%`,
+                                                        }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Technical Component */}
+                                        {techScore && (
+                                            <div>
+                                                <div className="flex items-center justify-between text-xs mb-1">
+                                                    <span className="text-text-muted">
+                                                        📊 Technical (
+                                                        {(
+                                                            techScore.weight *
+                                                            100
+                                                        ).toFixed(0)}
+                                                        %)
+                                                    </span>
+                                                    <span className="font-medium">
+                                                        {techScore.score.toFixed(
+                                                            0,
+                                                        )}
+                                                    </span>
+                                                </div>
+                                                <div className="h-1.5 bg-surface-muted rounded-full overflow-hidden">
+                                                    <div
+                                                        className="h-full bg-primary"
+                                                        style={{
+                                                            width: `${techScore.score}%`,
+                                                        }}
+                                                    />
+                                                </div>
+                                                {/* Technical sub-scores */}
+                                                {techScore.sub_scores && (
+                                                    <div className="ml-4 mt-1 text-[10px] text-text-muted">
+                                                        {Object.entries(
+                                                            techScore.sub_scores,
+                                                        ).map(([key, value]) => (
+                                                            <div key={key}>
+                                                                •{" "}
+                                                                {key
+                                                                    .replace(
+                                                                        "_",
+                                                                        " ",
+                                                                    )
+                                                                    .toUpperCase()}
+                                                                :{" "}
+                                                                {typeof value ===
+                                                                "number"
+                                                                    ? value.toFixed(
+                                                                          1,
+                                                                      )
+                                                                    : value}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Fundamental Component */}
+                                        {item.current_score?.fundamental && (
+                                            <div>
+                                                <div className="flex items-center justify-between text-xs mb-1">
+                                                    <span className="text-text-muted">
+                                                        🏢 Fundamental (
+                                                        {(
+                                                            item.current_score
+                                                                .fundamental
+                                                                .weight * 100
+                                                        ).toFixed(0)}
+                                                        %)
+                                                    </span>
+                                                    <span className="font-medium">
+                                                        {item.current_score.fundamental.score.toFixed(
+                                                            0,
+                                                        )}
+                                                    </span>
+                                                </div>
+                                                <div className="h-1.5 bg-surface-muted rounded-full overflow-hidden">
+                                                    <div
+                                                        className="h-full bg-gain"
+                                                        style={{
+                                                            width: `${item.current_score.fundamental.score}%`,
+                                                        }}
+                                                    />
+                                                </div>
+                                                {/* Fundamental sub-scores (4-pillar) */}
+                                                {item.current_score.fundamental
+                                                    .sub_scores && (
+                                                    <div className="ml-4 mt-1 text-[10px] text-text-muted space-y-0.5">
+                                                        <div>
+                                                            • VALUATION:{" "}
+                                                            {item.current_score.fundamental.sub_scores
+                                                                .valuation !==
+                                                                undefined &&
+                                                            item.current_score
+                                                                .fundamental
+                                                                .sub_scores
+                                                                .valuation !==
+                                                                null
+                                                                ? Number(
+                                                                      item
+                                                                          .current_score
+                                                                          .fundamental
+                                                                          .sub_scores
+                                                                          .valuation,
+                                                                  ).toFixed(0)
+                                                                : "N/A"}
+                                                        </div>
+                                                        <div>
+                                                            • GROWTH:{" "}
+                                                            {item.current_score.fundamental.sub_scores
+                                                                .growth !==
+                                                                undefined &&
+                                                            item.current_score
+                                                                .fundamental
+                                                                .sub_scores
+                                                                .growth !== null
+                                                                ? Number(
+                                                                      item
+                                                                          .current_score
+                                                                          .fundamental
+                                                                          .sub_scores
+                                                                          .growth,
+                                                                  ).toFixed(0)
+                                                                : "N/A"}
+                                                        </div>
+                                                        <div>
+                                                            • HEALTH:{" "}
+                                                            {item.current_score.fundamental.sub_scores
+                                                                .health !==
+                                                                undefined &&
+                                                            item.current_score
+                                                                .fundamental
+                                                                .sub_scores
+                                                                .health !== null
+                                                                ? Number(
+                                                                      item
+                                                                          .current_score
+                                                                          .fundamental
+                                                                          .sub_scores
+                                                                          .health,
+                                                                  ).toFixed(0)
+                                                                : "N/A"}
+                                                        </div>
+                                                        <div>
+                                                            • SENTIMENT:{" "}
+                                                            {item.current_score.fundamental.sub_scores
+                                                                .sentiment !==
+                                                                undefined &&
+                                                            item.current_score
+                                                                .fundamental
+                                                                .sub_scores
+                                                                .sentiment !==
+                                                                null
+                                                                ? Number(
+                                                                      item
+                                                                          .current_score
+                                                                          .fundamental
+                                                                          .sub_scores
+                                                                          .sentiment,
+                                                                  ).toFixed(0)
+                                                                : "N/A"}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Risk Disclaimer */}
                             <div className="text-xs text-text-muted italic bg-surface-muted/20 rounded p-2">
                                 ⚠️ This is automated analysis. Always do your
