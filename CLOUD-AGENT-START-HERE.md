@@ -134,7 +134,7 @@ cat frontend/components/watchlist/WatchlistTable.tsx
    ```
 5. **Commit** with clear message:
    ```bash
-   git add frontend/
+   git add frontend/ backend/
    git commit -m "feat(watchlist): <description>
 
    <details>
@@ -144,14 +144,26 @@ cat frontend/components/watchlist/WatchlistTable.tsx
    🤖 Generated with Claude Code"
    ```
 6. **Update task list** - mark task as complete with `[x]`
+7. **Keep going** - work through all implementation phases
 
-### After Each Phase:
+### Work Through ALL Implementation Phases (1-4):
 
-1. **Create handoff document**: `tasks/HANDOFF-watchlist-phaseN-YYYYMMDD-HHMM.md`
-2. **Use template** from `tasks/CLOUD-AGENT-HANDOFF-INSTRUCTIONS.md`
+**DO NOT STOP** between phases - keep working autonomously through:
+- Phase 1: Main Table UX (9 tasks)
+- Phase 2: Filters (4 tasks)
+- Phase 3: Settings (3 tasks)
+- Phase 4: Enhanced Details (5 tasks)
+
+**Only hand off after Phase 4 is complete** - local agent needs to verify everything at once.
+
+### After Phase 4 Complete:
+
+1. **Create ONE comprehensive handoff document**: `tasks/HANDOFF-watchlist-implementation-YYYYMMDD-HHMM.md`
+2. **List ALL changes across all 4 phases**
 3. **List what local agent needs to verify** (screenshots, tests, database)
 4. **Commit handoff doc**
 5. **STOP** - wait for local agent verification
+6. **Phase 5 (documentation)** - only after local approves implementation
 
 ---
 
@@ -205,43 +217,139 @@ cat frontend/components/watchlist/WatchlistTable.tsx
 
 ---
 
-## 📞 Handoff to Local Agent
+## 📞 Handoff to Local Agent (After Phase 4)
 
-**After Phase 1** (main table UX), create:
+**After completing ALL implementation (Phases 1-4)**, create:
 
-`tasks/HANDOFF-watchlist-phase1-YYYYMMDD-HHMM.md`
+`tasks/HANDOFF-watchlist-implementation-YYYYMMDD-HHMM.md`
 
 **Template**:
 ```markdown
-# Watchlist Phase 1 Handoff
+# Watchlist Complete Implementation Handoff
 
-**Cloud Agent Completed**:
+**Cloud Agent Completed** (Phases 1-4):
+
+### Phase 1: Main Table UX (9 tasks)
 - ✅ Task 1.1: Research and documentation
-- ✅ Task 1.2: Removed technical columns
+- ✅ Task 1.2: Removed technical columns (SMA, RSI, MACD, Volume)
 - ✅ Task 1.3: Added Trading Style column
 - ✅ Task 1.4: Added Risk Level column
 - ✅ Task 1.5: Added search bar
 - ✅ Task 1.6-1.7: Priority indicators (backend + frontend)
-- ✅ Task 1.8: Static analysis passed
-- ✅ npm run build: PASSED
+- ✅ Task 1.8: Static analysis
+- ✅ Task 1.9: Phase 1 complete
 
-**Commits**: [list commit hashes]
+### Phase 2: Filters (4 tasks)
+- ✅ Task 2.1: Signal filter dropdown
+- ✅ Task 2.2: Trading Style filter dropdown
+- ✅ Task 2.3: Risk filter dropdown
+- ✅ Task 2.4: Filter logic integration
 
-**Local Agent Tasks**:
-1. Pull branch: `git checkout cloud/watchlist-vision-implementation && git pull`
-2. Restart services: `bash ~/portfolio-ai/scripts/restart.sh`
-3. Take screenshot:
+### Phase 3: Settings (3 tasks)
+- ✅ Task 3.1: Weight sliders UI (12 sliders total)
+- ✅ Task 3.2: Settings API integration
+- ✅ Task 3.3: Validation and persistence
+
+### Phase 4: Enhanced Details (5 tasks)
+- ✅ Task 4.1: Rich fundamental display
+- ✅ Task 4.2: News intelligence enhancements
+- ✅ Task 4.3: Complete technical indicators
+- ✅ Task 4.4: Watchlist ranking
+- ✅ Task 4.5: Market cap display
+
+**Static Analysis**:
+- ✅ npm run build: PASSED (0 errors)
+- ✅ TypeScript: All types correct
+- ✅ No `any` types used
+
+**Files Modified**:
+- frontend/components/watchlist/WatchlistTable.tsx (main table)
+- frontend/app/watchlist/page.tsx (search, filters)
+- frontend/components/settings/WatchlistPreferences.tsx (sliders)
+- frontend/components/watchlist/ExpandedRow.tsx (rich details)
+- frontend/lib/api/watchlist.ts (types)
+- backend/app/watchlist/priority_indicators.py (NEW - if created)
+- [list any other backend files]
+
+**Commits**: [list all commit hashes from phases 1-4]
+
+**Local Agent Comprehensive Verification Tasks**:
+
+1. **Pull and setup**:
+   ```bash
+   git checkout cloud/watchlist-vision-implementation
+   git pull
+   bash ~/portfolio-ai/scripts/restart.sh
+   ```
+
+2. **Main table screenshot**:
    ```bash
    node ~/portfolio-ai/.claude/skills/browser-automation/scripts/screenshot.js \
      http://192.168.8.233:3000/watchlist \
-     /tmp/watchlist-phase1-current.png
+     /tmp/watchlist-main-after-implementation.png
    ```
-4. Compare with: `docs/design_references/watchlist_design_reference/watchlist_main_table_view/screen.png`
-5. Verify: Table has 9 columns, search works, priority indicators show
-6. If issues: Document and hand back
-7. If good: Approve Phase 1, cloud continues to Phase 2
+   Compare with: `docs/design_references/watchlist_design_reference/watchlist_main_table_view/screen.png`
 
-**Next**: Phase 2 (Filters)
+   Verify:
+   - [ ] Exactly 9 columns
+   - [ ] Trading Style column shows "Swing (3-7d)" format
+   - [ ] Risk column shows icons (✓ ⚠️)
+   - [ ] Priority indicators show in Signal column (🔥📰⚡)
+   - [ ] Search bar filters by symbol/note
+   - [ ] Filter dropdowns present
+
+3. **Expanded row screenshots** (take 3 different stocks):
+   ```bash
+   node ~/portfolio-ai/.claude/skills/browser-automation/scripts/expand-and-screenshot.js \
+     http://192.168.8.233:3000/watchlist NVDA /tmp/watchlist-expanded-nvda.png
+   ```
+   Compare with: `docs/design_references/watchlist_design_reference/expanded_row_-_full_intelligence_view/screen.png`
+
+   Verify:
+   - [ ] Score breakdown shows rich context (Revenue %, margins, etc.)
+   - [ ] Technical indicators complete (SMA, Bollinger, ATR, RSI, MACD)
+   - [ ] News intelligence shows counts and coverage
+   - [ ] Watchlist ranking badge ("Top N") displays
+   - [ ] Market cap displayed
+
+4. **Settings panel**:
+   - Open settings
+   - Take screenshot
+   - Compare with: `docs/design_references/watchlist_design_reference/watchlist_settings_panel/screen.png`
+   - Verify:
+     - [ ] 12 weight sliders present
+     - [ ] Sliders functional
+     - [ ] Save/load works
+
+5. **Functional testing**:
+   - [ ] Search: Type symbol, verify filter works
+   - [ ] Filters: Test each dropdown, verify combinations work
+   - [ ] Settings: Change weights, save, reload page, verify persisted
+   - [ ] Expanded row: Expand 3-5 different stocks, verify data displays
+
+6. **Database verification** (if backend changes):
+   ```bash
+   psql -U portfolio_ai_user -d portfolio_ai -c "SELECT * FROM user_preferences LIMIT 1;"
+   ```
+   Verify weight columns populated
+
+7. **Tests**:
+   ```bash
+   cd ~/portfolio-ai/backend
+   source .venv/bin/activate
+   pytest tests/ -v -k "watchlist"
+   ```
+   All tests must pass
+
+**If Issues Found**:
+- Document specific issues with screenshots
+- Hand back to cloud agent with clear fix requirements
+
+**If All Good**:
+- Approve implementation
+- Cloud agent proceeds to Phase 5 (documentation)
+
+**Next Phase**: Phase 5 (Documentation and final screenshot matrix)
 ```
 
 ---
