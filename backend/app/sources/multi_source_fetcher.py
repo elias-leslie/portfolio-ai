@@ -141,7 +141,7 @@ class MultiSourceFetcher:
             logger.debug("metrics_load_skipped", error=str(e), reason="table_not_ready")
 
     def _save_metrics_to_db(self, source_name: str) -> None:
-        """Save source performance metrics to database.
+        """Save source performance metrics to database using UPSERT.
 
         Args:
             source_name: Name of source to save metrics for
@@ -152,17 +152,31 @@ class MultiSourceFetcher:
         metrics = self._metrics[source_name]
 
         try:
-            self.storage.insert_dict(
-                "source_performance",
-                {
-                    "source_name": source_name,
-                    "success_count": metrics.success_count,
-                    "failure_count": metrics.failure_count,
-                    "total_latency_ms": metrics.total_latency_ms,
-                    "rate_limit_hits": metrics.rate_limit_hits,
-                    "last_success_at": metrics.last_success_at,
-                },
-            )
+            with self.storage.connection() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO source_performance (
+                        source_name, success_count, failure_count,
+                        total_latency_ms, rate_limit_hits, last_success_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (source_name)
+                    DO UPDATE SET
+                        success_count = EXCLUDED.success_count,
+                        failure_count = EXCLUDED.failure_count,
+                        total_latency_ms = EXCLUDED.total_latency_ms,
+                        rate_limit_hits = EXCLUDED.rate_limit_hits,
+                        last_success_at = EXCLUDED.last_success_at
+                    """,
+                    [
+                        source_name,
+                        metrics.success_count,
+                        metrics.failure_count,
+                        metrics.total_latency_ms,
+                        metrics.rate_limit_hits,
+                        metrics.last_success_at,
+                    ],
+                )
+                conn.commit()
 
             logger.debug("metrics_saved_to_db", source=source_name)
 

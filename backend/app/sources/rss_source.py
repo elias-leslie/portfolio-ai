@@ -317,3 +317,16 @@ class SeekingAlphaRssSource(RssNewsSource):
             priority=65,
             ticker_feed_template="https://seekingalpha.com/api/sa/combined/{lower}.xml",
         )
+
+
+class GoogleNewsRssSource(RssNewsSource):
+    def __init__(self) -> None:
+        # Market-wide feed for general news
+        feeds = ["https://news.google.com/rss/search?q=stock+market&hl=en-US&gl=US&ceid=US:en"]
+        super().__init__(
+            name="google_news_rss",
+            display_name="Google News",
+            feeds=feeds,
+            priority=70,  # Lower priority (higher number) due to aggregation nature
+            ticker_feed_template="https://news.google.com/rss/search?q={ticker}+stock&hl=en-US&gl=US&ceid=US:en",
+        )

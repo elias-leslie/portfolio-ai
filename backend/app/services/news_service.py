@@ -59,12 +59,12 @@ from ..sources.base import DATASET_NEWS, BaseSource, DatasetRequest
 from ..sources.finnhub_source import FinnhubSource
 from ..sources.fmp_source import FMPSource
 from ..sources.multi_source_fetcher import MultiSourceFetcher
-from ..sources.news import GoogleNewsSource
 from ..sources.polygon_source import PolygonSource
 from ..sources.rss_source import (
     CNBCRssSource,
     FinancialTimesRssSource,
     FortuneRssSource,
+    GoogleNewsRssSource,
     InvestingRssSource,
     MarketWatchRssSource,
     NasdaqRssSource,
@@ -353,7 +353,6 @@ class NewsService:
         storage: PortfolioStorage,
         *,
         ttl: timedelta | None = None,
-        news_source: GoogleNewsSource | None = None,
         finbert_analyzer: FinBertSentimentAnalyzer | None = None,
         fallback_analyzer: VaderSentimentAnalyzer | None = None,
         selection_overfetch: int = ARTICLE_OVERFETCH_MULTIPLIER,
@@ -367,7 +366,6 @@ class NewsService:
 
         self.storage = storage
         self.ttl = ttl or timedelta(hours=DEFAULT_TTL_HOURS)
-        self.news_source = news_source or GoogleNewsSource()
         self.finbert_analyzer = finbert_analyzer or FinBertSentimentAnalyzer()
         self.fallback_analyzer = fallback_analyzer or VaderSentimentAnalyzer()
         self.lookback_hours = max(1, int(self.ttl.total_seconds() // 3600))
@@ -377,15 +375,6 @@ class NewsService:
         self._vendor_config: dict[str, dict[str, Any]] = {}
         self._vendor_runtime: dict[str, dict[str, Any]] = {}
         self._recent_mix_summary: dict[str, dict[str, Any]] = {}
-
-        # Always register Google News fallback vendor
-        self._register_vendor(
-            "google_news",
-            configured=True,
-            enabled=True,
-            notes="Google News RSS fallback feed",
-            reason=None,
-        )
 
         self.vendor_sources = self._prepare_vendor_sources(vendor_sources)
         self.multi_source_fetcher = multi_source_fetcher
@@ -615,6 +604,12 @@ class NewsService:
                 SeekingAlphaRssSource,
                 "Seeking Alpha combined RSS feed",
                 "SEEKING_ALPHA_RSS_ENABLED",
+            ),
+            (
+                "google_news_rss",
+                GoogleNewsRssSource,
+                "Google News aggregated market & ticker RSS feeds",
+                "GOOGLE_NEWS_RSS_ENABLED",
             ),
         ]
 
@@ -1024,78 +1019,39 @@ class NewsService:
 
         return selected, metadata
 
-    def _fetch_google_entries(
-        self,
-        *,
-        query: str,
-        limit: int,
-        ticker: str,
-        now: datetime,
-    ) -> list[dict[str, Any]]:
-        if limit <= 0:
-            return []
-
-        entries = self.news_source.fetch_headlines(query, limit)
-        normalized_entries: list[dict[str, Any]] = []
-        for entry in entries:
-            normalized = dict(entry)
-            normalized["vendor"] = "google_news"
-            if isinstance(normalized.get("source"), dict):
-                source_title = normalized["source"].get("title")
-                normalized.setdefault("news_source_name", source_title)
-            else:
-                normalized.setdefault("news_source_name", normalized.get("source"))
-            normalized.setdefault("source", normalized.get("news_source_name") or "Google News")
-            normalized.setdefault("ticker", ticker)
-            normalized_entries.append(normalized)
-
-        self._update_vendor_runtime(
-            "google_news",
-            attempt_at=now,
-            article_count=len(normalized_entries),
-            success=True,
-        )
-        return normalized_entries
-
     def _merge_entries(
         self,
         *,
         ticker: str,
         vendor_entries: Sequence[dict[str, Any]],
-        google_entries: Sequence[dict[str, Any]],
         max_entries: int,
     ) -> tuple[list[dict[str, Any]], dict[str, int]]:
+        """Merge and deduplicate entries from all vendors including Google News RSS."""
         seen: set[tuple[str, str]] = set()
         merged: list[dict[str, Any]] = []
 
-        def _iter_source(entries: Sequence[dict[str, Any]]) -> Iterable[dict[str, Any]]:
-            for entry in entries:
-                headline = (entry.get("headline") or entry.get("title") or "").strip()
-                if not headline:
-                    continue
-                source_name = entry.get("news_source_name")
-                if isinstance(source_name, dict):
-                    source_name = source_name.get("title")
-                if not source_name:
-                    raw_source = entry.get("source")
-                    if isinstance(raw_source, dict):
-                        source_name = raw_source.get("title")
-                    else:
-                        source_name = raw_source
-                key = (headline.lower(), (source_name or "").lower())
-                if key in seen:
-                    continue
-                seen.add(key)
-                normalized = dict(entry)
-                normalized.setdefault("ticker", ticker)
-                merged.append(normalized)
-                if len(merged) >= max_entries:
-                    break
-            return ()
-
-        _iter_source(vendor_entries)
-        if len(merged) < max_entries:
-            _iter_source(google_entries)
+        for entry in vendor_entries:
+            headline = (entry.get("headline") or entry.get("title") or "").strip()
+            if not headline:
+                continue
+            source_name = entry.get("news_source_name")
+            if isinstance(source_name, dict):
+                source_name = source_name.get("title")
+            if not source_name:
+                raw_source = entry.get("source")
+                if isinstance(raw_source, dict):
+                    source_name = raw_source.get("title")
+                else:
+                    source_name = raw_source
+            key = (headline.lower(), (source_name or "").lower())
+            if key in seen:
+                continue
+            seen.add(key)
+            normalized = dict(entry)
+            normalized.setdefault("ticker", ticker)
+            merged.append(normalized)
+            if len(merged) >= max_entries:
+                break
 
         limited = merged[:max_entries]
         post_counts: Counter[str] = Counter()
@@ -1390,8 +1346,6 @@ class NewsService:
                 raw_entry = entry.get("raw")
                 if isinstance(raw_entry, dict):
                     vendor = raw_entry.get("vendor")
-            if vendor is None and isinstance(self.news_source, GoogleNewsSource):
-                vendor = "google_news"
 
             article_payload = {
                 "raw": entry,
@@ -1635,28 +1589,13 @@ class NewsService:
         )
         self._apply_vendor_metadata(vendor_metadata, now)
 
-        vendor_count = len(vendor_entries)
-        google_limit = max(fetch_limit - vendor_count, 0)
-        if google_limit == 0 and vendor_count < max_articles:
-            google_limit = max_articles - vendor_count
-
-        google_entries = self._fetch_google_entries(
-            query=query,
-            limit=google_limit,
-            ticker=ticker,
-            now=now,
-        )
-
         pre_counts: dict[str, int] = {
             str(name): int(count) for name, count in (vendor_metadata.get("counts") or {}).items()
         }
-        if google_entries:
-            pre_counts["google_news"] = pre_counts.get("google_news", 0) + len(google_entries)
 
         combined_entries, post_counts = self._merge_entries(
             ticker=ticker,
             vendor_entries=vendor_entries,
-            google_entries=google_entries,
             max_entries=fetch_limit,
         )
 
@@ -1787,7 +1726,6 @@ class NewsService:
             ticker=ticker,
             articles=len(rows_to_insert),
             vendor_counts=vendor_metadata.get("counts", {}),
-            google_articles=len(google_entries),
         )
 
     def get_custom_news(
@@ -1796,9 +1734,45 @@ class NewsService:
         *,
         max_articles: int = DEFAULT_MAX_ARTICLES,
     ) -> NewsBundle:
-        """Fetch and score news for an arbitrary query without caching results."""
-        raw_entries = self.news_source.fetch_headlines(query, max_articles)
+        """Fetch and score news for an arbitrary query without caching results.
+
+        Uses MultiSourceFetcher to get news from all configured sources including Google News RSS.
+        """
         now = datetime.now(UTC)
+
+        if self.multi_source_fetcher is None:
+            logger.warning("get_custom_news_no_sources", query=query)
+            return NewsBundle(
+                ticker=query,
+                summary=NewsSummary(
+                    ticker=query,
+                    score=None,
+                    score_change=None,
+                    positive_count=0,
+                    negative_count=0,
+                    neutral_count=0,
+                    article_count=0,
+                    latest_published_at=None,
+                ),
+                articles=[],
+            )
+
+        # Fetch from all sources using MultiSourceFetcher
+        request = DatasetRequest(
+            dataset=DATASET_NEWS,
+            profile=None,
+            tickers=[query],
+            start=now - self.ttl,
+            end=now,
+            timezone="UTC",
+        )
+        dataframe, _ = self.multi_source_fetcher.fetch_with_fallback(request, verbose=False)
+
+        if dataframe is None or len(dataframe) == 0:
+            raw_entries = []
+        else:
+            raw_entries = dataframe.to_dicts()
+
         articles = self._score_entries(ticker=query, entries=raw_entries, now=now)
         summary = self._build_summary(
             ticker=query,

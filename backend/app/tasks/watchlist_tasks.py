@@ -74,14 +74,12 @@ def refresh_watchlist_scores_task(self, account_id: str | None = None) -> dict[s
                 )
 
             # Get last refresh time from most recent snapshot
+            # Note: System is single-account, no account_id filtering needed
             last_refresh_result = conn.execute(
                 """
                 SELECT MAX(fetched_at) as last_refresh
-                FROM watchlist_snapshots ws
-                JOIN watchlist_items wi ON ws.item_id = wi.id
-                WHERE wi.account_id = %s
-                """,
-                [account_id],
+                FROM watchlist_snapshots
+                """
             ).fetchone()
 
             last_refresh = (
@@ -105,14 +103,13 @@ def refresh_watchlist_scores_task(self, account_id: str | None = None) -> dict[s
                 from ..watchlist.service import detect_missing_historical_data  # noqa: PLC0415
 
                 # Load watchlist items to get symbols
+                # Note: System is single-account, no account_id filtering needed
                 with storage.connection() as conn:
                     items_result = conn.execute(
                         """
                         SELECT DISTINCT symbol
                         FROM watchlist_items
-                        WHERE account_id = %s
-                        """,
-                        [account_id],
+                        """
                     ).fetchall()
                     symbols = [row[0] for row in items_result]
 
