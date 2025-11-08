@@ -3,6 +3,41 @@
 **Created**: 2025-11-07
 **Status**: Pending Research
 **Priority**: HIGH
+**Environment**: Cloud Claude Code (sandbox, limited runtime environment)
+
+---
+
+## ⚠️ IMPORTANT: Cloud Environment Constraints
+
+**This task is for a cloud Claude Code instance with limited environment access:**
+
+✅ **You CAN:**
+- Read all code files in the repository
+- Search, grep, and analyze codebase structure
+- Plan and design solutions
+- Write/edit code files (frontend, backend)
+- Create git commits
+- Provide detailed implementation plans
+
+❌ **You CANNOT (or should avoid):**
+- Run Python venv commands (they hang in sandbox)
+- Start backend/frontend services
+- Run tests (pytest, npm test)
+- Execute database migrations
+- Test API endpoints
+- Use browser automation
+
+**Your Workflow:**
+1. **Research thoroughly** - Read code, understand architecture, document findings
+2. **Expand task list** - Add detailed subtasks based on your research
+3. **Implement what you can** - Write code changes (no need to test)
+4. **Commit to git** - Create feature branch, commit all changes
+5. **Provide handoff** - Give user git commands and testing steps for dev environment
+
+**When Done:**
+- Commit all changes to a new branch: `git checkout -b feature/portfolio-watchlist-fixes`
+- Provide: (1) git pull command, (2) testing steps, (3) what's left to do
+- User will pull your branch and continue in dev environment with full testing
 
 ---
 
@@ -142,4 +177,54 @@ Fix data model confusion and UI issues with portfolio accounts, watchlist items,
 - [ ] Deleting portfolio accounts doesn't affect watchlist
 - [ ] News page has Market/Watchlist/Portfolio filters
 - [ ] Data model clearly separates "monitoring" (watchlist) from "owning" (positions)
-- [ ] All changes documented and tested
+- [ ] All code changes committed to feature branch
+- [ ] Testing steps documented for dev environment
+
+---
+
+## Handoff Instructions (When Complete)
+
+**Before finishing, do this:**
+
+1. **Commit all changes**:
+   ```bash
+   git checkout -b feature/portfolio-watchlist-fixes
+   git add -A
+   git commit -m "feat: portfolio/watchlist UI and data model fixes
+
+   - Portfolio UI: Accounts with expandable positions
+   - Watchlist: Independent of portfolio accounts
+   - News page: Add portfolio filter option
+   - Data model: Separate monitoring vs owning
+
+   See tasks/tasks-ui-portfolio-watchlist-fixes.md for details"
+   ```
+
+2. **Provide to user**:
+   - Git branch name: `feature/portfolio-watchlist-fixes`
+   - Pull command: `git fetch origin && git checkout feature/portfolio-watchlist-fixes`
+   - List of files changed
+   - Testing steps (what to test in dev environment)
+   - What's implemented vs what needs dev environment to complete
+
+3. **Testing Steps Template**:
+   ```
+   Testing in Dev Environment:
+   1. Start services: bash ~/portfolio-ai/scripts/restart.sh
+   2. Test portfolio page: http://192.168.8.233:3000/portfolio
+      - Verify accounts show with expand/collapse
+      - Add position under account, verify nesting
+   3. Test watchlist: http://192.168.8.233:3000/watchlist
+      - Delete portfolio account, verify watchlist unchanged
+   4. Test news page: http://192.168.8.233:3000/news
+      - Verify Market/Watchlist/Portfolio toggle exists
+   5. Database verification:
+      - Check FK constraint (should be RESTRICT or removed)
+      - Verify positions.account_id exists and working
+   ```
+
+**What Cannot Be Done in Cloud**:
+- Database migrations (provide SQL script instead)
+- Running tests (provide test commands to run)
+- Service verification (describe expected behavior)
+- Browser testing (describe UI changes made)
