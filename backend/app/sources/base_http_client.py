@@ -167,7 +167,7 @@ class RateLimiter:
                         limit=f"{limit}/{window_name}",
                     )
                     raise RuntimeError(
-                        f"{source_name} {window_name}ly rate limit ({limit} calls) exceeded. "
+                        f"{source_name} daily rate limit ({limit} calls) exceeded. "
                         f"Reset in {wait_for:.0f} seconds"
                     )
 

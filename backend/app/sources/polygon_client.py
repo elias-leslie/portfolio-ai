@@ -5,6 +5,7 @@ Adapted from market-sim for portfolio-ai.
 
 from __future__ import annotations
 
+import threading
 from typing import Any
 
 from ..logging_config import get_logger

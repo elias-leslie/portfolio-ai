@@ -13,6 +13,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
+import threading
 from collections.abc import Iterable
 from contextlib import suppress
 from typing import Any
@@ -123,7 +124,6 @@ class FMPClient(BaseHTTPClient):
         path = f"/profile/{ticker}"
         result: list[dict[str, Any]] = self.get(path)
         return result
-
 
 
 # Module-level singleton state

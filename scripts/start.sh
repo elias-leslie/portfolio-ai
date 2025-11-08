@@ -84,7 +84,7 @@ export DB_POOL_SIZE=3
 export DB_MAX_OVERFLOW=2
 
 source .venv/bin/activate
-nohup uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 > /tmp/portfolio-backend.log 2>&1 &
+nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 > /tmp/portfolio-backend.log 2>&1 &
 BACKEND_PID=$!
 sleep 3
 
@@ -104,7 +104,7 @@ echo "Starting Celery worker..."
 kill_process "celery.*worker" "existing Celery Worker"
 
 cd "$BACKEND_DIR"
-nohup celery -A app.celery_app worker --loglevel=info > /tmp/portfolio-celery-worker.log 2>&1 &
+nohup celery -A app.celery_app worker --concurrency=2 --loglevel=info > /tmp/portfolio-celery-worker.log 2>&1 &
 CELERY_PID=$!
 sleep 2
 

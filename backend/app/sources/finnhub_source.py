@@ -12,6 +12,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
+import threading
 from collections.abc import Iterable
 from typing import Any
 
@@ -125,7 +126,6 @@ class FinnhubClient(BaseHTTPClient):
         params = {"symbol": ticker}
         result: dict[str, Any] = self.get("/stock/profile2", params)
         return result
-
 
 
 # Module-level singleton state
