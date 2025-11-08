@@ -248,20 +248,6 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
             </TableHead>
             <TableHead>
               <button
-                onClick={() => handleSort("overall")}
-                className="flex items-center gap-1 font-medium hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-              >
-                Signal
-                {sortField === "overall" && (
-                  <span className="text-xs">
-                    {sortDirection === "asc" ? "↑" : "↓"}
-                  </span>
-                )}
-              </button>
-            </TableHead>
-            <TableHead>Style</TableHead>
-            <TableHead>
-              <button
                 onClick={() => handleSort("price")}
                 className="flex items-center gap-1 font-medium hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
               >
@@ -275,31 +261,21 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
             </TableHead>
             <TableHead>
               <button
-                onClick={() => handleSort("technical")}
+                onClick={() => handleSort("overall")}
                 className="flex items-center gap-1 font-medium hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
               >
-                Technical
-                {sortField === "technical" && (
+                Signal
+                {sortField === "overall" && (
                   <span className="text-xs">
                     {sortDirection === "asc" ? "↑" : "↓"}
                   </span>
                 )}
               </button>
             </TableHead>
-            <TableHead>
-              <button
-                onClick={() => handleSort("news")}
-                className="flex items-center gap-1 font-medium hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-              >
-                News
-                {sortField === "news" && (
-                  <span className="text-xs">
-                    {sortDirection === "asc" ? "↑" : "↓"}
-                  </span>
-                )}
-              </button>
-            </TableHead>
-            <TableHead>7-Day Trend</TableHead>
+            <TableHead>Score</TableHead>
+            <TableHead>Style</TableHead>
+            <TableHead>Risk</TableHead>
+            <TableHead>Score Trend</TableHead>
             <TableHead>
               <button
                 onClick={() => handleSort("updated")}
@@ -380,6 +356,31 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                     </div>
                   </TableCell>
                   <TableCell>
+                    {item.current_score?.price.metadata?.current_price ? (
+                      <div className="text-sm">
+                        <div className="font-medium">
+                          ${typeof item.current_score.price.metadata.current_price === 'number'
+                            ? item.current_score.price.metadata.current_price.toFixed(2)
+                            : String(item.current_score.price.metadata.current_price)}
+                        </div>
+                        {item.current_score.price.metadata.daily_change_pct !== undefined && (
+                          <div className={cn(
+                            "text-xs",
+                            typeof item.current_score.price.metadata.daily_change_pct === 'number' && item.current_score.price.metadata.daily_change_pct >= 0
+                              ? "text-gain"
+                              : "text-loss"
+                          )}>
+                            {typeof item.current_score.price.metadata.daily_change_pct === 'number'
+                              ? `${item.current_score.price.metadata.daily_change_pct >= 0 ? '+' : ''}${item.current_score.price.metadata.daily_change_pct.toFixed(2)}%`
+                              : `${String(item.current_score.price.metadata.daily_change_pct)}%`}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-text-muted">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
                     {item.signal_type ? (
                       (() => {
                         const signalDisplay = getSignalDisplay(item.signal_type);
@@ -425,65 +426,53 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                     )}
                   </TableCell>
                   <TableCell>
-                    {item.recommended_style ? (
-                      (() => {
-                        const styleDisplay = getStyleDisplay(item.recommended_style);
-                        return styleDisplay ? (
+                    {hasScore ? (
+                      <div className="flex items-center gap-2">
+                        <Badge variant={getScoreBadgeVariant(overall)}>
+                          {overall.toFixed(0)}
+                        </Badge>
+                        <div className="flex-1 h-2 bg-surface-muted rounded-full overflow-hidden min-w-[60px]">
                           <div
                             className={cn(
-                              "inline-flex items-center gap-1 rounded-md border px-2.5 py-0.5 text-xs font-semibold",
-                              styleDisplay.color
+                              "h-full transition-all",
+                              overall >= 80 ? "bg-gain" : overall >= 60 ? "bg-yellow-500" : overall >= 40 ? "bg-neutral" : "bg-loss"
                             )}
-                            title={item.optimal_holding_period ?? undefined}
-                          >
-                            <span>{styleDisplay.icon}</span>
-                            <span>{item.recommended_style}</span>
+                            style={{ width: `${overall}%` }}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-text-muted">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {item.recommended_style ? (
+                      <div className="text-xs">
+                        <div className="font-medium">{item.recommended_style}</div>
+                        {item.optimal_holding_period && (
+                          <div className="text-text-muted">({item.optimal_holding_period})</div>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-text-muted">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {item.risk_level ? (
+                      (() => {
+                        const riskConfig: Record<string, { label: string; icon: string; color: string }> = {
+                          "Low": { label: "Low", icon: "✓", color: "text-gain" },
+                          "Medium-Low": { label: "Med-Low", icon: "⚠", color: "text-yellow-500" },
+                          "Medium": { label: "Medium", icon: "⚠", color: "text-neutral" },
+                          "High": { label: "High", icon: "⚠⚠", color: "text-loss" }
+                        };
+                        const config = riskConfig[item.risk_level] || { label: item.risk_level, icon: "", color: "text-text-muted" };
+                        return (
+                          <div className={cn("text-xs font-medium", config.color)}>
+                            {config.icon} {config.label}
                           </div>
-                        ) : (
-                          <span className="text-text-muted">—</span>
                         );
                       })()
-                    ) : (
-                      <span className="text-text-muted">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {hasScore ? (
-                      <div className="flex items-center gap-1">
-                        <Badge variant={getScoreBadgeVariant(priceScore)}>
-                          {priceScore.toFixed(1)}
-                        </Badge>
-                        {priceStale && (
-                          <span className="text-xs text-text-muted">
-                            (stale)
-                          </span>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-text-muted">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {hasScore ? (
-                      <div className="flex items-center gap-1">
-                        <Badge variant={getScoreBadgeVariant(techScore)}>
-                          {techScore.toFixed(1)}
-                        </Badge>
-                        {techStale && (
-                          <span className="text-xs text-text-muted">
-                            (stale)
-                          </span>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-text-muted">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {typeof item.news_sentiment_score === "number" ? (
-                      <Badge variant={getNewsBadgeVariant(item.news_sentiment_score)}>
-                        {formatNewsScore(item.news_sentiment_score)}
-                      </Badge>
                     ) : (
                       <span className="text-text-muted">—</span>
                     )}

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, PlusCircle, Filter } from "lucide-react";
+import { RefreshCw, PlusCircle, Filter, Search } from "lucide-react";
 import { WatchlistTable } from "@/components/watchlist/WatchlistTable";
 import { AddTickerModal } from "@/components/watchlist/AddTickerModal";
 import { useWatchlist, useRefreshWatchlist } from "@/lib/hooks/useWatchlist";
@@ -14,12 +14,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 
 type StyleFilter = "all" | "Index" | "Trend" | "Value" | "Swing" | "Event";
 
 export default function WatchlistPage() {
   const [addTickerOpen, setAddTickerOpen] = useState(false);
   const [styleFilter, setStyleFilter] = useState<StyleFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { data: watchlistData, isLoading, error } = useWatchlist();
   const refreshMutation = useRefreshWatchlist();
@@ -61,11 +63,26 @@ export default function WatchlistPage() {
     });
   };
 
-  // Filter items by style
-  const filteredItems = (watchlistData?.items || []).filter((item) => {
-    if (styleFilter === "all") return true;
-    return item.recommended_style === styleFilter;
-  });
+  // Filter items by style and search query
+  const filteredItems = useMemo(() => {
+    let items = watchlistData?.items || [];
+
+    // Apply style filter
+    if (styleFilter !== "all") {
+      items = items.filter((item) => item.recommended_style === styleFilter);
+    }
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      items = items.filter((item) =>
+        item.symbol.toLowerCase().includes(query) ||
+        item.note?.toLowerCase().includes(query)
+      );
+    }
+
+    return items;
+  }, [watchlistData?.items, styleFilter, searchQuery]);
 
   // Count by style
   const styleCounts = (watchlistData?.items || []).reduce((acc, item) => {
@@ -79,13 +96,15 @@ export default function WatchlistPage() {
     <div className="bg-bg min-h-screen">
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="mb-10 flex flex-wrap items-center justify-between gap-4">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-semibold text-text">
               Watchlist Intelligence Hub
             </h1>
             <p className="mt-2 text-sm text-text-muted">
-              {styleFilter === "all"
+              {searchQuery.trim()
+                ? `Found ${filteredItems.length} ${filteredItems.length === 1 ? "ticker" : "tickers"} matching "${searchQuery}"`
+                : styleFilter === "all"
                 ? `Showing all ${watchlistData?.items.length || 0} tickers`
                 : `Showing ${filteredItems.length} ${styleFilter} ${filteredItems.length === 1 ? "play" : "plays"}`}
             </p>
@@ -119,6 +138,29 @@ export default function WatchlistPage() {
               <PlusCircle className="mr-2 h-4 w-4" />
               Add Ticker
             </Button>
+          </div>
+        </div>
+
+        {/* Search Bar */}
+        <div className="mb-6">
+          <div className="relative max-w-md">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
+            <Input
+              type="text"
+              placeholder="Search by symbol or note..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text"
+                aria-label="Clear search"
+              >
+                ✕
+              </button>
+            )}
           </div>
         </div>
 
