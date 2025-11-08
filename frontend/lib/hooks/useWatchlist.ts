@@ -99,9 +99,10 @@ export function useAddTicker() {
   return useMutation<WatchlistItem, Error, WatchlistItemCreate>({
     mutationFn: createWatchlistItem,
     onSuccess: (data) => {
-      // Invalidate watchlist query for this account
+      // Invalidate and refetch watchlist query for this account
       queryClient.invalidateQueries({
         queryKey: watchlistKeys.list(data.account_id),
+        refetchType: 'active', // Force immediate refetch of active queries
       });
     },
   });
@@ -120,12 +121,14 @@ export function useUpdateWatchlistItem() {
   >({
     mutationFn: ({ itemId, data }) => updateWatchlistItem(itemId, data),
     onSuccess: (data) => {
-      // Invalidate both list and detail queries
+      // Invalidate and refetch both list and detail queries
       queryClient.invalidateQueries({
         queryKey: watchlistKeys.list(data.account_id),
+        refetchType: 'active', // Force immediate refetch of active queries
       });
       queryClient.invalidateQueries({
         queryKey: watchlistKeys.detail(data.id),
+        refetchType: 'active', // Force immediate refetch of active queries
       });
     },
   });
@@ -140,9 +143,10 @@ export function useDeleteWatchlistItem() {
   return useMutation<void, Error, { itemId: string; accountId: string }>({
     mutationFn: ({ itemId }) => deleteWatchlistItem(itemId),
     onSuccess: (_, variables) => {
-      // Invalidate watchlist query for this account
+      // Invalidate and refetch watchlist query for this account
       queryClient.invalidateQueries({
         queryKey: watchlistKeys.list(variables.accountId),
+        refetchType: 'active', // Force immediate refetch of active queries
       });
     },
   });
@@ -157,9 +161,10 @@ export function useRefreshWatchlist() {
   return useMutation<RefreshResponse, Error, string>({
     mutationFn: refreshWatchlistScores,
     onSuccess: (_, accountId) => {
-      // Invalidate watchlist query to refetch with new scores
+      // Invalidate and refetch watchlist query to show new scores
       queryClient.invalidateQueries({
         queryKey: watchlistKeys.list(accountId),
+        refetchType: 'active', // Force immediate refetch of active queries
       });
     },
   });
