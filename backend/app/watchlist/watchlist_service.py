@@ -27,6 +27,7 @@ from .models import (
     WatchlistScoreInputs,
     WatchlistSnapshot,
 )
+from .priority import calculate_priority_indicators
 from .refresh_processor import _extract_article_publisher, _extract_article_vendor
 from .scoring import _is_stale as scoring_is_stale
 from .scoring import calculate_watchlist_scores
@@ -329,6 +330,11 @@ class WatchlistService:
                 item_data["news_intelligence"] = None
 
             results.append(item_data)
+
+        # Calculate priority indicators for each item (no cap on display)
+        for item in results:
+            indicators = calculate_priority_indicators(results, item)
+            item["priority_indicators"] = [ind.model_dump() for ind in indicators]
 
         return results
 

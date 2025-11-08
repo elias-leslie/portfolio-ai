@@ -10,8 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-// TEMPORARILY DISABLED: Re-enable after 90 days of snapshot data accumulated (see sparkline removal decision)
-// import { SparklineWithHistory } from "@/components/watchlist/SparklineWithHistory";
+import { SparklineWithHistory } from "@/components/watchlist/SparklineWithHistory";
 import { ExpandedRow } from "@/components/watchlist/ExpandedRow";
 import { WatchlistCard } from "@/components/watchlist/WatchlistCard";
 import { SourceBadge } from "@/components/watchlist/SourceBadge";
@@ -300,8 +299,7 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                 )}
               </button>
             </TableHead>
-            {/* TEMPORARILY DISABLED: Sparkline column - re-enable after 90 days of data */}
-            {/* <TableHead>7-Day Trend</TableHead> */}
+            <TableHead>7-Day Trend</TableHead>
             <TableHead>
               <button
                 onClick={() => handleSort("updated")}
@@ -386,7 +384,8 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                       (() => {
                         const signalDisplay = getSignalDisplay(item.signal_type);
                         return signalDisplay ? (
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1">
+                            {/* Signal Badge */}
                             <div
                               className={cn(
                                 "inline-flex items-center gap-1 rounded-md border px-2.5 py-0.5 text-xs font-semibold",
@@ -401,6 +400,21 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                                 </span>
                               )}
                             </div>
+
+                            {/* Priority Indicators (NO CAP - show all) */}
+                            {item.priority_indicators && item.priority_indicators.length > 0 && (
+                              <div className="flex gap-0.5 ml-1">
+                                {item.priority_indicators.map((indicator, idx) => (
+                                  <span
+                                    key={`${item.id}-${indicator.label}-${idx}`}
+                                    className="text-base cursor-help"
+                                    title={indicator.tooltip}
+                                  >
+                                    {indicator.icon}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <span className="text-text-muted">—</span>
@@ -474,8 +488,7 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                       <span className="text-text-muted">—</span>
                     )}
                   </TableCell>
-                  {/* TEMPORARILY DISABLED: Sparkline column - re-enable after 90 days of data */}
-                  {/* <TableCell>
+                  <TableCell>
                     {hasScore ? (
                       <SparklineWithHistory
                         itemId={item.id}
@@ -486,7 +499,7 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                     ) : (
                       <span className="text-text-muted">—</span>
                     )}
-                  </TableCell> */}
+                  </TableCell>
                   <TableCell className="text-xs text-text-muted">
                     {item.current_score?.price?.updated_at
                       ? formatDate(item.current_score.price.updated_at, userTimezone)

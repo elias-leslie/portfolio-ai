@@ -95,6 +95,12 @@ class WatchlistItemResponse(BaseModel):
     recent_news: dict[str, Any] | None = None
     news_intelligence: dict[str, Any] | None = None  # NewsIntelligence summary
 
+    # Priority indicators (NO cap - show all relevant)
+    priority_indicators: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Priority indicators (🔥 hot, 📋 earnings, 📰 news, etc.)",
+    )
+
     @classmethod
     def from_service_dict(cls, item: dict[str, Any]) -> WatchlistItemResponse:
         """
@@ -166,6 +172,8 @@ class WatchlistItemResponse(BaseModel):
             news_sentiment_score=item.get("news_sentiment_score"),
             recent_news=item.get("recent_news"),
             news_intelligence=item.get("news_intelligence"),
+            # Priority indicators
+            priority_indicators=item.get("priority_indicators", []),
         )
 
 

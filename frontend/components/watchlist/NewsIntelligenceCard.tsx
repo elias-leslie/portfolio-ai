@@ -202,6 +202,11 @@ export function NewsIntelligenceCard({
                                                     💡 {article.impact_summary}
                                                 </p>
                                             )}
+                                            {article.actionable_insight && (
+                                                <p className="text-xs text-primary font-medium mt-1">
+                                                    💡 {article.actionable_insight}
+                                                </p>
+                                            )}
                                         </div>
                                     );
                                 },

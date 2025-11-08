@@ -162,6 +162,16 @@ celery_app.conf.beat_schedule = {
         # - Calculates RSI, SMA_200, and other technical indicators
         # - Must run after refresh-daily-ohlcv completes
     },
+    "backfill-watchlist-history-daily": {
+        "task": "backfill_watchlist_snapshots",
+        "schedule": 86400.0,  # Daily (24 hours in seconds)
+        "options": {"expires": 7200},  # 2 hour expiry
+        # Notes:
+        # - Runs daily at ~03:00 UTC (after other tasks)
+        # - Gradually fills snapshot history up to 30 days
+        # - Stops backfilling once 30 days achieved per item
+        # - Runs automatically (no manual intervention needed)
+    },
     # Future: Data cleanup task
     # Note: Commented example for future implementation
     # "cleanup-old-data": {

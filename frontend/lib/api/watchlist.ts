@@ -83,6 +83,14 @@ export interface NewsIntelligence {
     recent_articles: Record<string, unknown>[];
 }
 
+export interface PriorityIndicator {
+    icon: string;
+    label: string;
+    tooltip: string;
+    priority: number;
+    category: "time_sensitive" | "risk" | "opportunity" | "caution";
+}
+
 export interface WatchlistItem {
     id: string;
     symbol: string;
@@ -109,6 +117,8 @@ export interface WatchlistItem {
     recent_news?: RecentNewsPayload | null;
     // News Intelligence
     news_intelligence?: NewsIntelligence | null;
+    // Priority indicators
+    priority_indicators?: PriorityIndicator[];
 }
 
 export interface WatchlistListResponse {
