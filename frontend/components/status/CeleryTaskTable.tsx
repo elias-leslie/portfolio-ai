@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { RefreshCw, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -187,8 +187,8 @@ export function CeleryTaskTable() {
             </TableHeader>
             <TableBody>
               {data.tasks.map((task: TaskInfo) => (
-                <>
-                  <TableRow key={task.id} className="cursor-pointer hover:bg-muted/50">
+                <React.Fragment key={task.id}>
+                  <TableRow className="cursor-pointer hover:bg-muted/50">
                     <TableCell onClick={() => toggleRow(task.id)}>
                       {expandedRows.has(task.id) ? (
                         <ChevronDown className="h-4 w-4" />
@@ -273,7 +273,7 @@ export function CeleryTaskTable() {
                       </TableCell>
                     </TableRow>
                   )}
-                </>
+                </React.Fragment>
               ))}
             </TableBody>
           </Table>

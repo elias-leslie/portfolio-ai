@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
@@ -90,8 +91,11 @@ def _record_summary(
         conn.commit()
 
 
-def _refresh_news_sentiment_task(self: Any, account_id: str = "default") -> dict[str, int | str]:
+def _refresh_news_sentiment_task(
+    self: Any, account_id: str = "default"
+) -> dict[str, int | str | float]:
     """Refresh market and watchlist news sentiment caches."""
+    start_time = time.time()  # Track task duration
     storage = get_storage()
     load_credentials_from_database()
     news_service = NewsService(storage)
@@ -149,11 +153,12 @@ def _refresh_news_sentiment_task(self: Any, account_id: str = "default") -> dict
         "symbols": len(symbols),
         "market_articles": len(market_bundle.articles),
         "forced": int(should_force_refresh),
+        "duration_seconds": round(time.time() - start_time, 2),
     }
 
 
 refresh_news_sentiment_task = cast(
-    Callable[[Any, str], dict[str, int | str]],
+    Callable[[Any, str], dict[str, int | str | float]],
     celery_app.task(
         name="refresh_news_sentiment",
         bind=True,

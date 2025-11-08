@@ -176,10 +176,10 @@ class PreferencesUpdate(BaseModel):
 
 def _get_or_create_preferences() -> dict[str, object]:
     """Get existing preferences or create default ones."""
+    user_id = "default"  # Use specific user ID, not "most recent"
+
     with storage.connection() as conn:
-        result_df = conn.execute(
-            "SELECT * FROM user_preferences ORDER BY updated_at DESC LIMIT 1"
-        ).df()
+        result_df = conn.execute("SELECT * FROM user_preferences WHERE id = %s", [user_id]).df()
 
     if not result_df.empty:
         row = result_df.iloc[0].to_dict()
@@ -191,9 +191,7 @@ def _get_or_create_preferences() -> dict[str, object]:
             row["news_max_articles"] = DEFAULT_NEWS_MAX_ARTICLES
         return dict(row)  # Explicitly cast to dict to satisfy mypy
 
-    # Create default preferences
-    user_id = "default"
-
+    # Create default preferences (user_id already defined above)
     with storage.connection() as conn:
         conn.execute(
             """
