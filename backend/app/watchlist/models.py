@@ -64,20 +64,26 @@ class SignalClassification(BaseModel):
 
 
 class ScoreWeights(BaseModel):
-    """Weights used to compute overall watchlist score."""
+    """Weights used to compute overall watchlist score (3-pillar system)."""
 
-    price: float = 50.0
-    technical: float = 50.0
+    price: float = 33.0
+    technical: float = 33.0
+    fundamental: float = 34.0  # NEW: Third pillar
 
     @property
     def total(self) -> float:
-        return self.price + self.technical
+        return self.price + self.technical + self.fundamental
 
     def normalized(self) -> dict[str, float]:
+        """Normalize weights to sum to 1.0."""
         total = self.total
         if total <= 0:
-            return {"price": 0.5, "technical": 0.5}
-        return {"price": self.price / total, "technical": self.technical / total}
+            return {"price": 0.33, "technical": 0.33, "fundamental": 0.34}
+        return {
+            "price": self.price / total,
+            "technical": self.technical / total,
+            "fundamental": self.fundamental / total,
+        }
 
 
 class ScoreComponent(BaseModel):
@@ -88,6 +94,10 @@ class ScoreComponent(BaseModel):
     stale: bool = False
     updated_at: datetime | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+    sub_scores: dict[str, float] = Field(
+        default_factory=dict,
+        description="Sub-metric scores (e.g., rsi_14, trend, macd for technical)",
+    )
 
     @classmethod
     @field_validator("score", mode="before")
@@ -96,15 +106,18 @@ class ScoreComponent(BaseModel):
 
 
 class ScoreBreakdown(BaseModel):
-    """Score breakdown for a watchlist item."""
+    """Score breakdown for a watchlist item (3-pillar system)."""
 
     price: ScoreComponent
     technical: ScoreComponent
+    fundamental: ScoreComponent | None = None  # NEW: May be None if not fetched
+
     overall: float
 
     @classmethod
     @field_validator("overall", mode="before")
     def clamp_overall(cls, value: float) -> float:
+        """Clamp overall score to 0-100."""
         return max(0.0, min(100.0, float(value)))
 
     def to_snapshot_payload(self) -> dict[str, Any]:
@@ -112,6 +125,7 @@ class ScoreBreakdown(BaseModel):
         return {
             "price": self.price.model_dump(mode="json"),
             "technical": self.technical.model_dump(mode="json"),
+            "fundamental": self.fundamental.model_dump(mode="json") if self.fundamental else None,
             "overall": self.overall,
         }
 

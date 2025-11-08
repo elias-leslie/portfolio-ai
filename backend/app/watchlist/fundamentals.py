@@ -45,6 +45,13 @@ class FundamentalData(BaseModel):
     recommendation_mean: float | None = None  # 1.0-5.0 (1=strong buy, 5=sell)
     target_mean_price: float | None = None  # Analyst average target price
 
+    # 4-pillar scores (calculated)
+    fundamental_score: float | None = None  # Overall 0-100
+    valuation_score: float | None = None  # 0-100
+    growth_score: float | None = None  # 0-100
+    health_score: float | None = None  # 0-100
+    sentiment_score: float | None = None  # 0-100
+
 
 class BaseFundamentalSource(ABC):
     """Abstract base class for fundamental data sources."""
@@ -295,6 +302,161 @@ def classify_company_health(data: FundamentalData) -> str:
 
     # Default to GOOD (moderate company)
     return "GOOD"
+
+
+def calculate_valuation_score(data: FundamentalData) -> float:
+    """Calculate valuation score (0-100) based on P/E, P/B, profit margin.
+
+    Weight: 30% of fundamental score
+
+    Scoring:
+    - Profit margin >20% = 90, >10% = 70, >5% = 50, else 30
+    - TODO: Add P/E, P/B, PEG ratios when available
+
+    Args:
+        data: FundamentalData with company metrics
+
+    Returns:
+        Valuation score 0-100 (higher = better value)
+    """
+    profit_margin = data.profit_margin or 0.06
+
+    # Simple scoring using available data
+    if profit_margin > 0.20:
+        return 90.0
+    if profit_margin > 0.10:
+        return 70.0
+    if profit_margin > 0.05:
+        return 50.0
+    return 30.0
+
+
+def calculate_growth_score(data: FundamentalData) -> float:
+    """Calculate growth score (0-100) based on revenue and earnings growth.
+
+    Weight: 35% of fundamental score
+
+    Scoring:
+    - Revenue growth >30% = 100, 20-30% = 80, 10-20% = 60, 5-10% = 40, <5% = 20
+
+    Args:
+        data: FundamentalData with company metrics
+
+    Returns:
+        Growth score 0-100 (higher = faster growth)
+    """
+    revenue_growth = data.revenue_growth or 0.06
+
+    if revenue_growth > 0.30:
+        return 100.0
+    if revenue_growth > 0.20:
+        return 80.0
+    if revenue_growth > 0.10:
+        return 60.0
+    if revenue_growth > 0.05:
+        return 40.0
+    return 20.0
+
+
+def calculate_health_score(data: FundamentalData) -> float:
+    """Calculate financial health score (0-100) based on debt and profitability.
+
+    Weight: 25% of fundamental score
+
+    Scoring:
+    - Debt/Equity: <0.3 = 100, <0.7 = 80, <1.5 = 60, <2.5 = 40, else 20
+    - Profit margin: >20% = 100, >10% = 80, >5% = 60, >0% = 40, else 0
+    - Average the 2 scores
+
+    Args:
+        data: FundamentalData with company metrics
+
+    Returns:
+        Health score 0-100 (higher = healthier)
+    """
+    debt_to_equity = data.debt_to_equity or 1.0
+    profit_margin = data.profit_margin or 0.06
+
+    # Debt scoring
+    if debt_to_equity < 0.3:
+        debt_score = 100.0
+    elif debt_to_equity < 0.7:
+        debt_score = 80.0
+    elif debt_to_equity < 1.5:
+        debt_score = 60.0
+    elif debt_to_equity < 2.5:
+        debt_score = 40.0
+    else:
+        debt_score = 20.0
+
+    # Profit margin scoring
+    if profit_margin > 0.20:
+        margin_score = 100.0
+    elif profit_margin > 0.10:
+        margin_score = 80.0
+    elif profit_margin > 0.05:
+        margin_score = 60.0
+    elif profit_margin > 0:
+        margin_score = 40.0
+    else:
+        margin_score = 0.0
+
+    return (debt_score + margin_score) / 2.0
+
+
+def calculate_sentiment_score(data: FundamentalData) -> float:
+    """Calculate analyst sentiment score (0-100) based on recommendations.
+
+    Weight: 10% of fundamental score
+
+    Scoring based on recommendation_mean (1=strong buy, 5=sell):
+    - 1.0-1.5 = 100, 1.5-2.0 = 80, 2.0-2.5 = 60, 2.5-3.5 = 40, 3.5-4.5 = 20, >4.5 = 0
+
+    Args:
+        data: FundamentalData with company metrics
+
+    Returns:
+        Sentiment score 0-100 (higher = more bullish)
+    """
+    rec_mean = data.recommendation_mean or 3.0
+
+    if rec_mean < 1.5:
+        return 100.0
+    if rec_mean < 2.0:
+        return 80.0
+    if rec_mean < 2.5:
+        return 60.0
+    if rec_mean < 3.5:
+        return 40.0
+    if rec_mean < 4.5:
+        return 20.0
+    return 0.0
+
+
+def calculate_fundamental_score(data: FundamentalData) -> float:
+    """Calculate overall fundamental score (0-100) using 4-pillar system.
+
+    Pillars:
+    - Valuation: 30% (P/E, P/B, profit margin)
+    - Growth: 35% (revenue, earnings)
+    - Health: 25% (debt, margins)
+    - Sentiment: 10% (analyst ratings)
+
+    Args:
+        data: FundamentalData with company metrics
+
+    Returns:
+        Overall fundamental score (0-100)
+    """
+    valuation = calculate_valuation_score(data)
+    growth = calculate_growth_score(data)
+    health = calculate_health_score(data)
+    sentiment = calculate_sentiment_score(data)
+
+    # Weighted average (30/35/25/10)
+    overall = valuation * 0.30 + growth * 0.35 + health * 0.25 + sentiment * 0.10
+
+    return overall
 
 
 def fetch_fundamentals_cached(
