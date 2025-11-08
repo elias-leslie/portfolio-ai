@@ -13,10 +13,11 @@ import {
     ChevronDown,
     ChevronRight,
 } from "lucide-react";
-import { useMarketNews, useWatchlistNews } from "@/lib/hooks/useNews";
+import { useMarketNews, useWatchlistNews, usePortfolioNews } from "@/lib/hooks/useNews";
 import type { NewsBundle } from "@/lib/api/news";
 import type { SentimentArticle } from "@/lib/api/watchlist";
 import { useWatchlist } from "@/lib/hooks/useWatchlist";
+import { usePortfolio } from "@/lib/hooks/usePortfolio";
 import { usePreferences } from "@/lib/hooks/usePreferences";
 
 const DEFAULT_ACCOUNT_ID = "default";
@@ -504,23 +505,30 @@ function NewsBundleCard({
 }
 
 export default function NewsPage() {
-    const [view, setView] = useState<"market" | "watchlist">("market");
+    const [view, setView] = useState<"market" | "watchlist" | "portfolio">("market");
     const [accountId] = useState(DEFAULT_ACCOUNT_ID);
 
     const marketQuery = useMarketNews();
     const watchlistQuery = useWatchlistNews(accountId);
+    const portfolioQuery = usePortfolioNews();
 
     // Preload watchlist symbols (for messaging and context)
     const { data: watchlistData } = useWatchlist(accountId);
+    const { data: portfolio } = usePortfolio();
     const { data: preferences } = usePreferences();
 
-    const activeQuery = view === "market" ? marketQuery : watchlistQuery;
+    const activeQuery =
+        view === "market" ? marketQuery :
+        view === "watchlist" ? watchlistQuery :
+        portfolioQuery;
 
     const handleRefresh = () => {
         if (view === "market") {
             marketQuery.refetch();
-        } else {
+        } else if (view === "watchlist") {
             watchlistQuery.refetch();
+        } else {
+            portfolioQuery.refetch();
         }
     };
 
@@ -532,6 +540,11 @@ export default function NewsPage() {
         if (!watchlistQuery.data) return [];
         return watchlistQuery.data.items;
     }, [watchlistQuery.data]);
+
+    const portfolioBundles: NewsBundle[] = useMemo(() => {
+        if (!portfolioQuery.data) return [];
+        return portfolioQuery.data.items;
+    }, [portfolioQuery.data]);
 
     const hasWatchlistSymbols = (watchlistData?.items.length ?? 0) > 0;
     const watchlistNewsHidden =
@@ -563,6 +576,7 @@ export default function NewsPage() {
                                 [
                                     { key: "market", label: "Market" },
                                     { key: "watchlist", label: "My Watchlist" },
+                                    { key: "portfolio", label: "My Portfolio" },
                                 ] as const
                             ).map(({ key, label }) => (
                                 <Button
@@ -668,6 +682,39 @@ export default function NewsPage() {
                                     title={`Symbol: ${bundle.ticker}`}
                                 />
                             ))}
+                    </section>
+                )}
+
+                {view === "portfolio" && (
+                    <section className="space-y-4">
+                        {portfolioQuery.isLoading && (
+                            <div className="flex items-center gap-2 text-sm text-text-muted">
+                                <Loader2 className="h-4 w-4 animate-spin" />{" "}
+                                Loading portfolio headlines...
+                            </div>
+                        )}
+                        {portfolioQuery.error && (
+                            <p className="text-sm text-loss">
+                                Failed to load portfolio news:{" "}
+                                {portfolioQuery.error.message}
+                            </p>
+                        )}
+                        {!portfolioQuery.isLoading &&
+                            !portfolioQuery.error &&
+                            portfolioBundles.length === 0 && (
+                                <p className="text-sm text-text-muted">
+                                    {portfolio?.positions && portfolio.positions.length > 0
+                                        ? "No recent headlines for your portfolio positions."
+                                        : "Add positions to your portfolio to see sentiment-scored headlines."}
+                                </p>
+                            )}
+                        {portfolioBundles.map((bundle) => (
+                            <NewsBundleCard
+                                key={bundle.ticker}
+                                bundle={bundle}
+                                title={`Symbol: ${bundle.ticker}`}
+                            />
+                        ))}
                     </section>
                 )}
             </div>

@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { PositionTable } from "@/components/portfolio/PositionTable";
 import { PortfolioOverview } from "@/components/portfolio/PortfolioOverview";
-import { AccountsCard } from "@/components/portfolio/AccountsCard";
+import { AccountsWithPositions } from "@/components/portfolio/AccountsWithPositions";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
@@ -15,13 +14,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -310,23 +302,8 @@ export default function PortfolioPage() {
           <PortfolioOverview />
         </div>
 
-        {/* Accounts Section */}
-        <div className="mb-10">
-          <AccountsCard />
-        </div>
-
-        {/* Positions Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Your Positions</CardTitle>
-            <CardDescription>
-              View and manage all your portfolio positions
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <PositionTable />
-          </CardContent>
-        </Card>
+        {/* Accounts with Positions */}
+        <AccountsWithPositions />
       </div>
     </div>
   );
