@@ -39,18 +39,22 @@ class FinnhubClient(BaseHTTPClient):
     def __init__(
         self,
         api_key: str | None = None,
+        rate_calls_per_minute: int | None = 60,
         timeout: float = 30.0,
     ) -> None:
         """Initialize Finnhub client.
 
         Args:
             api_key: Finnhub API key (defaults to FINNHUB_API_KEY env var)
+            rate_calls_per_minute: Maximum requests per minute (default: 60, None = no limit)
             timeout: Request timeout in seconds (default: 30)
 
         Raises:
             RuntimeError: If API key not provided and not in environment
         """
-        super().__init__(api_key=api_key, rate_calls_per_minute=60, timeout=timeout)
+        super().__init__(
+            api_key=api_key, rate_calls_per_minute=rate_calls_per_minute, timeout=timeout
+        )
 
     def get_api_key_env_var(self) -> str:
         """Return environment variable name for API key."""

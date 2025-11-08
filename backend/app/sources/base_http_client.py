@@ -166,8 +166,10 @@ class RateLimiter:
                         wait_seconds=wait_for,
                         limit=f"{limit}/{window_name}",
                     )
+                    # Use "daily" for user-facing error message
+                    window_display = "daily" if window_name == "day" else window_name
                     raise RuntimeError(
-                        f"{source_name} daily rate limit ({limit} calls) exceeded. "
+                        f"{source_name} {window_display} rate limit ({limit} calls) exceeded. "
                         f"Reset in {wait_for:.0f} seconds"
                     )
 

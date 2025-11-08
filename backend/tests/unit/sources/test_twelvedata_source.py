@@ -279,8 +279,8 @@ def test_twelvedata_client_rate_limiting() -> None:
                 patch("time.sleep", side_effect=mock_sleep),
                 patch("time.time", side_effect=mock_time_func),
             ):
-                # Create client with default rate limit (8/min)
-                client = TwelveDataClient(api_key="test_key")
+                # Create client with low rate limit for testing
+                client = TwelveDataClient(api_key="test_key", rate_calls_per_minute=2)
 
                 # Mock response
                 mock_response = MagicMock()
@@ -296,13 +296,14 @@ def test_twelvedata_client_rate_limiting() -> None:
                 client.get("/test")
                 assert len(sleep_calls) == 0  # No sleep on second call (within rate limit)
 
-                # With real rate limit of 8/min, we won't hit it with just 3 requests
-                # So let's just verify requests complete successfully
+                # Make third request - should trigger rate limit wait
+                # (we set rate_calls_per_minute=2, so third request should wait)
                 client.get("/test")
+                assert len(sleep_calls) == 1  # Sleep was called once
+                assert sleep_calls[0] > 0  # Sleep time should be positive
 
-                # Verify all requests completed without rate limiting
+                # Verify all requests completed
                 assert client.request_count == 3
-                assert len(sleep_calls) == 0  # No sleep needed for 3 requests with 8/min limit
 
 
 def test_twelvedata_source_is_enabled() -> None:
