@@ -10,7 +10,20 @@
 
 ## 🔄 Active (Currently Working)
 
-*No active work - ready for next task*
+- **Watchlist Improvements - Part 2: Foundation**
+  - **File:** `tasks/tasks-cloud-watchlist-part2-foundation.md`
+  - **Status:** 44% complete - **PAUSED** 2025-11-08 14:40
+  - **Started:** 2025-11-08 (Cloud agent)
+  - **Last Updated:** 2025-11-08 14:40 (Local agent #1)
+  - **Next:** Task 4 - Integrate fundamental scoring into refresh_processor.py
+  - **Pause Reason:** Strategic session handoff (context 79%)
+  - **Handoff:** `tasks/PAUSE-HANDOFF-20251108-1440-part2.md`
+  - **Progress:**
+    - ✅ Tasks 1-3: Cloud agent (models, architecture)
+    - ✅ Scoring layer: Local #1 (integration complete)
+    - ❌ Tasks 4-10: Remaining (refresh integration, frontend, testing)
+  - **Branch:** `claude/implement-watchlist-improvements-011CUvqDioH4JoBobHQRa8nD`
+  - **Part of:** 3-part watchlist overhaul (Part 1 ✅ complete, Part 2 🔄 in progress, Part 3 📋 planned)
 
 ---
 
