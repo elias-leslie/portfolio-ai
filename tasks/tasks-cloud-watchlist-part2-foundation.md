@@ -30,16 +30,20 @@
    - Data flow architecture
 
 2. **Visual Mockups**: `docs/design_references/watchlist_design_reference/`
-   - High-fidelity UI mockups with exact spacing, colors, fonts
-   - Each folder contains: `screen.png` (visual) + `code.html` (Tailwind implementation)
+   - High-fidelity UI mockups showing target design
+   - Each folder contains: `screen.png` (visual reference) + `code.html` (HTML structure example)
    - Main table view, expanded row, settings panel, search/filter bar
 
 **Implementation Priority:**
 - Backend: Follow text guide for data structures and API responses
-- Frontend: Use `code.html` files as reference for exact Tailwind classes, spacing, colors
-  - Tailwind config in HTML: `primary: #135bec`, `background-dark: #101622`
-  - Font: Inter (already configured)
-  - Dark mode: `dark:` prefix throughout
+- Frontend: Use visual mockups and HTML files as **design guidelines**
+  - **Layout & Structure**: Follow HTML examples for component arrangement and hierarchy
+  - **Spacing**: Use similar spacing patterns (margins, padding, gaps)
+  - **Colors**: **USE PROJECT'S EXISTING GLOBAL COLOR SCHEME** (not HTML colors)
+    - Check existing app components for color variables/classes
+    - Maintain consistency with current Portfolio AI theme
+  - **Typography**: Use existing font configuration (Inter already set up)
+  - HTML files show "what to build", existing codebase shows "how to style it"
 
 **⚠️ Known Discrepancy - Sentiment Placement:**
 - **Mockup**: Shows Sentiment as 4th top-level pillar (Price/Technical/Fundamental/Sentiment)

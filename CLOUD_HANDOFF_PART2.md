@@ -42,7 +42,11 @@ Completed 3 of 9 tasks from Part 2 Foundation. Core architecture and models are 
    - `expanded_row_-_full_intelligence_view/` - Expanded row details (screen.png + code.html)
    - `watchlist_settings_panel/` - Settings sliders (screen.png + code.html)
    - `search_and_filter_bar/` - Search and filter UI (screen.png + code.html)
-   - **NOTE**: Each folder has `code.html` with Tailwind CSS implementation - USE THIS for exact styling!
+   - **HTML FILES**: Each folder has `code.html` with Tailwind CSS examples
+     - **USE AS GUIDELINES ONLY** - for layout structure, spacing, and component arrangement
+     - **DO NOT copy colors exactly** - use existing global color scheme from app
+     - **DO NOT copy Tailwind config** - use project's existing Tailwind setup
+     - Focus on: component structure, spacing patterns, layout hierarchy, element relationships
 
 **⚠️ Known Discrepancy:**
 - Mockup shows Sentiment as 4th top-level weight (Price/Technical/Fundamental/Sentiment)

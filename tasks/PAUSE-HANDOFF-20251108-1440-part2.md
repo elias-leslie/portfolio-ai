@@ -12,9 +12,12 @@
 
 1. **Text Guide**: `docs/watchlist_design_guide.md`
 2. **Visual Mockups**: `docs/design_references/watchlist_design_reference/`
-   - **Settings panel**: `watchlist_settings_panel/code.html` - Exact Tailwind implementation for sliders
-   - **Expanded row**: `expanded_row_-_full_intelligence_view/code.html` - Score breakdown HTML/CSS
-   - Each mockup has `screen.png` (visual) + `code.html` (implementation)
+   - **Settings panel**: `watchlist_settings_panel/` - screen.png + code.html
+   - **Expanded row**: `expanded_row_-_full_intelligence_view/` - screen.png + code.html
+   - **IMPORTANT**: HTML files are **structure/layout guidelines only**
+     - Use them for: component arrangement, spacing patterns, hierarchy
+     - **DO NOT use their colors** - use existing global app color scheme
+     - Match the "what" (design intent), not the exact "how" (specific CSS values)
 
 **⚠️ Sentiment Weight Discrepancy:**
 - Mockup shows Sentiment as 4th top-level pillar
