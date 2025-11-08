@@ -10,7 +10,25 @@
 
 ## 🔄 Active (Currently Working)
 
-None - ready for next task
+- **Watchlist Complete Vision - Unified Implementation**
+  - **File:** `tasks/tasks-watchlist-complete-vision.md`
+  - **Status:** 0% complete (0/24 tasks) - **READY FOR CLOUD AGENT**
+  - **Started:** 2025-11-08 16:10
+  - **Type:** Cloud → Local → Cloud handoff pattern
+  - **Priority:** HIGH - Complete watchlist to match design vision
+  - **Next:** Cloud agent starts Phase 1, Task 1.1 (Research current table)
+  - **Phases:**
+    - Phase 1: Main Table UX (7 tasks, ~4h)
+    - Phase 2: Filter Dropdowns (4 tasks, ~2h)
+    - Phase 3: Settings Sliders (3 tasks, ~3h)
+    - Phase 4: Enhanced Details (1 task, ~2h)
+    - Phase 5: Documentation (2 tasks, ~1h)
+  - **Branch:** `claude/implement-watchlist-improvements-011CUvqDioH4JoBobHQRa8nD`
+  - **Combines:**
+    - Gap analysis findings (main table cleanup)
+    - Part 2 deferred (settings sliders)
+    - Part 3 planned (search, filters, docs)
+  - **Success Criteria:** Screenshots MUST match design references
 
 ---
 
