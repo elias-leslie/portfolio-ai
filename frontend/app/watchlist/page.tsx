@@ -17,27 +17,49 @@ import {
 import { Input } from "@/components/ui/input";
 
 type StyleFilter = "all" | "Index" | "Trend" | "Value" | "Swing" | "Event";
+type SignalFilter = "all" | "BUY" | "HOLD" | "AVOID";
+type RiskFilter = "all" | "Low" | "Medium-Low" | "Medium" | "High";
 
 export default function WatchlistPage() {
   const [addTickerOpen, setAddTickerOpen] = useState(false);
   const [styleFilter, setStyleFilter] = useState<StyleFilter>("all");
+  const [signalFilter, setSignalFilter] = useState<SignalFilter>("all");
+  const [riskFilter, setRiskFilter] = useState<RiskFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
 
   const { data: watchlistData, isLoading, error } = useWatchlist();
   const refreshMutation = useRefreshWatchlist();
 
-  // Load filter from localStorage on mount
+  // Load filters from localStorage on mount
   useEffect(() => {
-    const savedFilter = localStorage.getItem("watchlist-style-filter");
-    if (savedFilter && ["all", "Index", "Trend", "Value", "Swing", "Event"].includes(savedFilter)) {
-      setStyleFilter(savedFilter as StyleFilter);
+    const savedStyleFilter = localStorage.getItem("watchlist-style-filter");
+    if (savedStyleFilter && ["all", "Index", "Trend", "Value", "Swing", "Event"].includes(savedStyleFilter)) {
+      setStyleFilter(savedStyleFilter as StyleFilter);
+    }
+
+    const savedSignalFilter = localStorage.getItem("watchlist-signal-filter");
+    if (savedSignalFilter && ["all", "BUY", "HOLD", "AVOID"].includes(savedSignalFilter)) {
+      setSignalFilter(savedSignalFilter as SignalFilter);
+    }
+
+    const savedRiskFilter = localStorage.getItem("watchlist-risk-filter");
+    if (savedRiskFilter && ["all", "Low", "Medium-Low", "Medium", "High"].includes(savedRiskFilter)) {
+      setRiskFilter(savedRiskFilter as RiskFilter);
     }
   }, []);
 
-  // Save filter to localStorage when it changes
+  // Save filters to localStorage when they change
   useEffect(() => {
     localStorage.setItem("watchlist-style-filter", styleFilter);
   }, [styleFilter]);
+
+  useEffect(() => {
+    localStorage.setItem("watchlist-signal-filter", signalFilter);
+  }, [signalFilter]);
+
+  useEffect(() => {
+    localStorage.setItem("watchlist-risk-filter", riskFilter);
+  }, [riskFilter]);
 
   const handleRefresh = () => {
     refreshMutation.mutate(undefined, {
@@ -63,13 +85,23 @@ export default function WatchlistPage() {
     });
   };
 
-  // Filter items by style and search query
+  // Filter items by style, signal, risk, and search query
   const filteredItems = useMemo(() => {
     let items = watchlistData?.items || [];
 
     // Apply style filter
     if (styleFilter !== "all") {
       items = items.filter((item) => item.recommended_style === styleFilter);
+    }
+
+    // Apply signal filter
+    if (signalFilter !== "all") {
+      items = items.filter((item) => item.signal_type === signalFilter);
+    }
+
+    // Apply risk filter
+    if (riskFilter !== "all") {
+      items = items.filter((item) => item.risk_level === riskFilter);
     }
 
     // Apply search filter
@@ -82,12 +114,28 @@ export default function WatchlistPage() {
     }
 
     return items;
-  }, [watchlistData?.items, styleFilter, searchQuery]);
+  }, [watchlistData?.items, styleFilter, signalFilter, riskFilter, searchQuery]);
 
   // Count by style
   const styleCounts = (watchlistData?.items || []).reduce((acc, item) => {
     if (item.recommended_style) {
       acc[item.recommended_style] = (acc[item.recommended_style] || 0) + 1;
+    }
+    return acc;
+  }, {} as Record<string, number>);
+
+  // Count by signal
+  const signalCounts = (watchlistData?.items || []).reduce((acc, item) => {
+    if (item.signal_type) {
+      acc[item.signal_type] = (acc[item.signal_type] || 0) + 1;
+    }
+    return acc;
+  }, {} as Record<string, number>);
+
+  // Count by risk
+  const riskCounts = (watchlistData?.items || []).reduce((acc, item) => {
+    if (item.risk_level) {
+      acc[item.risk_level] = (acc[item.risk_level] || 0) + 1;
     }
     return acc;
   }, {} as Record<string, number>);
@@ -109,11 +157,21 @@ export default function WatchlistPage() {
                 : `Showing ${filteredItems.length} ${styleFilter} ${filteredItems.length === 1 ? "play" : "plays"}`}
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Select value={signalFilter} onValueChange={(value) => setSignalFilter(value as SignalFilter)}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Signal: All" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Signals ({watchlistData?.items.length || 0})</SelectItem>
+                <SelectItem value="BUY">🟢 BUY ({signalCounts["BUY"] || 0})</SelectItem>
+                <SelectItem value="HOLD">🟡 HOLD ({signalCounts["HOLD"] || 0})</SelectItem>
+                <SelectItem value="AVOID">🔴 AVOID ({signalCounts["AVOID"] || 0})</SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={styleFilter} onValueChange={(value) => setStyleFilter(value as StyleFilter)}>
-              <SelectTrigger className="w-[180px]">
-                <Filter className="mr-2 h-4 w-4" />
-                <SelectValue placeholder="Filter by style" />
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Style: All" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Styles ({watchlistData?.items.length || 0})</SelectItem>
@@ -122,6 +180,18 @@ export default function WatchlistPage() {
                 <SelectItem value="Value">💎 Value ({styleCounts["Value"] || 0})</SelectItem>
                 <SelectItem value="Swing">⚡ Swing ({styleCounts["Swing"] || 0})</SelectItem>
                 <SelectItem value="Event">📅 Event ({styleCounts["Event"] || 0})</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={riskFilter} onValueChange={(value) => setRiskFilter(value as RiskFilter)}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Risk: All" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Risk Levels ({watchlistData?.items.length || 0})</SelectItem>
+                <SelectItem value="Low">✓ Low ({riskCounts["Low"] || 0})</SelectItem>
+                <SelectItem value="Medium-Low">⚠ Med-Low ({riskCounts["Medium-Low"] || 0})</SelectItem>
+                <SelectItem value="Medium">⚠ Medium ({riskCounts["Medium"] || 0})</SelectItem>
+                <SelectItem value="High">⚠⚠ High ({riskCounts["High"] || 0})</SelectItem>
               </SelectContent>
             </Select>
             <Button
