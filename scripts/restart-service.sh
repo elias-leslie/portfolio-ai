@@ -79,12 +79,11 @@ restart_service() {
                 fi
             else
                 log_warning "Systemd restart failed, falling back to manual restart..."
-                pkill -f "celery -A app.celery_app worker" || true
+                SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+                "$SCRIPT_DIR/stop-celery.sh" 2>/dev/null || pkill -f "celery.*worker" || true
                 sleep 1
-                cd "$(dirname "$0")/../backend"
-                nohup .venv/bin/celery -A app.celery_app worker --concurrency=2 --loglevel=info > /tmp/portfolio-celery-worker.log 2>&1 &
-                sleep 2
-                log_info "Celery worker restarted (manual fallback, concurrency=2)"
+                "$SCRIPT_DIR/start-celery.sh"
+                log_info "Celery worker restarted (manual fallback via start-celery.sh)"
             fi
             ;;
 
@@ -100,12 +99,11 @@ restart_service() {
                 fi
             else
                 log_warning "Systemd restart failed, falling back to manual restart..."
-                pkill -f "celery -A app.celery_app beat" || true
+                SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+                "$SCRIPT_DIR/stop-celery.sh" 2>/dev/null || pkill -f "celery.*beat" || true
                 sleep 1
-                cd "$(dirname "$0")/../backend"
-                nohup .venv/bin/celery -A app.celery_app beat --loglevel=info > /tmp/portfolio-celery-beat.log 2>&1 &
-                sleep 2
-                log_info "Celery beat restarted (manual fallback)"
+                "$SCRIPT_DIR/start-celery.sh"
+                log_info "Celery beat restarted (manual fallback via start-celery.sh)"
             fi
             ;;
 

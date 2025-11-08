@@ -99,40 +99,8 @@ else
 fi
 echo ""
 
-# Start Celery Worker
-echo "Starting Celery worker..."
-kill_process "celery.*worker" "existing Celery Worker"
-
-cd "$BACKEND_DIR"
-nohup celery -A app.celery_app worker --concurrency=2 --loglevel=info > /tmp/portfolio-celery-worker.log 2>&1 &
-CELERY_PID=$!
-sleep 2
-
-if pgrep -f "celery.*worker" > /dev/null; then
-    echo "✓ Celery worker started (PID: $CELERY_PID)"
-    echo "  Log: /tmp/portfolio-celery-worker.log"
-else
-    echo "⚠ Warning: Celery worker may not have started properly"
-    echo "  Check logs: tail -f /tmp/portfolio-celery-worker.log"
-fi
-echo ""
-
-# Start Celery Beat (periodic tasks scheduler)
-echo "Starting Celery beat..."
-kill_process "celery.*beat" "existing Celery Beat"
-
-cd "$BACKEND_DIR"
-nohup celery -A app.celery_app beat --loglevel=info > /tmp/portfolio-celery-beat.log 2>&1 &
-BEAT_PID=$!
-sleep 2
-
-if pgrep -f "celery.*beat" > /dev/null; then
-    echo "✓ Celery beat started (PID: $BEAT_PID)"
-    echo "  Log: /tmp/portfolio-celery-beat.log"
-else
-    echo "⚠ Warning: Celery beat may not have started properly"
-    echo "  Check logs: tail -f /tmp/portfolio-celery-beat.log"
-fi
+# Start Celery Worker and Beat using dedicated script
+"$SCRIPT_DIR/start-celery.sh"
 echo ""
 
 # Start Frontend
