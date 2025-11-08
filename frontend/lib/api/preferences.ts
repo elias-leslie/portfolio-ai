@@ -4,6 +4,30 @@
 
 import { apiRequest } from "./client";
 
+// Weight configuration types (migration 019)
+export interface ScoreWeights {
+    price: number;
+    technical: number;
+    fundamental: number;
+}
+
+export interface PriceSubWeights {
+    change_pct: number;
+}
+
+export interface TechnicalSubWeights {
+    rsi_14: number;
+    trend: number;
+    macd: number;
+}
+
+export interface FundamentalSubWeights {
+    valuation: number;
+    growth: number;
+    health: number;
+    sentiment: number;
+}
+
 // Types matching backend Pydantic models
 export interface PreferencesResponse {
     risk_tolerance: number;
@@ -28,6 +52,11 @@ export interface PreferencesResponse {
     watchlist_technical_weight: number;
     display_timezone: string;
     watchlist_show_news: boolean;
+    // New weight configuration fields (migration 019)
+    watchlist_score_weights?: ScoreWeights;
+    price_sub_weights?: PriceSubWeights;
+    technical_sub_weights?: TechnicalSubWeights;
+    fundamental_sub_weights?: FundamentalSubWeights;
 }
 
 export interface PreferencesUpdate {
@@ -53,6 +82,11 @@ export interface PreferencesUpdate {
     watchlist_technical_weight?: number;
     display_timezone?: string;
     watchlist_show_news?: boolean;
+    // New weight configuration fields (migration 019)
+    watchlist_score_weights?: ScoreWeights;
+    price_sub_weights?: PriceSubWeights;
+    technical_sub_weights?: TechnicalSubWeights;
+    fundamental_sub_weights?: FundamentalSubWeights;
 }
 
 /**
