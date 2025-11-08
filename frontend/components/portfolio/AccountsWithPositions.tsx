@@ -36,12 +36,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Trash2, Pencil, ChevronDown } from "lucide-react";
+import { Trash2, Pencil, PlusCircle } from "lucide-react";
 import type { PositionWithValue } from "@/lib/api/portfolio";
 
 type PositionType = "long" | "short";
 
-export function AccountsWithPositions() {
+interface AccountsWithPositionsProps {
+  onAddAccount?: () => void;
+  onAddPosition?: (accountId: string) => void;
+}
+
+export function AccountsWithPositions({ onAddAccount, onAddPosition }: AccountsWithPositionsProps) {
   const { data: accounts, isLoading: accountsLoading } = useAccounts();
   const { data: portfolio, isLoading: portfolioLoading } = usePortfolio();
   const deleteAccount = useDeleteAccount();
@@ -172,12 +177,22 @@ export function AccountsWithPositions() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Accounts & Positions</CardTitle>
-          <CardDescription>Organize your portfolio by account</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Accounts & Positions</CardTitle>
+              <CardDescription>Organize your portfolio by account</CardDescription>
+            </div>
+            {onAddAccount && (
+              <Button variant="outline" size="sm" onClick={onAddAccount}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Add Account
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="text-sm text-text-muted">
-            No accounts yet. Create an account to start managing your portfolio.
+            No accounts yet. Click &quot;Add Account&quot; above to start managing your portfolio.
           </div>
         </CardContent>
       </Card>
@@ -188,10 +203,20 @@ export function AccountsWithPositions() {
     <>
       <Card>
         <CardHeader>
-          <CardTitle>Accounts & Positions</CardTitle>
-          <CardDescription>
-            {accounts.length} account{accounts.length !== 1 ? "s" : ""} • {portfolio?.positions.length || 0} position{portfolio?.positions.length !== 1 ? "s" : ""}
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Accounts & Positions</CardTitle>
+              <CardDescription>
+                {accounts.length} account{accounts.length !== 1 ? "s" : ""} • {portfolio?.positions.length || 0} position{portfolio?.positions.length !== 1 ? "s" : ""}
+              </CardDescription>
+            </div>
+            {onAddAccount && (
+              <Button variant="outline" size="sm" onClick={onAddAccount}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Add Account
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <Accordion type="single" collapsible className="w-full">
@@ -242,9 +267,21 @@ export function AccountsWithPositions() {
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="px-4 pb-4">
+                    {onAddPosition && (
+                      <div className="mb-3 flex justify-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => onAddPosition(account.id)}
+                        >
+                          <PlusCircle className="mr-2 h-4 w-4" />
+                          Add Position
+                        </Button>
+                      </div>
+                    )}
                     {positions.length === 0 ? (
                       <div className="py-8 text-center text-sm text-text-muted">
-                        No positions in this account yet. Use &quot;Add Position&quot; to get started.
+                        No positions in this account yet. Click &quot;Add Position&quot; above to get started.
                       </div>
                     ) : (
                       <div className="rounded-md border border-border bg-surface/50 overflow-hidden">

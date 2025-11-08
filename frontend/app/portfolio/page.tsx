@@ -12,7 +12,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,7 +23,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAddPosition, useCreateAccount, useAccounts } from "@/lib/hooks/usePortfolio";
-import { PlusCircle } from "lucide-react";
 
 type PositionType = "long" | "short";
 type AccountType = "IRA" | "Taxable" | "401k" | "Roth" | "HSA";
@@ -128,16 +126,28 @@ export default function PortfolioPage() {
               Manage your positions, accounts, and view detailed analytics
             </p>
           </div>
-          <div className="flex gap-2">
-            {/* Add Account Dialog */}
-            <Dialog open={accountOpen} onOpenChange={setAccountOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline">
-                  <PlusCircle className="mr-2 h-4 w-4" />
-                  Add Account
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
+          {/* Removed buttons - now in AccountsWithPositions card */}
+        </div>
+
+        {/* Portfolio Analytics */}
+        <div className="mb-10">
+          <PortfolioOverview />
+        </div>
+
+        {/* Accounts with Positions */}
+        <AccountsWithPositions
+          onAddAccount={() => setAccountOpen(true)}
+          onAddPosition={(accountId) => {
+            setAccountId(accountId);
+            setPositionOpen(true);
+          }}
+        />
+
+        {/* Hidden Dialogs */}
+        <div className="hidden">
+          {/* Add Account Dialog */}
+          <Dialog open={accountOpen} onOpenChange={setAccountOpen}>
+            <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Add New Account</DialogTitle>
                   <DialogDescription>
@@ -188,12 +198,6 @@ export default function PortfolioPage() {
 
             {/* Add Position Dialog */}
             <Dialog open={positionOpen} onOpenChange={setPositionOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <PlusCircle className="mr-2 h-4 w-4" />
-                  Add Position
-                </Button>
-              </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Add Position</DialogTitle>
@@ -294,16 +298,7 @@ export default function PortfolioPage() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-          </div>
         </div>
-
-        {/* Portfolio Analytics */}
-        <div className="mb-10">
-          <PortfolioOverview />
-        </div>
-
-        {/* Accounts with Positions */}
-        <AccountsWithPositions />
       </div>
     </div>
   );
