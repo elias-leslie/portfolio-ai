@@ -759,83 +759,163 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
                                                         }}
                                                     />
                                                 </div>
-                                                {/* Fundamental sub-scores (4-pillar) */}
+                                                {/* Fundamental sub-scores (4-pillar) - Enhanced with context */}
                                                 {item.current_score.fundamental
                                                     .sub_scores && (
-                                                    <div className="ml-4 mt-1 text-[10px] text-text-muted space-y-0.5">
+                                                    <div className="ml-4 mt-1 text-[10px] text-text-muted space-y-1">
+                                                        {/* Valuation */}
                                                         <div>
-                                                            • VALUATION:{" "}
-                                                            {item.current_score.fundamental.sub_scores
-                                                                .valuation !==
-                                                                undefined &&
-                                                            item.current_score
-                                                                .fundamental
-                                                                .sub_scores
-                                                                .valuation !==
-                                                                null
-                                                                ? Number(
-                                                                      item
-                                                                          .current_score
-                                                                          .fundamental
-                                                                          .sub_scores
-                                                                          .valuation,
-                                                                  ).toFixed(0)
-                                                                : "N/A"}
+                                                            <div className="font-medium text-text">
+                                                                • VALUATION:{" "}
+                                                                {item.current_score.fundamental.sub_scores
+                                                                    .valuation !==
+                                                                    undefined &&
+                                                                item.current_score
+                                                                    .fundamental
+                                                                    .sub_scores
+                                                                    .valuation !==
+                                                                    null
+                                                                    ? Number(
+                                                                          item
+                                                                              .current_score
+                                                                              .fundamental
+                                                                              .sub_scores
+                                                                              .valuation,
+                                                                      ).toFixed(0)
+                                                                    : "N/A"}
+                                                            </div>
+                                                            {/* Enhanced context from metadata */}
+                                                            {item.current_score.fundamental.metadata?.pe_ratio !== undefined && item.current_score.fundamental.metadata?.pe_ratio !== null && (
+                                                                <div className="ml-3 text-text-muted">
+                                                                    P/E: {typeof item.current_score.fundamental.metadata.pe_ratio === 'number'
+                                                                        ? item.current_score.fundamental.metadata.pe_ratio.toFixed(1)
+                                                                        : item.current_score.fundamental.metadata.pe_ratio}
+                                                                </div>
+                                                            )}
+                                                            {item.current_score.fundamental.metadata?.peg_ratio !== undefined && item.current_score.fundamental.metadata?.peg_ratio !== null && (
+                                                                <div className="ml-3 text-text-muted">
+                                                                    PEG: {typeof item.current_score.fundamental.metadata.peg_ratio === 'number'
+                                                                        ? item.current_score.fundamental.metadata.peg_ratio.toFixed(2)
+                                                                        : item.current_score.fundamental.metadata.peg_ratio}
+                                                                </div>
+                                                            )}
                                                         </div>
+
+                                                        {/* Growth */}
                                                         <div>
-                                                            • GROWTH:{" "}
-                                                            {item.current_score.fundamental.sub_scores
-                                                                .growth !==
-                                                                undefined &&
-                                                            item.current_score
-                                                                .fundamental
-                                                                .sub_scores
-                                                                .growth !== null
-                                                                ? Number(
-                                                                      item
-                                                                          .current_score
-                                                                          .fundamental
-                                                                          .sub_scores
-                                                                          .growth,
-                                                                  ).toFixed(0)
-                                                                : "N/A"}
+                                                            <div className="font-medium text-text">
+                                                                • GROWTH:{" "}
+                                                                {item.current_score.fundamental.sub_scores
+                                                                    .growth !==
+                                                                    undefined &&
+                                                                item.current_score
+                                                                    .fundamental
+                                                                    .sub_scores
+                                                                    .growth !== null
+                                                                    ? Number(
+                                                                          item
+                                                                              .current_score
+                                                                              .fundamental
+                                                                              .sub_scores
+                                                                              .growth,
+                                                                      ).toFixed(0)
+                                                                    : "N/A"}
+                                                            </div>
+                                                            {/* Enhanced context from metadata */}
+                                                            {item.current_score.fundamental.metadata?.revenue_growth !== undefined && item.current_score.fundamental.metadata?.revenue_growth !== null && (
+                                                                <div className="ml-3 text-text-muted">
+                                                                    Revenue: {typeof item.current_score.fundamental.metadata.revenue_growth === 'number'
+                                                                        ? `${(item.current_score.fundamental.metadata.revenue_growth * 100).toFixed(1)}%`
+                                                                        : item.current_score.fundamental.metadata.revenue_growth} YoY
+                                                                </div>
+                                                            )}
+                                                            {item.current_score.fundamental.metadata?.eps_growth !== undefined && item.current_score.fundamental.metadata?.eps_growth !== null && (
+                                                                <div className="ml-3 text-text-muted">
+                                                                    EPS: {typeof item.current_score.fundamental.metadata.eps_growth === 'number'
+                                                                        ? `${(item.current_score.fundamental.metadata.eps_growth * 100).toFixed(1)}%`
+                                                                        : item.current_score.fundamental.metadata.eps_growth} YoY
+                                                                </div>
+                                                            )}
                                                         </div>
+
+                                                        {/* Health */}
                                                         <div>
-                                                            • HEALTH:{" "}
-                                                            {item.current_score.fundamental.sub_scores
-                                                                .health !==
-                                                                undefined &&
-                                                            item.current_score
-                                                                .fundamental
-                                                                .sub_scores
-                                                                .health !== null
-                                                                ? Number(
-                                                                      item
-                                                                          .current_score
-                                                                          .fundamental
-                                                                          .sub_scores
-                                                                          .health,
-                                                                  ).toFixed(0)
-                                                                : "N/A"}
+                                                            <div className="font-medium text-text">
+                                                                • HEALTH:{" "}
+                                                                {item.current_score.fundamental.sub_scores
+                                                                    .health !==
+                                                                    undefined &&
+                                                                item.current_score
+                                                                    .fundamental
+                                                                    .sub_scores
+                                                                    .health !== null
+                                                                    ? Number(
+                                                                          item
+                                                                              .current_score
+                                                                              .fundamental
+                                                                              .sub_scores
+                                                                              .health,
+                                                                      ).toFixed(0)
+                                                                    : "N/A"}
+                                                            </div>
+                                                            {/* Enhanced context from metadata */}
+                                                            {item.current_score.fundamental.metadata?.gross_margin !== undefined && item.current_score.fundamental.metadata?.gross_margin !== null && (
+                                                                <div className="ml-3 text-text-muted">
+                                                                    Gross: {typeof item.current_score.fundamental.metadata.gross_margin === 'number'
+                                                                        ? `${(item.current_score.fundamental.metadata.gross_margin * 100).toFixed(1)}%`
+                                                                        : item.current_score.fundamental.metadata.gross_margin}
+                                                                </div>
+                                                            )}
+                                                            {item.current_score.fundamental.metadata?.operating_margin !== undefined && item.current_score.fundamental.metadata?.operating_margin !== null && (
+                                                                <div className="ml-3 text-text-muted">
+                                                                    Operating: {typeof item.current_score.fundamental.metadata.operating_margin === 'number'
+                                                                        ? `${(item.current_score.fundamental.metadata.operating_margin * 100).toFixed(1)}%`
+                                                                        : item.current_score.fundamental.metadata.operating_margin}
+                                                                </div>
+                                                            )}
+                                                            {item.current_score.fundamental.metadata?.roic !== undefined && item.current_score.fundamental.metadata?.roic !== null && (
+                                                                <div className="ml-3 text-text-muted">
+                                                                    ROIC: {typeof item.current_score.fundamental.metadata.roic === 'number'
+                                                                        ? `${(item.current_score.fundamental.metadata.roic * 100).toFixed(1)}%`
+                                                                        : item.current_score.fundamental.metadata.roic}
+                                                                </div>
+                                                            )}
                                                         </div>
+
+                                                        {/* Sentiment */}
                                                         <div>
-                                                            • SENTIMENT:{" "}
-                                                            {item.current_score.fundamental.sub_scores
-                                                                .sentiment !==
-                                                                undefined &&
-                                                            item.current_score
-                                                                .fundamental
-                                                                .sub_scores
-                                                                .sentiment !==
-                                                                null
-                                                                ? Number(
-                                                                      item
-                                                                          .current_score
-                                                                          .fundamental
-                                                                          .sub_scores
-                                                                          .sentiment,
-                                                                  ).toFixed(0)
-                                                                : "N/A"}
+                                                            <div className="font-medium text-text">
+                                                                • SENTIMENT:{" "}
+                                                                {item.current_score.fundamental.sub_scores
+                                                                    .sentiment !==
+                                                                    undefined &&
+                                                                item.current_score
+                                                                    .fundamental
+                                                                    .sub_scores
+                                                                    .sentiment !==
+                                                                    null
+                                                                    ? Number(
+                                                                          item
+                                                                              .current_score
+                                                                              .fundamental
+                                                                              .sub_scores
+                                                                              .sentiment,
+                                                                      ).toFixed(0)
+                                                                    : "N/A"}
+                                                            </div>
+                                                            {/* Enhanced context from metadata */}
+                                                            {item.current_score.fundamental.metadata?.institutional_ownership !== undefined && item.current_score.fundamental.metadata?.institutional_ownership !== null && (
+                                                                <div className="ml-3 text-text-muted">
+                                                                    Institutional: {typeof item.current_score.fundamental.metadata.institutional_ownership === 'number'
+                                                                        ? `${(item.current_score.fundamental.metadata.institutional_ownership * 100).toFixed(1)}%`
+                                                                        : item.current_score.fundamental.metadata.institutional_ownership}
+                                                                </div>
+                                                            )}
+                                                            {item.current_score.fundamental.metadata?.analyst_rating && (
+                                                                <div className="ml-3 text-text-muted">
+                                                                    Rating: {item.current_score.fundamental.metadata.analyst_rating}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 )}

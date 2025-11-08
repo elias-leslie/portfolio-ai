@@ -14,7 +14,12 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
-import type { PreferencesResponse } from "@/lib/api/preferences";
+import type {
+    PreferencesResponse,
+    ScoreWeights,
+    TechnicalSubWeights,
+    FundamentalSubWeights,
+} from "@/lib/api/preferences";
 
 interface WatchlistPreferencesProps {
     preferences: PreferencesResponse;
@@ -67,6 +72,19 @@ export function WatchlistPreferences({
     );
     const [showNews, setShowNews] = useState(preferences.watchlist_show_news);
 
+    // New weight configuration (migration 019)
+    const [scoreWeights, setScoreWeights] = useState<ScoreWeights>(
+        preferences.watchlist_score_weights ?? { price: 33, technical: 33, fundamental: 34 }
+    );
+    const [technicalSubWeights, setTechnicalSubWeights] = useState<TechnicalSubWeights>(
+        preferences.technical_sub_weights ?? { rsi_14: 33, trend: 34, macd: 33 }
+    );
+    const [fundamentalSubWeights, setFundamentalSubWeights] = useState<FundamentalSubWeights>(
+        preferences.fundamental_sub_weights ?? { valuation: 30, growth: 35, health: 25, sentiment: 10 }
+    );
+    const [showTechnicalSubWeights, setShowTechnicalSubWeights] = useState(false);
+    const [showFundamentalSubWeights, setShowFundamentalSubWeights] = useState(false);
+
     // Update local state when preferences change
     useEffect(() => {
         setDefaultRefreshMinutes(preferences.default_refresh_minutes);
@@ -88,6 +106,15 @@ export function WatchlistPreferences({
         setPriceWeight(preferences.watchlist_price_weight);
         setTechnicalWeight(preferences.watchlist_technical_weight);
         setShowNews(preferences.watchlist_show_news);
+        setScoreWeights(
+            preferences.watchlist_score_weights ?? { price: 33, technical: 33, fundamental: 34 }
+        );
+        setTechnicalSubWeights(
+            preferences.technical_sub_weights ?? { rsi_14: 33, trend: 34, macd: 33 }
+        );
+        setFundamentalSubWeights(
+            preferences.fundamental_sub_weights ?? { valuation: 30, growth: 35, health: 25, sentiment: 10 }
+        );
     }, [preferences]);
 
     const hasChanges = () => {
@@ -105,15 +132,39 @@ export function WatchlistPreferences({
             showNews !== preferences.watchlist_show_news ||
             autoExpand !== preferences.watchlist_auto_expand ||
             priceWeight !== preferences.watchlist_price_weight ||
-            technicalWeight !== preferences.watchlist_technical_weight
+            technicalWeight !== preferences.watchlist_technical_weight ||
+            JSON.stringify(scoreWeights) !== JSON.stringify(preferences.watchlist_score_weights ?? { price: 33, technical: 33, fundamental: 34 }) ||
+            JSON.stringify(technicalSubWeights) !== JSON.stringify(preferences.technical_sub_weights ?? { rsi_14: 33, trend: 34, macd: 33 }) ||
+            JSON.stringify(fundamentalSubWeights) !== JSON.stringify(preferences.fundamental_sub_weights ?? { valuation: 30, growth: 35, health: 25, sentiment: 10 })
         );
     };
 
     const handleSave = async () => {
-        // Validate weights sum to 100
+        // Validate legacy weights sum to 100
         const totalWeight = priceWeight + technicalWeight;
         if (Math.abs(totalWeight - 100) > 0.1) {
-            toast.error("Weights must sum to 100%");
+            toast.error("Legacy weights must sum to 100%");
+            return;
+        }
+
+        // Validate new main weights sum to 100
+        const mainWeightTotal = scoreWeights.price + scoreWeights.technical + scoreWeights.fundamental;
+        if (Math.abs(mainWeightTotal - 100) > 0.1) {
+            toast.error("Main score weights (Price + Technical + Fundamental) must sum to 100%");
+            return;
+        }
+
+        // Validate technical sub-weights sum to 100
+        const technicalSubTotal = technicalSubWeights.rsi_14 + technicalSubWeights.trend + technicalSubWeights.macd;
+        if (Math.abs(technicalSubTotal - 100) > 0.1) {
+            toast.error("Technical sub-weights (RSI + Trend + MACD) must sum to 100%");
+            return;
+        }
+
+        // Validate fundamental sub-weights sum to 100
+        const fundamentalSubTotal = fundamentalSubWeights.valuation + fundamentalSubWeights.growth + fundamentalSubWeights.health + fundamentalSubWeights.sentiment;
+        if (Math.abs(fundamentalSubTotal - 100) > 0.1) {
+            toast.error("Fundamental sub-weights (Valuation + Growth + Health + Sentiment) must sum to 100%");
             return;
         }
 
@@ -130,6 +181,11 @@ export function WatchlistPreferences({
                 watchlist_price_weight: priceWeight,
                 watchlist_technical_weight: technicalWeight,
                 watchlist_show_news: showNews,
+                // New weight configuration
+                watchlist_score_weights: scoreWeights,
+                price_sub_weights: { change_pct: 100 }, // Price only has one component currently
+                technical_sub_weights: technicalSubWeights,
+                fundamental_sub_weights: fundamentalSubWeights,
             });
             toast.success("Watchlist preferences updated");
         } catch {
@@ -157,6 +213,15 @@ export function WatchlistPreferences({
         setPriceWeight(preferences.watchlist_price_weight);
         setTechnicalWeight(preferences.watchlist_technical_weight);
         setShowNews(preferences.watchlist_show_news);
+        setScoreWeights(
+            preferences.watchlist_score_weights ?? { price: 33, technical: 33, fundamental: 34 }
+        );
+        setTechnicalSubWeights(
+            preferences.technical_sub_weights ?? { rsi_14: 33, trend: 34, macd: 33 }
+        );
+        setFundamentalSubWeights(
+            preferences.fundamental_sub_weights ?? { valuation: 30, growth: 35, health: 25, sentiment: 10 }
+        );
     };
 
     const handleEqualWeights = () => {
@@ -164,9 +229,33 @@ export function WatchlistPreferences({
         setTechnicalWeight(50);
     };
 
+    const handleEqualMainWeights = () => {
+        setScoreWeights({ price: 33, technical: 33, fundamental: 34 });
+    };
+
+    const handleEqualTechnicalSubWeights = () => {
+        setTechnicalSubWeights({ rsi_14: 33, trend: 34, macd: 33 });
+    };
+
+    const handleEqualFundamentalSubWeights = () => {
+        setFundamentalSubWeights({ valuation: 25, growth: 25, health: 25, sentiment: 25 });
+    };
+
     // Calculate total weight for validation
     const totalWeight = priceWeight + technicalWeight;
     const isWeightValid = Math.abs(totalWeight - 100) < 0.1;
+
+    // New weight validation
+    const mainWeightTotal = scoreWeights.price + scoreWeights.technical + scoreWeights.fundamental;
+    const isMainWeightValid = Math.abs(mainWeightTotal - 100) < 0.1;
+
+    const technicalSubTotal = technicalSubWeights.rsi_14 + technicalSubWeights.trend + technicalSubWeights.macd;
+    const isTechnicalSubWeightValid = Math.abs(technicalSubTotal - 100) < 0.1;
+
+    const fundamentalSubTotal = fundamentalSubWeights.valuation + fundamentalSubWeights.growth + fundamentalSubWeights.health + fundamentalSubWeights.sentiment;
+    const isFundamentalSubWeightValid = Math.abs(fundamentalSubTotal - 100) < 0.1;
+
+    const isAllWeightsValid = isWeightValid && isMainWeightValid && isTechnicalSubWeightValid && isFundamentalSubWeightValid;
 
     return (
         <Card className="border-border">
@@ -522,11 +611,277 @@ export function WatchlistPreferences({
                     </Label>
                 </div>
 
-                {/* Score Weights */}
+                {/* Main Score Weights (3-Pillar System) */}
                 <div className="space-y-4 rounded-md border border-border bg-surface-muted/30 p-4">
                     <div className="flex items-center justify-between">
                         <h4 className="text-sm font-medium text-text">
-                            Score Weights
+                            Main Score Weights
+                        </h4>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleEqualMainWeights}
+                            className="h-8"
+                        >
+                            Equal Weights
+                        </Button>
+                    </div>
+
+                    {/* Price Weight */}
+                    <div className="space-y-2">
+                        <Label htmlFor="weight-price">
+                            Price: {scoreWeights.price.toFixed(1)}%
+                        </Label>
+                        <Slider
+                            id="weight-price"
+                            min={0}
+                            max={100}
+                            step={0.1}
+                            value={[scoreWeights.price]}
+                            onValueChange={(value) => setScoreWeights({ ...scoreWeights, price: value[0] })}
+                            className="w-full"
+                            aria-label="Price weight percentage"
+                        />
+                    </div>
+
+                    {/* Technical Weight */}
+                    <div className="space-y-2">
+                        <Label htmlFor="weight-technical">
+                            Technical: {scoreWeights.technical.toFixed(1)}%
+                        </Label>
+                        <Slider
+                            id="weight-technical"
+                            min={0}
+                            max={100}
+                            step={0.1}
+                            value={[scoreWeights.technical]}
+                            onValueChange={(value) => setScoreWeights({ ...scoreWeights, technical: value[0] })}
+                            className="w-full"
+                            aria-label="Technical weight percentage"
+                        />
+                    </div>
+
+                    {/* Fundamental Weight */}
+                    <div className="space-y-2">
+                        <Label htmlFor="weight-fundamental">
+                            Fundamental: {scoreWeights.fundamental.toFixed(1)}%
+                        </Label>
+                        <Slider
+                            id="weight-fundamental"
+                            min={0}
+                            max={100}
+                            step={0.1}
+                            value={[scoreWeights.fundamental]}
+                            onValueChange={(value) => setScoreWeights({ ...scoreWeights, fundamental: value[0] })}
+                            className="w-full"
+                            aria-label="Fundamental weight percentage"
+                        />
+                    </div>
+
+                    {/* Validation */}
+                    <div className="flex items-center justify-between pt-2">
+                        <p className={`text-sm ${isMainWeightValid ? "text-text-muted" : "text-loss"}`}>
+                            Total: {mainWeightTotal.toFixed(1)}%
+                            {!isMainWeightValid && " (must be 100%)"}
+                        </p>
+                    </div>
+                </div>
+
+                {/* Technical Sub-Weights (Collapsible) */}
+                <div className="space-y-4 rounded-md border border-border bg-surface-muted/30 p-4">
+                    <Button
+                        variant="ghost"
+                        onClick={() => setShowTechnicalSubWeights(!showTechnicalSubWeights)}
+                        className="w-full justify-between p-0 hover:bg-transparent"
+                    >
+                        <h4 className="text-sm font-medium text-text">
+                            Technical Sub-Weights (Advanced)
+                        </h4>
+                        <span className="text-xs text-text-muted">
+                            {showTechnicalSubWeights ? "▼" : "▶"}
+                        </span>
+                    </Button>
+
+                    {showTechnicalSubWeights && (
+                        <div className="space-y-4 pl-4">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleEqualTechnicalSubWeights}
+                                className="h-8"
+                            >
+                                Equal Weights
+                            </Button>
+
+                            {/* RSI Weight */}
+                            <div className="space-y-2">
+                                <Label htmlFor="tech-rsi">
+                                    RSI: {technicalSubWeights.rsi_14.toFixed(1)}%
+                                </Label>
+                                <Slider
+                                    id="tech-rsi"
+                                    min={0}
+                                    max={100}
+                                    step={0.1}
+                                    value={[technicalSubWeights.rsi_14]}
+                                    onValueChange={(value) => setTechnicalSubWeights({ ...technicalSubWeights, rsi_14: value[0] })}
+                                    className="w-full"
+                                />
+                            </div>
+
+                            {/* Trend Weight */}
+                            <div className="space-y-2">
+                                <Label htmlFor="tech-trend">
+                                    Trend: {technicalSubWeights.trend.toFixed(1)}%
+                                </Label>
+                                <Slider
+                                    id="tech-trend"
+                                    min={0}
+                                    max={100}
+                                    step={0.1}
+                                    value={[technicalSubWeights.trend]}
+                                    onValueChange={(value) => setTechnicalSubWeights({ ...technicalSubWeights, trend: value[0] })}
+                                    className="w-full"
+                                />
+                            </div>
+
+                            {/* MACD Weight */}
+                            <div className="space-y-2">
+                                <Label htmlFor="tech-macd">
+                                    MACD: {technicalSubWeights.macd.toFixed(1)}%
+                                </Label>
+                                <Slider
+                                    id="tech-macd"
+                                    min={0}
+                                    max={100}
+                                    step={0.1}
+                                    value={[technicalSubWeights.macd]}
+                                    onValueChange={(value) => setTechnicalSubWeights({ ...technicalSubWeights, macd: value[0] })}
+                                    className="w-full"
+                                />
+                            </div>
+
+                            {/* Validation */}
+                            <div className="flex items-center justify-between pt-2">
+                                <p className={`text-xs ${isTechnicalSubWeightValid ? "text-text-muted" : "text-loss"}`}>
+                                    Total: {technicalSubTotal.toFixed(1)}%
+                                    {!isTechnicalSubWeightValid && " (must be 100%)"}
+                                </p>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Fundamental Sub-Weights (Collapsible) */}
+                <div className="space-y-4 rounded-md border border-border bg-surface-muted/30 p-4">
+                    <Button
+                        variant="ghost"
+                        onClick={() => setShowFundamentalSubWeights(!showFundamentalSubWeights)}
+                        className="w-full justify-between p-0 hover:bg-transparent"
+                    >
+                        <h4 className="text-sm font-medium text-text">
+                            Fundamental Sub-Weights (Advanced)
+                        </h4>
+                        <span className="text-xs text-text-muted">
+                            {showFundamentalSubWeights ? "▼" : "▶"}
+                        </span>
+                    </Button>
+
+                    {showFundamentalSubWeights && (
+                        <div className="space-y-4 pl-4">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleEqualFundamentalSubWeights}
+                                className="h-8"
+                            >
+                                Equal Weights
+                            </Button>
+
+                            {/* Valuation Weight */}
+                            <div className="space-y-2">
+                                <Label htmlFor="fund-valuation">
+                                    Valuation: {fundamentalSubWeights.valuation.toFixed(1)}%
+                                </Label>
+                                <Slider
+                                    id="fund-valuation"
+                                    min={0}
+                                    max={100}
+                                    step={0.1}
+                                    value={[fundamentalSubWeights.valuation]}
+                                    onValueChange={(value) => setFundamentalSubWeights({ ...fundamentalSubWeights, valuation: value[0] })}
+                                    className="w-full"
+                                />
+                                <p className="text-xs text-text-muted">P/E, PEG, relative multiples</p>
+                            </div>
+
+                            {/* Growth Weight */}
+                            <div className="space-y-2">
+                                <Label htmlFor="fund-growth">
+                                    Growth: {fundamentalSubWeights.growth.toFixed(1)}%
+                                </Label>
+                                <Slider
+                                    id="fund-growth"
+                                    min={0}
+                                    max={100}
+                                    step={0.1}
+                                    value={[fundamentalSubWeights.growth]}
+                                    onValueChange={(value) => setFundamentalSubWeights({ ...fundamentalSubWeights, growth: value[0] })}
+                                    className="w-full"
+                                />
+                                <p className="text-xs text-text-muted">Revenue/earnings growth metrics</p>
+                            </div>
+
+                            {/* Health Weight */}
+                            <div className="space-y-2">
+                                <Label htmlFor="fund-health">
+                                    Health: {fundamentalSubWeights.health.toFixed(1)}%
+                                </Label>
+                                <Slider
+                                    id="fund-health"
+                                    min={0}
+                                    max={100}
+                                    step={0.1}
+                                    value={[fundamentalSubWeights.health]}
+                                    onValueChange={(value) => setFundamentalSubWeights({ ...fundamentalSubWeights, health: value[0] })}
+                                    className="w-full"
+                                />
+                                <p className="text-xs text-text-muted">Margins, ROIC, cash flow</p>
+                            </div>
+
+                            {/* Sentiment Weight */}
+                            <div className="space-y-2">
+                                <Label htmlFor="fund-sentiment">
+                                    Sentiment: {fundamentalSubWeights.sentiment.toFixed(1)}%
+                                </Label>
+                                <Slider
+                                    id="fund-sentiment"
+                                    min={0}
+                                    max={100}
+                                    step={0.1}
+                                    value={[fundamentalSubWeights.sentiment]}
+                                    onValueChange={(value) => setFundamentalSubWeights({ ...fundamentalSubWeights, sentiment: value[0] })}
+                                    className="w-full"
+                                />
+                                <p className="text-xs text-text-muted">Analyst ratings, institutional activity</p>
+                            </div>
+
+                            {/* Validation */}
+                            <div className="flex items-center justify-between pt-2">
+                                <p className={`text-xs ${isFundamentalSubWeightValid ? "text-text-muted" : "text-loss"}`}>
+                                    Total: {fundamentalSubTotal.toFixed(1)}%
+                                    {!isFundamentalSubWeightValid && " (must be 100%)"}
+                                </p>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Legacy Score Weights (Deprecated - keep for backwards compatibility) */}
+                <div className="space-y-4 rounded-md border border-border bg-surface-muted/30 p-4 opacity-60">
+                    <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-medium text-text">
+                            Legacy Score Weights (Deprecated)
                         </h4>
                         <Button
                             variant="outline"
@@ -537,50 +892,47 @@ export function WatchlistPreferences({
                             Equal Weights
                         </Button>
                     </div>
+                    <p className="text-xs text-text-muted">
+                        These weights are kept for backwards compatibility. Use the 3-pillar system above instead.
+                    </p>
 
                     {/* Price Weight */}
-                    <div className="space-y-3">
-                        <Label htmlFor="price-weight">
+                    <div className="space-y-2">
+                        <Label htmlFor="price-weight-legacy">
                             Price Score: {priceWeight.toFixed(1)}%
                         </Label>
                         <Slider
-                            id="price-weight"
+                            id="price-weight-legacy"
                             min={0}
                             max={100}
                             step={0.1}
                             value={[priceWeight]}
                             onValueChange={(value) => setPriceWeight(value[0])}
                             className="w-full"
-                            aria-label="Price score weight percentage"
                         />
                     </div>
 
                     {/* Technical Weight */}
-                    <div className="space-y-3">
-                        <Label htmlFor="technical-weight">
+                    <div className="space-y-2">
+                        <Label htmlFor="technical-weight-legacy">
                             Technical Score: {technicalWeight.toFixed(1)}%
                         </Label>
                         <Slider
-                            id="technical-weight"
+                            id="technical-weight-legacy"
                             min={0}
                             max={100}
                             step={0.1}
                             value={[technicalWeight]}
-                            onValueChange={(value) =>
-                                setTechnicalWeight(value[0])
-                            }
+                            onValueChange={(value) => setTechnicalWeight(value[0])}
                             className="w-full"
-                            aria-label="Technical score weight percentage"
                         />
                     </div>
 
-                    {/* Weight Validation */}
+                    {/* Validation */}
                     <div className="flex items-center justify-between pt-2">
-                        <p
-                            className={`text-sm ${isWeightValid ? "text-text-muted" : "text-loss"}`}
-                        >
-                            Total: {totalWeight.toFixed(1)}%{" "}
-                            {!isWeightValid && "(must be 100%)"}
+                        <p className={`text-sm ${isWeightValid ? "text-text-muted" : "text-loss"}`}>
+                            Total: {totalWeight.toFixed(1)}%
+                            {!isWeightValid && " (must be 100%)"}
                         </p>
                     </div>
                 </div>
@@ -596,7 +948,7 @@ export function WatchlistPreferences({
                     </Button>
                     <Button
                         onClick={handleSave}
-                        disabled={!hasChanges() || !isWeightValid || isPending}
+                        disabled={!hasChanges() || !isAllWeightsValid || isPending}
                     >
                         {isPending ? "Saving..." : "Save Changes"}
                     </Button>
