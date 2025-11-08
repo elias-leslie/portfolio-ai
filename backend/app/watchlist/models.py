@@ -153,6 +153,7 @@ class WatchlistScoreInputs(BaseModel):
     price: PriceData
     price_change_pct: float | None = None
     technical: TechnicalSnapshot = Field(default_factory=TechnicalSnapshot)
+    fundamental: Any | None = None  # FundamentalData (avoid circular import)
     weights: ScoreWeights = Field(default_factory=ScoreWeights)
     now: datetime = Field(default_factory=lambda: datetime.now(UTC))
     stale_ttl_minutes: int = 15  # Default to 15 minutes (3x default 5min refresh)

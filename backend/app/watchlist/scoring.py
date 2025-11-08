@@ -8,6 +8,7 @@ from typing import Any
 
 from ..logging_config import get_logger
 from ..portfolio.models import PriceData
+from .fundamentals import FundamentalData
 from .models import (
     ScoreBreakdown,
     ScoreComponent,
@@ -156,13 +157,66 @@ def _compute_technical_component(
     )
 
 
+def _compute_fundamental_component(
+    fundamental_data: FundamentalData | None,
+    weight: float,
+    now: datetime,
+) -> ScoreComponent:
+    """Compute fundamental score component from FundamentalData.
+
+    Args:
+        fundamental_data: FundamentalData object with calculated scores
+        weight: Weight for this component (0.0-1.0)
+        now: Current timestamp
+
+    Returns:
+        ScoreComponent with fundamental score and sub-scores
+    """
+    if not fundamental_data or not fundamental_data.fundamental_score:
+        return ScoreComponent(
+            score=0.0,
+            weight=weight,
+            stale=True,
+            metadata={"reason": "missing_fundamental_data"},
+            sub_scores={},
+        )
+
+    score = fundamental_data.fundamental_score
+
+    # Sub-scores breakdown (4 pillars)
+    sub_scores = {
+        "valuation": fundamental_data.valuation_score or 0.0,
+        "growth": fundamental_data.growth_score or 0.0,
+        "health": fundamental_data.health_score or 0.0,
+        "sentiment": fundamental_data.sentiment_score or 0.0,
+    }
+
+    metadata = {
+        "profit_margin": fundamental_data.profit_margin,
+        "revenue_growth": fundamental_data.revenue_growth,
+        "debt_to_equity": fundamental_data.debt_to_equity,
+        "recommendation_mean": fundamental_data.recommendation_mean,
+    }
+
+    component = ScoreComponent(
+        score=score,
+        weight=weight,
+        stale=False,  # Fundamental data cached for 24h
+        metadata=metadata,
+        sub_scores=sub_scores,
+    )
+
+    return component
+
+
 def calculate_watchlist_scores(inputs: WatchlistScoreInputs) -> ScoreBreakdown:
-    """Compute watchlist price/technical scores and overall composite."""
+    """Compute watchlist price/technical/fundamental scores and overall composite (3-pillar)."""
     # Ensure timestamps are timezone-aware
     now = inputs.now if inputs.now.tzinfo is not None else inputs.now.replace(tzinfo=UTC)
 
     weights = inputs.weights.normalized()
 
+    # Price component (with sub-scores)
     price_component = _compute_price_component(
         PriceComponentInputs(
             price_data=inputs.price,
@@ -172,7 +226,9 @@ def calculate_watchlist_scores(inputs: WatchlistScoreInputs) -> ScoreBreakdown:
         weight=weights["price"],
         stale_ttl_minutes=inputs.stale_ttl_minutes,
     )
+    price_component.sub_scores = {"change_pct": price_component.score}
 
+    # Technical component (with sub-scores)
     technical_component = _compute_technical_component(
         inputs.technical,
         weight=weights["technical"],
@@ -180,13 +236,44 @@ def calculate_watchlist_scores(inputs: WatchlistScoreInputs) -> ScoreBreakdown:
         stale_ttl_minutes=inputs.stale_ttl_minutes,
     )
 
-    overall = (
-        price_component.score * weights["price"] + technical_component.score * weights["technical"]
-    )
+    # Extract technical sub-scores from metadata
+    technical_component.sub_scores = {
+        "rsi_14": technical_component.metadata.get("rsi_14", 0.0),
+        "trend": technical_component.metadata.get("trend_score", 0.0),
+        "macd": technical_component.metadata.get("macd", 0.0)
+        if technical_component.metadata.get("macd")
+        else 0.0,
+    }
+
+    # Fundamental component (if available)
+    fundamental_component = None
+    if hasattr(inputs, "fundamental") and inputs.fundamental:
+        fundamental_component = _compute_fundamental_component(
+            inputs.fundamental,
+            weight=weights["fundamental"],
+            now=now,
+        )
+
+    # Calculate overall score
+    if fundamental_component and not fundamental_component.stale:
+        # 3-pillar formula
+        overall = (
+            price_component.score * weights["price"]
+            + technical_component.score * weights["technical"]
+            + fundamental_component.score * weights["fundamental"]
+        )
+    else:
+        # Fallback to 2-pillar (renormalize weights)
+        price_weight = weights["price"] / (weights["price"] + weights["technical"])
+        technical_weight = weights["technical"] / (weights["price"] + weights["technical"])
+        overall = (
+            price_component.score * price_weight + technical_component.score * technical_weight
+        )
 
     breakdown = ScoreBreakdown(
         price=price_component,
         technical=technical_component,
+        fundamental=fundamental_component,
         overall=overall,
     )
 
@@ -196,6 +283,7 @@ def calculate_watchlist_scores(inputs: WatchlistScoreInputs) -> ScoreBreakdown:
         overall=breakdown.overall,
         price_score=breakdown.price.score,
         technical_score=breakdown.technical.score,
+        fundamental_score=breakdown.fundamental.score if breakdown.fundamental else None,
     )
 
     return breakdown
