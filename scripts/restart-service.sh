@@ -48,83 +48,49 @@ restart_service() {
     case "$service" in
         "backend")
             log_info "Restarting backend service via systemd..."
-            if sudo systemctl restart portfolio-backend.service 2>/dev/null; then
-                sleep 2
-                if systemctl is-active --quiet portfolio-backend.service; then
-                    log_info "Backend restarted successfully (systemd)"
-                else
-                    log_error "Backend failed to start after restart"
-                    return 1
-                fi
+            sudo systemctl restart portfolio-backend.service
+            sleep 2
+            if sudo systemctl is-active --quiet portfolio-backend.service; then
+                log_info "Backend restarted successfully"
             else
-                log_warning "Systemd restart failed, falling back to manual restart..."
-                pkill -f "uvicorn app.main:app" || true
-                sleep 1
-                cd "$(dirname "$0")/../backend"
-                nohup .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 > /tmp/portfolio-backend.log 2>&1 &
-                sleep 2
-                log_info "Backend restarted (manual fallback)"
+                log_error "Backend failed to start. Check: sudo journalctl -u portfolio-backend -n 50"
+                return 1
             fi
             ;;
 
         "celery")
             log_info "Restarting Celery worker via systemd..."
-            if sudo systemctl restart portfolio-celery.service 2>/dev/null; then
-                sleep 2
-                if systemctl is-active --quiet portfolio-celery.service; then
-                    log_info "Celery worker restarted successfully (systemd)"
-                else
-                    log_error "Celery worker failed to start after restart"
-                    return 1
-                fi
+            sudo systemctl restart portfolio-celery.service
+            sleep 2
+            if sudo systemctl is-active --quiet portfolio-celery.service; then
+                log_info "Celery worker restarted successfully"
             else
-                log_warning "Systemd restart failed, falling back to manual restart..."
-                SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-                "$SCRIPT_DIR/stop-celery.sh" 2>/dev/null || pkill -f "celery.*worker" || true
-                sleep 1
-                "$SCRIPT_DIR/start-celery.sh"
-                log_info "Celery worker restarted (manual fallback via start-celery.sh)"
+                log_error "Celery worker failed to start. Check: sudo journalctl -u portfolio-celery -n 50"
+                return 1
             fi
             ;;
 
         "beat")
             log_info "Restarting Celery beat via systemd..."
-            if sudo systemctl restart portfolio-beat.service 2>/dev/null; then
-                sleep 2
-                if systemctl is-active --quiet portfolio-beat.service; then
-                    log_info "Celery beat restarted successfully (systemd)"
-                else
-                    log_error "Celery beat failed to start after restart"
-                    return 1
-                fi
+            sudo systemctl restart portfolio-beat.service
+            sleep 2
+            if sudo systemctl is-active --quiet portfolio-beat.service; then
+                log_info "Celery beat restarted successfully"
             else
-                log_warning "Systemd restart failed, falling back to manual restart..."
-                SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-                "$SCRIPT_DIR/stop-celery.sh" 2>/dev/null || pkill -f "celery.*beat" || true
-                sleep 1
-                "$SCRIPT_DIR/start-celery.sh"
-                log_info "Celery beat restarted (manual fallback via start-celery.sh)"
+                log_error "Celery beat failed to start. Check: sudo journalctl -u portfolio-beat -n 50"
+                return 1
             fi
             ;;
 
         "frontend")
             log_info "Restarting frontend service via systemd..."
-            if sudo systemctl restart portfolio-frontend.service 2>/dev/null; then
-                sleep 3
-                if systemctl is-active --quiet portfolio-frontend.service; then
-                    log_info "Frontend restarted successfully (systemd)"
-                else
-                    log_error "Frontend failed to start after restart"
-                    return 1
-                fi
+            sudo systemctl restart portfolio-frontend.service
+            sleep 3
+            if sudo systemctl is-active --quiet portfolio-frontend.service; then
+                log_info "Frontend restarted successfully"
             else
-                log_warning "Systemd restart failed, falling back to manual restart..."
-                pkill -f "next dev" || true
-                sleep 1
-                cd "$(dirname "$0")/../frontend"
-                nohup npm run dev > /tmp/portfolio-frontend.log 2>&1 &
-                sleep 3
-                log_info "Frontend restarted (manual fallback)"
+                log_error "Frontend failed to start. Check: sudo journalctl -u portfolio-frontend -n 50"
+                return 1
             fi
             ;;
 
