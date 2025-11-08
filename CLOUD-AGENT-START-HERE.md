@@ -13,11 +13,14 @@
 **IN THIS ORDER**:
 
 1. **`docs/watchlist_design_guide.md`** - Complete design vision with ASCII mockups
-2. **`docs/design_references/watchlist_design_reference/*.png`** - 4 visual reference screenshots
-3. **`tasks/WATCHLIST-GAP-ANALYSIS.md`** - What's currently broken
-4. **`tasks/TASK-LIST-REVIEW.md`** - 6 critical missing features
-5. **`tasks/tasks-watchlist-complete-vision.md`** - Your task list (working document)
-6. **`tasks/CLOUD-AGENT-HANDOFF-INSTRUCTIONS.md`** - Detailed implementation guide
+2. **`docs/DESIGN-REFERENCE-SUMMARY.md`** - TEXT description of visual references (READ THIS - you can't view PNGs)
+3. **`docs/design_references/watchlist_design_reference/*.html`** - HTML structure examples (optional)
+4. **`tasks/WATCHLIST-GAP-ANALYSIS.md`** - What's currently broken
+5. **`tasks/TASK-LIST-REVIEW.md`** - 6 critical missing features
+6. **`tasks/tasks-watchlist-complete-vision.md`** - Your task list (working document)
+7. **`tasks/CLOUD-AGENT-HANDOFF-INSTRUCTIONS.md`** - Detailed implementation guide
+
+**⚠️ IMPORTANT**: You CANNOT view PNG files. Use `docs/DESIGN-REFERENCE-SUMMARY.md` instead - it describes all 4 design reference screenshots in text.
 
 **Don't skip this reading** - prevents wasted work.
 
