@@ -366,7 +366,7 @@ def test_fmp_client_rate_limiting_daily() -> None:
             assert client.request_count == 2
 
             # Third request should raise RuntimeError for rate limit
-            with pytest.raises(RuntimeError, match="FMP daily rate limit"):
+            with pytest.raises(RuntimeError, match="fmp_client daily rate limit"):
                 client.get("/test")
 
 

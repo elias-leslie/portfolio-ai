@@ -1,6 +1,9 @@
 #!/bin/bash
 # Restart individual Portfolio AI service
 # Usage: ./restart-service.sh <service-name>
+#
+# IMPORTANT: This script now uses systemd for service management (production-ready)
+# Services are restarted via systemctl (requires passwordless sudo setup)
 
 set -euo pipefail
 
@@ -44,66 +47,95 @@ restart_service() {
 
     case "$service" in
         "backend")
-            log_info "Restarting backend service..."
-            # Manual process restart (no sudo required for web UI)
-            log_info "Stopping backend..."
-            pkill -f "uvicorn app.main:app" || true
-            sleep 1
-            log_info "Starting backend..."
-            cd "$(dirname "$0")/../backend"
-            nohup .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 > /tmp/portfolio-backend.log 2>&1 &
-            sleep 2
-            log_info "Backend restarted (manual)"
+            log_info "Restarting backend service via systemd..."
+            if sudo systemctl restart portfolio-backend.service 2>/dev/null; then
+                sleep 2
+                if systemctl is-active --quiet portfolio-backend.service; then
+                    log_info "Backend restarted successfully (systemd)"
+                else
+                    log_error "Backend failed to start after restart"
+                    return 1
+                fi
+            else
+                log_warning "Systemd restart failed, falling back to manual restart..."
+                pkill -f "uvicorn app.main:app" || true
+                sleep 1
+                cd "$(dirname "$0")/../backend"
+                nohup .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 > /tmp/portfolio-backend.log 2>&1 &
+                sleep 2
+                log_info "Backend restarted (manual fallback)"
+            fi
             ;;
 
         "celery")
-            log_info "Restarting Celery worker..."
-            # Manual process restart (no sudo required for web UI)
-            log_info "Stopping Celery worker..."
-            pkill -f "celery -A app.celery_app worker" || true
-            sleep 1
-            log_info "Starting Celery worker..."
-            cd "$(dirname "$0")/../backend"
-            nohup .venv/bin/celery -A app.celery_app worker --loglevel=info > /tmp/portfolio-celery-worker.log 2>&1 &
-            sleep 2
-            log_info "Celery worker restarted (manual)"
+            log_info "Restarting Celery worker via systemd..."
+            if sudo systemctl restart portfolio-celery.service 2>/dev/null; then
+                sleep 2
+                if systemctl is-active --quiet portfolio-celery.service; then
+                    log_info "Celery worker restarted successfully (systemd)"
+                else
+                    log_error "Celery worker failed to start after restart"
+                    return 1
+                fi
+            else
+                log_warning "Systemd restart failed, falling back to manual restart..."
+                pkill -f "celery -A app.celery_app worker" || true
+                sleep 1
+                cd "$(dirname "$0")/../backend"
+                nohup .venv/bin/celery -A app.celery_app worker --concurrency=2 --loglevel=info > /tmp/portfolio-celery-worker.log 2>&1 &
+                sleep 2
+                log_info "Celery worker restarted (manual fallback, concurrency=2)"
+            fi
             ;;
 
         "beat")
-            log_info "Restarting Celery beat..."
-            # Manual process restart (no sudo required for web UI)
-            log_info "Stopping Celery beat..."
-            pkill -f "celery -A app.celery_app beat" || true
-            sleep 1
-            log_info "Starting Celery beat..."
-            cd "$(dirname "$0")/../backend"
-            nohup .venv/bin/celery -A app.celery_app beat --loglevel=info > /tmp/portfolio-celery-beat.log 2>&1 &
-            sleep 2
-            log_info "Celery beat restarted (manual)"
+            log_info "Restarting Celery beat via systemd..."
+            if sudo systemctl restart portfolio-beat.service 2>/dev/null; then
+                sleep 2
+                if systemctl is-active --quiet portfolio-beat.service; then
+                    log_info "Celery beat restarted successfully (systemd)"
+                else
+                    log_error "Celery beat failed to start after restart"
+                    return 1
+                fi
+            else
+                log_warning "Systemd restart failed, falling back to manual restart..."
+                pkill -f "celery -A app.celery_app beat" || true
+                sleep 1
+                cd "$(dirname "$0")/../backend"
+                nohup .venv/bin/celery -A app.celery_app beat --loglevel=info > /tmp/portfolio-celery-beat.log 2>&1 &
+                sleep 2
+                log_info "Celery beat restarted (manual fallback)"
+            fi
             ;;
 
         "frontend")
-            log_info "Restarting frontend service..."
-            # Manual process restart (no sudo required for web UI)
-            log_info "Stopping frontend..."
-            pkill -f "next dev" || true
-            sleep 1
-            log_info "Starting frontend..."
-            cd "$(dirname "$0")/../frontend"
-            nohup npm run dev > /tmp/portfolio-frontend.log 2>&1 &
-            sleep 3
-            log_info "Frontend restarted (manual)"
+            log_info "Restarting frontend service via systemd..."
+            if sudo systemctl restart portfolio-frontend.service 2>/dev/null; then
+                sleep 3
+                if systemctl is-active --quiet portfolio-frontend.service; then
+                    log_info "Frontend restarted successfully (systemd)"
+                else
+                    log_error "Frontend failed to start after restart"
+                    return 1
+                fi
+            else
+                log_warning "Systemd restart failed, falling back to manual restart..."
+                pkill -f "next dev" || true
+                sleep 1
+                cd "$(dirname "$0")/../frontend"
+                nohup npm run dev > /tmp/portfolio-frontend.log 2>&1 &
+                sleep 3
+                log_info "Frontend restarted (manual fallback)"
+            fi
             ;;
 
         "redis")
-            log_info "Restarting Redis..."
-            if systemctl is-enabled redis-server.service >/dev/null 2>&1; then
-                sudo systemctl restart redis-server.service
-                log_info "Redis restarted (systemd)"
+            log_info "Restarting Redis via systemd..."
+            if sudo systemctl restart redis-server.service 2>/dev/null; then
+                log_info "Redis restarted successfully (systemd)"
             else
-                # Redis typically runs as system service, manual restart not supported
-                log_error "Redis not running under systemd and manual restart not supported"
-                log_error "Please restart Redis manually: sudo systemctl restart redis-server"
+                log_error "Failed to restart Redis. Please run: sudo systemctl restart redis-server"
                 return 1
             fi
             ;;

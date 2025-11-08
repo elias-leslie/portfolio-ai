@@ -14,36 +14,19 @@ import datetime as dt
 import json
 import os
 import threading
-import time
-from collections import deque
 from collections.abc import Iterable
 from typing import Any
 
-import httpx
 import polars as pl
-from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from ..logging_config import get_logger
 from .base import BaseSource, DatasetRequest
+from .base_http_client import BaseHTTPClient
 
 logger = get_logger(__name__)
 
 
-def _should_retry_exception(exc: BaseException) -> bool:
-    """Determine if exception should trigger a retry.
-
-    Retries on:
-    - 429 (rate limit)
-    - 500, 502, 503, 504 (server errors)
-    - Network errors (timeout, connection errors)
-    """
-    if isinstance(exc, httpx.HTTPStatusError):
-        status = exc.response.status_code if exc.response is not None else None
-        return status in {429, 500, 502, 503, 504}
-    return isinstance(exc, httpx.RequestError)
-
-
-class TwelveDataClient:
+class TwelveDataClient(BaseHTTPClient):
     """Synchronous Twelve Data REST API client with rate limiting.
 
     Features:
@@ -57,111 +40,34 @@ class TwelveDataClient:
     def __init__(
         self,
         api_key: str | None = None,
-        rate_calls_per_minute: int = 8,
+        rate_calls_per_minute: int | None = 8,
         timeout: float = 30.0,
     ) -> None:
         """Initialize Twelve Data client.
 
         Args:
             api_key: Twelve Data API key (defaults to TWELVEDATA_API_KEY env var)
-            rate_calls_per_minute: Maximum requests per minute (default: 8)
+            rate_calls_per_minute: Maximum requests per minute (default: 8, None = no limit)
             timeout: Request timeout in seconds (default: 30)
 
         Raises:
             RuntimeError: If API key not provided and not in environment
         """
-        self.api_key = api_key or os.getenv("TWELVEDATA_API_KEY")
-        if not self.api_key:
-            raise RuntimeError("TWELVEDATA_API_KEY is not set")
-
-        self._client = httpx.Client(timeout=timeout)
-        self._interval = 60.0 / max(1, rate_calls_per_minute)
-        self._lock = threading.Lock()
-        self._last_request_times: deque[float] = deque(maxlen=rate_calls_per_minute)
-        self.request_count = 0
-
-        logger.info(
-            "twelvedata_client_initialized",
-            rate_limit=f"{rate_calls_per_minute}/min",
-            timeout=timeout,
+        super().__init__(
+            api_key=api_key, rate_calls_per_minute=rate_calls_per_minute, timeout=timeout
         )
 
-    def close(self) -> None:
-        """Close HTTP client and release resources."""
-        self._client.close()
-        logger.debug("twelvedata_client_closed", request_count=self.request_count)
+    def get_api_key_env_var(self) -> str:
+        """Return environment variable name for API key."""
+        return "TWELVEDATA_API_KEY"
 
-    def _throttle(self) -> None:
-        """Thread-safe rate limiting using sliding window.
+    def get_client_name(self) -> str:
+        """Return client name for logging."""
+        return "twelvedata_client"
 
-        Blocks until a request slot is available based on configured rate limit.
-        """
-        with self._lock:
-            now = time.monotonic()
-
-            # If we've hit the rate limit, wait until oldest request is old enough
-            if (
-                self._last_request_times.maxlen is not None
-                and len(self._last_request_times) >= self._last_request_times.maxlen
-            ):
-                oldest = self._last_request_times[0]
-                wait_for = 60.0 - (now - oldest)
-                if wait_for > 0:
-                    logger.debug("twelvedata_rate_limit_wait", wait_seconds=wait_for)
-                    time.sleep(wait_for)
-                    now = time.monotonic()
-
-            self._last_request_times.append(now)
-
-    @retry(
-        stop=stop_after_attempt(5),
-        wait=wait_exponential(multiplier=1, max=30),
-        retry=retry_if_exception(_should_retry_exception),
-        reraise=True,
-    )
-    def _request_json(
-        self,
-        method: str,
-        path: str,
-        params: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        """Execute HTTP request with rate limiting and retries.
-
-        Args:
-            method: HTTP method (GET, POST, etc.)
-            path: API path (e.g., "/time_series")
-            params: Query parameters
-
-        Returns:
-            Parsed JSON response
-
-        Raises:
-            HTTPStatusError: On HTTP errors after retries exhausted
-            RequestError: On network errors after retries exhausted
-        """
-        self._throttle()
-
-        query: dict[str, Any] = dict(params or {})
-        query["apikey"] = self.api_key
-
-        start_time = time.time()
-        response = self._client.request(method.upper(), f"{self.BASE_URL}{path}", params=query)
-        duration_ms = int((time.time() - start_time) * 1000)
-
-        response.raise_for_status()
-        self.request_count += 1
-
-        logger.info(
-            "twelvedata_request_success",
-            method=method.upper(),
-            path=path,
-            status_code=response.status_code,
-            duration_ms=duration_ms,
-            request_count=self.request_count,
-        )
-
-        result: dict[str, Any] = response.json()
-        return result
+    def get_api_key_param_name(self) -> str:
+        """Return query parameter name for API key."""
+        return "apikey"
 
     def get(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         """Execute GET request.
@@ -173,7 +79,7 @@ class TwelveDataClient:
         Returns:
             Parsed JSON response
         """
-        result: dict[str, Any] = self._request_json("GET", path, params)
+        result: dict[str, Any] = self.request(path, params, method="GET")
         return result
 
     def get_time_series(
@@ -228,11 +134,6 @@ class TwelveDataClient:
         """
         params = {"symbol": ticker}
         return self.get("/profile", params)
-
-    def __del__(self) -> None:
-        """Close client on garbage collection."""
-        if hasattr(self, "_client"):
-            self.close()
 
 
 # Module-level singleton state

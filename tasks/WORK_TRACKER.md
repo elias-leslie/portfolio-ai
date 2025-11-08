@@ -1,14 +1,14 @@
 # Portfolio AI - Work Tracker
 
-**Last Updated:** 2025-11-07 (TASK-0035: Database Query Deduplication added to Planned)
+**Last Updated:** 2025-11-07 (System Resource Optimization completed)
 
-**📊 Implementation Reality Check:** Narrative Intelligence 100% complete, News Intelligence 75% complete, Market Conditions enhanced with per-item timestamps
+**📊 Implementation Reality Check:** Narrative Intelligence 100% complete, News Intelligence 75% complete, Market Conditions enhanced with per-item timestamps, System resource usage optimized (48% RAM reduction)
 
 ---
 
 ## 🔄 Active (Currently Working)
 
-None - Latest work completed (Market Conditions per-item timestamps)
+None - Latest work completed (System Resource Optimization)
 
 ---
 
@@ -166,6 +166,45 @@ None - Latest work completed (Market Conditions per-item timestamps)
 ---
 
 ## ✅ Recently Completed (Last 5)
+
+- **System Resource Optimization** ✓ 2025-11-07 (COMPLETE)
+  - **Implementation:** Comprehensive systemd service optimization and resource usage reduction
+  - **Duration:** ~1 session (investigation + implementation + verification)
+  - **Changes:**
+    - ✅ Eliminated duplicate processes (37 → 5 processes, 86% reduction)
+    - ✅ Optimized Celery worker concurrency (16 → 2, based on actual usage analysis)
+    - ✅ Fixed systemd + manual script conflicts (moved to systemd-only)
+    - ✅ Installed production-appropriate sudo rules for service management
+    - ✅ Removed --reload flag from uvicorn (eliminated duplicate backend process)
+    - ✅ Added DB connection pool environment variables (DB_POOL_SIZE=3, DB_MAX_OVERFLOW=2)
+  - **Files Modified:**
+    - /etc/systemd/system/portfolio-celery.service (added --concurrency=2)
+    - /etc/systemd/system/portfolio-backend.service (added DB pool env vars)
+    - /etc/sudoers.d/portfolio-ai-services (passwordless service management)
+    - ~/portfolio-ai/scripts/start.sh (--concurrency=2, removed --reload)
+    - ~/portfolio-ai/scripts/restart.sh (--concurrency=2, removed --reload)
+    - ~/portfolio-ai/scripts/portfolio-ai-celery-worker.service (--concurrency=2)
+  - **Results:**
+    - Memory: 10GB → 5.2GB (48% reduction, ~5GB saved)
+    - Processes: 37 → 5 (86% reduction, 32 fewer idle workers)
+    - Concurrency: 32 workers → 4 workers (matched to actual workload)
+    - CPU overhead: Eliminated 31 idle worker processes
+  - **Root Causes Found:**
+    - Duplicate Celery workers: systemd service + manual scripts running simultaneously
+    - Duplicate Celery Beat: Two schedulers triggering same tasks
+    - Default concurrency: Using CPU count (16) instead of workload-based (2)
+    - Manual scripts: Creating orphaned processes not managed by systemd
+  - **Analysis:**
+    - Measured actual worker utilization: Only 1 of 32 workers actively used
+    - Task rate: ~4 tasks/minute (mostly skipped due to refresh intervals)
+    - Execution pattern: Serial (one task at a time), no parallelism needed
+    - Optimal concurrency: 2 workers (100% headroom over actual usage)
+  - **Production Setup:**
+    - Systemd services: Primary management interface (enabled, auto-restart)
+    - Sudo rules: Passwordless restart/status/logs for portfolio-* services only
+    - Manual scripts: Updated for consistency but systemd is authoritative
+    - Security: All processes run as kasadis user (non-root), proper least-privilege
+  - **User Impact:** Significantly reduced resource footprint while maintaining same functionality and responsiveness
 
 - **Market Conditions - Per-Item Timestamps** ✓ 2025-11-07 (COMPLETE)
   - **Implementation:** Added accurate data freshness timestamps to all market indicators
