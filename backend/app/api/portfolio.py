@@ -198,6 +198,7 @@ async def delete_account(account_id: str) -> dict[str, str]:
     # Delete the account
     with storage.connection() as conn:
         conn.execute("DELETE FROM portfolio_accounts WHERE id = %s", (account_id,))
+        conn.commit()
 
     return {"status": "deleted", "account_id": account_id}
 

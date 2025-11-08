@@ -62,9 +62,9 @@ export function useCreateAccount() {
   return useMutation({
     mutationFn: (data: CreateAccountRequest) => createAccount(data),
     onSuccess: () => {
-      // Invalidate accounts and portfolio queries
-      queryClient.invalidateQueries({ queryKey: ["accounts"] });
-      queryClient.invalidateQueries({ queryKey: ["portfolio"] });
+      // Invalidate and refetch accounts and portfolio queries
+      queryClient.invalidateQueries({ queryKey: ["accounts"], refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: ["portfolio"], refetchType: 'active' });
     },
   });
 }
@@ -78,9 +78,9 @@ export function useDeleteAccount() {
   return useMutation({
     mutationFn: (accountId: string) => deleteAccount(accountId),
     onSuccess: () => {
-      // Invalidate all portfolio-related queries
-      queryClient.invalidateQueries({ queryKey: ["accounts"] });
-      queryClient.invalidateQueries({ queryKey: ["portfolio"] });
+      // Invalidate and refetch all portfolio-related queries
+      queryClient.invalidateQueries({ queryKey: ["accounts"], refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: ["portfolio"], refetchType: 'active' });
     },
   });
 }
@@ -94,8 +94,8 @@ export function useAddPosition() {
   return useMutation({
     mutationFn: (data: AddPositionRequest) => addPosition(data),
     onSuccess: () => {
-      // Invalidate both portfolio and analytics queries
-      queryClient.invalidateQueries({ queryKey: ["portfolio"] });
+      // Invalidate and refetch both portfolio and analytics queries
+      queryClient.invalidateQueries({ queryKey: ["portfolio"], refetchType: 'active' });
     },
   });
 }
@@ -115,8 +115,8 @@ export function useUpdatePosition() {
       data: AddPositionRequest;
     }) => updatePosition(positionId, data),
     onSuccess: () => {
-      // Invalidate both portfolio and analytics queries
-      queryClient.invalidateQueries({ queryKey: ["portfolio"] });
+      // Invalidate and refetch both portfolio and analytics queries
+      queryClient.invalidateQueries({ queryKey: ["portfolio"], refetchType: 'active' });
     },
   });
 }
@@ -130,8 +130,8 @@ export function useDeletePosition() {
   return useMutation({
     mutationFn: (positionId: string) => deletePosition(positionId),
     onSuccess: () => {
-      // Invalidate both portfolio and analytics queries
-      queryClient.invalidateQueries({ queryKey: ["portfolio"] });
+      // Invalidate and refetch both portfolio and analytics queries
+      queryClient.invalidateQueries({ queryKey: ["portfolio"], refetchType: 'active' });
     },
   });
 }
