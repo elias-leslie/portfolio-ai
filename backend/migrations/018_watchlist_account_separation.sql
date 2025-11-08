@@ -38,8 +38,16 @@ DROP COLUMN IF EXISTS account_id;
 
 -- Step 5: Add new unique constraint on symbol only
 -- This prevents duplicate symbols in watchlist (global list)
-ALTER TABLE watchlist_items
-ADD CONSTRAINT watchlist_items_symbol_key UNIQUE (symbol);
+-- Use DO block to add constraint only if it doesn't exist
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'watchlist_items_symbol_key'
+    ) THEN
+        ALTER TABLE watchlist_items
+        ADD CONSTRAINT watchlist_items_symbol_key UNIQUE (symbol);
+    END IF;
+END $$;
 
 -- Verification query (run after migration):
 -- SELECT COUNT(*) as total_items, COUNT(DISTINCT symbol) as unique_symbols FROM watchlist_items;

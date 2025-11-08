@@ -19,7 +19,6 @@ import { AlertCircle } from "lucide-react";
 interface AddTickerModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  accountId: string;
   currentCount?: number;
 }
 
@@ -29,7 +28,6 @@ const WARNING_THRESHOLD = 45;
 export function AddTickerModal({
   open,
   onOpenChange,
-  accountId,
   currentCount = 0,
 }: AddTickerModalProps) {
   const [input, setInput] = useState("");
@@ -96,7 +94,6 @@ export function AddTickerModal({
         await new Promise<void>((resolve, reject) => {
           addTicker.mutate(
             {
-              account_id: accountId,
               symbol,
               note: undefined,
             },

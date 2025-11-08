@@ -126,7 +126,7 @@ def _refresh_news_sentiment_task(
     )
     _record_summary(storage, market_bundle.summary, news_service.ttl, now)
 
-    items_with_scores: list[dict[str, Any]] = watchlist_service.get_items_with_scores(account_id)
+    items_with_scores: list[dict[str, Any]] = watchlist_service.get_items_with_scores()
     symbols = [item["symbol"] for item in items_with_scores]
     watchlist_count = 0
     if symbols:

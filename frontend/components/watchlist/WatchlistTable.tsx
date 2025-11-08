@@ -34,18 +34,17 @@ import { cn } from "@/lib/utils";
 
 interface WatchlistTableProps {
   items: WatchlistItem[];
-  accountId: string;
 }
 
 type SortField = "symbol" | "overall" | "price" | "technical" | "news" | "updated";
 type SortDirection = "asc" | "desc";
 
-export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
+export function WatchlistTable({ items }: WatchlistTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [sortField, setSortField] = useState<SortField>("symbol");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const deleteMutation = useDeleteWatchlistItem();
-  const { data: refreshStatus } = useRefreshStatus(accountId);
+  const { data: refreshStatus } = useRefreshStatus();
   const { data: preferences } = usePreferences();
 
   // Get user's timezone preference
@@ -109,7 +108,7 @@ export function WatchlistTable({ items, accountId }: WatchlistTableProps) {
     if (!confirm(`Remove ${symbol} from watchlist?`)) return;
 
     deleteMutation.mutate(
-      { itemId, accountId },
+      itemId,
       {
         onSuccess: () => {
           toast.success(`${symbol} removed from watchlist`);

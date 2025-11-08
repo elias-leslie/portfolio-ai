@@ -231,14 +231,21 @@ async def get_symbol_news(
 
 @router.get("/watchlist", response_model=WatchlistNewsResponse)
 async def get_watchlist_news(
-    account_id: str = Query(..., description="Account ID to load watchlist symbols for"),
+    account_id: str = Query(
+        "default",
+        description="DEPRECATED: Account ID (watchlist is now user-level, not account-specific)",
+    ),
     max_results: int | None = Query(
         None, ge=1, le=20, description="Maximum number of articles per symbol"
     ),
     force_refresh: bool = Query(False),
 ) -> WatchlistNewsResponse:
-    """Get news bundles for all symbols in a watchlist."""
-    items = watchlist_service.get_items_with_scores(account_id)
+    """Get news bundles for all symbols in a watchlist.
+
+    Note: Watchlist is now user-level (not account-specific). The account_id parameter
+    is kept for backward compatibility but is ignored.
+    """
+    items = watchlist_service.get_items_with_scores()
     if not items:
         return WatchlistNewsResponse(account_id=account_id, items=[])
 

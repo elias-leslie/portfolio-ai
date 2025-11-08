@@ -78,3 +78,4 @@ test-results/
 # Command validation state
 .validation-state.json
 backend/.venv.python312.backup/
+backups/
