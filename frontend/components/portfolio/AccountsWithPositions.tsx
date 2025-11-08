@@ -227,45 +227,47 @@ export function AccountsWithPositions({ onAddAccount, onAddPosition }: AccountsW
 
               return (
                 <AccordionItem key={account.id} value={account.id} className="border rounded-lg mb-3 last:mb-0">
-                  <AccordionTrigger className="px-4 hover:no-underline">
-                    <div className="flex items-center justify-between w-full pr-4">
-                      <div className="flex flex-col items-start gap-1">
-                        <div className="flex items-center gap-3">
-                          <span className="font-semibold text-base">{account.name}</span>
-                          <span className="text-xs text-text-muted bg-surface-muted px-2 py-0.5 rounded">
-                            {account.account_type}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-4 text-sm">
-                          <span className="text-text-muted">
-                            {positions.length} position{positions.length !== 1 ? "s" : ""}
-                          </span>
-                          {positions.length > 0 && (
-                            <>
-                              <span className="text-text">
-                                {formatCurrency(totalValue)}
-                              </span>
-                              <span className={totalGain >= 0 ? "text-profit" : "text-loss"}>
-                                {formatPercent(totalGain)}
-                              </span>
-                            </>
-                          )}
+                  <div className="flex items-center px-4">
+                    <AccordionTrigger className="flex-1 hover:no-underline py-4">
+                      <div className="flex items-center justify-between w-full pr-4">
+                        <div className="flex flex-col items-start gap-1">
+                          <div className="flex items-center gap-3">
+                            <span className="font-semibold text-base">{account.name}</span>
+                            <span className="text-xs text-text-muted bg-surface-muted px-2 py-0.5 rounded">
+                              {account.account_type}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-4 text-sm">
+                            <span className="text-text-muted">
+                              {positions.length} position{positions.length !== 1 ? "s" : ""}
+                            </span>
+                            {positions.length > 0 && (
+                              <>
+                                <span className="text-text">
+                                  {formatCurrency(totalValue)}
+                                </span>
+                                <span className={totalGain >= 0 ? "text-profit" : "text-loss"}>
+                                  {formatPercent(totalGain)}
+                                </span>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteAccount(account.id, account.name);
-                        }}
-                        disabled={deleteAccount.isPending}
-                        className="h-8 w-8 p-0 ml-2"
-                      >
-                        <Trash2 className="h-4 w-4 text-loss" />
-                      </Button>
-                    </div>
-                  </AccordionTrigger>
+                    </AccordionTrigger>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteAccount(account.id, account.name);
+                      }}
+                      disabled={deleteAccount.isPending}
+                      className="h-8 w-8 p-0 ml-2"
+                    >
+                      <Trash2 className="h-4 w-4 text-loss" />
+                    </Button>
+                  </div>
                   <AccordionContent className="px-4 pb-4">
                     {onAddPosition && (
                       <div className="mb-3 flex justify-end">
