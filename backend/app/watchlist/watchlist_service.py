@@ -186,17 +186,21 @@ class WatchlistService:
         self.storage = storage
         self.price_fetcher = PriceDataFetcher(storage)
 
-    def get_items_with_scores(self, account_id: str) -> list[dict[str, Any]]:
-        """Get all watchlist items for an account with their latest scores."""
+    def get_items_with_scores(self) -> list[dict[str, Any]]:
+        """Get all watchlist items with their latest scores.
+
+        Watchlist is user-level (not account-specific).
+
+        Returns:
+            List of watchlist items with scores and narrative intelligence.
+        """
         items_df = self.storage.query(
             """
-            SELECT wi.id, wi.account_id, wi.symbol, wi.note,
+            SELECT wi.id, wi.symbol, wi.note,
                    wi.created_at, wi.updated_at
             FROM watchlist_items wi
-            WHERE wi.account_id = ?
             ORDER BY wi.created_at DESC
-            """,
-            [account_id],
+            """
         )
 
         if items_df.is_empty():
@@ -214,7 +218,6 @@ class WatchlistService:
 
             item_data = {
                 "id": row["id"],
-                "account_id": row["account_id"],
                 "symbol": row["symbol"],
                 "note": row.get("note"),
                 "created_at": created_at,
@@ -333,7 +336,7 @@ class WatchlistService:
         """Get a single watchlist item by ID with its latest score."""
         item_df = self.storage.query(
             """
-            SELECT wi.id, wi.account_id, wi.symbol, wi.note,
+            SELECT wi.id, wi.symbol, wi.note,
                    wi.created_at, wi.updated_at
             FROM watchlist_items wi
             WHERE wi.id = ?
@@ -355,7 +358,6 @@ class WatchlistService:
 
         item_data = {
             "id": row["id"],
-            "account_id": row["account_id"],
             "symbol": row["symbol"],
             "note": row.get("note"),
             "created_at": created_at,

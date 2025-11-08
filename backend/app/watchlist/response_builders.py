@@ -17,7 +17,6 @@ from pydantic import BaseModel, Field
 class WatchlistItemCreate(BaseModel):
     """Request model for creating a watchlist item."""
 
-    account_id: str = Field(..., description="Account ID")
     symbol: str = Field(..., description="Stock symbol (e.g., AAPL)")
     note: str | None = Field(None, description="Optional notes about this ticker")
 
@@ -29,9 +28,12 @@ class WatchlistItemUpdate(BaseModel):
 
 
 class RefreshRequest(BaseModel):
-    """Request model for manual refresh."""
+    """Request model for manual refresh.
 
-    account_id: str = Field(..., description="Account ID to refresh")
+    Note: Watchlist is now user-level (not account-level), so no account_id needed.
+    """
+
+    pass  # No fields needed - refresh applies to all user's watchlist items
 
 
 class ScoreComponentResponse(BaseModel):
@@ -56,7 +58,6 @@ class WatchlistItemResponse(BaseModel):
     """Response model for watchlist item with current scores."""
 
     id: str
-    account_id: str
     symbol: str
     note: str | None = None
     created_at: str
@@ -108,7 +109,6 @@ class WatchlistItemResponse(BaseModel):
         Example:
             >>> item_dict = {
             ...     "id": "abc-123",
-            ...     "account_id": "default",
             ...     "symbol": "AAPL",
             ...     "note": "Watch for earnings",
             ...     "created_at": "2025-01-01T00:00:00Z",
@@ -134,7 +134,6 @@ class WatchlistItemResponse(BaseModel):
 
         return cls(
             id=item["id"],
-            account_id=item["account_id"],
             symbol=item["symbol"],
             note=item.get("note"),
             created_at=item["created_at"],
@@ -182,8 +181,8 @@ def build_watchlist_item_responses(items: list[dict[str, Any]]) -> list[Watchlis
 
     Example:
         >>> items = [
-        ...     {"id": "1", "account_id": "default", "symbol": "AAPL", ...},
-        ...     {"id": "2", "account_id": "default", "symbol": "GOOGL", ...}
+        ...     {"id": "1", "symbol": "AAPL", ...},
+        ...     {"id": "2", "symbol": "GOOGL", ...}
         ... ]
         >>> responses = build_watchlist_item_responses(items)
         >>> len(responses)

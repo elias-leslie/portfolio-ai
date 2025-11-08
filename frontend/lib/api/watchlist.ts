@@ -85,7 +85,6 @@ export interface NewsIntelligence {
 
 export interface WatchlistItem {
     id: string;
-    account_id: string;
     symbol: string;
     note?: string;
     created_at: string;
@@ -118,7 +117,6 @@ export interface WatchlistListResponse {
 }
 
 export interface WatchlistItemCreate {
-    account_id: string;
     symbol: string;
     note?: string;
 }
@@ -164,14 +162,12 @@ export interface RefreshStatus {
 }
 
 /**
- * Get all watchlist items for an account
+ * Get all watchlist items
+ *
+ * Watchlist is user-level (not account-specific).
  */
-export async function fetchWatchlistItems(
-    accountId: string,
-): Promise<WatchlistListResponse> {
-    return apiRequest<WatchlistListResponse>(
-        `/api/watchlist?account_id=${encodeURIComponent(accountId)}`,
-    );
+export async function fetchWatchlistItems(): Promise<WatchlistListResponse> {
+    return apiRequest<WatchlistListResponse>("/api/watchlist");
 }
 
 /**
@@ -218,25 +214,19 @@ export async function deleteWatchlistItem(itemId: string): Promise<void> {
 }
 
 /**
- * Get refresh status for an account's watchlist
+ * Get refresh status for the watchlist
  */
-export async function fetchRefreshStatus(
-    accountId: string,
-): Promise<RefreshStatus> {
-    return apiRequest<RefreshStatus>(
-        `/api/watchlist/refresh-status?account_id=${encodeURIComponent(accountId)}`,
-    );
+export async function fetchRefreshStatus(): Promise<RefreshStatus> {
+    return apiRequest<RefreshStatus>("/api/watchlist/refresh-status");
 }
 
 /**
- * Manually refresh watchlist scores for an account
+ * Manually refresh watchlist scores
  */
-export async function refreshWatchlistScores(
-    accountId: string,
-): Promise<RefreshResponse> {
+export async function refreshWatchlistScores(): Promise<RefreshResponse> {
     return apiRequest<RefreshResponse>("/api/watchlist/refresh", {
         method: "POST",
-        body: JSON.stringify({ account_id: accountId }),
+        body: JSON.stringify({}),
     });
 }
 

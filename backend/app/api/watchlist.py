@@ -48,25 +48,24 @@ watchlist_service = WatchlistService(storage)
 
 # Endpoints
 @router.get("", response_model=WatchlistListResponse)
-async def list_watchlist_items(account_id: str) -> WatchlistListResponse:
+async def list_watchlist_items() -> WatchlistListResponse:
     """
-    List all watchlist items for an account with current scores.
+    List all watchlist items with current scores.
 
-    Args:
-        account_id: Account ID to fetch watchlist for
+    Watchlist is user-level (not account-specific). Shows all symbols being monitored.
 
     Returns:
         List of watchlist items with current scores
     """
     try:
-        items = await run_in_threadpool(watchlist_service.get_items_with_scores, account_id)
+        items = await run_in_threadpool(watchlist_service.get_items_with_scores)
 
         return WatchlistListResponse(
             items=build_watchlist_item_responses(items),
             total_count=len(items),
         )
     except Exception as e:
-        logger.error("Failed to list watchlist items", account_id=account_id, error=str(e))
+        logger.error("Failed to list watchlist items", error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to fetch watchlist: {e}") from e
 
 
@@ -85,13 +84,13 @@ async def create_watchlist_item(data: WatchlistItemCreate) -> WatchlistItemRespo
         # Validate and normalize symbol
         symbol = validate_symbol(data.symbol)
 
-        # Check if already exists
+        # Check if already exists (globally - watchlist is user-level)
         existing_df = storage.query(
             """
             SELECT id FROM watchlist_items
-            WHERE account_id = ? AND symbol = ?
+            WHERE symbol = ?
             """,
-            [data.account_id, symbol],
+            [symbol],
         )
         if not existing_df.is_empty():
             raise HTTPException(status_code=409, detail=f"Ticker {symbol} already in watchlist")
@@ -103,21 +102,20 @@ async def create_watchlist_item(data: WatchlistItemCreate) -> WatchlistItemRespo
         with storage.connection() as conn:
             conn.execute(
                 """
-                INSERT INTO watchlist_items (id, account_id, symbol, note, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO watchlist_items (id, symbol, note, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?)
                 """,
-                [item_id, data.account_id, symbol, data.note, now, now],
+                [item_id, symbol, data.note, now, now],
             )
             conn.commit()
 
         logger.info("Watchlist item created", item_id=item_id, symbol=symbol)
 
         # Trigger background data population for the new ticker
-        schedule_new_ticker_tasks(symbol, data.account_id)
+        schedule_new_ticker_tasks(symbol)
 
         return WatchlistItemResponse(
             id=item_id,
-            account_id=data.account_id,
             symbol=symbol,
             note=data.note,
             created_at=now,
@@ -131,19 +129,16 @@ async def create_watchlist_item(data: WatchlistItemCreate) -> WatchlistItemRespo
 
 
 @router.get("/refresh-status", response_model=RefreshStatusResponse)
-async def get_refresh_status(account_id: str) -> RefreshStatusResponse:
+async def get_refresh_status() -> RefreshStatusResponse:
     """
-    Get the current refresh status for an account's watchlist.
-
-    Args:
-        account_id: Account ID to check refresh status for
+    Get the current refresh status for the watchlist.
 
     Returns:
         Refresh status with progress information
     """
     try:
         redis_client = _get_redis_client()
-        redis_key = f"watchlist:refresh:{account_id}"
+        redis_key = "watchlist:refresh:global"
         status_json = redis_client.get(redis_key)
 
         if not status_json:
@@ -185,7 +180,7 @@ async def get_refresh_status(account_id: str) -> RefreshStatusResponse:
         )
 
     except Exception as e:
-        logger.error("Failed to get refresh status", account_id=account_id, error=str(e))
+        logger.error("Failed to get refresh status", error=str(e))
         # Return no refresh in progress on error
         return RefreshStatusResponse(
             is_refreshing=False,
@@ -412,24 +407,22 @@ async def get_score_history(item_id: str, days: int = 10) -> ScoreHistoryRespons
 @router.post("/refresh", response_model=RefreshResponse)
 async def refresh_watchlist_scores(data: RefreshRequest) -> RefreshResponse:
     """
-    Manually trigger a refresh of all watchlist scores for an account.
+    Manually trigger a refresh of all watchlist scores.
 
     Args:
-        data: Refresh request data with account_id
+        data: Refresh request data (no fields needed)
 
     Returns:
         Refresh status (200 OK for all success, 207 Multi-Status for partial success)
     """
     try:
-        account_id = data.account_id
-        logger.info("Refresh request started", account_id=account_id)
+        logger.info("Refresh request started")
 
-        # Get all items for this account
+        # Get all watchlist items
         items_df = storage.query(
             """
-            SELECT id, symbol FROM watchlist_items WHERE account_id = ?
-            """,
-            [account_id],
+            SELECT id, symbol FROM watchlist_items
+            """
         )
 
         if items_df.is_empty():
@@ -446,17 +439,16 @@ async def refresh_watchlist_scores(data: RefreshRequest) -> RefreshResponse:
         logger.info("Refreshing tickers", tickers=tickers, count=len(tickers))
 
         # Trigger background data refresh for ALL tickers
-        schedule_refresh_tasks(tickers, account_id)
+        schedule_refresh_tasks(tickers)
 
         # Do immediate synchronous refresh with Redis progress tracking
-        result = refresh_watchlist_scores_service(storage, account_id=account_id)
+        result = refresh_watchlist_scores_service(storage)
         success_count = result.get("success_count", 0)
         failed_count = result.get("failed_count", 0)
         failed_list = [FailedTickerInfo(**f) for f in result.get("failed", [])]
 
         logger.info(
             "Watchlist refresh completed",
-            account_id=account_id,
             success_count=success_count,
             failed_count=failed_count,
         )
@@ -491,5 +483,5 @@ async def refresh_watchlist_scores(data: RefreshRequest) -> RefreshResponse:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("Failed to refresh watchlist scores", account_id=data.account_id, error=str(e))
+        logger.error("Failed to refresh watchlist scores", error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to refresh scores: {e}") from e

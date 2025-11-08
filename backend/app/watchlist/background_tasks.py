@@ -12,18 +12,18 @@ from app.tasks import (
 logger = get_logger(__name__)
 
 
-def schedule_new_ticker_tasks(symbol: str, account_id: str) -> None:
+def schedule_new_ticker_tasks(symbol: str) -> None:
     """Schedule background tasks for a newly added ticker.
 
     Coordinates data ingestion, technical indicators, and score refresh.
 
     Args:
         symbol: Stock ticker symbol
-        account_id: Account ID for score refresh
 
     Note:
         This schedules async tasks and logs errors but doesn't raise exceptions.
         Failures in background tasks should not block the API response.
+        Watchlist is user-level (not account-specific), so no account_id needed.
     """
     try:
         # Ingest 200 days of historical OHLCV data
@@ -36,13 +36,11 @@ def schedule_new_ticker_tasks(symbol: str, account_id: str) -> None:
         )  # Wait 30s for ingestion
         logger.info("Scheduled technical indicators calculation", symbol=symbol)
 
-        # Refresh watchlist scores for the entire account after data ingestion
+        # Refresh watchlist scores after data ingestion
         # Note: The refresh logic now safely skips tickers without sufficient historical data,
         # preventing score degradation for existing tickers
-        refresh_watchlist_scores_task.apply_async(
-            args=[account_id], countdown=60
-        )  # Wait 60s for everything
-        logger.info("Scheduled watchlist score refresh", account_id=account_id)
+        refresh_watchlist_scores_task.apply_async(countdown=60)  # Wait 60s for everything
+        logger.info("Scheduled watchlist score refresh")
 
     except Exception as bg_error:
         # Log but don't fail the request - background tasks are async
@@ -51,33 +49,31 @@ def schedule_new_ticker_tasks(symbol: str, account_id: str) -> None:
         )
 
 
-def schedule_refresh_tasks(tickers: list[str], account_id: str) -> None:
+def schedule_refresh_tasks(tickers: list[str]) -> None:
     """Schedule background tasks for refreshing existing watchlist data.
 
     Coordinates data refresh, technical indicators update, and score refresh.
 
     Args:
         tickers: List of ticker symbols to refresh
-        account_id: Account ID for score refresh
 
     Note:
         This schedules async tasks and logs errors but doesn't raise exceptions.
         Failures in background tasks should not block the API response.
+        Watchlist is user-level (not account-specific), so no account_id needed.
     """
     try:
         # Fetch latest OHLCV data (last 5 days to update recent bars)
         ingest_historical_ohlcv.delay(tickers=tickers, days=5)
-        logger.info("Triggered OHLCV data refresh", tickers=tickers, account_id=account_id)
+        logger.info("Triggered OHLCV data refresh", tickers=tickers)
 
         # Update technical indicators (will run after ingestion completes)
         update_technical_indicators.apply_async(args=[tickers], countdown=15)
         logger.info("Scheduled technical indicators update", tickers=tickers)
 
         # Refresh watchlist scores (will run after indicators complete)
-        refresh_watchlist_scores_task.apply_async(args=[account_id], countdown=30)
-        logger.info("Scheduled watchlist score refresh", account_id=account_id)
+        refresh_watchlist_scores_task.apply_async(countdown=30)
+        logger.info("Scheduled watchlist score refresh")
 
     except Exception as bg_error:
-        logger.warning(
-            "Failed to trigger background refresh tasks", account_id=account_id, error=str(bg_error)
-        )
+        logger.warning("Failed to trigger background refresh tasks", error=str(bg_error))

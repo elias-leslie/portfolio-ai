@@ -42,17 +42,24 @@ def _get_redis_client() -> Any:  # redis.Redis with decode_responses=True
     return _redis_client
 
 
-def _load_watchlist_items(storage: PortfolioStorage, account_id: str | None) -> pl.DataFrame:
-    """Load watchlist items from database."""
-    params: list[Any] = []
-    sql = """
-        SELECT id, account_id, symbol
-        FROM watchlist_items
+def _load_watchlist_items(storage: PortfolioStorage, account_id: str | None = None) -> pl.DataFrame:
+    """Load watchlist items from database.
+
+    Args:
+        storage: Database storage instance
+        account_id: DEPRECATED - Watchlist is now user-level, this parameter is ignored
+
+    Returns:
+        DataFrame with all watchlist items
     """
-    if account_id:
-        sql += " WHERE account_id = ?"
-        params.append(account_id)
-    return storage.query(sql, params)
+    # Note: account_id parameter is deprecated but kept for backward compatibility
+    # Watchlist is now user-level, not account-specific
+    return storage.query(
+        """
+        SELECT id, symbol
+        FROM watchlist_items
+        """
+    )
 
 
 def _load_latest_technical(

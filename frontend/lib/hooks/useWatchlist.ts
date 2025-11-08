@@ -27,20 +27,21 @@ import { fetchPreferences } from "@/lib/api/preferences";
 export const watchlistKeys = {
   all: ["watchlist"] as const,
   lists: () => [...watchlistKeys.all, "list"] as const,
-  list: (accountId: string) => [...watchlistKeys.lists(), accountId] as const,
+  list: () => [...watchlistKeys.lists()] as const,
   details: () => [...watchlistKeys.all, "detail"] as const,
   detail: (itemId: string) => [...watchlistKeys.details(), itemId] as const,
   history: (itemId: string) =>
     [...watchlistKeys.detail(itemId), "history"] as const,
-  refreshStatus: (accountId: string) =>
-    [...watchlistKeys.all, "refresh-status", accountId] as const,
+  refreshStatus: () => [...watchlistKeys.all, "refresh-status"] as const,
 };
 
 /**
- * Hook to fetch all watchlist items for an account
+ * Hook to fetch all watchlist items
  * Auto-refreshes based on user preferences (default: 5 minutes)
+ *
+ * Watchlist is user-level (not account-specific).
  */
-export function useWatchlist(accountId: string) {
+export function useWatchlist() {
   // Fetch preferences to get refresh interval
   const { data: preferences } = useQuery({
     queryKey: ["preferences"],
@@ -56,14 +57,13 @@ export function useWatchlist(accountId: string) {
   // invalidation and resets UI state (modals, etc). The interval is a query option,
   // not part of the query identity. React Query handles interval changes correctly.
   return useQuery<WatchlistListResponse, Error>({
-    queryKey: watchlistKeys.list(accountId),
-    queryFn: () => fetchWatchlistItems(accountId),
+    queryKey: watchlistKeys.list(),
+    queryFn: () => fetchWatchlistItems(),
     staleTime: 0, // Always consider data stale to enable frequent updates
     refetchInterval: refreshIntervalMs, // Refetch based on user preference
     refetchIntervalInBackground: true, // Enable background refresh
     refetchOnWindowFocus: true, // Refetch when window regains focus
     refetchOnMount: false, // Don't refetch on mount - use cached data for smooth UX
-    enabled: !!accountId,
     structuralSharing: true, // Only update changed data, preserves UI state
   });
 }
@@ -98,10 +98,10 @@ export function useAddTicker() {
 
   return useMutation<WatchlistItem, Error, WatchlistItemCreate>({
     mutationFn: createWatchlistItem,
-    onSuccess: (data) => {
-      // Invalidate and refetch watchlist query for this account
+    onSuccess: () => {
+      // Invalidate and refetch watchlist query
       queryClient.invalidateQueries({
-        queryKey: watchlistKeys.list(data.account_id),
+        queryKey: watchlistKeys.list(),
         refetchType: 'active', // Force immediate refetch of active queries
       });
     },
@@ -123,7 +123,7 @@ export function useUpdateWatchlistItem() {
     onSuccess: (data) => {
       // Invalidate and refetch both list and detail queries
       queryClient.invalidateQueries({
-        queryKey: watchlistKeys.list(data.account_id),
+        queryKey: watchlistKeys.list(),
         refetchType: 'active', // Force immediate refetch of active queries
       });
       queryClient.invalidateQueries({
@@ -140,12 +140,12 @@ export function useUpdateWatchlistItem() {
 export function useDeleteWatchlistItem() {
   const queryClient = useQueryClient();
 
-  return useMutation<void, Error, { itemId: string; accountId: string }>({
-    mutationFn: ({ itemId }) => deleteWatchlistItem(itemId),
-    onSuccess: (_, variables) => {
-      // Invalidate and refetch watchlist query for this account
+  return useMutation<void, Error, string>({
+    mutationFn: (itemId) => deleteWatchlistItem(itemId),
+    onSuccess: () => {
+      // Invalidate and refetch watchlist query
       queryClient.invalidateQueries({
-        queryKey: watchlistKeys.list(variables.accountId),
+        queryKey: watchlistKeys.list(),
         refetchType: 'active', // Force immediate refetch of active queries
       });
     },
@@ -158,12 +158,12 @@ export function useDeleteWatchlistItem() {
 export function useRefreshWatchlist() {
   const queryClient = useQueryClient();
 
-  return useMutation<RefreshResponse, Error, string>({
+  return useMutation<RefreshResponse, Error, void>({
     mutationFn: refreshWatchlistScores,
-    onSuccess: (_, accountId) => {
+    onSuccess: () => {
       // Invalidate and refetch watchlist query to show new scores
       queryClient.invalidateQueries({
-        queryKey: watchlistKeys.list(accountId),
+        queryKey: watchlistKeys.list(),
         refetchType: 'active', // Force immediate refetch of active queries
       });
     },
@@ -171,14 +171,14 @@ export function useRefreshWatchlist() {
 }
 
 /**
- * Hook to poll refresh status for an account's watchlist
+ * Hook to poll refresh status for the watchlist
  * Polls every 1 second when refresh is active or recently completed
  */
-export function useRefreshStatus(accountId: string, enabled = true) {
+export function useRefreshStatus(enabled = true) {
   return useQuery<RefreshStatus, Error>({
-    queryKey: watchlistKeys.refreshStatus(accountId),
-    queryFn: () => fetchRefreshStatus(accountId),
-    enabled: !!accountId && enabled,
+    queryKey: watchlistKeys.refreshStatus(),
+    queryFn: () => fetchRefreshStatus(),
+    enabled,
     refetchInterval: 1000, // Poll every 1 second to catch short refreshes
     refetchIntervalInBackground: false,
     staleTime: 0, // Always consider stale to enable polling

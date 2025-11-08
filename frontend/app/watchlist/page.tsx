@@ -19,10 +19,9 @@ type StyleFilter = "all" | "Index" | "Trend" | "Value" | "Swing" | "Event";
 
 export default function WatchlistPage() {
   const [addTickerOpen, setAddTickerOpen] = useState(false);
-  const [accountId] = useState("default"); // TODO: Get from auth context
   const [styleFilter, setStyleFilter] = useState<StyleFilter>("all");
 
-  const { data: watchlistData, isLoading, error } = useWatchlist(accountId);
+  const { data: watchlistData, isLoading, error } = useWatchlist();
   const refreshMutation = useRefreshWatchlist();
 
   // Load filter from localStorage on mount
@@ -39,7 +38,7 @@ export default function WatchlistPage() {
   }, [styleFilter]);
 
   const handleRefresh = () => {
-    refreshMutation.mutate(accountId, {
+    refreshMutation.mutate(undefined, {
       onSuccess: (data) => {
         // Handle different statuses
         if (data.status === "success") {
@@ -146,7 +145,6 @@ export default function WatchlistPage() {
         {!isLoading && !error && (
           <WatchlistTable
             items={filteredItems}
-            accountId={accountId}
           />
         )}
 
@@ -154,7 +152,6 @@ export default function WatchlistPage() {
         <AddTickerModal
           open={addTickerOpen}
           onOpenChange={setAddTickerOpen}
-          accountId={accountId}
           currentCount={watchlistData?.items.length || 0}
         />
       </div>
