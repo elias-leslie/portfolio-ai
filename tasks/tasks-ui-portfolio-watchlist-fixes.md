@@ -1,6 +1,7 @@
 # Task List: Portfolio/Watchlist UI & Data Model Fixes
 
 **Created**: 2025-11-07
+**Updated**: 2025-11-07 (Corrected cloud capabilities - DOES have full source access)
 **Status**: Pending Research
 **Priority**: HIGH
 **Environment**: Cloud Claude Code (sandbox, limited runtime environment)
@@ -12,12 +13,13 @@
 **This task is for a cloud Claude Code instance with limited environment access:**
 
 ✅ **You CAN:**
-- Read all code files in the repository
-- Search, grep, and analyze codebase structure
+- **Read ALL source code** (full access to backend/, frontend/, docs/, all files)
+- Search, grep, and analyze complete codebase structure
 - Plan and design solutions
-- Write/edit code files (frontend, backend)
-- Create git commits
+- Write/edit code files (frontend TypeScript/React, backend Python/FastAPI)
+- Create git commits and branches
 - Provide detailed implementation plans
+- Use code analysis tools (ruff, mypy, eslint)
 
 ❌ **You CANNOT (or should avoid):**
 - Run Python venv commands (they hang in sandbox)
