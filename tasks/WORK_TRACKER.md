@@ -18,19 +18,7 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Code Quality Improvements** (MEDIUM-HIGH (8-12 hours, 2-3 sessions), 0/7 tasks)
-   - File: `tasks-0035-database-query-deduplication.md`
-   - Created: Unknown
-   - Tasks:
-     - [ ] Task 0: Setup: Create Instrumentation for Validation
-     - [ ] Task 1: ISSUE #1: Validate Overlapping News Fetches Between Tasks
-     - [ ] Task 2: ISSUE #2: Validate Per-Symbol News Fetching in Loop
-     - [ ] Task 3: ISSUE #3: Validate User Preferences Queried 5 Times
-     - [ ] Task 4: ISSUE #4: Validate Watchlist Items Queried Twice
-     - [ ] Task 5: ISSUE #5: Validate N+1 Query Pattern in get_items_with_scores()
-     - [ ] Task 6: Comprehensive Verification & Documentation
-
-2. **Code Quality Improvements** (HIGH (12-17 hours, can be done in 2-3 sessions), 1/5 tasks (5 days ago))
+1. **Code Quality Improvements** (HIGH (12-17 hours, can be done in 2-3 sessions), 1/5 tasks (5 days ago))
    - File: `tasks-0033-code-quality-improvements.md`
    - Created: 2025-11-04
    - Goal: Improve health score from 7.95/10 → 9.0/10
@@ -75,13 +63,15 @@
    - Commits: 9 commits (2dbebbe → 07f1abf)
    - Impact: Codebase now at EXCELLENT quality standard
 
-2. **Database Query Deduplication** (2025-11-09)
-   - Issue #3 FIXED: User preferences (5 queries → 1, 80% reduction)
-   - Issue #5 FIXED: N+1 pattern (22 queries → 11, 50% reduction)
+2. **Database Query Deduplication** (2025-11-09, 3/5 issues complete)
+   - Issue #2 FIXED: Batch news fetching (23 calls → 1, 96% reduction, commit c5f44de)
+   - Issue #3 FIXED: User preferences (5 queries → 1, 80% reduction, commit 8ca2cef)
+   - Issue #5 FIXED: N+1 pattern (22 queries → 11, 50% reduction, commit 8ca2cef)
+   - Test suite: All 12 validation tests passing (bug fix commit f15e009)
    - Created UserPreferences centralized loader
    - Optimized get_items_with_scores() with LATERAL JOIN
    - Overall: ~60% query reduction per watchlist refresh
-   - Commit: 8ca2cef
+   - Issues #1, #4: Validation infrastructure complete, fixes deferred (require concurrent Celery task testing)
    - File: `tasks-0035-database-query-deduplication.md`
 
 2. **Portfolio/Watchlist UI & Data Model Fixes** (2025-11-09)
