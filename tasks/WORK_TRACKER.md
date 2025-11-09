@@ -49,14 +49,13 @@
      - [ ] Task 5: ISSUE #5: Validate N+1 Query Pattern in get_items_with_scores()
      - [ ] Task 6: Comprehensive Verification & Documentation
 
-3. **Code Quality Improvements** (HIGH (12-17 hours, can be done in 2-3 sessions), 1/6 tasks (5 days ago))
+3. **Code Quality Improvements** (HIGH (12-17 hours, can be done in 2-3 sessions), 1/5 tasks (5 days ago))
    - File: `tasks-0033-code-quality-improvements.md`
    - Created: 2025-11-04
    - Goal: Improve health score from 7.95/10 → 9.0/10
    - Status: PAUSED (2025-11-04)
    - Tasks:
-     - [ ] Task 0: Discovery & Planning (30 min) ✅ COMPLETE
-     - [x] Task 0: Run comprehensive scope discovery
+     - [x] Task 0: Discovery & Planning (30 min) ✅ COMPLETE
      - [ ] Task 1: File Size Refactoring (8-12 hours)
      - [ ] Task 2: Type Safety Improvements (6-8 hours)
      - [ ] Task 3: Documentation Completeness (2-3 hours)
