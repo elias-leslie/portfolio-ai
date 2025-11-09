@@ -23,7 +23,7 @@ from app.logging_config import get_logger
 logger = get_logger(__name__)
 
 
-def get_news_tool_definition() -> dict[str, Any]:
+def get_news_tool_definition() -> dict[str, object]:
     """Get News API tool definition."""
     return {
         "name": "get_news",
@@ -46,7 +46,7 @@ def get_news_tool_definition() -> dict[str, Any]:
     }
 
 
-def get_economic_data_tool_definition() -> dict[str, Any]:
+def get_economic_data_tool_definition() -> dict[str, object]:
     """Get FRED economic data tool definition."""
     return {
         "name": "get_economic_data",
@@ -65,7 +65,7 @@ def get_economic_data_tool_definition() -> dict[str, Any]:
     }
 
 
-def get_portfolio_data_tool_definition() -> dict[str, Any]:
+def get_portfolio_data_tool_definition() -> dict[str, object]:
     """Get portfolio data tool definition."""
     return {
         "name": "get_portfolio_data",
@@ -77,7 +77,7 @@ def get_portfolio_data_tool_definition() -> dict[str, Any]:
     }
 
 
-def get_price_data_tool_definition() -> dict[str, Any]:
+def get_price_data_tool_definition() -> dict[str, object]:
     """Get price data tool definition."""
     return {
         "name": "get_price_data",
@@ -98,7 +98,7 @@ def get_price_data_tool_definition() -> dict[str, Any]:
     }
 
 
-def get_store_idea_tool_definition() -> dict[str, Any]:
+def get_store_idea_tool_definition() -> dict[str, object]:
     """Get store idea tool definition."""
     return {
         "name": "store_idea",
@@ -181,7 +181,7 @@ class AgentTools:
         self.portfolio_mgr = portfolio_mgr
         self.analytics = analytics
 
-    def execute_get_news(self, query: str, max_results: int | None = None) -> dict[str, Any]:
+    def execute_get_news(self, query: str, max_results: int | None = None) -> dict[str, object]:
         """Execute get_news tool."""
         normalized_query = query.strip()
         pref_limit = self.news_service.refresh_max_articles_from_preferences()
@@ -207,12 +207,12 @@ class AgentTools:
             logger.error("agent_get_news_failed", query=query, error=str(exc))
             raise
 
-    def execute_get_economic_data(self, indicators: list[str]) -> dict[str, Any]:
+    def execute_get_economic_data(self, indicators: list[str]) -> dict[str, object]:
         """Execute get_economic_data tool."""
         data = self.fred_source.fetch_multiple(indicators)
         return {"indicators": data, "count": len(data)}
 
-    def execute_get_portfolio_data(self) -> dict[str, Any]:
+    def execute_get_portfolio_data(self) -> dict[str, object]:
         """Execute get_portfolio_data tool."""
         positions = self.portfolio_mgr.get_positions()
 
@@ -231,7 +231,7 @@ class AgentTools:
             "analytics": analytics.model_dump(mode="json"),
         }
 
-    def execute_get_price_data(self, symbols: list[str]) -> dict[str, Any]:
+    def execute_get_price_data(self, symbols: list[str]) -> dict[str, object]:
         """Execute get_price_data tool with technical indicators.
 
         Fetches current price data and enriches it with technical indicators
@@ -409,7 +409,7 @@ class AgentTools:
 
         return ", ".join(analysis_parts)
 
-    def execute_store_idea(self, agent_run_id: str, **idea_data: Any) -> dict[str, Any]:
+    def execute_store_idea(self, agent_run_id: str, **idea_data: Any) -> dict[str, object]:
         """Execute store_idea tool and automatically create a paper trade."""
         idea_id = str(uuid.uuid4())
 

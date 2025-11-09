@@ -10,9 +10,10 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, TypedDict, cast
 
 from ..logging_config import get_logger
+from ..portfolio.models import PriceData
 from ..services import NewsService
 from ..services.news_models import NewsArticle, NewsBundle
 from ..storage import PortfolioStorage
@@ -25,6 +26,7 @@ from .calculator import (
 )
 from .earnings import fetch_earnings_date_cached
 from .fundamentals import (
+    FundamentalData,
     calculate_fundamental_score,
     calculate_growth_score,
     calculate_health_score,
@@ -54,6 +56,32 @@ from .scoring import calculate_watchlist_scores
 logger = get_logger(__name__)
 
 WATCHLIST_NEWS_ARTICLE_LIMIT = 5
+
+
+class TradingStyleDict(TypedDict):
+    """Trading style classification result."""
+
+    style: str
+    confidence: int
+    holding_period: str
+    risk_level: str
+
+
+class NarrativeResultDict(TypedDict):
+    """Result from _generate_narrative_and_trade_levels function."""
+
+    signal_type: str
+    signal_strength: int
+    headline: str
+    style_result: TradingStyleDict
+    entry_price: float | None
+    stop_loss: float | None
+    profit_target: float | None
+    position_size: int | None
+    action_plan: str | None
+    position_sizing: str | None
+    company_health_bullets: list[str] | None
+    special_notes: str | None
 
 
 def _normalize_publisher_field(value: Any) -> str | None:
@@ -277,7 +305,7 @@ def _fetch_fundamentals_and_earnings(
     storage: PortfolioStorage,
     symbol: str,
     now: datetime,
-) -> tuple[Any | None, str | None, datetime | None, int | None]:
+) -> tuple[FundamentalData | None, str | None, datetime | None, int | None]:
     """Fetch fundamental data and earnings information for a symbol.
 
     Returns:
@@ -387,15 +415,15 @@ def _fetch_news_sentiment(
     news_service: NewsService,
     symbol: str,
     max_news_articles: int,
-    news_bundle: Any | None = None,
-) -> tuple[float | None, dict[str, Any] | None]:
+    news_bundle: NewsBundle | None = None,
+) -> tuple[float | None, dict[str, object] | None]:
     """Fetch news sentiment score and recent headlines.
 
     Returns:
         Tuple of (news_sentiment_score, recent_news_payload)
     """
     news_sentiment_value: float | None = None
-    recent_news_value: dict[str, Any] | None = None
+    recent_news_value: dict[str, object] | None = None
 
     try:
         if news_bundle is None:
@@ -415,7 +443,7 @@ def _fetch_news_sentiment(
 def _generate_narrative_and_trade_levels(
     storage: PortfolioStorage,
     symbol: str,
-    price_data: Any,
+    price_data: PriceData,
     technical_snapshot: TechnicalSnapshot,
     current_volume: float | None,
     avg_volume_20d: float | None,
@@ -423,9 +451,9 @@ def _generate_narrative_and_trade_levels(
     company_health_str: str | None,
     news_sentiment_value: float | None,
     earnings_days_away_val: int | None,
-    fundamentals_data: Any | None,
+    fundamentals_data: FundamentalData | None,
     risk_budget: float,
-) -> dict[str, Any]:
+) -> NarrativeResultDict:
     """Generate narrative intelligence and calculate trade levels.
 
     Returns:
@@ -453,12 +481,15 @@ def _generate_narrative_and_trade_levels(
         headline = generate_headline(classification)
 
         # Classify trading style
-        style_result = classify_trading_style(
-            symbol=symbol,
-            signal_strength=signal_strength_val,
-            signal_type=signal_type_str,
-            rsi_14=technical_snapshot.rsi_14 or 50.0,
-            earnings_days_away=earnings_days_away_val,
+        style_result = cast(
+            TradingStyleDict,
+            classify_trading_style(
+                symbol=symbol,
+                signal_strength=signal_strength_val,
+                signal_type=signal_type_str,
+                rsi_14=technical_snapshot.rsi_14 or 50.0,
+                earnings_days_away=earnings_days_away_val,
+            ),
         )
 
         # Calculate trade levels
@@ -580,12 +611,15 @@ def _generate_narrative_and_trade_levels(
         signal_type_str = SignalType.HOLD.value
         signal_strength_val = 5
         headline = f"HOLD - {symbol}"
-        style_result = {
-            "style": "Value",
-            "confidence": 5,
-            "holding_period": "Unknown",
-            "risk_level": "Medium",
-        }
+        style_result = cast(
+            TradingStyleDict,
+            {
+                "style": "Value",
+                "confidence": 5,
+                "holding_period": "Unknown",
+                "risk_level": "Medium",
+            },
+        )
         entry_price_val = None
         stop_loss_val = None
         profit_target_val = None
@@ -615,7 +649,7 @@ def process_ticker_snapshot(
     storage: PortfolioStorage,
     symbol: str,
     item_id: str,
-    price_data: Any,
+    price_data: PriceData,
     technical_map: dict[str, TechnicalSnapshot],
     default_weights: ScoreWeights,
     stale_ttl_minutes: int,
@@ -623,7 +657,7 @@ def process_ticker_snapshot(
     now: datetime,
     news_service: NewsService,
     max_news_articles: int,
-    news_bundle: Any | None = None,
+    news_bundle: NewsBundle | None = None,
 ) -> WatchlistSnapshot:
     """Process a single ticker and generate its watchlist snapshot.
 

@@ -95,7 +95,7 @@ def check_breaking_news(item: dict[str, Any]) -> PriorityIndicator | None:
         PriorityIndicator if breaking news, else None
     """
     news_intel = item.get("news_intelligence")
-    if news_intel and news_intel.get("article_count_24h", 0) >= 10:
+    if news_intel and isinstance(news_intel, dict) and news_intel.get("article_count_24h", 0) >= 10:
         count = news_intel["article_count_24h"]
         return PriorityIndicator(
             icon="📰",
