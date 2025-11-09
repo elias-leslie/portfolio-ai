@@ -112,6 +112,154 @@ def _load_latest_technical(
 # in app.utils.preferences_loader to eliminate duplicate queries (Issue #3)
 
 
+def _trigger_auto_backfill(storage: PortfolioStorage, symbols: list[str]) -> None:
+    """Trigger automatic backfill for tickers with missing or stale data."""
+    tickers_needing_backfill = detect_missing_historical_data(
+        storage=storage,
+        symbols=symbols,
+        min_days=30,
+        stale_threshold_days=7,
+    )
+
+    if tickers_needing_backfill:
+        try:
+            from ..tasks.data_ingestion_tasks import ingest_historical_ohlcv  # noqa: PLC0415
+
+            logger.info(
+                "auto_backfill_triggered",
+                ticker_count=len(tickers_needing_backfill),
+                tickers=tickers_needing_backfill,
+            )
+
+            # Trigger async backfill task (non-blocking)
+            ingest_historical_ohlcv.delay(tickers_needing_backfill, days=252)
+
+            logger.info(
+                "auto_backfill_task_dispatched",
+                ticker_count=len(tickers_needing_backfill),
+                message="Historical data will be backfilled in background",
+            )
+        except Exception as e:
+            logger.error(
+                "auto_backfill_failed_to_trigger",
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+
+
+def _init_redis_refresh_status(account_id: str | None, symbols: list[str], total_items: int) -> str:
+    """Initialize refresh status in Redis and return the key."""
+    redis_key = f"watchlist:refresh:{account_id or 'all'}"
+    try:
+        redis_client = _get_redis_client()
+        redis_client.setex(
+            redis_key,
+            900,  # 15 minute TTL
+            json.dumps(
+                {
+                    "status": "running",
+                    "started_at": datetime.now(UTC).isoformat(),
+                    "total_items": total_items,
+                    "processed_items": 0,
+                    "current_symbol": None,
+                    "symbols": symbols,
+                }
+            ),
+        )
+    except Exception as e:
+        logger.warning("Failed to initialize Redis refresh status", error=str(e))
+    return redis_key
+
+
+def _update_redis_progress(redis_key: str, symbol: str, processed: int) -> None:
+    """Update Redis with current refresh progress."""
+    try:
+        redis_client = _get_redis_client()
+        redis_value = redis_client.get(redis_key)
+        status_data = json.loads(str(redis_value) if redis_value else "{}")
+        status_data.update(
+            {
+                "current_symbol": symbol,
+                "processed_items": processed,
+            }
+        )
+        redis_client.setex(redis_key, 900, json.dumps(status_data))
+    except Exception as e:
+        logger.debug("Failed to update Redis refresh status", error=str(e))
+
+
+def _complete_redis_refresh(redis_key: str, total_items: int, processed: int) -> None:
+    """Mark refresh as completed in Redis."""
+    try:
+        redis_client = _get_redis_client()
+        redis_value = redis_client.get(redis_key)
+        existing_data = json.loads(str(redis_value) if redis_value else "{}")
+        completed_data = {
+            "status": "completed",
+            "started_at": existing_data.get("started_at"),
+            "total_items": total_items,
+            "processed_items": processed,
+            "current_symbol": None,
+            "is_refreshing": False,
+        }
+        redis_client.setex(redis_key, 5, json.dumps(completed_data))
+    except Exception as e:
+        logger.warning("Failed to update Redis refresh completion status", error=str(e))
+
+
+def _fetch_prices_in_batches(
+    fetcher: PriceDataFetcher,
+    symbols: list[str],
+    batch_size: int,
+    batch_delay_seconds: float,
+) -> dict[str, Any]:
+    """Fetch price data in batches to respect API rate limits."""
+    symbol_batches = [symbols[i : i + batch_size] for i in range(0, len(symbols), batch_size)]
+    total_batches = len(symbol_batches)
+
+    logger.info(
+        "watchlist_refresh_batching",
+        total_symbols=len(symbols),
+        batch_size=batch_size,
+        total_batches=total_batches,
+        delay_seconds=batch_delay_seconds,
+    )
+
+    price_map: dict[str, Any] = {}
+    for batch_idx, batch_symbols in enumerate(symbol_batches, start=1):
+        logger.debug(
+            "watchlist_refresh_batch",
+            batch=batch_idx,
+            total_batches=total_batches,
+            batch_size=len(batch_symbols),
+        )
+
+        batch_prices = fetcher.fetch_price_data(batch_symbols)
+        price_map.update(batch_prices)
+
+        # Delay between batches (except after last batch)
+        if batch_idx < total_batches and batch_delay_seconds > 0:
+            time.sleep(batch_delay_seconds)
+
+    return price_map
+
+
+def _fetch_news_batch(
+    news_service: NewsService, symbols: list[str], max_articles: int
+) -> dict[str, Any]:
+    """Batch-fetch news for all symbols to reduce API calls."""
+    logger.info("watchlist_refresh_news_batch", total_symbols=len(symbols))
+    try:
+        return news_service.get_watchlist_news(
+            symbols=symbols,
+            max_articles=max_articles,
+            force_refresh=False,  # Respect cache
+        )
+    except Exception as e:
+        logger.warning("watchlist_refresh_news_batch_failed", error=str(e))
+        return {}
+
+
 def refresh_watchlist_scores(
     storage: PortfolioStorage,
     *,
@@ -162,58 +310,10 @@ def refresh_watchlist_scores(
     total_items = len(items_df)
 
     # AUTO-BACKFILL: Check for missing or stale historical data
-    tickers_needing_backfill = detect_missing_historical_data(
-        storage=storage,
-        symbols=symbols,
-        min_days=30,
-        stale_threshold_days=7,
-    )
-
-    if tickers_needing_backfill:
-        try:
-            from ..tasks.data_ingestion_tasks import ingest_historical_ohlcv  # noqa: PLC0415
-
-            logger.info(
-                "auto_backfill_triggered",
-                ticker_count=len(tickers_needing_backfill),
-                tickers=tickers_needing_backfill,
-            )
-
-            # Trigger async backfill task (non-blocking)
-            ingest_historical_ohlcv.delay(tickers_needing_backfill, days=252)
-
-            logger.info(
-                "auto_backfill_task_dispatched",
-                ticker_count=len(tickers_needing_backfill),
-                message="Historical data will be backfilled in background",
-            )
-        except Exception as e:
-            logger.error(
-                "auto_backfill_failed_to_trigger",
-                error=str(e),
-                error_type=type(e).__name__,
-            )
+    _trigger_auto_backfill(storage, symbols)
 
     # Initialize refresh status in Redis
-    redis_key = f"watchlist:refresh:{account_id or 'all'}"
-    try:
-        redis_client = _get_redis_client()
-        redis_client.setex(
-            redis_key,
-            900,  # 15 minute TTL
-            json.dumps(
-                {
-                    "status": "running",
-                    "started_at": datetime.now(UTC).isoformat(),
-                    "total_items": total_items,
-                    "processed_items": 0,
-                    "current_symbol": None,
-                    "symbols": symbols,
-                }
-            ),
-        )
-    except Exception as e:
-        logger.warning("Failed to initialize Redis refresh status", error=str(e))
+    redis_key = _init_redis_refresh_status(account_id, symbols, total_items)
 
     fetcher = price_fetcher or PriceDataFetcher(storage)
     load_credentials_from_database()
@@ -236,48 +336,12 @@ def refresh_watchlist_scores(
     stale_ttl_minutes = prefs.get_stale_ttl_minutes()
     risk_budget = prefs.watchlist_risk_budget
 
-    # Batch symbols to respect API rate limits
-    symbol_batches = [symbols[i : i + batch_size] for i in range(0, len(symbols), batch_size)]
-    total_batches = len(symbol_batches)
-
-    logger.info(
-        "watchlist_refresh_batching",
-        total_symbols=len(symbols),
-        batch_size=batch_size,
-        total_batches=total_batches,
-        delay_seconds=batch_delay_seconds,
-    )
-
-    # Fetch price data in batches with delays
-    price_map: dict[str, Any] = {}
-    for batch_idx, batch_symbols in enumerate(symbol_batches, start=1):
-        logger.debug(
-            "watchlist_refresh_batch",
-            batch=batch_idx,
-            total_batches=total_batches,
-            batch_size=len(batch_symbols),
-        )
-
-        batch_prices = fetcher.fetch_price_data(batch_symbols)
-        price_map.update(batch_prices)
-
-        # Delay between batches (except after last batch)
-        if batch_idx < total_batches and batch_delay_seconds > 0:
-            time.sleep(batch_delay_seconds)
+    # Fetch price data in batches to respect API rate limits
+    price_map = _fetch_prices_in_batches(fetcher, symbols, batch_size, batch_delay_seconds)
+    total_batches = len([symbols[i : i + batch_size] for i in range(0, len(symbols), batch_size)])
 
     # Batch-fetch news for all symbols BEFORE processing loop (Issue #2 fix)
-    # This reduces N individual API calls to 1 batch call
-    logger.info("watchlist_refresh_news_batch", total_symbols=len(symbols))
-    news_bundles: dict[str, Any] = {}
-    try:
-        news_bundles = news_service.get_watchlist_news(
-            symbols=symbols,
-            max_articles=news_max_articles,
-            force_refresh=False,  # Respect cache
-        )
-    except Exception as e:
-        logger.warning("watchlist_refresh_news_batch_failed", error=str(e))
-        # Continue with empty news_bundles - individual symbols will handle gracefully
+    news_bundles = _fetch_news_batch(news_service, symbols, news_max_articles)
 
     processed = 0
     now = datetime.now(UTC)
@@ -290,19 +354,7 @@ def refresh_watchlist_scores(
         item_id = row["id"]
 
         # Update refresh status for current symbol
-        try:
-            redis_client = _get_redis_client()
-            redis_value = redis_client.get(redis_key)
-            status_data = json.loads(str(redis_value) if redis_value else "{}")
-            status_data.update(
-                {
-                    "current_symbol": symbol,
-                    "processed_items": processed,
-                }
-            )
-            redis_client.setex(redis_key, 900, json.dumps(status_data))
-        except Exception as e:
-            logger.debug("Failed to update Redis refresh status", error=str(e))
+        _update_redis_progress(redis_key, symbol, processed)
 
         # Process ticker
         try:
@@ -363,21 +415,7 @@ def refresh_watchlist_scores(
     )
 
     # Update refresh status to completed
-    try:
-        redis_client = _get_redis_client()
-        redis_value = redis_client.get(redis_key)
-        existing_data = json.loads(str(redis_value) if redis_value else "{}")
-        completed_data = {
-            "status": "completed",
-            "started_at": existing_data.get("started_at"),
-            "total_items": total_items,
-            "processed_items": processed,
-            "current_symbol": None,
-            "is_refreshing": False,
-        }
-        redis_client.setex(redis_key, 5, json.dumps(completed_data))
-    except Exception as e:
-        logger.warning("Failed to update Redis refresh completion status", error=str(e))
+    _complete_redis_refresh(redis_key, total_items, processed)
 
     return {
         "processed": processed,
