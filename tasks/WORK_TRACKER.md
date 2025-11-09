@@ -10,7 +10,7 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-*No active tasks - use `/task_it` to create new tasks*
+(No active tasks)
 
 ---
 
