@@ -19,11 +19,12 @@ export const newsKeys = {
   search: (query: string) => [...newsKeys.all, "search", query] as const,
 };
 
-export function useMarketNews(options?: { maxResults?: number; forceRefresh?: boolean }) {
+export function useMarketNews(options?: { maxResults?: number; forceRefresh?: boolean; enabled?: boolean }) {
   return useQuery<MarketNewsResponse, Error>({
     queryKey: newsKeys.market(),
     queryFn: () => fetchMarketNews(options),
     staleTime: 1000 * 60 * 5,
+    enabled: options?.enabled !== false, // Default to true
   });
 }
 
@@ -38,12 +39,12 @@ export function useSymbolNews(symbol: string, options?: { maxResults?: number; f
 
 export function useWatchlistNews(
   accountId: string,
-  options?: { maxResults?: number; forceRefresh?: boolean }
+  options?: { maxResults?: number; forceRefresh?: boolean; enabled?: boolean }
 ) {
   return useQuery<WatchlistNewsResponse, Error>({
     queryKey: newsKeys.watchlist(accountId),
     queryFn: () => fetchWatchlistNews(accountId, options),
-    enabled: !!accountId,
+    enabled: !!accountId && options?.enabled !== false, // Require accountId AND not explicitly disabled
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: true,
   });
@@ -57,7 +58,7 @@ export function useSearchNews(query: string, options?: { maxResults?: number }) 
   });
 }
 
-export function usePortfolioNews(options?: { maxResults?: number; forceRefresh?: boolean }) {
+export function usePortfolioNews(options?: { maxResults?: number; forceRefresh?: boolean; enabled?: boolean }) {
   // Fetch portfolio positions
   const { data: portfolio } = usePortfolio();
 
@@ -88,7 +89,7 @@ export function usePortfolioNews(options?: { maxResults?: number; forceRefresh?:
         items: bundles.filter((b): b is NewsBundle => b !== null),
       };
     },
-    enabled: symbols.length > 0,
+    enabled: symbols.length > 0 && options?.enabled !== false, // Require symbols AND not explicitly disabled
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: true,
   });

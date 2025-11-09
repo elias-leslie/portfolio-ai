@@ -508,9 +508,10 @@ export default function NewsPage() {
     const [view, setView] = useState<"market" | "watchlist" | "portfolio">("market");
     const [accountId] = useState(DEFAULT_ACCOUNT_ID);
 
-    const marketQuery = useMarketNews();
-    const watchlistQuery = useWatchlistNews(accountId);
-    const portfolioQuery = usePortfolioNews();
+    // Only run the query for the active view to prevent unnecessary polling
+    const marketQuery = useMarketNews({ enabled: view === "market" });
+    const watchlistQuery = useWatchlistNews(accountId, { enabled: view === "watchlist" });
+    const portfolioQuery = usePortfolioNews({ enabled: view === "portfolio" });
 
     // Preload watchlist symbols (for messaging and context)
     const { data: watchlistData } = useWatchlist(accountId);
