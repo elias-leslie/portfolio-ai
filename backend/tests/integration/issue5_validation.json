@@ -1,15 +1,15 @@
 {
   "issue": "Issue #5: N+1 Query Pattern in get_items_with_scores()",
   "hypothesis": "Snapshots queried individually (N queries) vs JOIN (1 query)",
-  "validated": true,
+  "validated": false,
   "evidence": {
-    "items_returned": 11,
-    "total_queries": 25,
+    "items_returned": 10,
+    "total_queries": 13,
     "watchlist_item_queries": 1,
-    "snapshot_queries": 12,
-    "expected_n_plus_1": 12,
-    "actual_queries": 13
+    "snapshot_queries": 1,
+    "expected_n_plus_1": 11,
+    "actual_queries": 2
   },
-  "root_cause": "watchlist_service.get_items_with_scores() - queries snapshots in loop",
-  "fix_approach": "Add JOIN query: SELECT items LEFT JOIN LATERAL snapshots"
+  "root_cause": null,
+  "fix_approach": null
 }
