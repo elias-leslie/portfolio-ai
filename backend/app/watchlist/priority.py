@@ -266,7 +266,7 @@ def calculate_priority_indicators(
     valid_items = [item for item in all_items if item is not None]
     sorted_items = sorted(
         valid_items,
-        key=lambda x: x.get("score", {}).get("overall", 0) if x else 0,
+        key=lambda x: (x.get("score") or {}).get("overall", 0),
         reverse=True,
     )
     rank = sorted_items.index(current_item) + 1 if current_item in sorted_items else 999
