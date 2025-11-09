@@ -11,14 +11,9 @@ import polars as pl
 import pytest
 
 from app.api.preferences import _get_or_create_preferences
-from app.services.news_service import (
-    FinBertUnavailableError,
-    NewsArticle,
-    NewsBundle,
-    NewsService,
-    NewsSummary,
-    SentimentScore,
-)
+from app.services.news_models import NewsArticle, NewsBundle, NewsSummary, SentimentScore
+from app.services.news_processing import FinBertUnavailableError
+from app.services.news_service import NewsService
 from app.storage import get_storage
 from app.watchlist.refresh_processor import build_recent_news_payload
 
@@ -104,10 +99,9 @@ def test_news_service_caches_articles(storage):
     service = NewsService(
         storage,
         ttl=timedelta(hours=6),
-        news_source=news_source,
+        vendor_sources=[news_source],
         finbert_analyzer=analyzer,
         fallback_analyzer=fallback,
-        vendor_sources=[],
         auto_load_credentials=False,
     )
 
@@ -137,10 +131,9 @@ def test_news_service_falls_back_to_vader(storage):
     service = NewsService(
         storage,
         ttl=timedelta(hours=6),
-        news_source=news_source,
+        vendor_sources=[news_source],
         finbert_analyzer=failing_finbert,  # type: ignore[arg-type]
         fallback_analyzer=vader_analyzer,
-        vendor_sources=[],
         auto_load_credentials=False,
     )
 
@@ -169,10 +162,9 @@ def test_news_health_reports_fallback_metrics(storage):
     service = NewsService(
         storage,
         ttl=timedelta(hours=6),
-        news_source=news_source,
+        vendor_sources=[news_source],
         finbert_analyzer=failing_finbert,  # type: ignore[arg-type]
         fallback_analyzer=vader_analyzer,
-        vendor_sources=[],
         auto_load_credentials=False,
     )
 
@@ -208,10 +200,9 @@ def test_news_service_tracks_score_change(storage):
     service = NewsService(
         storage,
         ttl=timedelta(hours=1),
-        news_source=news_source,
+        vendor_sources=[news_source],
         finbert_analyzer=positive_analyzer,
         fallback_analyzer=fallback,
-        vendor_sources=[],
         auto_load_credentials=False,
     )
 
@@ -278,10 +269,9 @@ def test_recent_selection_backfills_with_stale_articles(storage):
     service = NewsService(
         storage,
         ttl=timedelta(hours=2),
-        news_source=news_source,
+        vendor_sources=[news_source],
         finbert_analyzer=analyzer,
         fallback_analyzer=analyzer,
-        vendor_sources=[],
         auto_load_credentials=False,
     )
 
@@ -406,9 +396,8 @@ def test_vendor_entries_round_robin_selection(storage):
     service = NewsService(
         storage,
         ttl=timedelta(hours=6),
-        news_source=news_source,
+        vendor_sources=[news_source],
         multi_source_fetcher=StubFetcher(),
-        vendor_sources=[],
         selection_overfetch=1,
         auto_load_credentials=False,
     )

@@ -14,7 +14,7 @@ from typing import Any
 
 from ..logging_config import get_logger
 from ..services import NewsService
-from ..services.news_service import NewsArticle, NewsBundle
+from ..services.news_models import NewsArticle, NewsBundle
 from ..storage import PortfolioStorage
 from ..utils.market_hours import is_stale
 from .calculator import (

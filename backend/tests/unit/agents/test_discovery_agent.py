@@ -53,7 +53,7 @@ def mock_news_service() -> Mock:
     """Create a mock news service."""
     from datetime import UTC, datetime
 
-    from app.services.news_service import NewsArticle, NewsBundle, NewsSummary, SentimentScore
+    from app.services.news_models import NewsArticle, NewsBundle, NewsSummary, SentimentScore
 
     # Create realistic mock articles
     mock_articles = [

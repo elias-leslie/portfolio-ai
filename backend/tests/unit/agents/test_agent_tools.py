@@ -157,7 +157,7 @@ def test_execute_get_news(agent_tools: AgentTools, mock_news_service: Mock) -> N
     """Test executing get_news tool."""
     from datetime import UTC, datetime
 
-    from app.services.news_service import NewsArticle, NewsBundle, NewsSummary, SentimentScore
+    from app.services.news_models import NewsArticle, NewsBundle, NewsSummary, SentimentScore
 
     # Setup mock with proper NewsBundle structure
     mock_articles = [
@@ -220,7 +220,7 @@ def test_execute_get_news_default_max_results(
     agent_tools: AgentTools, mock_news_service: Mock
 ) -> None:
     """Test get_news with default max_results."""
-    from app.services.news_service import NewsBundle, NewsSummary
+    from app.services.news_models import NewsBundle, NewsSummary
 
     # Setup mock with empty NewsBundle
     mock_summary = NewsSummary(
