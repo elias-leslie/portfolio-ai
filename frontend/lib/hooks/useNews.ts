@@ -46,7 +46,7 @@ export function useWatchlistNews(
     queryFn: () => fetchWatchlistNews(accountId, options),
     enabled: !!accountId && options?.enabled !== false, // Require accountId AND not explicitly disabled
     staleTime: 1000 * 60 * 5,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false, // Disable to prevent continuous polling on focus events
   });
 }
 
@@ -59,7 +59,8 @@ export function useSearchNews(query: string, options?: { maxResults?: number }) 
 }
 
 export function usePortfolioNews(options?: { maxResults?: number; forceRefresh?: boolean; enabled?: boolean }) {
-  // Fetch portfolio positions
+  // Always fetch portfolio positions (they're lightweight and cached)
+  // This avoids chicken-and-egg problem where we need symbols to enable the query
   const { data: portfolio } = usePortfolio();
 
   // Extract unique symbols from positions
@@ -91,6 +92,6 @@ export function usePortfolioNews(options?: { maxResults?: number; forceRefresh?:
     },
     enabled: symbols.length > 0 && options?.enabled !== false, // Require symbols AND not explicitly disabled
     staleTime: 1000 * 60 * 5,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false, // Disable to prevent continuous polling on focus events
   });
 }

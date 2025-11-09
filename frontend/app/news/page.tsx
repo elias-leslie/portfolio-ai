@@ -508,10 +508,11 @@ export default function NewsPage() {
     const [view, setView] = useState<"market" | "watchlist" | "portfolio">("market");
     const [accountId] = useState(DEFAULT_ACCOUNT_ID);
 
-    // Only run the query for the active view to prevent unnecessary polling
-    const marketQuery = useMarketNews({ enabled: view === "market" });
-    const watchlistQuery = useWatchlistNews(accountId, { enabled: view === "watchlist" });
-    const portfolioQuery = usePortfolioNews({ enabled: view === "portfolio" });
+    // Run all queries to pre-load data for fast tab switching
+    // The refetchOnWindowFocus: false in hooks prevents continuous polling
+    const marketQuery = useMarketNews();
+    const watchlistQuery = useWatchlistNews(accountId);
+    const portfolioQuery = usePortfolioNews();
 
     // Preload watchlist symbols (for messaging and context)
     const { data: watchlistData } = useWatchlist(accountId);

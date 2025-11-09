@@ -20,10 +20,11 @@ import {
  * Hook to fetch portfolio positions with current values
  * Automatically refetches every 15 minutes to update prices
  */
-export function usePortfolio() {
+export function usePortfolio(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["portfolio"],
     queryFn: fetchPortfolio,
+    enabled: options?.enabled !== false, // Default to true
     staleTime: 1000 * 60 * 5, // 5 minutes
     refetchInterval: 1000 * 60 * 15, // Refetch every 15 minutes for price updates
   });
