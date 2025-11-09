@@ -10,19 +10,7 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Database Query Deduplication** (MEDIUM-HIGH (8-12 hours, 2-3 sessions), 0/7 tasks)
-   - File: `tasks-0035-database-query-deduplication.md`
-   - Started: 2025-11-09
-   - Last updated: Starting Task 0
-   - Next: Setup instrumentation for validation
-   - Tasks:
-     - [ ] Task 0: Setup: Create Instrumentation for Validation
-     - [ ] Task 1: ISSUE #1: Validate Overlapping News Fetches Between Tasks
-     - [ ] Task 2: ISSUE #2: Validate Per-Symbol News Fetching in Loop
-     - [ ] Task 3: ISSUE #3: Validate User Preferences Queried 5 Times
-     - [ ] Task 4: ISSUE #4: Validate Watchlist Items Queried Twice
-     - [ ] Task 5: ISSUE #5: Validate N+1 Query Pattern in get_items_with_scores()
-     - [ ] Task 6: Comprehensive Verification & Documentation
+*(No active tasks)*
 
 
 ---
@@ -75,7 +63,16 @@
 
 *Last 5 completions - older items auto-archive to tasks/archive/YYYY-MM.md*
 
-1. **Portfolio/Watchlist UI & Data Model Fixes** (2025-11-09)
+1. **Database Query Deduplication** (2025-11-09)
+   - Issue #3 FIXED: User preferences (5 queries → 1, 80% reduction)
+   - Issue #5 FIXED: N+1 pattern (22 queries → 11, 50% reduction)
+   - Created UserPreferences centralized loader
+   - Optimized get_items_with_scores() with LATERAL JOIN
+   - Overall: ~60% query reduction per watchlist refresh
+   - Commit: 8ca2cef
+   - File: `tasks-0035-database-query-deduplication.md`
+
+2. **Portfolio/Watchlist UI & Data Model Fixes** (2025-11-09)
    - Portfolio UI: Accounts with expandable positions (accordion interface)
    - Watchlist: Fully separated from portfolio accounts (removed account_id FK)
    - News page: Added Market/Watchlist/Portfolio filter tabs
