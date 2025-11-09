@@ -73,21 +73,23 @@ export function MarketConditions() {
   };
 
   return (
-    <Card className="p-6">
+    <Card className="p-6 shadow-lg">
       <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-text">Market Conditions</h2>
+        <h2 className="text-lg font-semibold text-text bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+          Market Conditions
+        </h2>
         {health && (
           <div className="flex items-center gap-3">
             <div className="text-right">
-              <div className={`text-2xl font-bold ${getScoreColor(overallScore)}`}>
+              <div className={`text-3xl font-bold ${getScoreColor(overallScore)}`}>
                 {overallScore}
               </div>
-              <div className="text-xs text-text-muted">{health.overall_label}</div>
+              <div className="text-xs text-text-muted font-medium">{health.overall_label}</div>
             </div>
             <div
-              className={`h-12 w-12 rounded-full ${getScoreBgColor(overallScore)} flex items-center justify-center`}
+              className={`h-14 w-14 rounded-full ${getScoreBgColor(overallScore)} flex items-center justify-center shadow-md ring-2 ring-offset-2 ring-offset-bg ${overallScore >= 70 ? 'ring-green-500/30' : overallScore >= 55 ? 'ring-green-400/30' : overallScore >= 45 ? 'ring-yellow-500/30' : overallScore >= 30 ? 'ring-orange-500/30' : 'ring-red-500/30'}`}
             >
-              <div className={`text-lg font-bold ${getScoreColor(overallScore)}`}>
+              <div className={`text-2xl font-bold ${getScoreColor(overallScore)}`}>
                 {overallScore >= 70 ? "🚀" : overallScore >= 55 ? "📈" : overallScore >= 45 ? "😐" : overallScore >= 30 ? "📉" : "⚠️"}
               </div>
             </div>
@@ -97,31 +99,53 @@ export function MarketConditions() {
 
       {/* Main Indicators */}
       <div className="mb-4 grid grid-cols-2 gap-4 md:grid-cols-4">
-        {indicators.map((indicator) => (
-          <div key={indicator.name} className="space-y-1">
-            <div className="text-xs text-text-muted">{indicator.name}</div>
-            <div className="text-lg font-semibold text-text">
-              {indicator.value !== null && indicator.value !== undefined
-                ? `${indicator.value.toFixed(2)}${indicator.suffix || ""}`
-                : "—"}
+        {indicators.map((indicator) => {
+          // Add color to VIX and Treasury based on values
+          const getIndicatorColor = (name: string, value: number | null | undefined) => {
+            if (value === null || value === undefined) return "text-text";
+            if (name === "VIX") {
+              // Low VIX (< 15) is bullish (green), high VIX (> 25) is bearish (red)
+              if (value < 15) return "text-gain";
+              if (value > 25) return "text-loss";
+              return "text-text";
+            }
+            if (name === "10Y Treasury") {
+              // Moderate yields (3-4.5%) are good, extreme values are concerning
+              if (value >= 3.0 && value <= 4.5) return "text-gain";
+              if (value > 5.0 || value < 2.5) return "text-loss";
+              return "text-text";
+            }
+            return "text-text";
+          };
+
+          const valueColor = getIndicatorColor(indicator.name, indicator.value);
+
+          return (
+            <div key={indicator.name} className="space-y-1 p-3 rounded-lg bg-surface-muted/20 hover:bg-surface-muted/30 transition-colors">
+              <div className="text-xs font-medium text-text-muted uppercase tracking-wide">{indicator.name}</div>
+              <div className={`text-2xl font-bold ${valueColor}`}>
+                {indicator.value !== null && indicator.value !== undefined
+                  ? `${indicator.value.toFixed(2)}${indicator.suffix || ""}`
+                  : "—"}
+              </div>
+              {indicator.change !== null && indicator.change !== undefined && (
+                <div
+                  className={`text-sm font-semibold flex items-center gap-1 ${
+                    indicator.change >= 0 ? "text-gain" : "text-loss"
+                  }`}
+                >
+                  {indicator.change >= 0 ? "▲" : "▼"}
+                  {Math.abs(indicator.change).toFixed(2)}%
+                </div>
+              )}
+              {indicator.timestamp && (
+                <div className="text-xs text-text-muted/70">
+                  {formatRelativeTime(indicator.timestamp)}
+                </div>
+              )}
             </div>
-            {indicator.change !== null && indicator.change !== undefined && (
-              <div
-                className={`text-xs font-medium ${
-                  indicator.change >= 0 ? "text-gain" : "text-loss"
-                }`}
-              >
-                {indicator.change >= 0 ? "+" : ""}
-                {indicator.change.toFixed(2)}%
-              </div>
-            )}
-            {indicator.timestamp && (
-              <div className="text-xs text-text-muted/70">
-                {formatRelativeTime(indicator.timestamp)}
-              </div>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Expandable Details */}

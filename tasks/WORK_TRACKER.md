@@ -1,8 +1,8 @@
 # Work Tracker
 
-**Last Updated:** 2025-11-08 (Workflow Simplification)
+**Last Updated:** 2025-11-09 (Portfolio-Watchlist Integration Complete)
 
-**Current Status:** Watchlist bug fixes complete, ready for next planned work
+**Current Status:** Portfolio-watchlist integration and news cleanup complete
 
 ---
 
@@ -10,7 +10,10 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-*Empty - run `/do_it` to start next planned task*
+1. **Dashboard Performance & Visual Polish**
+   - File: `tasks-0037-dashboard-performance-visual-polish.md`
+   - Started: 2025-11-09
+   - Status: In Progress (0%)
 
 ---
 
@@ -18,14 +21,7 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Portfolio-Watchlist Integration & News Cleanup**
-   - File: `tasks-0036-portfolio-watchlist-integration-news-cleanup.md`
-   - Effort: MEDIUM (3-4 hours)
-   - Priority: HIGH
-   - Goal: Auto-sync portfolio→watchlist, add portfolio indicators, streamline news UI
-   - Created: 2025-11-08
-
-2. **Portfolio/Watchlist UI & Data Model Fixes**
+1. **Portfolio/Watchlist UI & Data Model Fixes**
    - File: `tasks-ui-portfolio-watchlist-fixes.md`
    - Effort: MEDIUM-HIGH (8-12 hours)
    - Priority: URGENT
@@ -66,37 +62,41 @@
 
 *Last 5 completions - older items auto-archive to tasks/archive/YYYY-MM.md*
 
-1. **Critical Watchlist Bug Fixes** (2025-11-08)
+1. **Portfolio-Watchlist Integration & News Cleanup** (2025-11-09)
+   - Auto-sync portfolio tickers to watchlist with 'portfolio' source indicator
+   - Portfolio badge in watchlist, clickable tickers, scroll-to-ticker navigation
+   - Color-coded portfolio rows (green/red tints for gains/losses)
+   - Market news card on dashboard, removed standalone /news page
+   - Database: Added source column migration, 7 new tests (all passing)
+   - Status: 100% complete, all quality checks passed
+
+2. **Critical Watchlist Bug Fixes** (2025-11-08)
    - Fixed: Price column, sorting, duplicate news, fundamental scoring, news loading
    - Commits: b04b420, 188bf0a, ccd8315, 7313116, 13e0ba0
    - Branch: `claude/watchlist-vision-implementation-011CUw9W27dCwbxtwbECZsKT`
    - Status: 100% complete, ready to merge
 
-2. **Watchlist Improvements Part 2** (2025-11-08)
+3. **Watchlist Improvements Part 2** (2025-11-08)
    - 3-pillar scoring (price/technical/fundamental) with UI breakdown
    - Commits: cddff66, af98369
    - Status: 81% complete (settings sliders deferred to Part 3)
 
-3. **Service Account Post-Reboot Verification** (2025-11-07)
+4. **Service Account Post-Reboot Verification** (2025-11-07)
    - Verified auto-start on boot, fixed 3 post-reboot issues
    - Commit: 4c3c595
    - All services running as portfolio-ai user
 
-4. **System Resource Optimization** (2025-11-07)
+5. **System Resource Optimization** (2025-11-07)
    - Memory: 10GB → 5.2GB (48% reduction)
    - Processes: 37 → 5 (86% reduction)
    - Systemd-only service management
-
-5. **Market Conditions Per-Item Timestamps** (2025-11-07)
-   - Added accurate freshness timestamps to all indicators
-   - Commit: f87f271
 
 ---
 
 ## 📊 Quick Stats
 
-- **Active Features**: Narrative Intelligence (100%), News Intelligence (75%), Watchlist (100%)
-- **Test Count**: 508 tests passing
+- **Active Features**: Narrative Intelligence (100%), News Intelligence (75%), Watchlist (100%), Portfolio Integration (100%)
+- **Test Count**: 515 tests passing (7 new portfolio-watchlist sync tests)
 - **Coverage**: 85% backend
 - **Database**: PostgreSQL (portfolio_ai + portfolio_ai_test)
 
