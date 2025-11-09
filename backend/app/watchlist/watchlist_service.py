@@ -516,21 +516,21 @@ class WatchlistService:
         week_ago_score = float(history_df["overall_score"][0])
         return abs(current_score - week_ago_score) > 10.0
 
-    def build_news_intelligence(self, symbol: str) -> NewsIntelligence | None:
-        """Build news intelligence summary for a ticker.
+    def _query_recent_news(self, symbol: str, hours: int = 24) -> list[tuple[Any, ...]]:
+        """Query news cache for recent articles.
 
         Args:
             symbol: Ticker symbol
+            hours: Number of hours to lookback
 
         Returns:
-            NewsIntelligence object or None if no recent news
+            List of row tuples from news_cache
         """
-        # Query news_cache for articles in last 24h
         now = datetime.now(UTC)
-        start_time = now - timedelta(hours=24)
+        start_time = now - timedelta(hours=hours)
 
         with self.storage.connection() as conn:
-            rows = conn.execute(
+            rows: list[tuple[Any, ...]] = conn.execute(
                 """
                 SELECT
                     ticker,
@@ -565,93 +565,149 @@ class WatchlistService:
                 """,
                 [symbol, start_time],
             ).fetchall()
+            return rows
 
+    def _parse_news_article(
+        self,
+        row: tuple[Any, ...],
+        key_events: list[KeyEvent],
+    ) -> tuple[dict[str, Any], float | None]:
+        """Parse news article row into article dict and extract sentiment.
+
+        Args:
+            row: Database row tuple
+            key_events: List to append key events to (modified in place)
+
+        Returns:
+            Tuple of (article_dict, sentiment_score)
+        """
+        (
+            ticker,
+            headline,
+            url,
+            summary_text,
+            news_source_name,
+            author,
+            image_url,
+            published_at,
+            sentiment_score,
+            sentiment_label,
+            sentiment_confidence,
+            _sentiment_model,
+            raw_payload,
+            _content_hash,
+            _fetched_at,
+            filing_type,
+            is_material_event,
+            plain_language_headline,
+            _story_id,
+            _is_primary_article,
+            _coverage_count,
+            impact_summary,
+            actionable_insight,
+        ) = row
+
+        # Build article dict
+        article = {
+            "ticker": ticker,
+            "headline": headline,
+            "url": url,
+            "summary": summary_text,
+            "source": news_source_name,
+            "author": author,
+            "image_url": image_url,
+            "published_at": published_at.isoformat() if published_at else None,
+            "sentiment_score": float(sentiment_score) if sentiment_score else 0.0,
+            "sentiment_label": sentiment_label or "neutral",
+            "sentiment_confidence": (float(sentiment_confidence) if sentiment_confidence else 0.0),
+            "filing_type": filing_type,
+            "is_material_event": bool(is_material_event),
+            "plain_language_headline": plain_language_headline or headline,
+            "impact_summary": impact_summary,
+            "actionable_insight": actionable_insight,
+        }
+
+        # Extract key events (material events only, max 3)
+        if is_material_event and len(key_events) < 3:
+            # Try to extract event category from raw_payload
+            event_category = None
+            if raw_payload:
+                try:
+                    payload_dict = (
+                        json.loads(raw_payload) if isinstance(raw_payload, str) else raw_payload
+                    )
+                    event_category = payload_dict.get("event_category")
+                except Exception:
+                    pass
+
+            key_events.append(
+                KeyEvent(
+                    icon=_get_event_icon(event_category, True),
+                    text=plain_language_headline or headline,
+                    time_ago=_format_time_ago(published_at),
+                    is_material=True,
+                    event_category=event_category,
+                    published_at=published_at,
+                )
+            )
+
+        return article, float(sentiment_score) if sentiment_score is not None else None
+
+    def _generate_news_headline(
+        self,
+        key_events: list[KeyEvent],
+        avg_sentiment: float,
+        article_count: int,
+    ) -> str:
+        """Generate summary headline from news intelligence.
+
+        Args:
+            key_events: List of key events
+            avg_sentiment: Average sentiment score
+            article_count: Number of articles
+
+        Returns:
+            Generated headline string
+        """
+        if len(key_events) >= 2:
+            # Multiple events - summarize
+            event_types = [
+                evt.text.split(" - ")[0] if " - " in evt.text else evt.text[:30]
+                for evt in key_events[:2]
+            ]
+            return f"{event_types[0]} + {event_types[1]}"
+        if len(key_events) == 1:
+            return key_events[0].text
+        if avg_sentiment > 0.3:
+            return f"Positive news flow ({article_count} articles)"
+        if avg_sentiment < -0.3:
+            return f"Negative news flow ({article_count} articles)"
+        return f"Mixed news ({article_count} articles in 24h)"
+
+    def build_news_intelligence(self, symbol: str) -> NewsIntelligence | None:
+        """Build news intelligence summary for a ticker.
+
+        Args:
+            symbol: Ticker symbol
+
+        Returns:
+            NewsIntelligence object or None if no recent news
+        """
+        # Query news cache for recent articles
+        rows = self._query_recent_news(symbol, hours=24)
         if not rows:
             return None
 
-        # Parse articles
+        # Parse articles and extract key events
         articles: list[dict[str, Any]] = []
         sentiment_scores: list[float] = []
         key_events: list[KeyEvent] = []
 
         for row in rows:
-            (
-                ticker,
-                headline,
-                url,
-                summary_text,
-                news_source_name,
-                author,
-                image_url,
-                published_at,
-                sentiment_score,
-                sentiment_label,
-                sentiment_confidence,
-                _sentiment_model,
-                raw_payload,
-                _content_hash,
-                _fetched_at,
-                filing_type,
-                is_material_event,
-                plain_language_headline,
-                _story_id,
-                _is_primary_article,
-                _coverage_count,
-                impact_summary,
-                actionable_insight,
-            ) = row
-
-            # Build article dict
-            article = {
-                "ticker": ticker,
-                "headline": headline,
-                "url": url,
-                "summary": summary_text,
-                "source": news_source_name,
-                "author": author,
-                "image_url": image_url,
-                "published_at": published_at.isoformat() if published_at else None,
-                "sentiment_score": float(sentiment_score) if sentiment_score else 0.0,
-                "sentiment_label": sentiment_label or "neutral",
-                "sentiment_confidence": (
-                    float(sentiment_confidence) if sentiment_confidence else 0.0
-                ),
-                "filing_type": filing_type,
-                "is_material_event": bool(is_material_event),
-                "plain_language_headline": plain_language_headline or headline,
-                "impact_summary": impact_summary,
-                "actionable_insight": actionable_insight,
-            }
-
+            article, sentiment = self._parse_news_article(row, key_events)
             articles.append(article)
-
-            # Track sentiment scores
-            if sentiment_score is not None:
-                sentiment_scores.append(float(sentiment_score))
-
-            # Extract key events (material events only, max 3)
-            if is_material_event and len(key_events) < 3:
-                # Try to extract event category from raw_payload
-                event_category = None
-                if raw_payload:
-                    try:
-                        payload_dict = (
-                            json.loads(raw_payload) if isinstance(raw_payload, str) else raw_payload
-                        )
-                        event_category = payload_dict.get("event_category")
-                    except Exception:
-                        pass
-
-                key_events.append(
-                    KeyEvent(
-                        icon=_get_event_icon(event_category, True),
-                        text=plain_language_headline or headline,
-                        time_ago=_format_time_ago(published_at),
-                        is_material=True,
-                        event_category=event_category,
-                        published_at=published_at,
-                    )
-                )
+            if sentiment is not None:
+                sentiment_scores.append(sentiment)
 
         # Calculate average sentiment
         avg_sentiment = sum(sentiment_scores) / len(sentiment_scores) if sentiment_scores else 0.0
@@ -665,21 +721,7 @@ class WatchlistService:
             sentiment_label = "Neutral"
 
         # Generate headline summary
-        if len(key_events) >= 2:
-            # Multiple events - summarize
-            event_types = [
-                evt.text.split(" - ")[0] if " - " in evt.text else evt.text[:30]
-                for evt in key_events[:2]
-            ]
-            headline = f"{event_types[0]} + {event_types[1]}"
-        elif len(key_events) == 1:
-            headline = key_events[0].text
-        elif avg_sentiment > 0.3:
-            headline = f"Positive news flow ({len(articles)} articles)"
-        elif avg_sentiment < -0.3:
-            headline = f"Negative news flow ({len(articles)} articles)"
-        else:
-            headline = f"Mixed news ({len(articles)} articles in 24h)"
+        headline = self._generate_news_headline(key_events, avg_sentiment, len(articles))
 
         return NewsIntelligence(
             headline=headline[:100],  # Limit headline length
