@@ -89,6 +89,145 @@ def classify_trading_style(
     }
 
 
+def _extract_signal_inputs(inputs: dict[str, Any]) -> dict[str, Any]:
+    """Extract and normalize signal classification inputs.
+
+    Args:
+        inputs: Raw input dictionary
+
+    Returns:
+        Normalized inputs with None values replaced by defaults
+    """
+    return {
+        "price": inputs.get("price", 0.0) or 0.0,
+        "ema_20": inputs.get("ema_20", 0.0) or 0.0,
+        "sma_5": inputs.get("sma_5", 0.0) or 0.0,
+        "sma_5_prev": inputs.get("sma_5_prev", 0.0) or 0.0,
+        "rsi_14": inputs.get("rsi_14", 50.0) or 50.0,
+        "macd": inputs.get("macd", 0.0) or 0.0,
+        "volume": inputs.get("volume", 0.0) or 0.0,
+        "volume_avg_20": inputs.get("volume_avg_20", 0.0) or 0.0,
+        "company_health": inputs.get("company_health", "") or "",
+        "news_sentiment": inputs.get("news_sentiment", 0.0) or 0.0,
+        "earnings_days_away": inputs.get("earnings_days_away"),
+    }
+
+
+def _check_avoid_signals(data: dict[str, Any]) -> tuple[int, list[str]]:
+    """Check for AVOID signals and count negative indicators.
+
+    Args:
+        data: Normalized signal inputs
+
+    Returns:
+        Tuple of (avoid_flags_count, reasons_list)
+    """
+    avoid_flags = 0
+    reasons = []
+
+    # Check 1: Price < 20-day EMA AND 5-day SMA declining
+    if (
+        data["price"] < data["ema_20"]
+        and data["sma_5_prev"] > 0
+        and data["sma_5"] < data["sma_5_prev"]
+    ):
+        avoid_flags += 1
+        reasons.append(
+            f"Price ${data['price']:.2f} below 20-day EMA ${data['ema_20']:.2f} (downtrend)"
+        )
+
+    # Check 2: News sentiment < -0.3 (significantly negative)
+    if data["news_sentiment"] < -0.3:
+        avoid_flags += 1
+        reasons.append(f"News sentiment {data['news_sentiment']:.2f} (significantly negative)")
+
+    # Check 3: Earnings within 5 days (high volatility risk)
+    if data["earnings_days_away"] is not None and data["earnings_days_away"] <= 5:
+        avoid_flags += 1
+        reasons.append(f"Earnings in {data['earnings_days_away']} days (high volatility risk)")
+
+    # Check 4: Company health = WEAK
+    if data["company_health"] == "WEAK":
+        avoid_flags += 1
+        reasons.append(f"Company health: {data['company_health']}")
+
+    return avoid_flags, reasons
+
+
+def _check_buy_signals(data: dict[str, Any]) -> tuple[int, list[str]]:
+    """Check for BUY signals and count positive indicators.
+
+    Args:
+        data: Normalized signal inputs
+
+    Returns:
+        Tuple of (confirmations_count, reasons_list)
+    """
+    confirmations = 0
+    reasons = []
+
+    # Check 1: Price > 20-day EMA (uptrend)
+    if data["price"] > data["ema_20"]:
+        confirmations += 1
+        reasons.append(f"Price ${data['price']:.2f} > 20-day EMA ${data['ema_20']:.2f} (uptrend)")
+
+    # Check 2: RSI between 30-70 (not extreme)
+    if 30 <= data["rsi_14"] <= 70:
+        confirmations += 1
+        reasons.append(f"RSI at {data['rsi_14']:.0f} (healthy, not extreme)")
+
+    # Check 3: MACD > 0 (positive momentum)
+    if data["macd"] > 0:
+        confirmations += 1
+        reasons.append(f"MACD {data['macd']:.2f} positive (momentum)")
+
+    # Check 4: Volume >= 70% of 20-day average
+    if data["volume_avg_20"] > 0 and data["volume"] >= 0.7 * data["volume_avg_20"]:
+        confirmations += 1
+        volume_pct = (data["volume"] / data["volume_avg_20"]) * 100
+        reasons.append(f"Volume {volume_pct:.0f}% of average (strong)")
+
+    # Check 5: Company health = EXCELLENT or GOOD
+    if data["company_health"] in ("EXCELLENT", "GOOD"):
+        confirmations += 1
+        reasons.append(f"Company health: {data['company_health']}")
+
+    # Check 6: News sentiment >= 0.2 (positive)
+    if data["news_sentiment"] >= 0.2:
+        confirmations += 1
+        reasons.append(f"News sentiment {data['news_sentiment']:.2f} (positive)")
+
+    # Check 7: Not overbought (RSI <= 70)
+    if data["rsi_14"] <= 70:
+        confirmations += 1
+
+    # Check 8: Strong uptrend confirmation (price significantly above EMA)
+    if data["ema_20"] > 0 and (data["price"] - data["ema_20"]) / data["ema_20"] >= 0.02:
+        confirmations += 1
+
+    return confirmations, reasons
+
+
+def _calculate_signal_strength(confirmations: int) -> int:
+    """Calculate signal strength from confirmation count.
+
+    Args:
+        confirmations: Number of positive confirmations (0-8)
+
+    Returns:
+        Strength value (0-10 scale)
+    """
+    if confirmations >= 8:
+        return 9
+    if confirmations >= 7:
+        return 8
+    if confirmations >= 6:
+        return 7
+    if confirmations >= 5:
+        return 6
+    return min(confirmations, 5)
+
+
 def classify_signal(inputs: dict[str, Any]) -> SignalClassification:
     """Classify watchlist signal as BUY, HOLD, or AVOID based on multiple indicators.
 
@@ -109,43 +248,11 @@ def classify_signal(inputs: dict[str, Any]) -> SignalClassification:
     Returns:
         SignalClassification with type, strength, and reasons
     """
-    reasons: list[str] = []
-    confirmations = 0
-    avoid_flags = 0  # Count of negative indicators
+    # Extract and normalize inputs
+    data = _extract_signal_inputs(inputs)
 
-    # Extract inputs (handle None values with or operator)
-    price = inputs.get("price", 0.0) or 0.0
-    ema_20 = inputs.get("ema_20", 0.0) or 0.0
-    sma_5 = inputs.get("sma_5", 0.0) or 0.0
-    sma_5_prev = inputs.get("sma_5_prev", 0.0) or 0.0
-    rsi_14 = inputs.get("rsi_14", 50.0) or 50.0
-    macd = inputs.get("macd", 0.0) or 0.0
-    volume = inputs.get("volume", 0.0) or 0.0
-    volume_avg_20 = inputs.get("volume_avg_20", 0.0) or 0.0
-    company_health = inputs.get("company_health", "") or ""
-    news_sentiment = inputs.get("news_sentiment", 0.0) or 0.0
-    earnings_days_away = inputs.get("earnings_days_away")
-
-    # Check for AVOID signals (negative indicators)
-    # AVOID Check 1: Price < 20-day EMA AND 5-day SMA declining
-    if price < ema_20 and sma_5_prev > 0 and sma_5 < sma_5_prev:
-        avoid_flags += 1
-        reasons.append(f"Price ${price:.2f} below 20-day EMA ${ema_20:.2f} (downtrend)")
-
-    # AVOID Check 2: News sentiment < -0.3 (significantly negative)
-    if news_sentiment < -0.3:
-        avoid_flags += 1
-        reasons.append(f"News sentiment {news_sentiment:.2f} (significantly negative)")
-
-    # AVOID Check 3: Earnings within 5 days (high volatility risk)
-    if earnings_days_away is not None and earnings_days_away <= 5:
-        avoid_flags += 1
-        reasons.append(f"Earnings in {earnings_days_away} days (high volatility risk)")
-
-    # AVOID Check 4: Company health = WEAK
-    if company_health == "WEAK":
-        avoid_flags += 1
-        reasons.append(f"Company health: {company_health}")
+    # Check for AVOID signals first
+    avoid_flags, avoid_reasons = _check_avoid_signals(data)
 
     # AVOID: 2 or more negative flags (lowered from 3 for better detection)
     if avoid_flags >= 2:
@@ -155,70 +262,20 @@ def classify_signal(inputs: dict[str, Any]) -> SignalClassification:
         return SignalClassification(
             signal_type=SignalType.AVOID,
             strength=SignalStrength(value=strength_value),
-            reasons=reasons,
+            reasons=avoid_reasons,
         )
 
     # Check for BUY signals (positive indicators)
-    # Check 1: Price > 20-day EMA (uptrend)
-    if price > ema_20:
-        confirmations += 1
-        reasons.append(f"Price ${price:.2f} > 20-day EMA ${ema_20:.2f} (uptrend)")
+    confirmations, buy_reasons = _check_buy_signals(data)
 
-    # Check 2: RSI between 30-70 (not extreme)
-    if 30 <= rsi_14 <= 70:
-        confirmations += 1
-        reasons.append(f"RSI at {rsi_14:.0f} (healthy, not extreme)")
+    # Calculate signal strength
+    strength_value = _calculate_signal_strength(confirmations)
 
-    # Check 3: MACD > 0 (positive momentum)
-    if macd > 0:
-        confirmations += 1
-        reasons.append(f"MACD {macd:.2f} positive (momentum)")
-
-    # Check 4: Volume >= 70% of 20-day average
-    if volume_avg_20 > 0 and volume >= 0.7 * volume_avg_20:
-        confirmations += 1
-        volume_pct = (volume / volume_avg_20) * 100
-        reasons.append(f"Volume {volume_pct:.0f}% of average (strong)")
-
-    # Check 5: Company health = EXCELLENT or GOOD
-    if company_health in ("EXCELLENT", "GOOD"):
-        confirmations += 1
-        reasons.append(f"Company health: {company_health}")
-
-    # Check 6: News sentiment >= 0.2 (positive)
-    if news_sentiment >= 0.2:
-        confirmations += 1
-        reasons.append(f"News sentiment {news_sentiment:.2f} (positive)")
-
-    # Check 7: Not overbought (RSI <= 70)
-    if rsi_14 <= 70:
-        confirmations += 1
-
-    # Check 8: Strong uptrend confirmation (price significantly above EMA)
-    if ema_20 > 0 and (price - ema_20) / ema_20 >= 0.02:  # At least 2% above EMA
-        confirmations += 1
-
-    # Calculate signal strength (0-10 scale)
-    # 8+ confirmations → 9/10, 5-7 → 6-8/10, 0-4 → 0-5/10
-    if confirmations >= 8:
-        strength_value = 9
-    elif confirmations >= 7:
-        strength_value = 8
-    elif confirmations >= 6:
-        strength_value = 7
-    elif confirmations >= 5:
-        strength_value = 6
-    else:
-        strength_value = min(confirmations, 5)
-
-    # Determine signal type based on confirmations and specific criteria
-    if confirmations >= 6:
-        signal_type = SignalType.BUY
-    else:
-        signal_type = SignalType.HOLD
+    # Determine signal type based on confirmations
+    signal_type = SignalType.BUY if confirmations >= 6 else SignalType.HOLD
 
     return SignalClassification(
         signal_type=signal_type,
         strength=SignalStrength(value=strength_value),
-        reasons=reasons,
+        reasons=buy_reasons,
     )

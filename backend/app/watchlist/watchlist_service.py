@@ -188,6 +188,117 @@ class WatchlistService:
         self.storage = storage
         self.price_fetcher = PriceDataFetcher(storage)
 
+    def _parse_json_field(self, value: Any) -> dict[str, Any] | None:
+        """Parse JSON field if it's a string, otherwise return as-is.
+
+        Args:
+            value: Field value (might be string, dict, or None)
+
+        Returns:
+            Parsed dictionary or None if parsing fails
+        """
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+                return parsed if isinstance(parsed, dict) else None
+            except (json.JSONDecodeError, TypeError):
+                return None
+        return value if isinstance(value, dict) else None
+
+    def _add_staleness_info(
+        self,
+        raw_metrics: dict[str, Any],
+        fetched_at: datetime | None,
+        stale_ttl_minutes: int,
+    ) -> None:
+        """Add staleness information to raw_metrics in place.
+
+        Args:
+            raw_metrics: Metrics dictionary to update
+            fetched_at: When metrics were fetched
+            stale_ttl_minutes: TTL for staleness check
+        """
+        if not fetched_at or not isinstance(raw_metrics, dict):
+            return
+
+        if isinstance(fetched_at, datetime) and fetched_at.tzinfo is None:
+            fetched_at = fetched_at.replace(tzinfo=UTC)
+
+        current_time = datetime.now(UTC)
+        fetched_at_iso = fetched_at.isoformat().replace("+00:00", "Z")
+
+        for metric_type in ["price", "technical"]:
+            if metric_type in raw_metrics and isinstance(raw_metrics[metric_type], dict):
+                raw_metrics[metric_type]["stale"] = scoring_is_stale(
+                    fetched_at, stale_ttl_minutes, current_time
+                )
+                raw_metrics[metric_type]["updated_at"] = fetched_at_iso
+
+    def _build_snapshot_data(
+        self,
+        item_data: dict[str, Any],
+        row: dict[str, Any],
+        stale_ttl_minutes: int,
+    ) -> None:
+        """Build and add snapshot data to item_data in place.
+
+        Args:
+            item_data: Item dictionary to update
+            row: Database row with snapshot fields
+            stale_ttl_minutes: TTL for staleness check
+        """
+        # Parse JSON fields
+        raw_metrics = self._parse_json_field(row.get("raw_metrics", {})) or {}
+        news_payload = self._parse_json_field(row.get("recent_news_headlines"))
+
+        # Add staleness info
+        fetched_at = row.get("fetched_at")
+        self._add_staleness_info(raw_metrics, fetched_at, stale_ttl_minutes)
+
+        # Check for score alert
+        alert = self._check_score_alert(row["id"], row["overall_score"])
+
+        # Build score dict
+        item_data["score"] = {
+            "price": raw_metrics.get("price", {}),
+            "technical": raw_metrics.get("technical", {}),
+            "fundamental": raw_metrics.get("fundamental", {}),
+            "overall": row["overall_score"],
+        }
+        item_data["score_alert"] = alert
+
+        # Add all narrative and trading fields
+        narrative_fields = [
+            "signal_type",
+            "signal_strength",
+            "narrative_headline",
+            "recommended_style",
+            "style_confidence",
+            "optimal_holding_period",
+            "risk_level",
+            "entry_price",
+            "stop_loss",
+            "profit_target",
+            "position_size_shares",
+            "narrative_action_plan",
+            "narrative_position_sizing",
+            "narrative_company_health",
+            "narrative_special_notes",
+            "company_health",
+            "news_sentiment_score",
+        ]
+
+        for field in narrative_fields:
+            item_data[field] = row.get(field)
+
+        # Special handling for earnings_date (convert to ISO string)
+        earnings_date_value = row.get("earnings_date")
+        item_data["earnings_date"] = (
+            earnings_date_value.isoformat() if earnings_date_value is not None else None
+        )
+        item_data["earnings_days_away"] = row.get("earnings_days_away")
+        item_data["recent_news"] = news_payload
+
     def get_items_with_scores(self) -> list[dict[str, Any]]:
         """Get all watchlist items with their latest scores.
 
@@ -237,6 +348,7 @@ class WatchlistService:
         results: list[dict[str, Any]] = []
 
         for row in items_df.iter_rows(named=True):
+            # Build base item data
             created_at = row["created_at"]
             if hasattr(created_at, "isoformat"):
                 created_at = created_at.isoformat()
@@ -255,81 +367,10 @@ class WatchlistService:
                 "score_alert": False,
             }
 
-            # Snapshot data is already in the row from the JOIN (no separate query!)
-            # Check if snapshot exists (overall_score will be None if no snapshot)
+            # Add snapshot data if available
             has_snapshot = row.get("overall_score") is not None
-
             if has_snapshot:
-                # Snapshot fields are in the same row (from JOIN)
-                raw_metrics = row.get("raw_metrics", {})
-
-                if isinstance(raw_metrics, str):
-                    try:
-                        raw_metrics = json.loads(raw_metrics)
-                    except (json.JSONDecodeError, TypeError):
-                        raw_metrics = {}
-
-                news_payload = row.get("recent_news_headlines")
-                if isinstance(news_payload, str):
-                    try:
-                        news_payload = json.loads(news_payload)
-                    except (json.JSONDecodeError, TypeError):
-                        news_payload = None
-
-                fetched_at = row.get("fetched_at")
-                if fetched_at and isinstance(raw_metrics, dict):
-                    if isinstance(fetched_at, datetime) and fetched_at.tzinfo is None:
-                        fetched_at = fetched_at.replace(tzinfo=UTC)
-
-                    # stale_ttl_minutes loaded once before loop (not per-item)
-                    current_time = datetime.now(UTC)
-                    fetched_at_iso = fetched_at.isoformat().replace("+00:00", "Z")
-
-                    if "price" in raw_metrics and isinstance(raw_metrics["price"], dict):
-                        raw_metrics["price"]["stale"] = scoring_is_stale(
-                            fetched_at, stale_ttl_minutes, current_time
-                        )
-                        raw_metrics["price"]["updated_at"] = fetched_at_iso
-                    if "technical" in raw_metrics and isinstance(raw_metrics["technical"], dict):
-                        raw_metrics["technical"]["stale"] = scoring_is_stale(
-                            fetched_at, stale_ttl_minutes, current_time
-                        )
-                        raw_metrics["technical"]["updated_at"] = fetched_at_iso
-
-                # TODO: Optimize - _check_score_alert makes 1 query per item to check week-ago score
-                # Could be optimized with another LATERAL join or batch query
-                alert = self._check_score_alert(row["id"], row["overall_score"])
-
-                item_data["score"] = {
-                    "price": raw_metrics.get("price", {}),
-                    "technical": raw_metrics.get("technical", {}),
-                    "fundamental": raw_metrics.get("fundamental", {}),
-                    "overall": row["overall_score"],
-                }
-                item_data["score_alert"] = alert
-                item_data["signal_type"] = row.get("signal_type")
-                item_data["signal_strength"] = row.get("signal_strength")
-                item_data["narrative_headline"] = row.get("narrative_headline")
-                item_data["recommended_style"] = row.get("recommended_style")
-                item_data["style_confidence"] = row.get("style_confidence")
-                item_data["optimal_holding_period"] = row.get("optimal_holding_period")
-                item_data["risk_level"] = row.get("risk_level")
-                item_data["entry_price"] = row.get("entry_price")
-                item_data["stop_loss"] = row.get("stop_loss")
-                item_data["profit_target"] = row.get("profit_target")
-                item_data["position_size_shares"] = row.get("position_size_shares")
-                item_data["narrative_action_plan"] = row.get("narrative_action_plan")
-                item_data["narrative_position_sizing"] = row.get("narrative_position_sizing")
-                item_data["narrative_company_health"] = row.get("narrative_company_health")
-                item_data["narrative_special_notes"] = row.get("narrative_special_notes")
-                item_data["company_health"] = row.get("company_health")
-                earnings_date_value = row.get("earnings_date")
-                item_data["earnings_date"] = (
-                    earnings_date_value.isoformat() if earnings_date_value is not None else None
-                )
-                item_data["earnings_days_away"] = row.get("earnings_days_away")
-                item_data["news_sentiment_score"] = row.get("news_sentiment_score")
-                item_data["recent_news"] = news_payload
+                self._build_snapshot_data(item_data, row, stale_ttl_minutes)
 
             # Build news intelligence summary
             try:
@@ -408,77 +449,18 @@ class WatchlistService:
 
         if not snapshot_df.is_empty():
             snap_row = snapshot_df.to_dicts()[0]
-            raw_metrics = snap_row.get("raw_metrics", {})
 
-            if isinstance(raw_metrics, str):
-                try:
-                    raw_metrics = json.loads(raw_metrics)
-                except (json.JSONDecodeError, TypeError):
-                    raw_metrics = {}
+            # Load preferences once
+            prefs = UserPreferences.load_all(self.storage)
+            stale_ttl_minutes = prefs.get_stale_ttl_minutes()
 
-            news_payload = snap_row.get("recent_news_headlines")
-            if isinstance(news_payload, str):
-                try:
-                    news_payload = json.loads(news_payload)
-                except (json.JSONDecodeError, TypeError):
-                    news_payload = None
+            # Use helper to build snapshot data (same as get_items_with_scores)
+            self._build_snapshot_data(item_data, snap_row, stale_ttl_minutes)
+
+            # Normalize news payload if present
+            news_payload = item_data.get("recent_news")
             if isinstance(news_payload, dict):
-                news_payload = _normalize_recent_news_payload(news_payload)
-            if isinstance(news_payload, dict):
-                news_payload = _normalize_recent_news_payload(news_payload)
-
-            fetched_at = snap_row.get("fetched_at")
-            if fetched_at and isinstance(raw_metrics, dict):
-                if isinstance(fetched_at, datetime) and fetched_at.tzinfo is None:
-                    fetched_at = fetched_at.replace(tzinfo=UTC)
-
-                stale_ttl_minutes = load_stale_ttl_minutes(self.storage)
-                current_time = datetime.now(UTC)
-                fetched_at_iso = fetched_at.isoformat().replace("+00:00", "Z")
-
-                if "price" in raw_metrics and isinstance(raw_metrics["price"], dict):
-                    raw_metrics["price"]["stale"] = scoring_is_stale(
-                        fetched_at, stale_ttl_minutes, current_time
-                    )
-                    raw_metrics["price"]["updated_at"] = fetched_at_iso
-                if "technical" in raw_metrics and isinstance(raw_metrics["technical"], dict):
-                    raw_metrics["technical"]["stale"] = scoring_is_stale(
-                        fetched_at, stale_ttl_minutes, current_time
-                    )
-                    raw_metrics["technical"]["updated_at"] = fetched_at_iso
-
-            alert = self._check_score_alert(item_id, snap_row["overall_score"])
-
-            item_data["score"] = {
-                "price": raw_metrics.get("price", {}),
-                "technical": raw_metrics.get("technical", {}),
-                "fundamental": raw_metrics.get("fundamental", {}),
-                "overall": snap_row["overall_score"],
-            }
-            item_data["score_alert"] = alert
-            item_data["signal_type"] = snap_row.get("signal_type")
-            item_data["signal_strength"] = snap_row.get("signal_strength")
-            item_data["narrative_headline"] = snap_row.get("narrative_headline")
-            item_data["recommended_style"] = snap_row.get("recommended_style")
-            item_data["style_confidence"] = snap_row.get("style_confidence")
-            item_data["optimal_holding_period"] = snap_row.get("optimal_holding_period")
-            item_data["risk_level"] = snap_row.get("risk_level")
-            item_data["entry_price"] = snap_row.get("entry_price")
-            item_data["stop_loss"] = snap_row.get("stop_loss")
-            item_data["profit_target"] = snap_row.get("profit_target")
-            item_data["position_size_shares"] = snap_row.get("position_size_shares")
-            item_data["narrative_action_plan"] = snap_row.get("narrative_action_plan")
-            item_data["narrative_position_sizing"] = snap_row.get("narrative_position_sizing")
-            item_data["narrative_company_health"] = snap_row.get("narrative_company_health")
-            item_data["narrative_special_notes"] = snap_row.get("narrative_special_notes")
-            item_data["company_health"] = snap_row.get("company_health")
-            earnings_date_value = snap_row.get("earnings_date")
-            item_data["earnings_date"] = (
-                earnings_date_value.isoformat() if earnings_date_value is not None else None
-            )
-            item_data["earnings_days_away"] = snap_row.get("earnings_days_away")
-            item_data["news_sentiment_score"] = snap_row.get("news_sentiment_score")
-            item_data["recent_news"] = news_payload
+                item_data["recent_news"] = _normalize_recent_news_payload(news_payload)
 
         # Build news intelligence summary
         try:
