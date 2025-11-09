@@ -97,6 +97,7 @@ export interface WatchlistItem {
     id: string;
     symbol: string;
     note?: string;
+    source?: "manual" | "portfolio";
     created_at: string;
     updated_at: string;
     current_score?: ScoreBreakdown;

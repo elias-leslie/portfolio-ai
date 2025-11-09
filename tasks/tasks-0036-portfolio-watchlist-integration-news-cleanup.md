@@ -1,11 +1,14 @@
 # Task List: Portfolio-Watchlist Integration & News Cleanup
 
 **Task ID**: TASK-0036
-**Status**: Ready for Implementation
-**Completion**: 0%
-**Effort**: MEDIUM (~3-4 hours)
+**Status**: Complete (Ready to Commit)
+**Completion**: 100%
+**Effort**: MEDIUM (~4 hours)
 **Created**: 2025-11-08 23:00
+**Completed**: 2025-11-09 00:17
 **Type**: Standalone task list
+
+<!-- SESSION PAUSED: 2025-11-09 00:27 - Task complete, uncommitted changes ready -->
 
 ---
 
@@ -13,9 +16,9 @@
 
 Remove redundant `/news` page, integrate market news into dashboard, and create seamless portfolio-watchlist integration with visual indicators and navigation.
 
-**✅ COMPLETE:** (None)
-**🔄 IN PROGRESS:** (Not started)
-**⚠️ NEXT:** Task 1.0 - Portfolio-Watchlist Auto-Sync (Backend)
+**✅ COMPLETE:** All tasks
+**🔄 IN PROGRESS:** (None)
+**⚠️ NEXT:** (Complete)
 
 ---
 
@@ -287,3 +290,30 @@ Remove redundant `/news` page, integrate market news into dashboard, and create 
 - **Accessibility**: Color coding supplemented with icons/text for colorblind users
 
 **Estimated Total Time**: 3-4 hours
+
+---
+
+## Implementation Notes
+
+### Portfolio Badge Logic (Fixed)
+Initially, the portfolio badge was shown based on the `source` field (historical). This was incorrect because:
+- Items synced from portfolio kept `source='portfolio'` even after being removed from portfolio
+- Badge showed "Portfolio" for tickers no longer in the portfolio
+
+**Fix Applied**: Changed badge logic to check current portfolio state:
+- Fetch current portfolio positions in WatchlistTable
+- Show badge only if `portfolioSymbols.has(item.symbol)`
+- Now accurately reflects what's in your portfolio RIGHT NOW
+
+### Files Modified (Additional)
+- `frontend/components/watchlist/WatchlistTable.tsx` - Fixed portfolio badge logic
+- `backend/app/watchlist/priority.py` - Fixed None value handling
+- `frontend/components/dashboard/` - Fixed directory permissions (755)
+- `package.json` - Added date-fns dependency
+
+### Database Changes
+- Migration 022: Added `source` column with check constraint
+- Created index on `source` for efficient filtering
+- 7 new test cases in `test_watchlist_sync.py` (all passing)
+
+**Total Time**: ~4 hours (including bug fixes and testing)

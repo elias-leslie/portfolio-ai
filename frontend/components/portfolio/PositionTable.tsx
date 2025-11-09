@@ -42,6 +42,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Pencil } from "lucide-react";
+import Link from "next/link";
 
 type PositionType = "long" | "short";
 
@@ -124,7 +125,12 @@ export function PositionTable() {
       accessorKey: "symbol",
       header: "Symbol",
       cell: ({ row }) => (
-        <span className="font-medium">{row.getValue("symbol")}</span>
+        <Link
+          href={`/watchlist?ticker=${row.getValue("symbol")}`}
+          className="font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline transition-colors"
+        >
+          {row.getValue("symbol")}
+        </Link>
       ),
     },
     {
@@ -280,15 +286,22 @@ export function PositionTable() {
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id}>
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
+            {table.getRowModel().rows.map((row) => {
+              const gain = row.original.gain ?? 0;
+              const bgClass = gain >= 0
+                ? "bg-green-50/30 dark:bg-green-950/10 hover:bg-green-50/50 dark:hover:bg-green-950/20"
+                : "bg-red-50/30 dark:bg-red-950/10 hover:bg-red-50/50 dark:hover:bg-red-950/20";
+
+              return (
+                <TableRow key={row.id} className={bgClass}>
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </div>

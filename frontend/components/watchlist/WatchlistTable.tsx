@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, Fragment } from "react";
+import { useState, Fragment, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Table,
   TableBody,
@@ -21,12 +22,14 @@ import {
   AlertCircle,
   Trash2,
   Loader2,
+  Briefcase,
 } from "lucide-react";
 import {
   useDeleteWatchlistItem,
   useRefreshStatus,
 } from "@/lib/hooks/useWatchlist";
 import { usePreferences } from "@/lib/hooks/usePreferences";
+import { usePortfolio } from "@/lib/hooks/usePortfolio";
 import { toast } from "sonner";
 import type { WatchlistItem } from "@/lib/api/watchlist";
 import { cn } from "@/lib/utils";
@@ -42,12 +45,42 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [sortField, setSortField] = useState<SortField>("symbol");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [highlightedSymbol, setHighlightedSymbol] = useState<string | null>(null);
   const deleteMutation = useDeleteWatchlistItem();
   const { data: refreshStatus } = useRefreshStatus();
   const { data: preferences } = usePreferences();
+  const { data: portfolio } = usePortfolio();
+  const searchParams = useSearchParams();
+  const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
 
   // Get user's timezone preference
   const userTimezone = preferences?.display_timezone ?? "America/New_York";
+
+  // Get current portfolio symbols (for showing portfolio badge)
+  const portfolioSymbols = new Set(
+    portfolio?.positions?.map((p) => p.symbol.toUpperCase()) ?? []
+  );
+
+  // Scroll to ticker from query parameter
+  useEffect(() => {
+    const ticker = searchParams?.get("ticker");
+    if (ticker && items.length > 0) {
+      const targetItem = items.find(
+        (item) => item.symbol.toUpperCase() === ticker.toUpperCase()
+      );
+      if (targetItem) {
+        const rowElement = rowRefs.current.get(targetItem.id);
+        if (rowElement) {
+          setTimeout(() => {
+            rowElement.scrollIntoView({ behavior: "smooth", block: "center" });
+            setExpandedId(targetItem.id);
+            setHighlightedSymbol(targetItem.symbol);
+            setTimeout(() => setHighlightedSymbol(null), 3000);
+          }, 100);
+        }
+      }
+    }
+  }, [searchParams, items]);
 
   // Handle sort
   const handleSort = (field: SortField) => {
@@ -349,9 +382,17 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
             return (
               <Fragment key={item.id}>
                 <TableRow
+                  ref={(el) => {
+                    if (el) {
+                      rowRefs.current.set(item.id, el);
+                    } else {
+                      rowRefs.current.delete(item.id);
+                    }
+                  }}
                   className={cn(
-                    "cursor-pointer",
+                    "cursor-pointer transition-colors",
                     isExpanded && "bg-surface-muted/40",
+                    highlightedSymbol === item.symbol && "bg-blue-50 dark:bg-blue-950/30 animate-pulse"
                   )}
                   onClick={() => setExpandedId(isExpanded ? null : item.id)}
                 >
@@ -370,6 +411,15 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                   <TableCell className="font-medium">
                     <div className="flex items-center gap-2">
                       <span>{item.symbol}</span>
+                      {portfolioSymbols.has(item.symbol.toUpperCase()) && (
+                        <Badge
+                          variant="outline"
+                          className="gap-1 text-xs px-1.5 py-0 h-5 bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300"
+                        >
+                          <Briefcase className="h-3 w-3" />
+                          <span>Portfolio</span>
+                        </Badge>
+                      )}
                       {item.current_score?.price.metadata?.source &&
                       typeof item.current_score.price.metadata.source ===
                         "string" ? (

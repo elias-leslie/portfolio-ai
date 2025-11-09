@@ -197,7 +197,7 @@ class WatchlistService:
         """
         items_df = self.storage.query(
             """
-            SELECT wi.id, wi.symbol, wi.note,
+            SELECT wi.id, wi.symbol, wi.note, wi.source,
                    wi.created_at, wi.updated_at
             FROM watchlist_items wi
             ORDER BY wi.created_at DESC
@@ -221,6 +221,7 @@ class WatchlistService:
                 "id": row["id"],
                 "symbol": row["symbol"],
                 "note": row.get("note"),
+                "source": row.get("source", "manual"),
                 "created_at": created_at,
                 "updated_at": updated_at,
                 "score": None,

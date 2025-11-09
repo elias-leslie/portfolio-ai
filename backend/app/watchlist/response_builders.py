@@ -61,6 +61,7 @@ class WatchlistItemResponse(BaseModel):
     id: str
     symbol: str
     note: str | None = None
+    source: str = "manual"  # 'manual' or 'portfolio'
     created_at: str
     updated_at: str
     current_score: ScoreBreakdownResponse | None = None
@@ -146,6 +147,7 @@ class WatchlistItemResponse(BaseModel):
             id=item["id"],
             symbol=item["symbol"],
             note=item.get("note"),
+            source=item.get("source", "manual"),
             created_at=item["created_at"],
             updated_at=item["updated_at"],
             current_score=current_score,

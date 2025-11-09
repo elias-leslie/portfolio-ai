@@ -10,7 +10,11 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-*Empty - run `/do_it` to start next planned task*
+1. **Portfolio/Watchlist UI & Data Model Fixes**
+   - File: `tasks-ui-portfolio-watchlist-fixes.md`
+   - Started: 2025-11-09
+   - Status: In Progress (60% - Tasks 2&4 done, Task 3 remaining)
+   - Current: Fixing watchlist/portfolio data model separation
 
 ---
 
@@ -18,14 +22,7 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Portfolio/Watchlist UI & Data Model Fixes**
-   - File: `tasks-ui-portfolio-watchlist-fixes.md`
-   - Effort: MEDIUM-HIGH (8-12 hours)
-   - Priority: URGENT
-   - Goal: Fix portfolio accounts UI, clarify watchlist independence, prevent data loss
-   - Created: 2025-11-07
-
-3. **HTTP Client Deduplication**
+1. **HTTP Client Deduplication**
    - File: `tasks-0034-http-client-deduplication.md`
    - Effort: MEDIUM (2-3 days)
    - Priority: MEDIUM

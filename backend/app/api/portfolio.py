@@ -7,10 +7,13 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from app.logging_config import get_logger
 from app.portfolio.analytics import PortfolioAnalytics
 from app.portfolio.manager import PortfolioManager
 from app.portfolio.price_fetcher import PriceDataFetcher
 from app.storage import get_storage
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
 
@@ -106,6 +109,14 @@ async def get_portfolio() -> PortfolioResponse:
 
     # Get current prices
     symbols = list({p.symbol for p in positions})
+
+    # Sync portfolio tickers to watchlist
+    try:
+        portfolio_mgr.sync_portfolio_to_watchlist(symbols)
+    except Exception as e:
+        # Log error but don't fail the request
+        logger.error(f"Failed to sync portfolio to watchlist: {e}")
+
     price_data = price_fetcher.fetch_price_data(symbols)
 
     # Calculate analytics

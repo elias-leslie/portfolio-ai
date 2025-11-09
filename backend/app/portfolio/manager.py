@@ -224,3 +224,55 @@ class PortfolioManager:
             positions.append(Position(**row))
 
         return positions
+
+    def sync_portfolio_to_watchlist(self, tickers: list[str]) -> None:
+        """Sync portfolio tickers to watchlist.
+
+        Automatically adds portfolio tickers to watchlist with source='portfolio'.
+        This is a one-way, additive sync - it does not remove tickers from the watchlist.
+
+        Args:
+            tickers: List of ticker symbols to sync to watchlist
+
+        Note:
+            - Uses INSERT...ON CONFLICT DO NOTHING for idempotency
+            - Safe to call multiple times with the same tickers
+            - Does not modify existing watchlist items
+        """
+        if not tickers:
+            return
+
+        # Get unique tickers (uppercase)
+        unique_tickers = list({ticker.upper() for ticker in tickers})
+
+        # Get existing watchlist symbols to avoid duplicates
+        df = self.storage.query("SELECT symbol FROM watchlist_items")
+        existing_symbols = set()
+        if not df.is_empty():
+            existing_symbols = {row["symbol"] for row in df.iter_rows(named=True)}
+
+        # Find tickers that need to be added
+        tickers_to_add = [t for t in unique_tickers if t not in existing_symbols]
+
+        if not tickers_to_add:
+            logger.debug("All portfolio tickers already in watchlist")
+            return
+
+        # Insert new tickers with source='portfolio'
+        now = datetime.now(UTC)
+        with self.storage.connection() as conn:
+            for ticker in tickers_to_add:
+                item_id = str(uuid.uuid4())
+                conn.execute(
+                    """
+                    INSERT INTO watchlist_items (id, symbol, source, created_at, updated_at)
+                    VALUES (?, ?, 'portfolio', ?, ?)
+                    ON CONFLICT (symbol) DO NOTHING
+                    """,
+                    [item_id, ticker, now, now],
+                )
+            conn.commit()
+
+        logger.info(
+            f"Synced {len(tickers_to_add)} portfolio tickers to watchlist: {tickers_to_add}"
+        )

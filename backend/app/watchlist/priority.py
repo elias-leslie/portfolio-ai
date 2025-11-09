@@ -262,9 +262,11 @@ def calculate_priority_indicators(
         List of priority indicators, sorted by priority (highest first)
     """
     # Rank items by overall score for hot_opportunity check
+    # Filter out None values first
+    valid_items = [item for item in all_items if item is not None]
     sorted_items = sorted(
-        all_items,
-        key=lambda x: x.get("score", {}).get("overall", 0),
+        valid_items,
+        key=lambda x: x.get("score", {}).get("overall", 0) if x else 0,
         reverse=True,
     )
     rank = sorted_items.index(current_item) + 1 if current_item in sorted_items else 999
