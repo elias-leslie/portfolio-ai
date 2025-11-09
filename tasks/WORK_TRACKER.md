@@ -105,18 +105,20 @@
 ## 🎯 Usage
 
 ```bash
+/task_it <desc>     # Smart task creation (simple or complex, adds Task 0 when needed)
 /do_it              # Auto-resume Active or start first Planned
 /do_it tasks-*.md   # Work on specific task
 /pause_it           # Save state when context >85% or blocked
-/task_it <desc>     # Create new task (auto-detects PRD vs standalone)
-/plan_it <feature>  # Create PRD for complex features (4+ hours)
 /doc_it             # Update documentation after major changes
 ```
 
 **Workflow:**
-1. `/do_it` → Autonomous execution until done/blocked/context limit
-2. `/pause_it` → Save state (auto-archives if Recently Completed >5)
-3. Resume next session → `/do_it` picks up where you left off
+1. `/task_it` → Analyzes complexity, asks questions if complex, adds Task 0 for scope discovery
+2. `/do_it` → Autonomous execution (stops at Task 0 checkpoint if present)
+3. `/pause_it` → Save state (auto-archives if Recently Completed >5)
+4. Resume next session → `/do_it` picks up where you left off
+
+**Task 0:** Mandatory scope discovery for pattern/refactor work - prevents incomplete implementations
 
 ---
 
