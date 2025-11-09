@@ -648,6 +648,7 @@ def process_ticker_snapshot(
         volatility=price_data.volatility,
         overall_score=breakdown.overall,
         technical_score=breakdown.technical.score,
+        fundamental_score=breakdown.fundamental.score if breakdown.fundamental else None,
         is_stale=data_is_stale,
         raw_metrics=breakdown.to_snapshot_payload(),
         # Narrative fields

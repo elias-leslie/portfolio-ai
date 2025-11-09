@@ -51,6 +51,7 @@ class ScoreBreakdownResponse(BaseModel):
 
     price: ScoreComponentResponse
     technical: ScoreComponentResponse
+    fundamental: ScoreComponentResponse | None = None
     overall: float
 
 
@@ -135,6 +136,9 @@ class WatchlistItemResponse(BaseModel):
             current_score = ScoreBreakdownResponse(
                 price=ScoreComponentResponse(**item["score"]["price"]),
                 technical=ScoreComponentResponse(**item["score"]["technical"]),
+                fundamental=ScoreComponentResponse(**item["score"]["fundamental"])
+                if item["score"].get("fundamental")
+                else None,
                 overall=item["score"]["overall"],
             )
 

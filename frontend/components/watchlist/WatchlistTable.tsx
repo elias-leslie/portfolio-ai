@@ -35,7 +35,7 @@ interface WatchlistTableProps {
   items: WatchlistItem[];
 }
 
-type SortField = "symbol" | "overall" | "price" | "technical" | "news" | "updated";
+type SortField = "symbol" | "overall" | "price" | "technical" | "news" | "updated" | "style" | "risk";
 type SortDirection = "asc" | "desc";
 
 export function WatchlistTable({ items }: WatchlistTableProps) {
@@ -84,6 +84,14 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
       case "news":
         aVal = a.news_sentiment_score ?? -2;
         bVal = b.news_sentiment_score ?? -2;
+        break;
+      case "style":
+        aVal = a.recommended_style ?? "";
+        bVal = b.recommended_style ?? "";
+        break;
+      case "risk":
+        aVal = a.risk_level ?? "";
+        bVal = b.risk_level ?? "";
         break;
       case "updated":
         aVal = a.current_score?.price?.updated_at ?? a.updated_at;
@@ -272,9 +280,45 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                 )}
               </button>
             </TableHead>
-            <TableHead>Score</TableHead>
-            <TableHead>Style</TableHead>
-            <TableHead>Risk</TableHead>
+            <TableHead>
+              <button
+                onClick={() => handleSort("overall")}
+                className="flex items-center gap-1 font-medium hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              >
+                Score
+                {sortField === "overall" && (
+                  <span className="text-xs">
+                    {sortDirection === "asc" ? "↑" : "↓"}
+                  </span>
+                )}
+              </button>
+            </TableHead>
+            <TableHead>
+              <button
+                onClick={() => handleSort("style")}
+                className="flex items-center gap-1 font-medium hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              >
+                Style
+                {sortField === "style" && (
+                  <span className="text-xs">
+                    {sortDirection === "asc" ? "↑" : "↓"}
+                  </span>
+                )}
+              </button>
+            </TableHead>
+            <TableHead>
+              <button
+                onClick={() => handleSort("risk")}
+                className="flex items-center gap-1 font-medium hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              >
+                Risk
+                {sortField === "risk" && (
+                  <span className="text-xs">
+                    {sortDirection === "asc" ? "↑" : "↓"}
+                  </span>
+                )}
+              </button>
+            </TableHead>
             <TableHead>Score Trend</TableHead>
             <TableHead>
               <button
@@ -356,23 +400,23 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                     </div>
                   </TableCell>
                   <TableCell>
-                    {item.current_score?.price.metadata?.current_price ? (
+                    {item.current_score?.price.metadata?.price ? (
                       <div className="text-sm">
                         <div className="font-medium">
-                          ${typeof item.current_score.price.metadata.current_price === 'number'
-                            ? item.current_score.price.metadata.current_price.toFixed(2)
-                            : String(item.current_score.price.metadata.current_price)}
+                          ${typeof item.current_score.price.metadata.price === 'number'
+                            ? item.current_score.price.metadata.price.toFixed(2)
+                            : String(item.current_score.price.metadata.price)}
                         </div>
-                        {item.current_score.price.metadata.daily_change_pct !== undefined && (
+                        {item.current_score.price.metadata.raw_change_pct !== undefined && (
                           <div className={cn(
                             "text-xs",
-                            typeof item.current_score.price.metadata.daily_change_pct === 'number' && item.current_score.price.metadata.daily_change_pct >= 0
+                            typeof item.current_score.price.metadata.raw_change_pct === 'number' && item.current_score.price.metadata.raw_change_pct >= 0
                               ? "text-gain"
                               : "text-loss"
                           )}>
-                            {typeof item.current_score.price.metadata.daily_change_pct === 'number'
-                              ? `${item.current_score.price.metadata.daily_change_pct >= 0 ? '+' : ''}${item.current_score.price.metadata.daily_change_pct.toFixed(2)}%`
-                              : `${String(item.current_score.price.metadata.daily_change_pct)}%`}
+                            {typeof item.current_score.price.metadata.raw_change_pct === 'number'
+                              ? `${item.current_score.price.metadata.raw_change_pct >= 0 ? '+' : ''}${item.current_score.price.metadata.raw_change_pct.toFixed(2)}%`
+                              : `${String(item.current_score.price.metadata.raw_change_pct)}%`}
                           </div>
                         )}
                       </div>
