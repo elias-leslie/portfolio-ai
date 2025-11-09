@@ -5,9 +5,9 @@
 **Effort**: HIGH (2057-line file, 14 security issues, 129 large functions)
 **Environment**: Local Dev
 **Created**: 2025-11-09 (context restoration)
-**Status**: Paused
-**PAUSED**: 2025-11-09 16:20 (User request - natural completion point after Phase 1)
-**Next**: Task 2 (File Size Refactoring) OR Task 3.2 (Continue function complexity Phase 2)
+**Status**: In Progress
+**Last Session**: 2025-11-09 (Phase 2 complete - 4 more CRITICAL functions refactored)
+**Next**: Task 2 (File Size Refactoring) OR Task 3.3 (Continue function complexity Phase 3)
 
 <!-- PAUSED: 2025-11-09 16:20 | Context: 68% | Next: Choose Task 2 or Task 3.2 -->
 
@@ -144,11 +144,12 @@ Top Issues:
   - [ ] `market.py:82` - calculate_market_health() (258 lines)
   - [ ] Strategy: Extract helper functions, simplify logic
 
-- [ ] 3.2 Fix CRITICAL functions - Phase 2
-  - [ ] `data_ingestion_tasks.py:78` - ingest_historical_ohlcv() (189 lines)
-  - [ ] `watchlist_tasks.py:22` - refresh_watchlist_scores_task() (182 lines)
-  - [ ] `indicators.py:162` - get_indicators_history() (173 lines)
-  - [ ] `watchlist_service.py:519` - build_news_intelligence() (172 lines)
+- [x] 3.2 Fix CRITICAL functions - Phase 2 ✅ COMPLETE (commit 8a04ce1)
+  - [x] `data_ingestion_tasks.py:78` - ingest_historical_ohlcv() (189 → 86 lines, 54% ↓)
+  - [x] `watchlist_tasks.py:22` - refresh_watchlist_scores_task() (183 → 85 lines, 54% ↓)
+  - [x] `indicators.py:162` - get_indicators_history() (174 → 74 lines, 57% ↓)
+  - [x] `watchlist_service.py:519` - build_news_intelligence() (173 → 48 lines, 72% ↓)
+  - Total: 719 → 293 lines (59% reduction, 426 lines eliminated)
 
 - [ ] 3.3 Fix CRITICAL functions - Phase 3
   - [ ] `tasks/indicator_tasks.py:19` - update_technical_indicators() (172 lines)
