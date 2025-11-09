@@ -273,89 +273,16 @@ def detect_missing_historical_data(
         return tickers_needing_backfill
 
 
-def process_ticker_snapshot(
+def _fetch_fundamentals_and_earnings(
     storage: PortfolioStorage,
     symbol: str,
-    item_id: str,
-    price_data: Any,
-    technical_map: dict[str, TechnicalSnapshot],
-    default_weights: ScoreWeights,
-    stale_ttl_minutes: int,
-    risk_budget: float,
     now: datetime,
-    news_service: NewsService,
-    max_news_articles: int,
-    news_bundle: Any | None = None,
-) -> WatchlistSnapshot:
-    """Process a single ticker and generate its watchlist snapshot.
-
-    This function consolidates all data gathering, calculation, and narrative
-    generation for one ticker into a single snapshot.
-
-    Args:
-        storage: Database storage instance
-        symbol: Ticker symbol
-        item_id: Watchlist item ID
-        price_data: Price data object (from PriceDataFetcher)
-        technical_map: Map of symbol -> TechnicalSnapshot
-        default_weights: Score weights from preferences
-        stale_ttl_minutes: Staleness threshold in minutes
-        risk_budget: Risk budget for position sizing
-        now: Current timestamp (UTC)
-        news_service: NewsService instance for fetching scored news
-        max_news_articles: Maximum articles to fetch (if news_bundle not provided)
-        news_bundle: Optional pre-fetched NewsBundle (Issue #2 fix - batch fetching)
+) -> tuple[Any | None, str | None, datetime | None, int | None]:
+    """Fetch fundamental data and earnings information for a symbol.
 
     Returns:
-        WatchlistSnapshot ready to be persisted
-
-    Raises:
-        Exception: If processing fails (caller should catch and log)
+        Tuple of (fundamentals_data, company_health, earnings_date, earnings_days_away)
     """
-    # Calculate price change
-    change_pct, has_historical_data = calculate_price_change(
-        storage, symbol, price_data.price, item_id
-    )
-
-    # Queue backfill task if historical data is missing
-    if not has_historical_data:
-        try:
-            from ..tasks.data_ingestion_tasks import (  # noqa: PLC0415 - avoid circular dependency
-                ingest_historical_ohlcv,
-            )
-
-            # Queue backfill for 252 trading days (~1 year)
-            ingest_historical_ohlcv.delay([symbol], days=252)
-            logger.info(
-                "watchlist_refresh_queued_backfill",
-                symbol=symbol,
-                item_id=item_id,
-                reason="Missing day_bars data - queued historical backfill task",
-            )
-        except Exception as e:
-            logger.warning(
-                "watchlist_refresh_backfill_queue_failed",
-                symbol=symbol,
-                item_id=item_id,
-                error=str(e),
-            )
-
-    # Default to 0.0% change if no comparison data available
-    if change_pct is None:
-        logger.info(
-            "watchlist_refresh_defaulted_change_pct",
-            symbol=symbol,
-            item_id=item_id,
-            change_pct=0.0,
-            reason="No comparison data (first snapshot) - defaulting to 0.0%",
-        )
-        change_pct = 0.0
-
-    # Get technical snapshot
-    technical_snapshot = technical_map.get(symbol, TechnicalSnapshot())
-    technical_snapshot.price = price_data.price
-
-    # Fetch fundamentals and earnings data (needed for both scoring and narrative)
     fundamentals_data = None
     company_health_str: str | None = None
     earnings_date_obj: datetime | None = None
@@ -394,22 +321,21 @@ def process_ticker_snapshot(
                 error=str(earnings_error),
             )
 
-    # Calculate scores (3-pillar: price/technical/fundamental)
-    breakdown = calculate_watchlist_scores(
-        WatchlistScoreInputs(
-            price=price_data,
-            price_change_pct=change_pct,
-            technical=technical_snapshot,
-            fundamental=fundamentals_data,  # NEW: Include fundamental data
-            weights=default_weights,
-            now=now,
-            stale_ttl_minutes=stale_ttl_minutes,
-        )
-    )
+    return fundamentals_data, company_health_str, earnings_date_obj, earnings_days_away_val
 
-    # Query volume data from day_bars (latest + 20-day average)
+
+def _fetch_volume_data(
+    storage: PortfolioStorage,
+    symbol: str,
+) -> tuple[float | None, float | None]:
+    """Fetch current volume and 20-day average from day_bars.
+
+    Returns:
+        Tuple of (current_volume, avg_volume_20d)
+    """
     current_volume: float | None = None
     avg_volume_20d: float | None = None
+
     volume_df = storage.query(
         """
         SELECT volume
@@ -438,8 +364,14 @@ def process_ticker_snapshot(
             message="Less than 20 days of volume data - skipping 20-day average",
         )
 
-    # Query previous day's SMA_5
-    sma_5_prev = None
+    return current_volume, avg_volume_20d
+
+
+def _fetch_previous_sma5(
+    storage: PortfolioStorage,
+    symbol: str,
+) -> float | None:
+    """Fetch previous day's SMA_5 from technical indicators."""
     with storage.connection() as conn:
         prev_date = (datetime.now(UTC) - timedelta(days=1)).date()
         sma_5_prev_query = """
@@ -448,12 +380,23 @@ def process_ticker_snapshot(
             ORDER BY calculated_at DESC LIMIT 1
         """
         result = conn.execute(sma_5_prev_query, (symbol, prev_date)).fetchone()
-        sma_5_prev = result[0] if result else None
+        return result[0] if result else None
 
-    # Fetch sentiment-scored news bundle
-    # Use pre-fetched bundle if provided (Issue #2 fix), otherwise fetch individually
+
+def _fetch_news_sentiment(
+    news_service: NewsService,
+    symbol: str,
+    max_news_articles: int,
+    news_bundle: Any | None = None,
+) -> tuple[float | None, dict[str, Any] | None]:
+    """Fetch news sentiment score and recent headlines.
+
+    Returns:
+        Tuple of (news_sentiment_score, recent_news_payload)
+    """
     news_sentiment_value: float | None = None
     recent_news_value: dict[str, Any] | None = None
+
     try:
         if news_bundle is None:
             # Fallback: Individual fetch (backwards compatibility)
@@ -465,10 +408,30 @@ def process_ticker_snapshot(
         )
     except Exception as exc:  # pragma: no cover - downstream services may fail
         logger.warning("news_fetch_failed", symbol=symbol, error=str(exc))
-        news_sentiment_value = None
-        recent_news_value = None
 
-    # Generate narrative intelligence
+    return news_sentiment_value, recent_news_value
+
+
+def _generate_narrative_and_trade_levels(
+    storage: PortfolioStorage,
+    symbol: str,
+    price_data: Any,
+    technical_snapshot: TechnicalSnapshot,
+    current_volume: float | None,
+    avg_volume_20d: float | None,
+    sma_5_prev: float | None,
+    company_health_str: str | None,
+    news_sentiment_value: float | None,
+    earnings_days_away_val: int | None,
+    fundamentals_data: Any | None,
+    risk_budget: float,
+) -> dict[str, Any]:
+    """Generate narrative intelligence and calculate trade levels.
+
+    Returns:
+        Dict with all narrative and trade calculation results
+    """
+    # Build signal inputs
     signal_inputs = {
         "price": price_data.price,
         "ema_20": technical_snapshot.ema_20,
@@ -631,9 +594,166 @@ def process_ticker_snapshot(
         narrative_position_sizing_text = None
         narrative_company_health_bullets = None
         narrative_special_notes_text = None
-        company_health_str = None
-        earnings_date_obj = None
-        earnings_days_away_val = None
+
+    return {
+        "signal_type": signal_type_str,
+        "signal_strength": signal_strength_val,
+        "headline": headline,
+        "style_result": style_result,
+        "entry_price": entry_price_val,
+        "stop_loss": stop_loss_val,
+        "profit_target": profit_target_val,
+        "position_size": position_size_val,
+        "action_plan": narrative_action_plan_text,
+        "position_sizing": narrative_position_sizing_text,
+        "company_health_bullets": narrative_company_health_bullets,
+        "special_notes": narrative_special_notes_text,
+    }
+
+
+def process_ticker_snapshot(
+    storage: PortfolioStorage,
+    symbol: str,
+    item_id: str,
+    price_data: Any,
+    technical_map: dict[str, TechnicalSnapshot],
+    default_weights: ScoreWeights,
+    stale_ttl_minutes: int,
+    risk_budget: float,
+    now: datetime,
+    news_service: NewsService,
+    max_news_articles: int,
+    news_bundle: Any | None = None,
+) -> WatchlistSnapshot:
+    """Process a single ticker and generate its watchlist snapshot.
+
+    This function consolidates all data gathering, calculation, and narrative
+    generation for one ticker into a single snapshot.
+
+    Args:
+        storage: Database storage instance
+        symbol: Ticker symbol
+        item_id: Watchlist item ID
+        price_data: Price data object (from PriceDataFetcher)
+        technical_map: Map of symbol -> TechnicalSnapshot
+        default_weights: Score weights from preferences
+        stale_ttl_minutes: Staleness threshold in minutes
+        risk_budget: Risk budget for position sizing
+        now: Current timestamp (UTC)
+        news_service: NewsService instance for fetching scored news
+        max_news_articles: Maximum articles to fetch (if news_bundle not provided)
+        news_bundle: Optional pre-fetched NewsBundle (Issue #2 fix - batch fetching)
+
+    Returns:
+        WatchlistSnapshot ready to be persisted
+
+    Raises:
+        Exception: If processing fails (caller should catch and log)
+    """
+    # Calculate price change
+    change_pct, has_historical_data = calculate_price_change(
+        storage, symbol, price_data.price, item_id
+    )
+
+    # Queue backfill task if historical data is missing
+    if not has_historical_data:
+        try:
+            from ..tasks.data_ingestion_tasks import (  # noqa: PLC0415 - avoid circular dependency
+                ingest_historical_ohlcv,
+            )
+
+            # Queue backfill for 252 trading days (~1 year)
+            ingest_historical_ohlcv.delay([symbol], days=252)
+            logger.info(
+                "watchlist_refresh_queued_backfill",
+                symbol=symbol,
+                item_id=item_id,
+                reason="Missing day_bars data - queued historical backfill task",
+            )
+        except Exception as e:
+            logger.warning(
+                "watchlist_refresh_backfill_queue_failed",
+                symbol=symbol,
+                item_id=item_id,
+                error=str(e),
+            )
+
+    # Default to 0.0% change if no comparison data available
+    if change_pct is None:
+        logger.info(
+            "watchlist_refresh_defaulted_change_pct",
+            symbol=symbol,
+            item_id=item_id,
+            change_pct=0.0,
+            reason="No comparison data (first snapshot) - defaulting to 0.0%",
+        )
+        change_pct = 0.0
+
+    # Get technical snapshot
+    technical_snapshot = technical_map.get(symbol, TechnicalSnapshot())
+    technical_snapshot.price = price_data.price
+
+    # Fetch fundamentals and earnings data (needed for both scoring and narrative)
+    (
+        fundamentals_data,
+        company_health_str,
+        earnings_date_obj,
+        earnings_days_away_val,
+    ) = _fetch_fundamentals_and_earnings(storage, symbol, now)
+
+    # Calculate scores (3-pillar: price/technical/fundamental)
+    breakdown = calculate_watchlist_scores(
+        WatchlistScoreInputs(
+            price=price_data,
+            price_change_pct=change_pct,
+            technical=technical_snapshot,
+            fundamental=fundamentals_data,  # NEW: Include fundamental data
+            weights=default_weights,
+            now=now,
+            stale_ttl_minutes=stale_ttl_minutes,
+        )
+    )
+
+    # Query volume data from day_bars (latest + 20-day average)
+    current_volume, avg_volume_20d = _fetch_volume_data(storage, symbol)
+
+    # Query previous day's SMA_5
+    sma_5_prev = _fetch_previous_sma5(storage, symbol)
+
+    # Fetch sentiment-scored news bundle
+    news_sentiment_value, recent_news_value = _fetch_news_sentiment(
+        news_service, symbol, max_news_articles, news_bundle
+    )
+
+    # Generate narrative intelligence and calculate trade levels
+    narrative_result = _generate_narrative_and_trade_levels(
+        storage=storage,
+        symbol=symbol,
+        price_data=price_data,
+        technical_snapshot=technical_snapshot,
+        current_volume=current_volume,
+        avg_volume_20d=avg_volume_20d,
+        sma_5_prev=sma_5_prev,
+        company_health_str=company_health_str,
+        news_sentiment_value=news_sentiment_value,
+        earnings_days_away_val=earnings_days_away_val,
+        fundamentals_data=fundamentals_data,
+        risk_budget=risk_budget,
+    )
+
+    # Unpack narrative results
+    signal_type_str = narrative_result["signal_type"]
+    signal_strength_val = narrative_result["signal_strength"]
+    headline = narrative_result["headline"]
+    style_result = narrative_result["style_result"]
+    entry_price_val = narrative_result["entry_price"]
+    stop_loss_val = narrative_result["stop_loss"]
+    profit_target_val = narrative_result["profit_target"]
+    position_size_val = narrative_result["position_size"]
+    narrative_action_plan_text = narrative_result["action_plan"]
+    narrative_position_sizing_text = narrative_result["position_sizing"]
+    narrative_company_health_bullets = narrative_result["company_health_bullets"]
+    narrative_special_notes_text = narrative_result["special_notes"]
 
     # Calculate staleness
     data_is_stale = is_stale(fetched_at=now, now=now)
