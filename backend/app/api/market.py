@@ -79,6 +79,169 @@ class PricesResponse(BaseModel):
     count: int
 
 
+def _calculate_vix_score(vix_price: float, timestamp: str | None) -> ComponentScore:
+    """Calculate VIX volatility component score (inverted: low VIX = high score)."""
+    # VIX ranges: <15 = complacent, 15-20 = normal, 20-30 = elevated, >30 = fear
+    if vix_price < 15:
+        score, signal, interp = 85, "Bullish", "Low volatility suggests market complacency"
+    elif vix_price < 20:
+        score, signal, interp = 65, "Bullish", "Normal volatility levels"
+    elif vix_price < 25:
+        score, signal, interp = 45, "Neutral", "Elevated volatility, some concern"
+    elif vix_price < 30:
+        score, signal, interp = 30, "Bearish", "High volatility, increased fear"
+    else:
+        score, signal, interp = 15, "Bearish", "Extreme volatility, market panic"
+
+    return ComponentScore(
+        name="Volatility (VIX)",
+        score=score,
+        value=vix_price,
+        interpretation=interp,
+        signal=signal,
+        last_updated=timestamp,
+    )
+
+
+def _calculate_sp500_score(sp500_price: float, timestamp: str | None) -> ComponentScore:
+    """Calculate S&P 500 level component score."""
+    # Normalize around 4000-5000 range
+    if sp500_price > 4800:
+        score, signal, interp = 75, "Bullish", "Strong market levels"
+    elif sp500_price > 4400:
+        score, signal, interp = 60, "Bullish", "Healthy market levels"
+    elif sp500_price > 4000:
+        score, signal, interp = 50, "Neutral", "Moderate market levels"
+    else:
+        score, signal, interp = 40, "Bearish", "Below average levels"
+
+    return ComponentScore(
+        name="S&P 500 Level",
+        score=score,
+        value=sp500_price,
+        interpretation=interp,
+        signal=signal,
+        last_updated=timestamp,
+    )
+
+
+def _calculate_tnx_score(tnx_yield: float, timestamp: str | None) -> ComponentScore:
+    """Calculate 10Y Treasury yield component score (Goldilocks: not too hot, not too cold)."""
+    # 10Y yield ranges: <3% = dovish, 3-4.5% = neutral, >4.5% = hawkish
+    if 3.5 <= tnx_yield <= 4.5:
+        score, signal, interp = 60, "Neutral", "Yields in healthy range"
+    elif tnx_yield < 3.0:
+        score, signal, interp = 45, "Neutral", "Low yields, recession concerns"
+    elif tnx_yield < 3.5:
+        score, signal, interp = 55, "Neutral", "Moderate yields"
+    elif tnx_yield < 5.0:
+        score, signal, interp = 45, "Bearish", "Rising yields, tightening concerns"
+    else:
+        score, signal, interp = 35, "Bearish", "High yields, aggressive tightening"
+
+    return ComponentScore(
+        name="10Y Treasury Yield",
+        score=score,
+        value=tnx_yield,
+        interpretation=interp,
+        signal=signal,
+        last_updated=timestamp,
+    )
+
+
+def _calculate_dxy_score(dxy_price: float, timestamp: str | None) -> ComponentScore:
+    """Calculate US Dollar Index component score."""
+    # DXY ranges: <100 = weak, 100-105 = normal, >105 = strong
+    if dxy_price < 100:
+        score, signal, interp = 65, "Bullish", "Weak dollar supports stocks"
+    elif dxy_price < 105:
+        score, signal, interp = 55, "Neutral", "Dollar at moderate levels"
+    else:
+        score, signal, interp = 45, "Bearish", "Strong dollar headwind"
+
+    return ComponentScore(
+        name="US Dollar (DXY)",
+        score=score,
+        value=dxy_price,
+        interpretation=interp,
+        signal=signal,
+        last_updated=timestamp,
+    )
+
+
+def _calculate_sector_scores(
+    sector_data: dict[str, tuple[float | None, float | None, str | None]],
+) -> list[SectorScore]:
+    """Calculate sector rotation scores with relative performance signals."""
+    # Sector ETF mapping
+    sector_names = {
+        "XLK": "Technology",
+        "XLF": "Financials",
+        "XLE": "Energy",
+        "XLV": "Healthcare",
+        "XLY": "Consumer Discretionary",
+        "XLP": "Consumer Staples",
+        "XLI": "Industrials",
+        "XLU": "Utilities",
+        "XLRE": "Real Estate",
+        "XLB": "Materials",
+        "XLC": "Communication Services",
+    }
+
+    # Collect all valid change_pct values for relative comparison
+    changes = [
+        change_pct for _, (_, change_pct, _) in sector_data.items() if change_pct is not None
+    ]
+
+    # Calculate thresholds for Leading/Neutral/Lagging
+    if changes:
+        changes_sorted = sorted(changes)
+        # Top 33% = Leading, Middle 34% = Neutral, Bottom 33% = Lagging
+        top_threshold = (
+            changes_sorted[int(len(changes_sorted) * 0.67)] if len(changes_sorted) > 2 else 0.5
+        )
+        bottom_threshold = (
+            changes_sorted[int(len(changes_sorted) * 0.33)] if len(changes_sorted) > 2 else -0.5
+        )
+    else:
+        top_threshold, bottom_threshold = 0.5, -0.5
+
+    # Create sector scores
+    sectors = []
+    for symbol, (price, change_pct, timestamp) in sector_data.items():
+        name = sector_names.get(symbol, symbol)
+
+        # Determine signal based on change_pct
+        if change_pct is not None:
+            if change_pct >= top_threshold:
+                signal = "Leading"
+            elif change_pct <= bottom_threshold:
+                signal = "Lagging"
+            else:
+                signal = "Neutral"
+        else:
+            signal = "Unknown"
+
+        sectors.append(
+            SectorScore(
+                symbol=symbol,
+                name=name,
+                price=price,
+                change_pct=change_pct,
+                signal=signal,
+                last_updated=timestamp,
+            )
+        )
+
+    # Sort sectors by change_pct descending (best performers first)
+    sectors.sort(
+        key=lambda s: s.change_pct if s.change_pct is not None else -999,
+        reverse=True,
+    )
+
+    return sectors
+
+
 def calculate_market_health(
     vix_price: float | None,
     sp500_price: float | None,
@@ -107,148 +270,23 @@ def calculate_market_health(
         MarketHealthScore with overall score and component breakdown
     """
     components: list[ComponentScore] = []
-    total_score = 0
-    component_count = 0
 
-    # VIX Scoring (0-100, inverted: low VIX = high score)
+    # Calculate component scores using helper functions
     if vix_price is not None:
-        # VIX ranges: <15 = complacent, 15-20 = normal, 20-30 = elevated, >30 = fear
-        if vix_price < 15:
-            vix_score = 85  # Very bullish (low fear)
-            vix_signal = "Bullish"
-            vix_interp = "Low volatility suggests market complacency"
-        elif vix_price < 20:
-            vix_score = 65  # Bullish (normal fear)
-            vix_signal = "Bullish"
-            vix_interp = "Normal volatility levels"
-        elif vix_price < 25:
-            vix_score = 45  # Neutral
-            vix_signal = "Neutral"
-            vix_interp = "Elevated volatility, some concern"
-        elif vix_price < 30:
-            vix_score = 30  # Bearish
-            vix_signal = "Bearish"
-            vix_interp = "High volatility, increased fear"
-        else:
-            vix_score = 15  # Very bearish
-            vix_signal = "Bearish"
-            vix_interp = "Extreme volatility, market panic"
+        components.append(_calculate_vix_score(vix_price, current_timestamp))
 
-        components.append(
-            ComponentScore(
-                name="Volatility (VIX)",
-                score=vix_score,
-                value=vix_price,
-                interpretation=vix_interp,
-                signal=vix_signal,
-                last_updated=current_timestamp,
-            )
-        )
-        total_score += vix_score
-        component_count += 1
-
-    # S&P 500 Momentum (use absolute level as proxy)
     if sp500_price is not None:
-        # Simple heuristic: higher = more bullish sentiment
-        # Normalize around 4000-5000 range
-        if sp500_price > 4800:
-            sp_score = 75
-            sp_signal = "Bullish"
-            sp_interp = "Strong market levels"
-        elif sp500_price > 4400:
-            sp_score = 60
-            sp_signal = "Bullish"
-            sp_interp = "Healthy market levels"
-        elif sp500_price > 4000:
-            sp_score = 50
-            sp_signal = "Neutral"
-            sp_interp = "Moderate market levels"
-        else:
-            sp_score = 40
-            sp_signal = "Bearish"
-            sp_interp = "Below average levels"
+        components.append(_calculate_sp500_score(sp500_price, current_timestamp))
 
-        components.append(
-            ComponentScore(
-                name="S&P 500 Level",
-                score=sp_score,
-                value=sp500_price,
-                interpretation=sp_interp,
-                signal=sp_signal,
-                last_updated=current_timestamp,
-            )
-        )
-        total_score += sp_score
-        component_count += 1
-
-    # Treasury Yield (Goldilocks: not too hot, not too cold)
     if tnx_yield is not None:
-        # 10Y yield ranges: <3% = dovish, 3-4.5% = neutral, >4.5% = hawkish
-        if 3.5 <= tnx_yield <= 4.5:
-            tnx_score = 60
-            tnx_signal = "Neutral"
-            tnx_interp = "Yields in healthy range"
-        elif tnx_yield < 3.0:
-            tnx_score = 45
-            tnx_signal = "Neutral"
-            tnx_interp = "Low yields, recession concerns"
-        elif tnx_yield < 3.5:
-            tnx_score = 55
-            tnx_signal = "Neutral"
-            tnx_interp = "Moderate yields"
-        elif tnx_yield < 5.0:
-            tnx_score = 45
-            tnx_signal = "Bearish"
-            tnx_interp = "Rising yields, tightening concerns"
-        else:
-            tnx_score = 35
-            tnx_signal = "Bearish"
-            tnx_interp = "High yields, aggressive tightening"
+        components.append(_calculate_tnx_score(tnx_yield, current_timestamp))
 
-        components.append(
-            ComponentScore(
-                name="10Y Treasury Yield",
-                score=tnx_score,
-                value=tnx_yield,
-                interpretation=tnx_interp,
-                signal=tnx_signal,
-                last_updated=current_timestamp,
-            )
-        )
-        total_score += tnx_score
-        component_count += 1
-
-    # Dollar Strength (moderate strength = bullish for stocks)
     if dxy_price is not None:
-        # DXY ranges: <100 = weak, 100-105 = normal, >105 = strong
-        if dxy_price < 100:
-            dxy_score = 65
-            dxy_signal = "Bullish"
-            dxy_interp = "Weak dollar supports stocks"
-        elif dxy_price < 105:
-            dxy_score = 55
-            dxy_signal = "Neutral"
-            dxy_interp = "Dollar at moderate levels"
-        else:
-            dxy_score = 45
-            dxy_signal = "Bearish"
-            dxy_interp = "Strong dollar headwind"
-
-        components.append(
-            ComponentScore(
-                name="US Dollar (DXY)",
-                score=dxy_score,
-                value=dxy_price,
-                interpretation=dxy_interp,
-                signal=dxy_signal,
-                last_updated=current_timestamp,
-            )
-        )
-        total_score += dxy_score
-        component_count += 1
+        components.append(_calculate_dxy_score(dxy_price, current_timestamp))
 
     # Calculate overall score (average of components)
-    overall_score = int(total_score / component_count) if component_count > 0 else 50
+    total_score = sum(c.score for c in components)
+    overall_score = int(total_score / len(components)) if components else 50
 
     # Map to label
     if overall_score >= 75:
@@ -263,73 +301,7 @@ def calculate_market_health(
         label = "Extreme Fear"
 
     # Calculate sector scores
-    sectors: list[SectorScore] = []
-    if sector_data:
-        # Sector ETF mapping
-        sector_names = {
-            "XLK": "Technology",
-            "XLF": "Financials",
-            "XLE": "Energy",
-            "XLV": "Healthcare",
-            "XLY": "Consumer Discretionary",
-            "XLP": "Consumer Staples",
-            "XLI": "Industrials",
-            "XLU": "Utilities",
-            "XLRE": "Real Estate",
-            "XLB": "Materials",
-            "XLC": "Communication Services",
-        }
-
-        # Collect all valid change_pct values for relative comparison
-        changes = [
-            change_pct for _, (_, change_pct, _) in sector_data.items() if change_pct is not None
-        ]
-
-        # Calculate thresholds for Leading/Neutral/Lagging
-        if changes:
-            changes_sorted = sorted(changes)
-            # Top 33% = Leading, Middle 34% = Neutral, Bottom 33% = Lagging
-            top_threshold = (
-                changes_sorted[int(len(changes_sorted) * 0.67)] if len(changes_sorted) > 2 else 0.5
-            )
-            bottom_threshold = (
-                changes_sorted[int(len(changes_sorted) * 0.33)] if len(changes_sorted) > 2 else -0.5
-            )
-        else:
-            top_threshold = 0.5
-            bottom_threshold = -0.5
-
-        # Create sector scores
-        for symbol, (price, change_pct, timestamp) in sector_data.items():
-            name = sector_names.get(symbol, symbol)
-
-            # Determine signal based on change_pct
-            if change_pct is not None:
-                if change_pct >= top_threshold:
-                    signal = "Leading"
-                elif change_pct <= bottom_threshold:
-                    signal = "Lagging"
-                else:
-                    signal = "Neutral"
-            else:
-                signal = "Unknown"
-
-            sectors.append(
-                SectorScore(
-                    symbol=symbol,
-                    name=name,
-                    price=price,
-                    change_pct=change_pct,
-                    signal=signal,
-                    last_updated=timestamp,
-                )
-            )
-
-        # Sort sectors by change_pct descending (best performers first)
-        sectors.sort(
-            key=lambda s: s.change_pct if s.change_pct is not None else -999,
-            reverse=True,
-        )
+    sectors = _calculate_sector_scores(sector_data) if sector_data else []
 
     return MarketHealthScore(
         overall_score=overall_score,
