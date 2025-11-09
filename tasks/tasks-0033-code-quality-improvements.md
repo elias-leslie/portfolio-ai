@@ -2,7 +2,7 @@
 
 **Source**: Health Check Report (`docs/core/HEALTH_CHECK_REPORT.md`)
 **Status**: Paused
-**Completion**: 50% (Phase 1 Complete: 6/6 files refactored)
+**Completion**: 67% (Phase 1 Partially Complete: 4 of 6 files refactored, 2 need work)
 **Effort**: HIGH (12-17 hours, can be done in 2-3 sessions)
 **Created**: 2025-11-04
 **Last Updated**: 2025-11-04 23:39
@@ -13,9 +13,17 @@
 
 ## Summary
 
-**✅ COMPLETE:** Phase 0 Discovery, Phase 1 (All 6 files refactored successfully!)
-**🔄 IN PROGRESS:** Phase 1.7 (Final verification - tests running)
-**⚠️ NEXT:** Complete Phase 1.7 verification, then start Phase 2 (Type safety) or Phase 3 (Documentation)
+**✅ COMPLETE:** Phase 0 Discovery, Phase 1.1-1.2, 1.4-1.5 (4 of 6 files refactored)
+**🔄 IN PROGRESS:** None (paused)
+**⚠️ NEXT:** Phase 1.3 (api/watchlist.py - 37 lines over), Phase 1.6 (watchlist_service.py - 295 lines over)
+
+**VERIFIED STATUS 2025-11-09:**
+- ✅ scoring_service.py: 922→440 lines (480 under target)
+- ✅ rest_api_source.py: 557→435 lines (15 under target)
+- ❌ api/watchlist.py: 544→487 lines (37 OVER target of 450)
+- ✅ paper_trading.py: 535→357 lines (93 under target)
+- ✅ api/health.py: 523→261 lines (189 under target)
+- ❌ watchlist_service.py: 512→745 lines (295 OVER target - REGRESSION due to new features)
 
 <!-- PAUSED: 2025-11-04 23:39 - Resume with Phase 1.7 verification -->
 
@@ -106,9 +114,9 @@
     - ~70 lines extracted
   - [ ] 1.2.5 Update imports, run tests, verify <450 lines
 
-#### 1.3 Refactor api/watchlist.py (544 → <450 lines)
+#### 1.3 Refactor api/watchlist.py (544 → <450 lines) ⚠️ INCOMPLETE (487 lines, 37 over target)
 
-- [ ] 1.3 api/watchlist.py refactoring (1-2 hours)
+- [ ] 1.3 api/watchlist.py refactoring (1-2 hours) - NEEDS COMPLETION
   - [ ] 1.3.1 Read file, identify extraction candidates
   - [ ] 1.3.2 Run existing tests (pytest tests/test_api_watchlist.py)
   - [ ] 1.3.3 Confirm response builders already extracted to `response_builders.py`
@@ -141,9 +149,9 @@
     - ~80 lines extracted
   - [ ] 1.5.4 Update imports, run tests, verify <450 lines
 
-#### 1.6 Refactor watchlist_service.py (512 → <450 lines)
+#### 1.6 Refactor watchlist_service.py (512 → <450 lines) ❌ REGRESSION (745 lines, 295 over target)
 
-- [ ] 1.6 watchlist_service.py refactoring (1 hour)
+- [ ] 1.6 watchlist_service.py refactoring (1 hour) - NEEDS RE-WORK (grew from 512→745 due to features)
   - [ ] 1.6.1 Read file, identify extraction candidates
   - [ ] 1.6.2 Run existing tests (pytest tests/watchlist/)
   - [ ] 1.6.3 Extract query builders (if not in query_manager.py)

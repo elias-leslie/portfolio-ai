@@ -1,7 +1,7 @@
 # Task List: Database Query & Data Fetching Deduplication
 
-**Status**: Ready for Implementation
-**Completion**: 0%
+**Status**: In Progress (Partially Complete)
+**Completion**: 35%
 **Effort**: MEDIUM-HIGH (8-12 hours, 2-3 sessions)
 **Updated**: 2025-11-07
 
@@ -20,9 +20,15 @@
 4. 🟡 Watchlist items queried twice by different tasks
 5. 🔴 N+1 query pattern in `get_items_with_scores()` (snapshots queried individually)
 
-**✅ COMPLETE:** (None)
-**🔄 IN PROGRESS:** (Not started)
-**⚠️ NEXT:** Task 1.0
+**✅ COMPLETE:** Issue #2 (Per-symbol news fetching - 96% API call reduction, commit c5f44de)
+**🔄 IN PROGRESS:** Issue #1 (validation test infrastructure exists, needs concurrent testing)
+**⚠️ NEXT:** Complete Issue #1 validation, then tackle Issues #3-5
+
+**PROGRESS UPDATE 2025-11-09:**
+- ✅ Test infrastructure complete (QueryCounter, APICallTracker)
+- ✅ Issue #2 FIXED: Batch news fetching (23 calls → 1 call)
+- ⚠️ Issue #1: 25% complete (single-task validation done)
+- ❌ Issues #3, #4, #5: Not started (9 duplicate preferences queries identified)
 
 ---
 
