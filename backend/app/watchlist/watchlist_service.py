@@ -288,6 +288,7 @@ class WatchlistService:
                 item_data["score"] = {
                     "price": raw_metrics.get("price", {}),
                     "technical": raw_metrics.get("technical", {}),
+                    "fundamental": raw_metrics.get("fundamental", {}),
                     "overall": snap_row["overall_score"],
                 }
                 item_data["score_alert"] = alert
@@ -436,6 +437,7 @@ class WatchlistService:
             item_data["score"] = {
                 "price": raw_metrics.get("price", {}),
                 "technical": raw_metrics.get("technical", {}),
+                "fundamental": raw_metrics.get("fundamental", {}),
                 "overall": snap_row["overall_score"],
             }
             item_data["score_alert"] = alert
