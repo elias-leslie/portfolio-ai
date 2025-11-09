@@ -25,6 +25,7 @@ from ..services import NewsService
 from ..storage import PortfolioStorage
 from ..storage.credential_loader import load_credentials_from_database
 from ..utils.preferences_loader import UserPreferences
+from ..utils.watchlist_cache import get_watchlist_symbols_cached
 from .models import ScoreWeights, TechnicalSnapshot
 from .refresh_processor import detect_missing_historical_data, process_ticker_snapshot
 
@@ -145,12 +146,19 @@ def refresh_watchlist_scores(
         - Polygon: 5 req/min (batch_size=20, delay=2s = well under limit)
         Conservative defaults ensure we stay within free tier quotas even with failover.
     """
-    items_df = _load_watchlist_items(storage, account_id)
-    if items_df.is_empty():
+    # Use Redis cache to get symbols (Issue #4 fix - prevents duplicate queries)
+    # BEFORE: Multiple tasks query watchlist_items independently (2+ queries)
+    # AFTER: First task caches, subsequent tasks use cache (1 query, rest from cache)
+    symbols = get_watchlist_symbols_cached(storage, account_id, ttl_seconds=60)
+
+    if not symbols:
         logger.info("watchlist_refresh_no_items", account_id=account_id)
         return {"processed": 0, "symbols": [], "batches": 0}
 
-    symbols = sorted(set(items_df["symbol"]))
+    symbols = sorted(symbols)
+
+    # Load full item data for processing (we still need IDs for snapshots)
+    items_df = _load_watchlist_items(storage, account_id)
     total_items = len(items_df)
 
     # AUTO-BACKFILL: Check for missing or stale historical data

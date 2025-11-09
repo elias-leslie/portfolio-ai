@@ -96,6 +96,7 @@ celery_app.conf.beat_schedule = {
         # - Task checks: watchlist_refresh_override → default_refresh_minutes → 15 min
         # - Skips execution if not enough time elapsed since last refresh
         # - Runs 24/7 to capture after-hours and weekend data
+        # - Issue #4 fix: Uses Redis cache for watchlist symbols (60s TTL)
     },
     # Future: Portfolio analytics refresh
     # Note: Commented example for future implementation
@@ -108,10 +109,14 @@ celery_app.conf.beat_schedule = {
     # },
     "refresh-news-sentiment": {
         "task": "refresh_news_sentiment",
-        "schedule": 60.0,
+        "schedule": 65.0,  # Poll every 65 seconds (5s offset from watchlist)
         "args": ["default"],
         "options": {"expires": 120},
-        # Task checks: news_refresh_override → default_refresh_minutes → 15 min
+        # Notes:
+        # - Task checks: news_refresh_override → default_refresh_minutes → 15 min
+        # - 5-second offset reduces contention with watchlist refresh
+        # - Still allows concurrent execution when both tasks need to run
+        # - Uses optimized JOIN query from Issue #5 fix
     },
     # ============================================================================
     # STATIC SCHEDULE TASKS (NOT CONFIGURABLE)

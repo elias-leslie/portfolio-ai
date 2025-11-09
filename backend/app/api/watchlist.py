@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 
 from app.logging_config import get_logger
 from app.storage import get_storage
+from app.utils.watchlist_cache import invalidate_watchlist_cache
 from app.watchlist.background_tasks import schedule_new_ticker_tasks, schedule_refresh_tasks
 from app.watchlist.history import build_score_timeline
 from app.watchlist.models import WatchlistSnapshot
@@ -108,6 +109,9 @@ async def create_watchlist_item(data: WatchlistItemCreate) -> WatchlistItemRespo
                 [item_id, symbol, data.note, now, now],
             )
             conn.commit()
+
+        # Invalidate watchlist symbols cache (Issue #4 fix)
+        invalidate_watchlist_cache()
 
         logger.info("Watchlist item created", item_id=item_id, symbol=symbol)
 
@@ -303,6 +307,9 @@ async def delete_watchlist_item(item_id: str) -> None:
                 [item_id],
             )
             conn.commit()
+
+        # Invalidate watchlist symbols cache (Issue #4 fix)
+        invalidate_watchlist_cache()
 
         logger.info("Watchlist item deleted", item_id=item_id)
     except HTTPException:
