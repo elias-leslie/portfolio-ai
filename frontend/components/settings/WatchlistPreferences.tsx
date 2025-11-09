@@ -140,13 +140,6 @@ export function WatchlistPreferences({
     };
 
     const handleSave = async () => {
-        // Validate legacy weights sum to 100
-        const totalWeight = priceWeight + technicalWeight;
-        if (Math.abs(totalWeight - 100) > 0.1) {
-            toast.error("Legacy weights must sum to 100%");
-            return;
-        }
-
         // Validate new main weights sum to 100
         const mainWeightTotal = scoreWeights.price + scoreWeights.technical + scoreWeights.fundamental;
         if (Math.abs(mainWeightTotal - 100) > 0.1) {
@@ -242,10 +235,7 @@ export function WatchlistPreferences({
     };
 
     // Calculate total weight for validation
-    const totalWeight = priceWeight + technicalWeight;
-    const isWeightValid = Math.abs(totalWeight - 100) < 0.1;
-
-    // New weight validation
+    // Weight validation
     const mainWeightTotal = scoreWeights.price + scoreWeights.technical + scoreWeights.fundamental;
     const isMainWeightValid = Math.abs(mainWeightTotal - 100) < 0.1;
 
@@ -255,7 +245,7 @@ export function WatchlistPreferences({
     const fundamentalSubTotal = fundamentalSubWeights.valuation + fundamentalSubWeights.growth + fundamentalSubWeights.health + fundamentalSubWeights.sentiment;
     const isFundamentalSubWeightValid = Math.abs(fundamentalSubTotal - 100) < 0.1;
 
-    const isAllWeightsValid = isWeightValid && isMainWeightValid && isTechnicalSubWeightValid && isFundamentalSubWeightValid;
+    const isAllWeightsValid = isMainWeightValid && isTechnicalSubWeightValid && isFundamentalSubWeightValid;
 
     return (
         <Card className="border-border">
@@ -875,66 +865,6 @@ export function WatchlistPreferences({
                             </div>
                         </div>
                     )}
-                </div>
-
-                {/* Legacy Score Weights (Deprecated - keep for backwards compatibility) */}
-                <div className="space-y-4 rounded-md border border-border bg-surface-muted/30 p-4 opacity-60">
-                    <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-medium text-text">
-                            Legacy Score Weights (Deprecated)
-                        </h4>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleEqualWeights}
-                            className="h-8"
-                        >
-                            Equal Weights
-                        </Button>
-                    </div>
-                    <p className="text-xs text-text-muted">
-                        These weights are kept for backwards compatibility. Use the 3-pillar system above instead.
-                    </p>
-
-                    {/* Price Weight */}
-                    <div className="space-y-2">
-                        <Label htmlFor="price-weight-legacy">
-                            Price Score: {priceWeight.toFixed(1)}%
-                        </Label>
-                        <Slider
-                            id="price-weight-legacy"
-                            min={0}
-                            max={100}
-                            step={0.1}
-                            value={[priceWeight]}
-                            onValueChange={(value) => setPriceWeight(value[0])}
-                            className="w-full"
-                        />
-                    </div>
-
-                    {/* Technical Weight */}
-                    <div className="space-y-2">
-                        <Label htmlFor="technical-weight-legacy">
-                            Technical Score: {technicalWeight.toFixed(1)}%
-                        </Label>
-                        <Slider
-                            id="technical-weight-legacy"
-                            min={0}
-                            max={100}
-                            step={0.1}
-                            value={[technicalWeight]}
-                            onValueChange={(value) => setTechnicalWeight(value[0])}
-                            className="w-full"
-                        />
-                    </div>
-
-                    {/* Validation */}
-                    <div className="flex items-center justify-between pt-2">
-                        <p className={`text-sm ${isWeightValid ? "text-text-muted" : "text-loss"}`}>
-                            Total: {totalWeight.toFixed(1)}%
-                            {!isWeightValid && " (must be 100%)"}
-                        </p>
-                    </div>
                 </div>
 
                 {/* Action Buttons */}
