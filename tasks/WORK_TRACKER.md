@@ -10,8 +10,7 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-*(No active tasks)*
-
+(No active tasks)
 
 ---
 
@@ -19,7 +18,20 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Code Quality Improvements** (HIGH (12-17 hours, can be done in 2-3 sessions), 1/5 tasks (5 days ago))
+1. **Critical Code Quality Fixes** (HIGH (2057-line file, 14 security issues, 129 large functions), 0/7 tasks (today))
+   - File: `tasks-0038-code-quality-critical-fixes.md`
+   - Created: 2025-11-09
+   - Goal: Eliminate all critical code quality issues while monitoring and improving the quality workflow itself
+   - Tasks:
+     - [ ] Task 0: Scope Discovery (MANDATORY)
+     - [ ] Task 1: Security Fixes (Priority 1 - Most Critical, Low Breaking Risk)
+     - [ ] Task 2: File Size Refactoring (Priority 2 - Architectural, Medium Breaking Risk)
+     - [ ] Task 3: Function Complexity Reduction (Priority 3 - Incremental, Low Risk)
+     - [ ] Task 4: Type Safety Improvements (Secondary Priority)
+     - [ ] Task 5: Technical Debt Cleanup (Final Priority)
+     - [ ] Task 6: Process Improvements Consolidation
+
+2. **Code Quality Improvements** (MEDIUM-HIGH (8-12 hours, 2-3 sessions), 0/7 tasks)
    - File: `tasks-0035-database-query-deduplication.md`
    - Created: Unknown
    - Tasks:
@@ -31,7 +43,7 @@
      - [ ] Task 5: ISSUE #5: Validate N+1 Query Pattern in get_items_with_scores()
      - [ ] Task 6: Comprehensive Verification & Documentation
 
-2. **Code Quality Improvements** (HIGH (12-17 hours, can be done in 2-3 sessions), 1/5 tasks (5 days ago))
+3. **Code Quality Improvements** (HIGH (12-17 hours, can be done in 2-3 sessions), 1/5 tasks (5 days ago))
    - File: `tasks-0033-code-quality-improvements.md`
    - Created: 2025-11-04
    - Goal: Improve health score from 7.95/10 → 9.0/10
@@ -43,7 +55,7 @@
      - [ ] Task 3: Documentation Completeness (2-3 hours)
      - [ ] Task 4: Minor Improvements (1-2 hours)
 
-3. **Trading Intelligence Roadmap** (High, 4/8 tasks)
+4. **Trading Intelligence Roadmap** (High, 4/8 tasks)
    - File: `tasks-trading-intelligence-roadmap.md`
    - Created: Unknown
    - Tasks:
