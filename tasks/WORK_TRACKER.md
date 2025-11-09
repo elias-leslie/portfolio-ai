@@ -10,25 +10,19 @@
 
 ## 🔄 Active (Currently Working)
 
-- **Watchlist Complete Vision - Unified Implementation**
-  - **File:** `tasks/tasks-watchlist-complete-vision.md`
-  - **Status:** 0% complete (0/24 tasks) - **READY FOR CLOUD AGENT**
-  - **Started:** 2025-11-08 16:10
-  - **Type:** Cloud → Local → Cloud handoff pattern
-  - **Priority:** HIGH - Complete watchlist to match design vision
-  - **Next:** Cloud agent starts Phase 1, Task 1.1 (Research current table)
-  - **Phases:**
-    - Phase 1: Main Table UX (7 tasks, ~4h)
-    - Phase 2: Filter Dropdowns (4 tasks, ~2h)
-    - Phase 3: Settings Sliders (3 tasks, ~3h)
-    - Phase 4: Enhanced Details (1 task, ~2h)
-    - Phase 5: Documentation (2 tasks, ~1h)
-  - **Branch:** `claude/implement-watchlist-improvements-011CUvqDioH4JoBobHQRa8nD`
-  - **Combines:**
-    - Gap analysis findings (main table cleanup)
-    - Part 2 deferred (settings sliders)
-    - Part 3 planned (search, filters, docs)
-  - **Success Criteria:** Screenshots MUST match design references
+- **Critical Watchlist Bug Fixes**
+  - **File:** `tasks/CRITICAL-ISSUES-FOUND.md`
+  - **Status:** ✅ 100% COMPLETE - All 5 critical issues FIXED
+  - **Started:** 2025-11-08 21:00
+  - **Completed:** 2025-11-08 22:05
+  - **Priority:** ⭐⭐⭐⭐⭐ CRITICAL - Ready for merge
+  - **Branch:** `claude/watchlist-vision-implementation-011CUw9W27dCwbxtwbECZsKT`
+  - **Progress:**
+    - ✅ Fixed: Price column, Sorting, Duplicate news section, Legacy settings
+    - ✅ Fixed: Fundamental scoring (3-pillar system complete)
+    - ✅ Fixed: News page loading (conditional query execution)
+  - **Total Commits:** 5 (b04b420, 1b3d0e1, 188bf0a, 9f120b2, ccd8315)
+  - **Next:** Ready to move to "Recently Completed"
 
 ---
 
@@ -36,7 +30,24 @@
 
 ### TIER 0: Critical Bug Fixes & UI Issues (URGENT)
 
-1. **[TASK-NEW] Portfolio/Watchlist UI & Data Model Fixes** - NEW
+1. **[TASK-0036] Portfolio-Watchlist Integration & News Cleanup** - NEW
+   - **File:** `tasks/tasks-0036-portfolio-watchlist-integration-news-cleanup.md`
+   - **Status:** 0% complete - Ready for /do_it
+   - **Effort:** MEDIUM (~3-4 hours)
+   - **Priority:** ⭐⭐⭐⭐ HIGH
+   - **Created:** 2025-11-08 23:00
+   - **Type:** Standalone task list
+   - **What it does:**
+     - Auto-sync portfolio tickers to watchlist (one-way, additive only)
+     - Add portfolio indicator badge to watchlist rows
+     - Make portfolio tickers clickable → navigate to watchlist
+     - Add green/red color coding to portfolio table
+     - Add market news card to dashboard
+     - Remove redundant /news page
+   - **User Goal:** Streamline news architecture, improve portfolio-watchlist UX
+   - **Next:** Run `/clear` then `/do_it tasks-0036-...` to start
+
+2. **[TASK-NEW] Portfolio/Watchlist UI & Data Model Fixes** - SUPERSEDED BY TASK-0036
    - **File:** `tasks/tasks-ui-portfolio-watchlist-fixes.md`
    - **Status:** 0% complete - needs research first
    - **Effort:** MEDIUM-HIGH (research + implementation, 8-12 hours)
