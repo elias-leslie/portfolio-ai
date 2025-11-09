@@ -1,16 +1,16 @@
 {
   "test_name": "baseline_watchlist_refresh_10_symbols",
-  "timestamp": "2025-11-07T22:01:45.707900+00:00",
+  "timestamp": "2025-11-09T16:50:46.948167+00:00",
   "metrics": {
-    "total_queries": 240,
-    "duplicate_queries": 25,
-    "preference_queries": 5,
+    "total_queries": 115,
+    "duplicate_queries": 13,
+    "preference_queries": 1,
     "watchlist_item_queries": 1,
-    "snapshot_queries": 23,
+    "snapshot_queries": 11,
     "api_calls": 1,
-    "unique_symbols": 23,
+    "unique_symbols": 11,
     "symbols_fetched_multiple_times": 0,
-    "execution_time_seconds": 2.3410348892211914
+    "execution_time_seconds": 0.2386322021484375
   },
   "duplicates_detail": [
     {
@@ -25,17 +25,17 @@
     },
     {
       "query": "SELECT atr_14 FROM technical_indicators WHERE ticker = %s ORDER BY date DESC LIMIT 1",
-      "params": "['META']",
+      "params": "['AAPL']",
       "count": 2
     },
     {
       "query": "SELECT atr_14 FROM technical_indicators WHERE ticker = %s ORDER BY date DESC LIMIT 1",
-      "params": "['NFLX']",
+      "params": "['GOOGL']",
       "count": 2
     },
     {
       "query": "SELECT atr_14 FROM technical_indicators WHERE ticker = %s ORDER BY date DESC LIMIT 1",
-      "params": "['INTC']",
+      "params": "['VTI']",
       "count": 2
     }
   ]

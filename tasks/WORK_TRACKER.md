@@ -10,13 +10,19 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Portfolio/Watchlist UI & Data Model Fixes** (0% - 0/0 complete)
-   - File: `tasks-ui-portfolio-watchlist-fixes.md`
-   - Started: 2025-11-07 (2 days ago)
-   - Last updated: Pending Research
-   - Next: All complete!
+1. **Database Query Deduplication** (MEDIUM-HIGH (8-12 hours, 2-3 sessions), 0/7 tasks)
+   - File: `tasks-0035-database-query-deduplication.md`
+   - Started: 2025-11-09
+   - Last updated: Starting Task 0
+   - Next: Setup instrumentation for validation
    - Tasks:
-     - (No tasks defined yet)
+     - [ ] Task 0: Setup: Create Instrumentation for Validation
+     - [ ] Task 1: ISSUE #1: Validate Overlapping News Fetches Between Tasks
+     - [ ] Task 2: ISSUE #2: Validate Per-Symbol News Fetching in Loop
+     - [ ] Task 3: ISSUE #3: Validate User Preferences Queried 5 Times
+     - [ ] Task 4: ISSUE #4: Validate Watchlist Items Queried Twice
+     - [ ] Task 5: ISSUE #5: Validate N+1 Query Pattern in get_items_with_scores()
+     - [ ] Task 6: Comprehensive Verification & Documentation
 
 
 ---
@@ -25,7 +31,7 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Database Query Deduplication** (MEDIUM-HIGH (8-12 hours, 2-3 sessions), 0/7 tasks)
+1. **Code Quality Improvements** (HIGH (12-17 hours, can be done in 2-3 sessions), 1/5 tasks (5 days ago))
    - File: `tasks-0035-database-query-deduplication.md`
    - Created: Unknown
    - Tasks:
@@ -69,7 +75,16 @@
 
 *Last 5 completions - older items auto-archive to tasks/archive/YYYY-MM.md*
 
-1. **HTTP Client Deduplication** (2025-11-09, verified complete)
+1. **Portfolio/Watchlist UI & Data Model Fixes** (2025-11-09)
+   - Portfolio UI: Accounts with expandable positions (accordion interface)
+   - Watchlist: Fully separated from portfolio accounts (removed account_id FK)
+   - News page: Added Market/Watchlist/Portfolio filter tabs
+   - Data model: Clear separation of "monitoring" (watchlist) vs "owning" (positions)
+   - Branch: `claude/portfolio-watchlist-fixes-011CUukWR3LLCrvk3n1CzX1e`
+   - Commits: f861e50, edaae4d
+   - Status: 100% complete, all success criteria met
+
+2. **HTTP Client Deduplication** (2025-11-09, verified complete)
    - BaseHTTPClient created (341 lines) with retry logic & rate limiting
    - All 5 clients refactored: FMP, Finnhub, AlphaVantage, Polygon, TwelveData
    - 1,469 lines of duplicate code eliminated (61% reduction)

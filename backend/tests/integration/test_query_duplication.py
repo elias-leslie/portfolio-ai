@@ -308,19 +308,20 @@ def setup_test_watchlist(test_symbols: list[str]) -> str:
     """Fixture that creates test watchlist items.
 
     Creates a default account and adds test symbols to watchlist.
+    NOTE: Watchlist items are now independent of accounts (no account_id FK).
 
     Args:
         test_symbols: List of symbols to add
 
     Returns:
-        Account ID that was created
+        Account ID (for backward compatibility with tests)
     """
     import uuid
 
     storage = get_storage()
     account_id = "default"
 
-    # Create default account
+    # Create default account (for portfolio positions, not watchlist)
     with storage.connection() as conn:
         # Check if account exists
         result = conn.execute(
@@ -338,6 +339,7 @@ def setup_test_watchlist(test_symbols: list[str]) -> str:
             conn.commit()
 
     # Add watchlist items directly via SQL
+    # NOTE: No account_id - watchlist is now user-level, not account-level
     for symbol in test_symbols:
         item_id = str(uuid.uuid4())
         now = datetime.now(UTC)
@@ -345,17 +347,17 @@ def setup_test_watchlist(test_symbols: list[str]) -> str:
         with storage.connection() as conn:
             # Check if item already exists
             result = conn.execute(
-                "SELECT id FROM watchlist_items WHERE account_id = %s AND symbol = %s",
-                [account_id, symbol],
+                "SELECT id FROM watchlist_items WHERE symbol = %s",
+                [symbol],
             ).fetchone()
 
             if not result:
                 conn.execute(
                     """
-                    INSERT INTO watchlist_items (id, account_id, symbol, note, created_at, updated_at)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    INSERT INTO watchlist_items (id, symbol, note, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s, %s)
                     """,
-                    [item_id, account_id, symbol, None, now, now],
+                    [item_id, symbol, None, now, now],
                 )
                 conn.commit()
 
@@ -797,4 +799,346 @@ class TestIssue2PerSymbolNewsFetching:
             print("\n⊘ SKIP FIX: Issue #2 not validated - no action needed")
 
 
-# Validation tests for Issues #3-5 will be added in their respective tasks
+class TestIssue3UserPreferencesQueries:
+    """Validate hypothesis: User preferences table is queried 5 separate times.
+
+    Expected: refresh_watchlist_scores() queries user_preferences multiple times
+    instead of loading all preferences once.
+    """
+
+    def test_user_preferences_query_count(
+        self,
+        query_counter: QueryCounter,
+        api_tracker: APICallTracker,
+        setup_test_watchlist: str,
+    ) -> None:
+        """Validate that user preferences are queried multiple times.
+
+        Expected behavior:
+        - user_preferences table queried 5+ times
+        - Same or similar queries repeated
+        - Could be consolidated to 1 query
+
+        This would confirm Issue #3.
+        """
+
+        account_id = setup_test_watchlist
+        storage = get_storage()
+
+        # Clear trackers
+        query_counter.clear()
+        api_tracker.clear()
+
+        # Mock NewsService methods
+        with (
+            patch(
+                "app.services.news_service.NewsService.get_symbol_news",
+                api_tracker.track_get_symbol_news,
+            ),
+            patch(
+                "app.services.news_service.NewsService.get_watchlist_news",
+                api_tracker.track_get_watchlist_news,
+            ),
+        ):
+            from app.watchlist.scoring_service import refresh_watchlist_scores
+
+            refresh_watchlist_scores(storage, account_id=account_id)
+
+        # Analyze preference queries
+        pref_queries = query_counter.get_queries_to_table("user_preferences")
+        total_queries = query_counter.get_query_count()
+
+        # Group queries by SQL to find duplicates
+        query_sql_counts = {}
+        for q in pref_queries:
+            sql_key = q["sql"]
+            query_sql_counts[sql_key] = query_sql_counts.get(sql_key, 0) + 1
+
+        # Print findings
+        print("\n" + "=" * 70)
+        print("ISSUE #3 VALIDATION: User Preferences Query Count")
+        print("=" * 70)
+        print(f"Total queries executed: {total_queries}")
+        print(f"Queries to user_preferences: {len(pref_queries)}")
+        print(f"Unique preference queries: {len(query_sql_counts)}")
+        print("\nQuery breakdown:")
+        for sql, count in query_sql_counts.items():
+            print(f"  - {count}x: {sql[:80]}...")
+        print("=" * 70)
+
+        # Validate hypothesis
+        if len(pref_queries) >= 3:
+            print("\n✓ HYPOTHESIS CONFIRMED: Multiple preference queries detected")
+            print("  - Expected: 1 query to load all preferences")
+            print(f"  - Actual: {len(pref_queries)} separate queries")
+            print(f"  - Overhead: {len(pref_queries) - 1} redundant queries")
+            print("\nROOT CAUSE: Preferences fetched individually instead of batch load")
+            hypothesis_confirmed = True
+        else:
+            print("\n✗ HYPOTHESIS REJECTED: Using efficient preference loading")
+            print(f"  Only {len(pref_queries)} preference queries detected")
+            hypothesis_confirmed = False
+
+        print("=" * 70)
+
+        # Save conclusion
+        result = {
+            "issue": "Issue #3: User Preferences Queried Multiple Times",
+            "hypothesis": "Preferences queried 5 times instead of 1 batch load",
+            "validated": hypothesis_confirmed,
+            "evidence": {
+                "total_queries": total_queries,
+                "preference_queries": len(pref_queries),
+                "unique_queries": len(query_sql_counts),
+                "query_breakdown": {sql[:50]: count for sql, count in query_sql_counts.items()},
+            },
+            "root_cause": "Preferences fetched individually per field/call"
+            if hypothesis_confirmed
+            else None,
+            "fix_approach": "Create UserPreferences.load_all() to fetch in single query"
+            if hypothesis_confirmed
+            else None,
+        }
+
+        from pathlib import Path
+
+        results_file = Path(__file__).parent / "issue3_validation.json"
+        with results_file.open("w") as f:
+            json.dump(result, f, indent=2)
+
+        print(f"\nValidation results saved to: {results_file}")
+
+        # Assert for test framework
+        assert total_queries > 0, "Should have executed queries"
+
+        # Return whether to proceed with fix
+        if hypothesis_confirmed:
+            print("\n✓ PROCEED TO FIX: Issue #3 validated - implement centralized loader")
+        else:
+            print("\n⊘ SKIP FIX: Issue #3 not validated - no action needed")
+
+
+class TestIssue4WatchlistItemsQueries:
+    """Validate hypothesis: Watchlist items queried by multiple tasks.
+
+    Expected: Both watchlist_tasks and news_tasks query watchlist_items separately,
+    causing duplicate queries.
+    """
+
+    def test_watchlist_items_query_count(
+        self,
+        query_counter: QueryCounter,
+        api_tracker: APICallTracker,
+        setup_test_watchlist: str,
+    ) -> None:
+        """Validate that watchlist items are queried multiple times.
+
+        This test runs watchlist refresh and checks how many times watchlist_items
+        table is queried. In production, news_refresh task would also query it.
+        """
+
+        account_id = setup_test_watchlist
+        storage = get_storage()
+
+        # Clear trackers
+        query_counter.clear()
+        api_tracker.clear()
+
+        # Mock NewsService methods
+        with (
+            patch(
+                "app.services.news_service.NewsService.get_symbol_news",
+                api_tracker.track_get_symbol_news,
+            ),
+            patch(
+                "app.services.news_service.NewsService.get_watchlist_news",
+                api_tracker.track_get_watchlist_news,
+            ),
+        ):
+            from app.watchlist.scoring_service import refresh_watchlist_scores
+
+            # Run watchlist refresh once
+            refresh_watchlist_scores(storage, account_id=account_id)
+
+        # Analyze watchlist_items queries
+        watchlist_queries = query_counter.get_queries_to_table("watchlist_items")
+
+        # Print findings
+        print("\n" + "=" * 70)
+        print("ISSUE #4 VALIDATION: Watchlist Items Query Count")
+        print("=" * 70)
+        print(f"Queries to watchlist_items: {len(watchlist_queries)}")
+        print("\nQuery details:")
+        for i, q in enumerate(watchlist_queries, 1):
+            print(f"  {i}. {q['sql'][:80]}...")
+        print("=" * 70)
+
+        # Validate hypothesis
+        # NOTE: In single-task test, we expect only 1 query
+        # Issue #4 is about INTER-task duplication (news_refresh also queries)
+        if len(watchlist_queries) > 1:
+            print("\n✓ HYPOTHESIS CONFIRMED: Multiple watchlist_items queries")
+            print("  - Expected: 1 query (or use caching)")
+            print(f"  - Actual: {len(watchlist_queries)} queries")
+            hypothesis_confirmed = True
+        else:
+            print("\n? PARTIAL VALIDATION: Only 1 query in single-task test")
+            print("  Issue #4 is about multiple TASKS querying watchlist_items")
+            print("  Current test: Single task (watchlist refresh)")
+            print("  Production: news_refresh task ALSO queries watchlist_items")
+            print("\n  RECOMMENDATION: Check if news_refresh is scheduled concurrently")
+            hypothesis_confirmed = False
+
+        print("=" * 70)
+
+        # Save conclusion
+        result = {
+            "issue": "Issue #4: Watchlist Items Queried by Multiple Tasks",
+            "hypothesis": "Both watchlist and news tasks query watchlist_items",
+            "validated": hypothesis_confirmed,
+            "evidence": {
+                "watchlist_item_queries": len(watchlist_queries),
+                "single_task_test": True,
+                "note": "Inter-task overlap requires concurrent execution testing",
+            },
+            "root_cause": "Multiple tasks fetch watchlist symbols independently"
+            if hypothesis_confirmed
+            else "Requires concurrent task testing to validate",
+            "fix_approach": "Add Redis cache for watchlist symbols (60s TTL)"
+            if hypothesis_confirmed
+            else "Test with concurrent tasks first",
+        }
+
+        from pathlib import Path
+
+        results_file = Path(__file__).parent / "issue4_validation.json"
+        with results_file.open("w") as f:
+            json.dump(result, f, indent=2)
+
+        print(f"\nValidation results saved to: {results_file}")
+
+        # Assert for test framework
+        assert len(watchlist_queries) > 0, "Should have queried watchlist_items"
+
+        if hypothesis_confirmed:
+            print("\n✓ PROCEED TO FIX: Issue #4 validated")
+        else:
+            print("\n⊘ DEFER: Needs concurrent task testing for full validation")
+
+
+class TestIssue5N1QueryPattern:
+    """Validate hypothesis: get_items_with_scores() queries snapshots individually (N+1).
+
+    Expected: watchlist_service.get_items_with_scores() queries watchlist_items once,
+    then queries watchlist_snapshots N times (once per item) instead of using JOIN.
+    """
+
+    def test_n_plus_1_pattern_in_get_items_with_scores(
+        self,
+        query_counter: QueryCounter,
+        setup_test_watchlist: str,
+    ) -> None:
+        """Validate N+1 query pattern in watchlist service.
+
+        Expected behavior:
+        - 1 query to fetch watchlist_items
+        - N queries to fetch snapshots (one per item)
+        - Total: 1 + N queries (N+1 pattern)
+
+        This would confirm Issue #5.
+        """
+
+        # Setup creates watchlist items
+        _ = setup_test_watchlist
+        storage = get_storage()
+
+        # Clear tracker
+        query_counter.clear()
+
+        # Call the service method directly
+        from app.watchlist.watchlist_service import WatchlistService
+
+        service = WatchlistService(storage)
+        items = service.get_items_with_scores()  # No account_id - watchlist is user-level
+
+        # Count items returned
+        num_items = len(items)
+
+        # Analyze queries
+        total_queries = query_counter.get_query_count()
+        watchlist_queries = query_counter.get_queries_to_table("watchlist_items")
+        snapshot_queries = query_counter.get_queries_to_table("watchlist_snapshots")
+
+        # Print findings
+        print("\n" + "=" * 70)
+        print("ISSUE #5 VALIDATION: N+1 Query Pattern")
+        print("=" * 70)
+        print(f"Watchlist items returned: {num_items}")
+        print(f"Total queries executed: {total_queries}")
+        print(f"  - Queries to watchlist_items: {len(watchlist_queries)}")
+        print(f"  - Queries to watchlist_snapshots: {len(snapshot_queries)}")
+        print(f"\nExpected (N+1 pattern): 1 + {num_items} = {1 + num_items} queries")
+        print(
+            f"Actual: {len(watchlist_queries)} + {len(snapshot_queries)} = {len(watchlist_queries) + len(snapshot_queries)} queries"
+        )
+        print("=" * 70)
+
+        # Validate hypothesis
+        # Classic N+1: 1 query for items, N queries for snapshots
+        if len(snapshot_queries) >= num_items:
+            print("\n✓ HYPOTHESIS CONFIRMED: N+1 query pattern detected")
+            print("  - Expected: 1 JOIN query for items + snapshots")
+            print(f"  - Actual: 1 query for items + {len(snapshot_queries)} queries for snapshots")
+            print(f"  - Overhead: {len(snapshot_queries) - 1} extra queries")
+            print("\nROOT CAUSE: watchlist_service.get_items_with_scores()")
+            print("  Queries snapshots individually per item instead of using JOIN")
+            hypothesis_confirmed = True
+        elif len(snapshot_queries) == 0 and total_queries == 1:
+            print("\n✗ HYPOTHESIS REJECTED: Using efficient JOIN query")
+            print("  Only 1 query executed - likely using JOIN to fetch items + snapshots")
+            hypothesis_confirmed = False
+        else:
+            print("\n? INCONCLUSIVE: Unexpected query pattern")
+            print(f"  Items: {num_items}, Snapshot queries: {len(snapshot_queries)}")
+            hypothesis_confirmed = False
+
+        print("=" * 70)
+
+        # Save conclusion
+        result = {
+            "issue": "Issue #5: N+1 Query Pattern in get_items_with_scores()",
+            "hypothesis": "Snapshots queried individually (N queries) vs JOIN (1 query)",
+            "validated": hypothesis_confirmed,
+            "evidence": {
+                "items_returned": num_items,
+                "total_queries": total_queries,
+                "watchlist_item_queries": len(watchlist_queries),
+                "snapshot_queries": len(snapshot_queries),
+                "expected_n_plus_1": 1 + num_items,
+                "actual_queries": len(watchlist_queries) + len(snapshot_queries),
+            },
+            "root_cause": "watchlist_service.get_items_with_scores() - queries snapshots in loop"
+            if hypothesis_confirmed
+            else None,
+            "fix_approach": "Add JOIN query: SELECT items LEFT JOIN LATERAL snapshots"
+            if hypothesis_confirmed
+            else None,
+        }
+
+        from pathlib import Path
+
+        results_file = Path(__file__).parent / "issue5_validation.json"
+        with results_file.open("w") as f:
+            json.dump(result, f, indent=2)
+
+        print(f"\nValidation results saved to: {results_file}")
+
+        # Assert for test framework
+        assert total_queries > 0, "Should have executed queries"
+        assert num_items > 0, "Should have returned items"
+
+        # Return whether to proceed with fix
+        if hypothesis_confirmed:
+            print("\n✓ PROCEED TO FIX: Issue #5 validated - implement JOIN query")
+        else:
+            print("\n⊘ SKIP FIX: Issue #5 not validated - already using efficient query")

@@ -18,12 +18,11 @@ from .refresh_processor import (
 )
 
 # Re-export from scoring_service (for refresh_watchlist_scores and helpers)
+# NOTE: _load_default_weights, _load_stale_ttl_minutes, _load_risk_budget removed
+# Use app.utils.preferences_loader.UserPreferences.load_all() instead (Issue #3 fix)
 from .scoring_service import (
     _get_redis_client,
-    _load_default_weights,
     _load_latest_technical,
-    _load_risk_budget,
-    _load_stale_ttl_minutes,
     _load_watchlist_items,
     refresh_watchlist_scores,
 )
@@ -35,10 +34,7 @@ __all__ = [
     "WatchlistService",
     "_calculate_price_change",
     "_get_redis_client",
-    "_load_default_weights",
     "_load_latest_technical",
-    "_load_risk_budget",
-    "_load_stale_ttl_minutes",
     "_load_watchlist_items",
     "detect_missing_historical_data",
     "refresh_watchlist_scores",

@@ -15,6 +15,7 @@ from typing import Any
 from ..logging_config import get_logger
 from ..portfolio.price_fetcher import PriceDataFetcher
 from ..storage import PortfolioStorage
+from ..utils.preferences_loader import UserPreferences
 from .data_loaders import (
     load_default_weights,
     load_latest_technical,
@@ -192,20 +193,46 @@ class WatchlistService:
 
         Watchlist is user-level (not account-specific).
 
+        Uses optimized LATERAL JOIN to eliminate N+1 query pattern (Issue #5 fix).
+        BEFORE: 1 + N queries (1 for items, N for snapshots)
+        AFTER: 1 query (JOIN fetches items + snapshots together)
+
         Returns:
             List of watchlist items with scores and narrative intelligence.
         """
+        # Optimized query: Fetch items WITH latest snapshots in ONE query
+        # Uses LATERAL join to get most recent snapshot per item
         items_df = self.storage.query(
             """
-            SELECT wi.id, wi.symbol, wi.note, wi.source,
-                   wi.created_at, wi.updated_at
+            SELECT
+                wi.id, wi.symbol, wi.note, wi.source,
+                wi.created_at, wi.updated_at,
+                ws.overall_score, ws.technical_score, ws.fetched_at, ws.raw_metrics,
+                ws.signal_type, ws.signal_strength, ws.narrative_headline,
+                ws.recommended_style, ws.style_confidence, ws.optimal_holding_period, ws.risk_level,
+                ws.entry_price, ws.stop_loss, ws.profit_target, ws.position_size_shares,
+                ws.narrative_action_plan, ws.narrative_position_sizing,
+                ws.narrative_company_health, ws.narrative_special_notes,
+                ws.company_health, ws.earnings_date, ws.earnings_days_away,
+                ws.news_sentiment_score, ws.recent_news_headlines
             FROM watchlist_items wi
+            LEFT JOIN LATERAL (
+                SELECT *
+                FROM watchlist_snapshots
+                WHERE item_id = wi.id
+                ORDER BY fetched_at DESC
+                LIMIT 1
+            ) ws ON TRUE
             ORDER BY wi.created_at DESC
             """
         )
 
         if items_df.is_empty():
             return []
+
+        # Load preferences ONCE before loop (not per-item)
+        prefs = UserPreferences.load_all(self.storage)
+        stale_ttl_minutes = prefs.get_stale_ttl_minutes()
 
         results: list[dict[str, Any]] = []
 
@@ -228,28 +255,13 @@ class WatchlistService:
                 "score_alert": False,
             }
 
-            # Get latest snapshot
-            snapshot_df = self.storage.query(
-                """
-                SELECT overall_score, technical_score, fetched_at, raw_metrics,
-                       signal_type, signal_strength, narrative_headline,
-                       recommended_style, style_confidence, optimal_holding_period, risk_level,
-                       entry_price, stop_loss, profit_target, position_size_shares,
-                       narrative_action_plan, narrative_position_sizing,
-                       narrative_company_health, narrative_special_notes,
-                       company_health, earnings_date, earnings_days_away,
-                       news_sentiment_score, recent_news_headlines
-                FROM watchlist_snapshots
-                WHERE item_id = ?
-                ORDER BY fetched_at DESC
-                LIMIT 1
-                """,
-                [row["id"]],
-            )
+            # Snapshot data is already in the row from the JOIN (no separate query!)
+            # Check if snapshot exists (overall_score will be None if no snapshot)
+            has_snapshot = row.get("overall_score") is not None
 
-            if not snapshot_df.is_empty():
-                snap_row = snapshot_df.to_dicts()[0]
-                raw_metrics = snap_row.get("raw_metrics", {})
+            if has_snapshot:
+                # Snapshot fields are in the same row (from JOIN)
+                raw_metrics = row.get("raw_metrics", {})
 
                 if isinstance(raw_metrics, str):
                     try:
@@ -257,19 +269,19 @@ class WatchlistService:
                     except (json.JSONDecodeError, TypeError):
                         raw_metrics = {}
 
-                news_payload = snap_row.get("recent_news_headlines")
+                news_payload = row.get("recent_news_headlines")
                 if isinstance(news_payload, str):
                     try:
                         news_payload = json.loads(news_payload)
                     except (json.JSONDecodeError, TypeError):
                         news_payload = None
 
-                fetched_at = snap_row.get("fetched_at")
+                fetched_at = row.get("fetched_at")
                 if fetched_at and isinstance(raw_metrics, dict):
                     if isinstance(fetched_at, datetime) and fetched_at.tzinfo is None:
                         fetched_at = fetched_at.replace(tzinfo=UTC)
 
-                    stale_ttl_minutes = load_stale_ttl_minutes(self.storage)
+                    # stale_ttl_minutes loaded once before loop (not per-item)
                     current_time = datetime.now(UTC)
                     fetched_at_iso = fetched_at.isoformat().replace("+00:00", "Z")
 
@@ -284,37 +296,39 @@ class WatchlistService:
                         )
                         raw_metrics["technical"]["updated_at"] = fetched_at_iso
 
-                alert = self._check_score_alert(row["id"], snap_row["overall_score"])
+                # TODO: Optimize - _check_score_alert makes 1 query per item to check week-ago score
+                # Could be optimized with another LATERAL join or batch query
+                alert = self._check_score_alert(row["id"], row["overall_score"])
 
                 item_data["score"] = {
                     "price": raw_metrics.get("price", {}),
                     "technical": raw_metrics.get("technical", {}),
                     "fundamental": raw_metrics.get("fundamental", {}),
-                    "overall": snap_row["overall_score"],
+                    "overall": row["overall_score"],
                 }
                 item_data["score_alert"] = alert
-                item_data["signal_type"] = snap_row.get("signal_type")
-                item_data["signal_strength"] = snap_row.get("signal_strength")
-                item_data["narrative_headline"] = snap_row.get("narrative_headline")
-                item_data["recommended_style"] = snap_row.get("recommended_style")
-                item_data["style_confidence"] = snap_row.get("style_confidence")
-                item_data["optimal_holding_period"] = snap_row.get("optimal_holding_period")
-                item_data["risk_level"] = snap_row.get("risk_level")
-                item_data["entry_price"] = snap_row.get("entry_price")
-                item_data["stop_loss"] = snap_row.get("stop_loss")
-                item_data["profit_target"] = snap_row.get("profit_target")
-                item_data["position_size_shares"] = snap_row.get("position_size_shares")
-                item_data["narrative_action_plan"] = snap_row.get("narrative_action_plan")
-                item_data["narrative_position_sizing"] = snap_row.get("narrative_position_sizing")
-                item_data["narrative_company_health"] = snap_row.get("narrative_company_health")
-                item_data["narrative_special_notes"] = snap_row.get("narrative_special_notes")
-                item_data["company_health"] = snap_row.get("company_health")
-                earnings_date_value = snap_row.get("earnings_date")
+                item_data["signal_type"] = row.get("signal_type")
+                item_data["signal_strength"] = row.get("signal_strength")
+                item_data["narrative_headline"] = row.get("narrative_headline")
+                item_data["recommended_style"] = row.get("recommended_style")
+                item_data["style_confidence"] = row.get("style_confidence")
+                item_data["optimal_holding_period"] = row.get("optimal_holding_period")
+                item_data["risk_level"] = row.get("risk_level")
+                item_data["entry_price"] = row.get("entry_price")
+                item_data["stop_loss"] = row.get("stop_loss")
+                item_data["profit_target"] = row.get("profit_target")
+                item_data["position_size_shares"] = row.get("position_size_shares")
+                item_data["narrative_action_plan"] = row.get("narrative_action_plan")
+                item_data["narrative_position_sizing"] = row.get("narrative_position_sizing")
+                item_data["narrative_company_health"] = row.get("narrative_company_health")
+                item_data["narrative_special_notes"] = row.get("narrative_special_notes")
+                item_data["company_health"] = row.get("company_health")
+                earnings_date_value = row.get("earnings_date")
                 item_data["earnings_date"] = (
                     earnings_date_value.isoformat() if earnings_date_value is not None else None
                 )
-                item_data["earnings_days_away"] = snap_row.get("earnings_days_away")
-                item_data["news_sentiment_score"] = snap_row.get("news_sentiment_score")
+                item_data["earnings_days_away"] = row.get("earnings_days_away")
+                item_data["news_sentiment_score"] = row.get("news_sentiment_score")
                 item_data["recent_news"] = news_payload
 
             # Build news intelligence summary

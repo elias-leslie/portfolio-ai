@@ -24,6 +24,7 @@ from ..portfolio.price_fetcher import PriceDataFetcher
 from ..services import NewsService
 from ..storage import PortfolioStorage
 from ..storage.credential_loader import load_credentials_from_database
+from ..utils.preferences_loader import UserPreferences
 from .models import ScoreWeights, TechnicalSnapshot
 from .refresh_processor import detect_missing_historical_data, process_ticker_snapshot
 
@@ -106,78 +107,8 @@ def _load_latest_technical(
     return snapshots
 
 
-def _load_default_weights(storage: PortfolioStorage) -> ScoreWeights:
-    """Load score weights from user preferences."""
-    df = storage.query(
-        """
-        SELECT watchlist_price_weight, watchlist_technical_weight
-        FROM user_preferences
-        ORDER BY updated_at DESC
-        LIMIT 1
-        """
-    )
-    if df.is_empty():
-        return ScoreWeights()
-
-    row = df.to_dicts()[0]
-    return ScoreWeights(
-        price=row.get("watchlist_price_weight", 50.0) or 0.0,
-        technical=row.get("watchlist_technical_weight", 50.0) or 0.0,
-    )
-
-
-def _load_stale_ttl_minutes(storage: PortfolioStorage) -> int:
-    """Load stale TTL from preferences (3x refresh interval).
-
-    Priority: watchlist_refresh_override → default_refresh_minutes → fallback (15min)
-    """
-    df = storage.query(
-        """
-        SELECT watchlist_refresh_override, default_refresh_minutes
-        FROM user_preferences
-        ORDER BY updated_at DESC
-        LIMIT 1
-        """
-    )
-    if df.is_empty():
-        return 45  # Default: 3x 15min refresh = 45min
-
-    row = df.to_dicts()[0]
-
-    # Use override if set, otherwise use default, otherwise fallback to 15
-    refresh_override = row.get("watchlist_refresh_override")
-    default_refresh = row.get("default_refresh_minutes", 15)
-
-    if refresh_override is not None:
-        refresh_minutes = int(refresh_override)
-    else:
-        refresh_minutes = int(default_refresh) if default_refresh is not None else 15
-
-    return int(refresh_minutes * 3)  # Stale = 3x refresh interval
-
-
-def _load_risk_budget(storage: PortfolioStorage) -> float:
-    """Load risk budget from user preferences.
-
-    Returns the amount a user is willing to risk per trade for position sizing.
-
-    Returns:
-        Risk budget in dollars (default: $500)
-    """
-    df = storage.query(
-        """
-        SELECT watchlist_risk_budget
-        FROM user_preferences
-        ORDER BY updated_at DESC
-        LIMIT 1
-        """
-    )
-    if df.is_empty():
-        return 500.0  # Default risk budget
-
-    row = df.to_dicts()[0]
-    risk_budget = row.get("watchlist_risk_budget", 500)
-    return float(risk_budget) if risk_budget is not None else 500.0
+# NOTE: User preferences loading moved to UserPreferences.load_all()
+# in app.utils.preferences_loader to eliminate duplicate queries (Issue #3)
 
 
 def refresh_watchlist_scores(
@@ -278,13 +209,24 @@ def refresh_watchlist_scores(
 
     fetcher = price_fetcher or PriceDataFetcher(storage)
     load_credentials_from_database()
+
+    # Load ALL user preferences in ONE query (Issue #3 fix)
+    # BEFORE: 5 separate queries (news_ttl, news_max, weights, stale_ttl, risk_budget)
+    # AFTER: 1 comprehensive query
+    prefs = UserPreferences.load_all(storage)
+
     news_service = NewsService(storage)
-    news_service.refresh_ttl_from_preferences()
-    news_max_articles = news_service.refresh_max_articles_from_preferences()
+    # Use preferences from centralized loader instead of querying again
+    news_service.lookback_hours = prefs.news_lookback_hours
+    news_max_articles = prefs.news_max_articles
+
     technical_map = _load_latest_technical(storage, symbols)
-    default_weights = _load_default_weights(storage)
-    stale_ttl_minutes = _load_stale_ttl_minutes(storage)
-    risk_budget = _load_risk_budget(storage)
+    default_weights = ScoreWeights(
+        price=prefs.watchlist_price_weight,
+        technical=prefs.watchlist_technical_weight,
+    )
+    stale_ttl_minutes = prefs.get_stale_ttl_minutes()
+    risk_budget = prefs.watchlist_risk_budget
 
     # Batch symbols to respect API rate limits
     symbol_batches = [symbols[i : i + batch_size] for i in range(0, len(symbols), batch_size)]

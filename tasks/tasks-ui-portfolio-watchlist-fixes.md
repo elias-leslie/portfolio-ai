@@ -1,86 +1,10 @@
 # Task List: Portfolio/Watchlist UI & Data Model Fixes
 
 **Created**: 2025-11-07
-**Updated**: 2025-11-07 (Corrected cloud capabilities - DOES have full source access)
-**Status**: Pending Research
+**Updated**: 2025-11-09 (Task complete)
+**Status**: Complete
 **Priority**: HIGH
-**Environment**: Cloud Claude Code (sandbox, limited runtime environment)
-
----
-
-## ⚠️ IMPORTANT: Cloud Environment Constraints
-
-**This task is for a cloud Claude Code instance with limited environment access:**
-
-✅ **You CAN:**
-- **Read ALL source code** (full access to backend/, frontend/, docs/, all files)
-- Search, grep, and analyze complete codebase structure
-- Plan and design solutions
-- Write/edit code files (frontend TypeScript/React, backend Python/FastAPI)
-- Create git commits and branches
-- Provide detailed implementation plans
-- Use code analysis tools (ruff, mypy, eslint)
-
-❌ **You CANNOT (or should avoid):**
-- Run Python venv commands (they hang in sandbox)
-- Start backend/frontend services
-- Run runtime tests (pytest, npm test, vitest - need running services)
-- Execute database migrations (provide SQL scripts instead)
-- Test API endpoints (no services running)
-- Use browser automation (no services running)
-- **ANY commands from these scripts**: restart.sh, start.sh, status.sh
-- **ANY curl/http requests** to localhost or 192.168.8.233
-- **ANY psql/database commands**
-- **ANY npm/pip install or runtime commands**
-
-✅ **You SHOULD run (static analysis - no services needed):**
-- `ruff check backend/` - Python linting
-- `ruff format --check backend/` - Python formatting check
-- `mypy backend/app/` - Python type checking
-- `npx eslint frontend/` - TypeScript/React linting (if needed)
-
-**❌ EXAMPLES OF WHAT NOT TO RUN:**
-```bash
-# DON'T run these - they only work in dev environment:
-source backend/.venv/bin/activate          # ❌ Hangs in sandbox
-bash ~/portfolio-ai/scripts/restart.sh     # ❌ No dev environment access
-pytest tests/                               # ❌ No venv in sandbox
-npm test                                    # ❌ No runtime environment
-curl http://localhost:8000/api/health      # ❌ No services running
-psql -U portfolio_ai_user -d portfolio_ai  # ❌ No database access
-python backend/app/main.py                 # ❌ No runtime execution
-```
-
-**✅ INSTEAD, DO THIS:**
-```bash
-# Read code to understand what to change:
-cat backend/app/api/portfolio.py           # ✅ Read files
-grep -r "account_id" frontend/             # ✅ Search code
-
-# Run static analysis after making changes:
-ruff check backend/                         # ✅ Check Python code quality
-ruff format backend/                        # ✅ Format Python code
-mypy backend/app/                           # ✅ Check Python types
-
-# Commit your work:
-git status                                  # ✅ Check changes
-git add -A && git commit                   # ✅ Commit code
-```
-
-**Your Workflow:**
-1. **Research thoroughly** - Read code, understand architecture, document findings
-2. **Expand task list** - Add detailed subtasks based on your research
-3. **Implement code changes** - Write/edit Python and TypeScript files
-4. **Run static analysis** - Use ruff, mypy, eslint to catch issues early
-5. **Fix any linting errors** - Clean code before committing
-6. **Commit to git** - Create feature branch, commit all changes
-7. **Provide handoff** - Give user git commands and testing steps for dev environment
-
-**When Done:**
-- Work on whatever branch cloud session created (check `git branch`)
-- Commit all changes to that branch
-- Provide: (1) branch name, (2) testing steps, (3) what's left to do
-- User will pull your branch and continue in dev environment with full testing
+**Environment**: Dev environment (full access)
 
 ---
 

@@ -1,0 +1,12 @@
+{
+  "issue": "Issue #4: Watchlist Items Queried by Multiple Tasks",
+  "hypothesis": "Both watchlist and news tasks query watchlist_items",
+  "validated": false,
+  "evidence": {
+    "watchlist_item_queries": 1,
+    "single_task_test": true,
+    "note": "Inter-task overlap requires concurrent execution testing"
+  },
+  "root_cause": "Requires concurrent task testing to validate",
+  "fix_approach": "Test with concurrent tasks first"
+}

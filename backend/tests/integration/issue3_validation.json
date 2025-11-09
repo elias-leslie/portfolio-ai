@@ -1,0 +1,15 @@
+{
+  "issue": "Issue #3: User Preferences Queried Multiple Times",
+  "hypothesis": "Preferences queried 5 times instead of 1 batch load",
+  "validated": false,
+  "evidence": {
+    "total_queries": 114,
+    "preference_queries": 1,
+    "unique_queries": 1,
+    "query_breakdown": {
+      "SELECT news_lookback_hours, news_max_articles, wat": 1
+    }
+  },
+  "root_cause": null,
+  "fix_approach": null
+}
