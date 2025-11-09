@@ -29,7 +29,7 @@ class AccountCreate(BaseModel):
     """Request model for creating an account."""
 
     name: str = Field(..., description="Account name")
-    account_type: Literal["IRA", "Taxable", "401k", "Roth", "HSA"] = Field(
+    account_type: Literal["IRA", "Taxable", "401k", "Roth", "HSA", "paper"] = Field(
         ..., description="Account type"
     )
 

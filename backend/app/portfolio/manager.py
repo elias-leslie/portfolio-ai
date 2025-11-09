@@ -35,13 +35,13 @@ class PortfolioManager:
     def add_account(
         self,
         name: str,
-        account_type: Literal["IRA", "Taxable", "401k", "Roth", "HSA"],
+        account_type: Literal["IRA", "Taxable", "401k", "Roth", "HSA", "paper"],
     ) -> Account:
         """Create a new portfolio account.
 
         Args:
             name: Account name
-            account_type: Type of account (IRA, Taxable, 401k, Roth, HSA)
+            account_type: Type of account (IRA, Taxable, 401k, Roth, HSA, paper)
 
         Returns:
             Created Account instance
