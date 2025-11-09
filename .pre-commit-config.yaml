@@ -82,11 +82,11 @@ repos:
         entry: bash -c 'output=$(bash .claude/skills/code-quality/scripts/check-file-sizes.sh backend/app 2>/dev/null); if echo "$output" | grep -q "🔴 CRITICAL"; then echo "$output" | grep "🔴 CRITICAL"; exit 1; fi'
         language: system
         pass_filenames: false
-        stages: [commit]
+        stages: [pre-commit]
 
       - id: check-critical-security
         name: Check for CRITICAL security issues
         entry: bash -c 'output=$(bash .claude/skills/code-quality/scripts/check-security.sh backend/app 2>&1); critical_count=$(echo "$output" | grep -c "🔴 CRITICAL:" || true); if [ "$critical_count" -gt 0 ]; then echo "$output" | grep -A 5 "=== Summary ==="; exit 1; fi'
         language: system
         pass_filenames: false
-        stages: [commit]
+        stages: [pre-commit]
