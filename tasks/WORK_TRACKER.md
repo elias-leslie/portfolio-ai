@@ -6,13 +6,6 @@
 
 ---
 
-
-
-
-
-
-
-
 ## 🔄 Active Tasks
 
 *Currently working on - use `/do_it` to auto-resume*
@@ -125,54 +118,12 @@
 
 ---
 
-
----
-
-
----
-
-
----
-
-
----
-
-
----
-
-
----
-
-
----
-
 ## 📊 Quick Stats
 
 - **Active Features**: Narrative Intelligence (100%), News Intelligence (75%), Watchlist (100%), Portfolio Integration (100%)
 - **Test Count**: 515 tests passing (7 new portfolio-watchlist sync tests)
 - **Coverage**: 85% backend
 - **Database**: PostgreSQL (portfolio_ai + portfolio_ai_test)
-
----
-
-
----
-
-
----
-
-
----
-
-
----
-
-
----
-
-
----
-
 
 ---
 
@@ -193,27 +144,6 @@
 4. Resume next session → `/do_it` picks up where you left off
 
 **Task 0:** Mandatory scope discovery for pattern/refactor work - prevents incomplete implementations
-
----
-
-
----
-
-
----
-
-
----
-
-
----
-
-
----
-
-
----
-
 
 ---
 
