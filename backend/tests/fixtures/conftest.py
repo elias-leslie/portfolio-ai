@@ -8,9 +8,15 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
+
+# Mark test environment FIRST - before any app imports
+# This prevents app/main.py from configuring production logging
+os.environ["PYTEST_RUNNING"] = "1"
 
 import pytest
 
+from app.logging_config import configure_logging
 from app.storage.connection import ConnectionManager
 
 # Configure test database
@@ -25,6 +31,13 @@ os.environ["DATABASE_URL"] = TEST_DB_URL
 # Tests use minimal pools (1+1=2 connections) to avoid exhausting the connection limit
 os.environ["DB_POOL_SIZE"] = "1"
 os.environ["DB_MAX_OVERFLOW"] = "1"
+
+# Configure test logging (separate from production logs)
+# Tests write to backend/logs/test.log (user-writable, auto-cleaned)
+# This avoids permission issues with /var/log/portfolio-ai/ (systemd-owned)
+TEST_LOG_DIR = Path(__file__).parent.parent.parent / "logs"
+TEST_LOG_DIR.mkdir(exist_ok=True)
+configure_logging(log_dir=str(TEST_LOG_DIR), log_file="test.log")
 
 logger = logging.getLogger(__name__)
 

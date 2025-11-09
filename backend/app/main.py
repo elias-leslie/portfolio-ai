@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -29,8 +30,9 @@ from app.logging_config import configure_logging, get_logger
 from app.storage import get_storage
 from app.storage.credential_loader import load_credentials_from_database
 
-# Configure structured logging
-configure_logging()
+# Configure structured logging (skip in test mode - tests configure their own logging)
+if not os.getenv("PYTEST_RUNNING"):
+    configure_logging()
 
 logger = get_logger(__name__)
 
