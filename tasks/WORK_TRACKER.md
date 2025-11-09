@@ -6,15 +6,25 @@
 
 ---
 
+
+
+
+
+
+
+
 ## 🔄 Active Tasks
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Portfolio/Watchlist UI & Data Model Fixes**
+1. **Portfolio/Watchlist UI & Data Model Fixes** (0% - 0/0 complete)
    - File: `tasks-ui-portfolio-watchlist-fixes.md`
-   - Started: 2025-11-09
-   - Status: In Progress (60% - Tasks 2&4 done, Task 3 remaining)
-   - Current: Fixing watchlist/portfolio data model separation
+   - Started: 2025-11-07 (2 days ago)
+   - Last updated: Pending Research
+   - Next: All complete!
+   - Tasks:
+     - (No tasks defined yet)
+
 
 ---
 
@@ -22,33 +32,56 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **HTTP Client Deduplication**
+1. **HTTP Client Deduplication** (MEDIUM (2-3 days), 0/7 tasks)
    - File: `tasks-0034-http-client-deduplication.md`
-   - Effort: MEDIUM (2-3 days)
-   - Priority: MEDIUM
-   - Goal: Eliminate 1,469 lines of duplicate HTTP client code
-   - Created: 2025-11-07
+   - Created: Unknown
+   - Tasks:
+     - [ ] Task 1: Create Base HTTP Client (Solves ALL 3 Critical Issues)
+     - [ ] Task 2: Refactor FMP Client (First Client - Establishes Pattern)
+     - [ ] Task 3: Refactor Finnhub Client (Copy Pattern from FMP)
+     - [ ] Task 4: Refactor AlphaVantage Client
+     - [ ] Task 5: Refactor Polygon Client
+     - [ ] Task 6: Refactor TwelveData Client
+     - [ ] Task 7: Full Test Suite & Verification
 
-4. **Database Query Deduplication**
+2. **Database Query Deduplication** (MEDIUM-HIGH (8-12 hours, 2-3 sessions), 0/7 tasks)
    - File: `tasks-0035-database-query-deduplication.md`
-   - Effort: MEDIUM-HIGH (8-12 hours)
-   - Priority: HIGH
-   - Goal: Fix duplicate queries and API calls (60-80% reduction target)
-   - Created: 2025-11-07
+   - Created: Unknown
+   - Tasks:
+     - [ ] Task 0: Setup: Create Instrumentation for Validation
+     - [ ] Task 1: ISSUE #1: Validate Overlapping News Fetches Between Tasks
+     - [ ] Task 2: ISSUE #2: Validate Per-Symbol News Fetching in Loop
+     - [ ] Task 3: ISSUE #3: Validate User Preferences Queried 5 Times
+     - [ ] Task 4: ISSUE #4: Validate Watchlist Items Queried Twice
+     - [ ] Task 5: ISSUE #5: Validate N+1 Query Pattern in get_items_with_scores()
+     - [ ] Task 6: Comprehensive Verification & Documentation
 
-5. **Code Quality Improvements** (PAUSED)
+3. **Code Quality Improvements** (HIGH (12-17 hours, can be done in 2-3 sessions), 1/6 tasks (5 days ago))
    - File: `tasks-0033-code-quality-improvements.md`
-   - Status: 50% complete (6/6 files in Phase 1 done)
-   - Effort: HIGH (10-15 hours)
-   - Priority: LOW
-   - Goal: Improve health score 7.95/10 → 9.0/10
-   - Paused: 2025-11-04
+   - Created: 2025-11-04
+   - Goal: Improve health score from 7.95/10 → 9.0/10
+   - Status: PAUSED (2025-11-04)
+   - Tasks:
+     - [ ] Task 0: Discovery & Planning (30 min) ✅ COMPLETE
+     - [x] Task 0: Run comprehensive scope discovery
+     - [ ] Task 1: File Size Refactoring (8-12 hours)
+     - [ ] Task 2: Type Safety Improvements (6-8 hours)
+     - [ ] Task 3: Documentation Completeness (2-3 hours)
+     - [ ] Task 4: Minor Improvements (1-2 hours)
 
-6. **Trading Intelligence Roadmap** (FUTURE)
+4. **Trading Intelligence Roadmap** (High, 0/8 tasks)
    - File: `tasks-trading-intelligence-roadmap.md`
-   - Effort: VERY HIGH (multi-week)
-   - Priority: FUTURE (Q1 2026)
-   - Goal: Combine news+fundamentals+technicals for data-backed trading strategies
+   - Created: Unknown
+   - Tasks:
+     - [ ] Task 1: Discovery & design
+     - [ ] Task 2: Fundamentals pipeline
+     - [ ] Task 3: Technical signal normalization
+     - [ ] Task 4: Strategy engine
+     - [ ] Task 5: Paper trading & evaluation
+     - [ ] Task 6: LLM reviewer integration
+     - [ ] Task 7: Frontend & UX
+     - [ ] Task 8: Governance & documentation
+
 
 ---
 
@@ -92,12 +125,54 @@
 
 ---
 
+
+---
+
+
+---
+
+
+---
+
+
+---
+
+
+---
+
+
+---
+
+
+---
+
 ## 📊 Quick Stats
 
 - **Active Features**: Narrative Intelligence (100%), News Intelligence (75%), Watchlist (100%), Portfolio Integration (100%)
 - **Test Count**: 515 tests passing (7 new portfolio-watchlist sync tests)
 - **Coverage**: 85% backend
 - **Database**: PostgreSQL (portfolio_ai + portfolio_ai_test)
+
+---
+
+
+---
+
+
+---
+
+
+---
+
+
+---
+
+
+---
+
+
+---
+
 
 ---
 
@@ -118,6 +193,27 @@
 4. Resume next session → `/do_it` picks up where you left off
 
 **Task 0:** Mandatory scope discovery for pattern/refactor work - prevents incomplete implementations
+
+---
+
+
+---
+
+
+---
+
+
+---
+
+
+---
+
+
+---
+
+
+---
+
 
 ---
 
