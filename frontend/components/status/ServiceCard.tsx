@@ -1,27 +1,18 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronDown, ChevronRight, Activity, AlertCircle, CheckCircle2, RotateCw } from "lucide-react";
+import { Activity, AlertCircle, CheckCircle2, RotateCw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { ServiceStatus } from "@/lib/api/status";
-import { useServiceLogs } from "@/lib/hooks/useServiceLogs";
-import { LogViewer } from "./LogViewer";
 
 interface ServiceCardProps {
   serviceName: string;
   status: ServiceStatus;
-  showLogs?: boolean;
   onRestart?: (serviceName: string) => void;
 }
 
-export function ServiceCard({ serviceName, status, showLogs = true, onRestart }: ServiceCardProps) {
-  const [isOpen, setIsOpen] = useState(false);
-
-  // Only fetch logs when expanded
-  const { data: logData, isLoading, error } = useServiceLogs(serviceName, isOpen && showLogs);
+export function ServiceCard({ serviceName, status, onRestart }: ServiceCardProps) {
 
   // Format uptime
   const formatUptime = (seconds?: number): string => {
@@ -109,34 +100,6 @@ export function ServiceCard({ serviceName, status, showLogs = true, onRestart }:
           <div className="text-sm text-muted-foreground border-l-2 border-yellow-500 pl-3">
             {status.message}
           </div>
-        )}
-
-        {/* Logs viewer (collapsible) */}
-        {showLogs && (
-          <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-            <CollapsibleTrigger asChild>
-              <Button variant="outline" size="sm" className="w-full">
-                {isOpen ? (
-                  <>
-                    <ChevronDown className="mr-2 h-4 w-4" />
-                    Hide Logs
-                  </>
-                ) : (
-                  <>
-                    <ChevronRight className="mr-2 h-4 w-4" />
-                    Show Logs
-                  </>
-                )}
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="mt-4">
-              <LogViewer
-                lines={logData?.lines || []}
-                isLoading={isLoading}
-                error={error}
-              />
-            </CollapsibleContent>
-          </Collapsible>
         )}
       </CardContent>
     </Card>

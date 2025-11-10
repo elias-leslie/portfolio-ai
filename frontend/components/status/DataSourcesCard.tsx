@@ -1,8 +1,11 @@
 "use client";
 
-import { TrendingUp, CheckCircle2, AlertCircle, XCircle, Clock } from "lucide-react";
+import { useState } from "react";
+import { TrendingUp, CheckCircle2, AlertCircle, XCircle, Clock, ChevronDown, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { HealthResponse } from "@/lib/api/status";
 
 interface DataSourcesCardProps {
@@ -10,9 +13,13 @@ interface DataSourcesCardProps {
 }
 
 export function DataSourcesCard({ health }: DataSourcesCardProps) {
+  const [healthyOpen, setHealthyOpen] = useState(false);
+  const [unhealthyOpen, setUnhealthyOpen] = useState(true);
+
   const sources = health.sources || {};
   const sourceEntries = Object.entries(sources);
-  const healthyCount = sourceEntries.filter(([_, s]) => s.status === "ok").length;
+  const healthySources = sourceEntries.filter(([_, s]) => s.status === "ok");
+  const unhealthySources = sourceEntries.filter(([_, s]) => s.status !== "ok");
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -79,6 +86,46 @@ export function DataSourcesCard({ health }: DataSourcesCardProps) {
     );
   }
 
+  const renderSourceRow = (sourceName: string, sourceHealth: typeof sources[string]) => (
+    <div
+      key={sourceName}
+      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+    >
+      <div className="flex items-center gap-3 flex-1">
+        {getStatusIcon(sourceHealth.status)}
+        <div className="flex-1">
+          <div className="font-medium capitalize">
+            {sourceName.replace(/_/g, " ")}
+          </div>
+          <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
+            <div className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              Last success: {formatTimestamp(sourceHealth.last_success)}
+            </div>
+            {sourceHealth.success_rate !== null && (
+              <div>Success rate: {sourceHealth.success_rate.toFixed(1)}%</div>
+            )}
+            {sourceHealth.avg_latency_ms !== null && (
+              <div>Avg latency: {sourceHealth.avg_latency_ms}ms</div>
+            )}
+          </div>
+          {sourceHealth.in_cooldown && (
+            <div className="flex items-center gap-1 text-xs text-yellow-600 mt-1">
+              <AlertCircle className="h-3 w-3" />
+              In cooldown ({sourceHealth.cooldown_remaining_seconds}s remaining)
+            </div>
+          )}
+          {sourceHealth.rate_limit_hits > 0 && (
+            <div className="text-xs text-orange-600 mt-1">
+              Rate limit hits: {sourceHealth.rate_limit_hits}
+            </div>
+          )}
+        </div>
+      </div>
+      <div>{getStatusBadge(sourceHealth.status)}</div>
+    </div>
+  );
+
   return (
     <Card className="border-border">
       <CardHeader>
@@ -87,55 +134,69 @@ export function DataSourcesCard({ health }: DataSourcesCardProps) {
             <TrendingUp className="h-5 w-5" />
             <span>Data Sources</span>
           </div>
-          <Badge variant={healthyCount === sourceEntries.length ? "default" : "secondary"}>
-            {healthyCount}/{sourceEntries.length} Healthy
+          <Badge variant={healthySources.length === sourceEntries.length ? "default" : "secondary"}>
+            {healthySources.length}/{sourceEntries.length} Healthy
           </Badge>
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-3">
-          {sourceEntries
-            .sort(([aName], [bName]) => aName.localeCompare(bName))
-            .map(([sourceName, sourceHealth]) => (
-              <div
-                key={sourceName}
-                className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
-              >
-                <div className="flex items-center gap-3 flex-1">
-                  {getStatusIcon(sourceHealth.status)}
-                  <div className="flex-1">
-                    <div className="font-medium capitalize">
-                      {sourceName.replace(/_/g, " ")}
-                    </div>
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        Last success: {formatTimestamp(sourceHealth.last_success)}
-                      </div>
-                      {sourceHealth.success_rate !== null && (
-                        <div>Success rate: {sourceHealth.success_rate.toFixed(1)}%</div>
-                      )}
-                      {sourceHealth.avg_latency_ms !== null && (
-                        <div>Avg latency: {sourceHealth.avg_latency_ms}ms</div>
-                      )}
-                    </div>
-                    {sourceHealth.in_cooldown && (
-                      <div className="flex items-center gap-1 text-xs text-yellow-600 mt-1">
-                        <AlertCircle className="h-3 w-3" />
-                        In cooldown ({sourceHealth.cooldown_remaining_seconds}s remaining)
-                      </div>
-                    )}
-                    {sourceHealth.rate_limit_hits > 0 && (
-                      <div className="text-xs text-orange-600 mt-1">
-                        Rate limit hits: {sourceHealth.rate_limit_hits}
-                      </div>
-                    )}
-                  </div>
+      <CardContent className="space-y-4">
+        {/* Unhealthy sources section */}
+        {unhealthySources.length > 0 && (
+          <Collapsible open={unhealthyOpen} onOpenChange={setUnhealthyOpen}>
+            <CollapsibleTrigger asChild>
+              <Button variant="outline" className="w-full justify-between">
+                <div className="flex items-center gap-2">
+                  {unhealthyOpen ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                  <span className="font-semibold">Unhealthy Data Sources</span>
                 </div>
-                <div>{getStatusBadge(sourceHealth.status)}</div>
+                <Badge variant="destructive">{unhealthySources.length}</Badge>
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-3">
+              <div className="space-y-3">
+                {unhealthySources
+                  .sort(([aName], [bName]) => aName.localeCompare(bName))
+                  .map(([sourceName, sourceHealth]) =>
+                    renderSourceRow(sourceName, sourceHealth)
+                  )}
               </div>
-            ))}
-        </div>
+            </CollapsibleContent>
+          </Collapsible>
+        )}
+
+        {/* Healthy sources section */}
+        {healthySources.length > 0 && (
+          <Collapsible open={healthyOpen} onOpenChange={setHealthyOpen}>
+            <CollapsibleTrigger asChild>
+              <Button variant="outline" className="w-full justify-between">
+                <div className="flex items-center gap-2">
+                  {healthyOpen ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                  <span className="font-semibold">Healthy Data Sources</span>
+                </div>
+                <Badge className="bg-green-500 text-white">
+                  {healthySources.length}
+                </Badge>
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-3">
+              <div className="space-y-3">
+                {healthySources
+                  .sort(([aName], [bName]) => aName.localeCompare(bName))
+                  .map(([sourceName, sourceHealth]) =>
+                    renderSourceRow(sourceName, sourceHealth)
+                  )}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        )}
       </CardContent>
     </Card>
   );

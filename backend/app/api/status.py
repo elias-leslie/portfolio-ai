@@ -28,14 +28,19 @@ router = APIRouter(prefix="/api/status", tags=["status"])
 # Log file paths for each service
 # Service names match health endpoint (underscore format)
 LOG_PATHS: dict[str, str] = {
-    "backend": "/tmp/portfolio-backend.log",
-    "celery_worker": "/tmp/portfolio-celery-worker.log",
-    "celery_beat": "/tmp/portfolio-celery-beat.log",
-    "frontend": "/tmp/portfolio-frontend.log",
+    "backend": "/var/log/portfolio-ai/backend.log",
+    "backend_error": "/var/log/portfolio-ai/backend-error.log",
+    "celery_worker": "/var/log/portfolio-ai/celery-worker.log",
+    "celery_worker_error": "/var/log/portfolio-ai/celery-worker-error.log",
+    "celery_beat": "/var/log/portfolio-ai/celery-beat.log",
+    "celery_beat_error": "/var/log/portfolio-ai/celery-beat-error.log",
+    "frontend": "/var/log/portfolio-ai/frontend.log",
+    "frontend_error": "/var/log/portfolio-ai/frontend-error.log",
     "redis": "/var/log/redis/redis-server.log",  # System redis log
+    "postgresql": "/var/log/postgresql/postgresql-16-main.log",  # PostgreSQL log
     # Aliases for backward compatibility (hyphen format)
-    "celery-worker": "/tmp/portfolio-celery-worker.log",
-    "celery-beat": "/tmp/portfolio-celery-beat.log",
+    "celery-worker": "/var/log/portfolio-ai/celery-worker.log",
+    "celery-beat": "/var/log/portfolio-ai/celery-beat.log",
 }
 
 # ANSI escape code pattern for stripping colors
