@@ -310,40 +310,42 @@ class WatchlistService:
         item_data["earnings_days_away"] = row.get("earnings_days_away")
         item_data["recent_news"] = news_payload
 
+    def _format_timestamp(self, ts: Any) -> Any:
+        """Format timestamp to ISO string if it has isoformat method."""
+        if hasattr(ts, "isoformat"):
+            return ts.isoformat()
+        return ts
+
+    def _build_base_item_data(self, row: dict[str, Any]) -> dict[str, Any]:
+        """Build base watchlist item data from query row."""
+        return {
+            "id": row["id"],
+            "symbol": row["symbol"],
+            "note": row.get("note"),
+            "source": row.get("source", "manual"),
+            "created_at": self._format_timestamp(row["created_at"]),
+            "updated_at": self._format_timestamp(row["updated_at"]),
+            "score": None,
+            "score_alert": False,
+        }
+
     def get_items_with_scores(self) -> list[dict[str, Any]]:
-        """Get all watchlist items with their latest scores.
-
-        Watchlist is user-level (not account-specific).
-
-        Uses optimized LATERAL JOIN to eliminate N+1 query pattern (Issue #5 fix).
-        BEFORE: 1 + N queries (1 for items, N for snapshots)
-        AFTER: 1 query (JOIN fetches items + snapshots together)
-
-        Returns:
-            List of watchlist items with scores and narrative intelligence.
-        """
-        # Optimized query: Fetch items WITH latest snapshots in ONE query
-        # Uses LATERAL join to get most recent snapshot per item
+        """Get all watchlist items with latest scores (LATERAL JOIN eliminates N+1 pattern)."""
         items_df = self.storage.query(
             """
-            SELECT
-                wi.id, wi.symbol, wi.note, wi.source,
-                wi.created_at, wi.updated_at,
-                ws.overall_score, ws.technical_score, ws.fetched_at, ws.raw_metrics,
-                ws.signal_type, ws.signal_strength, ws.narrative_headline,
-                ws.recommended_style, ws.style_confidence, ws.optimal_holding_period, ws.risk_level,
-                ws.entry_price, ws.stop_loss, ws.profit_target, ws.position_size_shares,
-                ws.narrative_action_plan, ws.narrative_position_sizing,
-                ws.narrative_company_health, ws.narrative_special_notes,
-                ws.company_health, ws.earnings_date, ws.earnings_days_away,
-                ws.news_sentiment_score, ws.recent_news_headlines
+            SELECT wi.id, wi.symbol, wi.note, wi.source, wi.created_at, wi.updated_at,
+                   ws.overall_score, ws.technical_score, ws.fetched_at, ws.raw_metrics,
+                   ws.signal_type, ws.signal_strength, ws.narrative_headline,
+                   ws.recommended_style, ws.style_confidence, ws.optimal_holding_period, ws.risk_level,
+                   ws.entry_price, ws.stop_loss, ws.profit_target, ws.position_size_shares,
+                   ws.narrative_action_plan, ws.narrative_position_sizing,
+                   ws.narrative_company_health, ws.narrative_special_notes,
+                   ws.company_health, ws.earnings_date, ws.earnings_days_away,
+                   ws.news_sentiment_score, ws.recent_news_headlines
             FROM watchlist_items wi
             LEFT JOIN LATERAL (
-                SELECT *
-                FROM watchlist_snapshots
-                WHERE item_id = wi.id
-                ORDER BY fetched_at DESC
-                LIMIT 1
+                SELECT * FROM watchlist_snapshots WHERE item_id = wi.id
+                ORDER BY fetched_at DESC LIMIT 1
             ) ws ON TRUE
             ORDER BY wi.created_at DESC
             """
@@ -352,38 +354,20 @@ class WatchlistService:
         if items_df.is_empty():
             return []
 
-        # Load preferences ONCE before loop (not per-item)
+        # Load preferences once (not per-item)
         prefs = UserPreferences.load_all(self.storage)
         stale_ttl_minutes = prefs.get_stale_ttl_minutes()
 
         results: list[dict[str, Any]] = []
 
         for row in items_df.iter_rows(named=True):
-            # Build base item data
-            created_at = row["created_at"]
-            if hasattr(created_at, "isoformat"):
-                created_at = created_at.isoformat()
-            updated_at = row["updated_at"]
-            if hasattr(updated_at, "isoformat"):
-                updated_at = updated_at.isoformat()
-
-            item_data = {
-                "id": row["id"],
-                "symbol": row["symbol"],
-                "note": row.get("note"),
-                "source": row.get("source", "manual"),
-                "created_at": created_at,
-                "updated_at": updated_at,
-                "score": None,
-                "score_alert": False,
-            }
+            item_data = self._build_base_item_data(row)
 
             # Add snapshot data if available
-            has_snapshot = row.get("overall_score") is not None
-            if has_snapshot:
+            if row.get("overall_score") is not None:
                 self._build_snapshot_data(item_data, row, stale_ttl_minutes)
 
-            # Build news intelligence summary
+            # Build news intelligence
             try:
                 news_intel = self.build_news_intelligence(row["symbol"])
                 item_data["news_intelligence"] = (
@@ -399,7 +383,7 @@ class WatchlistService:
 
             results.append(item_data)
 
-        # Calculate priority indicators for each item (no cap on display)
+        # Calculate priority indicators
         for item in results:
             indicators = calculate_priority_indicators(results, item)
             item["priority_indicators"] = [ind.model_dump() for ind in indicators]
