@@ -246,14 +246,14 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
     return (
         <Card className="border-border">
             <CardHeader>
-                <div className="flex items-center justify-between gap-2">
-                    <CardTitle className="flex items-center gap-2">
+                <div className="flex items-center justify-between gap-2 flex-nowrap">
+                    <CardTitle className="flex items-center gap-2 shrink-0">
                         <FileText className="h-5 w-5" />
-                        <span>Unified Logging</span>
+                        <span className="whitespace-nowrap">Unified Logging</span>
                     </CardTitle>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-nowrap">
                         <Select value={serviceFilter || "ALL"} onValueChange={(val) => setServiceFilter(val === "ALL" ? undefined : val)}>
-                            <SelectTrigger className="w-[180px] h-8">
+                            <SelectTrigger className="h-8 whitespace-nowrap">
                                 <SelectValue placeholder="All Services" />
                             </SelectTrigger>
                             <SelectContent>
@@ -264,7 +264,7 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
                             </SelectContent>
                         </Select>
                         <Select value={levelFilter || "ALL"} onValueChange={(val) => setLevelFilter(val === "ALL" ? undefined : val)}>
-                            <SelectTrigger className="w-[140px] h-8">
+                            <SelectTrigger className="h-8 whitespace-nowrap">
                                 <SelectValue placeholder="All Levels" />
                             </SelectTrigger>
                             <SelectContent>
@@ -275,13 +275,13 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
                                 <SelectItem value="DEBUG">Debug ({logCounts.DEBUG})</SelectItem>
                             </SelectContent>
                         </Select>
-                        <div className="w-px h-6 bg-border" />
+                        <div className="w-px h-6 bg-border shrink-0" />
                         <Select
                             value={logLevelConfig?.current_level || "INFO"}
                             onValueChange={handleLogLevelChange}
                             disabled={changingLogLevel}
                         >
-                            <SelectTrigger className="w-[90px] h-8">
+                            <SelectTrigger className="h-8 whitespace-nowrap">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -292,12 +292,12 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
                                 <SelectItem value="CRITICAL">CRITICAL</SelectItem>
                             </SelectContent>
                         </Select>
-                        {changingLogLevel && <RefreshCw className="h-4 w-4 animate-spin" />}
+                        {changingLogLevel && <RefreshCw className="h-4 w-4 animate-spin shrink-0" />}
                         <Select
                             value={refreshInterval.toString()}
                             onValueChange={(val) => setRefreshInterval(parseInt(val))}
                         >
-                            <SelectTrigger className="w-[80px] h-8">
+                            <SelectTrigger className="h-8 whitespace-nowrap">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -309,12 +309,12 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
                                 <SelectItem value="0">Off</SelectItem>
                             </SelectContent>
                         </Select>
-                        <div className="w-px h-6 bg-border" />
-                        <Badge variant="outline">{sortedLogs.length}</Badge>
-                        <Button variant="outline" size="sm" onClick={toggleSortOrder} title={sortOrder === "desc" ? "Newest first" : "Oldest first"}>
+                        <div className="w-px h-6 bg-border shrink-0" />
+                        <Badge variant="outline" className="shrink-0">{sortedLogs.length}</Badge>
+                        <Button variant="outline" size="sm" onClick={toggleSortOrder} title={sortOrder === "desc" ? "Newest first" : "Oldest first"} className="shrink-0">
                             <ArrowUpDown className="h-4 w-4" />
                         </Button>
-                        <Button variant="outline" size="sm" onClick={handleCopy}>
+                        <Button variant="outline" size="sm" onClick={handleCopy} className="shrink-0">
                             {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                         </Button>
                     </div>
