@@ -94,6 +94,7 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
     const [changingLogLevel, setChangingLogLevel] = useState(false);
     const [restartRequired, setRestartRequired] = useState(false);
     const [restarting, setRestarting] = useState(false);
+    const [refreshInterval, setRefreshInterval] = useState<number>(30000); // Default 30 seconds
 
     // Build API URL with filters
     const apiUrl = useMemo(() => {
@@ -115,7 +116,7 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
         apiUrl,
         fetcher,
         {
-            refreshInterval: autoRefresh ? 5000 : 0,
+            refreshInterval: refreshInterval,
             revalidateOnFocus: false,
         }
     );
@@ -245,59 +246,76 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
     return (
         <Card className="border-border">
             <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                     <CardTitle className="flex items-center gap-2">
                         <FileText className="h-5 w-5" />
                         <span>Unified Logging</span>
                     </CardTitle>
                     <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <span>Level:</span>
-                            <Select
-                                value={logLevelConfig?.current_level || "INFO"}
-                                onValueChange={handleLogLevelChange}
-                                disabled={changingLogLevel}
-                            >
-                                <SelectTrigger className="w-[110px] h-8">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="DEBUG">DEBUG</SelectItem>
-                                    <SelectItem value="INFO">INFO</SelectItem>
-                                    <SelectItem value="WARN">WARN</SelectItem>
-                                    <SelectItem value="ERROR">ERROR</SelectItem>
-                                    <SelectItem value="CRITICAL">CRITICAL</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            {changingLogLevel && (
-                                <RefreshCw className="h-4 w-4 animate-spin" />
-                            )}
-                        </div>
+                        <Select value={serviceFilter || "ALL"} onValueChange={(val) => setServiceFilter(val === "ALL" ? undefined : val)}>
+                            <SelectTrigger className="w-[180px] h-8">
+                                <SelectValue placeholder="All Services" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="ALL">All Services ({data?.total_entries || 0})</SelectItem>
+                                {Object.entries(SERVICE_DISPLAY_NAMES).map(([key, name]) => (
+                                    <SelectItem key={key} value={key}>{name} ({serviceCounts[key] || 0})</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <Select value={levelFilter || "ALL"} onValueChange={(val) => setLevelFilter(val === "ALL" ? undefined : val)}>
+                            <SelectTrigger className="w-[140px] h-8">
+                                <SelectValue placeholder="All Levels" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="ALL">All Levels ({data?.total_entries || 0})</SelectItem>
+                                <SelectItem value="ERROR">Error ({logCounts.ERROR})</SelectItem>
+                                <SelectItem value="WARN">Warning ({logCounts.WARN})</SelectItem>
+                                <SelectItem value="INFO">Info ({logCounts.INFO})</SelectItem>
+                                <SelectItem value="DEBUG">Debug ({logCounts.DEBUG})</SelectItem>
+                            </SelectContent>
+                        </Select>
                         <div className="w-px h-6 bg-border" />
-                        <Badge variant="outline">
-                            {sortedLogs.length} logs
-                        </Badge>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={toggleSortOrder}
-                            title={sortOrder === "desc" ? "Newest first" : "Oldest first"}
+                        <Select
+                            value={logLevelConfig?.current_level || "INFO"}
+                            onValueChange={handleLogLevelChange}
+                            disabled={changingLogLevel}
                         >
-                            <ArrowUpDown className="mr-2 h-4 w-4" />
-                            {sortOrder === "desc" ? "Newest" : "Oldest"}
+                            <SelectTrigger className="w-[90px] h-8">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="DEBUG">DEBUG</SelectItem>
+                                <SelectItem value="INFO">INFO</SelectItem>
+                                <SelectItem value="WARN">WARN</SelectItem>
+                                <SelectItem value="ERROR">ERROR</SelectItem>
+                                <SelectItem value="CRITICAL">CRITICAL</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        {changingLogLevel && <RefreshCw className="h-4 w-4 animate-spin" />}
+                        <Select
+                            value={refreshInterval.toString()}
+                            onValueChange={(val) => setRefreshInterval(parseInt(val))}
+                        >
+                            <SelectTrigger className="w-[80px] h-8">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="1000">1s</SelectItem>
+                                <SelectItem value="5000">5s</SelectItem>
+                                <SelectItem value="15000">15s</SelectItem>
+                                <SelectItem value="30000">30s</SelectItem>
+                                <SelectItem value="60000">60s</SelectItem>
+                                <SelectItem value="0">Off</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <div className="w-px h-6 bg-border" />
+                        <Badge variant="outline">{sortedLogs.length}</Badge>
+                        <Button variant="outline" size="sm" onClick={toggleSortOrder} title={sortOrder === "desc" ? "Newest first" : "Oldest first"}>
+                            <ArrowUpDown className="h-4 w-4" />
                         </Button>
                         <Button variant="outline" size="sm" onClick={handleCopy}>
-                            {copied ? (
-                                <>
-                                    <Check className="mr-2 h-4 w-4" />
-                                    Copied
-                                </>
-                            ) : (
-                                <>
-                                    <Copy className="mr-2 h-4 w-4" />
-                                    Copy
-                                </>
-                            )}
+                            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                         </Button>
                     </div>
                 </div>
@@ -331,45 +349,6 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
                         </AlertDescription>
                     </Alert>
                 )}
-
-                {/* Filters */}
-                <div className="flex items-center gap-2 mb-4">
-                    <Select value={serviceFilter || "ALL"} onValueChange={(val) => setServiceFilter(val === "ALL" ? undefined : val)}>
-                        <SelectTrigger className="w-[200px]">
-                            <SelectValue placeholder="All Services" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="ALL">
-                                All Services ({data?.total_entries || 0})
-                            </SelectItem>
-                            {Object.entries(SERVICE_DISPLAY_NAMES).map(([key, name]) => (
-                                <SelectItem key={key} value={key}>
-                                    {name} ({serviceCounts[key] || 0})
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                    <Select value={levelFilter || "ALL"} onValueChange={(val) => setLevelFilter(val === "ALL" ? undefined : val)}>
-                        <SelectTrigger className="w-[160px]">
-                            <SelectValue placeholder="All Levels" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="ALL">
-                                All Levels ({data?.total_entries || 0})
-                            </SelectItem>
-                            <SelectItem value="ERROR">
-                                Error ({logCounts.ERROR})
-                            </SelectItem>
-                            <SelectItem value="WARN">
-                                Warning ({logCounts.WARN})
-                            </SelectItem>
-                            <SelectItem value="INFO">Info ({logCounts.INFO})</SelectItem>
-                            <SelectItem value="DEBUG">
-                                Debug ({logCounts.DEBUG})
-                            </SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
 
                 {/* Error state */}
                 {error && (
