@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useMarketNews } from "@/lib/hooks/useNews";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Newspaper, ExternalLink, Loader2 } from "lucide-react";
+import { Newspaper, ExternalLink, Loader2, ArrowUpDown } from "lucide-react";
 import {
   formatSentimentScore,
   formatVendorLabel,
@@ -14,9 +14,12 @@ import {
   formatNewsDate,
 } from "@/lib/utils/news-formatting";
 
+type SortOption = "recent" | "positive" | "negative";
+
 export function MarketNewsCard() {
   const [showAll, setShowAll] = useState(false);
-  const { data: newsData, isLoading, error } = useMarketNews({ maxResults: 20 });
+  const [sortBy, setSortBy] = useState<SortOption>("recent");
+  const { data: newsData, isLoading, error } = useMarketNews({ maxResults: 50 });
 
   if (isLoading) {
     return (
@@ -47,17 +50,44 @@ export function MarketNewsCard() {
   }
 
   const articles = newsData?.articles ?? [];
-  const displayCount = showAll ? 20 : 6;
-  const displayedArticles = articles.slice(0, displayCount);
-  const hasMore = articles.length > 6;
+
+  // Sort articles based on selected option
+  const sortedArticles = useMemo(() => {
+    const sorted = [...articles];
+    if (sortBy === "positive") {
+      return sorted.sort((a, b) => b.sentiment.score - a.sentiment.score);
+    } else if (sortBy === "negative") {
+      return sorted.sort((a, b) => a.sentiment.score - b.sentiment.score);
+    }
+    // "recent" - keep original order (already sorted by published_at from backend)
+    return sorted;
+  }, [articles, sortBy]);
+
+  const displayCount = showAll ? sortedArticles.length : 10;
+  const displayedArticles = sortedArticles.slice(0, displayCount);
+  const hasMore = sortedArticles.length > 10;
 
   return (
     <Card className="p-6 shadow-lg">
-      <div className="flex items-center gap-2 mb-4">
-        <Newspaper className="h-5 w-5 text-accent" />
-        <h3 className="text-lg font-semibold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-          Market News
-        </h3>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Newspaper className="h-5 w-5 text-accent" />
+          <h3 className="text-lg font-semibold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+            Market News
+          </h3>
+        </div>
+        <div className="flex items-center gap-2">
+          <ArrowUpDown className="h-3 w-3 text-text-muted" />
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as SortOption)}
+            className="text-xs border border-border rounded px-2 py-1 bg-surface text-text focus:outline-none focus:ring-1 focus:ring-primary"
+          >
+            <option value="recent">Recent</option>
+            <option value="positive">Most Positive</option>
+            <option value="negative">Most Negative</option>
+          </select>
+        </div>
       </div>
 
       {articles.length === 0 ? (
@@ -72,6 +102,7 @@ export function MarketNewsCard() {
               const source = article.source && article.source.trim().length > 0
                 ? article.source.trim()
                 : formatVendorLabel(article.vendor);
+              const displayHeadline = (article as any).plain_language_headline || article.headline;
 
               return (
                 <div
@@ -85,12 +116,12 @@ export function MarketNewsCard() {
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
                     >
-                      {article.headline}
+                      {displayHeadline}
                       <ExternalLink className="h-3 w-3 flex-shrink-0" />
                     </a>
                   ) : (
                     <p className="text-xs font-medium text-text">
-                      {article.headline}
+                      {displayHeadline}
                     </p>
                   )}
                   <div className="flex flex-wrap items-center gap-2 text-[10px] text-text-muted">
@@ -126,7 +157,7 @@ export function MarketNewsCard() {
                 onClick={() => setShowAll(!showAll)}
                 className="text-xs"
               >
-                {showAll ? "Show Less" : `Show More (${articles.length - 6} more)`}
+                {showAll ? "Show Less" : `Show All (${sortedArticles.length} total)`}
               </Button>
             </div>
           )}

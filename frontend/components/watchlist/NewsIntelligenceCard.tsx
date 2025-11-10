@@ -1,15 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, ArrowUpDown } from "lucide-react";
 import {
   formatSentimentScore,
   getSentimentBadgeVariant,
   formatNewsDate,
 } from "@/lib/utils/news-formatting";
+
+type SortOption = "recent" | "positive" | "negative";
 
 interface KeyEvent {
     icon: string;
@@ -52,18 +54,43 @@ export function NewsIntelligenceCard({
     newsHidden,
 }: NewsIntelligenceCardProps) {
     const [showAll, setShowAll] = useState(false);
+    const [sortBy, setSortBy] = useState<SortOption>("recent");
 
     if (newsHidden) return null;
     if (!newsIntelligence) return null;
 
-    const displayCount = showAll ? 20 : 6;
-    const displayedArticles = newsIntelligence.recent_articles.slice(0, displayCount);
-    const hasMore = newsIntelligence.recent_articles.length > 6;
+    // Sort articles based on selected option
+    const sortedArticles = useMemo(() => {
+        const sorted = [...newsIntelligence.recent_articles];
+        if (sortBy === "positive") {
+            return sorted.sort((a, b) => b.sentiment_score - a.sentiment_score);
+        } else if (sortBy === "negative") {
+            return sorted.sort((a, b) => a.sentiment_score - b.sentiment_score);
+        }
+        // "recent" - keep original order
+        return sorted;
+    }, [newsIntelligence.recent_articles, sortBy]);
+
+    const displayCount = showAll ? sortedArticles.length : 10;
+    const displayedArticles = sortedArticles.slice(0, displayCount);
+    const hasMore = sortedArticles.length > 10;
 
     return (
         <Card className="border-border">
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
                 <CardTitle className="text-base">📰 News Intelligence</CardTitle>
+                <div className="flex items-center gap-2">
+                    <ArrowUpDown className="h-3 w-3 text-text-muted" />
+                    <select
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value as SortOption)}
+                        className="text-xs border border-border rounded px-2 py-1 bg-surface text-text focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                        <option value="recent">Recent</option>
+                        <option value="positive">Most Positive</option>
+                        <option value="negative">Most Negative</option>
+                    </select>
+                </div>
             </CardHeader>
             <CardContent className="space-y-4">
                 {/* Headline Summary */}
@@ -205,7 +232,7 @@ export function NewsIntelligenceCard({
                                     onClick={() => setShowAll(!showAll)}
                                     className="text-xs"
                                 >
-                                    {showAll ? "Show Less" : `Show More (${newsIntelligence.recent_articles.length - 6} more)`}
+                                    {showAll ? "Show Less" : `Show All (${sortedArticles.length} total)`}
                                 </Button>
                             </div>
                         )}
