@@ -239,7 +239,7 @@ async def update_watchlist_item(item_id: str, data: WatchlistItemUpdate) -> Watc
         # Check if exists
         items_df = storage.query(
             """
-            SELECT account_id, symbol FROM watchlist_items WHERE id = ?
+            SELECT id, symbol FROM watchlist_items WHERE id = ?
             """,
             [item_id],
         )

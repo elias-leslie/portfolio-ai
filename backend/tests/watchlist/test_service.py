@@ -87,10 +87,10 @@ def _insert_watchlist_item(storage: PortfolioStorage, item_id: str, symbol: str)
     with storage.connection() as conn:
         conn.execute(
             """
-            INSERT INTO watchlist_items (id, account_id, symbol, metadata)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO watchlist_items (id, symbol, metadata)
+            VALUES (?, ?, ?)
             """,
-            [item_id, "acct-1", symbol, json.dumps({})],
+            [item_id, symbol, json.dumps({})],
         )
         conn.commit()
 
@@ -164,7 +164,6 @@ def _insert_account(storage: PortfolioStorage, account_id: str) -> None:
 
 def test_refresh_watchlist_scores_persists_snapshots(storage: PortfolioStorage) -> None:
     _insert_user_preferences(storage, price_weight=40.0, technical_weight=60.0)
-    _insert_account(storage, "acct-1")
     _insert_watchlist_item(storage, "item-1", "AAPL")
     _insert_day_bars(
         storage,

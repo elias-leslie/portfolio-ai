@@ -153,7 +153,7 @@ def _insert_technical(storage: PortfolioStorage, symbol: str, rsi: float = 50.0)
 
 def test_list_watchlist_items_empty(client: TestClient) -> None:
     """Test GET /api/watchlist returns empty list when no items exist."""
-    response = client.get("/api/watchlist?account_id=test-account")
+    response = client.get("/api/watchlist")
 
     assert response.status_code == 200
     data = response.json()
@@ -165,7 +165,6 @@ def test_list_watchlist_items_empty(client: TestClient) -> None:
 def test_create_watchlist_item_success(client: TestClient, test_storage: PortfolioStorage) -> None:
     """Test POST /api/watchlist successfully creates a watchlist item."""
     request_data = {
-        "account_id": "test-account",
         "symbol": "AAPL",
         "note": "Apple is a great company",
     }
@@ -175,7 +174,6 @@ def test_create_watchlist_item_success(client: TestClient, test_storage: Portfol
     assert response.status_code == 201
     data = response.json()
 
-    assert data["account_id"] == "test-account"
     assert data["symbol"] == "AAPL"
     assert data["note"] == "Apple is a great company"
     assert data["id"] is not None
@@ -192,7 +190,6 @@ def test_create_watchlist_item_normalizes_symbol(
 ) -> None:
     """Test POST /api/watchlist normalizes symbol to uppercase."""
     request_data = {
-        "account_id": "test-account",
         "symbol": "  tsla  ",  # Lowercase with whitespace
         "note": None,
     }
@@ -209,7 +206,6 @@ def test_create_watchlist_item_normalizes_symbol(
 def test_create_watchlist_item_empty_symbol_fails(client: TestClient) -> None:
     """Test POST /api/watchlist rejects empty symbol."""
     request_data = {
-        "account_id": "test-account",
         "symbol": "   ",  # Empty after trim
         "note": None,
     }
@@ -223,17 +219,16 @@ def test_create_watchlist_item_empty_symbol_fails(client: TestClient) -> None:
 def test_create_watchlist_item_duplicate_fails(
     client: TestClient, test_storage: PortfolioStorage
 ) -> None:
-    """Test POST /api/watchlist rejects duplicate symbol for same account."""
+    """Test POST /api/watchlist rejects duplicate symbol."""
     # Insert first item directly to database (to be visible across transactions)
     with test_storage.connection() as conn:
         conn.execute(
             """
-            INSERT INTO watchlist_items (id, account_id, symbol, note, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO watchlist_items (id, symbol, note, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5)
             """,
             [
                 "test-item-1",
-                "test-account",
                 "AAPL",
                 "First entry",
                 datetime.now(UTC),
@@ -244,7 +239,6 @@ def test_create_watchlist_item_duplicate_fails(
 
     # Try to create duplicate via API
     duplicate_data = {
-        "account_id": "test-account",
         "symbol": "AAPL",  # Same symbol
         "note": "Duplicate entry",
     }
@@ -261,12 +255,11 @@ def test_get_watchlist_item_success(client: TestClient, test_storage: PortfolioS
     with test_storage.connection() as conn:
         conn.execute(
             """
-            INSERT INTO watchlist_items (id, account_id, symbol, note, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO watchlist_items (id, symbol, note, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5)
             """,
             [
                 item_id,
-                "test-account",
                 "MSFT",
                 "Microsoft test",
                 datetime.now(UTC),
@@ -301,12 +294,11 @@ def test_update_watchlist_item_note(client: TestClient, test_storage: PortfolioS
     with test_storage.connection() as conn:
         conn.execute(
             """
-            INSERT INTO watchlist_items (id, account_id, symbol, note, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO watchlist_items (id, symbol, note, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5)
             """,
             [
                 item_id,
-                "test-account",
                 "GOOGL",
                 "Original note",
                 datetime.now(UTC),
@@ -351,12 +343,11 @@ def test_delete_watchlist_item_success(client: TestClient, test_storage: Portfol
     with test_storage.connection() as conn:
         conn.execute(
             """
-            INSERT INTO watchlist_items (id, account_id, symbol, note, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO watchlist_items (id, symbol, note, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5)
             """,
             [
                 item_id,
-                "test-account",
                 "NVDA",
                 "To be deleted",
                 datetime.now(UTC),
@@ -388,12 +379,11 @@ def test_list_watchlist_items_with_scores(
     with test_storage.connection() as conn:
         conn.execute(
             """
-            INSERT INTO watchlist_items (id, account_id, symbol, note, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO watchlist_items (id, symbol, note, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5)
             """,
             [
                 item_id,
-                "test-account",
                 "AAPL",
                 "Apple Inc.",
                 datetime.now(UTC),
@@ -407,7 +397,7 @@ def test_list_watchlist_items_with_scores(
     _insert_technical(test_storage, "AAPL", rsi=60.0)
 
     # Fetch watchlist
-    response = client.get("/api/watchlist?account_id=test-account")
+    response = client.get("/api/watchlist")
 
     assert response.status_code == 200
     data = response.json()
@@ -426,7 +416,7 @@ def test_list_watchlist_items_with_scores(
 
 def test_refresh_watchlist_scores_empty_watchlist(client: TestClient) -> None:
     """Test POST /api/watchlist/refresh with no items returns success with 0 count."""
-    response = client.post("/api/watchlist/refresh", json={"account_id": "test-account"})
+    response = client.post("/api/watchlist/refresh", json={})
 
     assert response.status_code == 200
     data = response.json()
@@ -446,18 +436,16 @@ def test_refresh_watchlist_scores_success(
     with test_storage.connection() as conn:
         conn.execute(
             """
-            INSERT INTO watchlist_items (id, account_id, symbol, note, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6), ($7, $8, $9, $10, $11, $12)
+            INSERT INTO watchlist_items (id, symbol, note, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5), ($6, $7, $8, $9, $10)
             """,
             [
                 item_id_1,
-                "test-account",
                 "AAPL",
                 None,
                 datetime.now(UTC),
                 datetime.now(UTC),
                 item_id_2,
-                "test-account",
                 "MSFT",
                 None,
                 datetime.now(UTC),
@@ -483,7 +471,7 @@ def test_refresh_watchlist_scores_success(
         "app.api.watchlist.watchlist_service.price_fetcher",
         mock_price_fetcher,
     ):
-        response = client.post("/api/watchlist/refresh", json={"account_id": "test-account"})
+        response = client.post("/api/watchlist/refresh", json={})
 
     assert response.status_code == 200
     data = response.json()
@@ -503,18 +491,16 @@ def test_refresh_watchlist_scores_handles_partial_failure(
     with test_storage.connection() as conn:
         conn.execute(
             """
-            INSERT INTO watchlist_items (id, account_id, symbol, note, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6), ($7, $8, $9, $10, $11, $12)
+            INSERT INTO watchlist_items (id, symbol, note, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5), ($6, $7, $8, $9, $10)
             """,
             [
                 "test-item-aapl-partial",
-                "test-account",
                 "AAPL",
                 None,
                 datetime.now(UTC),
                 datetime.now(UTC),
                 "test-item-invalid",
-                "test-account",
                 "INVALID",
                 None,
                 datetime.now(UTC),
@@ -538,7 +524,7 @@ def test_refresh_watchlist_scores_handles_partial_failure(
         "app.api.watchlist.watchlist_service.price_fetcher",
         mock_price_fetcher,
     ):
-        response = client.post("/api/watchlist/refresh", json={"account_id": "test-account"})
+        response = client.post("/api/watchlist/refresh", json={})
 
     assert response.status_code == 207  # Multi-Status for partial success
     data = response.json()
@@ -561,12 +547,11 @@ def test_score_alert_detection(client: TestClient, test_storage: PortfolioStorag
     with test_storage.connection() as conn:
         conn.execute(
             """
-            INSERT INTO watchlist_items (id, account_id, symbol, note, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO watchlist_items (id, symbol, note, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5)
             """,
             [
                 item_id,
-                "test-account",
                 "AAPL",
                 None,
                 datetime.now(UTC),
@@ -606,7 +591,7 @@ def test_score_alert_detection(client: TestClient, test_storage: PortfolioStorag
         conn.commit()
 
     # Fetch watchlist
-    response = client.get("/api/watchlist?account_id=test-account")
+    response = client.get("/api/watchlist")
 
     assert response.status_code == 200
     data = response.json()
@@ -624,12 +609,11 @@ def test_score_alert_not_triggered_small_change(
     with test_storage.connection() as conn:
         conn.execute(
             """
-            INSERT INTO watchlist_items (id, account_id, symbol, note, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO watchlist_items (id, symbol, note, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5)
             """,
             [
                 item_id,
-                "test-account",
                 "AAPL",
                 None,
                 datetime.now(UTC),
@@ -669,7 +653,7 @@ def test_score_alert_not_triggered_small_change(
         conn.commit()
 
     # Fetch watchlist
-    response = client.get("/api/watchlist?account_id=test-account")
+    response = client.get("/api/watchlist")
 
     assert response.status_code == 200
     data = response.json()
@@ -681,21 +665,11 @@ def test_score_alert_not_triggered_small_change(
 # Validation Tests
 
 
-def test_create_watchlist_item_missing_account_id(client: TestClient) -> None:
-    """Test POST /api/watchlist validates required account_id."""
-    response = client.post(
-        "/api/watchlist",
-        json={"symbol": "AAPL"},  # Missing account_id
-    )
-
-    assert response.status_code == 422  # Validation error
-
-
 def test_create_watchlist_item_missing_symbol(client: TestClient) -> None:
     """Test POST /api/watchlist validates required symbol."""
     response = client.post(
         "/api/watchlist",
-        json={"account_id": "test-account"},  # Missing symbol
+        json={},  # Missing symbol
     )
 
     assert response.status_code == 422  # Validation error
@@ -708,19 +682,19 @@ def test_response_structure_matches_spec(
     # Create item
     create_response = client.post(
         "/api/watchlist",
-        json={"account_id": "test-account", "symbol": "AAPL", "note": "Test"},
+        json={"symbol": "AAPL", "note": "Test"},
     )
 
     assert create_response.status_code == 201
     create_data = create_response.json()
 
     # Verify create response structure
-    required_fields = ["id", "account_id", "symbol", "note", "created_at", "updated_at"]
+    required_fields = ["id", "symbol", "note", "created_at", "updated_at"]
     for field in required_fields:
         assert field in create_data, f"Missing field: {field}"
 
     # Verify list response structure
-    list_response = client.get("/api/watchlist?account_id=test-account")
+    list_response = client.get("/api/watchlist")
     list_data = list_response.json()
 
     assert "items" in list_data
@@ -741,12 +715,11 @@ def test_staleness_detection_reflects_age_of_snapshot(
     with test_storage.connection() as conn:
         conn.execute(
             """
-            INSERT INTO watchlist_items (id, account_id, symbol, note, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO watchlist_items (id, symbol, note, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5)
             """,
             [
                 item_id,
-                "test-account",
                 "AAPL",
                 None,
                 datetime.now(UTC),
@@ -782,7 +755,7 @@ def test_staleness_detection_reflects_age_of_snapshot(
         conn.commit()
 
     # Fetch watchlist - should calculate staleness based on age NOW
-    response = client.get("/api/watchlist?account_id=test-account")
+    response = client.get("/api/watchlist")
 
     assert response.status_code == 200
     data = response.json()
@@ -816,12 +789,11 @@ def test_get_score_history_extracts_price_score_from_raw_metrics(
     with test_storage.connection() as conn:
         conn.execute(
             """
-            INSERT INTO watchlist_items (id, account_id, symbol, note, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO watchlist_items (id, symbol, note, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5)
             """,
             [
                 item_id,
-                "test-account",
                 "AAPL",
                 None,
                 datetime.now(UTC),

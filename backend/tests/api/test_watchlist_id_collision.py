@@ -26,22 +26,13 @@ def test_concurrent_watchlist_creation_no_collisions() -> None:
     client = TestClient(app)
     account_id = "test_concurrent_user"
 
-    # Create account first
+    # Clean up any existing test data
     storage = get_storage()
     with storage.connection() as conn:
-        # Delete existing account if any
-        conn.execute("DELETE FROM watchlist_items WHERE account_id = %s", (account_id,))
-        conn.execute("DELETE FROM portfolio_accounts WHERE id = %s", (account_id,))
-        conn.commit()
-
-        # Create account
-        from datetime import UTC, datetime
-
-        now = datetime.now(UTC)
-        conn.execute(
-            "INSERT INTO portfolio_accounts (id, name, account_type, created_at, updated_at) VALUES (%s, %s, %s, %s, %s)",
-            (account_id, "Test Concurrent User", "paper", now, now),
-        )
+        # Delete existing test symbols if any
+        for i in range(100):
+            symbol = f"TEST{i:03d}"
+            conn.execute("DELETE FROM watchlist_items WHERE symbol = %s", (symbol,))
         conn.commit()
 
     # Create 100 watchlist items concurrently
@@ -53,7 +44,7 @@ def test_concurrent_watchlist_creation_no_collisions() -> None:
         try:
             response = client.post(
                 "/api/watchlist",
-                json={"account_id": account_id, "symbol": symbol, "note": f"Test item {symbol}"},
+                json={"symbol": symbol, "note": f"Test item {symbol}"},
             )
             return (response.status_code, response.text)
         except Exception as e:
@@ -90,9 +81,7 @@ def test_concurrent_watchlist_creation_no_collisions() -> None:
 
     # Query database to verify how many items were actually created
     with storage.connection() as conn:
-        cursor = conn.execute(
-            "SELECT COUNT(*) FROM watchlist_items WHERE account_id = %s", (account_id,)
-        )
+        cursor = conn.execute("SELECT COUNT(*) FROM watchlist_items WHERE symbol LIKE 'TEST%'")
         actual_count = cursor.fetchone()[0]
         print(f"Actual items in database: {actual_count}")
 
@@ -117,8 +106,9 @@ def test_concurrent_watchlist_creation_no_collisions() -> None:
 
     # Clean up
     with storage.connection() as conn:
-        conn.execute("DELETE FROM watchlist_items WHERE account_id = %s", (account_id,))
-        conn.execute("DELETE FROM portfolio_accounts WHERE id = %s", (account_id,))
+        for i in range(num_requests):
+            symbol = f"TEST{i:03d}"
+            conn.execute("DELETE FROM watchlist_items WHERE symbol = %s", (symbol,))
         conn.commit()
 
 
@@ -131,28 +121,17 @@ def test_uuid_format_validation() -> None:
     client = TestClient(app)
     account_id = "test_uuid_format"
 
-    # Create account first
+    # Clean up any existing test data
     storage = get_storage()
     with storage.connection() as conn:
         # Delete existing if any
-        conn.execute("DELETE FROM watchlist_items WHERE account_id = %s", (account_id,))
-        conn.execute("DELETE FROM portfolio_accounts WHERE id = %s", (account_id,))
-        conn.commit()
-
-        # Create account
-        from datetime import UTC, datetime
-
-        now = datetime.now(UTC)
-        conn.execute(
-            "INSERT INTO portfolio_accounts (id, name, account_type, created_at, updated_at) VALUES (%s, %s, %s, %s, %s)",
-            (account_id, "Test UUID Format", "paper", now, now),
-        )
+        conn.execute("DELETE FROM watchlist_items WHERE symbol = 'AAPL'")
         conn.commit()
 
     # Create a watchlist item
     response = client.post(
         "/api/watchlist",
-        json={"account_id": account_id, "symbol": "AAPL", "note": "Test UUID format"},
+        json={"symbol": "AAPL", "note": "Test UUID format"},
     )
 
     assert response.status_code == 201
@@ -178,6 +157,5 @@ def test_uuid_format_validation() -> None:
 
     # Clean up
     with storage.connection() as conn:
-        conn.execute("DELETE FROM watchlist_items WHERE account_id = %s", (account_id,))
-        conn.execute("DELETE FROM portfolio_accounts WHERE id = %s", (account_id,))
+        conn.execute("DELETE FROM watchlist_items WHERE symbol = 'AAPL'")
         conn.commit()

@@ -46,25 +46,14 @@ class TestNarrativeGenerationIntegration:
 
     def test_refresh_generates_narrative_for_buy_signal(self, storage: PortfolioStorage) -> None:
         """Verify refresh flow calls narrative generation and stores results."""
-        # Setup: Create portfolio account first (foreign key requirement)
-        with storage.connection() as conn:
-            conn.execute(
-                """
-                INSERT INTO portfolio_accounts (id, name, account_type)
-                VALUES (?, ?, ?)
-                """,
-                ["default", "Default Account", "paper"],
-            )
-            conn.commit()
-
         # Create watchlist item with good technical setup
         with storage.connection() as conn:
             conn.execute(
                 """
-                INSERT INTO watchlist_items (id, account_id, symbol, metadata)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO watchlist_items (id, symbol, metadata)
+                VALUES (?, ?, ?)
                 """,
-                ["narrative-test-1", "default", "NVDA", "{}"],
+                ["narrative-test-1", "NVDA", "{}"],
             )
             conn.commit()
 
@@ -122,7 +111,6 @@ class TestNarrativeGenerationIntegration:
         # Execute refresh
         result = refresh_watchlist_scores(
             storage,
-            account_id="default",
             price_fetcher=mock_fetcher,
         )
 
@@ -170,25 +158,14 @@ class TestNarrativeGenerationIntegration:
         self, storage: PortfolioStorage
     ) -> None:
         """Verify refresh continues if fundamentals cannot be fetched."""
-        # Setup: Create portfolio account first (foreign key requirement)
-        with storage.connection() as conn:
-            conn.execute(
-                """
-                INSERT INTO portfolio_accounts (id, name, account_type)
-                VALUES (?, ?, ?)
-                """,
-                ["default", "Default Account", "paper"],
-            )
-            conn.commit()
-
         # Create watchlist item
         with storage.connection() as conn:
             conn.execute(
                 """
-                INSERT INTO watchlist_items (id, account_id, symbol, metadata)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO watchlist_items (id, symbol, metadata)
+                VALUES (?, ?, ?)
                 """,
-                ["narrative-test-2", "default", "UNKNOWN", "{}"],
+                ["narrative-test-2", "UNKNOWN", "{}"],
             )
             conn.commit()
 
@@ -207,7 +184,6 @@ class TestNarrativeGenerationIntegration:
         # Execute refresh (no technical indicators or fundamentals)
         result = refresh_watchlist_scores(
             storage,
-            account_id="default",
             price_fetcher=mock_fetcher,
         )
 

@@ -291,7 +291,7 @@ def test_watchlist_tables_structure(schema_mgr: SchemaManager) -> None:
         snapshots_columns = get_table_columns(conn, "watchlist_snapshots")
         reference_columns = get_table_columns(conn, "reference_cache")
 
-        assert {"id", "account_id", "symbol", "metadata", "note"}.issubset(items_columns)
+        assert {"id", "symbol", "metadata", "note"}.issubset(items_columns)
         assert {
             "item_id",
             "fetched_at",
@@ -304,34 +304,27 @@ def test_watchlist_tables_structure(schema_mgr: SchemaManager) -> None:
 
 
 def test_get_watchlist_items_by_account(schema_mgr: SchemaManager, query_mgr: QueryManager) -> None:
-    """Verify QueryManager returns watchlist items for an account."""
+    """Verify QueryManager returns all watchlist items."""
     schema_mgr.ensure_schema()
 
     with schema_mgr.connection_mgr.connection() as conn:
         conn.execute(
             """
-            INSERT INTO portfolio_accounts (id, name, account_type)
-            VALUES (?, ?, ?)
+            INSERT INTO watchlist_items (id, symbol, metadata, note)
+            VALUES (?, ?, ?, ?)
             """,
-            ["acct-1", "Primary", "Taxable"],
+            ["item-1", "AAPL", "{}", "Core position"],
         )
         conn.execute(
             """
-            INSERT INTO watchlist_items (id, account_id, symbol, metadata, note)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO watchlist_items (id, symbol, metadata, note)
+            VALUES (?, ?, ?, ?)
             """,
-            ["item-1", "acct-1", "AAPL", "{}", "Core position"],
-        )
-        conn.execute(
-            """
-            INSERT INTO watchlist_items (id, account_id, symbol, metadata, note)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            ["item-2", "acct-1", "MSFT", "{}", None],
+            ["item-2", "MSFT", "{}", None],
         )
         conn.commit()  # Commit the inserts
 
-    result = query_mgr.get_watchlist_items_by_account("acct-1")
+    result = query_mgr.get_watchlist_items_by_account("")
     symbols = result.get_column("symbol").to_list()
 
     assert symbols == ["AAPL", "MSFT"]
@@ -348,15 +341,11 @@ def test_watchlist_snapshot_history_and_upsert(
 
     with schema_mgr.connection_mgr.connection() as conn:
         conn.execute(
-            "INSERT INTO portfolio_accounts (id, name, account_type) VALUES (?, ?, ?)",
-            ["acct-1", "Primary", "Taxable"],
-        )
-        conn.execute(
             """
-            INSERT INTO watchlist_items (id, account_id, symbol, metadata)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO watchlist_items (id, symbol, metadata)
+            VALUES (?, ?, ?)
             """,
-            ["item-1", "acct-1", "AAPL", "{}"],
+            ["item-1", "AAPL", "{}"],
         )
         conn.commit()  # Commit the inserts
 

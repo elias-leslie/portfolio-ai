@@ -38,14 +38,14 @@ def setup_test_data():
             )
         conn.commit()
 
-    # Create watchlist item (use 'default' account which now exists)
+    # Create watchlist item
     with storage.connection() as conn:
         conn.execute(
             """
-            INSERT INTO watchlist_items (id, account_id, symbol, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO watchlist_items (id, symbol, created_at, updated_at)
+            VALUES (?, ?, ?, ?)
             """,
-            ["test_item_stale_price", "default", "TEST", now.isoformat(), now.isoformat()],
+            ["test_item_stale_price", "TEST", now.isoformat(), now.isoformat()],
         )
         conn.commit()
 
@@ -127,7 +127,7 @@ def test_api_returns_snapshot_timestamp_not_cache_timestamp(setup_test_data):
     service = WatchlistService(storage)
 
     test_data = setup_test_data
-    items = service.get_items_with_scores(test_data["account_id"])
+    items = service.get_items_with_scores()
 
     assert len(items) == 1, "Should return one item"
     item = items[0]

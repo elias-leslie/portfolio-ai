@@ -52,21 +52,23 @@ class QueryManager:
             return result  # type: ignore[no-any-return]
 
     def get_watchlist_items_by_account(self, account_id: str) -> pl.DataFrame:
-        """Return watchlist items for a given account ordered by symbol."""
+        """Return all watchlist items ordered by symbol.
+
+        Note: account_id parameter is deprecated but kept for backward compatibility.
+        Watchlist items are now global (not tied to accounts).
+        """
         sql = """
             SELECT
                 id,
-                account_id,
                 symbol,
                 metadata,
                 note,
                 created_at,
                 updated_at
             FROM watchlist_items
-            WHERE account_id = ?
             ORDER BY symbol
         """
-        return self.query(sql, [account_id])
+        return self.query(sql)
 
     def get_watchlist_snapshot_history(
         self,
