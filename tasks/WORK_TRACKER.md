@@ -1,6 +1,6 @@
 # Work Tracker
 
-**Last Updated:** 2025-11-09 (Quality Checker Bugs Fixed - Accurate Metrics Restored)
+**Last Updated:** 2025-11-10 (News/Sentiment Alignment - Frontend Complete, Backend Needed)
 
 **Current Status:** 🔴 Quality Issues Remain - 30 critical, 65 warning, 68 medium issues (quality checker bugs fixed, measurements now accurate)
 
@@ -18,7 +18,32 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Comprehensive Code Quality Cleanup** (HIGH (15-20 hours, 3-4 sessions, comprehensive cleanup), 0/7 tasks (today))
+1. **Complete News/Sentiment Section Alignment** (MEDIUM (8-11 hours, backend implementation), 0/10 tasks (today))
+   - File: `task-0040-complete-news-sentiment-alignment.md`
+   - Created: 2025-11-10
+   - Branch: `claude/align-news-sentiment-sections-011CUyEXr4XhbdjWn7Xapb7U` (5 commits pushed)
+   - Goal: Complete full feature parity between Market News and Watchlist News sections by implementing backend AI features
+   - Status: ✅ Frontend complete (shared utilities, sentiment sorting, visual alignment) | ⏳ Backend needed (AI insights for market news)
+   - Frontend achievements:
+     - Created shared `news-formatting.ts` utilities module
+     - Eliminated 140 lines of duplicate code across 3 components
+     - Added sentiment sorting (Recent, Most Positive, Most Negative)
+     - Changed display from "6 → 20" to "10 → all" with "Show All" button
+     - Visual alignment complete (identical layouts)
+   - Backend tasks (requires local dev with DB access):
+     - [ ] Task 0: Review frontend changes
+     - [ ] Task 1: Update NewsArticleResponse model with AI fields
+     - [ ] Task 2: Update serialization to include AI insights
+     - [ ] Task 3: Enable AI features for market news (plain language, impact, insights)
+     - [ ] Task 4: Update frontend TypeScript types
+     - [ ] Task 5: Add AI insight display to MarketNewsCard
+     - [ ] Task 6: Backend performance optimization (caching)
+     - [ ] Task 7: Comprehensive testing (backend + frontend + E2E)
+     - [ ] Task 8: Restart services and monitor stability
+     - [ ] Task 9: Create pull request
+     - [ ] Task 10: Documentation updates
+
+2. **Comprehensive Code Quality Cleanup** (HIGH (15-20 hours, 3-4 sessions, comprehensive cleanup), 0/7 tasks (today))
    - File: `tasks-0039-code-quality-comprehensive-cleanup.md`
    - Created: 2025-11-09
    - Goal: Reach EXCELLENT quality standard (0/0/0 issues) by systematically addressing all quality issues revealed after fixing quality checker bugs.
@@ -31,7 +56,7 @@
      - [ ] Task 5: Medium Function Cleanup (As Time Permits)
      - [ ] Task 6: Final Verification & Documentation
 
-2. **Code Quality Improvements** (HIGH (12-17 hours, can be done in 2-3 sessions), 1/5 tasks (5 days ago))
+3. **Code Quality Improvements** (HIGH (12-17 hours, can be done in 2-3 sessions), 1/5 tasks (5 days ago))
    - File: `tasks-0033-code-quality-improvements.md`
    - Created: 2025-11-04
    - Goal: Improve health score from 7.95/10 → 9.0/10
@@ -43,7 +68,7 @@
      - [ ] Task 3: Documentation Completeness (2-3 hours)
      - [ ] Task 4: Minor Improvements (1-2 hours)
 
-3. **Trading Intelligence Roadmap** (High, 4/8 tasks)
+4. **Trading Intelligence Roadmap** (High, 4/8 tasks)
    - File: `tasks-trading-intelligence-roadmap.md`
    - Created: Unknown
    - Tasks:
