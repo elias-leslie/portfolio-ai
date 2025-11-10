@@ -481,6 +481,8 @@ async def restart_services() -> RestartServicesResponse:
     """
     try:
         restart_script = "/home/kasadis/portfolio-ai/scripts/restart.sh"
+        logger.info("restart_services_start", script=restart_script)
+
         result = subprocess.run(
             ["bash", restart_script],
             capture_output=True,
@@ -489,12 +491,20 @@ async def restart_services() -> RestartServicesResponse:
             check=False,
         )
 
+        logger.info(
+            "restart_services_result",
+            returncode=result.returncode,
+            stdout_lines=len(result.stdout.splitlines()) if result.stdout else 0,
+            stderr_lines=len(result.stderr.splitlines()) if result.stderr else 0,
+        )
+
         if result.returncode != 0:
-            error_msg = result.stderr or result.stdout or "Unknown error"
+            # Get last 500 chars of output for error message
+            error_msg = (result.stderr or result.stdout or "Unknown error")[-500:]
             logger.error(
                 "restart_services_failed",
-                stderr=result.stderr,
-                stdout=result.stdout,
+                stderr=result.stderr[-1000:] if result.stderr else None,
+                stdout=result.stdout[-1000:] if result.stdout else None,
                 returncode=result.returncode,
             )
             raise HTTPException(status_code=500, detail=f"Failed to restart services: {error_msg}")
