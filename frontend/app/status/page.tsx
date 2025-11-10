@@ -29,6 +29,7 @@ import { BeatScheduleCard } from "@/components/status/BeatScheduleCard";
 import { ServiceActionDialog } from "@/components/status/ServiceActionDialog";
 import { DataSourcesCard } from "@/components/status/DataSourcesCard";
 import { APIQuotasCard } from "@/components/status/APIQuotasCard";
+import { LogsCard } from "@/components/status/LogsCard";
 import {
     clearCache,
     refreshWatchlist,
@@ -420,11 +421,13 @@ export default function StatusPage() {
                         key={serviceName}
                         serviceName={serviceName}
                         status={status}
-                        showLogs={true}
                         onRestart={triggerRestartService}
                     />
                 ))}
             </div>
+
+            {/* System Logs */}
+            <LogsCard />
 
             {/* Empty state */}
             {serviceEntries.length === 0 && (
