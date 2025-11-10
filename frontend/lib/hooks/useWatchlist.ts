@@ -63,7 +63,7 @@ export function useWatchlist() {
     refetchInterval: refreshIntervalMs, // Refetch based on user preference
     refetchIntervalInBackground: true, // Enable background refresh
     refetchOnWindowFocus: true, // Refetch when window regains focus
-    refetchOnMount: false, // Don't refetch on mount - use cached data for smooth UX
+    refetchOnMount: "always", // CRITICAL FIX: Always refetch to prevent stale cache after deletions
     structuralSharing: true, // Only update changed data, preserves UI state
   });
 }
