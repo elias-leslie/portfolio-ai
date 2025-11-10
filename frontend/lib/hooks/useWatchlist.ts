@@ -149,6 +149,17 @@ export function useDeleteWatchlistItem() {
         refetchType: 'active', // Force immediate refetch of active queries
       });
     },
+    onError: (error) => {
+      // CRITICAL FIX (2025-11-09): Invalidate cache on delete errors (404/410)
+      // Prevents showing stale cached data after items are already deleted
+      // Context: Data loss incident - frontend showed deleted items for hours due to stale cache
+      if (error.message.includes('404') || error.message.includes('410') || error.message.includes('not found')) {
+        queryClient.invalidateQueries({
+          queryKey: watchlistKeys.list(),
+          refetchType: 'active',
+        });
+      }
+    },
   });
 }
 

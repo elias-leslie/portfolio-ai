@@ -300,6 +300,31 @@ Details:
 3. Frontend cache (`refetchOnMount: false`) showed stale data after deletions
 4. No migration validation or rollback mechanism
 
+- [ ] 7.0 🚨 IMMEDIATE: Enable PostgreSQL Logging (CRITICAL - No Forensics Available)
+  - [ ] 7.0.1 Enable statement logging in PostgreSQL
+    - Edit `/etc/postgresql/16/main/postgresql.conf`:
+      ```
+      log_statement = 'mod'                    # Log INSERT/UPDATE/DELETE/TRUNCATE
+      log_min_duration_statement = 1000        # Log queries taking >1s
+      log_line_prefix = '%t [%p] %u@%d '      # timestamp, PID, user@database
+      logging_collector = on
+      log_directory = '/var/log/postgresql'
+      log_filename = 'postgresql-%Y-%m-%d.log'
+      log_rotation_age = 1d
+      log_rotation_size = 100MB
+      log_truncate_on_rotation = off
+      ```
+    - Restart PostgreSQL: `sudo systemctl reload postgresql`
+    - Verify: `SHOW log_statement;` should return 'mod'
+  - [ ] 7.0.2 Set up log rotation and retention
+    - Configure logrotate for PostgreSQL logs
+    - Retention: 30 days
+    - Compression: gzip old logs
+  - [ ] 7.0.3 Test logging is working
+    - Run test DELETE/UPDATE
+    - Verify appears in `/var/log/postgresql/postgresql-*.log`
+    - Ensure user@database is logged for attribution
+
 - [ ] 7.1 Migration Safety Framework
   - [ ] 7.1.1 Create migration dry-run mode
     - Add `--dry-run` flag to migration runner
@@ -378,12 +403,49 @@ Details:
     - Verify row counts before/after
     - Check CASCADE impacts with `EXPLAIN`
 
+- [ ] 7.6 Validation & Testing (MANDATORY - Verify All Hardening Works)
+  - [ ] 7.6.1 Test PostgreSQL logging
+    - Apply logging config: `sudo cp backend/config/postgresql-logging.conf /etc/postgresql/16/main/conf.d/`
+    - Reload PostgreSQL: `sudo systemctl reload postgresql`
+    - Verify enabled: `psql -c "SHOW log_statement;"` → should return 'mod'
+    - Run test DELETE: `DELETE FROM watchlist_items WHERE id = 'test-id';`
+    - Verify logged: `grep "DELETE FROM watchlist_items" /var/log/postgresql/*.log`
+    - Check attribution: Log should show `portfolio_ai_user@portfolio_ai`
+  - [ ] 7.6.2 Test frontend cache invalidation
+    - Create test item in watchlist
+    - Delete it via API (return 404)
+    - Verify: Frontend should show error + refresh data (not show deleted item)
+    - No stale cached data should remain visible
+  - [ ] 7.6.3 Test CASCADE constraint fix (after 7.2.1 complete)
+    - Delete watchlist item
+    - Verify: Snapshots remain (item_id set to NULL, not deleted)
+    - Historical data preserved
+  - [ ] 7.6.4 Test deletion audit log (after 7.2.3 complete)
+    - Delete item via API
+    - Check deletion_audit table has record
+    - Verify: user, timestamp, reason captured
+  - [ ] 7.6.5 Test deletion monitoring alerts (after 7.4.1 complete)
+    - Simulate mass deletion (>10 items)
+    - Verify: Alert triggered
+    - Check alert includes deletion count + timeframe
+  - [ ] 7.6.6 Integration test: Full deletion scenario
+    - Start with 10 items in watchlist
+    - Enable all logging/monitoring
+    - Delete 5 items (should NOT trigger alert threshold)
+    - Delete 6 more items within 1 hour (SHOULD trigger alert)
+    - Verify: All deletions logged, audit trail complete
+    - Verify: Historical snapshots preserved
+
 **Verification**:
+- [ ] PostgreSQL logging enabled and tested
 - [ ] Dry-run mode working (test with safe migration)
 - [ ] Backup automation tested
 - [ ] CASCADE constraints reviewed and fixed
 - [ ] Frontend cache properly invalidates on errors
+- [ ] Deletion audit log captures all deletes
+- [ ] Monitoring alerts trigger correctly
 - [ ] Documentation complete and reviewed
+- [ ] ✅ ALL 7.6.x validation tests passing
 
 ---
 
