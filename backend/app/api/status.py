@@ -298,9 +298,20 @@ async def get_unified_logs(
                 else:
                     log_level = "UNKNOWN"
 
-                # Apply level filter if specified
-                if level and log_level != level:
-                    continue
+                # Apply level filter if specified (hierarchical)
+                if level:
+                    # Define level hierarchy (higher number = more important)
+                    level_priority = {
+                        "DEBUG": 1,
+                        "INFO": 2,
+                        "UNKNOWN": 2,  # Treat UNKNOWN as INFO level
+                        "WARN": 3,
+                        "ERROR": 4,
+                        "CRITICAL": 5,
+                    }
+                    # Filter: only show logs at or above the requested level
+                    if level_priority.get(log_level, 0) < level_priority.get(level, 0):
+                        continue
 
                 logs.append(
                     UnifiedLogEntry(

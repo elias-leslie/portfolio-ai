@@ -269,10 +269,11 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="ALL">All Levels ({data?.total_entries || 0})</SelectItem>
-                                <SelectItem value="ERROR">Error ({logCounts.ERROR})</SelectItem>
-                                <SelectItem value="WARN">Warning ({logCounts.WARN})</SelectItem>
-                                <SelectItem value="INFO">Info ({logCounts.INFO})</SelectItem>
-                                <SelectItem value="DEBUG">Debug ({logCounts.DEBUG})</SelectItem>
+                                <SelectItem value="CRITICAL">Critical+ ({logCounts.CRITICAL + logCounts.ERROR})</SelectItem>
+                                <SelectItem value="ERROR">Error+ ({logCounts.ERROR + logCounts.WARN})</SelectItem>
+                                <SelectItem value="WARN">Warning+ ({logCounts.WARN + logCounts.INFO})</SelectItem>
+                                <SelectItem value="INFO">Info+ ({logCounts.INFO + logCounts.DEBUG})</SelectItem>
+                                <SelectItem value="DEBUG">Debug (all) ({data?.total_entries || 0})</SelectItem>
                             </SelectContent>
                         </Select>
                         <div className="w-px h-6 bg-border shrink-0" />
