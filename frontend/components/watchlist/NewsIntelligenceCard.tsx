@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { ExternalLink } from "lucide-react";
 import {
   formatSentimentScore,
@@ -49,8 +51,14 @@ export function NewsIntelligenceCard({
     newsIntelligence,
     newsHidden,
 }: NewsIntelligenceCardProps) {
+    const [showAll, setShowAll] = useState(false);
+
     if (newsHidden) return null;
     if (!newsIntelligence) return null;
+
+    const displayCount = showAll ? 20 : 6;
+    const displayedArticles = newsIntelligence.recent_articles.slice(0, displayCount);
+    const hasMore = newsIntelligence.recent_articles.length > 6;
 
     return (
         <Card className="border-border">
@@ -115,10 +123,10 @@ export function NewsIntelligenceCard({
                     <div>
                         <h5 className="text-xs font-semibold text-text mb-2">
                             Recent Articles (showing{" "}
-                            {newsIntelligence.recent_articles.length}):
+                            {displayedArticles.length}):
                         </h5>
                         <div className="space-y-2">
-                            {newsIntelligence.recent_articles.map(
+                            {displayedArticles.map(
                                 (article, idx) => {
                                     const displayHeadline =
                                         article.plain_language_headline ||
@@ -189,6 +197,18 @@ export function NewsIntelligenceCard({
                                 },
                             )}
                         </div>
+                        {hasMore && (
+                            <div className="mt-3 flex justify-center">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setShowAll(!showAll)}
+                                    className="text-xs"
+                                >
+                                    {showAll ? "Show Less" : `Show More (${newsIntelligence.recent_articles.length - 6} more)`}
+                                </Button>
+                            </div>
+                        )}
                     </div>
                 )}
             </CardContent>
