@@ -535,19 +535,22 @@ class NewsService:
             return None
         return fetched_at if fetched_at.tzinfo else fetched_at.replace(tzinfo=UTC)
 
-    def get_health(self) -> dict[str, Any]:
-        """Return lightweight health metrics for the news pipeline."""
-        try:
-            finbert_available = self.finbert_analyzer.is_available()
-        except FinBertUnavailableError:
-            finbert_available = False
+    @staticmethod
+    def _to_iso(dt: datetime | None) -> str | None:
+        """Convert datetime to ISO 8601 string with Z suffix."""
+        if not dt:
+            return None
+        return dt.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
-        market_last = self._latest_fetched_at(market=True)
-        watchlist_last = self._latest_fetched_at(market=False)
+    def _get_fallback_metrics(self, window_start: datetime) -> dict[str, Any]:
+        """Get sentiment fallback metrics for health check.
 
-        now = datetime.now(UTC)
-        window_start = now - timedelta(hours=24)
+        Args:
+            window_start: Start of time window (now - 24 hours)
 
+        Returns:
+            Dict with fallback counts, rates, latencies
+        """
         with self.storage.connection() as conn:
             row = conn.execute(
                 """
@@ -575,10 +578,26 @@ class NewsService:
         avg_latency_ms = float(row[2]) if row and row[2] is not None else None
         p95_latency_ms = float(row[3]) if row and row[3] is not None else None
         last_fallback_at = row[4] if row else None
-
         fallback_rate = (fallback_count / total_count) if total_count else 0.0
 
-        # Get mix summary from vendor manager
+        return {
+            "fallback_count": fallback_count,
+            "total_count": total_count,
+            "fallback_rate": fallback_rate,
+            "avg_latency_ms": avg_latency_ms,
+            "p95_latency_ms": p95_latency_ms,
+            "last_fallback_at": last_fallback_at,
+        }
+
+    def _get_article_mix_metrics(self, now: datetime) -> dict[str, Any]:
+        """Get article mix metrics from vendor manager.
+
+        Args:
+            now: Current timestamp
+
+        Returns:
+            Dict with pre/post dedupe counts by vendor
+        """
         recent_mix_summary = self.vendor_manager.get_recent_mix_summary()
         mix_total_pre = 0
         mix_total_post = 0
@@ -605,6 +624,23 @@ class NewsService:
             for vendor_name, count in (stats.get("per_vendor_post") or {}).items():
                 mix_vendor_post[vendor_name] += int(count or 0)
 
+        return {
+            "total_pre": mix_total_pre,
+            "total_post": mix_total_post,
+            "vendor_pre": mix_vendor_pre,
+            "vendor_post": mix_vendor_post,
+            "last_timestamp": last_mix_timestamp,
+        }
+
+    def _get_vendor_stats(self, window_start: datetime) -> dict[str, dict[str, Any]]:
+        """Get per-vendor article stats from database.
+
+        Args:
+            window_start: Start of time window
+
+        Returns:
+            Dict mapping vendor name to stats
+        """
         with self.storage.connection() as conn:
             vendor_rows = conn.execute(
                 """
@@ -630,15 +666,26 @@ class NewsService:
                 "last_article_at": last_at,
             }
 
-        def _iso(dt: datetime | None) -> str | None:
-            if not dt:
-                return None
-            return dt.astimezone(UTC).isoformat().replace("+00:00", "Z")
+        return vendor_stats
 
+    def _build_vendor_health(
+        self,
+        vendor_stats: dict[str, dict[str, Any]],
+        now: datetime,
+    ) -> dict[str, Any]:
+        """Build vendor health status from config, runtime, and stats.
+
+        Args:
+            vendor_stats: Per-vendor article stats
+            now: Current timestamp
+
+        Returns:
+            Dict mapping vendor name to health status
+        """
         vendor_config = self.vendor_manager.get_vendor_config()
         vendor_runtime = self.vendor_manager.get_vendor_runtime()
-
         vendor_health: dict[str, Any] = {}
+
         for vendor_name, config in vendor_config.items():
             runtime = vendor_runtime.get(
                 vendor_name,
@@ -660,41 +707,66 @@ class NewsService:
                 "configured": bool(config.get("configured")),
                 "enabled": bool(config.get("enabled")),
                 "active": active,
-                "last_attempt_at": _iso(runtime.get("last_attempt_at")),
-                "last_success_at": _iso(runtime.get("last_success_at")),
-                "last_error_at": _iso(runtime.get("last_error_at")),
+                "last_attempt_at": self._to_iso(runtime.get("last_attempt_at")),
+                "last_success_at": self._to_iso(runtime.get("last_success_at")),
+                "last_error_at": self._to_iso(runtime.get("last_error_at")),
                 "last_error": runtime.get("last_error"),
                 "articles_last_fetch": int(runtime.get("articles_last_fetch", 0)),
                 "articles_last_fetch_post_dedupe": int(runtime.get("articles_last_fetch_post", 0)),
                 "articles_last_24h": int(stats.get("articles_last_24h", 0)),
-                "last_article_at": _iso(last_article_at_dt),
+                "last_article_at": self._to_iso(last_article_at_dt),
                 "notes": config.get("notes"),
                 "reason": config.get("reason"),
             }
 
+        return vendor_health
+
+    def get_health(self) -> dict[str, Any]:
+        """Return lightweight health metrics for the news pipeline."""
+        try:
+            finbert_available = self.finbert_analyzer.is_available()
+        except FinBertUnavailableError:
+            finbert_available = False
+
+        market_last = self._latest_fetched_at(market=True)
+        watchlist_last = self._latest_fetched_at(market=False)
+
+        now = datetime.now(UTC)
+        window_start = now - timedelta(hours=24)
+
+        # Gather metrics from various sources
+        fallback_metrics = self._get_fallback_metrics(window_start)
+        mix_metrics = self._get_article_mix_metrics(now)
+        vendor_stats = self._get_vendor_stats(window_start)
+        vendor_health = self._build_vendor_health(vendor_stats, now)
+
         return {
             "finbert_available": finbert_available,
-            "market_last_refreshed_at": _iso(market_last),
-            "watchlist_last_refreshed_at": _iso(watchlist_last),
-            "fallback_headlines_24h": fallback_count,
-            "headlines_24h": total_count,
+            "market_last_refreshed_at": self._to_iso(market_last),
+            "watchlist_last_refreshed_at": self._to_iso(watchlist_last),
+            "fallback_headlines_24h": fallback_metrics["fallback_count"],
+            "headlines_24h": fallback_metrics["total_count"],
             "cache_ttl_hours": round(self.ttl.total_seconds() / 3600.0, 2),
             "lookback_window_hours": self.lookback_hours,
-            "fallback_rate_24h": round(fallback_rate, 4),
-            "fallback_avg_latency_ms_24h": round(avg_latency_ms, 2)
-            if avg_latency_ms is not None
+            "fallback_rate_24h": round(fallback_metrics["fallback_rate"], 4),
+            "fallback_avg_latency_ms_24h": round(fallback_metrics["avg_latency_ms"], 2)
+            if fallback_metrics["avg_latency_ms"] is not None
             else None,
-            "fallback_p95_latency_ms_24h": round(p95_latency_ms, 2)
-            if p95_latency_ms is not None
+            "fallback_p95_latency_ms_24h": round(fallback_metrics["p95_latency_ms"], 2)
+            if fallback_metrics["p95_latency_ms"] is not None
             else None,
-            "fallback_last_event_at": _iso(last_fallback_at) if last_fallback_at else None,
+            "fallback_last_event_at": self._to_iso(fallback_metrics["last_fallback_at"])
+            if fallback_metrics["last_fallback_at"]
+            else None,
             "article_mix": {
-                "total_pre_dedupe": mix_total_pre,
-                "total_post_dedupe": mix_total_post,
-                "dedupe_ratio": round(mix_total_post / mix_total_pre, 4) if mix_total_pre else None,
-                "per_vendor_pre_dedupe": {k: int(v) for k, v in mix_vendor_pre.items()},
-                "per_vendor_post_dedupe": {k: int(v) for k, v in mix_vendor_post.items()},
-                "last_updated_at": _iso(last_mix_timestamp) if last_mix_timestamp else None,
+                "total_pre_dedupe": mix_metrics["total_pre"],
+                "total_post_dedupe": mix_metrics["total_post"],
+                "dedupe_ratio": round(mix_metrics["total_post"] / mix_metrics["total_pre"], 4)
+                if mix_metrics["total_pre"]
+                else None,
+                "per_vendor_pre_dedupe": {k: int(v) for k, v in mix_metrics["vendor_pre"].items()},
+                "per_vendor_post_dedupe": {k: int(v) for k, v in mix_metrics["vendor_post"].items()},
+                "last_updated_at": self._to_iso(mix_metrics["last_timestamp"]),
             },
             "vendors": vendor_health,
         }
