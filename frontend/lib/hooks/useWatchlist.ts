@@ -150,13 +150,18 @@ export function useDeleteWatchlistItem() {
       });
     },
     onError: (error) => {
-      // CRITICAL FIX (2025-11-09): Invalidate cache on delete errors (404/410)
-      // Prevents showing stale cached data after items are already deleted
+      // CRITICAL FIX (2025-11-09): On 404 errors, REMOVE stale cache and force immediate refetch
+      // Prevents showing deleted items with old IDs that no longer exist
       // Context: Data loss incident - frontend showed deleted items for hours due to stale cache
       if (error.message.includes('404') || error.message.includes('410') || error.message.includes('not found')) {
-        queryClient.invalidateQueries({
+        // REMOVE the stale cache entirely (don't just invalidate)
+        queryClient.removeQueries({
           queryKey: watchlistKeys.list(),
-          refetchType: 'active',
+        });
+        // Force immediate refetch
+        queryClient.refetchQueries({
+          queryKey: watchlistKeys.list(),
+          type: 'active',
         });
       }
     },
