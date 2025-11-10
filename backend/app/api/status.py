@@ -490,11 +490,14 @@ async def restart_services() -> RestartServicesResponse:
         )
 
         if result.returncode != 0:
-            logger.error("restart_services_failed", stderr=result.stderr)
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to restart services: {result.stderr or 'Unknown error'}",
+            error_msg = result.stderr or result.stdout or "Unknown error"
+            logger.error(
+                "restart_services_failed",
+                stderr=result.stderr,
+                stdout=result.stdout,
+                returncode=result.returncode,
             )
+            raise HTTPException(status_code=500, detail=f"Failed to restart services: {error_msg}")
 
         logger.info("services_restarted")
 
