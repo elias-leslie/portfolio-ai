@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 from collections import deque
@@ -142,6 +143,214 @@ async def get_service_logs(service: str, lines: int = 100) -> LogResponse:
     except Exception as e:
         logger.error("get_service_logs_error", service=service, error=str(e))
         raise HTTPException(status_code=500, detail=f"Error reading logs: {e!s}") from e
+
+
+class UnifiedLogEntry(BaseModel):
+    """Single log entry from unified journald stream."""
+
+    timestamp: datetime = Field(description="Log entry timestamp (unified from journald)")
+    service: str = Field(description="Service name (backend, celery_worker, postgresql, etc.)")
+    level: str = Field(description="Log level (ERROR, WARN, INFO, DEBUG, UNKNOWN)")
+    message: str = Field(description="Log message content")
+
+    class Config:
+        """Allow mutation for merging multi-line logs."""
+
+        frozen = False
+
+
+class UnifiedLogsResponse(BaseModel):
+    """Response model for unified logs endpoint."""
+
+    logs: list[UnifiedLogEntry] = Field(description="Chronologically sorted log entries")
+    total_entries: int = Field(description="Total number of log entries returned")
+    timestamp: datetime = Field(
+        default_factory=lambda: datetime.now(UTC), description="Response timestamp"
+    )
+
+
+@router.get("/unified-logs", response_model=UnifiedLogsResponse)
+async def get_unified_logs(
+    lines: int = 500,
+    service: str | None = None,
+    level: str | None = None,
+    since: str = "5 minutes ago",
+) -> UnifiedLogsResponse:
+    """Get unified chronological logs from all services via journald.
+
+    Args:
+        lines: Maximum number of log entries to retrieve (default 500, max 5000)
+        service: Filter by service name (backend, celery_worker, celery_beat, frontend, redis, postgresql)
+        level: Filter by log level (ERROR, WARN, INFO, DEBUG)
+        since: Time range (e.g., "5 minutes ago", "1 hour ago", "today")
+
+    Returns:
+        UnifiedLogsResponse: Chronologically sorted log entries from all services
+
+    Raises:
+        HTTPException: 400 if parameters invalid, 500 if journalctl fails
+    """
+    # Validate parameters
+    if lines < 1 or lines > 5000:
+        raise HTTPException(status_code=400, detail="Lines must be between 1 and 5000")
+
+    valid_services = {"backend", "celery_worker", "celery_beat", "frontend", "redis", "postgresql"}
+    if service and service not in valid_services:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid service. Must be one of: {', '.join(valid_services)}",
+        )
+
+    valid_levels = {"ERROR", "WARN", "INFO", "DEBUG"}
+    if level and level not in valid_levels:
+        raise HTTPException(
+            status_code=400, detail=f"Invalid level. Must be one of: {', '.join(valid_levels)}"
+        )
+
+    try:
+        # Map service names to systemd unit names
+        service_units = {
+            "backend": "portfolio-backend",
+            "celery_worker": "portfolio-celery",
+            "celery_beat": "portfolio-beat",
+            "frontend": "portfolio-frontend",
+            "redis": "redis-server",
+            "postgresql": "postgresql@16-main",
+        }
+
+        # Build journalctl command
+        cmd = ["journalctl", "--no-pager", "-o", "json", "--since", since, "-n", str(lines)]
+
+        # Add service filter if specified
+        if service:
+            cmd.extend(["-u", service_units[service]])
+        else:
+            # Include all portfolio services
+            for unit in service_units.values():
+                cmd.extend(["-u", unit])
+
+        # Execute journalctl
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, check=True)
+
+        # Parse journald JSON output
+        logs: list[UnifiedLogEntry] = []
+        for line in result.stdout.strip().split("\n"):
+            if not line:
+                continue
+
+            try:
+                entry = json.loads(line)
+
+                # Extract timestamp (microsecond precision from journald)
+                timestamp_us = int(entry.get("__REALTIME_TIMESTAMP", 0))
+                timestamp = datetime.fromtimestamp(timestamp_us / 1000000, tz=UTC)
+
+                # Extract service name from systemd unit
+                unit = entry.get("_SYSTEMD_UNIT", "")
+                service_name = "unknown"
+                for svc, unit_name in service_units.items():
+                    if unit_name in unit:
+                        service_name = svc
+                        break
+
+                # Extract log message (keep newlines for multi-line messages)
+                message = entry.get("MESSAGE", "")
+
+                # Skip empty messages
+                if not message.strip():
+                    continue
+
+                # Skip systemd control messages (service start/stop notifications)
+                if (
+                    service_name == "unknown"
+                    or message.startswith("Starting ")
+                    or message.startswith("Started ")
+                    or message.startswith("Stopping ")
+                    or message.startswith("Stopped ")
+                ):
+                    continue
+
+                # Detect log level from message content (check first line)
+                first_line = message.split("\n")[0] if "\n" in message else message
+                msg_upper = first_line.upper()
+
+                # Service-specific level detection
+                if service_name == "redis":
+                    # Redis uses symbols: # = warning, * = info, . = debug
+                    if " # " in first_line:
+                        log_level = "WARN"
+                    elif " * " in first_line:
+                        log_level = "INFO"
+                    elif " . " in first_line:
+                        log_level = "DEBUG"
+                    else:
+                        log_level = "INFO"
+                elif "ERROR" in msg_upper or "FATAL" in msg_upper or "CRITICAL" in msg_upper:
+                    log_level = "ERROR"
+                elif "WARN" in msg_upper:
+                    log_level = "WARN"
+                elif "DEBUG" in msg_upper:
+                    log_level = "DEBUG"
+                elif "INFO" in msg_upper or "LOG:" in msg_upper:
+                    log_level = "INFO"
+                else:
+                    log_level = "UNKNOWN"
+
+                # Apply level filter if specified
+                if level and log_level != level:
+                    continue
+
+                logs.append(
+                    UnifiedLogEntry(
+                        timestamp=timestamp,
+                        service=service_name,
+                        level=log_level,
+                        message=message,
+                    )
+                )
+
+            except (json.JSONDecodeError, KeyError, ValueError) as e:
+                logger.warning("unified_logs_parse_error", error=str(e), line=line[:100])
+                continue
+
+        # Sort by timestamp (chronological order)
+        logs.sort(key=lambda x: x.timestamp)
+
+        # Merge consecutive entries with same timestamp and service (handles multi-line PostgreSQL logs)
+        merged_logs: list[UnifiedLogEntry] = []
+        for log in logs:
+            if (
+                merged_logs
+                and merged_logs[-1].timestamp == log.timestamp
+                and merged_logs[-1].service == log.service
+            ):
+                # Same timestamp and service - merge messages
+                merged_logs[-1].message += "\n" + log.message
+                # Upgrade level if new entry has higher severity
+                level_priority = {"ERROR": 4, "WARN": 3, "INFO": 2, "DEBUG": 1, "UNKNOWN": 0}
+                if level_priority.get(log.level, 0) > level_priority.get(merged_logs[-1].level, 0):
+                    merged_logs[-1].level = log.level
+            else:
+                # Different timestamp or service - add as new entry
+                merged_logs.append(log)
+
+        return UnifiedLogsResponse(logs=merged_logs, total_entries=len(merged_logs))
+
+    except subprocess.TimeoutExpired as e:
+        logger.error("unified_logs_timeout", error=str(e))
+        raise HTTPException(
+            status_code=504, detail="Journalctl query timed out after 30 seconds"
+        ) from e
+
+    except subprocess.CalledProcessError as e:
+        logger.error("unified_logs_failed", error=e.stderr)
+        raise HTTPException(
+            status_code=500, detail=f"Failed to retrieve logs: {e.stderr or 'Unknown error'}"
+        ) from e
+
+    except Exception as e:
+        logger.error("unified_logs_error", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Error retrieving unified logs: {e!s}") from e
 
 
 class DiskUsageResponse(BaseModel):
