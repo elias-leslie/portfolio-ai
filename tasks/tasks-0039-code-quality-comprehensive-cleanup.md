@@ -290,6 +290,103 @@ Details:
 
 ---
 
+### 7.0 Data Safety Improvements (CRITICAL - Nov 9 Incident Response)
+
+**Context**: Migration #18 deleted 612 watchlist items + 246,131 snapshots due to CASCADE constraints. Frontend showed stale cached data, hiding the issue for hours. Need safeguards to prevent this.
+
+**Root Causes Identified**:
+1. Migration #18 had aggressive DELETE without dry-run or backup
+2. CASCADE constraint on snapshots → historical data deleted with items
+3. Frontend cache (`refetchOnMount: false`) showed stale data after deletions
+4. No migration validation or rollback mechanism
+
+- [ ] 7.1 Migration Safety Framework
+  - [ ] 7.1.1 Create migration dry-run mode
+    - Add `--dry-run` flag to migration runner
+    - Show: "WOULD DELETE X items, affecting Y snapshots"
+    - Require explicit `--execute` after dry-run review
+    - Script: `backend/scripts/migrate.py --dry-run migration_018`
+  - [ ] 7.1.2 Add pre-migration backup automation
+    - Auto-create pg_dump before any migration with DELETE/DROP
+    - Location: `backups/pre-migration-{version}-{timestamp}.sql`
+    - Retention: 30 days
+    - Script: `backend/scripts/migrate.py` auto-backup
+  - [ ] 7.1.3 Migration validation checklist
+    - Document in `backend/migrations/MIGRATION_SAFETY.md`:
+      - ✅ Dry-run shows expected changes?
+      - ✅ Backup created and verified?
+      - ✅ Rollback plan documented?
+      - ✅ CASCADE impacts analyzed?
+      - ✅ Frontend cache invalidation needed?
+  - [ ] 7.1.4 Add migration rollback mechanism
+    - Store rollback SQL with each migration
+    - Test rollback in dev before production
+    - Add `--rollback` flag to migration runner
+
+- [ ] 7.2 Database Constraint Improvements
+  - [ ] 7.2.1 Review CASCADE constraints
+    - Current: `watchlist_snapshots.item_id` → `ON DELETE CASCADE`
+    - Issue: Deleting items nukes ALL historical data
+    - Solution: Change to `ON DELETE SET NULL` for historical tables
+    - Migration: `023_fix_cascade_constraints.sql`
+  - [ ] 7.2.2 Add soft-delete for critical tables
+    - Add `deleted_at` column to `watchlist_items`
+    - Keep historical snapshots even after "deletion"
+    - Filter out soft-deleted items in queries
+    - Allow recovery within 30 days
+  - [ ] 7.2.3 Add deletion audit log
+    - Create `deletion_audit` table
+    - Track: who, what, when, why (migration/user/cascade)
+    - Helps debug "where did my data go" scenarios
+
+- [ ] 7.3 Frontend Cache Invalidation Fixes
+  - [ ] 7.3.1 Fix React Query cache on errors
+    - Current issue: `refetchOnMount: false` + cached data persists after 404s
+    - Solution: Invalidate cache on delete errors (404, 410)
+    - File: `frontend/lib/hooks/useWatchlist.ts`
+    - Change: `onError` → invalidate cache + force refetch
+  - [ ] 7.3.2 Add cache staleness detection
+    - Compare `updated_at` from cache vs API
+    - Show warning: "Data may be stale, click to refresh"
+    - Auto-invalidate cache if API returns newer data
+  - [ ] 7.3.3 Add optimistic update rollback
+    - Current: Delete shows success, backend 404 hidden
+    - Solution: On delete error, revert optimistic update
+    - Show error toast + restore item to UI
+
+- [ ] 7.4 Monitoring & Alerting
+  - [ ] 7.4.1 Add data deletion monitoring
+    - Alert if >10 items deleted in <1 hour
+    - Alert if >1000 snapshots deleted in <1 hour
+    - Track deletion rate in health dashboard
+  - [ ] 7.4.2 Add migration impact tracking
+    - Log rows affected by each migration
+    - Store in `migration_audit` table
+    - Review before applying to production
+
+- [ ] 7.5 Documentation & Prevention
+  - [ ] 7.5.1 Create `backend/migrations/MIGRATION_SAFETY.md`
+    - Document all safety protocols
+    - Add examples of safe vs unsafe migrations
+    - Require sign-off checklist for DELETE/DROP migrations
+  - [ ] 7.5.2 Update `docs/core/OPERATIONS.md`
+    - Add migration runbook
+    - Document rollback procedures
+    - Add incident response checklist
+  - [ ] 7.5.3 Add migration testing guidelines
+    - Test migrations on copy of production data first
+    - Verify row counts before/after
+    - Check CASCADE impacts with `EXPLAIN`
+
+**Verification**:
+- [ ] Dry-run mode working (test with safe migration)
+- [ ] Backup automation tested
+- [ ] CASCADE constraints reviewed and fixed
+- [ ] Frontend cache properly invalidates on errors
+- [ ] Documentation complete and reviewed
+
+---
+
 ## Verification (MANDATORY before "COMPLETE ✅")
 
 - [ ] **Quality Metrics**: EXCELLENT (0/0/0) or near-EXCELLENT (<5 issues total)
@@ -297,6 +394,7 @@ Details:
 - [ ] **Linting**: `~/portfolio-ai/scripts/lint.sh` passes (ruff + mypy --strict)
 - [ ] **Type Safety**: <10 Any types remaining (only where truly necessary)
 - [ ] **No Regressions**: Watchlist refresh performance maintained
+- [ ] **Data Safety**: All Task 7 improvements implemented and verified
 - [ ] **Clean Architecture**: No circular dependencies introduced
 - [ ] **Documentation**: Major refactorings documented
 - [ ] **Production Ready**: No breaking changes, backward compatible
