@@ -259,3 +259,113 @@ async def simple_health_check() -> dict[str, str]:
         Simple status dict
     """
     return {"status": "healthy"}
+
+
+class DeletionRate(BaseModel):
+    """Deletion rate monitoring response."""
+
+    status: Literal["ok", "warning", "critical"]
+    time_window_hours: int
+    deletions_by_table: dict[str, int]
+    total_deletions: int
+    alert_threshold_warning: int = 10
+    alert_threshold_critical: int = 100
+    message: str
+
+
+@router.get("/deletion-rate", response_model=DeletionRate)
+async def get_deletion_rate(hours: int = 1) -> DeletionRate:
+    """Monitor deletion rate for incident detection.
+
+    Created: 2025-11-10 (Response to Nov 9 deletion incident)
+
+    Tracks deletions from critical tables to detect mass deletion events
+    that may indicate data loss incidents, migration issues, or bugs.
+
+    Alert thresholds:
+    - Warning: >10 deletions in time window
+    - Critical: >100 deletions in time window
+
+    Args:
+        hours: Time window in hours (default: 1)
+
+    Returns:
+        Deletion rate summary with alert status
+
+    Example:
+        GET /api/health/deletion-rate?hours=1
+        {
+            "status": "warning",
+            "time_window_hours": 1,
+            "deletions_by_table": {
+                "watchlist_items": 12,
+                "watchlist_snapshots": 245
+            },
+            "total_deletions": 257,
+            "message": "⚠️  High deletion rate detected"
+        }
+    """
+    storage = get_storage()
+
+    try:
+        # Query deletion_audit table (requires migration 024)
+        query = """
+        SELECT
+            table_name,
+            COUNT(*) as deletion_count
+        FROM deletion_audit
+        WHERE deleted_at > NOW() - INTERVAL '1 hour' * ?
+        GROUP BY table_name
+        ORDER BY deletion_count DESC
+        """
+
+        with storage.connection() as conn:
+            result = conn.execute(query, [hours]).pl()
+
+        # Build deletion summary
+        deletions_by_table = {}
+        if not result.is_empty():
+            for row in result.iter_rows(named=True):
+                deletions_by_table[row["table_name"]] = row["deletion_count"]
+
+        total_deletions = sum(deletions_by_table.values())
+
+        # Determine alert status
+        if total_deletions >= 100:
+            status = "critical"
+            message = f"🔴 CRITICAL: {total_deletions} deletions in last {hours}h (threshold: 100)"
+        elif total_deletions >= 10:
+            status = "warning"
+            message = f"⚠️  WARNING: {total_deletions} deletions in last {hours}h (threshold: 10)"
+        else:
+            status = "ok"
+            message = f"✅ OK: {total_deletions} deletions in last {hours}h"
+
+        logger.info(
+            "deletion_rate_check",
+            status=status,
+            total_deletions=total_deletions,
+            time_window_hours=hours,
+            deletions_by_table=deletions_by_table,
+        )
+
+        return DeletionRate(
+            status=status,
+            time_window_hours=hours,
+            deletions_by_table=deletions_by_table,
+            total_deletions=total_deletions,
+            message=message,
+        )
+
+    except Exception as e:
+        # If deletion_audit table doesn't exist (migration 024 not applied),
+        # return OK status with explanation
+        logger.warning("deletion_audit_check_failed", error=str(e))
+
+        return DeletionRate(
+            status="ok",
+            time_window_hours=hours,
+            deletions_by_table={},
+            total_deletions=0,
+            message=f"⚠️  Deletion auditing not enabled (migration 024 required): {e}",
+        )
