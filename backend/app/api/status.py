@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 from collections import deque
@@ -254,7 +255,18 @@ async def get_unified_logs(
                         break
 
                 # Extract log message (keep newlines for multi-line messages)
-                message = entry.get("MESSAGE", "")
+                # MESSAGE can be a string or list (for binary data)
+                message_raw = entry.get("MESSAGE", "")
+                if isinstance(message_raw, list):
+                    # Binary message - convert bytes to string
+                    try:
+                        message = "".join(
+                            chr(b) if isinstance(b, int) else str(b) for b in message_raw
+                        )
+                    except (ValueError, TypeError):
+                        continue  # Skip if we can't decode
+                else:
+                    message = str(message_raw)
 
                 # Skip empty messages
                 if not message.strip():
@@ -270,29 +282,18 @@ async def get_unified_logs(
                 ):
                     continue
 
-                # Detect log level from message content (check first line)
-                first_line = message.split("\n")[0] if "\n" in message else message
-                msg_upper = first_line.upper()
+                # Use journald's native PRIORITY field (syslog levels)
+                # 0=emerg, 1=alert, 2=crit, 3=err, 4=warning, 5=notice, 6=info, 7=debug
+                priority = int(entry.get("PRIORITY", 6))  # Default to info (6)
 
-                # Service-specific level detection
-                if service_name == "redis":
-                    # Redis uses symbols: # = warning, * = info, . = debug
-                    if " # " in first_line:
-                        log_level = "WARN"
-                    elif " * " in first_line:
-                        log_level = "INFO"
-                    elif " . " in first_line:
-                        log_level = "DEBUG"
-                    else:
-                        log_level = "INFO"
-                elif "ERROR" in msg_upper or "FATAL" in msg_upper or "CRITICAL" in msg_upper:
+                if priority <= 3:  # Emergency, Alert, Critical, Error
                     log_level = "ERROR"
-                elif "WARN" in msg_upper:
+                elif priority == 4:  # Warning
                     log_level = "WARN"
-                elif "DEBUG" in msg_upper:
-                    log_level = "DEBUG"
-                elif "INFO" in msg_upper or "LOG:" in msg_upper:
+                elif priority in {5, 6}:  # Notice, Informational
                     log_level = "INFO"
+                elif priority == 7:  # Debug
+                    log_level = "DEBUG"
                 else:
                     log_level = "UNKNOWN"
 
@@ -351,6 +352,160 @@ async def get_unified_logs(
     except Exception as e:
         logger.error("unified_logs_error", error=str(e))
         raise HTTPException(status_code=500, detail=f"Error retrieving unified logs: {e!s}") from e
+
+
+class LogLevelConfigResponse(BaseModel):
+    """Log level configuration information."""
+
+    current_level: str = Field(description="Current log level (INFO, DEBUG, WARN, ERROR)")
+    available_levels: list[str] = Field(description="Available log levels")
+    configuration_method: str = Field(description="How to change the log level")
+    restart_required: bool = Field(description="Whether restart is required after change")
+
+
+@router.get("/log-level", response_model=LogLevelConfigResponse)
+def get_log_level_config() -> LogLevelConfigResponse:
+    """Get current log level configuration.
+
+    Returns:
+        LogLevelConfigResponse: Current log level and configuration info
+    """
+    current_level = os.getenv("LOG_LEVEL", "INFO")
+
+    return LogLevelConfigResponse(
+        current_level=current_level,
+        available_levels=["DEBUG", "INFO", "WARN", "ERROR", "CRITICAL"],
+        configuration_method="API endpoint: POST /api/status/log-level",
+        restart_required=True,
+    )
+
+
+class SetLogLevelRequest(BaseModel):
+    """Request to set log level."""
+
+    level: str = Field(description="Log level to set (DEBUG, INFO, WARN, ERROR, CRITICAL)")
+
+
+class SetLogLevelResponse(BaseModel):
+    """Response from setting log level."""
+
+    success: bool = Field(description="Whether the operation succeeded")
+    level: str = Field(description="Log level that was set")
+    message: str = Field(description="Status message")
+    restart_required: bool = Field(description="Whether services need restart")
+
+
+@router.post("/log-level", response_model=SetLogLevelResponse)
+async def set_log_level(request: SetLogLevelRequest) -> SetLogLevelResponse:
+    """Set global log level for all services.
+
+    This updates systemd configuration and restarts services automatically.
+
+    Args:
+        request: SetLogLevelRequest with desired level
+
+    Returns:
+        SetLogLevelResponse: Status of the operation
+
+    Raises:
+        HTTPException: 400 if invalid level, 500 if operation fails
+    """
+    level = request.level.upper()
+
+    # Validate level
+    valid_levels = {"DEBUG", "INFO", "WARN", "WARNING", "ERROR", "CRITICAL"}
+    if level not in valid_levels:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid log level. Must be one of: DEBUG, INFO, WARN, ERROR, CRITICAL",
+        )
+
+    # Normalize WARNING to WARN
+    if level == "WARNING":
+        level = "WARN"
+
+    try:
+        # Run script to update systemd configs
+        # Use full absolute path
+        script_path = "/home/kasadis/portfolio-ai/scripts/set-log-level.sh"
+        result = subprocess.run(
+            ["bash", script_path, level],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+
+        if result.returncode != 0:
+            logger.error("set_log_level_failed", stderr=result.stderr, returncode=result.returncode)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to set log level: {result.stderr or 'Unknown error'}",
+            )
+
+        logger.info("log_level_changed", level=level)
+
+        return SetLogLevelResponse(
+            success=True,
+            level=level,
+            message=f"Log level set to {level}. Restart services to apply changes.",
+            restart_required=True,
+        )
+
+    except subprocess.TimeoutExpired as e:
+        logger.error("set_log_level_timeout", error=str(e))
+        raise HTTPException(status_code=504, detail="Operation timed out") from e
+
+    except Exception as e:
+        logger.error("set_log_level_error", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Error setting log level: {e!s}") from e
+
+
+class RestartServicesResponse(BaseModel):
+    """Response from restarting services."""
+
+    success: bool = Field(description="Whether the operation succeeded")
+    message: str = Field(description="Status message")
+
+
+@router.post("/restart-services", response_model=RestartServicesResponse)
+async def restart_services() -> RestartServicesResponse:
+    """Restart all Portfolio AI services.
+
+    Returns:
+        RestartServicesResponse: Status of the operation
+
+    Raises:
+        HTTPException: 500 if operation fails
+    """
+    try:
+        restart_script = "/home/kasadis/portfolio-ai/scripts/restart.sh"
+        result = subprocess.run(
+            ["bash", restart_script],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+
+        if result.returncode != 0:
+            logger.error("restart_services_failed", stderr=result.stderr)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to restart services: {result.stderr or 'Unknown error'}",
+            )
+
+        logger.info("services_restarted")
+
+        return RestartServicesResponse(success=True, message="Services restarted successfully")
+
+    except subprocess.TimeoutExpired as e:
+        logger.error("restart_services_timeout", error=str(e))
+        raise HTTPException(status_code=504, detail="Restart operation timed out") from e
+
+    except Exception as e:
+        logger.error("restart_services_error", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Error restarting services: {e!s}") from e
 
 
 class DiskUsageResponse(BaseModel):

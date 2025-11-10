@@ -91,6 +91,9 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
     const [serviceFilter, setServiceFilter] = useState<string | undefined>(undefined);
     const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
     const [copied, setCopied] = useState(false);
+    const [changingLogLevel, setChangingLogLevel] = useState(false);
+    const [restartRequired, setRestartRequired] = useState(false);
+    const [restarting, setRestarting] = useState(false);
 
     // Build API URL with filters
     const apiUrl = useMemo(() => {
@@ -115,6 +118,16 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
             refreshInterval: autoRefresh ? 5000 : 0,
             revalidateOnFocus: false,
         }
+    );
+
+    // Fetch current log level configuration
+    const backendUrl = typeof window !== 'undefined'
+        ? `http://${window.location.hostname}:8000`
+        : 'http://localhost:8000';
+    const { data: logLevelConfig, mutate: mutateLogLevel } = useSWR(
+        `${backendUrl}/api/status/log-level`,
+        fetcher,
+        { refreshInterval: 0 }
     );
 
     // Sort logs by timestamp
@@ -144,6 +157,15 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
         return counts;
     }, [data?.logs]);
 
+    // Get log service counts
+    const serviceCounts = useMemo(() => {
+        const counts: Record<string, number> = {};
+        data?.logs.forEach((log) => {
+            counts[log.service] = (counts[log.service] || 0) + 1;
+        });
+        return counts;
+    }, [data?.logs]);
+
     // Copy logs to clipboard
     const handleCopy = async () => {
         const text = sortedLogs
@@ -158,20 +180,100 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
         setSortOrder(sortOrder === "asc" ? "desc" : "asc");
     };
 
+    const handleLogLevelChange = async (newLevel: string) => {
+        if (changingLogLevel) return;
+
+        setChangingLogLevel(true);
+        try {
+            const response = await fetch(`${backendUrl}/api/status/log-level`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ level: newLevel }),
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || 'Failed to change log level');
+            }
+
+            const result = await response.json();
+
+            // Refresh log level config
+            await mutateLogLevel();
+
+            // Show restart required
+            setRestartRequired(true);
+
+        } catch (error) {
+            console.error('Failed to change log level:', error);
+            alert(`Failed to change log level: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        } finally {
+            setChangingLogLevel(false);
+        }
+    };
+
+    const handleRestartServices = async () => {
+        if (restarting) return;
+
+        setRestarting(true);
+        try {
+            const response = await fetch(`${backendUrl}/api/status/restart-services`, {
+                method: 'POST',
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || 'Failed to restart services');
+            }
+
+            // Clear restart required flag
+            setRestartRequired(false);
+
+            // Refresh log level config
+            await mutateLogLevel();
+
+            alert('Services restarted successfully!');
+
+        } catch (error) {
+            console.error('Failed to restart services:', error);
+            alert(`Failed to restart services: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        } finally {
+            setRestarting(false);
+        }
+    };
+
     return (
         <Card className="border-border">
             <CardHeader>
                 <div className="flex items-center justify-between">
-                    <div>
-                        <CardTitle className="flex items-center gap-2">
-                            <FileText className="h-5 w-5" />
-                            <span>System Logs</span>
-                        </CardTitle>
-                        <p className="text-sm text-muted-foreground mt-1">
-                            Unified chronological view (last 5 minutes)
-                        </p>
-                    </div>
+                    <CardTitle className="flex items-center gap-2">
+                        <FileText className="h-5 w-5" />
+                        <span>Unified Logging</span>
+                    </CardTitle>
                     <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <span>Level:</span>
+                            <Select
+                                value={logLevelConfig?.current_level || "INFO"}
+                                onValueChange={handleLogLevelChange}
+                                disabled={changingLogLevel}
+                            >
+                                <SelectTrigger className="w-[110px] h-8">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="DEBUG">DEBUG</SelectItem>
+                                    <SelectItem value="INFO">INFO</SelectItem>
+                                    <SelectItem value="WARN">WARN</SelectItem>
+                                    <SelectItem value="ERROR">ERROR</SelectItem>
+                                    <SelectItem value="CRITICAL">CRITICAL</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            {changingLogLevel && (
+                                <RefreshCw className="h-4 w-4 animate-spin" />
+                            )}
+                        </div>
+                        <div className="w-px h-6 bg-border" />
                         <Badge variant="outline">
                             {sortedLogs.length} logs
                         </Badge>
@@ -201,27 +303,54 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
                 </div>
             </CardHeader>
             <CardContent>
+
+                {restartRequired && !restarting && (
+                    <Alert className="mb-4">
+                        <AlertDescription>
+                            <div className="flex items-center justify-between">
+                                <span>Log level updated. Restart services to apply changes?</span>
+                                <Button
+                                    variant="default"
+                                    size="sm"
+                                    onClick={handleRestartServices}
+                                >
+                                    Restart Services
+                                </Button>
+                            </div>
+                        </AlertDescription>
+                    </Alert>
+                )}
+
+                {restarting && (
+                    <Alert className="mb-4">
+                        <AlertDescription>
+                            <div className="flex items-center gap-2">
+                                <RefreshCw className="h-4 w-4 animate-spin" />
+                                <span>Restarting services... This will take about 10 seconds.</span>
+                            </div>
+                        </AlertDescription>
+                    </Alert>
+                )}
+
                 {/* Filters */}
-                <div className="flex items-center gap-4 mb-4">
-                    <div className="flex items-center gap-2">
-                        <Filter className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm font-medium">Filters:</span>
-                    </div>
+                <div className="flex items-center gap-2 mb-4">
                     <Select value={serviceFilter || "ALL"} onValueChange={(val) => setServiceFilter(val === "ALL" ? undefined : val)}>
                         <SelectTrigger className="w-[200px]">
                             <SelectValue placeholder="All Services" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="ALL">All Services</SelectItem>
+                            <SelectItem value="ALL">
+                                All Services ({data?.total_entries || 0})
+                            </SelectItem>
                             {Object.entries(SERVICE_DISPLAY_NAMES).map(([key, name]) => (
                                 <SelectItem key={key} value={key}>
-                                    {name}
+                                    {name} ({serviceCounts[key] || 0})
                                 </SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
                     <Select value={levelFilter || "ALL"} onValueChange={(val) => setLevelFilter(val === "ALL" ? undefined : val)}>
-                        <SelectTrigger className="w-[180px]">
+                        <SelectTrigger className="w-[160px]">
                             <SelectValue placeholder="All Levels" />
                         </SelectTrigger>
                         <SelectContent>
