@@ -4,7 +4,13 @@ import { useMarketNews } from "@/lib/hooks/useNews";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Newspaper, ExternalLink, Loader2 } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import {
+  formatSentimentScore,
+  formatVendorLabel,
+  getSentimentBadgeVariant,
+  formatConfidence,
+  formatNewsDate,
+} from "@/lib/utils/news-formatting";
 
 export function MarketNewsCard() {
   const { data: newsData, isLoading, error } = useMarketNews({ maxResults: 5 });
@@ -39,40 +45,6 @@ export function MarketNewsCard() {
 
   const articles = newsData?.articles ?? [];
 
-  // Helper to get sentiment badge variant (matches watchlist)
-  const getBadgeVariant = (label: string) => {
-    const normalized = label.toLowerCase();
-    if (normalized === "positive") return "gain";
-    if (normalized === "negative") return "loss";
-    return "outline";
-  };
-
-  // Helper to format sentiment score
-  const formatSentimentScore = (score: number | null | undefined) => {
-    if (score === null || score === undefined) return "N/A";
-    return score >= 0 ? `+${score.toFixed(2)}` : score.toFixed(2);
-  };
-
-  // Helper to format confidence
-  const formatConfidence = (confidence: number | null | undefined) => {
-    if (confidence === null || confidence === undefined) return "N/A";
-    return `${(confidence * 100).toFixed(0)}%`;
-  };
-
-  // Vendor label formatting (matches watchlist)
-  const formatVendorLabel = (vendor?: string | null): string => {
-    if (!vendor) return "Unknown Source";
-    const VENDOR_LABELS: Record<string, string> = {
-      polygon: "Polygon",
-      finnhub: "Finnhub",
-      fmp: "FMP",
-      google_news: "Google News",
-      yfinance: "Yahoo Finance",
-    };
-    const normalized = vendor.toLowerCase();
-    return VENDOR_LABELS[normalized] || vendor.trim();
-  };
-
   return (
     <Card className="p-6 shadow-lg">
       <div className="flex items-center gap-2 mb-4">
@@ -89,8 +61,7 @@ export function MarketNewsCard() {
       ) : (
         <div className="space-y-2">
           {articles.slice(0, 5).map((article, idx) => {
-            const publishedAt = article.published_at ? new Date(article.published_at) : null;
-            const timeAgo = publishedAt ? formatDistanceToNow(publishedAt, { addSuffix: true }) : null;
+            const timeAgo = formatNewsDate(article.published_at);
             const vendorLabel = formatVendorLabel(article.vendor);
             const publisherLabel = article.source && article.source.trim().length > 0
               ? article.source.trim()
@@ -132,7 +103,7 @@ export function MarketNewsCard() {
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2 text-xs">
-                    <Badge variant={getBadgeVariant(article.sentiment.label)}>
+                    <Badge variant={getSentimentBadgeVariant(article.sentiment.label)}>
                       {article.sentiment.label.toUpperCase()}
                     </Badge>
                     <span className="text-text font-semibold">

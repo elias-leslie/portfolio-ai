@@ -3,6 +3,8 @@
  * Used across Market News, Watchlist News Intelligence, and Watchlist Sentiment sections
  */
 
+import { formatDistanceToNow } from "date-fns";
+
 /**
  * Standard vendor labels for news sources
  */
@@ -89,21 +91,16 @@ export function formatConfidence(
 }
 
 /**
- * Format absolute date for news articles
+ * Format relative date for news articles
  * @param dateString ISO date string
- * @returns Formatted date (e.g., "Jan 15, 3:45 PM")
+ * @returns Relative date string (e.g., "5 hours ago", "2 days ago")
  */
 export function formatNewsDate(dateString: string | null | undefined): string {
   if (!dateString) return "";
 
   try {
     const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
+    return formatDistanceToNow(date, { addSuffix: true });
   } catch {
     return "";
   }

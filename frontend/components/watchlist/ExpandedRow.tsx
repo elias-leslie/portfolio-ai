@@ -22,14 +22,12 @@ import { useUpdateWatchlistItem } from "@/lib/hooks/useWatchlist";
 import { usePreferences } from "@/lib/hooks/usePreferences";
 import { toast } from "sonner";
 import type { WatchlistItem, RefreshStatus } from "@/lib/api/watchlist";
-
-const VENDOR_LABELS: Record<string, string> = {
-    polygon: "Polygon",
-    finnhub: "Finnhub",
-    fmp: "FMP",
-    google_news: "Google News",
-    yfinance: "Yahoo Finance",
-};
+import {
+    formatSentimentScore,
+    formatVendorLabel,
+    getSentimentBadgeVariant,
+    formatConfidence,
+} from "@/lib/utils/news-formatting";
 
 function sanitizeText(input?: string | null): string {
     if (!input) return "";
@@ -51,17 +49,6 @@ function sanitizeText(input?: string | null): string {
         .replace(/<[^>]*>/g, " ")
         .replace(/\s+/g, " ")
         .trim();
-}
-
-function formatVendorLabel(vendor?: string | null): string {
-    if (!vendor) {
-        return "Unknown Source";
-    }
-    const normalized = vendor.toLowerCase();
-    if (VENDOR_LABELS[normalized]) {
-        return VENDOR_LABELS[normalized];
-    }
-    return vendor.trim();
 }
 
 interface ExpandedRowProps {
@@ -124,53 +111,12 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
         setIsEditingNote(false);
     };
 
-    const formatSentimentScore = (score?: number | null) => {
-        if (score === null || score === undefined || Number.isNaN(score)) {
-            return "—";
-        }
-        const rounded = score.toFixed(2);
-        return score > 0 ? `+${rounded}` : rounded;
-    };
-
-    const getBadgeVariantFromScore = (
-        score?: number | null,
-    ): "gain" | "loss" | "neutral" => {
-        if (score === null || score === undefined) return "neutral";
-        if (score > 0.1) return "gain";
-        if (score < -0.1) return "loss";
-        return "neutral";
-    };
-
-    const getBadgeVariantFromLabel = (
-        label?: string | null,
-    ): "gain" | "loss" | "neutral" => {
-        switch (label) {
-            case "positive":
-                return "gain";
-            case "negative":
-                return "loss";
-            default:
-                return "neutral";
-        }
-    };
-
     const formatScoreChange = (change?: number | null) => {
         if (change === null || change === undefined || Number.isNaN(change)) {
             return null;
         }
         const formatted = change.toFixed(2);
         return change >= 0 ? `+${formatted}` : formatted;
-    };
-
-    const formatConfidence = (confidence?: number) => {
-        if (
-            confidence === null ||
-            confidence === undefined ||
-            Number.isNaN(confidence)
-        ) {
-            return "—";
-        }
-        return `${Math.round(confidence * 100)}%`;
     };
 
     const formatModelCoverage = () => {
@@ -977,7 +923,7 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
                                     </p>
                                     <div className="mt-1 flex items-center gap-2">
                                         <Badge
-                                            variant={getBadgeVariantFromScore(
+                                            variant={getSentimentBadgeVariant(
                                                 newsSummary.score,
                                             )}
                                         >
@@ -1138,7 +1084,7 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
                                                     </div>
                                                     <div className="flex flex-col items-end gap-2 text-xs">
                                                         <Badge
-                                                            variant={getBadgeVariantFromLabel(
+                                                            variant={getSentimentBadgeVariant(
                                                                 article
                                                                     .sentiment
                                                                     .label,

@@ -60,6 +60,10 @@ export interface SentimentArticle {
     sentiment: SentimentScoreMeta;
     content_hash: string;
     raw?: Record<string, unknown>;
+    // AI-generated insights (optional, prepared for future use)
+    plain_language_headline?: string | null;
+    impact_summary?: string | null;
+    actionable_insight?: string | null;
 }
 
 export interface RecentNewsPayload {

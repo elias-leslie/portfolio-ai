@@ -3,6 +3,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ExternalLink } from "lucide-react";
+import {
+  formatSentimentScore,
+  getSentimentBadgeVariant,
+  formatNewsDate,
+} from "@/lib/utils/news-formatting";
 
 interface KeyEvent {
     icon: string;
@@ -47,24 +52,6 @@ export function NewsIntelligenceCard({
     if (newsHidden) return null;
     if (!newsIntelligence) return null;
 
-    const getSentimentColor = (
-        label: string,
-    ): "gain" | "loss" | "neutral" => {
-        switch (label.toLowerCase()) {
-            case "positive":
-                return "gain";
-            case "negative":
-                return "loss";
-            default:
-                return "neutral";
-        }
-    };
-
-    const formatSentimentScore = (score: number): string => {
-        const rounded = score.toFixed(2);
-        return score > 0 ? `+${rounded}` : rounded;
-    };
-
     return (
         <Card className="border-border">
             <CardHeader className="pb-3">
@@ -80,7 +67,7 @@ export function NewsIntelligenceCard({
                         <div>
                             <span className="text-text-muted">Sentiment: </span>
                             <Badge
-                                variant={getSentimentColor(
+                                variant={getSentimentBadgeVariant(
                                     newsIntelligence.sentiment_label,
                                 )}
                             >
@@ -168,24 +155,14 @@ export function NewsIntelligenceCard({
                                                 )}
                                                 {article.published_at && (
                                                     <span>
-                                                        {new Date(
-                                                            article.published_at,
-                                                        ).toLocaleDateString(
-                                                            "en-US",
-                                                            {
-                                                                month: "short",
-                                                                day: "numeric",
-                                                                hour: "numeric",
-                                                                minute: "2-digit",
-                                                            },
-                                                        )}
+                                                        {formatNewsDate(article.published_at)}
                                                     </span>
                                                 )}
                                                 {article.sentiment_label && (
                                                     <>
                                                         <span>·</span>
                                                         <Badge
-                                                            variant={getSentimentColor(
+                                                            variant={getSentimentBadgeVariant(
                                                                 article.sentiment_label,
                                                             )}
                                                             className="text-[9px] px-1.5 py-0"
