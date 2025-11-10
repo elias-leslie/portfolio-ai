@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import {
     ChevronDown,
     ChevronRight,
@@ -31,7 +31,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useServiceLogs } from "@/lib/hooks/useServiceLogs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -43,7 +42,18 @@ interface ParsedLog {
     fullLine: string;
 }
 
-const LOG_SERVICES = ["backend", "celery_worker", "celery_beat", "frontend", "redis"];
+const LOG_SERVICES = [
+    "backend",
+    "backend_error",
+    "celery_worker",
+    "celery_worker_error",
+    "celery_beat",
+    "celery_beat_error",
+    "frontend",
+    "frontend_error",
+    "redis",
+    "postgresql",
+];
 
 function parseLogLine(line: string, service: string): ParsedLog {
     // Try to extract log level
@@ -123,55 +133,55 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
     const [sortField, setSortField] = useState<"service" | "level" | "timestamp">("timestamp");
     const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
     const [expandedRow, setExpandedRow] = useState<number | null>(null);
+    const [displayLimit, setDisplayLimit] = useState(25);
 
     // Fetch logs from all services
     const backendLogs = useServiceLogs("backend", true);
+    const backendErrorLogs = useServiceLogs("backend_error", true);
     const celeryWorkerLogs = useServiceLogs("celery_worker", true);
+    const celeryWorkerErrorLogs = useServiceLogs("celery_worker_error", true);
     const celeryBeatLogs = useServiceLogs("celery_beat", true);
+    const celeryBeatErrorLogs = useServiceLogs("celery_beat_error", true);
     const frontendLogs = useServiceLogs("frontend", true);
+    const frontendErrorLogs = useServiceLogs("frontend_error", true);
     const redisLogs = useServiceLogs("redis", true);
+    const postgresqlLogs = useServiceLogs("postgresql", true);
 
     // Combine all logs
     const allLogs = useMemo(() => {
         const logs: ParsedLog[] = [];
 
-        if (backendLogs.data?.lines) {
-            logs.push(
-                ...backendLogs.data.lines.map((line) => parseLogLine(line, "backend"))
-            );
-        }
-        if (celeryWorkerLogs.data?.lines) {
-            logs.push(
-                ...celeryWorkerLogs.data.lines.map((line) =>
-                    parseLogLine(line, "celery_worker")
-                )
-            );
-        }
-        if (celeryBeatLogs.data?.lines) {
-            logs.push(
-                ...celeryBeatLogs.data.lines.map((line) =>
-                    parseLogLine(line, "celery_beat")
-                )
-            );
-        }
-        if (frontendLogs.data?.lines) {
-            logs.push(
-                ...frontendLogs.data.lines.map((line) => parseLogLine(line, "frontend"))
-            );
-        }
-        if (redisLogs.data?.lines) {
-            logs.push(
-                ...redisLogs.data.lines.map((line) => parseLogLine(line, "redis"))
-            );
-        }
+        const logSources = [
+            { data: backendLogs.data, service: "backend" },
+            { data: backendErrorLogs.data, service: "backend_error" },
+            { data: celeryWorkerLogs.data, service: "celery_worker" },
+            { data: celeryWorkerErrorLogs.data, service: "celery_worker_error" },
+            { data: celeryBeatLogs.data, service: "celery_beat" },
+            { data: celeryBeatErrorLogs.data, service: "celery_beat_error" },
+            { data: frontendLogs.data, service: "frontend" },
+            { data: frontendErrorLogs.data, service: "frontend_error" },
+            { data: redisLogs.data, service: "redis" },
+            { data: postgresqlLogs.data, service: "postgresql" },
+        ];
+
+        logSources.forEach(({ data, service }) => {
+            if (data?.lines) {
+                logs.push(...data.lines.map((line) => parseLogLine(line, service)));
+            }
+        });
 
         return logs;
     }, [
         backendLogs.data,
+        backendErrorLogs.data,
         celeryWorkerLogs.data,
+        celeryWorkerErrorLogs.data,
         celeryBeatLogs.data,
+        celeryBeatErrorLogs.data,
         frontendLogs.data,
+        frontendErrorLogs.data,
         redisLogs.data,
+        postgresqlLogs.data,
     ]);
 
     // Filter logs
@@ -229,17 +239,27 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
 
     const isLoading =
         backendLogs.isLoading ||
+        backendErrorLogs.isLoading ||
         celeryWorkerLogs.isLoading ||
+        celeryWorkerErrorLogs.isLoading ||
         celeryBeatLogs.isLoading ||
+        celeryBeatErrorLogs.isLoading ||
         frontendLogs.isLoading ||
-        redisLogs.isLoading;
+        frontendErrorLogs.isLoading ||
+        redisLogs.isLoading ||
+        postgresqlLogs.isLoading;
 
     const hasError =
         backendLogs.error ||
+        backendErrorLogs.error ||
         celeryWorkerLogs.error ||
+        celeryWorkerErrorLogs.error ||
         celeryBeatLogs.error ||
+        celeryBeatErrorLogs.error ||
         frontendLogs.error ||
-        redisLogs.error;
+        frontendErrorLogs.error ||
+        redisLogs.error ||
+        postgresqlLogs.error;
 
     // Get log level counts for filter badges
     const logCounts = useMemo(() => {
@@ -290,10 +310,15 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
                         <SelectContent>
                             <SelectItem value="ALL">All Services</SelectItem>
                             <SelectItem value="backend">Backend</SelectItem>
+                            <SelectItem value="backend_error">Backend Error</SelectItem>
                             <SelectItem value="celery_worker">Celery Worker</SelectItem>
+                            <SelectItem value="celery_worker_error">Celery Worker Error</SelectItem>
                             <SelectItem value="celery_beat">Celery Beat</SelectItem>
+                            <SelectItem value="celery_beat_error">Celery Beat Error</SelectItem>
                             <SelectItem value="frontend">Frontend</SelectItem>
+                            <SelectItem value="frontend_error">Frontend Error</SelectItem>
                             <SelectItem value="redis">Redis</SelectItem>
+                            <SelectItem value="postgresql">PostgreSQL</SelectItem>
                         </SelectContent>
                     </Select>
                     <Select value={levelFilter} onValueChange={setLevelFilter}>
@@ -337,8 +362,9 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
 
                 {/* Logs table */}
                 {!isLoading && (
-                    <div className="rounded-md border">
-                        <Table>
+                    <>
+                        <div className="rounded-md border max-h-[600px] overflow-auto">
+                            <Table>
                             <TableHeader>
                                 <TableRow>
                                     <TableHead className="w-[50px]"></TableHead>
@@ -399,32 +425,27 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    sortedLogs.map((log, idx) => (
-                                        <Collapsible
-                                            key={idx}
-                                            open={expandedRow === idx}
-                                            onOpenChange={(open) =>
-                                                setExpandedRow(open ? idx : null)
-                                            }
-                                            asChild
-                                        >
-                                            <>
-                                                <TableRow className="hover:bg-muted/50">
-                                                    <TableCell>
-                                                        <CollapsibleTrigger asChild>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                className="p-0 h-auto"
-                                                            >
-                                                                {expandedRow === idx ? (
-                                                                    <ChevronDown className="h-4 w-4" />
-                                                                ) : (
-                                                                    <ChevronRight className="h-4 w-4" />
-                                                                )}
-                                                            </Button>
-                                                        </CollapsibleTrigger>
-                                                    </TableCell>
+                                    sortedLogs.slice(0, displayLimit).map((log, idx) => (
+                                        <React.Fragment key={idx}>
+                                            <TableRow className="hover:bg-muted/50">
+                                                <TableCell>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="p-0 h-auto"
+                                                        onClick={() =>
+                                                            setExpandedRow(
+                                                                expandedRow === idx ? null : idx
+                                                            )
+                                                        }
+                                                    >
+                                                        {expandedRow === idx ? (
+                                                            <ChevronDown className="h-4 w-4" />
+                                                        ) : (
+                                                            <ChevronRight className="h-4 w-4" />
+                                                        )}
+                                                    </Button>
+                                                </TableCell>
                                                     <TableCell>
                                                         <Badge variant="outline">
                                                             {log.service}
@@ -449,24 +470,41 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
                                                         {log.message}
                                                     </TableCell>
                                                 </TableRow>
-                                                <TableRow>
-                                                    <TableCell colSpan={5} className="p-0">
-                                                        <CollapsibleContent>
+                                                {expandedRow === idx && (
+                                                    <TableRow>
+                                                        <TableCell colSpan={5} className="p-0">
                                                             <div className="bg-gray-950 p-4 border-t">
                                                                 <pre className="font-mono text-xs text-gray-300 whitespace-pre-wrap break-words">
                                                                     {log.fullLine}
                                                                 </pre>
                                                             </div>
-                                                        </CollapsibleContent>
-                                                    </TableCell>
-                                                </TableRow>
-                                            </>
-                                        </Collapsible>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                )}
+                                        </React.Fragment>
                                     ))
                                 )}
                             </TableBody>
                         </Table>
                     </div>
+                    {sortedLogs.length > displayLimit && (
+                        <div className="mt-4 flex justify-center">
+                            <Button
+                                variant="outline"
+                                onClick={() => setDisplayLimit(displayLimit + 25)}
+                            >
+                                Show More ({sortedLogs.length - displayLimit} remaining)
+                            </Button>
+                        </div>
+                    )}
+                    {displayLimit > 25 && sortedLogs.length <= displayLimit && (
+                        <div className="mt-4 flex justify-center">
+                            <Button variant="outline" onClick={() => setDisplayLimit(25)}>
+                                Show Less
+                            </Button>
+                        </div>
+                    )}
+                </>
                 )}
             </CardContent>
         </Card>
