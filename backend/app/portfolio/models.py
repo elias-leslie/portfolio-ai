@@ -65,13 +65,45 @@ class ConcentrationMetrics(BaseModel):
     herfindahl_index: float
 
 
+class PositionPerformance(BaseModel):
+    """Performance data for a single position."""
+
+    symbol: str
+    gain_pct: float
+    gain_amount: float
+    current_value: float
+    weight_pct: float
+
+
+class RiskProfile(BaseModel):
+    """Portfolio risk profile assessment."""
+
+    level: Literal["Conservative", "Moderate", "Aggressive", "Very Aggressive"]
+    score: float  # 0-100 scale
+    factors: dict[str, str] = Field(default_factory=dict)
+
+
+class DiversificationScore(BaseModel):
+    """Portfolio diversification assessment."""
+
+    score: float  # 0-100 scale (100 = perfectly diversified)
+    level: Literal["Poor", "Fair", "Good", "Excellent"]
+    num_holdings: int
+    num_sectors: int
+
+
 class PortfolioAnalytics(BaseModel):
     """Complete portfolio analytics."""
 
     portfolio_value: PortfolioValue
     portfolio_beta: float | None = None
     portfolio_volatility: float | None = None
+    sharpe_ratio: float | None = None
     sector_exposure: dict[str, float] = Field(default_factory=dict)
     concentration_metrics: ConcentrationMetrics
+    risk_profile: RiskProfile | None = None
+    diversification_score: DiversificationScore | None = None
+    top_performers: list[PositionPerformance] = Field(default_factory=list)
+    bottom_performers: list[PositionPerformance] = Field(default_factory=list)
     num_positions: int
     num_symbols: int

@@ -39,6 +39,27 @@ export interface PortfolioResponse {
   total_gain_pct: number;
 }
 
+export interface PositionPerformance {
+  symbol: string;
+  gain_pct: number;
+  gain_amount: number;
+  current_value: number;
+  weight_pct: number;
+}
+
+export interface RiskProfile {
+  level: string;
+  score: number;
+  factors: Record<string, string>;
+}
+
+export interface DiversificationScore {
+  score: number;
+  level: string;
+  num_holdings: number;
+  num_sectors: number;
+}
+
 export interface PortfolioAnalytics {
   total_value: number;
   total_cost_basis: number;
@@ -46,6 +67,7 @@ export interface PortfolioAnalytics {
   total_gain_pct: number;
   portfolio_beta: number;
   portfolio_volatility: number;
+  sharpe_ratio: number | null;
   concentration: {
     top_holding_pct: number;
     top_3_pct: number;
@@ -53,6 +75,10 @@ export interface PortfolioAnalytics {
     herfindahl_index: number;
   };
   sector_exposure: Record<string, number>;
+  risk_profile: RiskProfile | null;
+  diversification_score: DiversificationScore | null;
+  top_performers: PositionPerformance[];
+  bottom_performers: PositionPerformance[];
 }
 
 export interface CreateAccountRequest {

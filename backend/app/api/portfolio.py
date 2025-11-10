@@ -81,14 +81,46 @@ class PortfolioResponse(BaseModel):
     total_gain_pct: float
 
 
+class PositionPerformanceResponse(BaseModel):
+    """Response model for position performance."""
+
+    symbol: str
+    gain_pct: float
+    gain_amount: float
+    current_value: float
+    weight_pct: float
+
+
+class RiskProfileResponse(BaseModel):
+    """Response model for risk profile."""
+
+    level: str
+    score: float
+    factors: dict[str, str]
+
+
+class DiversificationScoreResponse(BaseModel):
+    """Response model for diversification score."""
+
+    score: float
+    level: str
+    num_holdings: int
+    num_sectors: int
+
+
 class AnalyticsResponse(BaseModel):
     """Response model for portfolio analytics."""
 
     portfolio_value: dict[str, float]
     portfolio_beta: float | None
     portfolio_volatility: float | None
+    sharpe_ratio: float | None
     sector_exposure: dict[str, float]
     concentration: dict[str, float]
+    risk_profile: RiskProfileResponse | None
+    diversification_score: DiversificationScoreResponse | None
+    top_performers: list[PositionPerformanceResponse]
+    bottom_performers: list[PositionPerformanceResponse]
     num_positions: int
     num_symbols: int
 
@@ -337,6 +369,48 @@ async def get_analytics() -> AnalyticsResponse:
     # Calculate analytics
     analytics = analytics_calculator.calculate_full_analytics(positions, price_data)
 
+    # Convert risk profile to response model
+    risk_profile_response = None
+    if analytics.risk_profile:
+        risk_profile_response = RiskProfileResponse(
+            level=analytics.risk_profile.level,
+            score=analytics.risk_profile.score,
+            factors=analytics.risk_profile.factors,
+        )
+
+    # Convert diversification score to response model
+    diversification_response = None
+    if analytics.diversification_score:
+        diversification_response = DiversificationScoreResponse(
+            score=analytics.diversification_score.score,
+            level=analytics.diversification_score.level,
+            num_holdings=analytics.diversification_score.num_holdings,
+            num_sectors=analytics.diversification_score.num_sectors,
+        )
+
+    # Convert top/bottom performers to response models
+    top_performers_response = [
+        PositionPerformanceResponse(
+            symbol=p.symbol,
+            gain_pct=p.gain_pct,
+            gain_amount=p.gain_amount,
+            current_value=p.current_value,
+            weight_pct=p.weight_pct,
+        )
+        for p in analytics.top_performers
+    ]
+
+    bottom_performers_response = [
+        PositionPerformanceResponse(
+            symbol=p.symbol,
+            gain_pct=p.gain_pct,
+            gain_amount=p.gain_amount,
+            current_value=p.current_value,
+            weight_pct=p.weight_pct,
+        )
+        for p in analytics.bottom_performers
+    ]
+
     return AnalyticsResponse(
         portfolio_value={
             "total_value": analytics.portfolio_value.total_value,
@@ -346,6 +420,7 @@ async def get_analytics() -> AnalyticsResponse:
         },
         portfolio_beta=analytics.portfolio_beta,
         portfolio_volatility=analytics.portfolio_volatility,
+        sharpe_ratio=analytics.sharpe_ratio,
         sector_exposure=analytics.sector_exposure,
         concentration={
             "top_holding_pct": analytics.concentration_metrics.top_holding_pct,
@@ -353,6 +428,10 @@ async def get_analytics() -> AnalyticsResponse:
             "top_10_pct": analytics.concentration_metrics.top_10_pct,
             "herfindahl_index": analytics.concentration_metrics.herfindahl_index,
         },
+        risk_profile=risk_profile_response,
+        diversification_score=diversification_response,
+        top_performers=top_performers_response,
+        bottom_performers=bottom_performers_response,
         num_positions=analytics.num_positions,
         num_symbols=analytics.num_symbols,
     )

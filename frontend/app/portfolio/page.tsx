@@ -119,10 +119,10 @@ export default function PortfolioPage() {
         {/* Header */}
         <div className="mb-10 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-semibold text-text">
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent">
               Portfolio Management
             </h1>
-            <p className="mt-2 text-sm text-text-muted">
+            <p className="mt-3 text-base text-text-muted">
               Manage your positions, accounts, and view detailed analytics
             </p>
           </div>
