@@ -56,42 +56,96 @@ const LOG_SERVICES = [
 ];
 
 function parseLogLine(line: string, service: string): ParsedLog {
-    // Try to extract log level
-    let level: ParsedLog["level"] = "UNKNOWN";
-    if (line.includes("ERROR") || line.includes("[error]")) {
-        level = "ERROR";
-    } else if (line.includes("WARN") || line.includes("[warn]")) {
-        level = "WARN";
-    } else if (line.includes("INFO") || line.includes("[info]")) {
-        level = "INFO";
-    } else if (line.includes("DEBUG") || line.includes("[debug]")) {
-        level = "DEBUG";
-    }
+    // Clean the line first (strip leading/trailing whitespace)
+    const cleanLine = line.trim();
 
-    // Try to extract timestamp (common formats)
-    // Format 1: ISO8601 (2025-01-01T12:00:00Z or 2025-01-01 12:00:00)
-    // Format 2: [2025-01-01 12:00:00]
+    let level: ParsedLog["level"] = "UNKNOWN";
     let timestamp = "";
-    const isoMatch = line.match(/\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?/);
-    if (isoMatch) {
-        timestamp = isoMatch[0];
-    } else {
-        // Fallback: look for bracketed timestamp
-        const bracketMatch = line.match(/\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]/);
-        if (bracketMatch) {
-            timestamp = bracketMatch[1];
+    let message = cleanLine;
+
+    // Service-specific parsing
+    if (service === "celery_beat_error" || service === "celery_worker_error") {
+        // Format: [2025-11-10 10:44:42,210: INFO/MainProcess] Message
+        const celeryMatch = cleanLine.match(/^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})[^:]*: (\w+)\/[^\]]+\] (.+)$/);
+        if (celeryMatch) {
+            timestamp = celeryMatch[1];
+            const levelStr = celeryMatch[2].toUpperCase();
+            level = ["ERROR", "WARN", "WARNING", "INFO", "DEBUG"].includes(levelStr)
+                ? (levelStr === "WARNING" ? "WARN" : levelStr as ParsedLog["level"])
+                : "INFO";
+            message = celeryMatch[3];
+        }
+    } else if (service === "postgresql") {
+        // Format: 2025-11-09 23:35:57 EST [1149] @ LOG:  message
+        const pgMatch = cleanLine.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \w+ \[\d+\] @ (\w+):\s*(.+)$/);
+        if (pgMatch) {
+            timestamp = pgMatch[1];
+            const levelStr = pgMatch[2].toUpperCase();
+            level = levelStr === "LOG" ? "INFO" :
+                    levelStr === "ERROR" ? "ERROR" :
+                    levelStr === "WARNING" ? "WARN" :
+                    levelStr === "FATAL" ? "ERROR" : "INFO";
+            message = pgMatch[3];
+        }
+    } else if (service === "redis") {
+        // Format: 457035:C 10 Nov 2025 10:40:42.296 * message
+        const redisMatch = cleanLine.match(/^\d+:\w+ (\d{2} \w+ \d{4} \d{2}:\d{2}:\d{2}\.\d+) [*#] (.+)$/);
+        if (redisMatch) {
+            timestamp = redisMatch[1];
+            level = cleanLine.includes("#") ? "WARN" : "INFO";
+            message = redisMatch[2];
+        }
+    } else if (service === "backend" || service === "backend_error") {
+        // Format: 2025-11-10 10:45:44,848 - logger - LEVEL - message
+        const backendMatch = cleanLine.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}),\d+ - [^ ]+ - (\w+) - (.+)$/);
+        if (backendMatch) {
+            timestamp = backendMatch[1];
+            const levelStr = backendMatch[2].toUpperCase();
+            level = ["ERROR", "WARN", "WARNING", "INFO", "DEBUG"].includes(levelStr)
+                ? (levelStr === "WARNING" ? "WARN" : levelStr as ParsedLog["level"])
+                : "INFO";
+            message = backendMatch[3];
+        }
+    } else if (service === "frontend" || service === "frontend_error") {
+        // Format: GET / 200 in 29ms (compile: 1870µs, render: 27ms)
+        // Frontend logs don't have explicit timestamps/levels in these lines
+        if (cleanLine.match(/^\w+ .+ \d{3} in \d+ms/)) {
+            level = "INFO";
+            message = cleanLine;
         }
     }
 
-    // Message is the full line for now
-    const message = line;
+    // Fallback: try generic patterns if service-specific parsing didn't work
+    if (timestamp === "") {
+        // Try ISO8601 or similar
+        const isoMatch = cleanLine.match(/(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?)/);
+        if (isoMatch) {
+            timestamp = isoMatch[1].replace(',', '.');
+        }
+    }
+
+    if (level === "UNKNOWN") {
+        // Try to find level keywords
+        if (/ERROR|FATAL|CRITICAL/i.test(cleanLine)) {
+            level = "ERROR";
+        } else if (/WARN(ING)?/i.test(cleanLine)) {
+            level = "WARN";
+        } else if (/INFO/i.test(cleanLine)) {
+            level = "INFO";
+        } else if (/DEBUG|TRACE/i.test(cleanLine)) {
+            level = "DEBUG";
+        }
+    }
+
+    // Truncate message for display (full line available in fullLine)
+    const truncatedMessage = message.length > 200 ? message.substring(0, 200) + "..." : message;
 
     return {
         service,
         level,
         timestamp,
-        message,
-        fullLine: line,
+        message: truncatedMessage,
+        fullLine: cleanLine,
     };
 }
 
