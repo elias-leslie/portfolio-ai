@@ -425,11 +425,11 @@ async def set_log_level(request: SetLogLevelRequest) -> SetLogLevelResponse:
         level = "WARN"
 
     try:
-        # Run script to update systemd configs
-        # Use full absolute path
+        # Run script to update systemd configs with sudo
+        # Note: Requires sudoers rule to allow script without password
         script_path = "/home/kasadis/portfolio-ai/scripts/set-log-level.sh"
         result = subprocess.run(
-            ["bash", script_path, level],
+            ["sudo", "-n", "bash", script_path, level],
             capture_output=True,
             text=True,
             timeout=30,
