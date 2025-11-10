@@ -440,6 +440,239 @@ def _fetch_news_sentiment(
     return news_sentiment_value, recent_news_value
 
 
+def _build_signal_inputs(
+    price_data: PriceData,
+    technical_snapshot: TechnicalSnapshot,
+    current_volume: float | None,
+    avg_volume_20d: float | None,
+    sma_5_prev: float | None,
+    company_health_str: str | None,
+    news_sentiment_value: float | None,
+    earnings_days_away_val: int | None,
+) -> dict[str, Any]:
+    """Build signal inputs for classification."""
+    return {
+        "price": price_data.price,
+        "ema_20": technical_snapshot.ema_20,
+        "sma_5": technical_snapshot.sma_5,
+        "sma_5_prev": sma_5_prev,
+        "rsi_14": technical_snapshot.rsi_14,
+        "macd": technical_snapshot.macd,
+        "volume": current_volume,
+        "volume_avg_20d": avg_volume_20d,
+        "company_health": company_health_str,
+        "news_sentiment": news_sentiment_value,
+        "earnings_days_away": earnings_days_away_val,
+    }
+
+
+def _calculate_trade_levels(
+    storage: PortfolioStorage,
+    symbol: str,
+    price: float | None,
+    signal_type: str,
+    risk_budget: float,
+) -> tuple[float | None, float | None, float | None, int | None]:
+    """Calculate entry price, stop loss, profit target, and position size.
+
+    Returns:
+        Tuple of (entry_price, stop_loss, profit_target, position_size)
+    """
+    if price is None:
+        return None, None, None, None
+
+    entry_price = calculate_entry_price(price, signal_type)
+    if entry_price is None:
+        return None, None, None, None
+
+    with storage.connection() as conn:
+        stop_loss = calculate_stop_loss(conn, symbol, entry_price)
+        profit_target = calculate_profit_target(conn, symbol, entry_price)
+
+    if stop_loss is None:
+        return entry_price, None, None, None
+
+    position_size = calculate_position_size(
+        entry_price=entry_price,
+        stop_loss=stop_loss,
+        risk_budget=risk_budget,
+    )
+
+    return entry_price, stop_loss, profit_target, position_size
+
+
+def _generate_narrative_texts(
+    symbol: str,
+    signal_type: str,
+    signal_strength: int,
+    entry_price: float | None,
+    stop_loss: float | None,
+    profit_target: float | None,
+    position_size: int | None,
+    company_health_str: str | None,
+    earnings_days_away: int | None,
+    fundamentals_data: FundamentalData | None,
+) -> tuple[str | None, str | None, list[str] | None, str | None]:
+    """Generate all narrative text components.
+
+    Returns:
+        Tuple of (action_plan, position_sizing, company_health_bullets, special_notes)
+    """
+    action_plan = None
+    position_sizing = None
+    company_health_bullets = None
+    special_notes = None
+
+    # Action plan
+    if entry_price is not None and stop_loss is not None and profit_target is not None:
+        try:
+            action_plan = generate_action_plan(
+                signal_type=signal_type,
+                entry_price=entry_price,
+                stop_loss=stop_loss,
+                profit_target=profit_target,
+            )
+        except Exception as e:
+            logger.warning("action_plan_generation_failed", symbol=symbol, error=str(e))
+
+    # Position sizing text
+    if (
+        position_size is not None
+        and entry_price is not None
+        and profit_target is not None
+        and stop_loss is not None
+    ):
+        try:
+            position_sizing = generate_position_sizing_text(
+                shares=position_size,
+                entry_price=entry_price,
+                stop_loss=stop_loss,
+                profit_target=profit_target,
+            )
+        except Exception as e:
+            logger.warning("position_sizing_text_generation_failed", symbol=symbol, error=str(e))
+
+    # Company health bullets
+    if fundamentals_data is not None:
+        try:
+            fundamentals_dict = {
+                "revenue_growth": fundamentals_data.revenue_growth,
+                "profit_margin": fundamentals_data.profit_margin,
+                "debt_to_equity": fundamentals_data.debt_to_equity,
+                "cash": None,
+                "analyst_buy_pct": None,
+            }
+
+            if fundamentals_data.recommendation_mean is not None:
+                analyst_buy_pct = (5.0 - fundamentals_data.recommendation_mean) / 4.0
+                fundamentals_dict["analyst_buy_pct"] = max(0.0, min(1.0, analyst_buy_pct))
+
+            company_health_bullets = generate_company_health_bullets(fundamentals_dict)
+        except Exception as e:
+            logger.warning("company_health_bullets_generation_failed", symbol=symbol, error=str(e))
+
+    # Special notes
+    if company_health_str is not None:
+        try:
+            special_notes = generate_special_notes(
+                signal_type=signal_type,
+                signal_strength=signal_strength,
+                earnings_days_away=earnings_days_away,
+                company_health=company_health_str,
+            )
+        except Exception as e:
+            logger.warning("special_notes_generation_failed", symbol=symbol, error=str(e))
+
+    return action_plan, position_sizing, company_health_bullets, special_notes
+
+
+def _classify_signal_and_style(
+    symbol: str,
+    signal_inputs: dict[str, Any],
+    rsi_14: float | None,
+    earnings_days_away: int | None,
+) -> tuple[str, int, str, TradingStyleDict]:
+    """Classify trading signal and style.
+
+    Returns:
+        Tuple of (signal_type, signal_strength, headline, style_result)
+    """
+    classification = classify_signal(signal_inputs)
+    signal_type_str = classification.signal_type.value
+    signal_strength_val = classification.strength.value
+    headline = generate_headline(classification)
+
+    style_result = cast(
+        TradingStyleDict,
+        classify_trading_style(
+            symbol=symbol,
+            signal_strength=signal_strength_val,
+            signal_type=signal_type_str,
+            rsi_14=rsi_14 or 50.0,
+            earnings_days_away=earnings_days_away,
+        ),
+    )
+
+    return signal_type_str, signal_strength_val, headline, style_result
+
+
+def _build_narrative_result(
+    signal_type: str,
+    signal_strength: int,
+    headline: str,
+    style_result: TradingStyleDict,
+    entry_price: float | None,
+    stop_loss: float | None,
+    profit_target: float | None,
+    position_size: int | None,
+    action_plan: str | None,
+    position_sizing: str | None,
+    company_health_bullets: list[str] | None,
+    special_notes: str | None,
+) -> NarrativeResultDict:
+    """Build narrative result dictionary from components."""
+    return {
+        "signal_type": signal_type,
+        "signal_strength": signal_strength,
+        "headline": headline,
+        "style_result": style_result,
+        "entry_price": entry_price,
+        "stop_loss": stop_loss,
+        "profit_target": profit_target,
+        "position_size": position_size,
+        "action_plan": action_plan,
+        "position_sizing": position_sizing,
+        "company_health_bullets": company_health_bullets,
+        "special_notes": special_notes,
+    }
+
+
+def _create_default_narrative_result(symbol: str) -> NarrativeResultDict:
+    """Create default narrative result when generation fails."""
+    return _build_narrative_result(
+        signal_type=SignalType.HOLD.value,
+        signal_strength=5,
+        headline=f"HOLD - {symbol}",
+        style_result=cast(
+            TradingStyleDict,
+            {
+                "style": "Value",
+                "confidence": 5,
+                "holding_period": "Unknown",
+                "risk_level": "Medium",
+            },
+        ),
+        entry_price=None,
+        stop_loss=None,
+        profit_target=None,
+        position_size=None,
+        action_plan=None,
+        position_sizing=None,
+        company_health_bullets=None,
+        special_notes=None,
+    )
+
+
 def _generate_narrative_and_trade_levels(
     storage: PortfolioStorage,
     symbol: str,
@@ -459,190 +692,224 @@ def _generate_narrative_and_trade_levels(
     Returns:
         Dict with all narrative and trade calculation results
     """
-    # Build signal inputs
-    signal_inputs = {
-        "price": price_data.price,
-        "ema_20": technical_snapshot.ema_20,
-        "sma_5": technical_snapshot.sma_5,
-        "sma_5_prev": sma_5_prev,
-        "rsi_14": technical_snapshot.rsi_14,
-        "macd": technical_snapshot.macd,
-        "volume": current_volume,
-        "volume_avg_20d": avg_volume_20d,
-        "company_health": company_health_str,
-        "news_sentiment": news_sentiment_value,
-        "earnings_days_away": earnings_days_away_val,
-    }
-
     try:
-        classification = classify_signal(signal_inputs)
-        signal_type_str = classification.signal_type.value
-        signal_strength_val = classification.strength.value
-        headline = generate_headline(classification)
-
-        # Classify trading style
-        style_result = cast(
-            TradingStyleDict,
-            classify_trading_style(
-                symbol=symbol,
-                signal_strength=signal_strength_val,
-                signal_type=signal_type_str,
-                rsi_14=technical_snapshot.rsi_14 or 50.0,
-                earnings_days_away=earnings_days_away_val,
-            ),
+        signal_inputs = _build_signal_inputs(
+            price_data,
+            technical_snapshot,
+            current_volume,
+            avg_volume_20d,
+            sma_5_prev,
+            company_health_str,
+            news_sentiment_value,
+            earnings_days_away_val,
         )
-
-        # Calculate trade levels
-        entry_price_val: float | None = None
-        stop_loss_val: float | None = None
-        profit_target_val: float | None = None
-        position_size_val: int | None = None
-
-        if price_data.price is not None:
-            entry_price_val = calculate_entry_price(price_data.price, signal_type_str)
-
-            if entry_price_val is not None:
-                with storage.connection() as conn:
-                    stop_loss_val = calculate_stop_loss(conn, symbol, entry_price_val)
-                    profit_target_val = calculate_profit_target(conn, symbol, entry_price_val)
-
-                if stop_loss_val is not None:
-                    position_size_val = calculate_position_size(
-                        entry_price=entry_price_val,
-                        stop_loss=stop_loss_val,
-                        risk_budget=risk_budget,
-                    )
-
-        # Generate narrative texts
-        narrative_action_plan_text: str | None = None
-        narrative_position_sizing_text: str | None = None
-        narrative_company_health_bullets: list[str] | None = None
-        narrative_special_notes_text: str | None = None
-
-        # Action plan
-        if (
-            entry_price_val is not None
-            and stop_loss_val is not None
-            and profit_target_val is not None
-        ):
-            try:
-                narrative_action_plan_text = generate_action_plan(
-                    signal_type=signal_type_str,
-                    entry_price=entry_price_val,
-                    stop_loss=stop_loss_val,
-                    profit_target=profit_target_val,
-                )
-            except Exception as action_plan_error:
-                logger.warning(
-                    "action_plan_generation_failed",
-                    symbol=symbol,
-                    error=str(action_plan_error),
-                )
-
-        # Position sizing text
-        if (
-            position_size_val is not None
-            and entry_price_val is not None
-            and profit_target_val is not None
-            and stop_loss_val is not None
-        ):
-            try:
-                narrative_position_sizing_text = generate_position_sizing_text(
-                    shares=position_size_val,
-                    entry_price=entry_price_val,
-                    stop_loss=stop_loss_val,
-                    profit_target=profit_target_val,
-                )
-            except Exception as position_sizing_error:
-                logger.warning(
-                    "position_sizing_text_generation_failed",
-                    symbol=symbol,
-                    error=str(position_sizing_error),
-                )
-
-        # Company health bullets
-        if fundamentals_data is not None:
-            try:
-                fundamentals_dict = {
-                    "revenue_growth": fundamentals_data.revenue_growth,
-                    "profit_margin": fundamentals_data.profit_margin,
-                    "debt_to_equity": fundamentals_data.debt_to_equity,
-                    "cash": None,
-                    "analyst_buy_pct": None,
-                }
-
-                if fundamentals_data.recommendation_mean is not None:
-                    analyst_buy_pct = (5.0 - fundamentals_data.recommendation_mean) / 4.0
-                    fundamentals_dict["analyst_buy_pct"] = max(0.0, min(1.0, analyst_buy_pct))
-
-                narrative_company_health_bullets = generate_company_health_bullets(
-                    fundamentals_dict
-                )
-            except Exception as company_health_error:
-                logger.warning(
-                    "company_health_bullets_generation_failed",
-                    symbol=symbol,
-                    error=str(company_health_error),
-                )
-
-        # Special notes
-        if company_health_str is not None:
-            try:
-                narrative_special_notes_text = generate_special_notes(
-                    signal_type=signal_type_str,
-                    signal_strength=signal_strength_val,
-                    earnings_days_away=earnings_days_away_val,
-                    company_health=company_health_str,
-                )
-            except Exception as special_notes_error:
-                logger.warning(
-                    "special_notes_generation_failed",
-                    symbol=symbol,
-                    error=str(special_notes_error),
-                )
-
+        signal_type, signal_strength, headline, style_result = _classify_signal_and_style(
+            symbol, signal_inputs, technical_snapshot.rsi_14, earnings_days_away_val
+        )
+        entry_price, stop_loss, profit_target, position_size = _calculate_trade_levels(
+            storage, symbol, price_data.price, signal_type, risk_budget
+        )
+        action_plan, position_sizing, company_health_bullets, special_notes = (
+            _generate_narrative_texts(
+                symbol,
+                signal_type,
+                signal_strength,
+                entry_price,
+                stop_loss,
+                profit_target,
+                position_size,
+                company_health_str,
+                earnings_days_away_val,
+                fundamentals_data,
+            )
+        )
+        return _build_narrative_result(
+            signal_type,
+            signal_strength,
+            headline,
+            style_result,
+            entry_price,
+            stop_loss,
+            profit_target,
+            position_size,
+            action_plan,
+            position_sizing,
+            company_health_bullets,
+            special_notes,
+        )
     except Exception as e:
-        logger.warning(
-            "narrative_generation_failed",
-            symbol=symbol,
-            error=str(e),
-        )
-        # Use defaults if narrative generation fails
-        signal_type_str = SignalType.HOLD.value
-        signal_strength_val = 5
-        headline = f"HOLD - {symbol}"
-        style_result = cast(
-            TradingStyleDict,
-            {
-                "style": "Value",
-                "confidence": 5,
-                "holding_period": "Unknown",
-                "risk_level": "Medium",
-            },
-        )
-        entry_price_val = None
-        stop_loss_val = None
-        profit_target_val = None
-        position_size_val = None
-        narrative_action_plan_text = None
-        narrative_position_sizing_text = None
-        narrative_company_health_bullets = None
-        narrative_special_notes_text = None
+        logger.warning("narrative_generation_failed", symbol=symbol, error=str(e))
+        return _create_default_narrative_result(symbol)
 
-    return {
-        "signal_type": signal_type_str,
-        "signal_strength": signal_strength_val,
-        "headline": headline,
-        "style_result": style_result,
-        "entry_price": entry_price_val,
-        "stop_loss": stop_loss_val,
-        "profit_target": profit_target_val,
-        "position_size": position_size_val,
-        "action_plan": narrative_action_plan_text,
-        "position_sizing": narrative_position_sizing_text,
-        "company_health_bullets": narrative_company_health_bullets,
-        "special_notes": narrative_special_notes_text,
-    }
+
+def _handle_price_change_and_backfill(
+    storage: PortfolioStorage,
+    symbol: str,
+    price: float,
+    item_id: str,
+) -> float:
+    """Calculate price change and queue backfill if needed.
+
+    Returns:
+        Price change percentage (defaults to 0.0 if no historical data)
+    """
+    change_pct, has_historical_data = calculate_price_change(storage, symbol, price, item_id)
+
+    # Queue backfill task if historical data is missing
+    if not has_historical_data:
+        try:
+            from ..tasks.data_ingestion_tasks import (  # noqa: PLC0415 - avoid circular dependency
+                ingest_historical_ohlcv,
+            )
+
+            # Queue backfill for 252 trading days (~1 year)
+            ingest_historical_ohlcv.delay([symbol], days=252)
+            logger.info(
+                "watchlist_refresh_queued_backfill",
+                symbol=symbol,
+                item_id=item_id,
+                reason="Missing day_bars data - queued historical backfill task",
+            )
+        except Exception as e:
+            logger.warning(
+                "watchlist_refresh_backfill_queue_failed",
+                symbol=symbol,
+                item_id=item_id,
+                error=str(e),
+            )
+
+    # Default to 0.0% change if no comparison data available
+    if change_pct is None:
+        logger.info(
+            "watchlist_refresh_defaulted_change_pct",
+            symbol=symbol,
+            item_id=item_id,
+            change_pct=0.0,
+            reason="No comparison data (first snapshot) - defaulting to 0.0%",
+        )
+        change_pct = 0.0
+
+    return change_pct
+
+
+def _prepare_technical_snapshot(
+    technical_map: dict[str, TechnicalSnapshot],
+    symbol: str,
+    price: float,
+) -> TechnicalSnapshot:
+    """Get technical snapshot and set current price.
+
+    Returns:
+        TechnicalSnapshot with current price set
+    """
+    technical_snapshot = technical_map.get(symbol, TechnicalSnapshot())
+    technical_snapshot.price = price
+    return technical_snapshot
+
+
+def _fetch_auxiliary_data(
+    storage: PortfolioStorage,
+    news_service: NewsService,
+    symbol: str,
+    max_news_articles: int,
+    news_bundle: NewsBundle | None,
+) -> tuple[float | None, float | None, float | None, float | None, dict[str, object] | None]:
+    """Fetch auxiliary data: volume, SMA5, news sentiment.
+
+    Returns:
+        Tuple of (current_volume, avg_volume_20d, sma_5_prev, news_sentiment, recent_news)
+    """
+    # Query volume data from day_bars (latest + 20-day average)
+    current_volume, avg_volume_20d = _fetch_volume_data(storage, symbol)
+
+    # Query previous day's SMA_5
+    sma_5_prev = _fetch_previous_sma5(storage, symbol)
+
+    # Fetch sentiment-scored news bundle
+    news_sentiment_value, recent_news_value = _fetch_news_sentiment(
+        news_service, symbol, max_news_articles, news_bundle
+    )
+
+    return current_volume, avg_volume_20d, sma_5_prev, news_sentiment_value, recent_news_value
+
+
+def _build_watchlist_snapshot(
+    item_id: str,
+    now: datetime,
+    price_data: PriceData,
+    change_pct: float,
+    breakdown: Any,
+    narrative_result: NarrativeResultDict,
+    company_health_str: str | None,
+    earnings_date_obj: datetime | None,
+    earnings_days_away_val: int | None,
+    news_sentiment_value: float | None,
+    recent_news_value: dict[str, object] | None,
+) -> WatchlistSnapshot:
+    """Build final WatchlistSnapshot from all processed data.
+
+    Args:
+        item_id: Watchlist item ID
+        now: Current timestamp
+        price_data: Price data object
+        change_pct: Price change percentage
+        breakdown: Score breakdown object
+        narrative_result: Dict with narrative/trade results
+        company_health_str: Company health classification
+        earnings_date_obj: Earnings date
+        earnings_days_away_val: Days until earnings
+        news_sentiment_value: News sentiment score
+        recent_news_value: Recent news payload
+
+    Returns:
+        Complete WatchlistSnapshot ready to persist
+    """
+    # Calculate staleness
+    data_is_stale = is_stale(fetched_at=now, now=now)
+
+    # Create snapshot
+    snapshot = WatchlistSnapshot(
+        item_id=item_id,
+        fetched_at=now,
+        price=price_data.price,
+        change_pct=change_pct,
+        beta=price_data.beta,
+        volatility=price_data.volatility,
+        overall_score=breakdown.overall,
+        technical_score=breakdown.technical.score,
+        fundamental_score=breakdown.fundamental.score if breakdown.fundamental else None,
+        is_stale=data_is_stale,
+        raw_metrics=breakdown.to_snapshot_payload(),
+        # Narrative fields
+        signal_type=narrative_result["signal_type"],
+        signal_strength=narrative_result["signal_strength"],
+        narrative_headline=narrative_result["headline"],
+        recommended_style=narrative_result["style_result"]["style"],
+        style_confidence=narrative_result["style_result"]["confidence"],
+        optimal_holding_period=narrative_result["style_result"]["holding_period"],
+        risk_level=narrative_result["style_result"]["risk_level"],
+        # Trade calculation fields
+        entry_price=narrative_result["entry_price"],
+        stop_loss=narrative_result["stop_loss"],
+        profit_target=narrative_result["profit_target"],
+        position_size_shares=narrative_result["position_size"],
+        # Narrative text fields
+        narrative_action_plan=narrative_result["action_plan"],
+        narrative_position_sizing=narrative_result["position_sizing"],
+        narrative_company_health={"bullets": narrative_result["company_health_bullets"]}
+        if narrative_result["company_health_bullets"]
+        else None,
+        narrative_special_notes=narrative_result["special_notes"],
+        # Fundamental/earnings fields
+        company_health=company_health_str,
+        earnings_date=earnings_date_obj,
+        earnings_days_away=earnings_days_away_val,
+        # News/sentiment fields
+        news_sentiment_score=news_sentiment_value,
+        recent_news_headlines=recent_news_value,
+    )
+
+    return snapshot
 
 
 def process_ticker_snapshot(
@@ -684,48 +951,11 @@ def process_ticker_snapshot(
     Raises:
         Exception: If processing fails (caller should catch and log)
     """
-    # Calculate price change
-    change_pct, has_historical_data = calculate_price_change(
-        storage, symbol, price_data.price, item_id
-    )
+    # Calculate price change and queue backfill if needed
+    change_pct = _handle_price_change_and_backfill(storage, symbol, price_data.price, item_id)
 
-    # Queue backfill task if historical data is missing
-    if not has_historical_data:
-        try:
-            from ..tasks.data_ingestion_tasks import (  # noqa: PLC0415 - avoid circular dependency
-                ingest_historical_ohlcv,
-            )
-
-            # Queue backfill for 252 trading days (~1 year)
-            ingest_historical_ohlcv.delay([symbol], days=252)
-            logger.info(
-                "watchlist_refresh_queued_backfill",
-                symbol=symbol,
-                item_id=item_id,
-                reason="Missing day_bars data - queued historical backfill task",
-            )
-        except Exception as e:
-            logger.warning(
-                "watchlist_refresh_backfill_queue_failed",
-                symbol=symbol,
-                item_id=item_id,
-                error=str(e),
-            )
-
-    # Default to 0.0% change if no comparison data available
-    if change_pct is None:
-        logger.info(
-            "watchlist_refresh_defaulted_change_pct",
-            symbol=symbol,
-            item_id=item_id,
-            change_pct=0.0,
-            reason="No comparison data (first snapshot) - defaulting to 0.0%",
-        )
-        change_pct = 0.0
-
-    # Get technical snapshot
-    technical_snapshot = technical_map.get(symbol, TechnicalSnapshot())
-    technical_snapshot.price = price_data.price
+    # Get technical snapshot with current price
+    technical_snapshot = _prepare_technical_snapshot(technical_map, symbol, price_data.price)
 
     # Fetch fundamentals and earnings data (needed for both scoring and narrative)
     (
@@ -741,22 +971,16 @@ def process_ticker_snapshot(
             price=price_data,
             price_change_pct=change_pct,
             technical=technical_snapshot,
-            fundamental=fundamentals_data,  # NEW: Include fundamental data
+            fundamental=fundamentals_data,
             weights=default_weights,
             now=now,
             stale_ttl_minutes=stale_ttl_minutes,
         )
     )
 
-    # Query volume data from day_bars (latest + 20-day average)
-    current_volume, avg_volume_20d = _fetch_volume_data(storage, symbol)
-
-    # Query previous day's SMA_5
-    sma_5_prev = _fetch_previous_sma5(storage, symbol)
-
-    # Fetch sentiment-scored news bundle
-    news_sentiment_value, recent_news_value = _fetch_news_sentiment(
-        news_service, symbol, max_news_articles, news_bundle
+    # Fetch auxiliary data: volume, SMA5, news
+    current_volume, avg_volume_20d, sma_5_prev, news_sentiment_value, recent_news_value = (
+        _fetch_auxiliary_data(storage, news_service, symbol, max_news_articles, news_bundle)
     )
 
     # Generate narrative intelligence and calculate trade levels
@@ -775,63 +999,17 @@ def process_ticker_snapshot(
         risk_budget=risk_budget,
     )
 
-    # Unpack narrative results
-    signal_type_str = narrative_result["signal_type"]
-    signal_strength_val = narrative_result["signal_strength"]
-    headline = narrative_result["headline"]
-    style_result = narrative_result["style_result"]
-    entry_price_val = narrative_result["entry_price"]
-    stop_loss_val = narrative_result["stop_loss"]
-    profit_target_val = narrative_result["profit_target"]
-    position_size_val = narrative_result["position_size"]
-    narrative_action_plan_text = narrative_result["action_plan"]
-    narrative_position_sizing_text = narrative_result["position_sizing"]
-    narrative_company_health_bullets = narrative_result["company_health_bullets"]
-    narrative_special_notes_text = narrative_result["special_notes"]
-
-    # Calculate staleness
-    data_is_stale = is_stale(fetched_at=now, now=now)
-
-    # Create snapshot
-    snapshot = WatchlistSnapshot(
+    # Build and return final snapshot
+    return _build_watchlist_snapshot(
         item_id=item_id,
-        fetched_at=now,
-        price=price_data.price,
+        now=now,
+        price_data=price_data,
         change_pct=change_pct,
-        beta=price_data.beta,
-        volatility=price_data.volatility,
-        overall_score=breakdown.overall,
-        technical_score=breakdown.technical.score,
-        fundamental_score=breakdown.fundamental.score if breakdown.fundamental else None,
-        is_stale=data_is_stale,
-        raw_metrics=breakdown.to_snapshot_payload(),
-        # Narrative fields
-        signal_type=signal_type_str,
-        signal_strength=signal_strength_val,
-        narrative_headline=headline,
-        recommended_style=style_result["style"],
-        style_confidence=style_result["confidence"],
-        optimal_holding_period=style_result["holding_period"],
-        risk_level=style_result["risk_level"],
-        # Trade calculation fields
-        entry_price=entry_price_val,
-        stop_loss=stop_loss_val,
-        profit_target=profit_target_val,
-        position_size_shares=position_size_val,
-        # Narrative text fields
-        narrative_action_plan=narrative_action_plan_text,
-        narrative_position_sizing=narrative_position_sizing_text,
-        narrative_company_health={"bullets": narrative_company_health_bullets}
-        if narrative_company_health_bullets
-        else None,
-        narrative_special_notes=narrative_special_notes_text,
-        # Fundamental/earnings fields
-        company_health=company_health_str,
-        earnings_date=earnings_date_obj,
-        earnings_days_away=earnings_days_away_val,
-        # News/sentiment fields
-        news_sentiment_score=news_sentiment_value,
-        recent_news_headlines=recent_news_value,
+        breakdown=breakdown,
+        narrative_result=narrative_result,
+        company_health_str=company_health_str,
+        earnings_date_obj=earnings_date_obj,
+        earnings_days_away_val=earnings_days_away_val,
+        news_sentiment_value=news_sentiment_value,
+        recent_news_value=recent_news_value,
     )
-
-    return snapshot

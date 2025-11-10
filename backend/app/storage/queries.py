@@ -109,73 +109,42 @@ class QueryManager:
 
         return self.query(sql, params)
 
-    def upsert_watchlist_snapshot(
+    def _serialize_snapshot_json_fields(
         self,
-        item_id: str,
-        fetched_at: datetime,
-        *,
-        price: float | None = None,
-        change_pct: float | None = None,
-        beta: float | None = None,
-        volatility: float | None = None,
-        news_score: float | None = None,
-        technical_score: float | None = None,
-        fundamental_score: float | None = None,
-        ai_score: float | None = None,
-        ai_confidence: float | None = None,
-        sector_score: float | None = None,
-        competitor_score: float | None = None,
-        overall_score: float | None = None,
-        is_stale: bool = False,
-        raw_metrics: dict[str, Any] | None = None,
-        # Narrative intelligence fields
-        signal_type: str | None = None,
-        signal_strength: int | None = None,
-        narrative_headline: str | None = None,
-        narrative_why_bullets: dict[str, Any] | None = None,
-        narrative_company_health: dict[str, Any] | None = None,
-        narrative_technical: dict[str, Any] | None = None,
-        narrative_action_plan: str | None = None,
-        narrative_position_sizing: str | None = None,
-        narrative_special_notes: str | None = None,
-        # Trade calculation fields
-        entry_price: float | None = None,
-        stop_loss: float | None = None,
-        profit_target: float | None = None,
-        position_size_shares: int | None = None,
-        # Trading style fields
-        recommended_style: str | None = None,
-        style_confidence: int | None = None,
-        optimal_holding_period: str | None = None,
-        risk_level: str | None = None,
-        # Fundamental & news data fields
-        company_health: str | None = None,
-        earnings_date: datetime | None = None,
-        earnings_days_away: int | None = None,
-        news_sentiment_score: float | None = None,
-        recent_news_headlines: dict[str, Any] | None = None,
-        # Volume & timeframe analysis fields (PRD #0022)
-        volume_relative: float | None = None,
-        timeframe_short_aligned: bool = False,
-        timeframe_long_aligned: bool = False,
-        percentile_rank_30d: float | None = None,
-    ) -> None:
-        """Insert or update a watchlist snapshot record."""
-        raw_metrics_json = json.dumps(raw_metrics) if raw_metrics is not None else None
-        narrative_why_bullets_json = (
-            json.dumps(narrative_why_bullets) if narrative_why_bullets is not None else None
-        )
-        narrative_company_health_json = (
-            json.dumps(narrative_company_health) if narrative_company_health is not None else None
-        )
-        narrative_technical_json = (
-            json.dumps(narrative_technical) if narrative_technical is not None else None
-        )
-        recent_news_headlines_json = (
-            json.dumps(recent_news_headlines) if recent_news_headlines is not None else None
+        raw_metrics: dict[str, Any] | None,
+        narrative_why_bullets: dict[str, Any] | None,
+        narrative_company_health: dict[str, Any] | None,
+        narrative_technical: dict[str, Any] | None,
+        recent_news_headlines: dict[str, Any] | None,
+    ) -> tuple[str | None, str | None, str | None, str | None, str | None]:
+        """Serialize dict fields to JSON strings for database storage.
+
+        Args:
+            raw_metrics: Raw metrics dictionary
+            narrative_why_bullets: Narrative why bullets dictionary
+            narrative_company_health: Narrative company health dictionary
+            narrative_technical: Narrative technical dictionary
+            recent_news_headlines: Recent news headlines dictionary
+
+        Returns:
+            Tuple of (raw_metrics_json, why_bullets_json, company_health_json,
+                     technical_json, headlines_json)
+        """
+        return (
+            json.dumps(raw_metrics) if raw_metrics is not None else None,
+            json.dumps(narrative_why_bullets) if narrative_why_bullets is not None else None,
+            json.dumps(narrative_company_health) if narrative_company_health is not None else None,
+            json.dumps(narrative_technical) if narrative_technical is not None else None,
+            json.dumps(recent_news_headlines) if recent_news_headlines is not None else None,
         )
 
-        sql = """
+    def _build_snapshot_upsert_sql(self) -> str:
+        """Build the SQL query for watchlist snapshot upsert.
+
+        Returns:
+            SQL query string with INSERT...ON CONFLICT UPDATE
+        """
+        return """
             INSERT INTO watchlist_snapshots (
                 item_id, fetched_at, price, change_pct, beta, volatility,
                 news_score, technical_score, fundamental_score, ai_score, ai_confidence,
@@ -236,7 +205,60 @@ class QueryManager:
                 percentile_rank_30d = EXCLUDED.percentile_rank_30d
         """
 
-        params = [
+    def _prepare_snapshot_parameters(
+        self,
+        item_id: str,
+        fetched_at: datetime,
+        price: float | None,
+        change_pct: float | None,
+        beta: float | None,
+        volatility: float | None,
+        news_score: float | None,
+        technical_score: float | None,
+        fundamental_score: float | None,
+        ai_score: float | None,
+        ai_confidence: float | None,
+        sector_score: float | None,
+        competitor_score: float | None,
+        overall_score: float | None,
+        is_stale: bool,
+        raw_metrics_json: str | None,
+        signal_type: str | None,
+        signal_strength: int | None,
+        narrative_headline: str | None,
+        narrative_why_bullets_json: str | None,
+        narrative_company_health_json: str | None,
+        narrative_technical_json: str | None,
+        narrative_action_plan: str | None,
+        narrative_position_sizing: str | None,
+        narrative_special_notes: str | None,
+        entry_price: float | None,
+        stop_loss: float | None,
+        profit_target: float | None,
+        position_size_shares: int | None,
+        recommended_style: str | None,
+        style_confidence: int | None,
+        optimal_holding_period: str | None,
+        risk_level: str | None,
+        company_health: str | None,
+        earnings_date: datetime | None,
+        earnings_days_away: int | None,
+        news_sentiment_score: float | None,
+        recent_news_headlines_json: str | None,
+        volume_relative: float | None,
+        timeframe_short_aligned: bool,
+        timeframe_long_aligned: bool,
+        percentile_rank_30d: float | None,
+    ) -> list[Any]:
+        """Prepare parameter list for snapshot upsert query.
+
+        Args:
+            All parameters that will be bound to the SQL query
+
+        Returns:
+            List of parameters in the correct order for the SQL query
+        """
+        return [
             item_id,
             fetched_at,
             price,
@@ -281,6 +303,123 @@ class QueryManager:
             percentile_rank_30d,
         ]
 
+    def upsert_watchlist_snapshot(
+        self,
+        item_id: str,
+        fetched_at: datetime,
+        *,
+        price: float | None = None,
+        change_pct: float | None = None,
+        beta: float | None = None,
+        volatility: float | None = None,
+        news_score: float | None = None,
+        technical_score: float | None = None,
+        fundamental_score: float | None = None,
+        ai_score: float | None = None,
+        ai_confidence: float | None = None,
+        sector_score: float | None = None,
+        competitor_score: float | None = None,
+        overall_score: float | None = None,
+        is_stale: bool = False,
+        raw_metrics: dict[str, Any] | None = None,
+        # Narrative intelligence fields
+        signal_type: str | None = None,
+        signal_strength: int | None = None,
+        narrative_headline: str | None = None,
+        narrative_why_bullets: dict[str, Any] | None = None,
+        narrative_company_health: dict[str, Any] | None = None,
+        narrative_technical: dict[str, Any] | None = None,
+        narrative_action_plan: str | None = None,
+        narrative_position_sizing: str | None = None,
+        narrative_special_notes: str | None = None,
+        # Trade calculation fields
+        entry_price: float | None = None,
+        stop_loss: float | None = None,
+        profit_target: float | None = None,
+        position_size_shares: int | None = None,
+        # Trading style fields
+        recommended_style: str | None = None,
+        style_confidence: int | None = None,
+        optimal_holding_period: str | None = None,
+        risk_level: str | None = None,
+        # Fundamental & news data fields
+        company_health: str | None = None,
+        earnings_date: datetime | None = None,
+        earnings_days_away: int | None = None,
+        news_sentiment_score: float | None = None,
+        recent_news_headlines: dict[str, Any] | None = None,
+        # Volume & timeframe analysis fields (PRD #0022)
+        volume_relative: float | None = None,
+        timeframe_short_aligned: bool = False,
+        timeframe_long_aligned: bool = False,
+        percentile_rank_30d: float | None = None,
+    ) -> None:
+        """Insert or update a watchlist snapshot record."""
+        # Serialize dict fields to JSON
+        (
+            raw_metrics_json,
+            narrative_why_bullets_json,
+            narrative_company_health_json,
+            narrative_technical_json,
+            recent_news_headlines_json,
+        ) = self._serialize_snapshot_json_fields(
+            raw_metrics,
+            narrative_why_bullets,
+            narrative_company_health,
+            narrative_technical,
+            recent_news_headlines,
+        )
+
+        # Build SQL query
+        sql = self._build_snapshot_upsert_sql()
+
+        # Prepare parameters
+        params = self._prepare_snapshot_parameters(
+            item_id,
+            fetched_at,
+            price,
+            change_pct,
+            beta,
+            volatility,
+            news_score,
+            technical_score,
+            fundamental_score,
+            ai_score,
+            ai_confidence,
+            sector_score,
+            competitor_score,
+            overall_score,
+            is_stale,
+            raw_metrics_json,
+            signal_type,
+            signal_strength,
+            narrative_headline,
+            narrative_why_bullets_json,
+            narrative_company_health_json,
+            narrative_technical_json,
+            narrative_action_plan,
+            narrative_position_sizing,
+            narrative_special_notes,
+            entry_price,
+            stop_loss,
+            profit_target,
+            position_size_shares,
+            recommended_style,
+            style_confidence,
+            optimal_holding_period,
+            risk_level,
+            company_health,
+            earnings_date,
+            earnings_days_away,
+            news_sentiment_score,
+            recent_news_headlines_json,
+            volume_relative,
+            timeframe_short_aligned,
+            timeframe_long_aligned,
+            percentile_rank_30d,
+        )
+
+        # Execute upsert
         with self.connection_mgr.connection() as conn:
             conn.execute(sql, params)
             conn.commit()  # Commit the upsert

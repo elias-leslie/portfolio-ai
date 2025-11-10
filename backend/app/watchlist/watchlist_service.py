@@ -258,13 +258,24 @@ class WatchlistService:
         # Check for score alert
         alert = self._check_score_alert(row["id"], row["overall_score"])
 
-        # Build score dict
-        item_data["score"] = {
-            "price": raw_metrics.get("price", {}),
-            "technical": raw_metrics.get("technical", {}),
-            "fundamental": raw_metrics.get("fundamental", {}),
-            "overall": row["overall_score"],
-        }
+        # Build score dict (only if we have valid metric data)
+        # Empty dicts cause Pydantic validation errors in ScoreComponentResponse
+        price_data = raw_metrics.get("price")
+        tech_data = raw_metrics.get("technical")
+        fund_data = raw_metrics.get("fundamental")
+
+        # Only include score if we have at least price or technical data with required fields
+        if (price_data and "score" in price_data) or (tech_data and "score" in tech_data):
+            item_data["score"] = {
+                "price": price_data if (price_data and "score" in price_data) else {},
+                "technical": tech_data if (tech_data and "score" in tech_data) else {},
+                "fundamental": fund_data if (fund_data and "score" in fund_data) else {},
+                "overall": row["overall_score"],
+            }
+        else:
+            # No valid score data - set to None so response builder can handle it
+            item_data["score"] = None
+
         item_data["score_alert"] = alert
 
         # Add all narrative and trading fields
