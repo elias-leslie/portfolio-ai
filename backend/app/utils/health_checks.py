@@ -153,46 +153,70 @@ def check_database(storage: PortfolioStorage) -> CheckResult:
         )
 
 
-def check_sources(storage: PortfolioStorage) -> dict[str, SourceHealthCheck]:
-    """Check health of all data sources.
+def _get_news_cache_timestamp(storage: PortfolioStorage) -> datetime | None:
+    """Get latest news cache timestamp for RSS sources."""
+    try:
+        news_df = storage.query("SELECT MAX(fetched_at) as last_fetch FROM news_cache", [])
+        if not news_df.is_empty():
+            return news_df.to_dicts()[0].get("last_fetch")
+    except Exception:
+        pass  # news_cache might not exist yet
+    return None
 
-    Uses source_performance table for most sources, but for RSS news sources,
-    uses news_cache timestamps since those are actually updated during operations.
 
-    Args:
-        storage: PortfolioStorage instance
+def _calculate_source_metrics(
+    success_count: int, failure_count: int, total_latency_ms: int
+) -> tuple[float, int | None]:
+    """Calculate success rate and average latency for a source."""
+    total_requests = success_count + failure_count
+    success_rate = (success_count / total_requests * 100) if total_requests > 0 else 0.0
+    avg_latency_ms = int(total_latency_ms / success_count) if success_count > 0 else None
+    return success_rate, avg_latency_ms
 
-    Returns:
-        Dict mapping source name to SourceHealthCheck
+
+def _determine_source_status(
+    last_success_at: datetime | None, success_rate: float
+) -> Literal["ok", "degraded", "down"]:
+    """Determine source status based on last success time and success rate.
+
+    Thresholds designed for mixed usage patterns:
+    - Real-time sources: Should succeed within hours
+    - Periodic sources: May go 24h+ between refreshes
     """
+    if not last_success_at:
+        return "down"  # Never succeeded
+
+    time_since_success = datetime.now(UTC) - last_success_at
+
+    if time_since_success < timedelta(hours=2):
+        # Recent success - status based on success rate
+        if success_rate >= 80:
+            return "ok"
+        if success_rate >= 50:
+            return "degraded"
+        return "down"
+    if time_since_success < timedelta(hours=24):
+        return "degraded"  # Stale but within 24h (common for RSS/periodic)
+    return "down"  # Very stale (> 24h) - likely a real issue
+
+
+def check_sources(storage: PortfolioStorage) -> dict[str, SourceHealthCheck]:
+    """Check health of all data sources (see _get_news_cache_timestamp for RSS handling)."""
     sources: dict[str, SourceHealthCheck] = {}
 
     try:
-        # Get news cache timestamp for RSS sources (these ARE being updated)
-        news_cache_timestamp = None
-        try:
-            news_df = storage.query("SELECT MAX(fetched_at) as last_fetch FROM news_cache", [])
-            if not news_df.is_empty():
-                news_cache_timestamp = news_df.to_dicts()[0].get("last_fetch")
-        except Exception:
-            pass  # news_cache might not exist yet
+        news_cache_timestamp = _get_news_cache_timestamp(storage)
 
         df = storage.query(
             """
-            SELECT
-                source_name,
-                success_count,
-                failure_count,
-                total_latency_ms,
-                rate_limit_hits,
-                last_success_at
+            SELECT source_name, success_count, failure_count, total_latency_ms,
+                   rate_limit_hits, last_success_at
             FROM source_performance
             """,
             [],
         )
 
         if df.is_empty():
-            # No source data yet - return empty dict
             return sources
 
         for row in df.iter_rows(named=True):
@@ -203,40 +227,15 @@ def check_sources(storage: PortfolioStorage) -> dict[str, SourceHealthCheck]:
             rate_limit_hits = row["rate_limit_hits"] or 0
             last_success_at = row.get("last_success_at")
 
-            # For RSS news sources, use news_cache timestamp (which IS being updated)
-            # since source_performance is stale for these sources
+            # RSS sources: use news_cache timestamp (actually updated during ops)
             if "_rss" in source_name and news_cache_timestamp:
                 last_success_at = news_cache_timestamp
 
-            # Calculate success rate
-            total_requests = success_count + failure_count
-            success_rate = (success_count / total_requests * 100) if total_requests > 0 else 0.0
+            success_rate, avg_latency_ms = _calculate_source_metrics(
+                success_count, failure_count, total_latency_ms
+            )
 
-            # Calculate average latency
-            avg_latency_ms = int(total_latency_ms / success_count) if success_count > 0 else None
-
-            # Determine status based on last success and success rate
-            # Note: Thresholds designed for mixed usage patterns (real-time + periodic)
-            # - Real-time sources (price data): Should succeed within hours
-            # - Periodic sources (RSS feeds): May go 24h+ between refreshes
-            if last_success_at:
-                time_since_success = datetime.now(UTC) - last_success_at
-                if time_since_success < timedelta(hours=2):
-                    # Recent success (< 2 hours) - status based on success rate
-                    if success_rate >= 80:
-                        status: Literal["ok", "degraded", "down"] = "ok"
-                    elif success_rate >= 50:
-                        status = "degraded"
-                    else:
-                        status = "down"
-                elif time_since_success < timedelta(hours=24):
-                    # Stale but within 24h - degraded (common for RSS/periodic sources)
-                    status = "degraded"
-                else:
-                    # Very stale (> 24h) - likely a real issue
-                    status = "down"
-            else:
-                status = "down"  # Never succeeded
+            status = _determine_source_status(last_success_at, success_rate)
 
             sources[source_name] = SourceHealthCheck(
                 status=status,
@@ -244,7 +243,7 @@ def check_sources(storage: PortfolioStorage) -> dict[str, SourceHealthCheck]:
                 success_rate=round(success_rate, 1),
                 avg_latency_ms=avg_latency_ms,
                 rate_limit_hits=rate_limit_hits,
-                in_cooldown=False,  # Would need real-time data from MultiSourceFetcher
+                in_cooldown=False,
                 cooldown_remaining_seconds=0,
             )
 

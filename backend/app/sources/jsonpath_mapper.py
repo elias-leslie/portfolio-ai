@@ -67,74 +67,48 @@ def extract_with_path(data: dict[str, Any], path: str | None) -> Any:
     return current
 
 
-def map_response_to_schema(
-    response: dict[str, Any],
-    mapping_config: dict[str, Any],
-) -> pl.DataFrame | None:
-    """Map API response to portfolio-ai schema using field mapping configuration.
+def _extract_data_from_response(
+    response: dict[str, Any], data_path: str | None
+) -> Any:
+    """Extract data from response using optional data_path."""
+    if not data_path:
+        return response
 
-    Args:
-        response: Raw API response dictionary
-        mapping_config: Configuration dict with keys:
-            - field_mapping: Dict[str, str] mapping source fields to target fields
-            - data_path: Optional str path to extract nested data first
-            - required_fields: Optional list[str] of required target fields
+    extracted = extract_with_path(response, data_path)
+    if extracted is None:
+        raise ValueError(
+            f"data_path '{data_path}' extraction failed - path not found in response"
+        )
+    return extracted
 
-    Returns:
-        Polars DataFrame with mapped columns, or None if no data
 
-    Raises:
-        ValueError: If required fields missing or mapping configuration invalid
+def _normalize_to_list(data: Any, data_path: str | None) -> list[dict[str, Any]] | None:
+    """Normalize data to list format."""
+    # Already a list
+    if isinstance(data, list):
+        return data if data else None
 
-    Example:
-        >>> response = {"results": [{"t": 1705324800000, "o": 123.45}]}
-        >>> config = {
-        ...     "field_mapping": {"t": "ts_utc", "o": "open"},
-        ...     "data_path": "results",
-        ...     "required_fields": ["ts_utc", "open"]
-        ... }
-        >>> df = map_response_to_schema(response, config)
-        >>> df.columns
-        ['ts_utc', 'open']
-    """
-    field_mapping = mapping_config.get("field_mapping")
-    if not field_mapping:
-        raise ValueError("mapping_config must contain 'field_mapping' key")
+    # Timeseries dict (all values are dicts)
+    if isinstance(data, dict) and all(isinstance(v, dict) for v in data.values()):
+        return _transform_timeseries_dict_to_list(data)
 
-    data_path = mapping_config.get("data_path")
-    required_fields = set(mapping_config.get("required_fields", []))
-
-    # Extract nested data if data_path specified
-    data: Any = response
-    if data_path:
-        extracted = extract_with_path(response, data_path)
-        if extracted is None:
-            raise ValueError(
-                f"data_path '{data_path}' extraction failed - path not found in response"
-            )
-        data = extracted
-
-    # Ensure data is a list of dicts
-    if isinstance(data, dict) and not isinstance(data, list):
-        # Check if it's a timeseries dict (all values are dicts)
-        if all(isinstance(v, dict) for v in data.values()):
-            data = _transform_timeseries_dict_to_list(data)
-        else:
-            # Single object, wrap in list
-            data = [data]
+    # Single dict object
+    if isinstance(data, dict):
+        return [data]
 
     if not data:
         logger.warning("map_response_to_schema_empty_data", data_path=data_path)
         return None
 
-    # Create DataFrame from raw data
-    try:
-        df = pl.DataFrame(data, strict=False)
-    except Exception as e:
-        logger.error("dataframe_creation_failed", error=str(e), error_type=type(e).__name__)
-        raise ValueError(f"Failed to create DataFrame from response data: {e}") from e
+    return [data] if data else None
 
-    # Apply field mapping (rename columns)
+
+def _validate_and_build_rename_map(
+    df: pl.DataFrame,
+    field_mapping: dict[str, str],
+    required_fields: set[str],
+) -> dict[str, str]:
+    """Build rename map and validate required fields exist."""
     rename_map = {}
     missing_fields = []
 
@@ -143,14 +117,12 @@ def map_response_to_schema(
             rename_map[source_field] = target_field
         else:
             missing_fields.append(source_field)
-            # Check if this missing field is required
             if target_field in required_fields:
                 raise ValueError(
                     f"Required field '{target_field}' missing from source data "
                     f"(source field '{source_field}' not found in response)"
                 )
 
-    # Log warnings for missing optional fields
     if missing_fields:
         logger.warning(
             "optional_fields_missing",
@@ -158,11 +130,39 @@ def map_response_to_schema(
             available_fields=df.columns,
         )
 
-    # Rename columns
-    if rename_map:
-        df = df.rename(rename_map)
+    return rename_map
 
-    return df
+
+def map_response_to_schema(
+    response: dict[str, Any],
+    mapping_config: dict[str, Any],
+) -> pl.DataFrame | None:
+    """Map API response to portfolio-ai schema using field mapping (see helper functions)."""
+    field_mapping = mapping_config.get("field_mapping")
+    if not field_mapping:
+        raise ValueError("mapping_config must contain 'field_mapping' key")
+
+    data_path = mapping_config.get("data_path")
+    required_fields = set(mapping_config.get("required_fields", []))
+
+    # Extract and normalize data
+    data = _extract_data_from_response(response, data_path)
+    data_list = _normalize_to_list(data, data_path)
+
+    if not data_list:
+        return None
+
+    # Create DataFrame
+    try:
+        df = pl.DataFrame(data_list, strict=False)
+    except Exception as e:
+        logger.error("dataframe_creation_failed", error=str(e), error_type=type(e).__name__)
+        raise ValueError(f"Failed to create DataFrame from response data: {e}") from e
+
+    # Validate and apply field mapping
+    rename_map = _validate_and_build_rename_map(df, field_mapping, required_fields)
+
+    return df.rename(rename_map) if rename_map else df
 
 
 def _transform_timeseries_dict_to_list(
