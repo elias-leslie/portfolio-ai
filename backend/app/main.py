@@ -22,6 +22,7 @@ from app.api import (
     news,
     portfolio,
     preferences,
+    settings_profiles,
     status,
     status_stream,
     watchlist,
@@ -133,6 +134,7 @@ app.include_router(ideas.router)
 app.include_router(market.router)
 app.include_router(news.router)
 app.include_router(preferences.router)
+app.include_router(settings_profiles.router)
 app.include_router(analytics.router)
 app.include_router(indicators.router)
 app.include_router(watchlist.router)
