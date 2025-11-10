@@ -146,99 +146,93 @@ def generate_technical_bullets(inputs: dict[str, Any]) -> list[str]:
     return bullets[:5]  # Cap at 5 bullets
 
 
+def _gen_revenue_bullet(revenue_growth: float) -> str:
+    """Generate revenue growth bullet."""
+    revenue_pct = revenue_growth * 100
+    if revenue_growth >= 0.20:
+        return f"✓ Growing fast - Revenue up {revenue_pct:.0f}% this year"
+    if revenue_growth >= 0.05:
+        return f"✓ Steady growth - Revenue up {revenue_pct:.0f}% this year"
+    if revenue_growth >= 0:
+        return f"⚠ Slow growth - Revenue up {revenue_pct:.0f}% this year"
+    return f"✗ Shrinking - Revenue down {abs(revenue_pct):.0f}% this year"
+
+
+def _gen_profit_bullet(profit_margin: float) -> str:
+    """Generate profit margin bullet."""
+    margin_pct = profit_margin * 100
+    if profit_margin >= 0.20:
+        return f"✓ Very profitable - Profit margins {margin_pct:.0f}%"
+    if profit_margin >= 0.05:
+        return f"✓ Profitable - Profit margins {margin_pct:.0f}%"
+    if profit_margin >= 0:
+        return f"⚠ Low margins - Only {margin_pct:.0f}% profit"
+    return f"✗ Unprofitable - Losing {abs(margin_pct):.0f}% on sales"
+
+
+def _gen_balance_sheet_bullet(
+    debt_to_equity: float | None, cash: float | None
+) -> str | None:
+    """Generate balance sheet health bullet."""
+    # Debt analysis takes priority
+    if debt_to_equity is not None:
+        if debt_to_equity < 0.5 and cash is not None and cash >= 1_000_000_000:
+            cash_b = cash / 1_000_000_000
+            return f"✓ Strong balance sheet - ${cash_b:.0f}B cash, low debt"
+        if debt_to_equity < 0.5:
+            return "✓ Strong balance sheet - Low debt"
+        if debt_to_equity < 1.5:
+            return "⚠ Moderate debt levels"
+        return f"✗ High debt - Debt-to-equity {debt_to_equity:.1f}x"
+
+    # Cash-only analysis (no debt data)
+    if cash is not None and cash >= 5_000_000_000:
+        cash_b = cash / 1_000_000_000
+        return f"✓ Strong cash position - ${cash_b:.0f}B on hand"
+
+    return None
+
+
+def _gen_analyst_bullet(analyst_buy_pct: float) -> str:
+    """Generate analyst ratings bullet."""
+    buy_pct = analyst_buy_pct * 100
+    if analyst_buy_pct >= 0.70:
+        return f"✓ Analysts love it - {buy_pct:.0f}% buy ratings"
+    if analyst_buy_pct >= 0.50:
+        return f"⚠ Mixed analyst views - {buy_pct:.0f}% buy ratings"
+    return f"✗ Analysts cautious - Only {buy_pct:.0f}% buy ratings"
+
+
 def generate_company_health_bullets(fundamentals: dict[str, Any]) -> list[str]:
-    """Generate plain-language company health bullets (zero jargon).
-
-    Args:
-        fundamentals: Dictionary containing fundamental data:
-            - revenue_growth: Revenue growth rate (0.10 = 10%)
-            - profit_margin: Profit margin (0.15 = 15%)
-            - debt_to_equity: Debt-to-equity ratio
-            - cash: Cash on hand (in dollars)
-            - analyst_buy_pct: Percentage of analysts with buy rating (0.75 = 75%)
-
-    Returns:
-        List of 3-5 plain-language bullet points with ✓/✗/⚠ symbols
-
-    Example:
-        >>> fundamentals = {
-        ...     "revenue_growth": 1.22,
-        ...     "profit_margin": 0.53,
-        ...     "debt_to_equity": 0.15,
-        ...     "cash": 26_000_000_000,
-        ...     "analyst_buy_pct": 0.94,
-        ... }
-        >>> bullets = generate_company_health_bullets(fundamentals)
-        >>> # Returns: ["✓ Growing fast - Revenue up 122% this year", ...]
-    """
+    """Generate plain-language company health bullets (see helper functions for logic)."""
     bullets: list[str] = []
 
-    # Extract fundamentals (all optional)
+    # Extract fundamentals
     revenue_growth = fundamentals.get("revenue_growth")
     profit_margin = fundamentals.get("profit_margin")
     debt_to_equity = fundamentals.get("debt_to_equity")
     cash = fundamentals.get("cash")
     analyst_buy_pct = fundamentals.get("analyst_buy_pct")
 
-    # Revenue growth bullet
+    # Generate bullets using helpers
     if revenue_growth is not None:
-        revenue_pct = revenue_growth * 100
-        if revenue_growth >= 0.20:  # 20%+ growth
-            bullets.append(f"✓ Growing fast - Revenue up {revenue_pct:.0f}% this year")
-        elif revenue_growth >= 0.05:  # 5-20% growth
-            bullets.append(f"✓ Steady growth - Revenue up {revenue_pct:.0f}% this year")
-        elif revenue_growth >= 0:  # 0-5% growth
-            bullets.append(f"⚠ Slow growth - Revenue up {revenue_pct:.0f}% this year")
-        else:  # Negative growth
-            bullets.append(f"✗ Shrinking - Revenue down {abs(revenue_pct):.0f}% this year")
+        bullets.append(_gen_revenue_bullet(revenue_growth))
 
-    # Profit margin bullet
     if profit_margin is not None:
-        margin_pct = profit_margin * 100
-        if profit_margin >= 0.20:  # 20%+ margin
-            bullets.append(f"✓ Very profitable - Profit margins {margin_pct:.0f}%")
-        elif profit_margin >= 0.05:  # 5-20% margin
-            bullets.append(f"✓ Profitable - Profit margins {margin_pct:.0f}%")
-        elif profit_margin >= 0:  # 0-5% margin
-            bullets.append(f"⚠ Low margins - Only {margin_pct:.0f}% profit")
-        else:  # Negative margin
-            bullets.append(f"✗ Unprofitable - Losing {abs(margin_pct):.0f}% on sales")
+        bullets.append(_gen_profit_bullet(profit_margin))
 
-    # Balance sheet bullet (debt + cash)
-    if debt_to_equity is not None or cash is not None:
-        if debt_to_equity is not None and debt_to_equity < 0.5:
-            # Low debt
-            if cash is not None and cash >= 1_000_000_000:  # $1B+ cash
-                cash_b = cash / 1_000_000_000
-                bullets.append(f"✓ Strong balance sheet - ${cash_b:.0f}B cash, low debt")
-            else:
-                bullets.append("✓ Strong balance sheet - Low debt")
-        elif debt_to_equity is not None and debt_to_equity < 1.5:
-            # Moderate debt
-            bullets.append("⚠ Moderate debt levels")
-        elif debt_to_equity is not None and debt_to_equity >= 1.5:
-            # High debt
-            bullets.append(f"✗ High debt - Debt-to-equity {debt_to_equity:.1f}x")
-        elif cash is not None and cash >= 5_000_000_000:
-            # Only cash data available - $5B+ cash
-            cash_b = cash / 1_000_000_000
-            bullets.append(f"✓ Strong cash position - ${cash_b:.0f}B on hand")
+    balance_bullet = _gen_balance_sheet_bullet(debt_to_equity, cash)
+    if balance_bullet:
+        bullets.append(balance_bullet)
 
-    # Analyst ratings bullet
     if analyst_buy_pct is not None:
-        buy_pct = analyst_buy_pct * 100
-        if analyst_buy_pct >= 0.70:  # 70%+ buy
-            bullets.append(f"✓ Analysts love it - {buy_pct:.0f}% buy ratings")
-        elif analyst_buy_pct >= 0.50:  # 50-70% buy
-            bullets.append(f"⚠ Mixed analyst views - {buy_pct:.0f}% buy ratings")
-        else:  # <50% buy
-            bullets.append(f"✗ Analysts cautious - Only {buy_pct:.0f}% buy ratings")
+        bullets.append(_gen_analyst_bullet(analyst_buy_pct))
 
-    # Ensure we have at least 1 bullet
-    if len(bullets) == 0:
+    # Fallback if no data
+    if not bullets:
         bullets.append("⚠ Limited fundamental data available")
 
-    return bullets[:5]  # Cap at 5 bullets
+    return bullets[:5]
 
 
 def generate_action_plan(
