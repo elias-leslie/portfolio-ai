@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import re
@@ -473,6 +474,9 @@ class RestartServicesResponse(BaseModel):
 async def restart_services() -> RestartServicesResponse:
     """Restart all Portfolio AI services.
 
+    Uses nohup to run restart script in background to avoid killing itself.
+    The backend will restart itself as part of this operation.
+
     Returns:
         RestartServicesResponse: Status of the operation
 
@@ -483,43 +487,28 @@ async def restart_services() -> RestartServicesResponse:
         restart_script = "/home/kasadis/portfolio-ai/scripts/restart.sh"
         logger.info("restart_services_start", script=restart_script)
 
-        result = subprocess.run(
-            ["bash", restart_script],
-            capture_output=True,
-            text=True,
-            timeout=60,
-            check=False,
+        # Run restart in background with nohup to avoid killing the process that's running it
+        # The script will restart the backend, which would kill this request otherwise
+        subprocess.Popen(
+            ["nohup", "bash", restart_script],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
         )
 
-        logger.info(
-            "restart_services_result",
-            returncode=result.returncode,
-            stdout_lines=len(result.stdout.splitlines()) if result.stdout else 0,
-            stderr_lines=len(result.stderr.splitlines()) if result.stderr else 0,
+        # Give a moment for the script to start
+        await asyncio.sleep(0.5)
+
+        logger.info("restart_services_triggered")
+
+        return RestartServicesResponse(
+            success=True,
+            message="Services are restarting. This will take about 10 seconds. Refresh the page after.",
         )
-
-        if result.returncode != 0:
-            # Get last 500 chars of output for error message
-            error_msg = (result.stderr or result.stdout or "Unknown error")[-500:]
-            logger.error(
-                "restart_services_failed",
-                stderr=result.stderr[-1000:] if result.stderr else None,
-                stdout=result.stdout[-1000:] if result.stdout else None,
-                returncode=result.returncode,
-            )
-            raise HTTPException(status_code=500, detail=f"Failed to restart services: {error_msg}")
-
-        logger.info("services_restarted")
-
-        return RestartServicesResponse(success=True, message="Services restarted successfully")
-
-    except subprocess.TimeoutExpired as e:
-        logger.error("restart_services_timeout", error=str(e))
-        raise HTTPException(status_code=504, detail="Restart operation timed out") from e
 
     except Exception as e:
         logger.error("restart_services_error", error=str(e))
-        raise HTTPException(status_code=500, detail=f"Error restarting services: {e!s}") from e
+        raise HTTPException(status_code=500, detail=f"Error triggering restart: {e!s}") from e
 
 
 class DiskUsageResponse(BaseModel):
