@@ -18,6 +18,125 @@ ta = cast(Any, import_module("pandas_ta"))
 
 logger = get_logger(__name__)
 
+# Default indicators to calculate when none specified
+DEFAULT_INDICATORS = [
+    "rsi",
+    "macd",
+    "bbands",
+    "sma_20",
+    "sma_50",
+    "sma_200",
+    "ema_20",
+    "ema_50",
+    "ema_200",
+    "atr",
+    "stoch",
+]
+
+
+def _calculate_rsi(df: Any, indicators: list[str], indicator_values: dict[str, Any]) -> None:
+    """Calculate RSI indicator and add to indicator_values dict.
+
+    Args:
+        df: pandas DataFrame with OHLCV data
+        indicators: List of requested indicators
+        indicator_values: Dict to update with RSI value
+    """
+    if "rsi" in indicators:
+        rsi = ta.rsi(df["close"], length=14)
+        indicator_values["rsi_14"] = float(rsi.iloc[-1]) if not rsi.empty else None
+
+
+def _calculate_macd(df: Any, indicators: list[str], indicator_values: dict[str, Any]) -> None:
+    """Calculate MACD indicator and add to indicator_values dict.
+
+    Args:
+        df: pandas DataFrame with OHLCV data
+        indicators: List of requested indicators
+        indicator_values: Dict to update with MACD values
+    """
+    if "macd" in indicators:
+        macd_df = ta.macd(df["close"], fast=12, slow=26, signal=9)
+        if macd_df is not None and not macd_df.empty:
+            indicator_values["macd_12_26_9"] = {
+                "macd": float(macd_df["MACD_12_26_9"].iloc[-1]),
+                "signal": float(macd_df["MACDs_12_26_9"].iloc[-1]),
+                "histogram": float(macd_df["MACDh_12_26_9"].iloc[-1]),
+            }
+
+
+def _calculate_bbands(df: Any, indicators: list[str], indicator_values: dict[str, Any]) -> None:
+    """Calculate Bollinger Bands and add to indicator_values dict.
+
+    Args:
+        df: pandas DataFrame with OHLCV data
+        indicators: List of requested indicators
+        indicator_values: Dict to update with BBands values
+    """
+    if "bbands" in indicators:
+        bbands_df = ta.bbands(df["close"], length=20, std=2.0)
+        if bbands_df is not None and not bbands_df.empty:
+            indicator_values["bbands_20_2"] = {
+                "upper": float(bbands_df["BBU_20_2.0_2.0"].iloc[-1]),
+                "middle": float(bbands_df["BBM_20_2.0_2.0"].iloc[-1]),
+                "lower": float(bbands_df["BBL_20_2.0_2.0"].iloc[-1]),
+            }
+
+
+def _calculate_moving_averages(
+    df: Any, indicators: list[str], indicator_values: dict[str, Any]
+) -> None:
+    """Calculate all moving averages (SMA and EMA) and add to indicator_values dict.
+
+    Args:
+        df: pandas DataFrame with OHLCV data
+        indicators: List of requested indicators
+        indicator_values: Dict to update with moving average values
+    """
+    # Simple Moving Averages
+    for length in [5, 20, 50, 200]:
+        key = f"sma_{length}"
+        if key in indicators:
+            sma = ta.sma(df["close"], length=length)
+            indicator_values[key] = float(sma.iloc[-1]) if not sma.empty else None
+
+    # Exponential Moving Averages
+    for length in [20, 50, 200]:
+        key = f"ema_{length}"
+        if key in indicators:
+            ema = ta.ema(df["close"], length=length)
+            indicator_values[key] = float(ema.iloc[-1]) if not ema.empty else None
+
+
+def _calculate_atr(df: Any, indicators: list[str], indicator_values: dict[str, Any]) -> None:
+    """Calculate ATR indicator and add to indicator_values dict.
+
+    Args:
+        df: pandas DataFrame with OHLCV data
+        indicators: List of requested indicators
+        indicator_values: Dict to update with ATR value
+    """
+    if "atr" in indicators:
+        atr = ta.atr(df["high"], df["low"], df["close"], length=14)
+        indicator_values["atr_14"] = float(atr.iloc[-1]) if not atr.empty else None
+
+
+def _calculate_stochastic(df: Any, indicators: list[str], indicator_values: dict[str, Any]) -> None:
+    """Calculate Stochastic oscillator and add to indicator_values dict.
+
+    Args:
+        df: pandas DataFrame with OHLCV data
+        indicators: List of requested indicators
+        indicator_values: Dict to update with Stochastic values
+    """
+    if "stoch" in indicators:
+        stoch_df = ta.stoch(df["high"], df["low"], df["close"], k=14, d=3, smooth_k=3)
+        if stoch_df is not None and not stoch_df.empty:
+            indicator_values["stoch_14_3_3"] = {
+                "k": float(stoch_df["STOCHk_14_3_3"].iloc[-1]),
+                "d": float(stoch_df["STOCHd_14_3_3"].iloc[-1]),
+            }
+
 
 def calculate_indicators(
     storage: PortfolioStorage,
@@ -27,43 +146,15 @@ def calculate_indicators(
 ) -> dict[str, Any]:
     """Calculate technical indicators for a ticker.
 
-    Fetches OHLCV data from the day_bars table and calculates requested
-    technical indicators using pandas-ta. Returns indicator values with
-    interpretations (e.g., "oversold", "bullish_cross").
-
     Args:
         storage: PortfolioStorage instance for database access
         ticker: Stock ticker symbol (e.g., "AAPL")
-        indicators: List of indicator names to calculate. If None, calculates all.
-            Supported: ["rsi", "macd", "bbands", "sma_20", "sma_50", "sma_200",
-                       "ema_20", "ema_50", "ema_200", "atr", "stoch"]
+        indicators: List of indicator names to calculate. If None, uses DEFAULT_INDICATORS.
         as_of_date: Calculate indicators as of this date (default: latest available)
 
     Returns:
-        Dict with indicator values and interpretations:
-        {
-            "ticker": "AAPL",
-            "date": "2025-01-15",
-            "indicators": {
-                "rsi_14": 32.5,
-                "macd_12_26_9": {"macd": 1.2, "signal": 0.8, "histogram": 0.4},
-                "bbands_20_2": {"upper": 182.5, "middle": 180.0, "lower": 177.5},
-                "sma_20": 179.5,
-                "sma_50": 175.0,
-                "sma_200": 170.0,
-                "ema_20": 179.8,
-                "ema_50": 175.5,
-                "ema_200": 170.5,
-                "atr_14": 3.5,
-                "stoch_14_3_3": {"k": 25.0, "d": 22.0}
-            },
-            "interpretations": {
-                "rsi": "oversold",
-                "macd": "bullish_cross",
-                "bbands_position": "near_lower",
-                "price_vs_sma_200": "above"
-            }
-        }
+        Dict with ticker, date, indicators dict, and interpretations dict.
+        See module docstring for detailed return structure.
 
     Raises:
         ValueError: If ticker has insufficient historical data (need 200+ days for SMA-200)
@@ -74,21 +165,9 @@ def calculate_indicators(
         >>> if result["interpretations"]["rsi"] == "oversold":
         ...     print("RSI oversold - potential buy signal")
     """
-    # Default to all indicators if none specified
+    # Use default indicators if none specified
     if indicators is None:
-        indicators = [
-            "rsi",
-            "macd",
-            "bbands",
-            "sma_20",
-            "sma_50",
-            "sma_200",
-            "ema_20",
-            "ema_50",
-            "ema_200",
-            "atr",
-            "stoch",
-        ]
+        indicators = DEFAULT_INDICATORS
 
     # Fetch OHLCV data (need at least 200 days for SMA-200)
     df = _fetch_ohlcv_data(storage, ticker, lookback_days=250, as_of_date=as_of_date)
@@ -101,72 +180,14 @@ def calculate_indicators(
     # Get the latest date in the dataset
     latest_date = df.index[-1]
 
-    # Calculate indicators
+    # Calculate all requested indicators
     indicator_values: dict[str, Any] = {}
-
-    if "rsi" in indicators:
-        rsi = ta.rsi(df["close"], length=14)
-        indicator_values["rsi_14"] = float(rsi.iloc[-1]) if not rsi.empty else None
-
-    if "macd" in indicators:
-        macd_df = ta.macd(df["close"], fast=12, slow=26, signal=9)
-        if macd_df is not None and not macd_df.empty:
-            indicator_values["macd_12_26_9"] = {
-                "macd": float(macd_df["MACD_12_26_9"].iloc[-1]),
-                "signal": float(macd_df["MACDs_12_26_9"].iloc[-1]),
-                "histogram": float(macd_df["MACDh_12_26_9"].iloc[-1]),
-            }
-
-    if "bbands" in indicators:
-        bbands_df = ta.bbands(df["close"], length=20, std=2.0)
-        if bbands_df is not None and not bbands_df.empty:
-            # pandas-ta column names: BBL_20_2.0_2.0, BBM_20_2.0_2.0, BBU_20_2.0_2.0
-            indicator_values["bbands_20_2"] = {
-                "upper": float(bbands_df["BBU_20_2.0_2.0"].iloc[-1]),
-                "middle": float(bbands_df["BBM_20_2.0_2.0"].iloc[-1]),
-                "lower": float(bbands_df["BBL_20_2.0_2.0"].iloc[-1]),
-            }
-
-    # Moving averages
-    if "sma_5" in indicators:
-        sma_5 = ta.sma(df["close"], length=5)
-        indicator_values["sma_5"] = float(sma_5.iloc[-1]) if not sma_5.empty else None
-
-    if "sma_20" in indicators:
-        sma_20 = ta.sma(df["close"], length=20)
-        indicator_values["sma_20"] = float(sma_20.iloc[-1]) if not sma_20.empty else None
-
-    if "sma_50" in indicators:
-        sma_50 = ta.sma(df["close"], length=50)
-        indicator_values["sma_50"] = float(sma_50.iloc[-1]) if not sma_50.empty else None
-
-    if "sma_200" in indicators:
-        sma_200 = ta.sma(df["close"], length=200)
-        indicator_values["sma_200"] = float(sma_200.iloc[-1]) if not sma_200.empty else None
-
-    if "ema_20" in indicators:
-        ema_20 = ta.ema(df["close"], length=20)
-        indicator_values["ema_20"] = float(ema_20.iloc[-1]) if not ema_20.empty else None
-
-    if "ema_50" in indicators:
-        ema_50 = ta.ema(df["close"], length=50)
-        indicator_values["ema_50"] = float(ema_50.iloc[-1]) if not ema_50.empty else None
-
-    if "ema_200" in indicators:
-        ema_200 = ta.ema(df["close"], length=200)
-        indicator_values["ema_200"] = float(ema_200.iloc[-1]) if not ema_200.empty else None
-
-    if "atr" in indicators:
-        atr = ta.atr(df["high"], df["low"], df["close"], length=14)
-        indicator_values["atr_14"] = float(atr.iloc[-1]) if not atr.empty else None
-
-    if "stoch" in indicators:
-        stoch_df = ta.stoch(df["high"], df["low"], df["close"], k=14, d=3, smooth_k=3)
-        if stoch_df is not None and not stoch_df.empty:
-            indicator_values["stoch_14_3_3"] = {
-                "k": float(stoch_df["STOCHk_14_3_3"].iloc[-1]),
-                "d": float(stoch_df["STOCHd_14_3_3"].iloc[-1]),
-            }
+    _calculate_rsi(df, indicators, indicator_values)
+    _calculate_macd(df, indicators, indicator_values)
+    _calculate_bbands(df, indicators, indicator_values)
+    _calculate_moving_averages(df, indicators, indicator_values)
+    _calculate_atr(df, indicators, indicator_values)
+    _calculate_stochastic(df, indicators, indicator_values)
 
     # Generate interpretations
     interpretations = _interpret_indicators(indicator_values, df["close"].iloc[-1])

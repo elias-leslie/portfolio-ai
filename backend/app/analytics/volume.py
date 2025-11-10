@@ -14,6 +14,97 @@ from app.storage import PortfolioStorage
 logger = get_logger(__name__)
 
 
+def _parse_target_date(date: dt.date | str) -> dt.date:
+    """Convert date input to date object.
+
+    Args:
+        date: Date as string (YYYY-MM-DD) or date object
+
+    Returns:
+        Date object
+    """
+    if isinstance(date, str):
+        return dt.datetime.strptime(date, "%Y-%m-%d").date()
+    return date
+
+
+def _calculate_lookback_start(target_date: dt.date, lookback_days: int) -> dt.date:
+    """Calculate lookback start date accounting for weekends/holidays.
+
+    Args:
+        target_date: Target analysis date
+        lookback_days: Number of trading days to look back
+
+    Returns:
+        Start date for lookback period
+    """
+    calendar_days = int(lookback_days * 1.5)
+    return target_date - dt.timedelta(days=calendar_days)
+
+
+def _fetch_current_volume(
+    storage: PortfolioStorage, ticker: str, target_date: dt.date
+) -> int | None:
+    """Fetch current day's volume for a ticker.
+
+    Args:
+        storage: PortfolioStorage instance
+        ticker: Stock ticker symbol
+        target_date: Date to fetch volume for
+
+    Returns:
+        Volume as integer, or None if no data or zero volume
+    """
+    current_volume_query = """
+        SELECT volume
+        FROM day_bars
+        WHERE ticker = ?
+          AND date = ?
+        LIMIT 1
+    """
+    current_result = storage.query(current_volume_query, [ticker, target_date])
+
+    if current_result is None or len(current_result) == 0:
+        return None
+
+    current_volume = current_result["volume"][0]
+    return int(current_volume) if current_volume > 0 else None
+
+
+def _fetch_average_volume(
+    storage: PortfolioStorage,
+    ticker: str,
+    lookback_start: dt.date,
+    target_date: dt.date,
+) -> float | None:
+    """Fetch average volume over lookback period.
+
+    Args:
+        storage: PortfolioStorage instance
+        ticker: Stock ticker symbol
+        lookback_start: Start of lookback period
+        target_date: End of lookback period (exclusive)
+
+    Returns:
+        Average volume as float, or None if no data or zero average
+    """
+    avg_volume_query = """
+        SELECT AVG(volume) as avg_volume
+        FROM day_bars
+        WHERE ticker = ?
+          AND date >= ?
+          AND date < ?
+          AND volume > 0
+    """
+    avg_result = storage.query(avg_volume_query, [ticker, lookback_start, target_date])
+
+    if avg_result is None or len(avg_result) == 0:
+        return None
+
+    avg_volume = avg_result["avg_volume"][0]
+    return float(avg_volume) if avg_volume and avg_volume > 0 else None
+
+
 def calculate_rvol(
     storage: PortfolioStorage,
     ticker: str,
@@ -46,17 +137,8 @@ def calculate_rvol(
         >>> if rvol and rvol > 1.5:
         ...     print("High volume detected!")
     """
-    # Convert string date to date object if needed
-    if isinstance(date, str):
-        target_date = dt.datetime.strptime(date, "%Y-%m-%d").date()
-    else:
-        target_date = date
-
-    # Calculate lookback period start date
-    # Add extra calendar days to account for weekends/holidays
-    # Approximate: 20 trading days ≈ 28-30 calendar days
-    calendar_days = int(lookback_days * 1.5)
-    lookback_start = target_date - dt.timedelta(days=calendar_days)
+    target_date = _parse_target_date(date)
+    lookback_start = _calculate_lookback_start(target_date, lookback_days)
 
     logger.debug(
         "calculate_rvol_start",
@@ -66,54 +148,15 @@ def calculate_rvol(
         lookback_start=str(lookback_start),
     )
 
-    # Query current day's volume
-    current_volume_query = """
-        SELECT volume
-        FROM day_bars
-        WHERE ticker = ?
-          AND date = ?
-        LIMIT 1
-    """
-
-    current_result = storage.query(
-        current_volume_query,
-        [ticker, target_date],
-    )
-
-    if current_result is None or len(current_result) == 0:
-        logger.warning(
-            "calculate_rvol_no_current_data",
-            ticker=ticker,
-            date=str(target_date),
-        )
+    # Get current day's volume
+    current_volume = _fetch_current_volume(storage, ticker, target_date)
+    if current_volume is None:
+        logger.warning("calculate_rvol_no_current_data", ticker=ticker, date=str(target_date))
         return None
 
-    current_volume = current_result["volume"][0]
-
-    if current_volume == 0:
-        logger.warning(
-            "calculate_rvol_zero_volume",
-            ticker=ticker,
-            date=str(target_date),
-        )
-        return None
-
-    # Query average volume over lookback period (excluding current day)
-    avg_volume_query = """
-        SELECT AVG(volume) as avg_volume
-        FROM day_bars
-        WHERE ticker = ?
-          AND date >= ?
-          AND date < ?
-          AND volume > 0
-    """
-
-    avg_result = storage.query(
-        avg_volume_query,
-        [ticker, lookback_start, target_date],
-    )
-
-    if avg_result is None or len(avg_result) == 0:
+    # Get average volume over lookback period
+    avg_volume = _fetch_average_volume(storage, ticker, lookback_start, target_date)
+    if avg_volume is None:
         logger.warning(
             "calculate_rvol_no_lookback_data",
             ticker=ticker,
@@ -122,30 +165,76 @@ def calculate_rvol(
         )
         return None
 
-    avg_volume = avg_result["avg_volume"][0]
-
-    if avg_volume is None or avg_volume == 0:
-        logger.warning(
-            "calculate_rvol_zero_avg_volume",
-            ticker=ticker,
-            lookback_start=str(lookback_start),
-            date=str(target_date),
-        )
-        return None
-
     # Calculate RVOL
-    rvol = float(current_volume) / float(avg_volume)
+    rvol = float(current_volume) / avg_volume
 
     logger.info(
         "calculate_rvol_complete",
         ticker=ticker,
         date=str(target_date),
         current_volume=current_volume,
-        avg_volume=float(avg_volume),
+        avg_volume=avg_volume,
         rvol=round(rvol, 2),
     )
 
     return rvol
+
+
+def _fetch_all_tickers(storage: PortfolioStorage, target_date: dt.date) -> list[str]:
+    """Fetch all tickers with data for a specific date.
+
+    Args:
+        storage: PortfolioStorage instance
+        target_date: Date to check for ticker data
+
+    Returns:
+        List of ticker symbols
+    """
+    tickers_query = """
+        SELECT DISTINCT ticker
+        FROM day_bars
+        WHERE date = ?
+    """
+    tickers_result = storage.query(tickers_query, [target_date])
+
+    if tickers_result is None or len(tickers_result) == 0:
+        return []
+
+    return tickers_result["ticker"].to_list()
+
+
+def _build_rvol_entry(
+    storage: PortfolioStorage,
+    ticker: str,
+    rvol: float,
+    target_date: dt.date,
+    lookback_days: int,
+) -> dict[str, float | str]:
+    """Build RVOL entry with volume details for a ticker.
+
+    Args:
+        storage: PortfolioStorage instance
+        ticker: Stock ticker symbol
+        rvol: Calculated RVOL value
+        target_date: Analysis date
+        lookback_days: Lookback period for average calculation
+
+    Returns:
+        Dict with ticker, rvol, current_volume, and avg_volume
+    """
+    # Get current volume
+    current_volume = _fetch_current_volume(storage, ticker, target_date)
+
+    # Get average volume
+    lookback_start = _calculate_lookback_start(target_date, lookback_days)
+    avg_volume = _fetch_average_volume(storage, ticker, lookback_start, target_date)
+
+    return {
+        "ticker": ticker,
+        "rvol": round(rvol, 2),
+        "current_volume": int(current_volume) if current_volume else 0,
+        "avg_volume": int(avg_volume) if avg_volume else 0,
+    }
 
 
 def get_high_volume_tickers(
@@ -174,66 +263,23 @@ def get_high_volume_tickers(
         >>> for item in high_vol[:5]:
         ...     print(f"{item['ticker']}: RVOL={item['rvol']:.2f}x")
     """
-    # Convert string date to date object if needed
-    if isinstance(date, str):
-        target_date = dt.datetime.strptime(date, "%Y-%m-%d").date()
-    else:
-        target_date = date
+    target_date = _parse_target_date(date)
 
     # Get all tickers that have data for the target date
-    tickers_query = """
-        SELECT DISTINCT ticker
-        FROM day_bars
-        WHERE date = ?
-    """
-
-    tickers_result = storage.query(tickers_query, [target_date])
-
-    if tickers_result is None or len(tickers_result) == 0:
-        logger.warning(
-            "get_high_volume_tickers_no_data",
-            date=str(target_date),
-        )
+    tickers = _fetch_all_tickers(storage, target_date)
+    if not tickers:
+        logger.warning("get_high_volume_tickers_no_data", date=str(target_date))
         return []
 
-    tickers = tickers_result["ticker"].to_list()
-
-    # Calculate RVOL for each ticker
+    # Calculate RVOL for each ticker and filter by threshold
     high_volume_list: list[dict[str, float | str]] = []
 
     for ticker in tickers:
         rvol = calculate_rvol(storage, ticker, target_date, lookback_days)
 
         if rvol is not None and rvol >= rvol_threshold:
-            # Get current and average volume for reporting
-            current_volume_query = """
-                SELECT volume
-                FROM day_bars
-                WHERE ticker = ? AND date = ?
-                LIMIT 1
-            """
-            current_result = storage.query(current_volume_query, [ticker, target_date])
-            current_volume = current_result["volume"][0] if current_result is not None else 0
-
-            # Calculate average volume
-            calendar_days = int(lookback_days * 1.5)
-            lookback_start = target_date - dt.timedelta(days=calendar_days)
-            avg_volume_query = """
-                SELECT AVG(volume) as avg_volume
-                FROM day_bars
-                WHERE ticker = ? AND date >= ? AND date < ? AND volume > 0
-            """
-            avg_result = storage.query(avg_volume_query, [ticker, lookback_start, target_date])
-            avg_volume = avg_result["avg_volume"][0] if avg_result is not None else 0
-
-            high_volume_list.append(
-                {
-                    "ticker": ticker,
-                    "rvol": round(rvol, 2),
-                    "current_volume": int(current_volume),
-                    "avg_volume": int(avg_volume) if avg_volume else 0,
-                }
-            )
+            entry = _build_rvol_entry(storage, ticker, rvol, target_date, lookback_days)
+            high_volume_list.append(entry)
 
     # Sort by RVOL descending
     high_volume_list.sort(key=lambda x: x["rvol"], reverse=True)
