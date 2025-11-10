@@ -36,6 +36,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface ParsedLog {
     service: string;
+    logFile: string;
     level: "ERROR" | "WARN" | "INFO" | "DEBUG" | "UNKNOWN";
     timestamp: string;
     message: string;
@@ -55,7 +56,95 @@ const LOG_SERVICES = [
     "postgresql",
 ];
 
-function parseLogLine(line: string, service: string): ParsedLog {
+// Map service identifiers to actual log file names for display
+const LOG_FILE_DISPLAY_NAMES: Record<string, string> = {
+    "backend": "backend.log",
+    "backend_error": "backend-error.log",
+    "celery_worker": "celery-worker.log",
+    "celery_worker_error": "celery-worker-error.log",
+    "celery_beat": "celery-beat.log",
+    "celery_beat_error": "celery-beat-error.log",
+    "frontend": "frontend.log",
+    "frontend_error": "frontend-error.log",
+    "redis": "redis-server.log",
+    "postgresql": "postgresql-16-main.log",
+};
+
+function getLogFileDisplayName(service: string): string {
+    return LOG_FILE_DISPLAY_NAMES[service] || service;
+}
+
+/**
+ * Combines multi-line log messages into single entries.
+ * Continuation lines (lines that don't start with timestamp/level) are appended to previous message.
+ */
+function combineMultiLineMessages(lines: string[], service: string): string[] {
+    if (!lines || lines.length === 0) return [];
+
+    const combined: string[] = [];
+    let currentMessage = "";
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const trimmed = line.trim();
+
+        // Check if this line starts a new log entry based on service-specific patterns
+        const isNewEntry = (() => {
+            // Celery error format: starts with [YYYY-MM-DD
+            if (service.includes("celery") && service.includes("error")) {
+                return /^\[(\d{4}-\d{2}-\d{2})/.test(trimmed);
+            }
+            // PostgreSQL format: starts with YYYY-MM-DD
+            if (service === "postgresql") {
+                return /^\d{4}-\d{2}-\d{2}/.test(trimmed);
+            }
+            // Redis format: starts with PID:ROLE
+            if (service === "redis") {
+                return /^\d+:\w+/.test(trimmed);
+            }
+            // Backend/uvicorn format: starts with INFO:/ERROR:/etc
+            if (service.includes("backend")) {
+                return /^(INFO|ERROR|WARNING|DEBUG):/.test(trimmed);
+            }
+            // Frontend format: starts with space + HTTP method or warning symbol
+            if (service.includes("frontend")) {
+                return /^\s*(GET|POST|PUT|DELETE|PATCH|⚠)/.test(trimmed);
+            }
+            // Celery worker (non-error): starts with spaces + dot or timestamp
+            if (service.includes("celery_worker")) {
+                return /^\s*\./.test(trimmed) || /^\d{4}-\d{2}-\d{2}/.test(trimmed);
+            }
+            // Default: any line with content is a new entry
+            return trimmed.length > 0;
+        })();
+
+        if (isNewEntry) {
+            // Save previous message if exists
+            if (currentMessage) {
+                combined.push(currentMessage);
+            }
+            // Start new message
+            currentMessage = line;
+        } else {
+            // Continuation line - append to current message
+            if (currentMessage) {
+                currentMessage += " " + trimmed;
+            } else {
+                // Orphan continuation line (shouldn't happen, but handle it)
+                currentMessage = line;
+            }
+        }
+    }
+
+    // Don't forget the last message
+    if (currentMessage) {
+        combined.push(currentMessage);
+    }
+
+    return combined;
+}
+
+function parseLogLine(line: string, service: string, logFile: string): ParsedLog {
     // Clean the line first (strip leading/trailing whitespace)
     const cleanLine = line.trim();
 
@@ -77,13 +166,15 @@ function parseLogLine(line: string, service: string): ParsedLog {
         }
     } else if (service === "postgresql") {
         // Format: 2025-11-09 23:35:57 EST [1149] @ LOG:  message
-        const pgMatch = cleanLine.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \w+ \[\d+\] @ (\w+):\s*(.+)$/);
+        // More flexible regex to handle variations
+        const pgMatch = cleanLine.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+\w+\s+\[[\d]+\]\s+@\s+(\w+):\s*(.+)$/);
         if (pgMatch) {
             timestamp = pgMatch[1];
             const levelStr = pgMatch[2].toUpperCase();
             level = levelStr === "LOG" ? "INFO" :
                     levelStr === "ERROR" ? "ERROR" :
                     levelStr === "WARNING" ? "WARN" :
+                    levelStr === "HINT" ? "INFO" :
                     levelStr === "FATAL" ? "ERROR" : "INFO";
             message = pgMatch[3];
         }
@@ -96,22 +187,61 @@ function parseLogLine(line: string, service: string): ParsedLog {
             message = redisMatch[2];
         }
     } else if (service === "backend" || service === "backend_error") {
-        // Format: 2025-11-10 10:45:44,848 - logger - LEVEL - message
-        const backendMatch = cleanLine.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}),\d+ - [^ ]+ - (\w+) - (.+)$/);
-        if (backendMatch) {
-            timestamp = backendMatch[1];
-            const levelStr = backendMatch[2].toUpperCase();
+        // Uvicorn format: INFO:     192.168.8.128:50397 - "GET /path" 200
+        const uvicornMatch = cleanLine.match(/^(INFO|ERROR|WARNING|DEBUG):\s+(.+)$/);
+        if (uvicornMatch) {
+            const levelStr = uvicornMatch[1].toUpperCase();
             level = ["ERROR", "WARN", "WARNING", "INFO", "DEBUG"].includes(levelStr)
                 ? (levelStr === "WARNING" ? "WARN" : levelStr as ParsedLog["level"])
                 : "INFO";
-            message = backendMatch[3];
+            message = uvicornMatch[2];
+        } else {
+            // Python logging format: 2025-11-10 10:45:44,848 - logger - LEVEL - message
+            const pythonMatch = cleanLine.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}),\d+ - [^ ]+ - (\w+) - (.+)$/);
+            if (pythonMatch) {
+                timestamp = pythonMatch[1];
+                const levelStr = pythonMatch[2].toUpperCase();
+                level = ["ERROR", "WARN", "WARNING", "INFO", "DEBUG"].includes(levelStr)
+                    ? (levelStr === "WARNING" ? "WARN" : levelStr as ParsedLog["level"])
+                    : "INFO";
+                message = pythonMatch[3];
+            }
         }
     } else if (service === "frontend" || service === "frontend_error") {
         // Format: GET / 200 in 29ms (compile: 1870µs, render: 27ms)
-        // Frontend logs don't have explicit timestamps/levels in these lines
-        if (cleanLine.match(/^\w+ .+ \d{3} in \d+ms/)) {
+        // Or: ⚠ Cross origin request detected...
+        // Frontend logs don't have explicit timestamps in the log lines
+        if (cleanLine.match(/^\s*(GET|POST|PUT|DELETE|PATCH)\s+.+\s+\d{3}\s+in\s+\d+ms/)) {
             level = "INFO";
-            message = cleanLine;
+            message = cleanLine.trim();
+        } else if (cleanLine.match(/^\s*⚠/)) {
+            level = "WARN";
+            message = cleanLine.trim();
+        } else if (cleanLine.match(/^\s*✓/)) {
+            level = "INFO";
+            message = cleanLine.trim();
+        } else if (cleanLine.trim().length > 0) {
+            // Generic frontend log line
+            level = "INFO";
+            message = cleanLine.trim();
+        }
+    } else if (service === "celery_worker") {
+        // Celery worker task list format: "  . task_name"
+        // Or timestamped entries
+        if (cleanLine.match(/^\s*\.\s+\w+/)) {
+            level = "INFO";
+            message = cleanLine.trim();
+        } else if (cleanLine.match(/^\[\d{4}-\d{2}-\d{2}/)) {
+            // Timestamped celery worker logs (same format as error logs)
+            const celeryMatch = cleanLine.match(/^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})[^:]*: (\w+)\/[^\]]+\] (.+)$/);
+            if (celeryMatch) {
+                timestamp = celeryMatch[1];
+                const levelStr = celeryMatch[2].toUpperCase();
+                level = ["ERROR", "WARN", "WARNING", "INFO", "DEBUG"].includes(levelStr)
+                    ? (levelStr === "WARNING" ? "WARN" : levelStr as ParsedLog["level"])
+                    : "INFO";
+                message = celeryMatch[3];
+            }
         }
     }
 
@@ -142,6 +272,7 @@ function parseLogLine(line: string, service: string): ParsedLog {
 
     return {
         service,
+        logFile,
         level,
         timestamp,
         message: truncatedMessage,
@@ -220,7 +351,10 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
 
         logSources.forEach(({ data, service }) => {
             if (data?.lines) {
-                logs.push(...data.lines.map((line) => parseLogLine(line, service)));
+                const logFile = data.log_file || getLogFileDisplayName(service);
+                // Combine multi-line messages first
+                const combinedLines = combineMultiLineMessages(data.lines, service);
+                logs.push(...combinedLines.map((line) => parseLogLine(line, service, logFile)));
             }
         });
 
@@ -363,16 +497,16 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="ALL">All Services</SelectItem>
-                            <SelectItem value="backend">Backend</SelectItem>
-                            <SelectItem value="backend_error">Backend Error</SelectItem>
-                            <SelectItem value="celery_worker">Celery Worker</SelectItem>
-                            <SelectItem value="celery_worker_error">Celery Worker Error</SelectItem>
-                            <SelectItem value="celery_beat">Celery Beat</SelectItem>
-                            <SelectItem value="celery_beat_error">Celery Beat Error</SelectItem>
-                            <SelectItem value="frontend">Frontend</SelectItem>
-                            <SelectItem value="frontend_error">Frontend Error</SelectItem>
-                            <SelectItem value="redis">Redis</SelectItem>
-                            <SelectItem value="postgresql">PostgreSQL</SelectItem>
+                            <SelectItem value="backend">{getLogFileDisplayName("backend")}</SelectItem>
+                            <SelectItem value="backend_error">{getLogFileDisplayName("backend_error")}</SelectItem>
+                            <SelectItem value="celery_worker">{getLogFileDisplayName("celery_worker")}</SelectItem>
+                            <SelectItem value="celery_worker_error">{getLogFileDisplayName("celery_worker_error")}</SelectItem>
+                            <SelectItem value="celery_beat">{getLogFileDisplayName("celery_beat")}</SelectItem>
+                            <SelectItem value="celery_beat_error">{getLogFileDisplayName("celery_beat_error")}</SelectItem>
+                            <SelectItem value="frontend">{getLogFileDisplayName("frontend")}</SelectItem>
+                            <SelectItem value="frontend_error">{getLogFileDisplayName("frontend_error")}</SelectItem>
+                            <SelectItem value="redis">{getLogFileDisplayName("redis")}</SelectItem>
+                            <SelectItem value="postgresql">{getLogFileDisplayName("postgresql")}</SelectItem>
                         </SelectContent>
                     </Select>
                     <Select value={levelFilter} onValueChange={setLevelFilter}>
@@ -501,8 +635,8 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
                                                     </Button>
                                                 </TableCell>
                                                     <TableCell>
-                                                        <Badge variant="outline">
-                                                            {log.service}
+                                                        <Badge variant="outline" className="font-mono text-xs">
+                                                            {log.logFile}
                                                         </Badge>
                                                     </TableCell>
                                                     <TableCell>

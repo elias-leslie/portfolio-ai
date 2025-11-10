@@ -83,6 +83,7 @@ export interface APIQuotaInfo {
  */
 export interface LogResponse {
   service: string;
+  log_file: string;
   lines: string[];
   total_lines: number;
   timestamp: string;

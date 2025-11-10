@@ -51,6 +51,7 @@ class LogResponse(BaseModel):
     """Response model for log endpoint."""
 
     service: str = Field(description="Service name")
+    log_file: str = Field(description="Log file path")
     lines: list[str] = Field(description="Log lines (last N lines)")
     total_lines: int = Field(description="Total number of lines returned")
     timestamp: datetime = Field(
@@ -123,6 +124,7 @@ async def get_service_logs(service: str, lines: int = 100) -> LogResponse:
 
         return LogResponse(
             service=service,
+            log_file=log_path,
             lines=log_lines,
             total_lines=len(log_lines),
         )
