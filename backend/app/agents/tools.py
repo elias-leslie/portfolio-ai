@@ -188,9 +188,9 @@ class AgentTools:
         limit = max_results or pref_limit
         try:
             if normalized_query.lower() in {"market", "stock market", "overall"}:
-                bundle = self.news_service.get_market_news(max_articles=limit)
+                bundle = self.news_service.get_news_intelligence(None, max_articles=limit)
             elif normalized_query.isalpha() and len(normalized_query) <= 6:
-                bundle = self.news_service.get_symbol_news(
+                bundle = self.news_service.get_news_intelligence(
                     normalized_query.upper(), max_articles=limit
                 )
             else:
