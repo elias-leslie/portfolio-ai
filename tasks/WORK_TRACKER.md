@@ -20,16 +20,25 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **News Source Quality Profiling System (Phase 2)** (MEDIUM (4-5 hours), 0/5 tasks)
-   - File: `tasks-0050-news-source-quality-phase2.md` (to be created)
-   - Depends on: Phase 1 ✅ COMPLETE
-   - Goal: Add UI controls and filtering for news source quality personalization
+1. **Fix Plain Language Headline Transformation Bug** (CRITICAL (1 hour), 0/2 tasks) 🚨 URGENT
+   - File: `tasks-0051-fix-headline-transformation-bug.md`
+   - Priority: BLOCKS Phase 2 (feedback loop training on wrong data)
+   - Goal: Disable broken headline transformation + add sentiment override
    - Tasks:
-     - [ ] Task 1: Article Feedback Buttons (👍👎 in news cards)
-     - [ ] Task 2: Settings Weight Sliders (adjust quality formula)
-     - [ ] Task 3: Neutral Article Filtering (hide ±0.2 sentiment)
-     - [ ] Task 4: Historical Metrics Tracking (time-series analysis)
-     - [ ] Task 5: Publisher Tier Classification (A/B/C rating system)
+     - [ ] Phase 1: Disable plain_language_headline (show real headlines only)
+     - [ ] Phase 2: Add sentiment override buttons (let users correct bad sentiment)
+   - Issue: "Tesla Stock Is Slipping" transformed to "Company made more money" with -0.96 sentiment
+   - Result: User confusion + corrupt training data
+
+2. **News Source Quality Profiling System (Phase 2)** (MEDIUM (3.5-4 hours), 0/4 tasks)
+   - File: `tasks-0050-news-source-quality-phase2.md`
+   - Depends on: Phase 1 ✅ COMPLETE + Task 0051 🚨
+   - Goal: Make article feedback actually affect what users see
+   - Tasks:
+     - [ ] Task 1: Article Feedback Buttons (👍👎 trains model, affects selection)
+     - [ ] Task 2: Quality-Based Article Ranking (de-prioritize low-quality vendors)
+     - [ ] Task 3: Settings Weight Sliders (adjust quality formula)
+     - [ ] Task 4: Neutral Article Filtering (hide ±0.2 sentiment)
 
 2. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (today))
    - File: `tasks-0042-customizable-dashboard-layouts.md`
