@@ -195,6 +195,44 @@ def _serialize_bundle(bundle: Any, *, limit: int) -> NewsBundleResponse:
     )
 
 
+@router.get("", response_model=NewsBundleResponse)
+async def get_news_intelligence(
+    ticker: str | None = Query(
+        None,
+        description="Optional ticker symbol. If omitted, returns market-wide news. If provided, returns ticker-specific news.",
+    ),
+    limit: int = Query(
+        50,
+        ge=1,
+        le=200,
+        description="Maximum number of articles to return",
+    ),
+    force_refresh: bool = Query(
+        False,
+        description="Force refresh of cached headlines before returning results",
+    ),
+) -> NewsBundleResponse:
+    """Get unified news intelligence for market or specific ticker.
+
+    This endpoint consolidates market-level and ticker-specific news into a single API.
+    Use the optional ticker parameter to switch between modes:
+    - No ticker parameter: Returns broad market news
+    - ticker=AAPL: Returns Apple-specific news
+
+    The response includes sentiment summary and scored articles with AI insights.
+    """
+    news_service.refresh_ttl_from_preferences()
+    pref_limit = news_service.refresh_max_articles_from_preferences()
+    final_limit = min(limit, pref_limit) if limit else pref_limit
+
+    bundle = news_service.get_news_intelligence(
+        ticker=ticker,
+        max_articles=final_limit,
+        force_refresh=force_refresh,
+    )
+    return _serialize_bundle(bundle, limit=final_limit)
+
+
 @router.get("/market", response_model=NewsBundleResponse)
 async def get_market_news(
     max_results: int | None = Query(
