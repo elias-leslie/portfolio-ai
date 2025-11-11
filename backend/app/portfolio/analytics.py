@@ -7,6 +7,7 @@ sector exposure, and concentration risk.
 from __future__ import annotations
 
 from collections import defaultdict
+from typing import Literal
 
 from ..logging_config import get_logger
 from .models import (
@@ -302,6 +303,7 @@ class PortfolioAnalytics:
         risk_score = (beta_score * 0.4) + (vol_score * 0.4) + (conc_score * 0.2)
 
         # Determine risk level
+        level: Literal["Conservative", "Moderate", "Aggressive", "Very Aggressive"]
         if risk_score < 25:
             level = "Conservative"
         elif risk_score < 50:
@@ -380,6 +382,7 @@ class PortfolioAnalytics:
         score = (holdings_score * 0.4) + (sector_score * 0.3) + (hhi_score * 0.3)
 
         # Determine level
+        level: Literal["Poor", "Fair", "Good", "Excellent"]
         if score >= 75:
             level = "Excellent"
         elif score >= 50:

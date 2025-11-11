@@ -114,7 +114,11 @@ def test_portfolio_crud_integration_flow(client: TestClient):
     assert analytics["portfolio_value"]["total_cost_basis"] == 15000.00
     assert "portfolio_beta" in analytics
     assert "sector_exposure" in analytics
-    assert "concentration_metrics" in analytics
+    assert "concentration" in analytics
+    assert "risk_profile" in analytics
+    assert "diversification_score" in analytics
+    assert "top_performers" in analytics
+    assert "bottom_performers" in analytics
 
     # Step 5: Add a second position
     position2_response = client.post(
