@@ -20,6 +20,7 @@ import {
 // import { useUpdateWatchlistItem, useScoreHistory } from "@/lib/hooks/useWatchlist";
 import { useUpdateWatchlistItem } from "@/lib/hooks/useWatchlist";
 import { usePreferences } from "@/lib/hooks/usePreferences";
+import { useNewsIntelligence } from "@/lib/hooks/useNews";
 import { toast } from "sonner";
 import type { WatchlistItem, RefreshStatus } from "@/lib/api/watchlist";
 import {
@@ -64,6 +65,9 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
     // TEMPORARILY DISABLED: Score history - re-enable with sparklines
     // const { data: historyResponse } = useScoreHistory(item.id);
     const { data: preferences } = usePreferences();
+
+    // Fetch full news intelligence (50 articles) for this ticker
+    const { data: fullNewsData } = useNewsIntelligence(item.symbol, { limit: 50 });
 
     const hasScore = !!item.current_score;
     // const history = historyResponse?.history || [];
@@ -884,7 +888,7 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
 
             <UnifiedNewsIntelligenceCard
                 ticker={item.symbol}
-                recentNews={item.recent_news}
+                marketNewsData={fullNewsData || undefined}
                 newsHidden={newsHidden}
                 showSentimentBreakdown={true}
                 title="News & Sentiment"

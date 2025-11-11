@@ -131,11 +131,7 @@ export function UnifiedNewsIntelligenceCard({
   const [showAll, setShowAll] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>("recent");
 
-  // Early returns for hidden/no data
-  if (newsHidden) return null;
-  if (!newsIntelligence && !marketNewsData && !recentNews) return null;
-
-  // Normalize articles and summary from any data structure
+  // Normalize articles and summary from any data structure (MUST be before early returns)
   const articles = useMemo(() => {
     if (newsIntelligence) {
       return newsIntelligence.recent_articles || [];
@@ -192,6 +188,10 @@ export function UnifiedNewsIntelligenceCard({
 
   // Determine if we should show gradient styling (market news) or standard (ticker news)
   const isMarketNews = !ticker;
+
+  // Early returns AFTER all hooks
+  if (newsHidden) return null;
+  if (!newsIntelligence && !marketNewsData && !recentNews) return null;
 
   return (
     <Card className={isMarketNews ? "p-6 shadow-lg" : "border-border"}>
