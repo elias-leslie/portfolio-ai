@@ -403,12 +403,16 @@ def translate_to_plain_language(
     category = classify_event_category(headline, summary, filing_type)
 
     # Generate plain language headline
-    event_template = EVENT_TEMPLATES.get(category, headline)
-    plain_headline = event_template
-
-    # Add ticker context if available
-    if ticker and category != EventCategory.UNKNOWN:
-        plain_headline = f"{ticker}: {event_template}"
+    # For UNKNOWN category, return None to keep original headline (more informative)
+    if category == EventCategory.UNKNOWN:
+        plain_headline = None
+    else:
+        event_template = EVENT_TEMPLATES.get(category, headline)
+        # Add ticker context if available
+        if ticker:
+            plain_headline = f"{ticker}: {event_template}"
+        else:
+            plain_headline = event_template
 
     # Generate actionable insight
     actionable_insight = generate_actionable_insight(
