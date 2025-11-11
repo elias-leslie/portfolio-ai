@@ -208,20 +208,28 @@ Cloud agent has access to: Read, Glob, Grep (NO Bash, NO running services/tests)
   - [x] Output: Detailed implementation roadmap
 
 - [ ] 0.4 Checkpoint: Confirm scope before proceeding (LOCAL AGENT)
-  - Review cloud agent findings in `tasks/tasks-0048-scope-findings.md`
+  - Review cloud agent findings in `tasks/tasks-0048-scope-findings.md` (CORRECTED after deep verification)
   - Confirm:
-    - [x] Total backend files: 2 files to modify (news_service.py, news.py API router) + tests
-    - [x] Total frontend files: 5 files to modify (news.ts API, useNews.ts hook, component, callers) + tests
-    - [x] Estimated effort: **13.0 hours** (VERY HIGH complexity - 9/10)
-    - [x] Architectural concerns: **BREAKING API CHANGES** - need to consolidate endpoints
-  - Key Findings:
-    - **Backend**: Needs consolidation - 3 separate methods → 1 unified method, 3 endpoints → 1 endpoint
-    - **Frontend**: Needs consolidation - 2 separate hooks → 1 unified hook, branching component → unified layout
-    - **Migration**: Old endpoints/hooks must be deleted after migration complete
+    - [x] Total backend files: **7 files** to modify (service, API router, watchlist, agents, tasks, tests)
+    - [x] Total frontend files: **5 files** to modify (news.ts API, useNews.ts hook, component, callers, tests)
+    - [x] Estimated effort: **15.0 hours** (VERY HIGH complexity - 9/10)
+    - [x] Architectural concerns: **BREAKING API CHANGES** + **Multiple internal consumers**
+  - Key Findings (CORRECTED):
+    - **Backend**: 2 methods to consolidate (`get_market_news`, `get_symbol_news`) → 1 method (`get_news_intelligence`)
+    - **Backend**: 2 endpoints to delete (`/market`, `/symbol/{symbol}`) → 1 new endpoint (`/api/news?ticker={optional}`)
+    - **Backend consumers**: 7 files affected (API + watchlist refresh + AI agents + Celery tasks + tests)
+    - **Test impact**: 45+ references across 6+ test files
+    - **Frontend**: 2 hooks to delete (`useMarketNews`, `useSymbolNews`) → 1 new hook (`useNewsIntelligence`)
+    - **Frontend**: Component layout unification required
+  - Critical Consumers Found:
+    - `backend/app/watchlist/refresh_processor.py:463` - Uses `get_symbol_news()`
+    - `backend/app/agents/tools.py:191-195` - Uses both `get_market_news()` and `get_symbol_news()`
+    - `backend/app/tasks/news_tasks.py:123` - Uses `get_market_news()`
   - Target Architecture:
     - Backend: Single `/api/news?ticker={optional}` endpoint calling `get_news_intelligence(ticker: Optional[str])`
     - Frontend: Single `useNewsIntelligence(ticker?)` hook + unified component layout
-  - Decision: Proceed to Task 1 (Backend Service Consolidation) - this is a MAJOR refactor!
+    - All internal consumers updated to use new unified method
+  - Decision: Proceed to Task 1 (Backend Service Consolidation) - this is a MAJOR refactor with 20+ files!
 
 **DO NOT PROCEED TO TASK 1 UNTIL SCOPE CONFIRMED**
 
