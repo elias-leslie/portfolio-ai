@@ -9,6 +9,12 @@ from __future__ import annotations
 import os
 
 from celery import Celery  # type: ignore[import-untyped]  # celery doesn't ship type stubs
+from celery.signals import (  # type: ignore[import-untyped]
+    after_setup_logger,
+    after_setup_task_logger,
+)
+
+from app.logging_config import SyslogPrefixFormatter, _parse_log_level
 
 # Get Redis URL from environment or use default
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
@@ -186,3 +192,40 @@ from app.tasks import (  # noqa: E402, F401
     news_tasks,
     watchlist_tasks,
 )
+
+
+# Configure Celery logging to use syslog prefixes for journald
+@after_setup_logger.connect
+def setup_celery_logger(logger, *args, **kwargs):  # type: ignore[no-untyped-def]
+    """Configure Celery logger to use syslog prefixes for proper journald PRIORITY.
+
+    This signal handler is called after Celery sets up its logger. We replace
+    the formatter with our SyslogPrefixFormatter so that log entries have
+    correct syslog priority prefixes that systemd parses into the PRIORITY field.
+    """
+    log_level = _parse_log_level(os.getenv("LOG_LEVEL"))
+
+    # Update all handlers to use syslog formatter
+    for handler in logger.handlers:
+        handler.setLevel(log_level)
+        handler.setFormatter(
+            SyslogPrefixFormatter("[%(asctime)s: %(levelname)s/%(processName)s] %(message)s")
+        )
+
+
+@after_setup_task_logger.connect
+def setup_celery_task_logger(logger, *args, **kwargs):  # type: ignore[no-untyped-def]
+    """Configure Celery task logger to use syslog prefixes for proper journald PRIORITY.
+
+    This signal handler is called after Celery sets up task loggers. We replace
+    the formatter with our SyslogPrefixFormatter so that log entries have
+    correct syslog priority prefixes that systemd parses into the PRIORITY field.
+    """
+    log_level = _parse_log_level(os.getenv("LOG_LEVEL"))
+
+    # Update all handlers to use syslog formatter
+    for handler in logger.handlers:
+        handler.setLevel(log_level)
+        handler.setFormatter(
+            SyslogPrefixFormatter("[%(asctime)s: %(levelname)s/%(processName)s] %(message)s")
+        )

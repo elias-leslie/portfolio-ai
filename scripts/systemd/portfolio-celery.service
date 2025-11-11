@@ -8,7 +8,7 @@ Type=simple
 User=kasadis
 WorkingDirectory=/home/kasadis/portfolio-ai/backend
 Environment="PATH=/home/kasadis/portfolio-ai/backend/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-ExecStart=/home/kasadis/portfolio-ai/backend/.venv/bin/celery -A app.celery_app worker --loglevel=info
+ExecStart=/bin/bash -c '/home/kasadis/portfolio-ai/backend/.venv/bin/celery -A app.celery_app worker --loglevel=${LOG_LEVEL,,} --concurrency=2'
 Restart=always
 RestartSec=10
 

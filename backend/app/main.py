@@ -26,13 +26,29 @@ from app.api import (
     status_stream,
     watchlist,
 )
-from app.logging_config import configure_logging, get_logger
+from app.logging_config import SyslogPrefixFormatter, configure_logging, get_logger
 from app.storage import get_storage
 from app.storage.credential_loader import load_credentials_from_database
 
 # Configure structured logging (skip in test mode - tests configure their own logging)
 if not os.getenv("PYTEST_RUNNING"):
     configure_logging()
+
+    # Configure uvicorn loggers to use syslog prefixes for journald
+    import logging
+
+    uvicorn_access_logger = logging.getLogger("uvicorn.access")
+    uvicorn_error_logger = logging.getLogger("uvicorn.error")
+    uvicorn_logger = logging.getLogger("uvicorn")
+
+    # Apply syslog formatter to all uvicorn handlers
+    for uvicorn_log in [uvicorn_access_logger, uvicorn_error_logger, uvicorn_logger]:
+        for handler in uvicorn_log.handlers:
+            handler.setFormatter(
+                SyslogPrefixFormatter(
+                    "%(levelname)s:     %(message)s"  # Match uvicorn's format
+                )
+            )
 
 logger = get_logger(__name__)
 

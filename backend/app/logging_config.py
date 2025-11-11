@@ -11,6 +11,7 @@ import logging.handlers
 import os
 import sys
 from pathlib import Path
+from typing import ClassVar
 
 import structlog
 from pythonjsonlogger import jsonlogger
@@ -38,6 +39,52 @@ def _parse_log_level(level_str: str | None) -> int:
     }
 
     return level_map.get(level_str.upper(), logging.INFO)
+
+
+class SyslogPrefixFormatter(logging.Formatter):
+    """Formatter that adds syslog priority prefixes for systemd journald.
+
+    Systemd's journal can parse syslog-style priority prefixes like "<3>message"
+    to set the correct PRIORITY field in journald, rather than defaulting all
+    stdout to INFO (priority 6).
+
+    Priority mapping (RFC 5424):
+        0 = Emergency (not used)
+        1 = Alert (not used)
+        2 = Critical
+        3 = Error
+        4 = Warning
+        5 = Notice (not used, maps to INFO)
+        6 = Informational
+        7 = Debug
+    """
+
+    # Map Python logging levels to syslog priorities
+    PRIORITY_MAP: ClassVar[dict[int, int]] = {
+        logging.CRITICAL: 2,  # Critical
+        logging.ERROR: 3,  # Error
+        logging.WARNING: 4,  # Warning
+        logging.INFO: 6,  # Informational
+        logging.DEBUG: 7,  # Debug
+    }
+
+    def format(self, record: logging.LogRecord) -> str:
+        """Format log record with syslog priority prefix.
+
+        Args:
+            record: LogRecord to format
+
+        Returns:
+            Formatted string with syslog prefix: "<priority>message"
+        """
+        # Get syslog priority for this log level
+        priority = self.PRIORITY_MAP.get(record.levelno, 6)  # Default to INFO
+
+        # Format the actual message
+        message = super().format(record)
+
+        # Add syslog prefix for systemd to parse
+        return f"<{priority}>{message}"
 
 
 def configure_logging(log_dir: str = "logs", log_file: str = "portfolio-ai.log") -> None:
@@ -83,11 +130,12 @@ def configure_logging(log_dir: str = "logs", log_file: str = "portfolio-ai.log")
     file_handler.setLevel(log_level)
     file_handler.setFormatter(json_formatter)
 
-    # Console handler (human-readable for development)
+    # Console handler with syslog prefixes for systemd journald
+    # Systemd will parse the "<priority>" prefix and set PRIORITY field correctly
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(log_level)
     console_handler.setFormatter(
-        logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        SyslogPrefixFormatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     )
 
     # Configure root logger

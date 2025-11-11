@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import re
 import subprocess
@@ -166,6 +167,9 @@ class UnifiedLogsResponse(BaseModel):
 
     logs: list[UnifiedLogEntry] = Field(description="Chronologically sorted log entries")
     total_entries: int = Field(description="Total number of log entries returned")
+    level_counts: dict[str, int] = Field(
+        description="Count of each log level in unfiltered data (for dropdown display)"
+    )
     timestamp: datetime = Field(
         default_factory=lambda: datetime.now(UTC), description="Response timestamp"
     )
@@ -180,8 +184,11 @@ async def get_unified_logs(
 ) -> UnifiedLogsResponse:
     """Get unified chronological logs from all services via journald.
 
+    Fetches a large sample from journald (10,000 entries) to ensure fair representation
+    of all services, then filters and returns the requested number of entries.
+
     Args:
-        lines: Maximum number of log entries to retrieve (default 500, max 5000)
+        lines: Maximum number of log entries to return (default 500, max 5000)
         service: Filter by service name (backend, celery_worker, celery_beat, frontend, redis, postgresql)
         level: Filter by log level (ERROR, WARN, INFO, DEBUG)
         since: Time range (e.g., "5 minutes ago", "1 hour ago", "today")
@@ -203,7 +210,7 @@ async def get_unified_logs(
             detail=f"Invalid service. Must be one of: {', '.join(valid_services)}",
         )
 
-    valid_levels = {"ERROR", "WARN", "INFO", "DEBUG"}
+    valid_levels = {"CRITICAL", "ERROR", "WARN", "INFO", "DEBUG"}
     if level and level not in valid_levels:
         raise HTTPException(
             status_code=400, detail=f"Invalid level. Must be one of: {', '.join(valid_levels)}"
@@ -221,7 +228,10 @@ async def get_unified_logs(
         }
 
         # Build journalctl command
-        cmd = ["journalctl", "--no-pager", "-o", "json", "--since", since, "-n", str(lines)]
+        # Fetch more logs than requested to ensure fair representation across all services
+        # (e.g., if backend has 10k logs but celery has 100, we want to see both)
+        fetch_limit = 10000  # Fetch up to 10k logs from journald
+        cmd = ["journalctl", "--no-pager", "-o", "json", "--since", since, "-n", str(fetch_limit)]
 
         # Add service filter if specified
         if service:
@@ -284,10 +294,14 @@ async def get_unified_logs(
                     continue
 
                 # Use journald's native PRIORITY field (syslog levels)
+                # With SyslogPrefixFormatter, Python logs now have correct priority prefixes
+                # that systemd parses into the PRIORITY field
                 # 0=emerg, 1=alert, 2=crit, 3=err, 4=warning, 5=notice, 6=info, 7=debug
                 priority = int(entry.get("PRIORITY", 6))  # Default to info (6)
 
-                if priority <= 3:  # Emergency, Alert, Critical, Error
+                if priority <= 2:  # Emergency, Alert, Critical
+                    log_level = "CRITICAL"
+                elif priority == 3:  # Error
                     log_level = "ERROR"
                 elif priority == 4:  # Warning
                     log_level = "WARN"
@@ -298,21 +312,7 @@ async def get_unified_logs(
                 else:
                     log_level = "UNKNOWN"
 
-                # Apply level filter if specified (hierarchical)
-                if level:
-                    # Define level hierarchy (higher number = more important)
-                    level_priority = {
-                        "DEBUG": 1,
-                        "INFO": 2,
-                        "UNKNOWN": 2,  # Treat UNKNOWN as INFO level
-                        "WARN": 3,
-                        "ERROR": 4,
-                        "CRITICAL": 5,
-                    }
-                    # Filter: only show logs at or above the requested level
-                    if level_priority.get(log_level, 0) < level_priority.get(level, 0):
-                        continue
-
+                # Collect all logs (don't filter yet - we need counts of all levels)
                 logs.append(
                     UnifiedLogEntry(
                         timestamp=timestamp,
@@ -329,9 +329,28 @@ async def get_unified_logs(
         # Sort by timestamp (chronological order)
         logs.sort(key=lambda x: x.timestamp)
 
+        # Calculate level counts from ALL logs (before filtering)
+        level_counts: dict[str, int] = {
+            "CRITICAL": 0,
+            "ERROR": 0,
+            "WARN": 0,
+            "INFO": 0,
+            "DEBUG": 0,
+            "UNKNOWN": 0,
+        }
+        for log in logs:
+            level_counts[log.level] = level_counts.get(log.level, 0) + 1
+
+        # Apply level filter if specified (exact match)
+        if level:
+            # Exact match: only show logs at the specified level
+            filtered_logs = [log for log in logs if log.level == level]
+        else:
+            filtered_logs = logs
+
         # Merge consecutive entries with same timestamp and service (handles multi-line PostgreSQL logs)
         merged_logs: list[UnifiedLogEntry] = []
-        for log in logs:
+        for log in filtered_logs:
             if (
                 merged_logs
                 and merged_logs[-1].timestamp == log.timestamp
@@ -340,14 +359,32 @@ async def get_unified_logs(
                 # Same timestamp and service - merge messages
                 merged_logs[-1].message += "\n" + log.message
                 # Upgrade level if new entry has higher severity
-                level_priority = {"ERROR": 4, "WARN": 3, "INFO": 2, "DEBUG": 1, "UNKNOWN": 0}
-                if level_priority.get(log.level, 0) > level_priority.get(merged_logs[-1].level, 0):
+                level_priority_merge = {
+                    "CRITICAL": 5,
+                    "ERROR": 4,
+                    "WARN": 3,
+                    "INFO": 2,
+                    "DEBUG": 1,
+                    "UNKNOWN": 0,
+                }
+                if level_priority_merge.get(log.level, 0) > level_priority_merge.get(
+                    merged_logs[-1].level, 0
+                ):
                     merged_logs[-1].level = log.level
             else:
                 # Different timestamp or service - add as new entry
                 merged_logs.append(log)
 
-        return UnifiedLogsResponse(logs=merged_logs, total_entries=len(merged_logs))
+        # Limit to requested number of entries (take most recent)
+        # We fetched a large sample (10k) to ensure all services are represented,
+        # now return only what the user requested
+        limited_logs = merged_logs[-lines:] if len(merged_logs) > lines else merged_logs
+
+        return UnifiedLogsResponse(
+            logs=limited_logs,
+            total_entries=len(limited_logs),
+            level_counts=level_counts,
+        )
 
     except subprocess.TimeoutExpired as e:
         logger.error("unified_logs_timeout", error=str(e))
@@ -762,3 +799,45 @@ def refresh_watchlist() -> WatchlistRefreshResponse:
         raise HTTPException(
             status_code=500, detail=f"Error triggering watchlist refresh: {e!s}"
         ) from e
+
+
+class TestLoggingResponse(BaseModel):
+    """Response from test logging endpoint."""
+
+    success: bool
+    message: str
+    levels_tested: list[str]
+
+
+@router.post("/test-logging", response_model=TestLoggingResponse)
+def test_logging() -> TestLoggingResponse:
+    """Generate test logs at all levels to verify logging configuration.
+
+    This endpoint generates one log entry at each level (DEBUG, INFO, WARN, ERROR, CRITICAL)
+    to test that log levels are properly configured and appear in journald with correct PRIORITY.
+
+    Returns:
+        TestLoggingResponse: Confirmation that test logs were generated
+    """
+    # Get both structured and standard Python logger
+    test_logger = logging.getLogger("app.api.status.test_logging")
+
+    # Test all log levels
+    test_logger.debug("DEBUG test log from backend")
+    test_logger.info("INFO test log from backend")
+    test_logger.warning("WARNING test log from backend")
+    test_logger.error("ERROR test log from backend")
+    test_logger.critical("CRITICAL test log from backend")
+
+    # Also test with structured logger
+    logger.debug("test_debug_log", component="backend", test_type="structured")
+    logger.info("test_info_log", component="backend", test_type="structured")
+    logger.warning("test_warning_log", component="backend", test_type="structured")
+    logger.error("test_error_log", component="backend", test_type="structured")
+    # Note: structlog doesn't have critical(), it maps to error()
+
+    return TestLoggingResponse(
+        success=True,
+        message="Generated test logs at all levels (DEBUG, INFO, WARN, ERROR, CRITICAL)",
+        levels_tested=["DEBUG", "INFO", "WARN", "ERROR", "CRITICAL"],
+    )

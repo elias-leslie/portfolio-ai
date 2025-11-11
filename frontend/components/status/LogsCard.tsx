@@ -26,13 +26,14 @@ import useSWR from "swr";
 interface UnifiedLogEntry {
     timestamp: string;
     service: string;
-    level: "ERROR" | "WARN" | "INFO" | "DEBUG" | "UNKNOWN";
+    level: "CRITICAL" | "ERROR" | "WARN" | "INFO" | "DEBUG" | "UNKNOWN";
     message: string;
 }
 
 interface UnifiedLogsResponse {
     logs: UnifiedLogEntry[];
     total_entries: number;
+    level_counts: Record<string, number>;
     timestamp: string;
 }
 
@@ -52,6 +53,8 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json());
  */
 function getLevelColor(level: string): string {
     switch (level) {
+        case "CRITICAL":
+            return "text-red-600 font-bold";
         case "ERROR":
             return "text-red-400";
         case "WARN":
@@ -95,12 +98,13 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
     const [restartRequired, setRestartRequired] = useState(false);
     const [restarting, setRestarting] = useState(false);
     const [refreshInterval, setRefreshInterval] = useState<number>(30000); // Default 30 seconds
+    const [timeRange, setTimeRange] = useState<string>("5 minutes ago"); // Default 5 minutes
 
     // Build API URL with filters
     const apiUrl = useMemo(() => {
         const params = new URLSearchParams({
             lines: "500",
-            since: "5 minutes ago",
+            since: timeRange,
         });
         if (levelFilter && levelFilter !== "ALL") params.append("level", levelFilter);
         if (serviceFilter && serviceFilter !== "ALL") params.append("service", serviceFilter);
@@ -109,7 +113,7 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
             ? `http://${window.location.hostname}:8000`
             : 'http://localhost:8000';
         return `${backendUrl}/api/status/unified-logs?${params}`;
-    }, [levelFilter, serviceFilter]);
+    }, [levelFilter, serviceFilter, timeRange]);
 
     // Fetch unified logs from API
     const { data, error, isLoading } = useSWR<UnifiedLogsResponse>(
@@ -143,20 +147,27 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
         return logs;
     }, [data?.logs, sortOrder]);
 
-    // Get log level counts
+    // Get log level counts from API response (counts are from unfiltered data)
     const logCounts = useMemo(() => {
-        const counts: Record<string, number> = {
+        return data?.level_counts || {
+            CRITICAL: 0,
             ERROR: 0,
             WARN: 0,
             INFO: 0,
             DEBUG: 0,
             UNKNOWN: 0,
         };
-        data?.logs.forEach((log) => {
-            counts[log.level] = (counts[log.level] || 0) + 1;
-        });
-        return counts;
-    }, [data?.logs]);
+    }, [data?.level_counts]);
+
+    // Calculate total unfiltered log count
+    const totalUnfilteredCount = useMemo(() => {
+        return (logCounts.CRITICAL || 0) +
+               (logCounts.ERROR || 0) +
+               (logCounts.WARN || 0) +
+               (logCounts.INFO || 0) +
+               (logCounts.DEBUG || 0) +
+               (logCounts.UNKNOWN || 0);
+    }, [logCounts]);
 
     // Get log service counts
     const serviceCounts = useMemo(() => {
@@ -257,7 +268,7 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
                                 <SelectValue placeholder="All Services" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="ALL">All Services ({data?.total_entries || 0})</SelectItem>
+                                <SelectItem value="ALL">All Services ({totalUnfilteredCount})</SelectItem>
                                 {Object.entries(SERVICE_DISPLAY_NAMES).map(([key, name]) => (
                                     <SelectItem key={key} value={key}>{name} ({serviceCounts[key] || 0})</SelectItem>
                                 ))}
@@ -268,12 +279,24 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
                                 <SelectValue placeholder="All Levels" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="ALL">All Levels ({data?.total_entries || 0})</SelectItem>
-                                <SelectItem value="CRITICAL">Critical+ ({logCounts.CRITICAL + logCounts.ERROR})</SelectItem>
-                                <SelectItem value="ERROR">Error+ ({logCounts.ERROR + logCounts.WARN})</SelectItem>
-                                <SelectItem value="WARN">Warning+ ({logCounts.WARN + logCounts.INFO})</SelectItem>
-                                <SelectItem value="INFO">Info+ ({logCounts.INFO + logCounts.DEBUG})</SelectItem>
-                                <SelectItem value="DEBUG">Debug (all) ({data?.total_entries || 0})</SelectItem>
+                                <SelectItem value="ALL">All Levels ({totalUnfilteredCount})</SelectItem>
+                                <SelectItem value="CRITICAL">Critical ({logCounts.CRITICAL || 0})</SelectItem>
+                                <SelectItem value="ERROR">Error ({logCounts.ERROR || 0})</SelectItem>
+                                <SelectItem value="WARN">Warning ({logCounts.WARN || 0})</SelectItem>
+                                <SelectItem value="INFO">Info ({logCounts.INFO || 0})</SelectItem>
+                                <SelectItem value="DEBUG">Debug ({logCounts.DEBUG || 0})</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <Select value={timeRange} onValueChange={setTimeRange}>
+                            <SelectTrigger className="h-8 whitespace-nowrap">
+                                <SelectValue placeholder="Time Range" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="1 minute ago">Last 1 min</SelectItem>
+                                <SelectItem value="5 minutes ago">Last 5 min</SelectItem>
+                                <SelectItem value="15 minutes ago">Last 15 min</SelectItem>
+                                <SelectItem value="1 hour ago">Last 1 hour</SelectItem>
+                                <SelectItem value="24 hours ago">Last 24 hours</SelectItem>
                             </SelectContent>
                         </Select>
                         <div className="w-px h-6 bg-border shrink-0" />
