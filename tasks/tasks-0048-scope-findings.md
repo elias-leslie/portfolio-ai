@@ -9,16 +9,25 @@
 
 ## Executive Summary
 
-**Current State**: The codebase has **DUPLICATE** news systems that produce **DIFFERENT** visual outputs:
-- Market News: Simple article layout, no sentiment breakdown
-- Watchlist News: Detailed 2-column layout WITH sentiment breakdown
-- **Problem**: NOT truly unified despite tasks-0047 attempts
+**Current State**: The codebase has **SEPARATE** endpoints and methods that produce **DIFFERENT** outputs:
+- **Backend**: 3 separate methods (`get_market_news`, `get_symbol_news`, `get_watchlist_news`) + 3 endpoints (`/market`, `/symbol/{x}`, `/watchlist`)
+- **Frontend**: Multiple hooks (`useMarketNews`, `useSymbolNews`) + branching component logic
+- **Problem**: NOT truly unified - separate code paths for market vs ticker news
 
-**Target State**: Single unified backend service + frontend component with TRUE visual parity.
+**Target State**:
+- **Backend**: Single `get_news_intelligence(ticker: Optional[str])` method + single `/api/news?ticker=` endpoint
+- **Frontend**: Single `useNewsIntelligence(ticker?)` hook + unified component layout
 
-**Total Files to Modify**: 9 backend + 6 frontend = **15 files**
-**Total Files to Delete**: 0 (consolidate/refactor existing)
-**Estimated Effort**: 7/10 (HIGH complexity - cross-stack refactor with visual parity requirements)
+**Total Files to Modify**:
+- **Backend**: 2 files (news_service.py or new news_intelligence_service.py, news.py API router)
+- **Frontend**: 5 files (hooks, component, callers)
+- **Tests**: 4 files (backend + frontend tests)
+
+**Total Files to Delete**:
+- Old endpoints (consolidated into new single endpoint)
+- Old frontend hooks (replaced by unified hook)
+
+**Estimated Effort**: 9/10 (VERY HIGH complexity - full backend+frontend refactor with endpoint changes)
 
 ---
 
@@ -39,20 +48,23 @@
 
 **Total Backend Service Lines**: ~2410 lines (mostly stable, minimal changes needed)
 
-### 1.2 Current API Endpoints
+### 1.2 Current API Endpoints (TO BE CONSOLIDATED)
 
 | Endpoint | File | Lines | Current Behavior | Target Behavior |
 |----------|------|-------|------------------|-----------------|
-| `GET /api/news/market` | `backend/app/api/news.py:198-215` | 18 | Returns `NewsBundleResponse` (summary + articles) | **KEEP** - Already has summary |
-| `GET /api/news/symbol/{symbol}` | `backend/app/api/news.py:218-236` | 19 | Returns `NewsBundleResponse` (summary + articles) | **KEEP** - Already has summary |
-| `GET /api/news/watchlist` | `backend/app/api/news.py:239-276` | 38 | Returns `WatchlistNewsResponse` (list of bundles) | **KEEP** - Already unified |
+| `GET /api/news/market` | `backend/app/api/news.py:198-215` | 18 | Returns `NewsBundleResponse` for market | **DELETE** - Replace with unified endpoint |
+| `GET /api/news/symbol/{symbol}` | `backend/app/api/news.py:218-236` | 19 | Returns `NewsBundleResponse` for ticker | **DELETE** - Replace with unified endpoint |
+| **NEW: `GET /api/news?ticker={optional}`** | **TO BE CREATED** | **~20** | **Returns unified NewsBundle** | **CREATE** - Single endpoint handles both |
+| `GET /api/news/watchlist` | `backend/app/api/news.py:239-276` | 38 | Returns `WatchlistNewsResponse` (list of bundles) | **MODIFY** - Use unified service internally |
 | `GET /api/news/health` | `backend/app/api/news.py:279-285` | 7 | Health metrics | **KEEP** - No changes |
 | `GET /api/news/search` | `backend/app/api/news.py:288-298` | 11 | Search without caching | **KEEP** - No changes |
 
-**Key Finding**: Backend endpoints **ALREADY RETURN UNIFIED STRUCTURE** with sentiment summary!
-- All endpoints return `NewsBundleResponse` with `summary` + `articles`
-- Summary includes: `score`, `score_change`, `positive/neutral/negative_count`, `model_breakdown`
-- **No backend changes needed for data structure!**
+**Key Finding**: Backend needs **CONSOLIDATION**!
+- Current: 3 separate methods + 3 separate endpoints
+- Target: 1 unified method + 1 unified endpoint with optional `ticker` param
+- DELETE: `/api/news/market` and `/api/news/symbol/{symbol}` endpoints
+- CREATE: `/api/news?ticker={optional}` endpoint
+- REFACTOR: Service layer to use single unified method
 
 ### 1.3 Pydantic Models (backend/app/api/news.py)
 
@@ -122,16 +134,22 @@ LIMIT %s
 
 **What Works**: ✅
 - Unified data models (`NewsBundle`, `NewsSummary`, `NewsArticle`)
-- All endpoints return sentiment summary + articles
+- Data structure is consistent (all return sentiment summary + articles)
 - Database has all required fields
-- Service layer properly calculates sentiment aggregates
+- Core service logic (`_get_bundle()`) is already unified
 
-**What's Missing**: ❌
-- **FRONTEND NOT CONSUMING BACKEND DATA CORRECTLY**
-- Market news endpoint returns summary, but frontend ignores it
-- Frontend has branching logic that creates visual differences
+**What Needs Refactoring**: 🔨
+- **3 separate methods** → Need 1 unified `get_news_intelligence(ticker: Optional[str])`
+- **3 separate endpoints** → Need 1 unified `/api/news?ticker={optional}`
+- **Service consolidation** → Refactor or create `news_intelligence_service.py`
+- **Endpoint cleanup** → Delete old `/market` and `/symbol/{x}` routes
 
-**Backend Changes Needed**: **NONE** (data structure already unified)
+**Backend Changes Needed**: **MAJOR REFACTOR**
+1. Create/refactor service with single unified method
+2. Create new `/api/news` endpoint with optional `ticker` query param
+3. Delete old `/api/news/market` and `/api/news/symbol/{symbol}` endpoints
+4. Update watchlist endpoint to use new unified service
+5. Update all tests to use new endpoint structure
 
 ---
 
@@ -279,33 +297,133 @@ return (
 
 ## 3. Implementation Plan (Task 0.3)
 
-### 3.1 Phase 1: Backend Verification (Estimated: 0.5 hours)
+### 3.1 Phase 1: Backend Service Consolidation (Estimated: 3 hours)
 
-**No code changes needed**, just verification:
+**Goal**: Create single unified backend method and endpoint.
 
-1. ✅ Verify `/api/news/market` returns `NewsBundleResponse` with summary
-2. ✅ Verify sentiment summary calculation includes model breakdown
-3. ✅ Test with curl:
+**Option A**: Create new `news_intelligence_service.py` (CLEANER)
+**Option B**: Refactor existing `news_service.py` (FASTER)
+
+**Recommended**: Option B - Refactor existing service
+
+**Files to Modify**:
+
+1. **backend/app/services/news_service.py** (lines 311-353)
+   - **Add new method**: `get_news_intelligence(ticker: Optional[str], max_articles: int, force_refresh: bool) -> NewsBundle`
+   - **Logic**:
+     ```python
+     def get_news_intelligence(
+         self,
+         *,
+         ticker: str | None = None,
+         max_articles: int = DEFAULT_MAX_ARTICLES,
+         force_refresh: bool = False,
+     ) -> NewsBundle:
+         """Unified news intelligence for market or specific ticker."""
+         if ticker is None:
+             # Market-wide news
+             return self._get_bundle(
+                 ticker=MARKET_TICKER,
+                 query="stock market",
+                 max_articles=max_articles,
+                 force_refresh=force_refresh,
+             )
+         else:
+             # Ticker-specific news
+             return self._get_bundle(
+                 ticker=ticker.upper(),
+                 query=f"{ticker} stock",
+                 max_articles=max_articles,
+                 force_refresh=force_refresh,
+             )
+     ```
+   - **Keep old methods for now** (deprecate later after migration)
+
+2. **backend/app/api/news.py** (add new endpoint)
+   - **Add** at line ~197 (before old endpoints):
+     ```python
+     @router.get("", response_model=NewsBundleResponse)  # Empty path = /api/news
+     async def get_news_intelligence(
+         ticker: str | None = Query(None, description="Optional ticker symbol"),
+         max_results: int | None = Query(None, ge=1, le=50),
+         force_refresh: bool = Query(False),
+     ) -> NewsBundleResponse:
+         """Unified news intelligence endpoint for market or ticker."""
+         news_service.refresh_ttl_from_preferences()
+         pref_limit = news_service.refresh_max_articles_from_preferences()
+         limit = max_results or pref_limit
+         bundle = news_service.get_news_intelligence(
+             ticker=ticker,
+             max_articles=limit,
+             force_refresh=force_refresh,
+         )
+         return _serialize_bundle(bundle, limit=limit)
+     ```
+
+3. **Test new endpoint**:
    ```bash
-   curl http://localhost:8000/api/news/market | jq '.summary'
-   # Expected: {score, score_change, positive_count, neutral_count, negative_count, model_breakdown}
+   # Market news (ticker=None)
+   curl http://localhost:8000/api/news | jq '.summary'
+
+   # Ticker news
+   curl http://localhost:8000/api/news?ticker=AAPL | jq '.summary'
    ```
 
-**Deliverable**: Confirmation that backend already provides unified structure.
+**Deliverable**: Single working `/api/news` endpoint (old endpoints still exist for now)
 
-### 3.2 Phase 2: Frontend Type Consolidation (Estimated: 1 hour)
+### 3.2 Phase 2: Frontend Hook Consolidation (Estimated: 1.5 hours)
 
-**Goal**: Simplify component props to accept single unified structure.
+**Goal**: Create single unified hook that calls new `/api/news` endpoint.
+
+**Files to Modify**:
+
+1. **frontend/lib/api/news.ts** (add new function)
+   - **Add** new fetch function:
+     ```typescript
+     export async function fetchNewsIntelligence(
+       ticker?: string | null,
+       options?: { maxResults?: number; forceRefresh?: boolean }
+     ): Promise<NewsBundle> {
+       const query = buildQuery({
+         ticker: ticker || undefined,
+         max_results: options?.maxResults,
+         force_refresh: options?.forceRefresh,
+       });
+       return apiRequest<NewsBundle>(`/api/news${query}`);
+     }
+     ```
+   - **Keep old functions for now** (will delete after migration)
+
+2. **frontend/lib/hooks/useNews.ts** (add new hook)
+   - **Add** unified hook:
+     ```typescript
+     export function useNewsIntelligence(
+       ticker?: string | null,
+       options?: { maxResults?: number; forceRefresh?: boolean; enabled?: boolean }
+     ) {
+       return useQuery<NewsBundle, Error>({
+         queryKey: ticker ? newsKeys.symbol(ticker) : newsKeys.market(),
+         queryFn: () => fetchNewsIntelligence(ticker, options),
+         enabled: options?.enabled !== false,
+         staleTime: 1000 * 60 * 5,
+       });
+     }
+     ```
+   - **Keep old hooks for now** (will delete after migration)
+
+**Deliverable**: Single unified hook that works for both market and ticker news
+
+### 3.3 Phase 3: Frontend Component Consolidation (Estimated: 1.5 hours)
+
+**Goal**: Simplify component props to accept single unified data structure.
 
 **Files to Modify**:
 
 1. **frontend/components/shared/UnifiedNewsIntelligenceCard.tsx** (lines 78-95)
    - **Remove**: `marketNewsData`, `newsIntelligence`, `recentNews` separate props
    - **Add**: Single `newsData: NewsBundle | null` prop
-   - Keep `ticker`, `showSentimentBreakdown`, `newsHidden`, `title`
 
    ```typescript
-   // NEW: Simplified props interface
    interface UnifiedNewsIntelligenceCardProps {
      newsData?: NewsBundle | null;  // Single unified data source
      ticker?: string | null;
@@ -315,14 +433,9 @@ return (
    }
    ```
 
-2. **frontend/lib/api/news.ts** (lines 8-20)
-   - **Keep**: `NewsBundle` interface (already unified)
-   - **Remove**: `MarketNewsData` interface (line 57-60 in component, not in api/news.ts)
-   - Ensure `NewsBundle` includes `summary` field
+**Deliverable**: Simplified component interface
 
-**Deliverable**: Single prop interface that accepts unified data structure.
-
-### 3.3 Phase 3: Component Layout Unification (Estimated: 2 hours)
+### 3.4 Phase 4: Component Layout Unification (Estimated: 2 hours)
 
 **Goal**: Remove branching logic, use single detailed layout for all articles.
 
@@ -380,44 +493,57 @@ return (
 
 **Deliverable**: Single article card layout used for both market and ticker news.
 
-### 3.4 Phase 4: Update Component Consumers (Estimated: 0.5 hours)
+### 3.5 Phase 5: Update Component Consumers (Estimated: 0.5 hours)
 
 **Goal**: Pass full `NewsBundle` to component from all call sites.
 
 **Files to Modify**:
 
-1. **frontend/app/page.tsx** (lines 40-46)
+1. **frontend/app/page.tsx** (lines 23-47)
    ```typescript
    // BEFORE:
-   <UnifiedNewsIntelligenceCard
-     marketNewsData={newsData}  // Only articles
-     ticker={null}
-     showHeader={false}
-   />
+   function MarketNewsSection() {
+     const { data: newsData, isLoading, error } = useMarketNews({ maxResults: 50 });
+     // ...
+     return (
+       <UnifiedNewsIntelligenceCard
+         marketNewsData={newsData}
+         ticker={null}
+         showHeader={false}
+       />
+     );
+   }
 
    // AFTER:
-   <UnifiedNewsIntelligenceCard
-     newsData={newsData}  // Full bundle (summary + articles)
-     ticker={null}
-     showSentimentBreakdown={true}  // NEW: Show sentiment breakdown
-     title="Market News"
-   />
+   function MarketNewsSection() {
+     const { data: newsData, isLoading, error } = useNewsIntelligence(null, { maxResults: 50 });
+     // ...
+     return (
+       <UnifiedNewsIntelligenceCard
+         newsData={newsData}  // Full bundle with summary
+         ticker={null}
+         showSentimentBreakdown={true}
+         title="Market News"
+       />
+     );
+   }
    ```
 
 2. **frontend/components/watchlist/ExpandedRow.tsx** (lines 885-891)
    ```typescript
-   // BEFORE:
+   // Option A: Keep getting news from watchlist endpoint (simpler)
    <UnifiedNewsIntelligenceCard
+     newsData={item.recent_news}
      ticker={item.symbol}
-     recentNews={item.recent_news}
      newsHidden={newsHidden}
      showSentimentBreakdown={true}
      title="News & Sentiment"
    />
 
-   // AFTER:
+   // Option B: Use new unified hook (more consistent)
+   const { data: tickerNews } = useNewsIntelligence(item.symbol, { maxResults: 10 });
    <UnifiedNewsIntelligenceCard
-     newsData={item.recent_news}  // Full bundle (summary + articles)
+     newsData={tickerNews}
      ticker={item.symbol}
      newsHidden={newsHidden}
      showSentimentBreakdown={true}
@@ -437,7 +563,40 @@ This is equivalent to `NewsBundle` structure, so it can be passed directly.
 
 **Deliverable**: All call sites pass full `NewsBundle` to component.
 
-### 3.5 Phase 5: Visual Verification (Estimated: 1 hour)
+### 3.6 Phase 6: Delete Old Endpoints & Hooks (Estimated: 1 hour)
+
+**Goal**: Clean up deprecated code after migration is complete.
+
+**Backend Files to Modify**:
+
+1. **backend/app/api/news.py**
+   - **DELETE**: `get_market_news()` endpoint function (lines 198-215)
+   - **DELETE**: `get_symbol_news()` endpoint function (lines 218-236)
+   - **KEEP**: New `get_news_intelligence()` endpoint
+
+2. **backend/app/services/news_service.py**
+   - **DEPRECATE** (add warnings):  `get_market_news()`, `get_symbol_news()` methods
+   - Or **DELETE** if no other code depends on them
+
+**Frontend Files to Modify**:
+
+1. **frontend/lib/api/news.ts**
+   - **DELETE**: `fetchMarketNews()` function
+   - **DELETE**: `fetchSymbolNews()` function
+   - **KEEP**: `fetchNewsIntelligence()` function
+
+2. **frontend/lib/hooks/useNews.ts**
+   - **DELETE**: `useMarketNews()` hook
+   - **DELETE**: `useSymbolNews()` hook
+   - **KEEP**: `useNewsIntelligence()` hook
+
+**Test Files to Update**:
+- Update all tests to use new endpoints/hooks
+- Delete tests for old endpoints
+
+**Deliverable**: Cleaned codebase with single unified path
+
+### 3.7 Phase 7: Visual Verification (Estimated: 1 hour)
 
 **Goal**: Confirm visual parity between Dashboard and Watchlist.
 
@@ -464,7 +623,7 @@ bash ~/portfolio-ai/scripts/restart.sh
 
 **Deliverable**: Visual parity confirmation with screenshots.
 
-### 3.6 Phase 6: Testing & Quality (Estimated: 1.5 hours)
+### 3.8 Phase 8: Testing & Quality (Estimated: 2 hours)
 
 **Goal**: Ensure no regressions, all tests pass.
 
@@ -501,7 +660,7 @@ bash ~/portfolio-ai/scripts/restart.sh
 
 **Deliverable**: All tests passing, no regressions.
 
-### 3.7 Phase 7: Cleanup & Documentation (Estimated: 0.5 hours)
+### 3.9 Phase 9: Documentation (Estimated: 0.5 hours)
 
 **Goal**: Remove dead code, update documentation.
 
@@ -527,58 +686,71 @@ bash ~/portfolio-ai/scripts/restart.sh
 
 | Phase | Description | Estimated Time | Complexity |
 |-------|-------------|----------------|------------|
-| 1 | Backend Verification | 0.5h | LOW (verification only) |
-| 2 | Frontend Type Consolidation | 1.0h | MEDIUM (interface changes) |
-| 3 | Component Layout Unification | 2.0h | HIGH (remove branching, single layout) |
-| 4 | Update Component Consumers | 0.5h | LOW (2 call sites) |
-| 5 | Visual Verification | 1.0h | MEDIUM (screenshots + comparison) |
-| 6 | Testing & Quality | 1.5h | MEDIUM (tests + manual QA) |
-| 7 | Cleanup & Documentation | 0.5h | LOW (cleanup) |
-| **TOTAL** | **End-to-End** | **7.0h** | **HIGH** |
+| 1 | Backend Service Consolidation | 3.0h | HIGH (new unified method + endpoint) |
+| 2 | Frontend Hook Consolidation | 1.5h | MEDIUM (new unified hook) |
+| 3 | Frontend Component Consolidation | 1.5h | MEDIUM (simplify props) |
+| 4 | Component Layout Unification | 2.0h | HIGH (remove branching, single layout) |
+| 5 | Update Component Consumers | 0.5h | LOW (2 call sites) |
+| 6 | Delete Old Endpoints & Hooks | 1.0h | MEDIUM (cleanup, test updates) |
+| 7 | Visual Verification | 1.0h | MEDIUM (screenshots + comparison) |
+| 8 | Testing & Quality | 2.0h | HIGH (backend + frontend tests) |
+| 9 | Documentation | 0.5h | LOW (cleanup) |
+| **TOTAL** | **End-to-End** | **13.0h** | **VERY HIGH** |
 
-**Complexity Rating**: 7/10
-- Backend: **DONE** (0 changes needed)
-- Frontend: **HIGH** (3 files, component refactor, visual parity requirements)
-- Testing: **MEDIUM** (integration testing, visual verification)
-- Risk: **MEDIUM** (affects 2 major UI sections: Dashboard + Watchlist)
+**Complexity Rating**: 9/10 (VERY HIGH)
+- **Backend**: **HIGH** (new unified endpoint, service consolidation, delete old routes)
+- **Frontend**: **HIGH** (new unified hook, component refactor, delete old hooks)
+- **Testing**: **HIGH** (update all tests for new endpoints/hooks)
+- **Risk**: **HIGH** (breaking API changes, affects Dashboard + Watchlist + any external API consumers)
 
 ---
 
 ## 5. File Inventory
 
-### 5.1 Backend Files (NO CHANGES NEEDED)
+### 5.1 Backend Files (MAJOR REFACTOR NEEDED)
 
 | File | Lines | Status | Changes |
 |------|-------|--------|---------|
-| `backend/app/api/news.py` | 299 | ✅ KEEP | None (already unified) |
-| `backend/app/services/news_service.py` | 773 | ✅ KEEP | None (already returns summary) |
-| `backend/app/services/news_models.py` | 74 | ✅ KEEP | None (already unified) |
-| `backend/app/services/news_cache.py` | 331 | ✅ KEEP | None |
-| `backend/app/services/news_processing.py` | ~400 | ✅ KEEP | None |
-| `backend/app/services/news_vendor_manager.py` | ~300 | ✅ KEEP | None |
-| `backend/app/services/news_ai_features.py` | ~200 | ✅ KEEP | None |
-| `backend/app/services/plain_language_news.py` | ~150 | ✅ KEEP | None |
-| `backend/app/watchlist/news.py` | 182 | ✅ KEEP | None (legacy fallback) |
+| `backend/app/api/news.py` | 299 | 🔨 **MODIFY** | - ADD: New `/api/news` unified endpoint (~20 lines)<br>- DELETE: `/api/news/market` endpoint (18 lines)<br>- DELETE: `/api/news/symbol/{symbol}` endpoint (19 lines) |
+| `backend/app/services/news_service.py` | 773 | 🔨 **MODIFY** | - ADD: `get_news_intelligence(ticker: Optional[str])` method (~30 lines)<br>- DEPRECATE: `get_market_news()` and `get_symbol_news()` methods |
+| `backend/app/services/news_models.py` | 74 | ✅ **KEEP** | None (already unified) |
+| `backend/app/services/news_cache.py` | 331 | ✅ **KEEP** | None |
+| `backend/app/services/news_processing.py` | ~400 | ✅ **KEEP** | None |
+| `backend/app/services/news_vendor_manager.py` | ~300 | ✅ **KEEP** | None |
+| `backend/app/services/news_ai_features.py` | ~200 | ✅ **KEEP** | None |
+| `backend/app/services/plain_language_news.py` | ~150 | ✅ **KEEP** | None |
+| `backend/app/watchlist/news.py` | 182 | ✅ **KEEP** | None (legacy fallback) |
+| `backend/tests/*/test_news*.py` | ~500 | 🔨 **MODIFY** | Update tests for new unified endpoint |
 
-**Total Backend Lines**: ~2710 lines (0 changes needed)
+**Total Backend Lines**: ~2710 lines
+**Lines to ADD**: ~50 lines (new endpoint + method)
+**Lines to DELETE**: ~37 lines (old endpoints)
 
-### 5.2 Frontend Files (CHANGES REQUIRED)
+### 5.2 Frontend Files (MAJOR REFACTOR NEEDED)
 
 | File | Lines | Status | Changes |
 |------|-------|--------|---------|
-| `frontend/components/shared/UnifiedNewsIntelligenceCard.tsx` | 515 | 🔨 MODIFY | - Simplify props (lines 78-95)<br>- Remove branching layout (lines 358-492)<br>- Use single detailed layout for all articles<br>- Update sentiment breakdown (lines 252-319) |
-| `frontend/app/page.tsx` | 85 | 🔨 MODIFY | - Update call site (lines 40-46)<br>- Pass full newsData prop<br>- Add showSentimentBreakdown={true} |
-| `frontend/components/watchlist/ExpandedRow.tsx` | 1139 | 🔨 MODIFY | - Update call site (lines 885-891)<br>- Change prop name recentNews → newsData |
-| `frontend/lib/hooks/useNews.ts` | 98 | ✅ KEEP | None (already fetches unified data) |
-| `frontend/lib/api/news.ts` | 121 | ✅ KEEP | None (types already unified) |
-| `frontend/lib/api/watchlist.ts` | 269 | ✅ KEEP | None (types already unified) |
+| `frontend/lib/api/news.ts` | 121 | 🔨 **MODIFY** | - ADD: `fetchNewsIntelligence()` function (~15 lines)<br>- DELETE: `fetchMarketNews()` and `fetchSymbolNews()` (~30 lines) |
+| `frontend/lib/hooks/useNews.ts` | 98 | 🔨 **MODIFY** | - ADD: `useNewsIntelligence()` hook (~15 lines)<br>- DELETE: `useMarketNews()` and `useSymbolNews()` hooks (~30 lines) |
+| `frontend/components/shared/UnifiedNewsIntelligenceCard.tsx` | 515 | 🔨 **MODIFY** | - Simplify props (lines 78-95)<br>- Remove branching layout (lines 358-492)<br>- Use single detailed layout for all articles<br>- Update sentiment breakdown (lines 252-319) |
+| `frontend/app/page.tsx` | 85 | 🔨 **MODIFY** | - Update to use `useNewsIntelligence()` hook<br>- Update component props |
+| `frontend/components/watchlist/ExpandedRow.tsx` | 1139 | 🔨 **MODIFY** | - Update component props<br>- Optionally use new hook |
+| `frontend/lib/api/watchlist.ts` | 269 | ✅ **KEEP** | None (types already unified) |
+| `frontend/tests/**/*.test.tsx` | ~300 | 🔨 **MODIFY** | Update tests for new hooks/components |
 
-**Total Frontend Lines**: 2227 lines
-**Lines to Modify**: ~60 lines across 3 files
+**Total Frontend Lines**: 2527 lines
+**Lines to ADD**: ~30 lines (new hook + function)
+**Lines to DELETE**: ~60 lines (old hooks + functions)
+**Lines to MODIFY**: ~150 lines (component refactor)
 
-### 5.3 Files to Delete
+### 5.3 Files to Delete (After Migration)
 
-**None** - All files remain, code is consolidated/refactored in place.
+**Backend**:
+- Old endpoint methods (deleted inline in news.py)
+
+**Frontend**:
+- Old hook methods (deleted inline in useNews.ts)
+- Old API functions (deleted inline in news.ts)
 
 ---
 
@@ -769,7 +941,7 @@ Backend → Frontend → Component Rendering
 
 ## 9. Next Steps (For Local Agent)
 
-**Context**: Local agent will read this file and automatically continue from Task 1.
+**Context**: Local agent will read this file and proceed with implementation.
 
 **Handoff Protocol**:
 1. ✅ Cloud agent completed Task 0.1-0.3 (this document)
@@ -777,17 +949,38 @@ Backend → Frontend → Component Rendering
 3. 🔲 Local agent reads WORK_TRACKER.md (finds this task)
 4. 🔲 Local agent reads this scope findings file
 5. 🔲 Local agent reviews Task 0.4 checkpoint
-6. 🔲 Local agent proceeds to Task 1 (Phase 1: Backend Verification)
+6. 🔲 Local agent proceeds to Task 1 (Phase 1: Backend Service Consolidation)
+
+**Implementation Order** (9 phases, ~13 hours):
+1. Backend: Add unified `get_news_intelligence()` method + `/api/news` endpoint
+2. Frontend: Add unified `useNewsIntelligence()` hook + `fetchNewsIntelligence()` function
+3. Frontend: Simplify component props to accept single `newsData` prop
+4. Frontend: Remove layout branching, use single detailed layout for all
+5. Frontend: Update Dashboard + Watchlist to use new hook + props
+6. Cleanup: Delete old endpoints, hooks, functions
+7. Visual: Take screenshots, verify parity
+8. Testing: Update all tests, verify no regressions
+9. Docs: Update documentation
 
 **Quick Start Commands** (for local agent):
 ```bash
-# 1. Verify backend returns unified structure
-curl http://localhost:8000/api/news/market | jq '.summary'
+# 1. Start backend implementation (Phase 1)
+cd ~/portfolio-ai/backend
+# Add get_news_intelligence() method to news_service.py
+# Add /api/news endpoint to api/news.py
 
-# 2. Start implementation (Phase 2-7)
-# Follow implementation plan section 3 above
+# 2. Test new unified endpoint
+bash ~/portfolio-ai/scripts/restart.sh
+curl http://localhost:8000/api/news | jq '.summary'
+curl http://localhost:8000/api/news?ticker=AAPL | jq '.summary'
 
-# 3. Run tests after changes
+# 3. Start frontend implementation (Phases 2-5)
+cd ~/portfolio-ai/frontend
+# Add useNewsIntelligence() hook
+# Update component props
+# Update call sites
+
+# 4. Run tests after changes
 cd ~/portfolio-ai/backend && pytest tests/ -v
 cd ~/portfolio-ai/frontend && npm test
 bash ~/portfolio-ai/scripts/lint.sh

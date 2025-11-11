@@ -208,15 +208,20 @@ Cloud agent has access to: Read, Glob, Grep (NO Bash, NO running services/tests)
   - [x] Output: Detailed implementation roadmap
 
 - [ ] 0.4 Checkpoint: Confirm scope before proceeding (LOCAL AGENT)
-  - Review cloud agent findings
+  - Review cloud agent findings in `tasks/tasks-0048-scope-findings.md`
   - Confirm:
-    - [x] Total backend files: 0 files to modify (backend already unified!)
-    - [x] Total frontend files: 3 files to modify (UnifiedNewsIntelligenceCard.tsx, page.tsx, ExpandedRow.tsx)
-    - [x] Estimated effort: 7.0 hours (HIGH complexity)
-    - [x] Architectural concerns: None - backend is already correct, only frontend needs refactor
-  - Key Finding: **Backend already returns unified structure with sentiment summary for ALL endpoints!**
-  - Root Cause: **Frontend component has branching layout logic that creates visual differences**
-  - Decision: Proceed to Task 1 (Backend Verification) then focus on frontend refactor
+    - [x] Total backend files: 2 files to modify (news_service.py, news.py API router) + tests
+    - [x] Total frontend files: 5 files to modify (news.ts API, useNews.ts hook, component, callers) + tests
+    - [x] Estimated effort: **13.0 hours** (VERY HIGH complexity - 9/10)
+    - [x] Architectural concerns: **BREAKING API CHANGES** - need to consolidate endpoints
+  - Key Findings:
+    - **Backend**: Needs consolidation - 3 separate methods → 1 unified method, 3 endpoints → 1 endpoint
+    - **Frontend**: Needs consolidation - 2 separate hooks → 1 unified hook, branching component → unified layout
+    - **Migration**: Old endpoints/hooks must be deleted after migration complete
+  - Target Architecture:
+    - Backend: Single `/api/news?ticker={optional}` endpoint calling `get_news_intelligence(ticker: Optional[str])`
+    - Frontend: Single `useNewsIntelligence(ticker?)` hook + unified component layout
+  - Decision: Proceed to Task 1 (Backend Service Consolidation) - this is a MAJOR refactor!
 
 **DO NOT PROCEED TO TASK 1 UNTIL SCOPE CONFIRMED**
 
