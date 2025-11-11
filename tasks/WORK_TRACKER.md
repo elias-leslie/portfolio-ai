@@ -12,7 +12,22 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-(No active tasks)
+1. **Unified News Intelligence Component** (43% - 3/7 complete, PAUSED)
+   - File: `tasks-0047-unified-news-intelligence-component.md`
+   - Started: 2025-11-11
+   - Last updated: 2025-11-11 15:30 (PAUSED)
+   - Next: Task 1.1 - Create UnifiedNewsIntelligenceCard component file
+   - Pause Reason: Context 79%, natural checkpoint (scope discovery complete)
+   - Tasks:
+     - [x] Task 0.1: Analyze current components ✅
+     - [x] Task 0.2: Document component interfaces ✅
+     - [x] Task 0.3: Checkpoint - confirm unified design ✅
+     - [ ] Task 1: Create Unified Component Structure ← NEXT
+     - [ ] Task 2: Implement Always-Visible Sections
+     - [ ] Task 3: Implement Conditional Sections
+     - [ ] Task 4: Replace Existing Components
+     - [ ] Task 5: Testing and Refinement
+     - [ ] Task 6: Code Quality and Cleanup
 
 ---
 
