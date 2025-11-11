@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { MarketConditions } from "@/components/portfolio/MarketConditions";
 import { PortfolioOverview } from "@/components/portfolio/PortfolioOverview";
 import { UnifiedNewsIntelligenceCard } from "@/components/shared/UnifiedNewsIntelligenceCard";
-import { useMarketNews } from "@/lib/hooks/useNews";
+import { useNewsIntelligence } from "@/lib/hooks/useNews";
 import { Card } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 
@@ -21,7 +21,7 @@ function LoadingSkeleton({ title }: { title: string }) {
 }
 
 function MarketNewsSection() {
-  const { data: newsData, isLoading, error } = useMarketNews({ maxResults: 50 });
+  const { data: newsData, isLoading, error } = useNewsIntelligence(undefined, { limit: 50 });
 
   if (isLoading) {
     return <LoadingSkeleton title="Market News" />;
