@@ -105,7 +105,7 @@ def test_news_service_caches_articles(storage):
         auto_load_credentials=False,
     )
 
-    bundle = service.get_symbol_news("NVDA", max_articles=5, force_refresh=True)
+    bundle = service.get_news_intelligence("NVDA", max_articles=5, force_refresh=True)
     assert bundle.summary.article_count == 2
     assert bundle.summary.model_breakdown.get("finbert") == 2
     assert bundle.summary.score is not None
@@ -113,7 +113,7 @@ def test_news_service_caches_articles(storage):
 
     # Cached call should not hit upstream source
     news_source.fetch_headlines.reset_mock()
-    cached_bundle = service.get_symbol_news("NVDA", max_articles=5)
+    cached_bundle = service.get_news_intelligence("NVDA", max_articles=5)
     news_source.fetch_headlines.assert_not_called()
     assert len(cached_bundle.articles) == len(bundle.articles)
 
@@ -137,7 +137,7 @@ def test_news_service_falls_back_to_vader(storage):
         auto_load_credentials=False,
     )
 
-    bundle = service.get_symbol_news("TSLA", max_articles=1, force_refresh=True)
+    bundle = service.get_news_intelligence("TSLA", max_articles=1, force_refresh=True)
     assert bundle.summary.article_count == 1
     assert bundle.summary.model_breakdown.get("vader") == 1
     assert bundle.summary.score is not None and bundle.summary.score < 0
@@ -168,7 +168,7 @@ def test_news_health_reports_fallback_metrics(storage):
         auto_load_credentials=False,
     )
 
-    service.get_symbol_news("GOOG", max_articles=1, force_refresh=True)
+    service.get_news_intelligence("GOOG", max_articles=1, force_refresh=True)
 
     health = service.get_health()
     assert health["fallback_headlines_24h"] >= 1
@@ -207,7 +207,7 @@ def test_news_service_tracks_score_change(storage):
     )
 
     # Initial refresh (positive sentiment)
-    service.get_symbol_news("AMD", max_articles=1, force_refresh=True)
+    service.get_news_intelligence("AMD", max_articles=1, force_refresh=True)
 
     # Age the existing entries into the "previous" window
     ninety_minutes = datetime.now(UTC) - timedelta(minutes=90)
@@ -234,7 +234,7 @@ def test_news_service_tracks_score_change(storage):
     news_source.fetch_headlines.return_value = [negative_entry]
     service.finbert_analyzer = negative_analyzer
 
-    bundle = service.get_symbol_news("AMD", max_articles=1, force_refresh=True)
+    bundle = service.get_news_intelligence("AMD", max_articles=1, force_refresh=True)
     assert bundle.summary.article_count == 1
     assert bundle.summary.score is not None and bundle.summary.score < 0
     assert bundle.summary.score_change is not None
@@ -275,7 +275,7 @@ def test_recent_selection_backfills_with_stale_articles(storage):
         auto_load_credentials=False,
     )
 
-    bundle = service.get_symbol_news("MSFT", max_articles=5, force_refresh=True)
+    bundle = service.get_news_intelligence("MSFT", max_articles=5, force_refresh=True)
     assert len(bundle.articles) == 5
 
     stale_count = sum(1 for article in bundle.articles if article.raw.get("stale"))
@@ -402,7 +402,7 @@ def test_vendor_entries_round_robin_selection(storage):
         auto_load_credentials=False,
     )
 
-    bundle = service.get_symbol_news("AAPL", max_articles=3, force_refresh=True)
+    bundle = service.get_news_intelligence("AAPL", max_articles=3, force_refresh=True)
     vendors = {article.vendor for article in bundle.articles}
 
     assert vendors == {"polygon", "finnhub"}

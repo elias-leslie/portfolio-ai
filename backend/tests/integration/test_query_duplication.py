@@ -132,13 +132,13 @@ class APICallTracker:
         """Initialize API call tracker with empty call list."""
         self.calls: list[dict[str, Any]] = []
 
-    def track_get_symbol_news(
+    def track_get_news_intelligence(
         self,
         symbol: str,
         max_articles: int = 10,
         force_refresh: bool = False,
     ) -> NewsBundle:
-        """Mock implementation of NewsService.get_symbol_news().
+        """Mock implementation of NewsService.get_news_intelligence().
 
         Records call details and returns mock NewsBundle.
 
@@ -152,7 +152,7 @@ class APICallTracker:
         """
         self.calls.append(
             {
-                "method": "get_symbol_news",
+                "method": "get_news_intelligence",
                 "symbol": symbol,
                 "max_articles": max_articles,
                 "force_refresh": force_refresh,
@@ -233,7 +233,7 @@ class APICallTracker:
         """
         symbols = []
         for call in self.calls:
-            if call["method"] == "get_symbol_news":
+            if call["method"] == "get_news_intelligence":
                 symbols.append(call["symbol"])
             elif call["method"] == "get_watchlist_news":
                 symbols.extend(call["symbols"])
@@ -256,7 +256,7 @@ class APICallTracker:
         """Get all calls to a specific method.
 
         Args:
-            method: Method name ('get_symbol_news' or 'get_watchlist_news')
+            method: Method name ('get_news_intelligence' or 'get_watchlist_news')
 
         Returns:
             List of call dictionaries for that method
@@ -421,8 +421,8 @@ class TestInstrumentationSetup:
     def test_api_tracker_captures_calls(self, api_tracker: APICallTracker) -> None:
         """Test that APICallTracker captures API calls."""
         # Simulate API calls
-        api_tracker.track_get_symbol_news("AAPL")
-        api_tracker.track_get_symbol_news("GOOGL")
+        api_tracker.track_get_news_intelligence("AAPL")
+        api_tracker.track_get_news_intelligence("GOOGL")
         api_tracker.track_get_watchlist_news(["MSFT", "AMZN"])
 
         # Verify calls were captured
@@ -438,8 +438,8 @@ class TestInstrumentationSetup:
     def test_api_tracker_counts_per_symbol(self, api_tracker: APICallTracker) -> None:
         """Test that APICallTracker counts calls per symbol."""
         # Fetch same symbol multiple times
-        api_tracker.track_get_symbol_news("AAPL")
-        api_tracker.track_get_symbol_news("AAPL")
+        api_tracker.track_get_news_intelligence("AAPL")
+        api_tracker.track_get_news_intelligence("AAPL")
         api_tracker.track_get_watchlist_news(["AAPL", "GOOGL"])
 
         # Count per symbol
@@ -484,8 +484,8 @@ class TestBaselineMeasurement:
         # Mock NewsService to track API calls instead of making real ones
         with (
             patch(
-                "app.services.news_service.NewsService.get_symbol_news",
-                api_tracker.track_get_symbol_news,
+                "app.services.news_service.NewsService.get_news_intelligence",
+                api_tracker.track_get_news_intelligence,
             ),
             patch(
                 "app.services.news_service.NewsService.get_watchlist_news",
@@ -598,8 +598,8 @@ class TestIssue1OverlappingNewsFetches:
         # Mock NewsService methods to track calls
         with (
             patch(
-                "app.services.news_service.NewsService.get_symbol_news",
-                api_tracker.track_get_symbol_news,
+                "app.services.news_service.NewsService.get_news_intelligence",
+                api_tracker.track_get_news_intelligence,
             ),
             patch(
                 "app.services.news_service.NewsService.get_watchlist_news",
@@ -616,7 +616,7 @@ class TestIssue1OverlappingNewsFetches:
         api_calls = api_tracker.get_call_count()
         symbols_fetched = api_tracker.get_symbols_fetched()
         symbol_counts = api_tracker.count_calls_per_symbol()
-        get_symbol_news_calls = api_tracker.get_calls_by_method("get_symbol_news")
+        get_news_intelligence_calls = api_tracker.get_calls_by_method("get_news_intelligence")
         get_watchlist_news_calls = api_tracker.get_calls_by_method("get_watchlist_news")
 
         # Print findings
@@ -624,7 +624,7 @@ class TestIssue1OverlappingNewsFetches:
         print("ISSUE #1 VALIDATION: Overlapping News Fetches")
         print("=" * 70)
         print(f"Total API calls: {api_calls}")
-        print(f"  - get_symbol_news() calls: {len(get_symbol_news_calls)}")
+        print(f"  - get_news_intelligence() calls: {len(get_news_intelligence_calls)}")
         print(f"  - get_watchlist_news() calls: {len(get_watchlist_news_calls)}")
         print(f"Unique symbols fetched: {len(set(symbols_fetched))}")
         print(f"Symbols fetched multiple times: {[s for s, c in symbol_counts.items() if c > 1]}")
@@ -681,7 +681,7 @@ class TestIssue1OverlappingNewsFetches:
 class TestIssue2PerSymbolNewsFetching:
     """Validate hypothesis: News is fetched individually per symbol (N calls) instead of batch (1 call).
 
-    Expected: refresh_processor.py:439 calls get_symbol_news() in a loop for each symbol,
+    Expected: refresh_processor.py:439 calls get_news_intelligence() in a loop for each symbol,
     resulting in N API calls instead of using get_watchlist_news() for batch fetching.
     """
 
@@ -694,7 +694,7 @@ class TestIssue2PerSymbolNewsFetching:
         """Validate that news is fetched individually per symbol.
 
         Expected behavior:
-        - get_symbol_news() called N times (once per symbol)
+        - get_news_intelligence() called N times (once per symbol)
         - get_watchlist_news() called 0 times
         - Total API calls = N
 
@@ -711,8 +711,8 @@ class TestIssue2PerSymbolNewsFetching:
         # Mock NewsService methods
         with (
             patch(
-                "app.services.news_service.NewsService.get_symbol_news",
-                api_tracker.track_get_symbol_news,
+                "app.services.news_service.NewsService.get_news_intelligence",
+                api_tracker.track_get_news_intelligence,
             ),
             patch(
                 "app.services.news_service.NewsService.get_watchlist_news",
@@ -724,7 +724,7 @@ class TestIssue2PerSymbolNewsFetching:
             refresh_watchlist_scores(storage, account_id=account_id)
 
         # Analyze results
-        get_symbol_news_calls = api_tracker.get_calls_by_method("get_symbol_news")
+        get_news_intelligence_calls = api_tracker.get_calls_by_method("get_news_intelligence")
         get_watchlist_news_calls = api_tracker.get_calls_by_method("get_watchlist_news")
         total_api_calls = api_tracker.get_call_count()
 
@@ -737,18 +737,18 @@ class TestIssue2PerSymbolNewsFetching:
         print("=" * 70)
         print(f"Watchlist symbols: {num_watchlist_symbols}")
         print(f"Total API calls: {total_api_calls}")
-        print(f"get_symbol_news() calls: {len(get_symbol_news_calls)}")
+        print(f"get_news_intelligence() calls: {len(get_news_intelligence_calls)}")
         print(f"get_watchlist_news() calls: {len(get_watchlist_news_calls)}")
         print("=" * 70)
 
         # Validate hypothesis
-        if len(get_symbol_news_calls) > 0 and len(get_watchlist_news_calls) == 0:
+        if len(get_news_intelligence_calls) > 0 and len(get_watchlist_news_calls) == 0:
             print("\n✓ HYPOTHESIS CONFIRMED: Using per-symbol fetching")
             print("  - Expected: 1 batch call for all symbols")
-            print(f"  - Actual: {len(get_symbol_news_calls)} individual calls")
-            print(f"  - Overhead: {len(get_symbol_news_calls) - 1} extra calls")
+            print(f"  - Actual: {len(get_news_intelligence_calls)} individual calls")
+            print(f"  - Overhead: {len(get_news_intelligence_calls) - 1} extra calls")
             print("\nROOT CAUSE: refresh_processor.py:439")
-            print("  Calls get_symbol_news(symbol) in loop instead of")
+            print("  Calls get_news_intelligence(symbol) in loop instead of")
             print("  calling get_watchlist_news(symbols) before loop")
             hypothesis_confirmed = True
         elif len(get_watchlist_news_calls) > 0:
@@ -771,11 +771,11 @@ class TestIssue2PerSymbolNewsFetching:
             "validated": hypothesis_confirmed,
             "evidence": {
                 "watchlist_symbols": num_watchlist_symbols,
-                "get_symbol_news_calls": len(get_symbol_news_calls),
+                "get_news_intelligence_calls": len(get_news_intelligence_calls),
                 "get_watchlist_news_calls": len(get_watchlist_news_calls),
                 "total_api_calls": total_api_calls,
             },
-            "root_cause": "refresh_processor.py:439 - get_symbol_news() in loop"
+            "root_cause": "refresh_processor.py:439 - get_news_intelligence() in loop"
             if hypothesis_confirmed
             else None,
             "fix_approach": "Fetch news before loop using get_watchlist_news()"
@@ -832,8 +832,8 @@ class TestIssue3UserPreferencesQueries:
         # Mock NewsService methods
         with (
             patch(
-                "app.services.news_service.NewsService.get_symbol_news",
-                api_tracker.track_get_symbol_news,
+                "app.services.news_service.NewsService.get_news_intelligence",
+                api_tracker.track_get_news_intelligence,
             ),
             patch(
                 "app.services.news_service.NewsService.get_watchlist_news",
@@ -947,8 +947,8 @@ class TestIssue4WatchlistItemsQueries:
         # Mock NewsService methods
         with (
             patch(
-                "app.services.news_service.NewsService.get_symbol_news",
-                api_tracker.track_get_symbol_news,
+                "app.services.news_service.NewsService.get_news_intelligence",
+                api_tracker.track_get_news_intelligence,
             ),
             patch(
                 "app.services.news_service.NewsService.get_watchlist_news",

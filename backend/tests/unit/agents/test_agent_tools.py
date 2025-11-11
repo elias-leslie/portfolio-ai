@@ -201,7 +201,7 @@ def test_execute_get_news(agent_tools: AgentTools, mock_news_service: Mock) -> N
     )
 
     mock_news_service.refresh_max_articles_from_preferences.return_value = 20
-    mock_news_service.get_market_news.return_value = mock_bundle
+    mock_news_service.get_news_intelligence.return_value = mock_bundle
 
     # Execute
     result = agent_tools.execute_get_news("stock market", max_results=10)
@@ -213,7 +213,7 @@ def test_execute_get_news(agent_tools: AgentTools, mock_news_service: Mock) -> N
     assert len(result["articles"]) == 2
     assert result["articles"][0]["headline"] == "Market rallies"
     assert result["articles"][1]["headline"] == "Tech stocks surge"
-    mock_news_service.get_market_news.assert_called_once_with(max_articles=10)
+    mock_news_service.get_news_intelligence.assert_called_once_with(None, max_articles=10)
 
 
 def test_execute_get_news_default_max_results(

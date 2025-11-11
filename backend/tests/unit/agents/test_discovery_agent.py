@@ -98,8 +98,8 @@ def mock_news_service() -> Mock:
 
     mock = Mock()
     mock.refresh_max_articles_from_preferences.return_value = 20
-    mock.get_market_news.return_value = mock_bundle
-    mock.get_symbol_news.return_value = mock_bundle
+    mock.get_news_intelligence.return_value = mock_bundle
+    mock.get_news_intelligence.return_value = mock_bundle
     mock.get_custom_news.return_value = mock_bundle
     return mock
 
