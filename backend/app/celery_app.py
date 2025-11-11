@@ -137,6 +137,17 @@ celery_app.conf.beat_schedule = {
         # - Runs daily at 4:30 PM ET (market close + 30 min)
         # - Not configurable by user (business logic requirement)
     },
+    "profile-news-sources": {
+        "task": "profile_news_sources",
+        "schedule": 43200.0,  # Every 12 hours (configurable via user preferences)
+        "args": ["default"],  # user_id
+        "options": {"expires": 3600},  # Task expires after 1 hour
+        # Notes:
+        # - Task checks: news_profiling_interval_hours preference (default 12h)
+        # - Calculates 6 quality metrics per vendor (duplicate, diversity, confidence, freshness, user_feedback, quality)
+        # - Stores results in source_metrics table
+        # - Skips execution if not enough time elapsed since last profiling
+    },
     "refresh-daily-ohlcv": {
         "task": "refresh_daily_ohlcv",
         "schedule": 86400.0,  # Daily (24 hours)
