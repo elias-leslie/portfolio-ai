@@ -69,7 +69,7 @@ export function usePortfolioNews(options?: { maxResults?: number; forceRefresh?:
       const bundles = await Promise.all(
         symbols.map(async (symbol) => {
           try {
-            const bundle = await fetchSymbolNews(symbol, options);
+            const bundle = await fetchNewsIntelligence(symbol, options);
             return bundle;
           } catch (error) {
             console.error(`Failed to fetch news for ${symbol}:`, error);
