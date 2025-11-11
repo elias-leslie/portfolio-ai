@@ -35,6 +35,7 @@ import { ServiceActionDialog } from "@/components/status/ServiceActionDialog";
 import { DataSourcesCard } from "@/components/status/DataSourcesCard";
 import { APIQuotasCard } from "@/components/status/APIQuotasCard";
 import { LogsCard } from "@/components/status/LogsCard";
+import { SourceQualityCard } from "@/components/status/SourceQualityCard";
 import {
     clearCache,
     refreshWatchlist,
@@ -418,6 +419,9 @@ export default function StatusPage() {
 
             {/* API Quotas card */}
             <APIQuotasCard health={health} />
+
+            {/* News Source Quality card */}
+            <SourceQualityCard />
 
             {/* Service cards grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
