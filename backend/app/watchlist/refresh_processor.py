@@ -460,7 +460,7 @@ def _fetch_news_sentiment(
     try:
         if news_bundle is None:
             # Fallback: Individual fetch (backwards compatibility)
-            news_bundle = news_service.get_symbol_news(symbol, max_articles=max_news_articles)
+            news_bundle = news_service.get_news_intelligence(symbol, max_articles=max_news_articles)
 
         news_sentiment_value = news_bundle.summary.score
         recent_news_value = build_recent_news_payload(
@@ -945,15 +945,26 @@ def _build_watchlist_snapshot(
 
 
 def process_ticker_snapshot(
-    storage: PortfolioStorage, symbol: str, item_id: str, input_data: TickerInputData,
-    config: ProcessorConfig, news_service: NewsService
+    storage: PortfolioStorage,
+    symbol: str,
+    item_id: str,
+    input_data: TickerInputData,
+    config: ProcessorConfig,
+    news_service: NewsService,
 ) -> WatchlistSnapshot:
     """Process ticker and generate watchlist snapshot (see ProcessorConfig/TickerInputData for params)."""
     price_data, technical_map, news_bundle = (
-        input_data["price_data"], input_data["technical_map"], input_data["news_bundle"])
+        input_data["price_data"],
+        input_data["technical_map"],
+        input_data["news_bundle"],
+    )
     default_weights, stale_ttl_minutes, risk_budget, max_news_articles, now = (
-        config["default_weights"], config["stale_ttl_minutes"], config["risk_budget"],
-        config["max_news_articles"], config["now"])
+        config["default_weights"],
+        config["stale_ttl_minutes"],
+        config["risk_budget"],
+        config["max_news_articles"],
+        config["now"],
+    )
 
     # Calculate price change and queue backfill if needed
     change_pct = _handle_price_change_and_backfill(storage, symbol, price_data.price, item_id)
