@@ -104,6 +104,9 @@ export function MarketNewsCard() {
                 : formatVendorLabel(article.vendor);
               const displayHeadline = (article as any).plain_language_headline || article.headline;
 
+              const impactSummary = (article as any).impact_summary;
+              const actionableInsight = (article as any).actionable_insight;
+
               return (
                 <div
                   key={`article-${idx}-${article.content_hash || article.headline}`}
@@ -124,6 +127,19 @@ export function MarketNewsCard() {
                       {displayHeadline}
                     </p>
                   )}
+
+                  {/* AI Insights */}
+                  {impactSummary && (
+                    <p className="text-[10px] text-text-muted italic">
+                      💡 {impactSummary}
+                    </p>
+                  )}
+                  {actionableInsight && (
+                    <p className="text-[10px] text-primary font-medium">
+                      💡 {actionableInsight}
+                    </p>
+                  )}
+
                   <div className="flex flex-wrap items-center gap-2 text-[10px] text-text-muted">
                     {source && <span>{source}</span>}
                     {timeAgo && (
