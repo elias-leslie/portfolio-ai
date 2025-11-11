@@ -142,27 +142,63 @@ class YFinanceSource(BaseSource):
 
         return combined
 
+    def _extract_price_from_info(self, info: dict[str, Any]) -> float | None:
+        """Extract price from yfinance info dict (tries multiple fields)."""
+        return (
+            info.get("currentPrice") or info.get("regularMarketPrice") or info.get("previousClose")
+        )
+
+    def _calculate_volatility_from_52w_range(self, info: dict[str, Any]) -> float | None:
+        """Calculate approximate annualized volatility from 52-week range."""
+        high_52 = info.get("fiftyTwoWeekHigh")
+        low_52 = info.get("fiftyTwoWeekLow")
+        if (
+            high_52
+            and low_52
+            and isinstance(high_52, (int, float))
+            and isinstance(low_52, (int, float))
+            and high_52 > 0
+        ):
+            return float((high_52 - low_52) / high_52)
+        return None
+
+    def _build_reference_payload(self, ticker: str, info: dict[str, Any]) -> dict[str, Any]:
+        """Build reference payload from yfinance info dict."""
+        price = self._extract_price_from_info(info)
+        beta = info.get("beta")
+        volatility = self._calculate_volatility_from_52w_range(info)
+
+        return {
+            "symbol": ticker,
+            "price": price,
+            "beta": beta,
+            "volatility": volatility,
+            "longName": info.get("longName"),
+            "shortName": info.get("shortName"),
+            "sector": info.get("sector"),
+            "industry": info.get("industry"),
+            "marketCap": info.get("marketCap"),
+            "currency": info.get("currency"),
+            "exchange": info.get("exchange"),
+            "country": info.get("country"),
+            "website": info.get("website"),
+            "description": info.get("longBusinessSummary"),
+        }
+
     def fetch_reference_payload(
         self, tickers: Iterable[str], as_of: dt.date
     ) -> pl.DataFrame | None:
-        """Fetch company reference data from yfinance.
-
-        Args:
-            tickers: List of ticker symbols
-            as_of: As-of date for reference data
-
-        Returns:
-            Polars DataFrame with reference data, or None if fetch fails
-        """
+        """Fetch company reference data from yfinance (see helper methods for payload building)."""
         records = []
+        ticker_list = list(tickers)
 
         logger.info(
             "yfinance_fetch_reference_start",
-            num_tickers=len(list(tickers)),
+            num_tickers=len(ticker_list),
             as_of_date=as_of.isoformat(),
         )
 
-        for ticker in tickers:
+        for ticker in ticker_list:
             try:
                 yf_ticker = yf.Ticker(ticker)
                 info = yf_ticker.info
@@ -171,48 +207,12 @@ class YFinanceSource(BaseSource):
                     logger.debug("yfinance_no_reference_data", ticker=ticker)
                     continue
 
-                # Extract relevant fields
-                # Note: Store as JSON string for flexibility
-                # CRITICAL: Include price fields for watchlist functionality
-                price = (
-                    info.get("currentPrice")
-                    or info.get("regularMarketPrice")
-                    or info.get("previousClose")
-                )
-                beta = info.get("beta")
-
-                # Calculate volatility from 52-week high/low if available
-                volatility = None
-                high_52 = info.get("fiftyTwoWeekHigh")
-                low_52 = info.get("fiftyTwoWeekLow")
-                if high_52 and low_52 and high_52 > 0:
-                    # Approximate annualized volatility from 52-week range
-                    volatility = (high_52 - low_52) / high_52
-
-                payload_json = json.dumps(
-                    {
-                        "symbol": ticker,
-                        "price": price,  # Current market price
-                        "beta": beta,  # Market beta
-                        "volatility": volatility,  # Calculated from 52-week range
-                        "longName": info.get("longName"),
-                        "shortName": info.get("shortName"),
-                        "sector": info.get("sector"),
-                        "industry": info.get("industry"),
-                        "marketCap": info.get("marketCap"),
-                        "currency": info.get("currency"),
-                        "exchange": info.get("exchange"),
-                        "country": info.get("country"),
-                        "website": info.get("website"),
-                        "description": info.get("longBusinessSummary"),
-                    }
-                )
-
+                payload_dict = self._build_reference_payload(ticker, info)
                 records.append(
                     {
                         "ticker": ticker,
                         "as_of_date": as_of,
-                        "payload": payload_json,
+                        "payload": json.dumps(payload_dict),
                         "source": "yfinance",
                     }
                 )
@@ -232,11 +232,7 @@ class YFinanceSource(BaseSource):
             logger.warning("yfinance_no_reference_data_fetched")
             return None
 
-        logger.info(
-            "yfinance_reference_complete",
-            num_tickers=len(records),
-        )
-
+        logger.info("yfinance_reference_complete", num_tickers=len(records))
         return pl.DataFrame(records)
 
     def fetch_news_payload(

@@ -328,15 +328,166 @@ class MultiSourceFetcher:
 
         return df
 
+    def _check_source_cooldown(
+        self, source: BaseSource, verbose: bool, errors_by_source: dict[str, list[str]]
+    ) -> bool:
+        """Check if source is in rate limit cooldown.
+
+        Args:
+            source: Source to check
+            verbose: Whether to log warnings
+            errors_by_source: Dict to add error message to
+
+        Returns:
+            True if source is in cooldown (should skip), False otherwise
+        """
+        metrics = self._metrics.get(source.name)
+        if metrics and metrics.is_in_cooldown():
+            cooldown_remaining = metrics.cooldown_remaining_seconds()
+            if verbose:
+                logger.warning(
+                    "source_skipped_cooldown",
+                    source=source.name,
+                    cooldown_remaining_seconds=cooldown_remaining,
+                    reason="rate_limit_429",
+                )
+            errors_by_source[source.name] = [
+                f"Skipped due to rate limit cooldown ({cooldown_remaining}s remaining)"
+            ]
+            return True
+        return False
+
+    def _fetch_from_source(
+        self, source: BaseSource, request: DatasetRequest, tickers: set[str]
+    ) -> pl.DataFrame | None:
+        """Fetch data from a specific source based on dataset type.
+
+        Args:
+            source: Source to fetch from
+            request: Original request with dataset type and date range
+            tickers: Tickers to fetch
+
+        Returns:
+            DataFrame with fetched data, or None if no data
+        """
+        if request.dataset == DATASET_DAY:
+            remaining_request = dataclasses.replace(request, tickers=list(tickers))
+            return source.fetch_day_bars(remaining_request)
+
+        if request.dataset == DATASET_REFERENCE:
+            # Ensure start is a date for reference data
+            as_of_date: dt.date = (
+                request.start.date() if isinstance(request.start, dt.datetime) else request.start
+            )
+            return source.fetch_reference_payload(list(tickers), as_of_date)
+
+        if request.dataset == DATASET_NEWS:
+            # Ensure start/end are datetime for news
+            start_dt = (
+                request.start
+                if isinstance(request.start, dt.datetime)
+                else dt.datetime.combine(request.start, dt.time.min)
+            )
+            end_dt = (
+                request.end
+                if isinstance(request.end, dt.datetime)
+                else dt.datetime.combine(request.end, dt.time.max)
+            )
+            return source.fetch_news_payload(list(tickers), start_dt, end_dt)
+
+        return None
+
+    def _process_fetch_result(
+        self,
+        data: pl.DataFrame | None,
+        source: BaseSource,
+        fetch_duration_ms: int,
+        tickers_remaining: set[str],
+        news_dataset: bool,
+        verbose: bool,
+    ) -> bool:
+        """Process fetch result and update metrics.
+
+        Args:
+            data: Fetched data (or None)
+            source: Source that fetched the data
+            fetch_duration_ms: Fetch duration in milliseconds
+            tickers_remaining: Set of tickers still needing data
+            news_dataset: Whether this is a news dataset
+            verbose: Whether to log info messages
+
+        Returns:
+            True if data was fetched, False otherwise
+        """
+        if data is not None and len(data) > 0:
+            # Track which tickers were successfully fetched
+            if "ticker" in data.columns and not news_dataset:
+                fetched_tickers = set(data["ticker"].unique().to_list())
+                tickers_remaining -= fetched_tickers
+
+                if verbose:
+                    logger.info(
+                        "source_fetched_partial",
+                        source=source.name,
+                        tickers_fetched=len(fetched_tickers),
+                        tickers_remaining=len(tickers_remaining),
+                        rows=len(data),
+                    )
+            else:
+                # Assume all tickers fetched if no ticker column
+                if verbose:
+                    logger.info("source_fetched_all", source=source.name, rows=len(data))
+                if not news_dataset:
+                    tickers_remaining.clear()
+
+            self._record_success(source.name, fetch_duration_ms)
+            return True
+
+        # No data, but still success (no error)
+        if verbose:
+            logger.info("source_no_data", source=source.name)
+        self._record_success(source.name, fetch_duration_ms)
+        return False
+
+    def _combine_results(
+        self, all_data: list[pl.DataFrame], errors_by_source: dict[str, list[str]], verbose: bool
+    ) -> pl.DataFrame | None:
+        """Combine data from multiple sources.
+
+        Args:
+            all_data: List of DataFrames from successful sources
+            errors_by_source: Errors from failed sources
+            verbose: Whether to log info
+
+        Returns:
+            Combined DataFrame, or None if no data
+        """
+        if not all_data:
+            return None
+
+        # Normalize schemas before concat to avoid type incompatibility
+        normalized_data = [self._normalize_news_schema(df) for df in all_data]
+        combined = (
+            pl.concat(normalized_data, how="diagonal")
+            if len(normalized_data) > 1
+            else normalized_data[0]
+        )
+
+        if verbose:
+            logger.info(
+                "multi_source_fetch_complete",
+                total_rows=len(combined),
+                num_sources_used=len(all_data),
+            )
+
+        return combined
+
     def fetch_with_fallback(
         self, request: DatasetRequest, verbose: bool = True
     ) -> tuple[pl.DataFrame | None, dict[str, list[str]]]:
         """Fetch data with automatic fallback across sources.
 
-        Tries sources in priority order with rate limit awareness:
-        - Skips sources in cooldown (recent HTTP 429)
-        - Tracks performance metrics (success rate, latency)
-        - Persists metrics to database
+        Tries sources in priority order with rate limit awareness.
 
         Args:
             request: DatasetRequest with dataset type, tickers, dates
@@ -344,14 +495,6 @@ class MultiSourceFetcher:
 
         Returns:
             Tuple of (DataFrame, errors_by_source)
-            - DataFrame: Combined data from all successful sources (or None if all failed)
-            - errors_by_source: Dict mapping source name to list of error messages
-
-        Example:
-            >>> fetcher = MultiSourceFetcher([polygon, yfinance, finnhub], storage)
-            >>> request = DatasetRequest(dataset='reference', tickers=['AAPL', 'MSFT'], ...)
-            >>> df, errors = fetcher.fetch_with_fallback(request)
-            >>> # Automatically tries: polygon → yfinance → finnhub (skips if in cooldown)
         """
         sources = self.get_sources_for_dataset(request.dataset)
         if not sources:
@@ -363,30 +506,13 @@ class MultiSourceFetcher:
         news_dataset = request.dataset == DATASET_NEWS
 
         for source in sources:
+            # Stop if all tickers fetched (non-news datasets)
             if not news_dataset and not tickers_remaining:
-                break  # All tickers fetched successfully
+                break
 
-            # Check rate limit cooldown
-            metrics = self._metrics.get(source.name)
-            if metrics and metrics.is_in_cooldown():
-                cooldown_remaining = metrics.cooldown_remaining_seconds()
-                if verbose:
-                    logger.warning(
-                        "source_skipped_cooldown",
-                        source=source.name,
-                        cooldown_remaining_seconds=cooldown_remaining,
-                        reason="rate_limit_429",
-                    )
-                errors_by_source[source.name] = [
-                    f"Skipped due to rate limit cooldown ({cooldown_remaining}s remaining)"
-                ]
+            # Skip sources in cooldown
+            if self._check_source_cooldown(source, verbose, errors_by_source):
                 continue
-
-            # Create request for remaining tickers
-            remaining_request = dataclasses.replace(
-                request,
-                tickers=list(tickers_remaining) if not news_dataset else list(request.tickers),
-            )
 
             try:
                 if verbose:
@@ -398,103 +524,30 @@ class MultiSourceFetcher:
                         dataset=request.dataset,
                     )
 
-                # Track performance per source
+                # Fetch data
                 start_time = time.time()
-
-                # Fetch data based on dataset type
-                data: pl.DataFrame | None = None
-                if request.dataset == DATASET_DAY:
-                    data = source.fetch_day_bars(remaining_request)
-                elif request.dataset == DATASET_REFERENCE:
-                    # Ensure start is a date for reference data
-                    as_of_date: dt.date
-                    if isinstance(remaining_request.start, dt.datetime):
-                        as_of_date = remaining_request.start.date()
-                    else:
-                        as_of_date = remaining_request.start
-                    data = source.fetch_reference_payload(list(tickers_remaining), as_of_date)
-                elif request.dataset == DATASET_NEWS:
-                    # Ensure start/end are datetime for news
-                    start_dt = (
-                        remaining_request.start
-                        if isinstance(remaining_request.start, dt.datetime)
-                        else dt.datetime.combine(remaining_request.start, dt.time.min)
-                    )
-                    end_dt = (
-                        remaining_request.end
-                        if isinstance(remaining_request.end, dt.datetime)
-                        else dt.datetime.combine(remaining_request.end, dt.time.max)
-                    )
-                    data = source.fetch_news_payload(list(tickers_remaining), start_dt, end_dt)
-                else:
-                    continue
-
+                data = self._fetch_from_source(source, request, tickers_remaining)
                 fetch_duration_ms = int((time.time() - start_time) * 1000)
 
-                if data is not None and len(data) > 0:
+                # Process result
+                if (
+                    self._process_fetch_result(
+                        data, source, fetch_duration_ms, tickers_remaining, news_dataset, verbose
+                    )
+                    and data is not None
+                ):  # Narrow type for mypy
                     all_data.append(data)
 
-                    # Track which tickers were successfully fetched
-                    if "ticker" in data.columns and not news_dataset:
-                        fetched_tickers = set(data["ticker"].unique().to_list())
-                        tickers_remaining -= fetched_tickers
-
-                        if verbose:
-                            logger.info(
-                                "source_fetched_partial",
-                                source=source.name,
-                                tickers_fetched=len(fetched_tickers),
-                                tickers_remaining=len(tickers_remaining),
-                                rows=len(data),
-                            )
-                    else:
-                        # Assume all tickers fetched if no ticker column
-                        if verbose:
-                            logger.info("source_fetched_all", source=source.name, rows=len(data))
-                        if not news_dataset:
-                            tickers_remaining.clear()
-
-                    # Record success metrics
-                    self._record_success(source.name, fetch_duration_ms)
-
-                elif verbose:
-                    logger.info("source_no_data", source=source.name)
-                    # Still record as success (no error, just no data)
-                    self._record_success(source.name, fetch_duration_ms)
-
             except Exception as e:
-                error_msg = str(e)
                 if source.name not in errors_by_source:
                     errors_by_source[source.name] = []
-                errors_by_source[source.name].append(error_msg)
-
-                # Record failure metrics (checks for rate limit)
+                errors_by_source[source.name].append(str(e))
                 self._record_failure(source.name, e)
 
-                # Continue to next source for failover
+        # Combine and return results
+        combined = self._combine_results(all_data, errors_by_source, verbose)
 
-        # Combine data from all sources
-        # Use diagonal concat to handle different schemas (e.g., SEC EDGAR has extra fields)
-        if all_data:
-            # Normalize schemas before concat to avoid type incompatibility errors
-            normalized_data = [self._normalize_news_schema(df) for df in all_data]
-            combined = (
-                pl.concat(normalized_data, how="diagonal")
-                if len(normalized_data) > 1
-                else normalized_data[0]
-            )
-
-            if verbose:
-                logger.info(
-                    "multi_source_fetch_complete",
-                    total_rows=len(combined),
-                    num_sources_used=len(all_data),
-                    tickers_remaining=len(tickers_remaining),
-                )
-
-            return combined, errors_by_source
-
-        if verbose:
+        if combined is None and verbose:
             logger.warning(
                 "multi_source_fetch_failed",
                 dataset=request.dataset,
@@ -502,7 +555,7 @@ class MultiSourceFetcher:
                 errors=errors_by_source,
             )
 
-        return None, errors_by_source
+        return combined, errors_by_source
 
     def get_source_metrics(self, source_name: str | None = None) -> dict[str, SourceMetrics]:
         """Get performance metrics for sources.

@@ -84,6 +84,38 @@ class NarrativeResultDict(TypedDict):
     special_notes: str | None
 
 
+class ProcessorConfig(TypedDict):
+    """Configuration parameters for ticker processing.
+
+    Attributes:
+        default_weights: Score weights from user preferences
+        stale_ttl_minutes: Staleness threshold in minutes
+        risk_budget: Risk budget for position sizing (0.0-1.0)
+        max_news_articles: Maximum articles to fetch per ticker
+        now: Current timestamp (UTC) for consistency
+    """
+
+    default_weights: ScoreWeights
+    stale_ttl_minutes: int
+    risk_budget: float
+    max_news_articles: int
+    now: datetime
+
+
+class TickerInputData(TypedDict):
+    """Input data for ticker processing.
+
+    Attributes:
+        price_data: Price data object from PriceDataFetcher
+        technical_map: Map of symbol -> TechnicalSnapshot
+        news_bundle: Optional pre-fetched NewsBundle (for batch optimization)
+    """
+
+    price_data: PriceData
+    technical_map: dict[str, TechnicalSnapshot]
+    news_bundle: NewsBundle | None
+
+
 def _normalize_publisher_field(value: Any) -> str | None:
     if isinstance(value, dict):
         for key in ("title", "name"):
@@ -913,44 +945,16 @@ def _build_watchlist_snapshot(
 
 
 def process_ticker_snapshot(
-    storage: PortfolioStorage,
-    symbol: str,
-    item_id: str,
-    price_data: PriceData,
-    technical_map: dict[str, TechnicalSnapshot],
-    default_weights: ScoreWeights,
-    stale_ttl_minutes: int,
-    risk_budget: float,
-    now: datetime,
-    news_service: NewsService,
-    max_news_articles: int,
-    news_bundle: NewsBundle | None = None,
+    storage: PortfolioStorage, symbol: str, item_id: str, input_data: TickerInputData,
+    config: ProcessorConfig, news_service: NewsService
 ) -> WatchlistSnapshot:
-    """Process a single ticker and generate its watchlist snapshot.
+    """Process ticker and generate watchlist snapshot (see ProcessorConfig/TickerInputData for params)."""
+    price_data, technical_map, news_bundle = (
+        input_data["price_data"], input_data["technical_map"], input_data["news_bundle"])
+    default_weights, stale_ttl_minutes, risk_budget, max_news_articles, now = (
+        config["default_weights"], config["stale_ttl_minutes"], config["risk_budget"],
+        config["max_news_articles"], config["now"])
 
-    This function consolidates all data gathering, calculation, and narrative
-    generation for one ticker into a single snapshot.
-
-    Args:
-        storage: Database storage instance
-        symbol: Ticker symbol
-        item_id: Watchlist item ID
-        price_data: Price data object (from PriceDataFetcher)
-        technical_map: Map of symbol -> TechnicalSnapshot
-        default_weights: Score weights from preferences
-        stale_ttl_minutes: Staleness threshold in minutes
-        risk_budget: Risk budget for position sizing
-        now: Current timestamp (UTC)
-        news_service: NewsService instance for fetching scored news
-        max_news_articles: Maximum articles to fetch (if news_bundle not provided)
-        news_bundle: Optional pre-fetched NewsBundle (Issue #2 fix - batch fetching)
-
-    Returns:
-        WatchlistSnapshot ready to be persisted
-
-    Raises:
-        Exception: If processing fails (caller should catch and log)
-    """
     # Calculate price change and queue backfill if needed
     change_pct = _handle_price_change_and_backfill(storage, symbol, price_data.price, item_id)
 

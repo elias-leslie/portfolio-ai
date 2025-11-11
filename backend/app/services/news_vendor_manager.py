@@ -110,140 +110,98 @@ class NewsVendorManager:
             },
         )
 
-    def _prepare_vendor_sources(
-        self, vendor_sources: Sequence[BaseSource] | None
-    ) -> list[BaseSource]:
-        """Initialise vendor sources either from overrides or environment configuration."""
-        sources: list[BaseSource] = []
+    def _init_free_vendor(
+        self,
+        vendor_name: str,
+        source_cls: type[BaseSource],
+        env_var: str,
+        notes: str,
+        default_enabled: bool = True,
+        *,
+        sources: list[BaseSource],
+    ) -> None:
+        """Initialize a free vendor (no API key required).
 
-        if vendor_sources is not None:
-            for source in vendor_sources:
-                sources.append(source)
-                self._register_vendor(
-                    source.name, configured=True, enabled=True, notes=None, reason=None
-                )
-            return sources
+        Args:
+            vendor_name: Vendor identifier (e.g., 'sec_edgar')
+            source_cls: Source class to instantiate
+            env_var: Environment variable for enable flag
+            notes: Description of vendor
+            default_enabled: Default enable state if env var not set
+            sources: List to append initialized source to
+        """
+        flag = self._env_flag(env_var, default=default_enabled)
+        enabled = bool(flag)
+        reason: str | None = None if flag else "disabled_by_flag"
 
-        # SEC EDGAR (free, highest priority)
-        sec_edgar_flag = self._env_flag("SEC_EDGAR_ENABLED", default=True)
-        sec_edgar_enabled = bool(sec_edgar_flag)
-        sec_edgar_reason: str | None = None
-        sec_edgar_notes = (
-            "SEC EDGAR filings (8-K, 10-Q, 10-K, Form 4) - highest quality free source."
-        )
-        if not sec_edgar_flag:
-            sec_edgar_reason = "disabled_by_flag"
-        if sec_edgar_enabled:
+        if enabled:
             try:
-                sources.append(SECEdgarSource(self.storage))
+                # Pass storage to SEC EDGAR, YFinance doesn't need it
+                if vendor_name == "sec_edgar":
+                    sources.append(source_cls(self.storage))  # type: ignore[call-arg]
+                else:
+                    sources.append(source_cls())
             except Exception as exc:
-                sec_edgar_reason = f"init_failed: {exc}"
-                sec_edgar_enabled = False
-                logger.warning("sec_edgar_source_init_failed", error=str(exc))
+                reason = f"init_failed: {exc}"
+                enabled = False
+                logger.warning(f"{vendor_name}_source_init_failed", error=str(exc))
+
         self._register_vendor(
-            "sec_edgar",
-            configured=True,
-            enabled=sec_edgar_enabled,
-            notes=sec_edgar_notes,
-            reason=sec_edgar_reason,
+            vendor_name, configured=True, enabled=enabled, notes=notes, reason=reason
         )
 
-        # Polygon
-        polygon_key = os.getenv("POLYGON_API_KEY")
-        polygon_flag = self._env_flag("POLYGON_NEWS_ENABLED", default=True)
-        polygon_configured = bool(polygon_key)
-        polygon_enabled = bool(polygon_configured and polygon_flag)
-        polygon_reason: str | None = None
-        if not polygon_configured:
-            polygon_reason = "missing_api_key"
-        elif not polygon_flag:
-            polygon_reason = "disabled_by_flag"
-        if polygon_enabled:
+    def _init_api_vendor(
+        self,
+        vendor_name: str,
+        source_cls: type[BaseSource],
+        api_key_env: str,
+        flag_env: str,
+        notes: str | None,
+        default_enabled: bool = True,
+        *,
+        sources: list[BaseSource],
+    ) -> None:
+        """Initialize a vendor requiring an API key.
+
+        Args:
+            vendor_name: Vendor identifier (e.g., 'polygon')
+            source_cls: Source class to instantiate
+            api_key_env: Environment variable for API key
+            flag_env: Environment variable for enable flag
+            notes: Description of vendor
+            default_enabled: Default enable state if flag not set
+            sources: List to append initialized source to
+        """
+        api_key = os.getenv(api_key_env)
+        flag = self._env_flag(flag_env, default=default_enabled)
+        configured = bool(api_key)
+        enabled = configured and flag
+
+        # Determine reason for disabled state
+        reason: str | None = None
+        if not configured:
+            reason = "missing_api_key"
+        elif not flag:
+            reason = "disabled_by_flag"
+
+        if enabled:
             try:
-                sources.append(PolygonSource())
+                sources.append(source_cls())
             except Exception as exc:
-                polygon_reason = f"init_failed: {exc}"
-                polygon_enabled = False
-                logger.warning("polygon_news_source_init_failed", error=str(exc))
+                reason = f"init_failed: {exc}"
+                enabled = False
+                logger.warning(f"{vendor_name}_news_source_init_failed", error=str(exc))
+
         self._register_vendor(
-            "polygon",
-            configured=polygon_configured,
-            enabled=polygon_enabled,
-            notes=None,
-            reason=polygon_reason,
+            vendor_name, configured=configured, enabled=enabled, notes=notes, reason=reason
         )
 
-        # Finnhub
-        finnhub_key = os.getenv("FINNHUB_API_KEY")
-        finnhub_flag = self._env_flag("FINNHUB_NEWS_ENABLED", default=True)
-        finnhub_configured = bool(finnhub_key)
-        finnhub_enabled = bool(finnhub_configured and finnhub_flag)
-        finnhub_reason: str | None = None
-        if not finnhub_configured:
-            finnhub_reason = "missing_api_key"
-        elif not finnhub_flag:
-            finnhub_reason = "disabled_by_flag"
-        if finnhub_enabled:
-            try:
-                sources.append(FinnhubSource())
-            except Exception as exc:
-                finnhub_reason = f"init_failed: {exc}"
-                finnhub_enabled = False
-                logger.warning("finnhub_news_source_init_failed", error=str(exc))
-        self._register_vendor(
-            "finnhub",
-            configured=finnhub_configured,
-            enabled=finnhub_enabled,
-            notes=None,
-            reason=finnhub_reason,
-        )
+    def _init_rss_vendors(self, sources: list[BaseSource]) -> None:
+        """Initialize all RSS news vendors.
 
-        # FMP (news requires paid tier; default disabled)
-        fmp_key = os.getenv("FMP_API_KEY")
-        fmp_flag = self._env_flag("FMP_NEWS_ENABLED", default=False)
-        fmp_configured = bool(fmp_key)
-        fmp_enabled = bool(fmp_configured and fmp_flag)
-        fmp_reason: str | None = None
-        fmp_notes = "FMP news endpoints require paid tier; enable via FMP_NEWS_ENABLED=1."
-        if not fmp_configured:
-            fmp_reason = "missing_api_key"
-        elif not fmp_flag:
-            fmp_reason = "disabled_by_flag"
-        if fmp_enabled:
-            try:
-                sources.append(FMPSource())
-            except Exception as exc:
-                fmp_reason = f"init_failed: {exc}"
-                fmp_enabled = False
-                logger.warning("fmp_news_source_init_failed", error=str(exc))
-        self._register_vendor(
-            "fmp",
-            configured=fmp_configured,
-            enabled=fmp_enabled,
-            notes=fmp_notes,
-            reason=fmp_reason,
-        )
-
-        # YFinance (free ticker feed)
-        yfinance_flag = self._env_flag("YFINANCE_NEWS_ENABLED", default=True)
-        yfinance_enabled = bool(yfinance_flag)
-        yfinance_reason: str | None = None
-        yfinance_notes = "Yahoo Finance ticker feed via yfinance; no API key required."
-        if yfinance_enabled:
-            try:
-                sources.append(YFinanceSource())
-            except Exception as exc:
-                yfinance_reason = f"init_failed: {exc}"
-                yfinance_enabled = False
-                logger.warning("yfinance_news_source_init_failed", error=str(exc))
-        self._register_vendor(
-            "yfinance",
-            configured=True,
-            enabled=yfinance_enabled,
-            notes=yfinance_notes,
-            reason=yfinance_reason,
-        )
-
+        Args:
+            sources: List to append initialized RSS sources to
+        """
         rss_configs: list[tuple[str, type[BaseSource], str, str]] = [
             ("cnbc_rss", CNBCRssSource, "CNBC finance/earnings RSS feed", "CNBC_RSS_ENABLED"),
             (
@@ -286,27 +244,66 @@ class NewsVendorManager:
         ]
 
         for vendor_name, source_cls, notes, env_var in rss_configs:
-            flag = self._env_flag(env_var, default=True)
-            enabled = bool(flag)
-            reason: str | None = None
-            instance: BaseSource | None = None
+            self._init_free_vendor(vendor_name, source_cls, env_var, notes, sources=sources)
 
-            if enabled:
-                try:
-                    instance = source_cls()
-                    sources.append(instance)
-                except Exception as exc:  # pragma: no cover - initialization issues logged
-                    enabled = False
-                    reason = f"init_failed: {exc}"
-                    logger.warning("%s_init_failed", vendor_name, error=str(exc))
+    def _prepare_vendor_sources(
+        self, vendor_sources: Sequence[BaseSource] | None
+    ) -> list[BaseSource]:
+        """Initialise vendor sources from overrides or environment configuration."""
+        sources: list[BaseSource] = []
 
-            self._register_vendor(
-                vendor_name,
-                configured=True,
-                enabled=enabled,
-                notes=notes,
-                reason=reason,
-            )
+        # Handle override sources
+        if vendor_sources is not None:
+            for source in vendor_sources:
+                sources.append(source)
+                self._register_vendor(
+                    source.name, configured=True, enabled=True, notes=None, reason=None
+                )
+            return sources
+
+        # Initialize primary news vendors
+        self._init_free_vendor(
+            "sec_edgar",
+            SECEdgarSource,
+            "SEC_EDGAR_ENABLED",
+            "SEC EDGAR filings (8-K, 10-Q, 10-K, Form 4) - highest quality free source.",
+            sources=sources,
+        )
+        self._init_api_vendor(
+            "polygon",
+            PolygonSource,
+            "POLYGON_API_KEY",
+            "POLYGON_NEWS_ENABLED",
+            None,
+            sources=sources,
+        )
+        self._init_api_vendor(
+            "finnhub",
+            FinnhubSource,
+            "FINNHUB_API_KEY",
+            "FINNHUB_NEWS_ENABLED",
+            None,
+            sources=sources,
+        )
+        self._init_api_vendor(
+            "fmp",
+            FMPSource,
+            "FMP_API_KEY",
+            "FMP_NEWS_ENABLED",
+            "FMP news endpoints require paid tier; enable via FMP_NEWS_ENABLED=1.",
+            default_enabled=False,
+            sources=sources,
+        )
+        self._init_free_vendor(
+            "yfinance",
+            YFinanceSource,
+            "YFINANCE_NEWS_ENABLED",
+            "Yahoo Finance ticker feed via yfinance; no API key required.",
+            sources=sources,
+        )
+
+        # Initialize RSS vendors
+        self._init_rss_vendors(sources)
 
         return [source for source in sources if source.is_enabled()]
 

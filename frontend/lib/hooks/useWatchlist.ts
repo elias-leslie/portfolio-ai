@@ -135,25 +135,59 @@ export function useUpdateWatchlistItem() {
 }
 
 /**
- * Hook to delete a watchlist item
+ * Hook to delete a watchlist item with optimistic updates
  */
 export function useDeleteWatchlistItem() {
   const queryClient = useQueryClient();
 
   return useMutation<void, Error, string>({
     mutationFn: (itemId) => deleteWatchlistItem(itemId),
+    // Optimistic update: Remove item from cache immediately
+    onMutate: async (itemId) => {
+      // Cancel any outgoing refetches to avoid overwriting optimistic update
+      await queryClient.cancelQueries({ queryKey: watchlistKeys.list() });
+
+      // Snapshot previous value for rollback
+      const previousData = queryClient.getQueryData<WatchlistListResponse>(
+        watchlistKeys.list()
+      );
+
+      // Optimistically update cache (remove item)
+      queryClient.setQueryData<WatchlistListResponse>(
+        watchlistKeys.list(),
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            items: old.items.filter((item) => item.id !== itemId),
+          };
+        }
+      );
+
+      // Return snapshot for potential rollback
+      return { previousData };
+    },
     onSuccess: () => {
-      // Invalidate and refetch watchlist query
+      // Invalidate and refetch watchlist query to ensure sync
       queryClient.invalidateQueries({
         queryKey: watchlistKeys.list(),
-        refetchType: 'active', // Force immediate refetch of active queries
+        refetchType: 'active',
       });
     },
-    onError: (error) => {
-      // CRITICAL FIX (2025-11-09): On 404 errors, REMOVE stale cache and force immediate refetch
+    onError: (error, itemId, context) => {
+      // ROLLBACK: Restore previous data on error
+      if (context?.previousData) {
+        queryClient.setQueryData(watchlistKeys.list(), context.previousData);
+      }
+
+      // CRITICAL FIX (2025-11-09): On 404/410 errors, REMOVE stale cache and force refetch
       // Prevents showing deleted items with old IDs that no longer exist
       // Context: Data loss incident - frontend showed deleted items for hours due to stale cache
-      if (error.message.includes('404') || error.message.includes('410') || error.message.includes('not found')) {
+      if (
+        error.message.includes('404') ||
+        error.message.includes('410') ||
+        error.message.includes('not found')
+      ) {
         // REMOVE the stale cache entirely (don't just invalidate)
         queryClient.removeQueries({
           queryKey: watchlistKeys.list(),

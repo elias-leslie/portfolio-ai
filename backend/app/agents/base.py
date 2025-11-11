@@ -77,6 +77,117 @@ class Agent(ABC):
         """
         pass
 
+    def _extract_final_response(self, response: Any) -> str:
+        """Extract final text response from API response.
+
+        Args:
+            response: Anthropic API response
+
+        Returns:
+            Extracted text content
+        """
+        final_text = ""
+        for block in response.content:
+            if block.type == "text":
+                final_text += block.text
+        return final_text
+
+    def _handle_completion(
+        self,
+        run_id: str,
+        started_at: datetime,
+        tool_calls_made: list[dict[str, Any]],
+        iteration: int,
+        final_text: str,
+    ) -> dict[str, Any]:
+        """Handle successful agent run completion.
+
+        Args:
+            run_id: Unique run identifier
+            started_at: Run start timestamp
+            tool_calls_made: List of tool calls made
+            iteration: Current iteration number
+            final_text: Final response text
+
+        Returns:
+            Completion result dict
+        """
+        completed_at = datetime.now(UTC)
+        duration_s = (completed_at - started_at).total_seconds()
+
+        logger.info(
+            "agent_run_completed",
+            run_id=run_id,
+            agent_type=self.agent_type,
+            num_tool_calls=len(tool_calls_made),
+            iterations=iteration + 1,
+            duration_s=round(duration_s, 2),
+            status="completed",
+        )
+
+        self._record_run_complete(
+            run_id, completed_at, "completed", len(tool_calls_made)
+        )
+
+        return {
+            "status": "completed",
+            "response": final_text,
+            "tool_calls": tool_calls_made,
+            "iterations": iteration + 1,
+        }
+
+    def _process_tool_calls(
+        self,
+        response: Any,
+        run_id: str,
+        tool_calls_made: list[dict[str, Any]],
+    ) -> tuple[list[Any], list[dict[str, Any]]]:
+        """Process tool calls from API response.
+
+        Args:
+            response: Anthropic API response with tool_use blocks
+            run_id: Unique run identifier
+            tool_calls_made: List to append tool calls to (modified in place)
+
+        Returns:
+            Tuple of (assistant_content, tool_results) for next message
+        """
+        assistant_content = []
+        tool_results = []
+
+        for block in response.content:
+            assistant_content.append(block)
+
+            if block.type == "tool_use":
+                tool_start = datetime.now(UTC)
+                tool_input = cast(dict[str, Any], block.input)
+
+                # Execute tool
+                result = self.execute_tool(block.name, tool_input)
+
+                tool_end = datetime.now(UTC)
+                duration_ms = int((tool_end - tool_start).total_seconds() * 1000)
+
+                # Record tool call
+                self._record_tool_call(
+                    run_id, block.name, tool_input, result, duration_ms
+                )
+
+                tool_calls_made.append(
+                    {"name": block.name, "input": tool_input, "result": result}
+                )
+
+                # Add tool result to conversation
+                tool_results.append(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": json.dumps(result),
+                    }
+                )
+
+        return assistant_content, tool_results
+
     def run(self, user_prompt: str, max_iterations: int = 10) -> dict[str, Any]:
         """Run the agent with a user prompt.
 
@@ -98,7 +209,6 @@ class Agent(ABC):
             max_iterations=max_iterations,
         )
 
-        # Record agent run
         self._record_run_start(run_id, started_at)
 
         try:
@@ -106,8 +216,6 @@ class Agent(ABC):
             tool_calls_made: list[dict[str, Any]] = []
 
             for iteration in range(max_iterations):
-                # Anthropic SDK expects specific ToolParam types but we build tools/messages
-                # dynamically as dicts. Safe at runtime but mypy can't verify dict structure.
                 response = self.client.messages.create(
                     model=self.model,
                     max_tokens=4096,
@@ -116,84 +224,16 @@ class Agent(ABC):
                     messages=messages,  # type: ignore[arg-type]
                 )
 
-                # Check stop reason
                 if response.stop_reason == "end_turn":
-                    # Extract final response
-                    final_text = ""
-                    for block in response.content:
-                        if block.type == "text":
-                            final_text += block.text
-
-                    completed_at = datetime.now(UTC)
-                    duration_s = (completed_at - started_at).total_seconds()
-
-                    logger.info(
-                        "agent_run_completed",
-                        run_id=run_id,
-                        agent_type=self.agent_type,
-                        num_tool_calls=len(tool_calls_made),
-                        iterations=iteration + 1,
-                        duration_s=round(duration_s, 2),
-                        status="completed",
+                    final_text = self._extract_final_response(response)
+                    return self._handle_completion(
+                        run_id, started_at, tool_calls_made, iteration, final_text
                     )
-
-                    self._record_run_complete(
-                        run_id,
-                        completed_at,
-                        "completed",
-                        len(tool_calls_made),
-                    )
-
-                    return {
-                        "status": "completed",
-                        "response": final_text,
-                        "tool_calls": tool_calls_made,
-                        "iterations": iteration + 1,
-                    }
 
                 if response.stop_reason == "tool_use":
-                    # Process tool calls
-                    assistant_content = []
-                    tool_results = []
-
-                    for block in response.content:
-                        assistant_content.append(block)
-
-                        if block.type == "tool_use":
-                            tool_start = datetime.now(UTC)
-                            tool_input = cast(dict[str, Any], block.input)
-
-                            # Execute tool
-                            result = self.execute_tool(block.name, tool_input)
-
-                            tool_end = datetime.now(UTC)
-                            duration_ms = int((tool_end - tool_start).total_seconds() * 1000)
-
-                            # Record tool call
-                            self._record_tool_call(
-                                run_id,
-                                block.name,
-                                tool_input,
-                                result,
-                                duration_ms,
-                            )
-
-                            tool_calls_made.append(
-                                {
-                                    "name": block.name,
-                                    "input": tool_input,
-                                    "result": result,
-                                }
-                            )
-
-                            # Add tool result to conversation
-                            tool_results.append(
-                                {
-                                    "type": "tool_result",
-                                    "tool_use_id": block.id,
-                                    "content": json.dumps(result),
-                                }
-                            )
+                    assistant_content, tool_results = self._process_tool_calls(
+                        response, run_id, tool_calls_made
+                    )
 
                     # Continue conversation with tool results
                     messages.append({"role": "assistant", "content": assistant_content})  # type: ignore[dict-item]
@@ -208,7 +248,6 @@ class Agent(ABC):
                         len(tool_calls_made),
                         f"Unexpected stop reason: {response.stop_reason}",
                     )
-
                     return {
                         "status": "error",
                         "error": f"Unexpected stop reason: {response.stop_reason}",
@@ -217,12 +256,8 @@ class Agent(ABC):
 
             # Max iterations reached
             self._record_run_complete(
-                run_id,
-                datetime.now(UTC),
-                "max_iterations",
-                len(tool_calls_made),
+                run_id, datetime.now(UTC), "max_iterations", len(tool_calls_made)
             )
-
             return {
                 "status": "max_iterations",
                 "tool_calls": tool_calls_made,
@@ -231,18 +266,8 @@ class Agent(ABC):
 
         except Exception as e:
             logger.error(f"Agent run {run_id} failed: {e}")
-            self._record_run_complete(
-                run_id,
-                datetime.now(UTC),
-                "error",
-                0,
-                str(e),
-            )
-
-            return {
-                "status": "error",
-                "error": str(e),
-            }
+            self._record_run_complete(run_id, datetime.now(UTC), "error", 0, str(e))
+            return {"status": "error", "error": str(e)}
 
     def _record_run_start(self, run_id: str, started_at: datetime) -> None:
         """Record agent run start in database."""
