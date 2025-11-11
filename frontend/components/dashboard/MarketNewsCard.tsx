@@ -21,6 +21,20 @@ export function MarketNewsCard() {
   const [sortBy, setSortBy] = useState<SortOption>("recent");
   const { data: newsData, isLoading, error } = useMarketNews({ maxResults: 50 });
 
+  const articles = newsData?.articles ?? [];
+
+  // Sort articles based on selected option (must be before any conditional returns)
+  const sortedArticles = useMemo(() => {
+    const sorted = [...articles];
+    if (sortBy === "positive") {
+      return sorted.sort((a, b) => b.sentiment.score - a.sentiment.score);
+    } else if (sortBy === "negative") {
+      return sorted.sort((a, b) => a.sentiment.score - b.sentiment.score);
+    }
+    // "recent" - keep original order (already sorted by published_at from backend)
+    return sorted;
+  }, [articles, sortBy]);
+
   if (isLoading) {
     return (
       <Card className="p-6">
@@ -48,20 +62,6 @@ export function MarketNewsCard() {
       </Card>
     );
   }
-
-  const articles = newsData?.articles ?? [];
-
-  // Sort articles based on selected option
-  const sortedArticles = useMemo(() => {
-    const sorted = [...articles];
-    if (sortBy === "positive") {
-      return sorted.sort((a, b) => b.sentiment.score - a.sentiment.score);
-    } else if (sortBy === "negative") {
-      return sorted.sort((a, b) => a.sentiment.score - b.sentiment.score);
-    }
-    // "recent" - keep original order (already sorted by published_at from backend)
-    return sorted;
-  }, [articles, sortBy]);
 
   const displayCount = showAll ? sortedArticles.length : 10;
   const displayedArticles = sortedArticles.slice(0, displayCount);
