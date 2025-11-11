@@ -20,22 +20,16 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **News Source Quality Profiling System (Phase 1)** (HIGH (5-6 hours), 0/11 tasks (today))
-   - File: `tasks-0049-news-source-quality-profiling.md`
-   - Created: 2025-11-11
-   - Goal: Build foundation for intelligent news source quality monitoring and personalization
+1. **News Source Quality Profiling System (Phase 2)** (MEDIUM (4-5 hours), 0/5 tasks)
+   - File: `tasks-0050-news-source-quality-phase2.md` (to be created)
+   - Depends on: Phase 1 ✅ COMPLETE
+   - Goal: Add UI controls and filtering for news source quality personalization
    - Tasks:
-     - [ ] Task 0: Architecture Discovery (MANDATORY)
-     - [ ] Task 1: Backend - Core Metrics Calculation
-     - [ ] Task 2: Backend - Database Schema
-     - [ ] Task 3: Backend - Profiling Celery Task
-     - [ ] Task 4: Backend - User Feedback API
-     - [ ] Task 5: Backend - Source Quality Filtering
-     - [ ] Task 6: Frontend - Status Card UI
-     - [ ] Task 7: Frontend - User Feedback Buttons
-     - [ ] Task 8: Frontend - Settings Sliders
-     - [ ] Task 9: Integration Testing
-     - [ ] Task 10: Documentation and Cleanup
+     - [ ] Task 1: Article Feedback Buttons (👍👎 in news cards)
+     - [ ] Task 2: Settings Weight Sliders (adjust quality formula)
+     - [ ] Task 3: Neutral Article Filtering (hide ±0.2 sentiment)
+     - [ ] Task 4: Historical Metrics Tracking (time-series analysis)
+     - [ ] Task 5: Publisher Tier Classification (A/B/C rating system)
 
 2. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (today))
    - File: `tasks-0042-customizable-dashboard-layouts.md`
@@ -73,7 +67,23 @@
 
 *Last 5 completions - older items auto-archive to tasks/archive/YYYY-MM.md*
 
-1. **Unified News Intelligence Component (Frontend Only - Partial)** (2025-11-11) ⚠️ SUPERSEDED BY 0048
+1. **News Source Quality Profiling System (Phase 1)** (2025-11-11) ⭐ COMPLETE
+   - File: `tasks-0049-news-source-quality-profiling.md`
+   - Duration: 6 hours (implementation + cleanup)
+   - Status: Foundation complete, Phase 2 queued
+   - Achievements:
+     - ✅ 6 quality metrics engine (1,276 lines: metrics, tasks, tests, UI)
+     - ✅ 3 database migrations (source_metrics, user_article_feedback, preferences)
+     - ✅ Celery profiling task (12h schedule + on-demand)
+     - ✅ 6 API endpoints (profiling, stats, feedback, reset)
+     - ✅ Status page SourceQualityCard (10 active vendors displayed)
+     - ✅ 27 new unit tests (all passing, 535 total)
+     - ✅ Dead code cleanup (removed GoogleNewsSource, -163 lines)
+     - ✅ Initial profiling run complete (6,022 articles analyzed)
+   - Results: 10 vendors rated 94-96% quality, metrics updating every 12h
+   - Phase 2: Article feedback buttons, weight sliders, neutral filtering, historical tracking
+
+2. **Unified News Intelligence Component (Frontend Only - Partial)** (2025-11-11) ⚠️ SUPERSEDED BY 0048
    - File: `tasks-0047-unified-news-intelligence-component.md`
    - Duration: 4 hours
    - Status: Frontend component created, but NOT truly unified (different article layouts, missing backend unification)
