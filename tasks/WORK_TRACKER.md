@@ -20,16 +20,30 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **News Source Quality Profiling System (Phase 2)** (MEDIUM (3.5-4 hours), 0/5 tasks (today))
+1. **News Source Quality Profiling System (Phase 2)** (MEDIUM-HIGH (4-5 hours), 1/13 tasks)
    - File: `tasks-0050-news-source-quality-phase2.md`
    - Created: 2025-11-11
-   - Goal: Make article feedback actually affect what users see - not just data collection
+   - Updated: 2025-11-11 (Task 0 checkpoint complete, Option D chosen)
+   - Goal: ML model that identifies quality articles (not fluff/marketing/spam) + continuous improvement via structured feedback
+   - **Approach**: Option D (AI-Assisted Labeling + ML Training)
+   - **Why Option D**: Zero organic feedback data, sklearn already installed, gets us real ML immediately
    - Tasks:
-     - [ ] Task 0: Discover Best Approach for Feedback-Based Ranking (MANDATORY) (0.5 hours)
-     - [ ] Task 1: Article Feedback Buttons (Full Implementation) (1.5 hours)
-     - [ ] Task 2: Implement Chosen Approach (1.5 hours)
-     - [ ] Task 3: Settings Weight Sliders (1 hour)
-     - [ ] Task 4: Neutral Article Filtering (0.5 hours)
+     - [x] Task 0: Discover Best Approach (✅ COMPLETE - Option D chosen)
+     - **Phase 2a: AI Labeling + ML Training (2 hours)**
+     - [ ] Task 1: Data Collection & AI Labeling (45 min) - Label 200-500 articles, discover feedback reason patterns
+     - [ ] Task 2: User Validation (15 min) - Review AI labels, import to database
+     - [ ] Task 3: ML Model Training (30 min) - Train sklearn classifier, >70% accuracy target
+     - [ ] Task 4: Integrate Quality Predictions (30 min) - Rank articles by quality
+     - [ ] Task 5: Quality Confidence UI (15 min) - Display quality badges (87% = trustworthy)
+     - **Phase 2b: Structured Feedback Reasons (1.5 hours)**
+     - [ ] Task 6: Database Schema (10 min) - Migration 029 for feedback_reasons JSONB
+     - [ ] Task 7: Feedback Reasons Discovery - Use patterns from Task 1.3 (clickbait, vague, etc.)
+     - [ ] Task 8: API Update (15 min) - Accept feedback_reasons array
+     - [ ] Task 9: Feedback Reasons UI (45 min) - Multiple select dialog on thumbs down
+     - [ ] Task 10: Feedback Dashboard (20 min) - Show reason breakdown per vendor
+     - **Phase 2c: Model Retraining (1 hour)**
+     - [ ] Task 11: Feature Engineering (30 min) - New features from feedback patterns
+     - [ ] Task 12: Automated Retraining (30 min) - Weekly Celery task, model versioning
 
 2. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (today))
    - File: `tasks-0042-customizable-dashboard-layouts.md`

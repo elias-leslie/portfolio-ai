@@ -1,453 +1,560 @@
 # Task List: News Source Quality Profiling System (Phase 2)
 
-**Source**: Phase 1 completion - User controls and quality-based filtering
-**Complexity**: MEDIUM (3 UI components + quality-based selection logic)
-**Effort**: MEDIUM (3.5-4 hours)
+**Source**: Task 0 Checkpoint Complete - Option D (AI-Assisted Labeling) chosen
+**Complexity**: MEDIUM-HIGH (ML training + UI components)
+**Effort**: 4-5 hours total (2 hours Phase 2a, 1.5 hours Phase 2b, 1 hour Phase 2c)
 **Environment**: Local Dev
 **Created**: 2025-11-11
-**Updated**: 2025-11-11 (removed historical tracking & tier classification)
-**Depends on**: Phase 1 ✅ COMPLETE
+**Updated**: 2025-11-11 (Task 0 checkpoint: Option D chosen, feedback reasons to be determined in Phase 2a)
+**Depends on**: Phase 1 ✅ COMPLETE, Task 0 ✅ COMPLETE
+
+---
+
+## Task 0 Checkpoint Results ✅ COMPLETE
+
+**Decision**: **Option D - AI-Assisted Labeling + ML Training**
+
+**Research Findings:**
+1. **ML Infrastructure**: ✅ sklearn already installed (scikit-learn>=1.3.0), used for cosine_similarity
+2. **Feedback Data**: ❌ ZERO samples (Phase 1 just launched, no organic feedback yet)
+3. **Complexity Analysis**:
+   - Option A (vendor-level): 1 hour, works now, limited learning
+   - Option B (ML classifier): 3 hours, needs data (blocked by 0 samples)
+   - Option C (hybrid): 1 hour now + 2 hours later
+   - **Option D (AI labeling)**: 2 hours now, gets us real ML immediately
+
+**Why Option D Wins:**
+- ✅ No waiting for organic feedback (we have 0 samples)
+- ✅ Consistent labeling (AI applies same criteria to all articles)
+- ✅ Scalable (label 200-500 articles in minutes)
+- ✅ User validates labels before training
+- ✅ Real ML from day one (not just vendor aggregation)
+- ✅ Quality confidence indicator (builds user trust)
+- ✅ Structured feedback reasons (improves model over time)
+
+**End Goal (User-Stated):**
+> "ML model knows whether a given article is good (not fluff, not marketing, not spam, not junk, helpful, useful, gives us edge, shows true sentiment/facts about a ticker or the market)"
 
 ---
 
 ## Summary
 
-**Goal**: Make article feedback actually affect what users see - not just data collection
+**Phase 2a Goal**: Train initial ML model with AI-labeled data + quality confidence indicator
+**Phase 2b Goal**: Add structured feedback reasons (multiple select) for continuous improvement
+**Phase 2c Goal**: Retrain model with user feedback, optimize features
 
-**Phase 2 Scope:**
-- 👍👎 Article feedback buttons that TRAIN the model (affects future article selection)
-- ⚖️ Settings weight sliders (adjust quality formula: duplicate/diversity/confidence/freshness/feedback)
-- 🎯 Neutral article filter toggle (hide articles with sentiment ±0.2)
-- 🔍 **Quality-based article ranking** (de-prioritize low-quality vendors based on feedback)
-
-**NOT in Phase 2** (removed as low-value):
-- ❌ Historical metrics tracking (need months of data, not actionable yet)
-- ❌ Publisher tier classification (redundant with existing quality badges)
-
-**Why This Matters:**
-- Phase 1 built the infrastructure but doesn't USE quality scores yet
-- Feedback must CHANGE what articles appear, not just collect data
-- De-prioritize vendors when user dislikes their articles
-- Boost vendors when user likes their articles
+**Complete Flow:**
+1. AI labels 200-500 existing articles (useful vs not useful)
+2. User validates labels (spot check ~20%, fix mistakes)
+3. Train sklearn binary classifier on validated labels
+4. Integrate predictions with quality confidence display
+5. Add feedback reason buttons (clickbait, vague, marketing, etc.)
+6. Retrain model weekly with new feedback + discovered patterns
+7. Feature engineering based on feedback reason analysis
 
 ---
 
-## Tasks
+## Quality Criteria (for AI Labeling)
 
-### Task 0: Discover Best Approach for Feedback-Based Ranking (MANDATORY) (0.5 hours)
+**USEFUL (thumbs up 👍):**
+- Earnings beats/misses with specific numbers (e.g., "EPS $2.50 vs $2.30 expected")
+- Regulatory filings (8-K, 10-K, insider trades, Form 4)
+- Analyst upgrades/downgrades with price targets (e.g., "JPM raises AAPL to $200")
+- Material contracts/partnerships (e.g., "$500M deal with Tesla")
+- Executive changes, guidance updates, dividend announcements
+- Objective data (revenue growth %, margin expansion, user metrics)
+- Sector-specific insights (FDA approvals, oil production, chip demand)
 
-**Goal**: Research and choose the RIGHT approach for using feedback to affect article selection
+**NOT USEFUL (thumbs down 👎):**
+- "Should you buy XYZ stock?" articles (opinion without data)
+- Recycled content from other articles (same info, different headline)
+- Marketing/promotional content (sponsored, affiliate links)
+- Vague speculation ("could reach new highs", "analysts say")
+- Listicles ("5 stocks to watch", "3 reasons to buy")
+- Content-farm spam (low-quality aggregators)
+- Clickbait headlines ("You won't believe...", "This one trick...")
 
-**CRITICAL**: Don't just implement something - discover what actually works and is maintainable!
+---
 
-**Options to Evaluate:**
+## Phase 2a: AI Labeling + ML Training + Quality Confidence (2 hours)
 
-**Option A: Vendor-Level Reputation Scores** (Simple)
-- What it is: Aggregate feedback per vendor (user_useful_rate), use to weight article selection
-- How it works:
-  - Polygon: 20 thumbs up, 5 thumbs down = 80% useful rate
-  - Article selection: if random.random() < 0.80: include polygon articles
-- Pros: Simple weighted average, no ML dependencies, maintainable by any dev
-- Cons: Doesn't learn article-level patterns (headline style, topic, author), only vendor reputation
-- Is it "training"? Barely - it's just counting likes/dislikes per vendor
-- Good enough? Maybe - if vendor is primary signal of quality
+### Task 1: Data Collection & AI Labeling (45 minutes)
 
-**Option B: ML Article Classifier** (Real Training)
-- What it is: Train sklearn model to predict "will user find this useful?" per article
-- Features: vendor, sentiment_score, headline_keywords, article_length, time_of_day, author, topic
-- Model: LogisticRegression or RandomForestClassifier (scikit-learn)
-- How it works:
-  - Collect training data: (article_features, is_useful) from user_article_feedback
-  - Train model: clf.fit(features, labels)
-  - Predict: usefulness_score = clf.predict_proba(article_features)
-  - Rank articles by usefulness_score
-- Pros: ACTUALLY learns patterns, can discover "user likes negative sentiment on TSLA but positive on AAPL"
-- Cons: Requires sklearn, training pipeline, model versioning, retraining schedule, more complexity
-- Is it "training"? YES - real machine learning
-- Supportable? Medium - needs someone who understands ML to maintain
-- Needs: >100 feedback samples to train reliably
+**Goal**: Label 200-500 existing articles from news_cache with consistent quality criteria
 
-**Option C: Hybrid Progressive** (Start Simple, Add ML Later)
-- Phase 2a: Vendor-level scores (ship fast, works now)
-- Phase 2b: Add ML classifier when proven useful (>500 feedback samples collected)
-- Pros: Progressive enhancement, don't over-engineer before validating engagement
-- Cons: Eventually maintaining two systems (or migrating)
+- [ ] 1.1 Query articles from news_cache
+  - [ ] SQL: `SELECT ticker, headline, summary, url, vendor, sentiment_score, content_hash FROM news_cache ORDER BY fetched_at DESC LIMIT 500;`
+  - [ ] Export to JSON for processing
+  - [ ] Verify: Mix of vendors (polygon, finnhub, sec_edgar, fmp, benzinga)
+  - [ ] Target: 200-500 articles (minimum 100 for training)
 
-**Research Tasks:**
-- [ ] 0.1 Check existing codebase for ML infrastructure
-  - [ ] Search for: sklearn, joblib, model training, feature engineering
-  - [ ] Check: Do we already train models anywhere? (technical analysis? sentiment?)
-  - [ ] Result: Can we reuse existing patterns or starting from scratch?
+- [ ] 1.2 AI labels each article
+  - [ ] For each article: Apply quality criteria (see above)
+  - [ ] Output format: `{content_hash: str, is_useful: bool, reason: str, confidence: str}`
+  - [ ] Confidence levels: "high" (obvious), "medium" (borderline), "low" (unsure)
+  - [ ] Save to: `data/ai_labels_phase2a.json`
 
-- [ ] 0.2 Estimate data requirements for Option B
-  - [ ] Check: How many user_article_feedback rows exist?
-  - [ ] Calculate: Need ~100 samples minimum for binary classifier
-  - [ ] Decision: Do we have enough data NOW or need to collect first?
+- [ ] 1.3 **CRITICAL: Discover feedback reason patterns**
+  - [ ] Track WHY articles are labeled "not useful"
+  - [ ] Count occurrences: clickbait (X), vague (Y), marketing (Z), duplicate (W)
+  - [ ] Identify top 5-7 patterns that appear most frequently
+  - [ ] Document for Phase 2b: "These are the ACTUAL reasons articles fail quality"
+  - [ ] Output: `data/feedback_reasons_analysis.json`
 
-- [ ] 0.3 Evaluate complexity vs value
-  - [ ] Option A: 1 hour implementation, works immediately, limited learning
-  - [ ] Option B: 3 hours implementation, needs data collection period, real learning
-  - [ ] Option C: 1 hour now + 2 hours later, staged approach
-
-- [ ] 0.4 Checkpoint - Present findings and get user decision
-  - [ ] Summary: "Found X existing ML infrastructure, Y feedback samples"
-  - [ ] Recommendation: "Option [A/B/C] because [reason]"
-  - [ ] User confirms approach before implementing
+**Output Files:**
+- `data/ai_labels_phase2a.json` - AI labels for all articles
+- `data/feedback_reasons_analysis.json` - Feedback reason frequency analysis
 
 **Verification:**
 ```bash
-# Check for ML infrastructure
-cd ~/portfolio-ai/backend
-grep -r "sklearn\|joblib\|RandomForest\|LogisticRegression" app/ --include="*.py" | head -10
+# Check label distribution
+jq '[.[] | .is_useful] | group_by(.) | map({useful: .[0], count: length})' data/ai_labels_phase2a.json
 
-# Check feedback data volume
-psql -U portfolio_ai_user -d portfolio_ai -c "SELECT COUNT(*) FROM user_article_feedback;"
-
-# Check if we already train models
-find app/ -name "*train*" -o -name "*model*" | grep -v __pycache__
+# Expected: ~40-60% useful, ~40-60% not useful (balanced)
 ```
-
-**Decision Criteria:**
-
-Use **Option A** if:
-- ✅ No existing ML infrastructure
-- ✅ <100 feedback samples
-- ✅ Want to ship fast and validate engagement first
-- ✅ Primary quality signal IS vendor reputation
-
-Use **Option B** if:
-- ✅ Already have sklearn in dependencies
-- ✅ >100 feedback samples or willing to collect first
-- ✅ Want article-level personalization (not just vendor)
-- ✅ Have ML expertise on team
-
-Use **Option C** if:
-- ✅ Uncertain about engagement levels
-- ✅ Want to validate before investing in ML
-- ✅ Prefer iterative approach
 
 ---
 
-### Task 1: Article Feedback Buttons (Full Implementation) (1.5 hours)
+### Task 2: User Validation (15 minutes)
 
-**Goal**: Thumbs up/down affects future article selection from that vendor
+**Goal**: User reviews AI labels for accuracy, fixes mistakes
 
-**Backend Changes:**
-- [x] 1.1 API endpoints already exist (Phase 1)
-  - POST `/api/news/article-feedback` - saves feedback ✅
-  - GET `/api/news/article-feedback/{hash}` - retrieves feedback ✅
-  - Backend calculates `user_useful_rate` per vendor ✅
+- [ ] 2.1 User spot checks ~20% of labels (40-100 articles)
+  - [ ] Read AI reasoning for each label
+  - [ ] Correct any mistakes: flip is_useful, update reason
+  - [ ] Flag edge cases: Add to validation notes
+  - [ ] Update: `data/ai_labels_phase2a.json` with corrections
 
-- [ ] 1.2 Verify feedback updates quality scores
-  - [ ] Test: Submit feedback → trigger profiling → verify quality_score changes
-  - [ ] Quality score formula already includes user_useful_rate (weighted 10%)
-  - [ ] Confirm: More thumbs down → lower quality_score for that vendor
+- [ ] 2.2 Import validated labels to database
+  - [ ] Create temporary import script
+  - [ ] INSERT INTO user_article_feedback (article_hash, is_useful, vendor, article_url, user_id)
+  - [ ] Use content_hash to match articles
+  - [ ] Verify: `SELECT COUNT(*) FROM user_article_feedback;` shows 200-500 rows
 
-**Frontend Changes:**
-- [ ] 1.3 Add feedback buttons to `UnifiedNewsIntelligenceCard.tsx`
-  - [ ] Location: Below each article, next to vendor name
-  - [ ] Icons: ThumbsUp/ThumbsDown from lucide-react
-  - [ ] States: Default (gray), Active (green/red), Disabled (loading)
-  - [ ] Click handler: POST to `/api/news/article-feedback`
-
-- [ ] 1.4 Load existing feedback on mount
-  - [ ] For each article: GET `/api/news/article-feedback/{hash}`
-  - [ ] Highlight already-rated articles
-  - [ ] Show count: "You've rated X articles from {vendor}"
-
-- [ ] 1.5 Visual feedback
-  - [ ] Optimistic update (instant UI change)
-  - [ ] Toast notification: "Feedback saved - {vendor} useful rate now X%"
-  - [ ] Disable buttons after rating (prevent double-voting)
-
-**Testing:**
+**Verification:**
 ```bash
-# 1. Click thumbs down on polygon article
-# 2. Verify: POST succeeds, button turns red
-# 3. Check database:
-psql -U portfolio_ai_user -d portfolio_ai -c "SELECT vendor, is_useful FROM user_article_feedback ORDER BY created_at DESC LIMIT 5;"
-
-# 4. Trigger profiling:
-curl -X POST http://localhost:8000/api/news/profile-sources
-
-# 5. Wait 5 seconds, check quality score decreased:
-curl http://localhost:8000/api/news/source-stats/polygon | jq '.quality_score, .user_useful_rate'
+# Check imported labels
+psql -U portfolio_ai_user -d portfolio_ai -c "
+SELECT
+  vendor,
+  COUNT(*) as total,
+  SUM(CASE WHEN is_useful THEN 1 ELSE 0 END) as useful,
+  SUM(CASE WHEN NOT is_useful THEN 1 ELSE 0 END) as not_useful
+FROM user_article_feedback
+GROUP BY vendor
+ORDER BY total DESC;
+"
 ```
 
 ---
 
-### Task 2: Implement Chosen Approach (1.5 hours)
+### Task 3: ML Model Training (30 minutes)
 
-**Goal**: Implement the approach chosen in Task 0 - NOT DECIDED YET!
+**Goal**: Train sklearn binary classifier on validated labels
 
-**CRITICAL**: This is the missing piece that makes feedback actionable!
+- [ ] 3.1 Create `backend/app/ml/article_quality_classifier.py`
+  - [ ] Feature extraction function: `extract_features(article) -> dict`
+    - Features: vendor (one-hot encoded), sentiment_score, headline_length, has_numbers, has_question_mark, sentiment_confidence
+  - [ ] Training function: `train_classifier(training_data) -> model`
+    - Model: LogisticRegression (interpretable) or RandomForestClassifier (better accuracy)
+    - Split: 80% train, 20% test
+    - Metrics: accuracy, precision, recall, F1 score
+  - [ ] Prediction function: `predict_quality(article) -> (is_useful: bool, confidence: float)`
+    - Returns: Binary prediction + probability [0.0-1.0]
+  - [ ] Save model: `joblib.dump(model, 'models/article_quality_v1.joblib')`
 
-**Implementation depends on Task 0 decision:**
+- [ ] 3.2 Create training script
+  - [ ] `backend/app/ml/train_quality_model.py`
+  - [ ] Queries user_article_feedback for training data
+  - [ ] Joins with news_cache to get article features
+  - [ ] Trains model, logs metrics, saves to disk
+  - [ ] Usage: `python -m app.ml.train_quality_model`
 
----
+- [ ] 3.3 Train initial model
+  - [ ] Run: `cd backend && source .venv/bin/activate && python -m app.ml.train_quality_model`
+  - [ ] Target metrics: accuracy >70%, precision >65%
+  - [ ] Review feature importance (which features matter most?)
+  - [ ] Save: `models/article_quality_v1.joblib`
 
-#### If Option A Chosen: Vendor-Level Reputation Scoring
-
-**Backend Changes:**
-- [ ] 2.1 Modify `NewsService._select_articles_for_ticker()` to use quality scores
-  - [ ] Currently: Random/time-based selection from all vendors
-  - [ ] New: Weight selection by quality_score
-  - [ ] Algorithm:
-    ```python
-    # Load latest quality scores for all vendors
-    quality_map = _load_vendor_quality_scores()
-
-    # Weight articles by vendor quality
-    # quality_score=0.95 → 95% chance to include
-    # quality_score=0.60 → 60% chance to include
-    for article in all_articles:
-        vendor = article['vendor']
-        quality = quality_map.get(vendor, 0.70)  # Default 0.70 if no score
-        if random.random() < quality:
-            selected_articles.append(article)
-    ```
-
-- [ ] 2.2 Add `_load_vendor_quality_scores()` helper
-  - [ ] Query: Latest quality_score per vendor from source_metrics
-  - [ ] Cache for 1 hour (quality doesn't change rapidly)
-  - [ ] Return: Dict[vendor, quality_score]
-
-- [ ] 2.3 Update article selection to respect quality weights
-  - [ ] Apply weighting BEFORE balanced view selection
-  - [ ] Still maintain 3 positive + 3 negative balance
-  - [ ] Log: "Selected X/{total} articles (quality-weighted)"
-
-**Algorithm Example:**
-```python
-def _select_articles_for_ticker(self, articles: list, max_articles: int) -> list:
-    """Select articles using quality-based weighting."""
-    # Load vendor quality scores (cached)
-    quality_scores = self._load_vendor_quality_scores()
-
-    # Weight each article by vendor quality
-    weighted_articles = []
-    for article in articles:
-        vendor = article.get('vendor', 'unknown')
-        quality = quality_scores.get(vendor, 0.70)  # Default if no profiling yet
-
-        # Higher quality = higher probability of inclusion
-        if random.random() < quality:
-            weighted_articles.append(article)
-
-    # If too few articles after weighting, add more (ensure min 6)
-    if len(weighted_articles) < 6:
-        remaining = [a for a in articles if a not in weighted_articles]
-        weighted_articles.extend(remaining[:6 - len(weighted_articles)])
-
-    # Apply balanced view (3 positive + 3 negative)
-    return self._apply_balanced_view(weighted_articles, max_articles)
-```
-
-**Testing (Option A):**
+**Verification:**
 ```bash
-# 1. Rate polygon articles as "not useful" (thumbs down) 5 times
-# 2. Rate finnhub articles as "useful" (thumbs up) 5 times
-# 3. Trigger profiling (updates quality scores)
-# 4. Refresh watchlist news
-# 5. Verify: More finnhub articles, fewer polygon articles
-# 6. Check logs for: "Selected X/{total} articles (quality-weighted)"
+# Train model
+cd ~/portfolio-ai/backend && source .venv/bin/activate
+python -m app.ml.train_quality_model
+
+# Expected output:
+# Training on 400 samples (320 train, 80 test)
+# Accuracy: 0.75
+# Precision: 0.72
+# Recall: 0.70
+# F1 Score: 0.71
+# Model saved to: models/article_quality_v1.joblib
 ```
 
 ---
 
-#### If Option B Chosen: ML Article Classifier
+### Task 4: Integrate Quality Predictions (30 minutes)
 
-**Backend Changes:**
-- [ ] 2.1 Create `app/ml/article_classifier.py` module
-  - [ ] Feature extraction: extract_features(article) → dict
-  - [ ] Features: vendor (one-hot), sentiment_score, headline_length, time_of_day, article_age
-  - [ ] Training: train_classifier(feedback_data) → trained model
-  - [ ] Prediction: predict_usefulness(article) → float [0-1]
+**Goal**: Use trained model to score articles + display quality confidence
 
-- [ ] 2.2 Add training pipeline
-  - [ ] Query user_article_feedback for training data
-  - [ ] Split: 80% train, 20% test
-  - [ ] Train: RandomForestClassifier or LogisticRegression
-  - [ ] Save model: joblib.dump(model, 'models/article_classifier.joblib')
-  - [ ] Log metrics: accuracy, precision, recall
+- [ ] 4.1 Load model in NewsService
+  - [ ] Add: `self.quality_model = joblib.load('models/article_quality_v1.joblib')` in __init__
+  - [ ] Graceful fallback: If model doesn't exist, skip predictions
+  - [ ] Log: "Quality model loaded: article_quality_v1.joblib"
 
-- [ ] 2.3 Integrate predictions into article selection
-  - [ ] Load trained model on startup
-  - [ ] For each article: usefulness_score = model.predict_proba(features)[1]
-  - [ ] Rank articles by usefulness_score
-  - [ ] Select top N after ranking
+- [ ] 4.2 Add quality scoring to article pipeline
+  - [ ] Function: `_score_article_quality(article: NewsArticle) -> None`
+  - [ ] Extract features, predict quality, add to article
+  - [ ] article.quality_prediction = is_useful (bool)
+  - [ ] article.quality_confidence = confidence (0.0-1.0)
+  - [ ] Apply AFTER sentiment scoring, BEFORE article selection
 
-- [ ] 2.4 Add retraining schedule
-  - [ ] Celery task: retrain model weekly or when >50 new feedback samples
-  - [ ] Monitor: Model performance degrades? Retrain more frequently
+- [ ] 4.3 Rank articles by quality in selection
+  - [ ] Modify: `_select_articles_for_ticker()` to prefer high-quality articles
+  - [ ] Sort by: quality_confidence DESC (show most confident good articles first)
+  - [ ] Still maintain balanced view: 3 positive + 3 negative sentiment
+  - [ ] Log: "Selected 6 articles (avg quality: 0.78)"
 
-**Testing (Option B):**
+- [ ] 4.4 Add quality fields to API response
+  - [ ] Update: SentimentArticle model in `news.py`
+  - [ ] Add fields: quality_prediction (bool), quality_confidence (float)
+  - [ ] Include in: `/api/news/ticker/{symbol}` response
+
+**Backend Files:**
+- `backend/app/ml/article_quality_classifier.py` - Feature extraction, training, prediction
+- `backend/app/ml/train_quality_model.py` - Training script
+- `backend/models/article_quality_v1.joblib` - Trained model
+- `backend/app/services/news_service.py` - Integration with article pipeline
+
+**Verification:**
 ```bash
-# 1. Collect 100+ feedback samples (thumbs up/down)
-# 2. Train initial model: python -m app.ml.article_classifier train
-# 3. Check model metrics: accuracy >70%, precision >65%
-# 4. Refresh news - verify articles ranked by usefulness
-# 5. Continue collecting feedback
-# 6. Retrain after 1 week - verify accuracy improves
+# Restart backend
+bash ~/portfolio-ai/scripts/restart.sh
+
+# Check model loaded
+tail -100 /var/log/portfolio-ai/backend-error.log | grep "Quality model"
+
+# Fetch news for ticker
+curl http://192.168.8.233:8000/api/news/ticker/AAPL | jq '.articles[0] | {headline, quality_prediction, quality_confidence}'
+
+# Expected:
+# {
+#   "headline": "Apple Reports Q4 Earnings Beat",
+#   "quality_prediction": true,
+#   "quality_confidence": 0.87
+# }
 ```
 
 ---
 
-#### If Option C Chosen: Hybrid Progressive
+### Task 5: Quality Confidence UI (15 minutes)
 
-**Phase 2a: Implement Option A** (vendor-level, 1 hour)
-- See Option A implementation above
-- Ship this immediately to validate engagement
+**Goal**: Display quality confidence badge in article cards
 
-**Phase 2b: Upgrade to Option B** (ML classifier, 2 hours later)
-- Implement when >500 feedback samples collected
-- Migrate from vendor-level to article-level predictions
-- Gradual rollout: 10% → 50% → 100% of users
+- [ ] 5.1 Update UnifiedNewsIntelligenceCard.tsx
+  - [ ] Add quality badge next to sentiment badge
+  - [ ] Display: "Quality: 87%" (green ≥70%, yellow 50-70%, gray <50%)
+  - [ ] Tooltip: "AI prediction based on X similar articles"
+  - [ ] Position: Below headline, before vendor/time
 
-**Testing (Option C):**
+- [ ] 5.2 Visual design
+  - [ ] Badge style: Small pill badge, non-intrusive
+  - [ ] Colors: green-500 (high), yellow-500 (medium), gray-400 (low)
+  - [ ] Icon: CheckCircle (high), AlertCircle (medium), HelpCircle (low)
+
+**UI Example:**
+```
+📰 Apple Reports Q4 Earnings Beat, Revenue Up 12%   [link icon]
+    ✓ Quality: 87%  POSITIVE  +0.82
+    POLYGON • WSJ • 2 hours ago
+```
+
+**Verification:**
 ```bash
-# Week 1: Ship Option A, monitor engagement
-# Week 2-4: Collect 500+ feedback samples
-# Week 5: Implement Option B upgrade if engagement validates
+# Take screenshot
+node ~/portfolio-ai/.claude/skills/browser-automation/scripts/expand-and-screenshot.js \
+  http://192.168.8.233:3000/watchlist AAPL /tmp/quality-confidence.png
+
+# Verify: Quality badges visible on all articles
 ```
 
 ---
 
-### Task 3: Settings Weight Sliders (1 hour)
+## Phase 2b: Structured Feedback Reasons (1.5 hours)
 
-**Goal**: User adjusts quality formula weights in real-time
+### Task 6: Database Schema for Feedback Reasons (10 minutes)
 
-**Frontend Changes:**
-- [ ] 3.1 Create `SourceQualityWeights.tsx` component
-  - [ ] 5 sliders with labels:
-    - Duplicate Penalty (default 30%)
-    - Diversity Score (default 25%)
-    - Confidence Average (default 20%)
-    - Freshness Score (default 15%)
-    - User Feedback (default 10%)
-  - [ ] Auto-normalize to 100% on change
-  - [ ] Show preview: "New quality scores will be calculated on next profiling run"
+**Goal**: Store structured feedback reasons (not just thumbs up/down)
 
-- [ ] 3.2 Add to settings page under "News Preferences"
-  - [ ] Section header: "News Source Quality Weights"
-  - [ ] Description: "Adjust how quality scores are calculated. Higher weight = more important."
-  - [ ] "Reset to Defaults" button
+- [ ] 6.1 Create migration 029
+  - [ ] ALTER TABLE user_article_feedback ADD COLUMN feedback_reasons JSONB;
+  - [ ] ALTER TABLE user_article_feedback ADD COLUMN feedback_note TEXT;
+  - [ ] COMMENT: "feedback_reasons stores array of selected reasons, feedback_note for optional free text"
 
-- [ ] 3.3 Save preferences
-  - [ ] PATCH `/api/preferences` with new weights
-  - [ ] Update columns: source_duplicate_weight, source_diversity_weight, etc.
-  - [ ] Toast: "Weights saved. Trigger profiling to recalculate quality scores."
+- [ ] 6.2 Run migration
+  - [ ] psql -U portfolio_ai_user -d portfolio_ai -f migrations/029_feedback_reasons.sql
+  - [ ] psql -U portfolio_ai_user -d portfolio_ai_test -f migrations/029_feedback_reasons.sql
 
-**Backend Changes:**
-- [x] 3.4 Preferences columns already exist (Phase 1) ✅
-- [x] 3.5 `load_quality_weights_from_preferences()` already implemented ✅
-- [ ] 3.6 Verify profiling task uses user weights
-  - [ ] Check: `profile_news_sources_task` loads preferences
-  - [ ] Confirm: Quality scores recalculated with new weights
-
-**Testing:**
-```bash
-# 1. Adjust sliders (e.g., User Feedback to 50%, Duplicate Penalty to 10%)
-# 2. Save preferences
-# 3. Trigger profiling: curl -X POST http://localhost:8000/api/news/profile-sources
-# 4. Wait 5 seconds
-# 5. Check quality scores changed based on new weights:
-curl http://localhost:8000/api/news/source-stats | jq '.[] | "\(.vendor): \(.quality_score)"'
+**Example Data:**
+```json
+{
+  "article_hash": "abc123",
+  "is_useful": false,
+  "feedback_reasons": ["clickbait", "too_vague"],
+  "feedback_note": "Headline says 'huge news' but article is speculation"
+}
 ```
 
 ---
 
-### Task 4: Neutral Article Filtering (0.5 hours)
+### Task 7: Feedback Reasons Discovery (FROM PHASE 2A) ⚠️ CRITICAL
 
-**Goal**: Hide neutral articles (sentiment ±0.2) with a settings toggle
+**Goal**: Use Phase 2a analysis to determine the RIGHT feedback reasons
 
-**Backend Changes:**
-- [ ] 4.1 Update `NewsService.get_ticker_news()` to respect filter
-  - [ ] Load `user_preferences.filter_neutral_articles`
-  - [ ] Filter: `article['sentiment'] < -0.2 OR article['sentiment'] > 0.2`
-  - [ ] Apply BEFORE quality weighting and balanced view selection
-  - [ ] Log: "Filtered X neutral articles (threshold: ±0.2)"
+**Input**: `data/feedback_reasons_analysis.json` from Task 1.3
 
-- [ ] 4.2 Update `/api/news/ticker/{symbol}` endpoint
-  - [ ] Load filter preference from database
-  - [ ] Pass to NewsService
+**Expected Patterns** (to be confirmed by AI labeling):
+- Clickbait/misleading headline
+- Too vague/lacks specifics
+- Recycled/duplicate content
+- Marketing/promotional spam
+- Wrong sentiment (mismatch between headline and content)
+- Outdated information
+- Not relevant to ticker
+- Generic market commentary
 
-**Frontend Changes:**
-- [ ] 4.3 Add toggle to settings page
-  - [ ] Label: "Hide Neutral Articles"
-  - [ ] Description: "Only show articles with clear sentiment (±0.2 threshold)"
-  - [ ] Checkbox component with save to preferences
-  - [ ] Default: OFF (show all articles)
+**Output**: Final list of 5-7 multiple-select options for Phase 2b UI
 
-**Testing:**
+**⚠️ DO NOT GUESS** - Use actual patterns discovered during AI labeling in Task 1.3!
+
+---
+
+### Task 8: API Update for Feedback Reasons (15 minutes)
+
+**Goal**: Accept structured feedback reasons from frontend
+
+- [ ] 8.1 Update ArticleFeedbackRequest model
+  - [ ] Add: feedback_reasons: list[str] | None = None
+  - [ ] Add: feedback_note: str | None = None
+  - [ ] Validation: feedback_reasons must be from allowed list
+
+- [ ] 8.2 Update feedback endpoint
+  - [ ] INSERT feedback_reasons as JSONB
+  - [ ] INSERT feedback_note as TEXT
+  - [ ] Log: "Feedback with reasons: {reasons}"
+
+**Files:**
+- `backend/app/api/news.py` - ArticleFeedbackRequest update
+
+---
+
+### Task 9: Feedback Reasons UI (45 minutes)
+
+**Goal**: Multiple-select dialog for "why not useful?"
+
+- [ ] 9.1 Create FeedbackDialog component
+  - [ ] Shows when user clicks thumbs down
+  - [ ] Multiple checkboxes (based on Task 7 discovery)
+  - [ ] Optional text area: "Additional notes"
+  - [ ] Submit button: "Submit Feedback"
+
+- [ ] 9.2 Checkbox options (DETERMINED IN TASK 7):
+  - [ ] [  ] Clickbait/misleading headline
+  - [ ] [  ] Too vague/lacks specifics
+  - [ ] [  ] Recycled/duplicate content
+  - [ ] [  ] Marketing/promotional
+  - [ ] [  ] Wrong sentiment
+  - [ ] [  ] Other (show textarea if checked)
+
+- [ ] 9.3 Integration
+  - [ ] Update UnifiedNewsIntelligenceCard.tsx
+  - [ ] Thumbs up: Simple POST (no dialog)
+  - [ ] Thumbs down: Show FeedbackDialog → POST with reasons
+  - [ ] Visual feedback: Toast with selected reasons
+
+**UI Example:**
+```
+[Dialog] Why wasn't this helpful?
+
+☑ Clickbait headline
+☑ Too vague/lacks specifics
+☐ Duplicate content
+☐ Marketing/promotional
+☐ Wrong sentiment
+
+[Additional notes (optional)]
+"Headline says 'huge earnings' but article doesn't mention numbers"
+
+[Cancel]  [Submit Feedback]
+```
+
+---
+
+### Task 10: Feedback Dashboard (20 minutes)
+
+**Goal**: Show vendor feedback reason breakdown
+
+- [ ] 10.1 Create SourceFeedbackBreakdown component
+  - [ ] Query: Count feedback_reasons per vendor
+  - [ ] Display: "Polygon: 40% clickbait, 30% vague, 20% marketing"
+  - [ ] Chart: Horizontal bar chart per vendor
+  - [ ] Add to: Status page → SourceQualityCard section
+
+- [ ] 10.2 API endpoint
+  - [ ] GET `/api/news/feedback-breakdown`
+  - [ ] Returns: vendor → reason → count
+  - [ ] Example: `{"polygon": {"clickbait": 12, "too_vague": 8}, "finnhub": {"clickbait": 2}}`
+
+**Verification:**
 ```bash
-# 1. Enable "Hide Neutral Articles" in settings
-# 2. Refresh watchlist news
-# 3. Check: All articles have sentiment < -0.2 or > 0.2
-# 4. Backend logs: "Filtered X neutral articles"
-psql -U portfolio_ai_user -d portfolio_ai -c "SELECT COUNT(*) FROM news_cache WHERE sentiment_score BETWEEN -0.2 AND 0.2;"
+# Submit feedback with reasons
+# Check database
+psql -U portfolio_ai_user -d portfolio_ai -c "
+SELECT vendor, feedback_reasons, COUNT(*)
+FROM user_article_feedback
+WHERE feedback_reasons IS NOT NULL
+GROUP BY vendor, feedback_reasons;
+"
+```
+
+---
+
+## Phase 2c: Model Retraining & Feature Engineering (1 hour)
+
+### Task 11: Feature Engineering from Feedback Reasons (30 minutes)
+
+**Goal**: Add new features discovered from feedback analysis
+
+- [ ] 11.1 Analyze feedback reason patterns
+  - [ ] Query: Most common reasons per vendor
+  - [ ] Discover: "Clickbait" correlated with question marks, superlatives
+  - [ ] Discover: "Too vague" correlated with short headlines, no numbers
+
+- [ ] 11.2 Engineer new features
+  - [ ] has_question_mark: bool (clickbait indicator)
+  - [ ] has_superlatives: bool ("huge", "massive", "incredible")
+  - [ ] has_numbers: bool (specificity indicator)
+  - [ ] headline_specificity_score: float (0-1 based on concrete nouns)
+  - [ ] vendor_clickbait_rate: float (historical clickbait % for vendor)
+
+- [ ] 11.3 Update feature extraction
+  - [ ] Modify: `extract_features()` to include new features
+  - [ ] Document: Which features combat which feedback reasons
+
+**Files:**
+- `backend/app/ml/article_quality_classifier.py` - Updated feature extraction
+
+---
+
+### Task 12: Automated Retraining (30 minutes)
+
+**Goal**: Weekly model retraining with new feedback
+
+- [ ] 12.1 Create Celery task
+  - [ ] Task: `retrain_article_quality_model`
+  - [ ] Schedule: Weekly (Sunday 2 AM)
+  - [ ] Or: When >50 new feedback samples collected
+  - [ ] Saves new model: `article_quality_v2.joblib`
+
+- [ ] 12.2 Model versioning
+  - [ ] Track: model version, training date, metrics
+  - [ ] Store: `models/article_quality_history.json`
+  - [ ] Alert: If accuracy drops >5%, investigate
+
+- [ ] 12.3 Gradual rollout
+  - [ ] 10% of users get new model first
+  - [ ] Monitor: Quality confidence distribution
+  - [ ] If stable: Roll out to 100%
+
+**Verification:**
+```bash
+# Trigger retraining
+curl -X POST http://192.168.8.233:8000/api/news/retrain-quality-model
+
+# Check logs
+tail -100 /var/log/portfolio-ai/celery-worker.log | grep "retrain"
+
+# Verify new model
+ls -lh backend/models/article_quality_*.joblib
 ```
 
 ---
 
 ## Verification Checklist
 
-**Functional:**
-- [ ] Article feedback buttons work (POST succeeds, database updated)
-- [ ] Feedback affects quality scores (thumbs down → lower score)
-- [ ] Quality scores affect article selection (low-quality vendors de-prioritized)
-- [ ] Settings sliders adjust quality formula (save + profiling = new scores)
-- [ ] Neutral filter hides ±0.2 sentiment articles
+**Phase 2a (AI Labeling + ML):**
+- [ ] 200-500 articles labeled by AI
+- [ ] User validated ~20% of labels
+- [ ] Labels imported to user_article_feedback
+- [ ] Model trained (accuracy >70%)
+- [ ] Model integrated in article pipeline
+- [ ] Quality confidence badges visible in UI
+- [ ] Articles ranked by quality
 
-**Quality:**
-- [ ] All 535+ tests still passing
+**Phase 2b (Feedback Reasons):**
+- [ ] Feedback reasons discovered from AI labeling
+- [ ] Database schema updated (migration 029)
+- [ ] API accepts feedback_reasons + feedback_note
+- [ ] FeedbackDialog shows multiple select options
+- [ ] Feedback breakdown dashboard on status page
+
+**Phase 2c (Retraining):**
+- [ ] New features engineered from feedback patterns
+- [ ] Weekly retraining Celery task scheduled
+- [ ] Model versioning tracked
+
+**Quality Gates:**
+- [ ] All 542+ tests passing
 - [ ] Zero linting errors (ruff, mypy --strict)
-- [ ] Files under 500 lines (soft limit)
-
-**UX:**
-- [ ] Feedback buttons respond immediately (<100ms optimistic update)
-- [ ] Sliders save without page refresh
-- [ ] Filter applies on next news refresh
-- [ ] Toast notifications confirm actions
+- [ ] Files under 800 lines (hard limit)
+- [ ] Quality confidence in range 0.0-1.0
+- [ ] Model accuracy >70% (retrain if drops below)
 
 ---
 
 ## Success Criteria
 
-✅ **Feedback Loop Complete**:
-- User thumbs down polygon article
-- Quality score decreases for polygon
-- Future article selection includes fewer polygon articles
-- User sees immediate impact of their feedback
+✅ **ML Model Working**:
+- AI labeled 200-500 articles with consistent criteria
+- User validated labels (fixed any mistakes)
+- sklearn model trained with >70% accuracy
+- Articles ranked by predicted quality + confidence
+- Quality badges visible in UI
 
-✅ **User Control**:
-- Settings sliders change quality formula
-- Neutral filter reduces noise
-- Both affect what articles appear
+✅ **Continuous Improvement**:
+- Users provide structured feedback (not just thumbs up/down)
+- Feedback reasons reveal patterns (clickbait, vague, marketing)
+- New features engineered based on patterns
+- Model retrains weekly with improving accuracy
 
-✅ **No Mock/Fake/Temp Code**:
-- Real database writes
-- Real quality score calculations
-- Real article selection changes
-
----
-
-## Key Changes from Original Phase 2
-
-**Removed (low value):**
-- ❌ Historical metrics tracking (need months of data first)
-- ❌ Publisher tier classification (redundant with badges)
-
-**Added (critical for functionality):**
-- ✅ Task 2: Quality-based article ranking (makes feedback actionable!)
-- ✅ Emphasis on "training the model" not just data collection
-- ✅ Verification that feedback CHANGES what user sees
-
-**Time Saved:** 1.5 hours (5h → 3.5h)
-**Value Increased:** Feedback now affects user experience immediately
+✅ **User Trust**:
+- Quality confidence visible (87% = trustworthy)
+- Feedback reasons help debug vendor issues
+- Dashboard shows which vendors have which problems
 
 ---
 
-**Estimated Effort**: 3.5-4 hours
-**Dependencies**: Phase 1 complete (database, API, metrics engine)
-**Risk Level**: Low (all infrastructure exists, just connecting the pieces)
+## Files Created/Modified
+
+**Backend:**
+- `backend/app/ml/article_quality_classifier.py` - Feature extraction, training, prediction (NEW)
+- `backend/app/ml/train_quality_model.py` - Training script (NEW)
+- `backend/models/article_quality_v1.joblib` - Trained model (NEW)
+- `backend/migrations/029_feedback_reasons.sql` - Feedback reasons schema (NEW)
+- `backend/app/api/news.py` - Updated ArticleFeedbackRequest
+- `backend/app/services/news_service.py` - Quality scoring integration
+
+**Frontend:**
+- `frontend/components/shared/UnifiedNewsIntelligenceCard.tsx` - Quality badges, feedback dialog
+- `frontend/components/status/SourceFeedbackBreakdown.tsx` - Feedback reason dashboard (NEW)
+
+**Data:**
+- `data/ai_labels_phase2a.json` - AI-generated labels (NEW)
+- `data/feedback_reasons_analysis.json` - Feedback pattern analysis (NEW)
+- `models/article_quality_history.json` - Model version tracking (NEW)
+
+---
+
+**Estimated Effort**: 4-5 hours (2h Phase 2a, 1.5h Phase 2b, 1h Phase 2c)
+**Dependencies**: Phase 1 complete, Task 0 complete
+**Risk Level**: Medium (ML training requires validated data, retraining needs monitoring)
