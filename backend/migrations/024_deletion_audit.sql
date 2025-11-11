@@ -48,23 +48,23 @@ RETURNS TRIGGER AS $$
 DECLARE
     v_record_id TEXT;
     v_symbol TEXT;
+    v_json_row JSONB;
 BEGIN
+    -- Convert row to JSONB once
+    v_json_row := to_jsonb(OLD);
+
     -- Extract ID (handle tables with different primary key names)
-    -- Try to get id column, fall back to 'unknown' if not available
-    BEGIN
-        v_record_id := (row_to_json(OLD)->'id')::TEXT;
-    EXCEPTION WHEN OTHERS THEN
-        v_record_id := 'bulk_operation';
-    END;
+    -- Check if 'id' key exists by checking if extracted value is not null
+    v_record_id := v_json_row->>'id';
+    IF v_record_id IS NULL THEN
+        v_record_id := 'unknown';
+    END IF;
 
     -- Try to get symbol column if it exists
-    BEGIN
-        v_symbol := (row_to_json(OLD)->'symbol')::TEXT;
-        -- Remove quotes from JSON string
-        v_symbol := REPLACE(v_symbol, '"', '');
-    EXCEPTION WHEN OTHERS THEN
+    v_symbol := v_json_row->>'symbol';
+    IF v_symbol IS NULL THEN
         v_symbol := 'N/A';
-    END;
+    END IF;
 
     INSERT INTO deletion_audit (
         table_name,
@@ -78,7 +78,7 @@ BEGIN
         CURRENT_USER,                    -- PostgreSQL user (e.g., portfolio_ai_user)
         'trigger',                       -- Will be overridden by application if needed
         jsonb_build_object(
-            'symbol', COALESCE(v_symbol, 'N/A'),
+            'symbol', v_symbol,
             'trigger_operation', TG_OP,
             'trigger_time', NOW()
         )
