@@ -1,8 +1,10 @@
 # Work Tracker
 
-**Last Updated:** 2025-11-10 (Cloud Agent Task Created)
+**Last Updated:** 2025-11-11 (Branch Finalization Tasks Created)
 
-**Current Status:** 🔴 Quality Issues Remain - 30 critical, 65 warning, 68 medium issues | ✅ 542 tests passing | 🚨 Data Safety: Task 7 added (migration/cache fixes)
+**Current Status:** 🟡 4 Branches Ready to Finalize → Merge | ✅ 542 tests passing | 🎯 Dashboard Layouts queued after branches
+
+**Priority**: Finish existing branches first (code quality, settings, portfolio, news) → THEN start dashboard layouts
 
 ---
 
@@ -10,21 +12,7 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Comprehensive Code Quality Cleanup** (0% - 0/8 complete)
-   - File: `tasks-0039-code-quality-comprehensive-cleanup.md`
-   - Started: 2025-11-09 (yesterday)
-   - Last updated: In Progress (PAUSED)
-   - Next: Task 0 - Scope Discovery & Cataloging (MANDATORY)
-   - Tasks:
-     - [ ] Task 0: Scope Discovery & Cataloging (MANDATORY)
-     - [ ] Task 1: Track 1: Critical Function Refactoring (Parallel Dispatch)
-     - [ ] Task 2: Track 2: File Size Reduction (Parallel Dispatch)
-     - [ ] Task 3: Track 3: Warning Function Reduction (Batch Processing)
-     - [ ] Task 4: Track 4: Type Safety Improvements (Targeted Fixes)
-     - [ ] Task 5: Medium Function Cleanup (As Time Permits)
-     - [ ] Task 6: Final Verification & Documentation
-     - [ ] Task 7: Data Safety Improvements (CRITICAL - Nov 9 Incident Response)
-
+(No active tasks)
 
 ---
 
@@ -32,33 +20,84 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Code Quality Cleanup - Cloud Agent** (HIGH (15-20 hours autonomous work), 0/8 tasks (today))
-   - File: `tasks-0040-code-quality-cloud-agent.md`
-   - Created: 2025-11-10
-   - Goal: Reach EXCELLENT quality standard (0 critical/0 warning/<10 medium issues) through systematic refactoring.
+1. **Finalize Code Quality Branch** (MEDIUM (6-8 hours), 0/7 tasks (today))
+   - File: `tasks-0043-finalize-code-quality-branch.md`
+   - Created: 2025-11-11
+   - Goal: Complete remaining code quality work, test data safety framework, verify all changes, and merge to main
    - Tasks:
-     - [ ] Task 0: Scope Discovery & Cataloging (MANDATORY)
-     - [ ] Task 1: Critical Function Refactoring
-     - [ ] Task 2: File Size Reduction
-     - [ ] Task 3: Warning Function Reduction
-     - [ ] Task 4: Type Safety Improvements
-     - [ ] Task 5: Medium Function Cleanup (Lower Priority)
-     - [ ] Task 6: Verification & Quality Check
-     - [ ] Task 7: Data Safety Improvements (CRITICAL - Nov 9 Incident Response)
+     - [ ] Task 1: Load Branch and Review Work
+     - [ ] Task 2: Complete Remaining Refactorings
+     - [ ] Task 3: Test Data Safety Framework
+     - [ ] Task 4: Run Full Test Suite
+     - [ ] Task 5: Code Quality Verification
+     - [ ] Task 6: Final Review and Documentation
+     - [ ] Task 7: Merge to Main
 
-2. **Code Quality Improvements** (HIGH (12-17 hours, can be done in 2-3 sessions), 1/5 tasks (6 days ago))
-   - File: `tasks-0033-code-quality-improvements.md`
-   - Created: 2025-11-04
-   - Goal: Improve health score from 7.95/10 → 9.0/10
-   - Status: PAUSED (2025-11-04)
+2. **Finalize Settings Page Branch** (LOW-MEDIUM (3-5 hours), 0/10 tasks (today))
+   - File: `tasks-0044-finalize-settings-page-branch.md`
+   - Created: 2025-11-11
+   - Goal: Test settings page improvements locally, verify functionality, and merge to main
    - Tasks:
-     - [x] Task 0: Discovery & Planning (30 min) ✅ COMPLETE
-     - [ ] Task 1: File Size Refactoring (8-12 hours)
-     - [ ] Task 2: Type Safety Improvements (6-8 hours)
-     - [ ] Task 3: Documentation Completeness (2-3 hours)
-     - [ ] Task 4: Minor Improvements (1-2 hours)
+     - [ ] Task 1: Load Branch and Review Work
+     - [ ] Task 2: Database Migration
+     - [ ] Task 3: Frontend Testing
+     - [ ] Task 4: UI/UX Testing (Phase 1 Features)
+     - [ ] Task 5: Profile Management Testing (Phase 2 Features)
+     - [ ] Task 6: Backend API Testing
+     - [ ] Task 7: Code Quality and Tests
+     - [ ] Task 8: Edge Cases and Error Handling
+     - [ ] Task 9: Documentation and Cleanup
+     - [ ] Task 10: Merge to Main
 
-3. **Trading Intelligence Roadmap** (High, 4/8 tasks)
+3. **Finalize Portfolio Improvements Branch** (LOW (2-3 hours), 0/9 tasks (today))
+   - File: `tasks-0045-finalize-portfolio-improvements-branch.md`
+   - Created: 2025-11-11
+   - Goal: Test portfolio page improvements, verify analytics calculations, and merge to main
+   - Tasks:
+     - [ ] Task 1: Load Branch and Review Work
+     - [ ] Task 2: Backend Testing
+     - [ ] Task 3: Frontend Testing
+     - [ ] Task 4: Data Accuracy Testing
+     - [ ] Task 5: Visual and UX Testing
+     - [ ] Task 6: Code Quality and Tests
+     - [ ] Task 7: Edge Cases and Error Handling
+     - [ ] Task 8: Documentation
+     - [ ] Task 9: Merge to Main
+
+4. **Finalize News Alignment Branch** (MEDIUM-HIGH (8-11 hours), 0/11 tasks (today))
+   - File: `tasks-0046-finalize-news-alignment-branch.md`
+   - Created: 2025-11-11
+   - Goal: Complete backend AI insights for market news, align feature parity with watchlist news, and merge to main
+   - Tasks:
+     - [ ] Task 1: Load Branch and Review Work
+     - [ ] Task 2: Test Frontend (Baseline)
+     - [ ] Task 3: Update Backend NewsArticleResponse Model
+     - [ ] Task 4: Database Schema Check
+     - [ ] Task 5: Implement AI Insight Generation
+     - [ ] Task 6: Backend Testing
+     - [ ] Task 7: Frontend Verification
+     - [ ] Task 8: Code Quality and Tests
+     - [ ] Task 9: Edge Cases and Error Handling
+     - [ ] Task 10: Documentation
+     - [ ] Task 11: Merge to Main
+
+5. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (today))
+   - File: `tasks-0042-customizable-dashboard-layouts.md`
+   - Created: 2025-11-11
+   - Goal: Enable users to customize dashboard layouts by dragging/resizing cards, with persistence to PostgreSQL backend
+   - Tasks:
+     - [ ] Task 1: Database Schema and Migration
+     - [ ] Task 2: Backend API Endpoints
+     - [ ] Task 3: Frontend Library Integration
+     - [ ] Task 4: Layout State Management and Persistence
+     - [ ] Task 5: Lock/Unlock UI and Visual Feedback
+     - [ ] Task 6: Responsive Breakpoints
+     - [ ] Task 7: Status Page Integration (POC)
+     - [ ] Task 8: Extend to All Pages (Generic System)
+     - [ ] Task 9: Polish and Edge Cases
+     - [ ] Task 10: Testing and Documentation
+
+6. **Trading Intelligence Roadmap** (High, 4/8 tasks)
    - File: `tasks-trading-intelligence-roadmap.md`
    - Created: Unknown
    - Tasks:
@@ -179,6 +218,24 @@
 **Task 0:** Mandatory scope discovery for pattern/refactor work - prevents incomplete implementations
 
 ---
+
+## 🗂️ Superseded Tasks (Archived)
+
+These tasks are superseded by the code quality branch (tasks-0043), which already completed 57% of the same goals:
+
+- ❌ **tasks-0039-code-quality-comprehensive-cleanup.md** - Superseded by tasks-0043
+- ❌ **tasks-0040-code-quality-cloud-agent.md** - Superseded by tasks-0043
+- ❌ **tasks-0033-code-quality-improvements.md** - Superseded by tasks-0043
+
+**Reason**: Cloud agent branch `claude/code-quality-cloud-agent-011CUyde6BgETjtQV3N74L1U` already implemented:
+- 6-layer data safety framework (CRITICAL)
+- 4 critical function refactorings (703 → 260 lines)
+- 3,400+ lines of documentation
+- 7 commits pushed
+
+Completing tasks-0043 achieves all goals of 0039/0040/0033 with 57% head start.
+
+
 
 ## 📁 Archive
 
