@@ -1,10 +1,10 @@
 # Work Tracker
 
-**Last Updated:** 2025-11-11 (News Alignment Branch Merged)
+**Last Updated:** 2025-11-11 (Headline Transformation Bug Fixed)
 
-**Current Status:** ✅ News Alignment MERGED to main | 🟢 All feature branches merged! | ✅ 542 tests passing | 🎯 Next: Dashboard layouts
+**Current Status:** ✅ Critical bug fix complete | 🟢 All feature branches merged! | ✅ Tests passing | 🎯 Next: Phase 2 feedback loop
 
-**Priority**: Start dashboard layouts (no pending branches)
+**Priority**: Continue with Phase 2 feedback implementation
 
 ---
 
@@ -20,13 +20,7 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Fix Plain Language Headline Transformation Bug** (1 hour, 0/0 tasks (today))
-   - File: `tasks-0051-fix-headline-transformation-bug.md`
-   - Created: 2025-11-11
-   - Tasks:
-     - (No tasks defined yet)
-
-2. **News Source Quality Profiling System (Phase 2)** (MEDIUM (3.5-4 hours), 0/5 tasks (today))
+1. **News Source Quality Profiling System (Phase 2)** (MEDIUM (3.5-4 hours), 0/5 tasks (today))
    - File: `tasks-0050-news-source-quality-phase2.md`
    - Created: 2025-11-11
    - Goal: Make article feedback actually affect what users see - not just data collection
@@ -37,7 +31,7 @@
      - [ ] Task 3: Settings Weight Sliders (1 hour)
      - [ ] Task 4: Neutral Article Filtering (0.5 hours)
 
-3. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (today))
+2. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (today))
    - File: `tasks-0042-customizable-dashboard-layouts.md`
    - Created: 2025-11-11
    - Goal: Enable users to customize dashboard layouts by dragging/resizing cards, with persistence to PostgreSQL backend
@@ -53,7 +47,7 @@
      - [ ] Task 9: Polish and Edge Cases
      - [ ] Task 10: Testing and Documentation
 
-4. **Trading Intelligence Roadmap** (High, 4/8 tasks)
+3. **Trading Intelligence Roadmap** (High, 4/8 tasks)
    - File: `tasks-trading-intelligence-roadmap.md`
    - Created: Unknown
    - Tasks:
@@ -73,7 +67,23 @@
 
 *Last 5 completions - older items auto-archive to tasks/archive/YYYY-MM.md*
 
-1. **News Source Quality Profiling System (Phase 1)** (2025-11-11) ⭐ COMPLETE
+1. **Fix Plain Language Headline Transformation Bug** (2025-11-11) ⭐ CRITICAL BUG FIX
+   - File: `tasks-0051-fix-headline-transformation-bug.md`
+   - Duration: 1 hour (implementation + verification)
+   - Status: Complete - infrastructure ready for Phase 2
+   - Achievements:
+     - ✅ Phase 1: Disabled broken keyword-based transformation
+       - Frontend: Original headlines displayed (UnifiedNewsIntelligenceCard.tsx)
+       - Backend: Feature flag ENABLE_PLAIN_LANGUAGE_HEADLINES=False
+     - ✅ Phase 2: Sentiment override infrastructure
+       - Database: sentiment_override column added (migration 028)
+       - API: ArticleFeedbackRequest accepts sentiment_override (-1.0 to 1.0)
+       - Backend: Stores overrides for future quality metrics integration
+     - ✅ Verification: UI tested, services restarted, linting passed
+   - Results: No more wrong transformations, sentiment matches display
+   - Commit: fd4cde3
+
+2. **News Source Quality Profiling System (Phase 1)** (2025-11-11) ⭐ COMPLETE
    - File: `tasks-0049-news-source-quality-profiling.md`
    - Duration: 6 hours (implementation + cleanup)
    - Status: Foundation complete, Phase 2 queued
