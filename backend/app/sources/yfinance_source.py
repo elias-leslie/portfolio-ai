@@ -145,24 +145,24 @@ class YFinanceSource(BaseSource):
     def _extract_price_from_info(self, info: dict[str, Any]) -> float | None:
         """Extract price from yfinance info dict (tries multiple fields)."""
         return (
-            info.get("currentPrice")
-            or info.get("regularMarketPrice")
-            or info.get("previousClose")
+            info.get("currentPrice") or info.get("regularMarketPrice") or info.get("previousClose")
         )
 
-    def _calculate_volatility_from_52w_range(
-        self, info: dict[str, Any]
-    ) -> float | None:
+    def _calculate_volatility_from_52w_range(self, info: dict[str, Any]) -> float | None:
         """Calculate approximate annualized volatility from 52-week range."""
         high_52 = info.get("fiftyTwoWeekHigh")
         low_52 = info.get("fiftyTwoWeekLow")
-        if high_52 and low_52 and high_52 > 0:
-            return (high_52 - low_52) / high_52
+        if (
+            high_52
+            and low_52
+            and isinstance(high_52, (int, float))
+            and isinstance(low_52, (int, float))
+            and high_52 > 0
+        ):
+            return float((high_52 - low_52) / high_52)
         return None
 
-    def _build_reference_payload(
-        self, ticker: str, info: dict[str, Any]
-    ) -> dict[str, Any]:
+    def _build_reference_payload(self, ticker: str, info: dict[str, Any]) -> dict[str, Any]:
         """Build reference payload from yfinance info dict."""
         price = self._extract_price_from_info(info)
         beta = info.get("beta")

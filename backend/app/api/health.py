@@ -331,6 +331,7 @@ async def get_deletion_rate(hours: int = 1) -> DeletionRate:
         total_deletions = sum(deletions_by_table.values())
 
         # Determine alert status
+        status: Literal["ok", "warning", "critical"]
         if total_deletions >= 100:
             status = "critical"
             message = f"🔴 CRITICAL: {total_deletions} deletions in last {hours}h (threshold: 100)"

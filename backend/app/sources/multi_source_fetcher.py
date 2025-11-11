@@ -374,16 +374,14 @@ class MultiSourceFetcher:
             remaining_request = dataclasses.replace(request, tickers=list(tickers))
             return source.fetch_day_bars(remaining_request)
 
-        elif request.dataset == DATASET_REFERENCE:
+        if request.dataset == DATASET_REFERENCE:
             # Ensure start is a date for reference data
             as_of_date: dt.date = (
-                request.start.date()
-                if isinstance(request.start, dt.datetime)
-                else request.start
+                request.start.date() if isinstance(request.start, dt.datetime) else request.start
             )
             return source.fetch_reference_payload(list(tickers), as_of_date)
 
-        elif request.dataset == DATASET_NEWS:
+        if request.dataset == DATASET_NEWS:
             # Ensure start/end are datetime for news
             start_dt = (
                 request.start
@@ -532,10 +530,13 @@ class MultiSourceFetcher:
                 fetch_duration_ms = int((time.time() - start_time) * 1000)
 
                 # Process result
-                if self._process_fetch_result(
-                    data, source, fetch_duration_ms, tickers_remaining, news_dataset, verbose
-                ):
-                    all_data.append(data)  # type: ignore
+                if (
+                    self._process_fetch_result(
+                        data, source, fetch_duration_ms, tickers_remaining, news_dataset, verbose
+                    )
+                    and data is not None
+                ):  # Narrow type for mypy
+                    all_data.append(data)
 
             except Exception as e:
                 if source.name not in errors_by_source:

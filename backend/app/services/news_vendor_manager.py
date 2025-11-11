@@ -138,9 +138,9 @@ class NewsVendorManager:
             try:
                 # Pass storage to SEC EDGAR, YFinance doesn't need it
                 if vendor_name == "sec_edgar":
-                    sources.append(source_cls(self.storage))  # type: ignore
+                    sources.append(source_cls(self.storage))  # type: ignore[call-arg]
                 else:
-                    sources.append(source_cls())  # type: ignore
+                    sources.append(source_cls())
             except Exception as exc:
                 reason = f"init_failed: {exc}"
                 enabled = False
@@ -186,7 +186,7 @@ class NewsVendorManager:
 
         if enabled:
             try:
-                sources.append(source_cls())  # type: ignore
+                sources.append(source_cls())
             except Exception as exc:
                 reason = f"init_failed: {exc}"
                 enabled = False
