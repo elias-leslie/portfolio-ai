@@ -3,7 +3,8 @@
 import { Suspense } from "react";
 import { MarketConditions } from "@/components/portfolio/MarketConditions";
 import { PortfolioOverview } from "@/components/portfolio/PortfolioOverview";
-import { MarketNewsCard } from "@/components/dashboard/MarketNewsCard";
+import { UnifiedNewsIntelligenceCard } from "@/components/shared/UnifiedNewsIntelligenceCard";
+import { useMarketNews } from "@/lib/hooks/useNews";
 import { Card } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 
@@ -16,6 +17,32 @@ function LoadingSkeleton({ title }: { title: string }) {
       </div>
       <div className="h-32 animate-pulse rounded bg-surface-muted/60" />
     </Card>
+  );
+}
+
+function MarketNewsSection() {
+  const { data: newsData, isLoading, error } = useMarketNews({ maxResults: 50 });
+
+  if (isLoading) {
+    return <LoadingSkeleton title="Market News" />;
+  }
+
+  if (error) {
+    return (
+      <Card className="p-6">
+        <div className="text-sm text-text-muted py-4">
+          Failed to load market news
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <UnifiedNewsIntelligenceCard
+      marketNewsData={newsData}
+      ticker={null}
+      showHeader={false}
+    />
   );
 }
 
@@ -42,9 +69,7 @@ export default function Dashboard() {
 
         {/* Market News */}
         <div className="mb-10">
-          <Suspense fallback={<LoadingSkeleton title="Market News" />}>
-            <MarketNewsCard />
-          </Suspense>
+          <MarketNewsSection />
         </div>
 
         {/* Portfolio Overview */}
