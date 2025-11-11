@@ -160,61 +160,63 @@ Dashboard Market News           Watchlist News & Sentiment
 
 Cloud agent has access to: Read, Glob, Grep (NO Bash, NO running services/tests)
 
-- [ ] 0.1 Backend scope discovery
-  - [ ] Find all news-related services
+- [x] 0.1 Backend scope discovery
+  - [x] Find all news-related services
     - `Glob: backend/app/services/**/*news*.py`
     - `Grep: "def.*news" backend/app/services/`
     - `Grep: "class.*News" backend/app/services/`
-  - [ ] Find all news-related endpoints
+  - [x] Find all news-related endpoints
     - `Grep: "@router.get.*news" backend/app/api/`
     - `Read: backend/app/api/news.py` (if exists)
     - `Read: backend/app/api/watchlist.py` (check for news logic)
-  - [ ] Document response structures
+  - [x] Document response structures
     - Find Pydantic models: `Grep: "class.*News.*BaseModel" backend/`
     - Read relevant model files
     - Compare market vs ticker news response structures
-  - [ ] Identify database queries
+  - [x] Identify database queries
     - `Grep: "SELECT.*FROM.*news" backend/`
     - Document query patterns
-  - [ ] Output: Markdown document with:
+  - [x] Output: Markdown document with:
     - List of all files to modify
     - List of all files to delete
     - Current vs desired data flow diagrams
     - Estimated lines of code affected
 
-- [ ] 0.2 Frontend scope discovery
-  - [ ] Find all news-related hooks
+- [x] 0.2 Frontend scope discovery
+  - [x] Find all news-related hooks
     - `Glob: frontend/lib/hooks/**/*news*.ts`
     - `Grep: "export.*useNews" frontend/lib/hooks/`
     - Read each hook file
-  - [ ] Find all TypeScript types
+  - [x] Find all TypeScript types
     - `Grep: "interface.*News" frontend/lib/`
     - `Grep: "type.*News" frontend/lib/`
     - Document type differences between market/ticker
-  - [ ] Find all components using news hooks
+  - [x] Find all components using news hooks
     - `Grep: "useMarketNews" frontend/`
     - `Grep: "useNews" frontend/`
     - Document component dependencies
-  - [ ] Output: Markdown document with:
+  - [x] Output: Markdown document with:
     - Hook dependency graph
     - Type migration plan
     - Component update sequence
 
-- [ ] 0.3 Create implementation plan (CLOUD AGENT)
-  - [ ] Sequence backend changes (which order to modify files)
-  - [ ] Identify breaking changes and mitigation
-  - [ ] Create test update checklist
-  - [ ] Estimate effort per section (1-7 sections)
-  - [ ] Output: Detailed implementation roadmap
+- [x] 0.3 Create implementation plan (CLOUD AGENT)
+  - [x] Sequence backend changes (which order to modify files)
+  - [x] Identify breaking changes and mitigation
+  - [x] Create test update checklist
+  - [x] Estimate effort per section (1-7 sections)
+  - [x] Output: Detailed implementation roadmap
 
 - [ ] 0.4 Checkpoint: Confirm scope before proceeding (LOCAL AGENT)
   - Review cloud agent findings
   - Confirm:
-    - [ ] Total backend files: [cloud agent fills]
-    - [ ] Total frontend files: [cloud agent fills]
-    - [ ] Estimated effort: [cloud agent fills]
-    - [ ] Any architectural concerns: [cloud agent documents]
-  - Decision: Proceed to Task 1 or adjust plan
+    - [x] Total backend files: 0 files to modify (backend already unified!)
+    - [x] Total frontend files: 3 files to modify (UnifiedNewsIntelligenceCard.tsx, page.tsx, ExpandedRow.tsx)
+    - [x] Estimated effort: 7.0 hours (HIGH complexity)
+    - [x] Architectural concerns: None - backend is already correct, only frontend needs refactor
+  - Key Finding: **Backend already returns unified structure with sentiment summary for ALL endpoints!**
+  - Root Cause: **Frontend component has branching layout logic that creates visual differences**
+  - Decision: Proceed to Task 1 (Backend Verification) then focus on frontend refactor
 
 **DO NOT PROCEED TO TASK 1 UNTIL SCOPE CONFIRMED**
 
