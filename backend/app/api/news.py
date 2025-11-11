@@ -49,7 +49,10 @@ class NewsArticleResponse(BaseModel):
     # SEC filing metadata
     filing_type: str | None = None
     is_material_event: bool = False
+    # AI-generated insights
     plain_language_headline: str | None = None
+    impact_summary: str | None = None
+    actionable_insight: str | None = None
 
 
 class NewsSummaryResponse(BaseModel):
@@ -151,6 +154,10 @@ def _serialize_article(article: Any) -> NewsArticleResponse:
         fetched_at=fetched_at or "",
         sentiment=_serialize_sentiment(article.sentiment),
         vendor=getattr(article, "vendor", None),
+        # AI-generated insights
+        impact_summary=getattr(article, "impact_summary", None),
+        actionable_insight=getattr(article, "actionable_insight", None),
+        plain_language_headline=getattr(article, "plain_language_headline", None),
     )
 
 

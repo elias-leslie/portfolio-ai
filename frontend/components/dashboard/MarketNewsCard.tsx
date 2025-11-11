@@ -1,13 +1,39 @@
 "use client";
 
+import { useState, useMemo } from "react";
 import { useMarketNews } from "@/lib/hooks/useNews";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Newspaper, ExternalLink, Loader2 } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { Button } from "@/components/ui/button";
+import { Newspaper, ExternalLink, Loader2, ArrowUpDown } from "lucide-react";
+import {
+  formatSentimentScore,
+  formatVendorLabel,
+  getSentimentBadgeVariant,
+  formatConfidence,
+  formatNewsDate,
+} from "@/lib/utils/news-formatting";
+
+type SortOption = "recent" | "positive" | "negative";
 
 export function MarketNewsCard() {
-  const { data: newsData, isLoading, error } = useMarketNews({ maxResults: 5 });
+  const [showAll, setShowAll] = useState(false);
+  const [sortBy, setSortBy] = useState<SortOption>("recent");
+  const { data: newsData, isLoading, error } = useMarketNews({ maxResults: 50 });
+
+  const articles = newsData?.articles ?? [];
+
+  // Sort articles based on selected option (must be before any conditional returns)
+  const sortedArticles = useMemo(() => {
+    const sorted = [...articles];
+    if (sortBy === "positive") {
+      return sorted.sort((a, b) => b.sentiment.score - a.sentiment.score);
+    } else if (sortBy === "negative") {
+      return sorted.sort((a, b) => a.sentiment.score - b.sentiment.score);
+    }
+    // "recent" - keep original order (already sorted by published_at from backend)
+    return sorted;
+  }, [articles, sortBy]);
 
   if (isLoading) {
     return (
@@ -37,49 +63,31 @@ export function MarketNewsCard() {
     );
   }
 
-  const articles = newsData?.articles ?? [];
-
-  // Helper to get sentiment badge variant (matches watchlist)
-  const getBadgeVariant = (label: string) => {
-    const normalized = label.toLowerCase();
-    if (normalized === "positive") return "gain";
-    if (normalized === "negative") return "loss";
-    return "outline";
-  };
-
-  // Helper to format sentiment score
-  const formatSentimentScore = (score: number | null | undefined) => {
-    if (score === null || score === undefined) return "N/A";
-    return score >= 0 ? `+${score.toFixed(2)}` : score.toFixed(2);
-  };
-
-  // Helper to format confidence
-  const formatConfidence = (confidence: number | null | undefined) => {
-    if (confidence === null || confidence === undefined) return "N/A";
-    return `${(confidence * 100).toFixed(0)}%`;
-  };
-
-  // Vendor label formatting (matches watchlist)
-  const formatVendorLabel = (vendor?: string | null): string => {
-    if (!vendor) return "Unknown Source";
-    const VENDOR_LABELS: Record<string, string> = {
-      polygon: "Polygon",
-      finnhub: "Finnhub",
-      fmp: "FMP",
-      google_news: "Google News",
-      yfinance: "Yahoo Finance",
-    };
-    const normalized = vendor.toLowerCase();
-    return VENDOR_LABELS[normalized] || vendor.trim();
-  };
+  const displayCount = showAll ? sortedArticles.length : 10;
+  const displayedArticles = sortedArticles.slice(0, displayCount);
+  const hasMore = sortedArticles.length > 10;
 
   return (
     <Card className="p-6 shadow-lg">
-      <div className="flex items-center gap-2 mb-4">
-        <Newspaper className="h-5 w-5 text-accent" />
-        <h3 className="text-lg font-semibold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-          Market News
-        </h3>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Newspaper className="h-5 w-5 text-accent" />
+          <h3 className="text-lg font-semibold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+            Market News
+          </h3>
+        </div>
+        <div className="flex items-center gap-2">
+          <ArrowUpDown className="h-3 w-3 text-text-muted" />
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as SortOption)}
+            className="text-xs border border-border rounded px-2 py-1 bg-surface text-text focus:outline-none focus:ring-1 focus:ring-primary"
+          >
+            <option value="recent">Recent</option>
+            <option value="positive">Most Positive</option>
+            <option value="negative">Most Negative</option>
+          </select>
+        </div>
       </div>
 
       {articles.length === 0 ? (
@@ -87,71 +95,89 @@ export function MarketNewsCard() {
           No recent market news available
         </div>
       ) : (
-        <div className="space-y-2">
-          {articles.slice(0, 5).map((article, idx) => {
-            const publishedAt = article.published_at ? new Date(article.published_at) : null;
-            const timeAgo = publishedAt ? formatDistanceToNow(publishedAt, { addSuffix: true }) : null;
-            const vendorLabel = formatVendorLabel(article.vendor);
-            const publisherLabel = article.source && article.source.trim().length > 0
-              ? article.source.trim()
-              : "Publisher Unknown";
+        <>
+          <div className="space-y-2">
+            {displayedArticles.map((article, idx) => {
+              const timeAgo = formatNewsDate(article.published_at);
+              const source = article.source && article.source.trim().length > 0
+                ? article.source.trim()
+                : formatVendorLabel(article.vendor);
+              const displayHeadline = (article as any).plain_language_headline || article.headline;
 
-            return (
-              <div
-                key={`article-${idx}-${article.content_hash || article.headline}`}
-                className="rounded-md border border-border bg-surface-muted/30 p-3 hover:bg-surface-muted/50 transition-colors"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="flex-1 space-y-1">
-                    {article.url ? (
-                      <a
-                        href={article.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline group"
-                      >
-                        {article.headline}
-                        <ExternalLink className="h-3 w-3 opacity-60 group-hover:opacity-100 transition-opacity" />
-                      </a>
-                    ) : (
-                      <p className="text-sm font-semibold text-text">
-                        {article.headline}
-                      </p>
-                    )}
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-text-muted">
-                      <Badge
-                        variant="outline"
-                        className="text-[10px] font-semibold uppercase tracking-wide"
-                      >
-                        {vendorLabel}
-                      </Badge>
-                      <span className="text-text">
-                        Publisher: {publisherLabel}
-                      </span>
-                      {timeAgo && <span>{timeAgo}</span>}
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end gap-2 text-xs">
-                    <Badge variant={getBadgeVariant(article.sentiment.label)}>
-                      {article.sentiment.label.toUpperCase()}
-                    </Badge>
-                    <span className="text-text font-semibold">
-                      {formatSentimentScore(article.sentiment.score)}
-                    </span>
-                    <span className="text-text-muted">
-                      Confidence {formatConfidence(article.sentiment.confidence)}
-                    </span>
-                    <Badge
-                      variant={article.sentiment.model === "finbert" ? "secondary" : "loss"}
+              const impactSummary = (article as any).impact_summary;
+              const actionableInsight = (article as any).actionable_insight;
+
+              return (
+                <div
+                  key={`article-${idx}-${article.content_hash || article.headline}`}
+                  className="rounded-md border border-border bg-surface-muted/20 p-2 space-y-1"
+                >
+                  {article.url ? (
+                    <a
+                      href={article.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
                     >
-                      {article.sentiment.model.toUpperCase()}
-                    </Badge>
+                      {displayHeadline}
+                      <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                    </a>
+                  ) : (
+                    <p className="text-xs font-medium text-text">
+                      {displayHeadline}
+                    </p>
+                  )}
+
+                  {/* AI Insights */}
+                  {impactSummary && (
+                    <p className="text-[10px] text-text-muted italic">
+                      💡 {impactSummary}
+                    </p>
+                  )}
+                  {actionableInsight && (
+                    <p className="text-[10px] text-primary font-medium">
+                      💡 {actionableInsight}
+                    </p>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-2 text-[10px] text-text-muted">
+                    {source && <span>{source}</span>}
+                    {timeAgo && (
+                      <>
+                        <span>·</span>
+                        <span>{timeAgo}</span>
+                      </>
+                    )}
+                    {article.sentiment.label && (
+                      <>
+                        <span>·</span>
+                        <Badge
+                          variant={getSentimentBadgeVariant(article.sentiment.label)}
+                          className="text-[9px] px-1.5 py-0"
+                        >
+                          {article.sentiment.label}
+                        </Badge>
+                      </>
+                    )}
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+
+          {hasMore && (
+            <div className="mt-3 flex justify-center">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAll(!showAll)}
+                className="text-xs"
+              >
+                {showAll ? "Show Less" : `Show All (${sortedArticles.length} total)`}
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </Card>
   );

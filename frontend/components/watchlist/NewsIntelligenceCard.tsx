@@ -1,8 +1,17 @@
 "use client";
 
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ExternalLink, ArrowUpDown } from "lucide-react";
+import {
+  formatSentimentScore,
+  getSentimentBadgeVariant,
+  formatNewsDate,
+} from "@/lib/utils/news-formatting";
+
+type SortOption = "recent" | "positive" | "negative";
 
 interface KeyEvent {
     icon: string;
@@ -44,31 +53,44 @@ export function NewsIntelligenceCard({
     newsIntelligence,
     newsHidden,
 }: NewsIntelligenceCardProps) {
+    const [showAll, setShowAll] = useState(false);
+    const [sortBy, setSortBy] = useState<SortOption>("recent");
+
     if (newsHidden) return null;
     if (!newsIntelligence) return null;
 
-    const getSentimentColor = (
-        label: string,
-    ): "gain" | "loss" | "neutral" => {
-        switch (label.toLowerCase()) {
-            case "positive":
-                return "gain";
-            case "negative":
-                return "loss";
-            default:
-                return "neutral";
+    // Sort articles based on selected option
+    const sortedArticles = useMemo(() => {
+        const sorted = [...newsIntelligence.recent_articles];
+        if (sortBy === "positive") {
+            return sorted.sort((a, b) => b.sentiment_score - a.sentiment_score);
+        } else if (sortBy === "negative") {
+            return sorted.sort((a, b) => a.sentiment_score - b.sentiment_score);
         }
-    };
+        // "recent" - keep original order
+        return sorted;
+    }, [newsIntelligence.recent_articles, sortBy]);
 
-    const formatSentimentScore = (score: number): string => {
-        const rounded = score.toFixed(2);
-        return score > 0 ? `+${rounded}` : rounded;
-    };
+    const displayCount = showAll ? sortedArticles.length : 10;
+    const displayedArticles = sortedArticles.slice(0, displayCount);
+    const hasMore = sortedArticles.length > 10;
 
     return (
         <Card className="border-border">
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
                 <CardTitle className="text-base">📰 News Intelligence</CardTitle>
+                <div className="flex items-center gap-2">
+                    <ArrowUpDown className="h-3 w-3 text-text-muted" />
+                    <select
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value as SortOption)}
+                        className="text-xs border border-border rounded px-2 py-1 bg-surface text-text focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                        <option value="recent">Recent</option>
+                        <option value="positive">Most Positive</option>
+                        <option value="negative">Most Negative</option>
+                    </select>
+                </div>
             </CardHeader>
             <CardContent className="space-y-4">
                 {/* Headline Summary */}
@@ -80,7 +102,7 @@ export function NewsIntelligenceCard({
                         <div>
                             <span className="text-text-muted">Sentiment: </span>
                             <Badge
-                                variant={getSentimentColor(
+                                variant={getSentimentBadgeVariant(
                                     newsIntelligence.sentiment_label,
                                 )}
                             >
@@ -128,10 +150,10 @@ export function NewsIntelligenceCard({
                     <div>
                         <h5 className="text-xs font-semibold text-text mb-2">
                             Recent Articles (showing{" "}
-                            {newsIntelligence.recent_articles.length}):
+                            {displayedArticles.length}):
                         </h5>
                         <div className="space-y-2">
-                            {newsIntelligence.recent_articles.map(
+                            {displayedArticles.map(
                                 (article, idx) => {
                                     const displayHeadline =
                                         article.plain_language_headline ||
@@ -168,24 +190,14 @@ export function NewsIntelligenceCard({
                                                 )}
                                                 {article.published_at && (
                                                     <span>
-                                                        {new Date(
-                                                            article.published_at,
-                                                        ).toLocaleDateString(
-                                                            "en-US",
-                                                            {
-                                                                month: "short",
-                                                                day: "numeric",
-                                                                hour: "numeric",
-                                                                minute: "2-digit",
-                                                            },
-                                                        )}
+                                                        {formatNewsDate(article.published_at)}
                                                     </span>
                                                 )}
                                                 {article.sentiment_label && (
                                                     <>
                                                         <span>·</span>
                                                         <Badge
-                                                            variant={getSentimentColor(
+                                                            variant={getSentimentBadgeVariant(
                                                                 article.sentiment_label,
                                                             )}
                                                             className="text-[9px] px-1.5 py-0"
@@ -212,6 +224,18 @@ export function NewsIntelligenceCard({
                                 },
                             )}
                         </div>
+                        {hasMore && (
+                            <div className="mt-3 flex justify-center">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setShowAll(!showAll)}
+                                    className="text-xs"
+                                >
+                                    {showAll ? "Show Less" : `Show All (${sortedArticles.length} total)`}
+                                </Button>
+                            </div>
+                        )}
                     </div>
                 )}
             </CardContent>
