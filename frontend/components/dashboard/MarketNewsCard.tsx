@@ -102,10 +102,15 @@ export function MarketNewsCard() {
               const source = article.source && article.source.trim().length > 0
                 ? article.source.trim()
                 : formatVendorLabel(article.vendor);
-              const displayHeadline = (article as any).plain_language_headline || article.headline;
 
+              const plainLanguageHeadline = (article as any).plain_language_headline;
               const impactSummary = (article as any).impact_summary;
               const actionableInsight = (article as any).actionable_insight;
+
+              // Use original headline if AI hasn't processed it yet
+              const displayHeadline = plainLanguageHeadline || article.headline;
+              // Show indicator if AI processing is pending (no plain language version)
+              const aiPending = !plainLanguageHeadline;
 
               return (
                 <div
@@ -119,11 +124,13 @@ export function MarketNewsCard() {
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
                     >
+                      {aiPending && <span className="text-[10px]" title="AI processing pending">⏳</span>}
                       {displayHeadline}
                       <ExternalLink className="h-3 w-3 flex-shrink-0" />
                     </a>
                   ) : (
                     <p className="text-xs font-medium text-text">
+                      {aiPending && <span className="text-[10px]" title="AI processing pending">⏳</span>}
                       {displayHeadline}
                     </p>
                   )}
