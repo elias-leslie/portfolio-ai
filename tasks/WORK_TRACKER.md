@@ -1,10 +1,10 @@
 # Work Tracker
 
-**Last Updated:** 2025-11-11 (Portfolio Improvements Branch Merged)
+**Last Updated:** 2025-11-11 (News Alignment Branch Merged)
 
-**Current Status:** ✅ Portfolio Branch MERGED to main | 🟡 2 Branches remain | ✅ 543 tests passing | 🎯 Next: News alignment → Dashboard layouts
+**Current Status:** ✅ News Alignment MERGED to main | 🟢 All feature branches merged! | ✅ 542 tests passing | 🎯 Next: Dashboard layouts
 
-**Priority**: Complete news alignment branch → THEN start dashboard layouts
+**Priority**: Start dashboard layouts (no pending branches)
 
 ---
 
@@ -20,24 +20,7 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Finalize News Alignment Branch** (MEDIUM-HIGH (8-11 hours), 0/11 tasks (today))
-   - File: `tasks-0046-finalize-news-alignment-branch.md`
-   - Created: 2025-11-11
-   - Goal: Complete backend AI insights for market news, align feature parity with watchlist news, and merge to main
-   - Tasks:
-     - [ ] Task 1: Load Branch and Review Work
-     - [ ] Task 2: Test Frontend (Baseline)
-     - [ ] Task 3: Update Backend NewsArticleResponse Model
-     - [ ] Task 4: Database Schema Check
-     - [ ] Task 5: Implement AI Insight Generation
-     - [ ] Task 6: Backend Testing
-     - [ ] Task 7: Frontend Verification
-     - [ ] Task 8: Code Quality and Tests
-     - [ ] Task 9: Edge Cases and Error Handling
-     - [ ] Task 10: Documentation
-     - [ ] Task 11: Merge to Main
-
-2. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (today))
+1. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (today))
    - File: `tasks-0042-customizable-dashboard-layouts.md`
    - Created: 2025-11-11
    - Goal: Enable users to customize dashboard layouts by dragging/resizing cards, with persistence to PostgreSQL backend
@@ -53,7 +36,7 @@
      - [ ] Task 9: Polish and Edge Cases
      - [ ] Task 10: Testing and Documentation
 
-3. **Trading Intelligence Roadmap** (High, 4/8 tasks)
+2. **Trading Intelligence Roadmap** (High, 4/8 tasks)
    - File: `tasks-trading-intelligence-roadmap.md`
    - Created: Unknown
    - Tasks:
@@ -73,7 +56,22 @@
 
 *Last 5 completions - older items auto-archive to tasks/archive/YYYY-MM.md*
 
-1. **Portfolio Page Improvements with Advanced Analytics** (2025-11-11) ⭐ COMPLETE
+1. **News Alignment with AI Insights** (2025-11-11) ⭐ COMPLETE
+   - File: `tasks-0046-finalize-news-alignment-branch.md`
+   - Branch: `claude/align-news-sentiment-sections-011CUyEXr4XhbdjWn7Xapb7U` ✅ MERGED to main
+   - Duration: Implementation and merge (3 hours)
+   - Results: Feature parity achieved between market news and watchlist news
+   - Achievements:
+     - ✅ Backend: Added AI insight fields (impact_summary, actionable_insight) to API response
+     - ✅ Frontend: Hooks fix + AI insights display in MarketNewsCard
+     - ✅ Shared utilities: news-formatting.ts eliminates 140 lines of duplication
+     - ✅ Sentiment sorting (Recent, Most Positive, Most Negative)
+     - ✅ "Show All" functionality (10 → all articles)
+     - ✅ All 542 tests passing (14 pre-existing failures unchanged)
+   - Test Status: Backend API + Frontend UI verified with browser automation
+   - Notes: AI generation already existed - just exposed in API + frontend
+
+2. **Portfolio Page Improvements with Advanced Analytics** (2025-11-11) ⭐ COMPLETE
    - File: `tasks-0045-finalize-portfolio-improvements-branch.md`
    - Branch: `claude/improve-portfolio-page-011CUybqqMoNSxqr9256mAEz` ✅ MERGED to main
    - Duration: Testing and merge (2 hours)
