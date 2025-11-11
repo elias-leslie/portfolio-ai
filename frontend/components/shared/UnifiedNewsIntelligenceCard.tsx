@@ -124,7 +124,7 @@ export function UnifiedNewsIntelligenceCard({
   marketNewsData,
   recentNews,
   showHeader = !!ticker,
-  showSentimentBreakdown = !!recentNews,
+  showSentimentBreakdown = true,  // Always show sentiment breakdown when available
   newsHidden = false,
   title,
 }: UnifiedNewsIntelligenceCardProps) {
@@ -135,7 +135,7 @@ export function UnifiedNewsIntelligenceCard({
   if (newsHidden) return null;
   if (!newsIntelligence && !marketNewsData && !recentNews) return null;
 
-  // Normalize articles from any data structure
+  // Normalize articles and summary from any data structure
   const articles = useMemo(() => {
     if (newsIntelligence) {
       return newsIntelligence.recent_articles || [];
@@ -147,6 +147,20 @@ export function UnifiedNewsIntelligenceCard({
       return recentNews.articles || [];
     }
     return [];
+  }, [newsIntelligence, marketNewsData, recentNews]);
+
+  // Normalize summary from any data structure
+  const summary = useMemo(() => {
+    if (newsIntelligence?.summary) {
+      return newsIntelligence.summary;
+    }
+    if (marketNewsData?.summary) {
+      return marketNewsData.summary;
+    }
+    if (recentNews?.summary) {
+      return recentNews.summary;
+    }
+    return null;
   }, [newsIntelligence, marketNewsData, recentNews]);
 
   // Sort articles based on selected option
@@ -249,23 +263,23 @@ export function UnifiedNewsIntelligenceCard({
           </div>
         )}
 
-        {/* Sentiment Breakdown (recentNews only) */}
-        {showSentimentBreakdown && recentNews?.summary && (
+        {/* Sentiment Breakdown (all sections) */}
+        {showSentimentBreakdown && summary && (
           <div className="flex flex-wrap items-start justify-between gap-4 pb-3 border-b border-border">
             <div>
               <p className="text-xs uppercase tracking-wide text-text-muted">Sentiment Score</p>
               <div className="mt-1 flex items-center gap-2">
-                <Badge variant={getSentimentBadgeVariant(recentNews.summary.score)}>
-                  {formatSentimentScore(recentNews.summary.score)}
+                <Badge variant={getSentimentBadgeVariant(summary.score)}>
+                  {formatSentimentScore(summary.score)}
                 </Badge>
-                {recentNews.summary.score_change !== null && recentNews.summary.score_change !== undefined && (
+                {summary.score_change !== null && summary.score_change !== undefined && (
                   <span
                     className={`inline-flex items-center text-xs font-medium ${
-                      recentNews.summary.score_change >= 0 ? "text-gain" : "text-loss"
+                      summary.score_change >= 0 ? "text-gain" : "text-loss"
                     }`}
                   >
-                    {recentNews.summary.score_change >= 0 ? "▲" : "▼"}
-                    {Math.abs(recentNews.summary.score_change).toFixed(2)}
+                    {summary.score_change >= 0 ? "▲" : "▼"}
+                    {Math.abs(summary.score_change).toFixed(2)}
                   </span>
                 )}
               </div>
@@ -274,23 +288,23 @@ export function UnifiedNewsIntelligenceCard({
               <div>
                 <p className="font-semibold text-text">Headline Mix</p>
                 <p>
-                  Positive: <span className="font-medium text-gain">{recentNews.summary.positive_count}</span>
+                  Positive: <span className="font-medium text-gain">{summary.positive_count}</span>
                 </p>
                 <p>
-                  Neutral: <span className="font-medium text-text">{recentNews.summary.neutral_count}</span>
+                  Neutral: <span className="font-medium text-text">{summary.neutral_count}</span>
                 </p>
                 <p>
-                  Negative: <span className="font-medium text-loss">{recentNews.summary.negative_count}</span>
+                  Negative: <span className="font-medium text-loss">{summary.negative_count}</span>
                 </p>
               </div>
               <div>
                 <p className="font-semibold text-text">Model Coverage</p>
                 {(() => {
-                  const totalCoverage = Object.values(recentNews.summary.model_breakdown || {}).reduce(
+                  const totalCoverage = Object.values(summary.model_breakdown || {}).reduce(
                     (sum, val) => sum + val,
                     0
                   );
-                  const finbertCoverage = recentNews.summary.model_breakdown?.finbert ?? 0;
+                  const finbertCoverage = summary.model_breakdown?.finbert ?? 0;
                   const fallbackCoverage = Math.max(totalCoverage - finbertCoverage, 0);
 
                   if (totalCoverage === 0) {
