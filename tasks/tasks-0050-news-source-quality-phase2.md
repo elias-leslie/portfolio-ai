@@ -34,6 +34,100 @@
 
 ## Tasks
 
+### Task 0: Discover Best Approach for Feedback-Based Ranking (MANDATORY) (0.5 hours)
+
+**Goal**: Research and choose the RIGHT approach for using feedback to affect article selection
+
+**CRITICAL**: Don't just implement something - discover what actually works and is maintainable!
+
+**Options to Evaluate:**
+
+**Option A: Vendor-Level Reputation Scores** (Simple)
+- What it is: Aggregate feedback per vendor (user_useful_rate), use to weight article selection
+- How it works:
+  - Polygon: 20 thumbs up, 5 thumbs down = 80% useful rate
+  - Article selection: if random.random() < 0.80: include polygon articles
+- Pros: Simple weighted average, no ML dependencies, maintainable by any dev
+- Cons: Doesn't learn article-level patterns (headline style, topic, author), only vendor reputation
+- Is it "training"? Barely - it's just counting likes/dislikes per vendor
+- Good enough? Maybe - if vendor is primary signal of quality
+
+**Option B: ML Article Classifier** (Real Training)
+- What it is: Train sklearn model to predict "will user find this useful?" per article
+- Features: vendor, sentiment_score, headline_keywords, article_length, time_of_day, author, topic
+- Model: LogisticRegression or RandomForestClassifier (scikit-learn)
+- How it works:
+  - Collect training data: (article_features, is_useful) from user_article_feedback
+  - Train model: clf.fit(features, labels)
+  - Predict: usefulness_score = clf.predict_proba(article_features)
+  - Rank articles by usefulness_score
+- Pros: ACTUALLY learns patterns, can discover "user likes negative sentiment on TSLA but positive on AAPL"
+- Cons: Requires sklearn, training pipeline, model versioning, retraining schedule, more complexity
+- Is it "training"? YES - real machine learning
+- Supportable? Medium - needs someone who understands ML to maintain
+- Needs: >100 feedback samples to train reliably
+
+**Option C: Hybrid Progressive** (Start Simple, Add ML Later)
+- Phase 2a: Vendor-level scores (ship fast, works now)
+- Phase 2b: Add ML classifier when proven useful (>500 feedback samples collected)
+- Pros: Progressive enhancement, don't over-engineer before validating engagement
+- Cons: Eventually maintaining two systems (or migrating)
+
+**Research Tasks:**
+- [ ] 0.1 Check existing codebase for ML infrastructure
+  - [ ] Search for: sklearn, joblib, model training, feature engineering
+  - [ ] Check: Do we already train models anywhere? (technical analysis? sentiment?)
+  - [ ] Result: Can we reuse existing patterns or starting from scratch?
+
+- [ ] 0.2 Estimate data requirements for Option B
+  - [ ] Check: How many user_article_feedback rows exist?
+  - [ ] Calculate: Need ~100 samples minimum for binary classifier
+  - [ ] Decision: Do we have enough data NOW or need to collect first?
+
+- [ ] 0.3 Evaluate complexity vs value
+  - [ ] Option A: 1 hour implementation, works immediately, limited learning
+  - [ ] Option B: 3 hours implementation, needs data collection period, real learning
+  - [ ] Option C: 1 hour now + 2 hours later, staged approach
+
+- [ ] 0.4 Checkpoint - Present findings and get user decision
+  - [ ] Summary: "Found X existing ML infrastructure, Y feedback samples"
+  - [ ] Recommendation: "Option [A/B/C] because [reason]"
+  - [ ] User confirms approach before implementing
+
+**Verification:**
+```bash
+# Check for ML infrastructure
+cd ~/portfolio-ai/backend
+grep -r "sklearn\|joblib\|RandomForest\|LogisticRegression" app/ --include="*.py" | head -10
+
+# Check feedback data volume
+psql -U portfolio_ai_user -d portfolio_ai -c "SELECT COUNT(*) FROM user_article_feedback;"
+
+# Check if we already train models
+find app/ -name "*train*" -o -name "*model*" | grep -v __pycache__
+```
+
+**Decision Criteria:**
+
+Use **Option A** if:
+- ✅ No existing ML infrastructure
+- ✅ <100 feedback samples
+- ✅ Want to ship fast and validate engagement first
+- ✅ Primary quality signal IS vendor reputation
+
+Use **Option B** if:
+- ✅ Already have sklearn in dependencies
+- ✅ >100 feedback samples or willing to collect first
+- ✅ Want article-level personalization (not just vendor)
+- ✅ Have ML expertise on team
+
+Use **Option C** if:
+- ✅ Uncertain about engagement levels
+- ✅ Want to validate before investing in ML
+- ✅ Prefer iterative approach
+
+---
+
 ### Task 1: Article Feedback Buttons (Full Implementation) (1.5 hours)
 
 **Goal**: Thumbs up/down affects future article selection from that vendor
@@ -82,11 +176,17 @@ curl http://localhost:8000/api/news/source-stats/polygon | jq '.quality_score, .
 
 ---
 
-### Task 2: Quality-Based Article Ranking (1.5 hours)
+### Task 2: Implement Chosen Approach (1.5 hours)
 
-**Goal**: Use quality scores to prioritize high-quality vendors in article selection
+**Goal**: Implement the approach chosen in Task 0 - NOT DECIDED YET!
 
 **CRITICAL**: This is the missing piece that makes feedback actionable!
+
+**Implementation depends on Task 0 decision:**
+
+---
+
+#### If Option A Chosen: Vendor-Level Reputation Scoring
 
 **Backend Changes:**
 - [ ] 2.1 Modify `NewsService._select_articles_for_ticker()` to use quality scores
@@ -143,7 +243,7 @@ def _select_articles_for_ticker(self, articles: list, max_articles: int) -> list
     return self._apply_balanced_view(weighted_articles, max_articles)
 ```
 
-**Testing:**
+**Testing (Option A):**
 ```bash
 # 1. Rate polygon articles as "not useful" (thumbs down) 5 times
 # 2. Rate finnhub articles as "useful" (thumbs up) 5 times
@@ -151,6 +251,64 @@ def _select_articles_for_ticker(self, articles: list, max_articles: int) -> list
 # 4. Refresh watchlist news
 # 5. Verify: More finnhub articles, fewer polygon articles
 # 6. Check logs for: "Selected X/{total} articles (quality-weighted)"
+```
+
+---
+
+#### If Option B Chosen: ML Article Classifier
+
+**Backend Changes:**
+- [ ] 2.1 Create `app/ml/article_classifier.py` module
+  - [ ] Feature extraction: extract_features(article) → dict
+  - [ ] Features: vendor (one-hot), sentiment_score, headline_length, time_of_day, article_age
+  - [ ] Training: train_classifier(feedback_data) → trained model
+  - [ ] Prediction: predict_usefulness(article) → float [0-1]
+
+- [ ] 2.2 Add training pipeline
+  - [ ] Query user_article_feedback for training data
+  - [ ] Split: 80% train, 20% test
+  - [ ] Train: RandomForestClassifier or LogisticRegression
+  - [ ] Save model: joblib.dump(model, 'models/article_classifier.joblib')
+  - [ ] Log metrics: accuracy, precision, recall
+
+- [ ] 2.3 Integrate predictions into article selection
+  - [ ] Load trained model on startup
+  - [ ] For each article: usefulness_score = model.predict_proba(features)[1]
+  - [ ] Rank articles by usefulness_score
+  - [ ] Select top N after ranking
+
+- [ ] 2.4 Add retraining schedule
+  - [ ] Celery task: retrain model weekly or when >50 new feedback samples
+  - [ ] Monitor: Model performance degrades? Retrain more frequently
+
+**Testing (Option B):**
+```bash
+# 1. Collect 100+ feedback samples (thumbs up/down)
+# 2. Train initial model: python -m app.ml.article_classifier train
+# 3. Check model metrics: accuracy >70%, precision >65%
+# 4. Refresh news - verify articles ranked by usefulness
+# 5. Continue collecting feedback
+# 6. Retrain after 1 week - verify accuracy improves
+```
+
+---
+
+#### If Option C Chosen: Hybrid Progressive
+
+**Phase 2a: Implement Option A** (vendor-level, 1 hour)
+- See Option A implementation above
+- Ship this immediately to validate engagement
+
+**Phase 2b: Upgrade to Option B** (ML classifier, 2 hours later)
+- Implement when >500 feedback samples collected
+- Migrate from vendor-level to article-level predictions
+- Gradual rollout: 10% → 50% → 100% of users
+
+**Testing (Option C):**
+```bash
+# Week 1: Ship Option A, monitor engagement
+# Week 2-4: Collect 500+ feedback samples
+# Week 5: Implement Option B upgrade if engagement validates
 ```
 
 ---
