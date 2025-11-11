@@ -356,7 +356,7 @@ export function UnifiedNewsIntelligenceCard({
                 const articleKey = article.content_hash || article.url || `article-${idx}-${article.headline.substring(0, 30)}`;
 
                 // Watchlist-style detailed layout (when recentNews provided)
-                if (recentNews) {
+                // Unified detailed layout for all news (market and ticker)
                   return (
                     <div
                       key={articleKey}
@@ -421,75 +421,7 @@ export function UnifiedNewsIntelligenceCard({
                       </div>
                     </div>
                   );
-                }
 
-                // Market news simple layout
-                return (
-                  <div
-                    key={articleKey}
-                    className="rounded-md border border-border bg-surface-muted/20 p-2 space-y-1"
-                  >
-                    {article.url ? (
-                      <a
-                        href={article.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-                      >
-                        {aiPending && (
-                          <span className="text-[10px]" title="AI processing pending">
-                            ⏳
-                          </span>
-                        )}
-                        {displayHeadline}
-                        <ExternalLink className="h-3 w-3 flex-shrink-0" />
-                      </a>
-                    ) : (
-                      <p className="text-xs font-medium text-text">
-                        {aiPending && (
-                          <span className="text-[10px]" title="AI processing pending">
-                            ⏳
-                          </span>
-                        )}
-                        {displayHeadline}
-                      </p>
-                    )}
-
-                    {/* AI Insights */}
-                    {impactSummary && (
-                      <p className="text-[10px] text-text-muted italic">
-                        💡 {impactSummary}
-                      </p>
-                    )}
-                    {actionableInsight && (
-                      <p className="text-[10px] text-primary font-medium">
-                        💡 {actionableInsight}
-                      </p>
-                    )}
-
-                    {/* Metadata line */}
-                    <div className="flex flex-wrap items-center gap-2 text-[10px] text-text-muted">
-                      {source && <span>{source}</span>}
-                      {timeAgo && (
-                        <>
-                          <span>·</span>
-                          <span>{timeAgo}</span>
-                        </>
-                      )}
-                      {sentimentLabel && (
-                        <>
-                          <span>·</span>
-                          <Badge
-                            variant={getSentimentBadgeVariant(sentimentLabel)}
-                            className="text-[9px] px-1.5 py-0"
-                          >
-                            {sentimentLabel}
-                          </Badge>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                );
               })}
             </div>
 
