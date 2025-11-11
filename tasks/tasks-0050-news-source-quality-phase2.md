@@ -7,6 +7,11 @@
 **Created**: 2025-11-11
 **Updated**: 2025-11-11 (Task 0 checkpoint: Option D chosen, feedback reasons to be determined in Phase 2a)
 **Depends on**: Phase 1 ✅ COMPLETE, Task 0 ✅ COMPLETE
+**Status**: Ready to start Phase 2a
+**PAUSED**: 2025-11-11 (User request - fresh session for ML implementation)
+**Next**: Task 1 - Data Collection & AI Labeling (45 min) - Query news_cache, label 200-500 articles, discover feedback patterns
+
+<!-- PAUSED: 2025-11-11 | Context: 57% | Next: Task 1 - Query news_cache for articles, AI label with quality criteria, discover feedback reason patterns -->
 
 ---
 
