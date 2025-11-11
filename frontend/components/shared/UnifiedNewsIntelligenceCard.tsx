@@ -179,9 +179,32 @@ export function UnifiedNewsIntelligenceCard({
     return sorted;
   }, [articles, sortBy]);
 
-  const displayCount = showAll ? sortedArticles.length : 10;
-  const displayedArticles = sortedArticles.slice(0, displayCount);
-  const hasMore = sortedArticles.length > 10;
+  // Balanced view: Top 3 positive + top 3 negative (6 total)
+  const balancedArticles = useMemo(() => {
+    if (sortBy !== "recent") {
+      // User manually selected sorting, use that
+      return sortedArticles;
+    }
+
+    // Default balanced view: show extremes
+    const withScores = articles.map(a => ({
+      article: a,
+      score: a.sentiment_score ?? a.sentiment?.score ?? 0
+    }));
+
+    // Sort by score to find extremes
+    const byScore = [...withScores].sort((a, b) => b.score - a.score);
+
+    const positive = byScore.filter(x => x.score > 0).slice(0, 3);
+    const negative = byScore.filter(x => x.score < 0).slice(-3).reverse(); // Most negative first
+
+    // Positive first, then negative
+    return [...positive, ...negative].map(x => x.article);
+  }, [articles, sortedArticles, sortBy]);
+
+  const displayCount = showAll ? sortedArticles.length : 6;
+  const displayedArticles = showAll ? sortedArticles : balancedArticles.slice(0, displayCount);
+  const hasMore = sortedArticles.length > 6;
 
   // Determine title
   const cardTitle = title || (ticker ? "📰 News Intelligence" : "Market News");
@@ -339,10 +362,15 @@ export function UnifiedNewsIntelligenceCard({
           </div>
         ) : (
           <>
-            {ticker && (
-              <h5 className="text-xs font-semibold text-text mb-2">
-                Recent Articles (showing {displayedArticles.length}):
-              </h5>
+            {!showAll && sortBy === "recent" && (
+              <p className="text-xs text-text-muted mb-3">
+                Showing top 3 positive + top 3 negative articles ({displayedArticles.length} of {sortedArticles.length})
+              </p>
+            )}
+            {!showAll && sortBy !== "recent" && (
+              <p className="text-xs text-text-muted mb-3">
+                Showing {displayedArticles.length} of {sortedArticles.length} articles
+              </p>
             )}
             <div className="space-y-2">
               {displayedArticles.map((article, idx) => {
