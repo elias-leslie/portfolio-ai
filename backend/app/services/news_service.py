@@ -335,6 +335,51 @@ class NewsService:
             force_refresh=force_refresh,
         )
 
+    def get_news_intelligence(
+        self,
+        ticker: str | None = None,
+        *,
+        max_articles: int = DEFAULT_MAX_ARTICLES,
+        force_refresh: bool = False,
+    ) -> NewsBundle:
+        """Get unified news intelligence bundle for market or specific ticker.
+
+        This method unifies market-level and ticker-specific news fetching
+        into a single interface, supporting both use cases:
+        - Market news: ticker=None returns broad market news
+        - Ticker news: ticker="AAPL" returns symbol-specific news
+
+        Args:
+            ticker: Optional ticker symbol. If None, returns market-level news.
+                   If provided, returns ticker-specific news.
+            max_articles: Maximum number of articles to return
+            force_refresh: If True, bypass cache and fetch fresh data
+
+        Returns:
+            NewsBundle containing summary statistics and scored articles
+
+        Examples:
+            >>> service = NewsService()
+            >>> market_news = service.get_news_intelligence(None)
+            >>> aapl_news = service.get_news_intelligence("AAPL")
+        """
+        if ticker is None:
+            # Market-level news
+            return self._get_bundle(
+                ticker=MARKET_TICKER,
+                query="stock market",
+                max_articles=max_articles,
+                force_refresh=force_refresh,
+            )
+        # Ticker-specific news
+        query = f"{ticker} stock"
+        return self._get_bundle(
+            ticker=ticker.upper(),
+            query=query,
+            max_articles=max_articles,
+            force_refresh=force_refresh,
+        )
+
     def get_watchlist_news(
         self,
         symbols: Iterable[str],
@@ -765,7 +810,9 @@ class NewsService:
                 if mix_metrics["total_pre"]
                 else None,
                 "per_vendor_pre_dedupe": {k: int(v) for k, v in mix_metrics["vendor_pre"].items()},
-                "per_vendor_post_dedupe": {k: int(v) for k, v in mix_metrics["vendor_post"].items()},
+                "per_vendor_post_dedupe": {
+                    k: int(v) for k, v in mix_metrics["vendor_post"].items()
+                },
                 "last_updated_at": self._to_iso(mix_metrics["last_timestamp"]),
             },
             "vendors": vendor_health,
