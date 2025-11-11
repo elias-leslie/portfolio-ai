@@ -120,7 +120,8 @@ def _refresh_news_sentiment_task(
     )
 
     # Always fetch market bundle; service decides whether to hit external APIs
-    market_bundle = news_service.get_market_news(
+    market_bundle = news_service.get_news_intelligence(
+        None,
         max_articles=news_max_articles,
         force_refresh=should_force_refresh,
     )
