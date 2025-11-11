@@ -129,7 +129,7 @@ export function SourceQualityCard() {
         </div>
         {lastUpdate && (
           <p className="text-sm text-muted-foreground mt-1">
-            Last updated: {formatTimestamp(lastUpdate)}
+            Last updated: {formatTimestamp(lastUpdate)} • {metrics.filter((m) => m.article_count > 0).length} active sources
           </p>
         )}
       </CardHeader>
@@ -146,7 +146,7 @@ export function SourceQualityCard() {
           </div>
         ) : (
           <div className="space-y-3">
-            {metrics.map((metric) => (
+            {metrics.filter((m) => m.article_count > 0).map((metric) => (
               <div
                 key={metric.vendor}
                 className="border rounded-lg p-3 hover:bg-accent/50 transition-colors"
