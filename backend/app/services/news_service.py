@@ -7,6 +7,7 @@ from collections import Counter
 from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime, timedelta
 from importlib import import_module
+from pathlib import Path
 from typing import Any, Literal, cast
 
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer  # type: ignore[import-untyped]
@@ -25,6 +26,7 @@ except Exception:  # pragma: no cover - handled via availability checks
     AutoTokenizer = cast(Any, None)
 
 from ..logging_config import get_logger
+from ..ml.article_quality_classifier import ArticleQualityClassifier
 from ..sources.base import DATASET_NEWS, BaseSource, DatasetRequest
 from ..sources.multi_source_fetcher import MultiSourceFetcher
 from ..storage import PortfolioStorage
@@ -237,9 +239,53 @@ class NewsService:
         )
         self.ai_features = NewsAIFeatures()
 
+        # Load ML quality model (graceful fallback if not available)
+        self.quality_model: ArticleQualityClassifier | None = None
+        self._load_quality_model()
+
         # Expose multi_source_fetcher for compatibility
         self.multi_source_fetcher = self.vendor_manager.multi_source_fetcher
         self.vendor_sources = self.vendor_manager.vendor_sources
+
+    def _load_quality_model(self) -> None:
+        """Load ML quality model with graceful fallback."""
+        # Model is in backend/models/ not backend/app/models/
+        model_path = Path(__file__).parent.parent.parent / "models" / "article_quality_v1.joblib"
+
+        try:
+            if model_path.exists():
+                self.quality_model = ArticleQualityClassifier.load(model_path)
+                logger.info("quality_model_loaded", model_path=str(model_path))
+            else:
+                logger.warning("quality_model_not_found", model_path=str(model_path))
+        except Exception as e:
+            logger.error("quality_model_load_failed", error=str(e), model_path=str(model_path))
+
+    def _score_article_quality(self, articles: list[Any]) -> list[Any]:
+        """Score article quality using ML model."""
+        if not self.quality_model:
+            logger.warning("quality_model_not_available", article_count=len(articles))
+            return articles
+
+        scored_count = 0
+        for article in articles:
+            try:
+                prediction = self.quality_model.predict(article.headline, article.summary or "")
+                article.quality_prediction = prediction["is_useful"]
+                article.quality_confidence = prediction["confidence"]
+                scored_count += 1
+            except Exception as e:
+                logger.error(
+                    "quality_prediction_failed",
+                    ticker=article.ticker,
+                    headline=article.headline[:50],
+                    error=str(e),
+                )
+                article.quality_prediction = None
+                article.quality_confidence = None
+
+        logger.info("quality_scoring_complete", scored=scored_count, total=len(articles))
+        return articles
 
     def set_ttl_hours(self, hours: int) -> None:
         """Update the active TTL/lookback window (in hours)."""
@@ -519,6 +565,9 @@ class NewsService:
         )
 
         articles = self.processor.score_entries(ticker=ticker, entries=combined_entries, now=now)
+
+        # Score article quality (ML predictions)
+        articles = self._score_article_quality(articles)
 
         # Apply AI features
         articles = self.ai_features.apply_story_clustering(articles)

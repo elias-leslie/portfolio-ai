@@ -32,9 +32,7 @@ ENV_VAR_MAPPINGS = {
 }
 
 
-def _load_single_credential(
-    source_id: str, field: str, value: str
-) -> tuple[bool, bool]:
+def _load_single_credential(source_id: str, field: str, value: str) -> tuple[bool, bool]:
     """Load a single credential into environment.
 
     Returns:

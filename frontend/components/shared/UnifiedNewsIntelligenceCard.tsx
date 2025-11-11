@@ -42,6 +42,8 @@ interface NewsArticle {
   impact_summary?: string | null;
   actionable_insight?: string | null;
   content_hash?: string;
+  quality_prediction?: boolean | null;
+  quality_confidence?: number | null;
 }
 
 // Data structure types
@@ -436,6 +438,14 @@ export function UnifiedNewsIntelligenceCard({
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-2 text-xs">
+                          {article.quality_confidence !== undefined && article.quality_confidence !== null && (
+                            <Badge
+                              variant={article.quality_confidence >= 0.7 ? "success" : article.quality_confidence >= 0.5 ? "warning" : "secondary"}
+                              className="text-[10px]"
+                            >
+                              Quality {Math.round(article.quality_confidence * 100)}%
+                            </Badge>
+                          )}
                           {sentimentLabel && (
                             <Badge variant={getSentimentBadgeVariant(sentimentLabel)}>
                               {sentimentLabel.toUpperCase()}

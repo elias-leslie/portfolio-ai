@@ -1,17 +1,19 @@
 """Settings Profiles API routes."""
 
-from flask import Blueprint, request, jsonify
 from typing import Any
+
+from flask import Blueprint, jsonify, request
+
 from app.database import get_db_connection
 from app.models.settings_profile import (
+    activate_profile,
+    create_profile,
+    delete_profile,
+    duplicate_profile,
+    get_active_profile,
     get_all_profiles,
     get_profile_by_id,
-    get_active_profile,
-    create_profile,
     update_profile,
-    delete_profile,
-    activate_profile,
-    duplicate_profile,
 )
 
 settings_profiles_bp = Blueprint("settings_profiles", __name__)
@@ -123,9 +125,7 @@ def update(profile_id: int) -> tuple[Any, int]:
         return jsonify({"error": str(e)}), 500
 
 
-@settings_profiles_bp.route(
-    "/api/settings/profiles/<int:profile_id>", methods=["DELETE"]
-)
+@settings_profiles_bp.route("/api/settings/profiles/<int:profile_id>", methods=["DELETE"])
 def delete(profile_id: int) -> tuple[Any, int]:
     """Delete a profile."""
     user_id = request.args.get("user_id", 1, type=int)
@@ -143,9 +143,7 @@ def delete(profile_id: int) -> tuple[Any, int]:
         return jsonify({"error": str(e)}), 500
 
 
-@settings_profiles_bp.route(
-    "/api/settings/profiles/<int:profile_id>/activate", methods=["POST"]
-)
+@settings_profiles_bp.route("/api/settings/profiles/<int:profile_id>/activate", methods=["POST"])
 def activate(profile_id: int) -> tuple[Any, int]:
     """Activate a profile."""
     user_id = request.args.get("user_id", 1, type=int)
@@ -163,9 +161,7 @@ def activate(profile_id: int) -> tuple[Any, int]:
         return jsonify({"error": str(e)}), 500
 
 
-@settings_profiles_bp.route(
-    "/api/settings/profiles/<int:profile_id>/duplicate", methods=["POST"]
-)
+@settings_profiles_bp.route("/api/settings/profiles/<int:profile_id>/duplicate", methods=["POST"])
 def duplicate(profile_id: int) -> tuple[Any, int]:
     """Duplicate a profile."""
     data = request.get_json()
@@ -188,9 +184,7 @@ def duplicate(profile_id: int) -> tuple[Any, int]:
         return jsonify({"error": str(e)}), 500
 
 
-@settings_profiles_bp.route(
-    "/api/settings/profiles/<int:profile_id>/export", methods=["GET"]
-)
+@settings_profiles_bp.route("/api/settings/profiles/<int:profile_id>/export", methods=["GET"])
 def export_profile(profile_id: int) -> tuple[Any, int]:
     """Export a profile as JSON for sharing/backup."""
     user_id = request.args.get("user_id", 1, type=int)

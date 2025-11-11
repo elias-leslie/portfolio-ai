@@ -67,18 +67,14 @@ def extract_with_path(data: dict[str, Any], path: str | None) -> Any:
     return current
 
 
-def _extract_data_from_response(
-    response: dict[str, Any], data_path: str | None
-) -> Any:
+def _extract_data_from_response(response: dict[str, Any], data_path: str | None) -> Any:
     """Extract data from response using optional data_path."""
     if not data_path:
         return response
 
     extracted = extract_with_path(response, data_path)
     if extracted is None:
-        raise ValueError(
-            f"data_path '{data_path}' extraction failed - path not found in response"
-        )
+        raise ValueError(f"data_path '{data_path}' extraction failed - path not found in response")
     return extracted
 
 

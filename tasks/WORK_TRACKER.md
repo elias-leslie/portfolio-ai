@@ -24,6 +24,7 @@
    - File: `tasks-0050-news-source-quality-phase2.md`
    - Created: 2025-11-11
    - Goal: Label 200-500 existing articles from news_cache with consistent quality criteria
+   - Status: PAUSED (2025-11-11)
    - Tasks:
      - (No tasks defined yet)
 

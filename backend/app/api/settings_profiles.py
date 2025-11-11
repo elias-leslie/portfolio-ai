@@ -67,7 +67,7 @@ async def list_profiles(user_id: int = Query(default=1)) -> list[dict[str, Any]]
             profiles = get_all_profiles(conn._conn, user_id)  # type: ignore[attr-defined]
             return [p.to_dict() for p in profiles]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/active")
@@ -82,7 +82,7 @@ async def get_active(user_id: int = Query(default=1)) -> dict[str, Any]:
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/{profile_id}")
@@ -97,7 +97,7 @@ async def get_profile(profile_id: int, user_id: int = Query(default=1)) -> dict[
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("")
@@ -115,7 +115,7 @@ async def create(data: ProfileCreate) -> dict[str, Any]:
             )
             return profile.to_dict()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.put("/{profile_id}")
@@ -138,7 +138,7 @@ async def update(profile_id: int, data: ProfileUpdate) -> dict[str, Any]:
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.delete("/{profile_id}")
@@ -153,7 +153,7 @@ async def delete(profile_id: int, user_id: int = Query(default=1)) -> dict[str, 
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/{profile_id}/activate")
@@ -168,7 +168,7 @@ async def activate(profile_id: int, user_id: int = Query(default=1)) -> dict[str
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/{profile_id}/duplicate")
@@ -183,7 +183,7 @@ async def duplicate(profile_id: int, data: ProfileDuplicate) -> dict[str, Any]:
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/{profile_id}/export")
@@ -207,7 +207,7 @@ async def export_profile(profile_id: int, user_id: int = Query(default=1)) -> di
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/import")
@@ -225,4 +225,4 @@ async def import_profile(data: ProfileImport) -> dict[str, Any]:
             )
             return profile.to_dict()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e

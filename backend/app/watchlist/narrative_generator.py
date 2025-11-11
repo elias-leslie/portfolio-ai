@@ -170,9 +170,7 @@ def _gen_profit_bullet(profit_margin: float) -> str:
     return f"✗ Unprofitable - Losing {abs(margin_pct):.0f}% on sales"
 
 
-def _gen_balance_sheet_bullet(
-    debt_to_equity: float | None, cash: float | None
-) -> str | None:
+def _gen_balance_sheet_bullet(debt_to_equity: float | None, cash: float | None) -> str | None:
     """Generate balance sheet health bullet."""
     # Debt analysis takes priority
     if debt_to_equity is not None:

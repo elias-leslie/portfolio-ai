@@ -174,6 +174,18 @@ celery_app.conf.beat_schedule = {
         # - Ensures SPY + sector ETFs fresh for market indicators
         # - Fetches last 5 days to account for holidays/weekends
     },
+    "retrain-article-quality-model": {
+        "task": "retrain_article_quality_model",
+        "schedule": 86400.0,  # Daily (24 hours)
+        "options": {"expires": 7200},  # Task expires after 2 hours
+        # Notes:
+        # - Queries 100 newest unlabeled articles from news_cache
+        # - Labels them with Gemini for quality assessment
+        # - Retrains sklearn model with accumulated training data
+        # - Updates production model if accuracy improves
+        # - Stores metrics in ml_model_metrics table
+        # - Runs daily to keep model fresh with evolving news patterns
+    },
     "update-technical-indicators-daily": {
         "task": "update_technical_indicators",
         "schedule": 86400.0,  # Daily (24 hours)
@@ -200,6 +212,7 @@ from app.tasks import (  # noqa: E402, F401
     agent_tasks,
     data_ingestion_tasks,
     indicator_tasks,
+    ml_training_tasks,
     news_tasks,
     watchlist_tasks,
 )

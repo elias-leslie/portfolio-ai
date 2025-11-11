@@ -36,6 +36,7 @@ import { DataSourcesCard } from "@/components/status/DataSourcesCard";
 import { APIQuotasCard } from "@/components/status/APIQuotasCard";
 import { LogsCard } from "@/components/status/LogsCard";
 import { SourceQualityCard } from "@/components/status/SourceQualityCard";
+import { MLModelCard } from "@/components/status/MLModelCard";
 import {
     clearCache,
     refreshWatchlist,
@@ -422,6 +423,9 @@ export default function StatusPage() {
 
             {/* News Source Quality card */}
             <SourceQualityCard />
+
+            {/* ML Model Status card */}
+            <MLModelCard />
 
             {/* Service cards grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

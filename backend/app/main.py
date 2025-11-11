@@ -19,6 +19,7 @@ from app.api import (
     ideas,
     indicators,
     market,
+    ml,
     news,
     portfolio,
     preferences,
@@ -138,6 +139,7 @@ app.include_router(settings_profiles.router)
 app.include_router(analytics.router)
 app.include_router(indicators.router)
 app.include_router(watchlist.router)
+app.include_router(ml.router)
 
 
 @app.get("/")

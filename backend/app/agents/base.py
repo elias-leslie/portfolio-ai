@@ -125,9 +125,7 @@ class Agent(ABC):
             status="completed",
         )
 
-        self._record_run_complete(
-            run_id, completed_at, "completed", len(tool_calls_made)
-        )
+        self._record_run_complete(run_id, completed_at, "completed", len(tool_calls_made))
 
         return {
             "status": "completed",
@@ -169,13 +167,9 @@ class Agent(ABC):
                 duration_ms = int((tool_end - tool_start).total_seconds() * 1000)
 
                 # Record tool call
-                self._record_tool_call(
-                    run_id, block.name, tool_input, result, duration_ms
-                )
+                self._record_tool_call(run_id, block.name, tool_input, result, duration_ms)
 
-                tool_calls_made.append(
-                    {"name": block.name, "input": tool_input, "result": result}
-                )
+                tool_calls_made.append({"name": block.name, "input": tool_input, "result": result})
 
                 # Add tool result to conversation
                 tool_results.append(

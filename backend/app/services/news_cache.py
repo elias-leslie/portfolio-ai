@@ -64,7 +64,9 @@ class NewsCacheManager:
                     is_primary_article,
                     coverage_count,
                     impact_summary,
-                    actionable_insight
+                    actionable_insight,
+                    quality_prediction,
+                    quality_confidence
                 FROM news_cache
                 WHERE ticker = %s
                 ORDER BY fetched_at DESC, published_at DESC NULLS LAST
@@ -113,7 +115,9 @@ class NewsCacheManager:
                     is_primary_article,
                     coverage_count,
                     impact_summary,
-                    actionable_insight
+                    actionable_insight,
+                    quality_prediction,
+                    quality_confidence
                 FROM news_cache
                 WHERE ticker = %s
                   AND fetched_at >= %s
@@ -153,6 +157,8 @@ class NewsCacheManager:
             coverage_count,
             impact_summary,
             actionable_insight,
+            quality_prediction,
+            quality_confidence,
         ) = row
 
         published_dt = published_at.astimezone(UTC) if isinstance(published_at, datetime) else None
@@ -202,6 +208,10 @@ class NewsCacheManager:
             coverage_count=int(coverage_count) if coverage_count is not None else 1,
             impact_summary=impact_summary,
             actionable_insight=actionable_insight,
+            quality_prediction=quality_prediction,
+            quality_confidence=float(quality_confidence)
+            if quality_confidence is not None
+            else None,
         )
 
     def article_to_db_row(self, article: NewsArticle) -> dict[str, Any]:
@@ -239,6 +249,8 @@ class NewsCacheManager:
             "coverage_count": article.coverage_count,
             "impact_summary": article.impact_summary,
             "actionable_insight": article.actionable_insight,
+            "quality_prediction": getattr(article, "quality_prediction", None),
+            "quality_confidence": getattr(article, "quality_confidence", None),
         }
 
     def save_articles(self, articles: list[NewsArticle]) -> None:
@@ -277,7 +289,9 @@ class NewsCacheManager:
                         is_primary_article,
                         coverage_count,
                         impact_summary,
-                        actionable_insight
+                        actionable_insight,
+                        quality_prediction,
+                        quality_confidence
                     ) VALUES (
                         %(ticker)s,
                         %(headline)s,
@@ -303,7 +317,9 @@ class NewsCacheManager:
                         %(is_primary_article)s,
                         %(coverage_count)s,
                         %(impact_summary)s,
-                        %(actionable_insight)s
+                        %(actionable_insight)s,
+                        %(quality_prediction)s,
+                        %(quality_confidence)s
                     )
                     ON CONFLICT (ticker, content_hash) DO UPDATE SET
                         url = EXCLUDED.url,
@@ -323,7 +339,9 @@ class NewsCacheManager:
                         is_primary_article = EXCLUDED.is_primary_article,
                         coverage_count = EXCLUDED.coverage_count,
                         impact_summary = EXCLUDED.impact_summary,
-                        actionable_insight = EXCLUDED.actionable_insight
+                        actionable_insight = EXCLUDED.actionable_insight,
+                        quality_prediction = EXCLUDED.quality_prediction,
+                        quality_confidence = EXCLUDED.quality_confidence
                     """,
                     row,
                 )

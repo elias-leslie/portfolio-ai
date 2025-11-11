@@ -47,6 +47,9 @@ class NewsArticle(BaseModel):
     # Plain language insights
     impact_summary: str | None = None
     actionable_insight: str | None = None
+    # ML quality prediction
+    quality_prediction: bool | None = None
+    quality_confidence: float | None = None
 
 
 class NewsSummary(BaseModel):
