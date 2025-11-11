@@ -62,6 +62,21 @@ function buildQuery(params: QueryParams): string {
     return queryString ? `?${queryString}` : "";
 }
 
+export async function fetchNewsIntelligence(
+    ticker?: string,
+    options?: {
+        limit?: number;
+        forceRefresh?: boolean;
+    },
+): Promise<NewsBundle> {
+    const query = buildQuery({
+        ticker,
+        limit: options?.limit,
+        force_refresh: options?.forceRefresh,
+    });
+    return apiRequest<NewsBundle>(`/api/news${query}`);
+}
+
 export async function fetchMarketNews(options?: {
     maxResults?: number;
     forceRefresh?: boolean;

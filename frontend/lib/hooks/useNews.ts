@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   fetchMarketNews,
+  fetchNewsIntelligence,
   fetchSymbolNews,
   fetchWatchlistNews,
   searchNews,
@@ -12,12 +13,26 @@ import { usePortfolio } from "./usePortfolio";
 
 export const newsKeys = {
   all: ["news"] as const,
+  intelligence: (ticker?: string) => [...newsKeys.all, "intelligence", ticker ?? "market"] as const,
   market: () => [...newsKeys.all, "market"] as const,
   symbol: (symbol: string) => [...newsKeys.all, "symbol", symbol] as const,
   watchlist: (accountId: string) => [...newsKeys.all, "watchlist", accountId] as const,
   portfolio: () => [...newsKeys.all, "portfolio"] as const,
   search: (query: string) => [...newsKeys.all, "search", query] as const,
 };
+
+export function useNewsIntelligence(
+  ticker?: string,
+  options?: { limit?: number; forceRefresh?: boolean; enabled?: boolean },
+) {
+  return useQuery<NewsBundle, Error>({
+    queryKey: newsKeys.intelligence(ticker),
+    queryFn: () => fetchNewsIntelligence(ticker, options),
+    staleTime: 1000 * 60 * 5,
+    enabled: options?.enabled !== false,
+    refetchOnWindowFocus: false,
+  });
+}
 
 export function useMarketNews(options?: { maxResults?: number; forceRefresh?: boolean; enabled?: boolean }) {
   return useQuery<MarketNewsResponse, Error>({
