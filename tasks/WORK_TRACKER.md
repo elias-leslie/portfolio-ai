@@ -20,21 +20,7 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **True Unified News Intelligence (Backend + Frontend)** (HIGH (8-12 hours), 0/8 tasks (today))
-   - File: `tasks-0048-true-unified-news-intelligence.md`
-   - Created: 2025-11-11
-   - Goal: Create single unified backend service and frontend component with TRUE visual parity between Market News (dashboard) and News & Sentiment (watchlist). Both sections should look identical except for conditional sentiment breakdown.
-   - Tasks:
-     - [ ] Task 0: Scope Discovery (MANDATORY - CLOUD AGENT)
-     - [ ] Task 1: Backend: Create Unified News Intelligence Service
-     - [ ] Task 2: Backend: Create Unified API Endpoint
-     - [ ] Task 3: Frontend: Update Hooks to Use Unified Endpoint
-     - [ ] Task 4: Frontend: Unify Article Layout in Component
-     - [ ] Task 5: Visual Verification with Diagrams
-     - [ ] Task 6: Testing and Quality Verification
-     - [ ] Task 7: Cleanup and Documentation
-
-2. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (today))
+1. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (today))
    - File: `tasks-0042-customizable-dashboard-layouts.md`
    - Created: 2025-11-11
    - Goal: Enable users to customize dashboard layouts by dragging/resizing cards, with persistence to PostgreSQL backend
