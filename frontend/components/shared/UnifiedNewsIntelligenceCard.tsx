@@ -385,14 +385,11 @@ export function UnifiedNewsIntelligenceCard({
                   ? article.source.trim()
                   : formatVendorLabel(article.vendor);
 
-                const plainLanguageHeadline = article.plain_language_headline;
                 const impactSummary = article.impact_summary;
                 const actionableInsight = article.actionable_insight;
 
-                // Use original headline if AI hasn't processed it yet
-                const displayHeadline = plainLanguageHeadline || article.headline;
-                // Show indicator if AI processing is pending (no plain language version)
-                const aiPending = !plainLanguageHeadline;
+                // ALWAYS use original headline (plain_language_headline is disabled due to broken transformation)
+                const displayHeadline = article.headline;
 
                 // Generate unique key
                 const articleKey = article.content_hash || article.url || `article-${idx}-${article.headline.substring(0, 30)}`;

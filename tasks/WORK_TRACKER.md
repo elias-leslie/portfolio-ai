@@ -20,27 +20,24 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Fix Plain Language Headline Transformation Bug** (CRITICAL (1 hour), 0/2 tasks) 🚨 URGENT
+1. **Fix Plain Language Headline Transformation Bug** (1 hour, 0/0 tasks (today))
    - File: `tasks-0051-fix-headline-transformation-bug.md`
-   - Priority: BLOCKS Phase 2 (feedback loop training on wrong data)
-   - Goal: Disable broken headline transformation + add sentiment override
+   - Created: 2025-11-11
    - Tasks:
-     - [ ] Phase 1: Disable plain_language_headline (show real headlines only)
-     - [ ] Phase 2: Add sentiment override buttons (let users correct bad sentiment)
-   - Issue: "Tesla Stock Is Slipping" transformed to "Company made more money" with -0.96 sentiment
-   - Result: User confusion + corrupt training data
+     - (No tasks defined yet)
 
-2. **News Source Quality Profiling System (Phase 2)** (MEDIUM (3.5-4 hours), 0/4 tasks)
+2. **News Source Quality Profiling System (Phase 2)** (MEDIUM (3.5-4 hours), 0/5 tasks (today))
    - File: `tasks-0050-news-source-quality-phase2.md`
-   - Depends on: Phase 1 ✅ COMPLETE + Task 0051 🚨
-   - Goal: Make article feedback actually affect what users see
+   - Created: 2025-11-11
+   - Goal: Make article feedback actually affect what users see - not just data collection
    - Tasks:
-     - [ ] Task 1: Article Feedback Buttons (👍👎 trains model, affects selection)
-     - [ ] Task 2: Quality-Based Article Ranking (de-prioritize low-quality vendors)
-     - [ ] Task 3: Settings Weight Sliders (adjust quality formula)
-     - [ ] Task 4: Neutral Article Filtering (hide ±0.2 sentiment)
+     - [ ] Task 0: Discover Best Approach for Feedback-Based Ranking (MANDATORY) (0.5 hours)
+     - [ ] Task 1: Article Feedback Buttons (Full Implementation) (1.5 hours)
+     - [ ] Task 2: Implement Chosen Approach (1.5 hours)
+     - [ ] Task 3: Settings Weight Sliders (1 hour)
+     - [ ] Task 4: Neutral Article Filtering (0.5 hours)
 
-2. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (today))
+3. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (today))
    - File: `tasks-0042-customizable-dashboard-layouts.md`
    - Created: 2025-11-11
    - Goal: Enable users to customize dashboard layouts by dragging/resizing cards, with persistence to PostgreSQL backend
@@ -56,7 +53,7 @@
      - [ ] Task 9: Polish and Edge Cases
      - [ ] Task 10: Testing and Documentation
 
-3. **Trading Intelligence Roadmap** (High, 4/8 tasks)
+4. **Trading Intelligence Roadmap** (High, 4/8 tasks)
    - File: `tasks-trading-intelligence-roadmap.md`
    - Created: Unknown
    - Tasks:

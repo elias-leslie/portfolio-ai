@@ -323,6 +323,7 @@ class ArticleFeedbackRequest(BaseModel):
     article_hash: str
     vendor: str
     is_useful: bool
+    sentiment_override: float | None = None  # User-corrected sentiment (-1.0 to 1.0)
 
 
 class ArticleFeedbackResponse(BaseModel):
@@ -498,12 +499,14 @@ async def submit_article_feedback(
                     article_url,
                     article_hash,
                     vendor,
-                    is_useful
+                    is_useful,
+                    sentiment_override
                 )
-                VALUES (%s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 ON CONFLICT (user_id, article_hash)
                 DO UPDATE SET
                     is_useful = EXCLUDED.is_useful,
+                    sentiment_override = EXCLUDED.sentiment_override,
                     created_at = NOW()
                 """,
                 [
@@ -512,6 +515,7 @@ async def submit_article_feedback(
                     feedback.article_hash,
                     feedback.vendor,
                     feedback.is_useful,
+                    feedback.sentiment_override,
                 ],
             )
 

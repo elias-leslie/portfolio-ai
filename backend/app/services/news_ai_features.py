@@ -29,6 +29,9 @@ from .news_models import NewsArticle
 
 logger = get_logger(__name__)
 
+# Feature flags
+ENABLE_PLAIN_LANGUAGE_HEADLINES = False  # Disabled due to broken keyword-based transformation
+
 
 class NewsAIFeatures:
     """Manages AI-powered news features."""
@@ -124,7 +127,9 @@ class NewsAIFeatures:
                 )
 
                 # Generate plain language headline if not already set
-                if not article.plain_language_headline:
+                # DISABLED: Keyword-based transformation is broken (wrong transformations, sentiment mismatch)
+                # TODO: Re-enable when proper LLM-based transformation is implemented
+                if ENABLE_PLAIN_LANGUAGE_HEADLINES and not article.plain_language_headline:
                     translation_result = translate_to_plain_language(
                         headline=article.headline,
                         summary=article.summary,
