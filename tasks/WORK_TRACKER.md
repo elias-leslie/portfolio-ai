@@ -20,7 +20,24 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (today))
+1. **News Source Quality Profiling System (Phase 1)** (HIGH (5-6 hours), 0/11 tasks (today))
+   - File: `tasks-0049-news-source-quality-profiling.md`
+   - Created: 2025-11-11
+   - Goal: Build foundation for intelligent news source quality monitoring and personalization
+   - Tasks:
+     - [ ] Task 0: Architecture Discovery (MANDATORY)
+     - [ ] Task 1: Backend - Core Metrics Calculation
+     - [ ] Task 2: Backend - Database Schema
+     - [ ] Task 3: Backend - Profiling Celery Task
+     - [ ] Task 4: Backend - User Feedback API
+     - [ ] Task 5: Backend - Source Quality Filtering
+     - [ ] Task 6: Frontend - Status Card UI
+     - [ ] Task 7: Frontend - User Feedback Buttons
+     - [ ] Task 8: Frontend - Settings Sliders
+     - [ ] Task 9: Integration Testing
+     - [ ] Task 10: Documentation and Cleanup
+
+2. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (today))
    - File: `tasks-0042-customizable-dashboard-layouts.md`
    - Created: 2025-11-11
    - Goal: Enable users to customize dashboard layouts by dragging/resizing cards, with persistence to PostgreSQL backend
