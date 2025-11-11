@@ -12,20 +12,7 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Unified News Intelligence Component** (0% - 0/7 complete)
-   - File: `tasks-0047-unified-news-intelligence-component.md`
-   - Started: 2025-11-11 (today)
-   - Last updated: Paused at Task 0.3 Checkpoint
-   - Next: Task 1.1 - Create UnifiedNewsIntelligenceCard component file
-   - Tasks:
-     - [ ] Task 0: Scope Discovery (MANDATORY)
-     - [ ] Task 1: Create Unified Component Structure
-     - [ ] Task 2: Implement Always-Visible Sections
-     - [ ] Task 3: Implement Conditional Sections
-     - [ ] Task 4: Replace Existing Components
-     - [ ] Task 5: Testing and Refinement
-     - [ ] Task 6: Code Quality and Cleanup
-
+(No active tasks)
 
 ---
 
@@ -33,7 +20,21 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (today))
+1. **True Unified News Intelligence (Backend + Frontend)** (HIGH (8-12 hours), 0/8 tasks (today))
+   - File: `tasks-0048-true-unified-news-intelligence.md`
+   - Created: 2025-11-11
+   - Goal: Create single unified backend service and frontend component with TRUE visual parity between Market News (dashboard) and News & Sentiment (watchlist). Both sections should look identical except for conditional sentiment breakdown.
+   - Tasks:
+     - [ ] Task 0: Scope Discovery (MANDATORY - CLOUD AGENT)
+     - [ ] Task 1: Backend: Create Unified News Intelligence Service
+     - [ ] Task 2: Backend: Create Unified API Endpoint
+     - [ ] Task 3: Frontend: Update Hooks to Use Unified Endpoint
+     - [ ] Task 4: Frontend: Unify Article Layout in Component
+     - [ ] Task 5: Visual Verification with Diagrams
+     - [ ] Task 6: Testing and Quality Verification
+     - [ ] Task 7: Cleanup and Documentation
+
+2. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (today))
    - File: `tasks-0042-customizable-dashboard-layouts.md`
    - Created: 2025-11-11
    - Goal: Enable users to customize dashboard layouts by dragging/resizing cards, with persistence to PostgreSQL backend
@@ -49,7 +50,7 @@
      - [ ] Task 9: Polish and Edge Cases
      - [ ] Task 10: Testing and Documentation
 
-2. **Trading Intelligence Roadmap** (High, 4/8 tasks)
+3. **Trading Intelligence Roadmap** (High, 4/8 tasks)
    - File: `tasks-trading-intelligence-roadmap.md`
    - Created: Unknown
    - Tasks:
@@ -69,7 +70,20 @@
 
 *Last 5 completions - older items auto-archive to tasks/archive/YYYY-MM.md*
 
-1. **News Alignment with AI Insights** (2025-11-11) ⭐ COMPLETE
+1. **Unified News Intelligence Component (Frontend Only - Partial)** (2025-11-11) ⚠️ SUPERSEDED BY 0048
+   - File: `tasks-0047-unified-news-intelligence-component.md`
+   - Duration: 4 hours
+   - Status: Frontend component created, but NOT truly unified (different article layouts, missing backend unification)
+   - Achievements:
+     - ✅ Created UnifiedNewsIntelligenceCard component
+     - ✅ Deleted MarketNewsCard and NewsIntelligenceCard (435 lines eliminated)
+     - ✅ Both sections use same component code
+     - ❌ BUT: Different article layouts (simple vs detailed)
+     - ❌ BUT: No backend unification
+     - ❌ BUT: Market news lacks sentiment breakdown
+   - Next: Complete true unification in tasks-0048
+
+2. **News Alignment with AI Insights** (2025-11-11) ⭐ COMPLETE
    - File: `tasks-0046-finalize-news-alignment-branch.md`
    - Branch: `claude/align-news-sentiment-sections-011CUyEXr4XhbdjWn7Xapb7U` ✅ MERGED to main
    - Duration: Implementation and merge (3 hours)
