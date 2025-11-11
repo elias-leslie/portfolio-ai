@@ -77,33 +77,6 @@ export async function fetchNewsIntelligence(
     return apiRequest<NewsBundle>(`/api/news${query}`);
 }
 
-export async function fetchMarketNews(options?: {
-    maxResults?: number;
-    forceRefresh?: boolean;
-}): Promise<MarketNewsResponse> {
-    const query = buildQuery({
-        max_results: options?.maxResults,
-        force_refresh: options?.forceRefresh,
-    });
-    return apiRequest<MarketNewsResponse>(`/api/news/market${query}`);
-}
-
-export async function fetchSymbolNews(
-    symbol: string,
-    options?: {
-        maxResults?: number;
-        forceRefresh?: boolean;
-    },
-): Promise<NewsBundle> {
-    const query = buildQuery({
-        max_results: options?.maxResults,
-        force_refresh: options?.forceRefresh,
-    });
-    return apiRequest<NewsBundle>(
-        `/api/news/symbol/${encodeURIComponent(symbol)}${query}`,
-    );
-}
-
 export async function fetchWatchlistNews(
     accountId: string,
     options?: {

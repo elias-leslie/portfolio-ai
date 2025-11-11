@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
 from app.services import NewsService
@@ -231,47 +231,6 @@ async def get_news_intelligence(
         force_refresh=force_refresh,
     )
     return _serialize_bundle(bundle, limit=final_limit)
-
-
-@router.get("/market", response_model=NewsBundleResponse)
-async def get_market_news(
-    max_results: int | None = Query(
-        None, ge=1, le=50, description="Maximum number of articles to return"
-    ),
-    force_refresh: bool = Query(
-        False, description="Force refresh of cached headlines before returning results"
-    ),
-) -> NewsBundleResponse:
-    """Get aggregated market news with sentiment summary."""
-    news_service.refresh_ttl_from_preferences()
-    pref_limit = news_service.refresh_max_articles_from_preferences()
-    limit = max_results or pref_limit
-    bundle = news_service.get_market_news(
-        max_articles=limit,
-        force_refresh=force_refresh,
-    )
-    return _serialize_bundle(bundle, limit=limit)
-
-
-@router.get("/symbol/{symbol}", response_model=NewsBundleResponse)
-async def get_symbol_news(
-    symbol: str,
-    max_results: int | None = Query(None, ge=1, le=50),
-    force_refresh: bool = Query(False),
-) -> NewsBundleResponse:
-    """Get news for a single symbol."""
-    if not symbol:
-        raise HTTPException(status_code=400, detail="Symbol is required")
-
-    news_service.refresh_ttl_from_preferences()
-    pref_limit = news_service.refresh_max_articles_from_preferences()
-    limit = max_results or pref_limit
-    bundle = news_service.get_symbol_news(
-        symbol,
-        max_articles=limit,
-        force_refresh=force_refresh,
-    )
-    return _serialize_bundle(bundle, limit=limit)
 
 
 @router.get("/watchlist", response_model=WatchlistNewsResponse)

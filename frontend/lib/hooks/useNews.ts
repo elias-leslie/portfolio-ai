@@ -1,11 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import {
-  fetchMarketNews,
   fetchNewsIntelligence,
-  fetchSymbolNews,
   fetchWatchlistNews,
   searchNews,
-  type MarketNewsResponse,
   type NewsBundle,
   type WatchlistNewsResponse,
 } from "@/lib/api/news";
@@ -31,24 +28,6 @@ export function useNewsIntelligence(
     staleTime: 1000 * 60 * 5,
     enabled: options?.enabled !== false,
     refetchOnWindowFocus: false,
-  });
-}
-
-export function useMarketNews(options?: { maxResults?: number; forceRefresh?: boolean; enabled?: boolean }) {
-  return useQuery<MarketNewsResponse, Error>({
-    queryKey: newsKeys.market(),
-    queryFn: () => fetchMarketNews(options),
-    staleTime: 1000 * 60 * 5,
-    enabled: options?.enabled !== false, // Default to true
-  });
-}
-
-export function useSymbolNews(symbol: string, options?: { maxResults?: number; forceRefresh?: boolean }) {
-  return useQuery<NewsBundle, Error>({
-    queryKey: newsKeys.symbol(symbol),
-    queryFn: () => fetchSymbolNews(symbol, options),
-    enabled: !!symbol,
-    staleTime: 1000 * 60 * 5,
   });
 }
 

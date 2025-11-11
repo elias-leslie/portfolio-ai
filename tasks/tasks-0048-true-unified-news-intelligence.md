@@ -251,174 +251,331 @@ Cloud agent has access to: Read, Glob, Grep (NO Bash, NO running services/tests)
 
 ---
 
-### 1.0 Backend: Create Unified News Intelligence Service
+## CHECKPOINT-BASED IMPLEMENTATION (11 Rollback Points)
 
-- [ ] 1.1 Create `backend/app/services/news_intelligence_service.py`
-  - [ ] Define `NewsIntelligenceResponse` Pydantic model with summary + articles
-  - [ ] Create `get_news_intelligence(ticker: Optional[str], limit: int)` function
-  - [ ] Implement sentiment summary calculation (aggregate from articles)
-  - [ ] Implement article fetching with full sentiment metadata
-  - [ ] Add model breakdown calculation (finbert vs vader counts)
-  - [ ] Include AI insights (plain_language_headline, impact_summary, actionable_insight)
+**Safety Protocol:**
+- Each checkpoint = incremental change + test + commit (rollback point)
+- New code added BEFORE old code deleted (no breaking changes until checkpoint 11)
+- Critical systems tested independently (watchlist, agents, tasks)
+- Backend fully working before touching frontend
+- Quality check at end to catch any regressions
 
-- [ ] 1.2 Add database helper functions
-  - [ ] `fetch_news_articles(ticker: Optional[str], limit: int)` - unified query
-  - [ ] `calculate_sentiment_summary(articles: List)` - aggregate stats
-  - [ ] `enrich_with_ai_insights(articles: List)` - add AI fields if available
+---
 
-- [ ] 1.3 Write comprehensive tests
-  - [ ] Test market-wide news (ticker=None)
-  - [ ] Test ticker-specific news (ticker="AAPL")
-  - [ ] Test sentiment summary calculation
-  - [ ] Test model breakdown calculation
-  - [ ] Test with/without AI insights
-  - [ ] Test edge cases (no articles, all same sentiment, etc.)
+### ✅ CHECKPOINT 0: Scope Confirmed (COMPLETE)
+- [x] 0.4 User confirmed: 15h, 20+ files, proceed with checkpoint-based approach
+- [x] Quality baseline established: 19 critical, 77 warnings, 93 medium
+- **Rollback**: N/A (starting point)
 
-### 2.0 Backend: Create Unified API Endpoint
+---
 
-- [ ] 2.1 Create `/api/news` endpoint in `backend/app/api/news.py`
-  - [ ] GET /api/news?ticker={ticker}&limit={limit}
-  - [ ] Use news_intelligence_service.get_news_intelligence()
-  - [ ] Return unified NewsIntelligenceResponse structure
-  - [ ] Add query parameter validation
-  - [ ] Add proper error handling
+### 🔵 CHECKPOINT 1: Add Unified Backend Method (NO BREAKING CHANGES)
 
-- [ ] 2.2 Delete old market news endpoint
-  - [ ] Remove /api/news/market route
-  - [ ] Delete market_news_service.py (if separate)
-  - [ ] Remove old Pydantic models
+**Goal**: Add new `get_news_intelligence()` method alongside existing methods
 
-- [ ] 2.3 Update watchlist endpoint to use unified service
-  - [ ] Modify watchlist endpoint to call news_intelligence_service
-  - [ ] Return recent_news using new unified structure
-  - [ ] Ensure backward compatibility for other watchlist fields
+- [ ] 1.1 Add unified method to `news_service.py`
+  - [ ] Method signature: `get_news_intelligence(ticker: Optional[str] = None, *, max_articles: int, force_refresh: bool) -> NewsBundle`
+  - [ ] If ticker is None: use MARKET_TICKER and "stock market" query
+  - [ ] If ticker provided: use ticker and "{ticker} stock" query
+  - [ ] Call existing `_get_bundle()` method (reuse logic)
+  - [ ] KEEP old methods (`get_market_news`, `get_symbol_news`) - DO NOT DELETE
 
-- [ ] 2.4 Write API tests
-  - [ ] Test GET /api/news (market news)
-  - [ ] Test GET /api/news?ticker=AAPL (ticker news)
-  - [ ] Test invalid ticker
-  - [ ] Test limit parameter
-  - [ ] Test response structure matches schema
+- [ ] 1.2 Write unit tests for new method
+  - [ ] Test: `get_news_intelligence(None)` returns market news
+  - [ ] Test: `get_news_intelligence("AAPL")` returns ticker news
+  - [ ] Test: Results match existing methods
+  - [ ] Run: `cd ~/portfolio-ai/backend && pytest tests/unit/services/test_news_service.py -v`
 
-### 3.0 Frontend: Update Hooks to Use Unified Endpoint
+- [ ] 1.3 **TEST**: Verify new method works
+  ```bash
+  # Should succeed without errors
+  cd ~/portfolio-ai/backend && python -c "
+  from app.services.news_service import NewsService
+  svc = NewsService()
+  market = svc.get_news_intelligence(None, max_articles=5, force_refresh=False)
+  ticker = svc.get_news_intelligence('AAPL', max_articles=5, force_refresh=False)
+  print(f'Market: {len(market.articles)} articles')
+  print(f'Ticker: {len(ticker.articles)} articles')
+  "
+  ```
 
-- [ ] 3.1 Create unified `useNewsIntelligence` hook
-  - [ ] Accept optional ticker parameter
-  - [ ] Call `/api/news?ticker={ticker}` endpoint
-  - [ ] Return unified NewsIntelligenceResponse type
-  - [ ] Handle loading, error states
+- [ ] 1.4 **COMMIT**: "feat(news): add unified get_news_intelligence method"
+  - **Rollback**: `git reset --hard HEAD~1` if issues found
 
-- [ ] 3.2 Update Dashboard to use new hook
-  - [ ] Replace useMarketNews with useNewsIntelligence()
-  - [ ] Pass data to UnifiedNewsIntelligenceCard
-  - [ ] Remove old hook import
+---
 
-- [ ] 3.3 Update Watchlist to use new hook
-  - [ ] Replace recent_news from watchlist endpoint with useNewsIntelligence(ticker)
-  - [ ] Or keep in watchlist response but ensure it uses unified structure
-  - [ ] Update ExpandedRow props
+### 🔵 CHECKPOINT 2: Add New API Endpoint (OLD ENDPOINTS STILL ACTIVE)
 
-- [ ] 3.4 Delete old hooks
-  - [ ] Remove useMarketNews hook file
-  - [ ] Remove old TypeScript types for market news
-  - [ ] Update imports across codebase
+**Goal**: Add `/api/news` endpoint alongside existing `/market` and `/symbol/{symbol}`
 
-### 4.0 Frontend: Unify Article Layout in Component
+- [ ] 2.1 Add new endpoint to `backend/app/api/news.py`
+  - [ ] Route: `@router.get("/news", response_model=NewsIntelligenceResponse)`
+  - [ ] Query param: `ticker: Optional[str] = None`
+  - [ ] Query param: `limit: int = Query(default=50, ge=1, le=200)`
+  - [ ] Call: `news_service.get_news_intelligence(ticker, max_articles=limit)`
+  - [ ] KEEP old endpoints (`/market`, `/symbol/{symbol}`) - DO NOT DELETE
 
-- [ ] 4.1 Update UnifiedNewsIntelligenceCard
-  - [ ] Remove `if (recentNews)` branching for article layout
-  - [ ] Use SINGLE detailed two-column layout for ALL articles
-  - [ ] Ensure layout includes:
-    - [ ] Left side: Headline, Vendor badge, Publisher, Timestamp
-    - [ ] Right side: Sentiment badge, Score, Confidence, Model badge (stacked)
-  - [ ] Show AI insights if available (impact_summary, actionable_insight)
-  - [ ] Show ⏳ indicator if plain_language_headline missing
+- [ ] 2.2 **TEST**: Verify new endpoint works
+  ```bash
+  bash ~/portfolio-ai/scripts/restart.sh
+  # Test market news
+  curl http://localhost:8000/api/news?limit=5 | jq '.summary'
+  # Test ticker news
+  curl http://localhost:8000/api/news?ticker=AAPL&limit=5 | jq '.summary'
+  # Both should return: score, score_change, positive/neutral/negative_count, model_breakdown
+  ```
 
-- [ ] 4.2 Update sentiment breakdown section
-  - [ ] Always render if summary data exists
-  - [ ] Show score, score_change, headline mix, model coverage
-  - [ ] Format model breakdown (FinBERT X/Y, fallback count)
+- [ ] 2.3 **COMMIT**: "feat(api): add unified /api/news endpoint"
+  - **Rollback**: `git reset --hard HEAD~1` if issues found
 
-- [ ] 4.3 Verify props interface
-  - [ ] Accept single `newsIntelligence` prop (unified structure)
-  - [ ] Remove marketNewsData, recentNews separate props
-  - [ ] Keep ticker prop for conditional sentiment breakdown positioning
+---
 
-### 5.0 Visual Verification with Diagrams
+### 🔵 CHECKPOINT 3: Migrate Watchlist Refresh (CRITICAL SYSTEM)
 
-- [ ] 5.1 Take "before" screenshots (from current tasks-0047 state)
-  - [ ] Dashboard Market News: /tmp/before-dashboard.png
-  - [ ] Watchlist News & Sentiment (VTI expanded): /tmp/before-watchlist.png
-  - [ ] **Read both screenshots** and document differences
+**Goal**: Update watchlist refresh processor to use new method
 
-- [ ] 5.2 After implementation, take "after" screenshots
-  - [ ] Dashboard Market News: /tmp/after-dashboard.png
-  - [ ] Watchlist News & Sentiment (VTI expanded): /tmp/after-watchlist.png
-  - [ ] **Read both screenshots**
+- [ ] 3.1 Update `backend/app/watchlist/refresh_processor.py:463`
+  - [ ] Change: `news_service.get_symbol_news(symbol)` → `news_service.get_news_intelligence(symbol)`
+  - [ ] Verify: No other changes needed (NewsBundle structure unchanged)
 
-- [ ] 5.3 Compare against TARGET STATE diagram
-  - [ ] ✅ Both sections have sentiment breakdown at top?
-    - Dashboard: Should have "Sentiment Score: X, Headline Mix, Model Coverage"
-    - Watchlist: Should have same breakdown
-  - [ ] ✅ Both sections use IDENTICAL article cards?
-    - Same two-column layout (article info left, sentiment right)
-    - Same vendor badge, publisher label, timestamp
-    - Same sentiment badge, score, confidence, model badge stacked on right
-  - [ ] ✅ Both sections have same sorting controls?
-  - [ ] ✅ Both sections have same Show All button?
-  - [ ] ✅ No visual differences except positioning?
+- [ ] 3.2 **TEST**: Run watchlist refresh
+  ```bash
+  bash ~/portfolio-ai/scripts/restart.sh
+  cd ~/portfolio-ai/backend && python -c "
+  from app.watchlist.refresh_processor import process_ticker_snapshot
+  from app.storage import get_storage
+  storage = get_storage()
+  # Test with a real ticker in watchlist
+  result = process_ticker_snapshot(storage, 'AAPL')
+  print(f'Success: {result is not None}')
+  "
+  ```
 
-- [ ] 5.4 Test interactivity
-  - [ ] Sorting works in both sections
-  - [ ] Show All button works in both sections
-  - [ ] Sentiment badges show correct colors
-  - [ ] Links open correctly
+- [ ] 3.3 **COMMIT**: "refactor(watchlist): use unified news intelligence method"
+  - **Rollback**: `git reset --hard HEAD~1` if watchlist breaks
 
-### 6.0 Testing and Quality Verification
+---
 
-- [ ] 6.1 Backend tests
-  - [ ] Run all news service tests
-  - [ ] Run all API endpoint tests
-  - [ ] Verify no regression in watchlist tests
-  - [ ] All tests passing
+### 🔵 CHECKPOINT 4: Migrate Agent Tools (CRITICAL SYSTEM)
 
-- [ ] 6.2 Frontend tests (if applicable)
-  - [ ] Test component with market news data
-  - [ ] Test component with ticker news data
-  - [ ] Test edge cases (no data, loading, errors)
+**Goal**: Update AI agent tools to use new method
 
-- [ ] 6.3 Manual integration testing
-  - [ ] Dashboard loads with market news
-  - [ ] Watchlist loads with ticker news
-  - [ ] Both look visually identical (except sentiment breakdown)
-  - [ ] No console errors
-  - [ ] No network errors
+- [ ] 4.1 Update `backend/app/agents/tools.py:191-195`
+  - [ ] Line 191: `get_market_news()` → `get_news_intelligence(None)`
+  - [ ] Line 193: `get_symbol_news(symbol)` → `get_news_intelligence(symbol)`
 
-- [ ] 6.4 Code quality
-  - [ ] Run lint: `~/portfolio-ai/scripts/lint.sh`
-  - [ ] All type checks pass (mypy)
-  - [ ] No duplicate code between sections
-  - [ ] Single source of truth verified
+- [ ] 4.2 **TEST**: Run agent tool tests
+  ```bash
+  cd ~/portfolio-ai/backend && pytest tests/unit/agents/test_agent_tools.py -v
+  ```
 
-### 7.0 Cleanup and Documentation
+- [ ] 4.3 **COMMIT**: "refactor(agents): use unified news intelligence method"
+  - **Rollback**: `git reset --hard HEAD~1` if agents break
 
-- [ ] 7.1 Delete obsolete backend files
-  - [ ] Old market_news_service.py (if separate)
-  - [ ] Old market news endpoint routes
-  - [ ] Old Pydantic models for market news
+---
 
-- [ ] 7.2 Delete obsolete frontend files
-  - [ ] Old useMarketNews hook
-  - [ ] Old TypeScript types for separate structures
+### 🔵 CHECKPOINT 5: Migrate Celery Tasks
 
-- [ ] 7.3 Update documentation
-  - [ ] API docs: Document new /api/news endpoint
-  - [ ] Component docs: Update UnifiedNewsIntelligenceCard usage
-  - [ ] Add architecture diagram to docs (optional)
+**Goal**: Update scheduled tasks to use new method
 
-- [ ] 7.4 Update task files
-  - [ ] Mark tasks-0047 as superseded
-  - [ ] Update WORK_TRACKER.md
+- [ ] 5.1 Update `backend/app/tasks/news_tasks.py:123`
+  - [ ] Change: `get_market_news()` → `get_news_intelligence(None)`
+
+- [ ] 5.2 **TEST**: Verify task imports work
+  ```bash
+  cd ~/portfolio-ai/backend && python -c "
+  from app.tasks.news_tasks import refresh_market_news
+  print('Import successful')
+  "
+  ```
+
+- [ ] 5.3 **COMMIT**: "refactor(tasks): use unified news intelligence method"
+  - **Rollback**: `git reset --hard HEAD~1` if tasks break
+
+---
+
+### 🔵 CHECKPOINT 6: Update Backend Tests (45+ References)
+
+**Goal**: Update all test references to use new method
+
+- [ ] 6.1 Find and update test files
+  ```bash
+  cd ~/portfolio-ai/backend
+  grep -r "get_market_news\|get_symbol_news" tests/ --files-with-matches
+  # Update each file to use get_news_intelligence()
+  ```
+
+- [ ] 6.2 **TEST**: Run full backend test suite
+  ```bash
+  cd ~/portfolio-ai/backend && pytest tests/ -v
+  # All tests should pass
+  ```
+
+- [ ] 6.3 **COMMIT**: "test(news): update tests to use unified method"
+  - **Rollback**: `git reset --hard HEAD~1` if test suite breaks
+
+---
+
+### 🔵 CHECKPOINT 7: Add Unified Frontend Function and Hook
+
+**Goal**: Add new frontend code alongside existing hooks
+
+- [ ] 7.1 Add to `frontend/lib/api/news.ts`
+  - [ ] Function: `fetchNewsIntelligence(ticker?: string, options?: ...)`
+  - [ ] Call: `GET /api/news?ticker={ticker}`
+  - [ ] KEEP old functions (`fetchMarketNews`, `fetchSymbolNews`) - DO NOT DELETE
+
+- [ ] 7.2 Add to `frontend/lib/hooks/useNews.ts`
+  - [ ] Hook: `useNewsIntelligence(ticker?: string, options?: ...)`
+  - [ ] Call: `fetchNewsIntelligence(ticker, options)`
+  - [ ] KEEP old hooks (`useMarketNews`, `useSymbolNews`) - DO NOT DELETE
+
+- [ ] 7.3 **TEST**: Verify new hook works
+  ```bash
+  cd ~/portfolio-ai/frontend && npx tsc --noEmit
+  # Should compile without errors
+  ```
+
+- [ ] 7.4 **COMMIT**: "feat(frontend): add unified news intelligence hook"
+  - **Rollback**: `git reset --hard HEAD~1` if frontend breaks
+
+---
+
+### 🔵 CHECKPOINT 8: Update Dashboard to Use New Hook
+
+**Goal**: Switch dashboard to new hook (first user-facing change)
+
+- [ ] 8.1 Update `frontend/app/page.tsx`
+  - [ ] Replace: `useMarketNews()` → `useNewsIntelligence(undefined)`
+  - [ ] Update: Pass data to UnifiedNewsIntelligenceCard
+
+- [ ] 8.2 **TEST**: Verify dashboard loads
+  ```bash
+  bash ~/portfolio-ai/scripts/restart.sh
+  node ~/portfolio-ai/.claude/skills/browser-automation/scripts/screenshot.js \
+    http://192.168.8.233:3000 /tmp/checkpoint8-dashboard.png
+  # Read screenshot - should show news cards
+  ```
+
+- [ ] 8.3 **COMMIT**: "refactor(dashboard): use unified news intelligence hook"
+  - **Rollback**: `git reset --hard HEAD~1` if dashboard breaks
+
+---
+
+### 🔵 CHECKPOINT 9: Unify Component Layout (VISUAL PARITY)
+
+**Goal**: Remove layout branching to achieve TRUE visual parity
+
+- [ ] 9.1 Take "before" screenshots
+  ```bash
+  node ~/portfolio-ai/.claude/skills/browser-automation/scripts/screenshot.js \
+    http://192.168.8.233:3000 /tmp/before-dashboard.png
+  node ~/portfolio-ai/.claude/skills/browser-automation/scripts/expand-and-screenshot.js \
+    http://192.168.8.233:3000/watchlist VTI /tmp/before-watchlist.png
+  ```
+
+- [ ] 9.2 Update `frontend/components/shared/UnifiedNewsIntelligenceCard.tsx`
+  - [ ] Remove: `if (recentNews)` branching for article layout
+  - [ ] Use: SINGLE detailed two-column layout for ALL articles
+  - [ ] Simplify props: Accept unified `newsIntelligence` structure
+
+- [ ] 9.3 Take "after" screenshots and compare
+  ```bash
+  bash ~/portfolio-ai/scripts/restart.sh
+  node ~/portfolio-ai/.claude/skills/browser-automation/scripts/screenshot.js \
+    http://192.168.8.233:3000 /tmp/after-dashboard.png
+  node ~/portfolio-ai/.claude/skills/browser-automation/scripts/expand-and-screenshot.js \
+    http://192.168.8.233:3000/watchlist VTI /tmp/after-watchlist.png
+  # READ both screenshots - verify IDENTICAL article cards
+  ```
+
+- [ ] 9.4 **TEST**: Verify visual parity
+  - [ ] Both sections have sentiment breakdown
+  - [ ] Both sections have IDENTICAL article cards
+  - [ ] Both sections have same sorting/show-all controls
+
+- [ ] 9.5 **COMMIT**: "feat(ui): achieve true visual parity for news intelligence"
+  - **Rollback**: `git reset --hard HEAD~1` if visual parity not achieved
+
+---
+
+### 🔵 CHECKPOINT 10: Update Frontend Tests
+
+**Goal**: Update frontend tests to use new hooks
+
+- [ ] 10.1 Update component tests
+  - [ ] Update tests for UnifiedNewsIntelligenceCard
+  - [ ] Update tests for useNewsIntelligence hook
+
+- [ ] 10.2 **TEST**: Run frontend test suite
+  ```bash
+  cd ~/portfolio-ai/frontend && npm test
+  # All tests should pass
+  ```
+
+- [ ] 10.3 **COMMIT**: "test(frontend): update tests for unified news intelligence"
+  - **Rollback**: `git reset --hard HEAD~1` if tests break
+
+---
+
+### 🔴 CHECKPOINT 11: Delete Old Code (BREAKING CHANGES)
+
+**Goal**: Remove old methods, endpoints, and hooks
+
+- [ ] 11.1 Delete old backend code
+  - [ ] Remove: `get_market_news()` from news_service.py
+  - [ ] Remove: `get_symbol_news()` from news_service.py
+  - [ ] Remove: `/api/news/market` endpoint
+  - [ ] Remove: `/api/news/symbol/{symbol}` endpoint
+
+- [ ] 11.2 Delete old frontend code
+  - [ ] Remove: `fetchMarketNews()` from news.ts
+  - [ ] Remove: `fetchSymbolNews()` from news.ts
+  - [ ] Remove: `useMarketNews()` from useNews.ts
+  - [ ] Remove: `useSymbolNews()` from useNews.ts
+
+- [ ] 11.3 **TEST**: Final integration test
+  ```bash
+  bash ~/portfolio-ai/scripts/restart.sh
+  cd ~/portfolio-ai/backend && pytest tests/ -v
+  cd ~/portfolio-ai/frontend && npm test
+  ~/portfolio-ai/scripts/lint.sh
+  # All should pass
+  ```
+
+- [ ] 11.4 **TEST**: Manual UI verification
+  ```bash
+  # Dashboard should load correctly
+  node ~/portfolio-ai/.claude/skills/browser-automation/scripts/screenshot.js \
+    http://192.168.8.233:3000 /tmp/final-dashboard.png
+  # Watchlist should load correctly
+  node ~/portfolio-ai/.claude/skills/browser-automation/scripts/expand-and-screenshot.js \
+    http://192.168.8.233:3000/watchlist VTI /tmp/final-watchlist.png
+  ```
+
+- [ ] 11.5 **COMMIT**: "refactor(news): remove deprecated methods and endpoints"
+  - **Rollback**: `git reset --hard HEAD~1` if breaking changes cause issues
+
+---
+
+### 🔵 CHECKPOINT 12: Quality Verification and Documentation
+
+**Goal**: Final quality check and documentation update
+
+- [ ] 12.1 Quality check vs baseline
+  ```bash
+  bash ~/portfolio-ai/.claude/skills/code-quality/scripts/quality-report.sh backend/app --quick
+  # Compare to baseline: 19 critical, 77 warnings, 93 medium
+  # NEW critical issues? Fix them now
+  ```
+
+- [ ] 12.2 Update documentation
+  - [ ] Update API_REFERENCE.md with new `/api/news` endpoint
+  - [ ] Mark tasks-0047 as superseded in WORK_TRACKER.md
+  - [ ] Update component documentation
+
+- [ ] 12.3 **COMMIT**: "docs: update documentation for unified news intelligence"
+  - **Rollback**: N/A (documentation only)
 
 ---
 

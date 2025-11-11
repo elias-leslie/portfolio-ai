@@ -308,33 +308,6 @@ class NewsService:
     # --------------------------------------------------------------------- #
     # Public API
     # --------------------------------------------------------------------- #
-    def get_market_news(
-        self, *, max_articles: int = DEFAULT_MAX_ARTICLES, force_refresh: bool = False
-    ) -> NewsBundle:
-        """Get market-level news bundle."""
-        return self._get_bundle(
-            ticker=MARKET_TICKER,
-            query="stock market",
-            max_articles=max_articles,
-            force_refresh=force_refresh,
-        )
-
-    def get_symbol_news(
-        self,
-        symbol: str,
-        *,
-        max_articles: int = DEFAULT_MAX_ARTICLES,
-        force_refresh: bool = False,
-    ) -> NewsBundle:
-        """Get news bundle for a specific ticker symbol."""
-        query = f"{symbol} stock"
-        return self._get_bundle(
-            ticker=symbol.upper(),
-            query=query,
-            max_articles=max_articles,
-            force_refresh=force_refresh,
-        )
-
     def get_news_intelligence(
         self,
         ticker: str | None = None,
@@ -390,7 +363,7 @@ class NewsService:
         """Get news bundles for a collection of symbols."""
         bundles: dict[str, NewsBundle] = {}
         for symbol in symbols:
-            bundles[symbol.upper()] = self.get_symbol_news(
+            bundles[symbol.upper()] = self.get_news_intelligence(
                 symbol,
                 max_articles=max_articles,
                 force_refresh=force_refresh,
