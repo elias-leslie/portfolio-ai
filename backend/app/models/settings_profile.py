@@ -1,9 +1,10 @@
 """Settings Profile models and database operations."""
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
+
 from psycopg2.extensions import connection as Connection
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import Json, RealDictCursor
 
 
 class SettingsProfile:
@@ -14,7 +15,7 @@ class SettingsProfile:
         id: int,
         user_id: int,
         name: str,
-        description: Optional[str],
+        description: str | None,
         profile_data: dict[str, Any],
         is_active: bool,
         created_at: datetime,
@@ -62,7 +63,7 @@ def get_all_profiles(conn: Connection, user_id: int = 1) -> list[SettingsProfile
 
 def get_profile_by_id(
     conn: Connection, profile_id: int, user_id: int = 1
-) -> Optional[SettingsProfile]:
+) -> SettingsProfile | None:
     """Get a specific profile by ID."""
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute(
@@ -78,7 +79,7 @@ def get_profile_by_id(
         return SettingsProfile(**row) if row else None
 
 
-def get_active_profile(conn: Connection, user_id: int = 1) -> Optional[SettingsProfile]:
+def get_active_profile(conn: Connection, user_id: int = 1) -> SettingsProfile | None:
     """Get the currently active profile for a user."""
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute(
@@ -100,7 +101,7 @@ def create_profile(
     user_id: int,
     name: str,
     profile_data: dict[str, Any],
-    description: Optional[str] = None,
+    description: str | None = None,
     is_active: bool = False,
 ) -> SettingsProfile:
     """Create a new settings profile."""
@@ -112,10 +113,12 @@ def create_profile(
             RETURNING id, user_id, name, description, profile_data, is_active,
                       created_at, updated_at
             """,
-            (user_id, name, description, profile_data, is_active),
+            (user_id, name, description, Json(profile_data), is_active),
         )
         row = cur.fetchone()
         conn.commit()
+        if not row:
+            raise ValueError("Failed to create profile")
         return SettingsProfile(**row)
 
 
@@ -123,27 +126,27 @@ def update_profile(
     conn: Connection,
     profile_id: int,
     user_id: int,
-    name: Optional[str] = None,
-    description: Optional[str] = None,
-    profile_data: Optional[dict[str, Any]] = None,
-    is_active: Optional[bool] = None,
-) -> Optional[SettingsProfile]:
+    name: str | None = None,
+    description: str | None = None,
+    profile_data: dict[str, Any] | None = None,
+    is_active: bool | None = None,
+) -> SettingsProfile | None:
     """Update an existing profile."""
     # Build dynamic update query
     updates = []
     params: list[Any] = []
 
     if name is not None:
-        updates.append(f"name = %s")
+        updates.append("name = %s")
         params.append(name)
     if description is not None:
-        updates.append(f"description = %s")
+        updates.append("description = %s")
         params.append(description)
     if profile_data is not None:
-        updates.append(f"profile_data = %s")
-        params.append(profile_data)
+        updates.append("profile_data = %s")
+        params.append(Json(profile_data))
     if is_active is not None:
-        updates.append(f"is_active = %s")
+        updates.append("is_active = %s")
         params.append(is_active)
 
     if not updates:
@@ -155,7 +158,7 @@ def update_profile(
         cur.execute(
             f"""
             UPDATE settings_profiles
-            SET {', '.join(updates)}, updated_at = CURRENT_TIMESTAMP
+            SET {", ".join(updates)}, updated_at = CURRENT_TIMESTAMP
             WHERE id = %s AND user_id = %s
             RETURNING id, user_id, name, description, profile_data, is_active,
                       created_at, updated_at
@@ -182,7 +185,7 @@ def delete_profile(conn: Connection, profile_id: int, user_id: int = 1) -> bool:
         return deleted
 
 
-def activate_profile(conn: Connection, profile_id: int, user_id: int = 1) -> Optional[SettingsProfile]:
+def activate_profile(conn: Connection, profile_id: int, user_id: int = 1) -> SettingsProfile | None:
     """Activate a profile (deactivates all others automatically via trigger)."""
     return update_profile(conn, profile_id, user_id, is_active=True)
 
@@ -192,7 +195,7 @@ def duplicate_profile(
     profile_id: int,
     new_name: str,
     user_id: int = 1,
-) -> Optional[SettingsProfile]:
+) -> SettingsProfile | None:
     """Duplicate an existing profile with a new name."""
     original = get_profile_by_id(conn, profile_id, user_id)
     if not original:

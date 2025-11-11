@@ -5,7 +5,7 @@
 -- Settings Profiles Table
 CREATE TABLE IF NOT EXISTS settings_profiles (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL DEFAULT 1 REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL DEFAULT 1,
     name VARCHAR(255) NOT NULL,
     description TEXT,
     is_active BOOLEAN NOT NULL DEFAULT FALSE,
@@ -46,11 +46,20 @@ CREATE TRIGGER trigger_ensure_single_active_profile
     WHEN (NEW.is_active = TRUE)
     EXECUTE FUNCTION ensure_single_active_profile();
 
+-- Updated timestamp trigger function
+CREATE OR REPLACE FUNCTION update_settings_profiles_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- Updated timestamp trigger
 CREATE TRIGGER update_settings_profiles_updated_at
     BEFORE UPDATE ON settings_profiles
     FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
+    EXECUTE FUNCTION update_settings_profiles_updated_at();
 
 COMMENT ON TABLE settings_profiles IS 'Saved settings profiles for different trading strategies';
 COMMENT ON COLUMN settings_profiles.profile_data IS 'Complete snapshot of user preferences as JSON';
