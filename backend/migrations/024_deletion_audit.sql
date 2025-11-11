@@ -32,9 +32,11 @@ CREATE INDEX IF NOT EXISTS idx_deletion_audit_record_id
 ON deletion_audit(table_name, record_id);
 
 -- Partial index for recent deletions (last 30 days) - fast monitoring
-CREATE INDEX IF NOT EXISTS idx_deletion_audit_recent
-ON deletion_audit(deleted_at DESC)
-WHERE deleted_at > NOW() - INTERVAL '30 days';
+-- Note: Cannot use NOW() in WHERE clause (not IMMUTABLE)
+-- Instead, rely on idx_deletion_audit_deleted_at for queries with date filters
+-- CREATE INDEX IF NOT EXISTS idx_deletion_audit_recent
+-- ON deletion_audit(deleted_at DESC)
+-- WHERE deleted_at > NOW() - INTERVAL '30 days';
 
 -- ============================================================================
 -- TRIGGERS: Auto-track deletions from critical tables
