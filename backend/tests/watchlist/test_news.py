@@ -15,7 +15,7 @@ from app.services.news_models import NewsArticle, NewsBundle, NewsSummary, Senti
 from app.services.news_processing import FinBertUnavailableError
 from app.services.news_service import NewsService
 from app.storage import get_storage
-from app.watchlist.refresh_processor import build_recent_news_payload
+from app.watchlist.refresh_builders import build_recent_news_payload
 
 
 @pytest.fixture()

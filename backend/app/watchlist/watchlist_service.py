@@ -29,7 +29,7 @@ from .models import (
     WatchlistSnapshot,
 )
 from .priority import calculate_priority_indicators
-from .refresh_processor import _extract_article_publisher, _extract_article_vendor
+from .refresh_builders import _extract_article_publisher, _extract_article_vendor
 from .scoring import _is_stale as scoring_is_stale
 from .scoring import calculate_watchlist_scores
 
