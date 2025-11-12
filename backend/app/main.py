@@ -22,6 +22,7 @@ from app.api import (
     market,
     ml,
     news,
+    news_profiling,
     portfolio,
     preferences,
     settings_profiles,
@@ -136,6 +137,7 @@ app.include_router(portfolio.router)
 app.include_router(ideas.router)
 app.include_router(market.router)
 app.include_router(news.router)
+app.include_router(news_profiling.router)
 app.include_router(preferences.router)
 app.include_router(settings_profiles.router)
 app.include_router(analytics.router)
