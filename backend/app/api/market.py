@@ -17,6 +17,9 @@ from app.models.market_intelligence import (
     SectorInfo,
     SectorRotationSummary,
 )
+from app.models.market_intelligence import (
+    MarketHealthScore as MarketHealthScoreResponse,
+)
 from app.portfolio.price_fetcher import PriceDataFetcher
 from app.storage import get_storage
 
@@ -651,7 +654,7 @@ async def get_market_intelligence() -> MarketIntelligenceResponse:
     # Build response
     return MarketIntelligenceResponse(
         narrative=narrative,
-        market_health=MarketHealthScore(
+        market_health=MarketHealthScoreResponse(
             overall_score=health_score_data.overall_score,
             overall_label=health_score_data.overall_label,
             last_updated=health_score_data.last_updated,
