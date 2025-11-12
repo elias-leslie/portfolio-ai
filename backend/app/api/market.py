@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 from datetime import datetime
 
 from fastapi import APIRouter, Query, Request
@@ -469,10 +470,27 @@ async def get_market_intelligence() -> MarketIntelligenceResponse:
     tnx_data = price_data.get("^TNX")
     dxy_data = price_data.get("DX-Y.NYB")
 
-    # Get actual timestamp from fetched data (respects 15-min cache)
-    current_timestamp = (
-        sp500_data.cached_at.isoformat() if sp500_data else datetime.utcnow().isoformat() + "Z"
-    )
+    # Get Fear & Greed date to determine actual data freshness
+    # (This represents when the market data was created, not when we cached it)
+    with storage.connection() as conn:
+        result = conn.execute(
+            "SELECT as_of_date FROM fear_greed_daily ORDER BY as_of_date DESC LIMIT 1"
+        )
+        row = result.fetchone()
+        if row and row[0]:
+            # Convert date to datetime at market close (4:00 PM ET = 21:00 UTC)
+            market_data_date = row[0]
+            market_close_time = dt.datetime.combine(
+                market_data_date, dt.time(21, 0, 0), tzinfo=dt.UTC
+            )
+            current_timestamp = market_close_time.isoformat()
+        else:
+            # Fallback to cache timestamp if no Fear & Greed data
+            current_timestamp = (
+                sp500_data.cached_at.isoformat()
+                if sp500_data
+                else datetime.utcnow().isoformat() + "Z"
+            )
 
     # Fetch sector ETF data
     sector_symbols = ["XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLU", "XLRE", "XLB", "XLC"]
