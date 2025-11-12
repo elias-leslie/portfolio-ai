@@ -115,9 +115,19 @@ Branch: claude/code-review-011CV3yYsKEbVuDcMNAiKG56
 
 ### Setup
 ```bash
+# Step 1: Go to repo
 cd /home/user/portfolio-ai
+
+# Step 2: Fetch the AGENT-INSTRUCTIONS.md file from setup branch
+git fetch origin claude/setup-distributed-review-011CV46RFyLxWXimzAzHFKuN
+git checkout origin/claude/setup-distributed-review-011CV46RFyLxWXimzAzHFKuN -- AGENT-INSTRUCTIONS.md
+
+# Step 3: Switch to working branch
 git checkout claude/code-review-011CV3yYsKEbVuDcMNAiKG56
 git pull origin claude/code-review-011CV3yYsKEbVuDcMNAiKG56
+
+# Step 4: Verify you have the file
+ls -la AGENT-INSTRUCTIONS.md
 ```
 
 ### Process
@@ -207,8 +217,10 @@ git pull origin claude/code-review-011CV3yYsKEbVuDcMNAiKG56
 ### Agent 1 starts:
 ```bash
 cd /home/user/portfolio-ai
+git fetch origin claude/setup-distributed-review-011CV46RFyLxWXimzAzHFKuN
+git checkout origin/claude/setup-distributed-review-011CV46RFyLxWXimzAzHFKuN -- AGENT-INSTRUCTIONS.md
 git checkout claude/code-review-011CV3yYsKEbVuDcMNAiKG56
-git pull
+git pull origin claude/code-review-011CV3yYsKEbVuDcMNAiKG56
 ```
 
 Read files:
