@@ -27,12 +27,8 @@ from ..storage.credential_loader import load_credentials_from_database
 from ..utils.preferences_loader import UserPreferences
 from ..utils.watchlist_cache import get_watchlist_symbols_cached
 from .models import ScoreWeights, TechnicalSnapshot
-from .refresh_processor import (
-    ProcessorConfig,
-    TickerInputData,
-    detect_missing_historical_data,
-    process_ticker_snapshot,
-)
+from .refresh_data_fetchers import detect_missing_historical_data
+from .refresh_processor import ProcessorConfig, TickerInputData, process_ticker_snapshot
 
 logger = get_logger(__name__)
 

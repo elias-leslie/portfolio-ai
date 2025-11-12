@@ -41,7 +41,7 @@ def _get_edgar() -> Any:
         # SEC requests traffic identification with company/contact info
         # See: https://www.sec.gov/os/webmaster-faq#developers
         if not _set_identity_called:
-            edgar_module.set_identity("Summit Flow Solutions eliasleslie@gmail.com")
+            edgar_module.set_identity("Summit Flow Solutions summitflow42@gmail.com")
             _set_identity_called = True
             logger.info("sec_edgar_identity_set")
 

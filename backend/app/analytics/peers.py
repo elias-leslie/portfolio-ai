@@ -25,6 +25,9 @@ from app.storage import PortfolioStorage
 
 logger = get_logger(__name__)
 
+# Backward compatibility alias for legacy imports
+_validate_and_get_group_data = validate_and_get_group_data
+
 
 def _parse_date(date: dt.date | str) -> dt.date:
     """Convert string date to date object if needed.

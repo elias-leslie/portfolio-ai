@@ -5,7 +5,6 @@ from __future__ import annotations
 import copy
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
-from unittest.mock import MagicMock
 
 import polars as pl
 import pytest
@@ -14,6 +13,7 @@ from app.api.preferences import _get_or_create_preferences
 from app.services.news_models import NewsArticle, NewsBundle, NewsSummary, SentimentScore
 from app.services.news_processing import FinBertUnavailableError
 from app.services.news_service import NewsService
+from app.sources.base import BaseSource
 from app.storage import get_storage
 from app.watchlist.refresh_builders import build_recent_news_payload
 
@@ -79,9 +79,57 @@ def _build_entry(title: str, published: datetime) -> dict[str, str]:
     }
 
 
+class StubNewsSource(BaseSource):
+    """Minimal BaseSource implementation for news unit tests."""
+
+    name = "stub_news"
+    priority = 1
+    supports_news = True
+
+    def __init__(self, entries: list[dict[str, str]] | None = None) -> None:
+        self._entries = entries or []
+        self.fetch_call_count = 0
+
+    def set_entries(self, entries: list[dict[str, str]]) -> None:
+        self._entries = entries
+
+    def reset_calls(self) -> None:
+        self.fetch_call_count = 0
+
+    def fetch_day_bars(self, request):  # pragma: no cover - unused
+        return pl.DataFrame()
+
+    def fetch_reference_payload(self, tickers, as_of):  # pragma: no cover - unused
+        return pl.DataFrame()
+
+    def fetch_news_payload(self, tickers, start, end) -> pl.DataFrame:
+        self.fetch_call_count += 1
+        rows: list[dict[str, str | None]] = []
+        for ticker in tickers:
+            for entry in self._entries:
+                source_info = entry.get("source")
+                source_name = (
+                    source_info.get("title")
+                    if isinstance(source_info, dict)
+                    else str(source_info)
+                    if source_info
+                    else "stub_vendor"
+                )
+                rows.append(
+                    {
+                        "ticker": ticker,
+                        "headline": entry.get("title"),
+                        "summary": entry.get("summary"),
+                        "url": entry.get("link"),
+                        "published_at": entry.get("published"),
+                        "source": source_name,
+                    }
+                )
+        return pl.from_dicts(rows) if rows else pl.DataFrame()
+
+
 def test_news_service_caches_articles(storage):
-    news_source = MagicMock()
-    news_source.fetch_headlines.return_value = _sample_entries()
+    news_source = StubNewsSource(_sample_entries())
 
     analyzer = StubAnalyzer(
         [
@@ -109,19 +157,19 @@ def test_news_service_caches_articles(storage):
     assert bundle.summary.article_count == 2
     assert bundle.summary.model_breakdown.get("finbert") == 2
     assert bundle.summary.score is not None
-    news_source.fetch_headlines.assert_called_once()
+    assert news_source.fetch_call_count == 1
 
     # Cached call should not hit upstream source
-    news_source.fetch_headlines.reset_mock()
+    news_source.reset_calls()
     cached_bundle = service.get_news_intelligence("NVDA", max_articles=5)
-    news_source.fetch_headlines.assert_not_called()
+    assert news_source.fetch_call_count == 0
     assert len(cached_bundle.articles) == len(bundle.articles)
 
 
 def test_news_service_falls_back_to_vader(storage):
-    news_source = MagicMock()
+    news_source = StubNewsSource()
     seed_entry = _sample_entries()[0]
-    news_source.fetch_headlines.return_value = [copy.deepcopy(seed_entry)]
+    news_source.set_entries([copy.deepcopy(seed_entry)])
 
     failing_finbert = FailingAnalyzer()
     vader_analyzer = StubAnalyzer(
@@ -150,9 +198,9 @@ def test_news_service_falls_back_to_vader(storage):
 
 
 def test_news_health_reports_fallback_metrics(storage):
-    news_source = MagicMock()
+    news_source = StubNewsSource()
     seed_entry = _sample_entries()[0]
-    news_source.fetch_headlines.return_value = [copy.deepcopy(seed_entry)]
+    news_source.set_entries([copy.deepcopy(seed_entry)])
 
     failing_finbert = FailingAnalyzer()
     vader_analyzer = StubAnalyzer(
@@ -179,13 +227,13 @@ def test_news_health_reports_fallback_metrics(storage):
     assert health["fallback_last_event_at"] is not None
     assert health["lookback_window_hours"] == service.lookback_hours
     assert "vendors" in health
-    assert "google_news" in health["vendors"]
+    assert news_source.name in health["vendors"]
 
 
 def test_news_service_tracks_score_change(storage):
-    news_source = MagicMock()
+    news_source = StubNewsSource()
     seed_entry = _sample_entries()[0]
-    news_source.fetch_headlines.return_value = [copy.deepcopy(seed_entry)]
+    news_source.set_entries([copy.deepcopy(seed_entry)])
 
     positive_analyzer = StubAnalyzer(
         [SentimentScore(score=0.6, label="positive", confidence=0.9, model="finbert")]
@@ -231,8 +279,9 @@ def test_news_service_tracks_score_change(storage):
             "published": _format_gmt(datetime.now(UTC) - timedelta(minutes=10)),
         }
     )
-    news_source.fetch_headlines.return_value = [negative_entry]
+    news_source.set_entries([negative_entry])
     service.finbert_analyzer = negative_analyzer
+    service.processor.finbert_analyzer = negative_analyzer
 
     bundle = service.get_news_intelligence("AMD", max_articles=1, force_refresh=True)
     assert bundle.summary.article_count == 1
@@ -253,8 +302,7 @@ def test_recent_selection_backfills_with_stale_articles(storage):
         _build_entry("Old partnership news", stale_base - timedelta(hours=2)),
     ]
 
-    news_source = MagicMock()
-    news_source.fetch_headlines.return_value = copy.deepcopy(entries)
+    news_source = StubNewsSource(copy.deepcopy(entries))
 
     analyzer = StubAnalyzer(
         [
@@ -386,8 +434,7 @@ def test_vendor_entries_round_robin_selection(storage):
         def fetch_with_fallback(self, request, verbose=False):
             return dataframe, {}
 
-    news_source = MagicMock()
-    news_source.fetch_headlines.return_value = []
+    news_source = StubNewsSource([])
 
     with storage.connection() as conn:
         conn.execute("DELETE FROM news_cache WHERE ticker = %s", ["AAPL"])

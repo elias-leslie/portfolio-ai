@@ -371,7 +371,8 @@ class TestBaseHTTPClient:
     @patch("app.sources.base_http_client.time.time")
     def test_request_logs_duration(self, mock_time: Mock, mock_httpx_class: Mock) -> None:
         """Request logs duration of API call."""
-        mock_time.side_effect = [0.0, 0.5]  # 500ms duration
+        # Provide enough timestamps for start/end timing plus any retry bookkeeping
+        mock_time.side_effect = [0.0, 0.5, 0.5]  # 500ms duration
 
         mock_response = Mock()
         mock_response.status_code = 200

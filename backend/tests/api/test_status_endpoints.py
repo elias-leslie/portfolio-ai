@@ -128,7 +128,7 @@ class TestStatusEndpoints:
     def test_log_endpoint_not_found(self) -> None:
         """Test GET /api/status/logs/{service} returns 404 when log file missing."""
         # Test with a valid service that has no log file
-        with patch("app.api.status.LOG_PATHS", {"test-service": "/nonexistent/path.log"}):
+        with patch("app.api.status_logs.LOG_PATHS", {"test-service": "/nonexistent/path.log"}):
             response = client.get("/api/status/logs/test-service")
             # This will fail until we implement the endpoint
             # For now, it will return 404 (not found route)

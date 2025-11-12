@@ -12,6 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.middleware.cache import clear_cache
 from app.portfolio.models import PriceData
 from app.storage import PortfolioStorage, get_storage
 
@@ -73,6 +74,12 @@ def test_storage() -> Iterator[PortfolioStorage]:
         conn.commit()
 
     yield storage
+
+
+@pytest.fixture(autouse=True)
+def clear_watchlist_response_cache() -> None:
+    """Ensure cached watchlist responses don't affect other tests."""
+    clear_cache()
 
 
 @pytest.fixture

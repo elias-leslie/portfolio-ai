@@ -178,11 +178,21 @@ def _get_or_create_preferences() -> dict[str, object]:
     """Get existing preferences or create default ones."""
     user_id = "default"  # Use specific user ID, not "most recent"
 
+    row: dict[str, object] | None = None
+
     with storage.connection() as conn:
         result_df = conn.execute("SELECT * FROM user_preferences WHERE id = %s", [user_id]).df()
+        if not result_df.empty:
+            row = result_df.iloc[0].to_dict()
+        else:
+            # Legacy fallback: use most recent preferences regardless of ID
+            legacy_df = conn.execute(
+                "SELECT * FROM user_preferences ORDER BY updated_at DESC LIMIT 1"
+            ).df()
+            if not legacy_df.empty:
+                row = legacy_df.iloc[0].to_dict()
 
-    if not result_df.empty:
-        row = result_df.iloc[0].to_dict()
+    if row is not None:
         if "watchlist_show_news" not in row:
             row["watchlist_show_news"] = True
         if "news_lookback_hours" not in row or row["news_lookback_hours"] is None:

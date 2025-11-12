@@ -8,6 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.middleware.cache import clear_cache
 from app.storage import get_storage
 
 
@@ -35,6 +36,12 @@ def cleanup_database():
         conn.execute("DELETE FROM portfolio_positions")
         conn.execute("DELETE FROM portfolio_accounts")
         conn.execute("DELETE FROM price_cache")  # Clear price cache too
+
+
+@pytest.fixture(autouse=True)
+def clear_response_cache():
+    """Ensure cached analytics responses don't leak between tests."""
+    clear_cache()
 
 
 @pytest.fixture(autouse=True)

@@ -5,51 +5,29 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.utils.health_checks import (
-    AgentStats,
-    CacheStats,
-    CheckResult,
-    WatchlistStats,
-)
 
 client = TestClient(app)
 
 
-@patch("app.api.status_stream.get_all_service_statuses")
-@patch("app.api.health.get_api_quotas")
-@patch("app.api.health.get_watchlist_stats")
-@patch("app.api.health.get_agent_stats")
-@patch("app.api.health.get_cache_stats")
-@patch("app.api.health.check_sources")
-@patch("app.api.health.check_database")
 class TestStatusEventStream:
     """Tests for status event stream generator."""
 
     @pytest.mark.asyncio
+    @patch("app.api.status_stream.gather_comprehensive_status")
     async def test_status_event_stream_yields_sse_format(
         self,
-        mock_check_db,
-        mock_check_sources,
-        mock_get_cache_stats,
-        mock_get_agent_stats,
-        mock_get_watchlist_stats,
-        mock_get_api_quotas,
-        mock_get_all_service_statuses,
+        mock_gather_status,
     ) -> None:
         """Test that status_event_stream yields data in SSE format."""
         print("Starting test_status_event_stream_yields_sse_format")
         from app.api.status_stream import status_event_stream
 
-        # Configure mocks
-        mock_check_db.return_value = CheckResult(status="ok")
-        mock_check_sources.return_value = {}
-        mock_get_cache_stats.return_value = CacheStats(total_cached=0)
-        mock_get_agent_stats.return_value = AgentStats(
-            total_runs=0, completed_runs=0, failed_runs=0
-        )
-        mock_get_watchlist_stats.return_value = WatchlistStats(total_items=0)
-        mock_get_api_quotas.return_value = []
-        mock_get_all_service_statuses.return_value = {}
+        # Configure mock status payload
+        mock_gather_status.return_value = {
+            "status": "healthy",
+            "services": {},
+            "timestamp": "2025-11-12T00:00:00Z",
+        }
 
         # Collect first 2 events
         events: list[str] = []
@@ -77,30 +55,20 @@ class TestStatusEventStream:
         print("Finished test_status_event_stream_yields_sse_format")
 
     @pytest.mark.asyncio
+    @patch("app.api.status_stream.gather_comprehensive_status")
     async def test_status_event_stream_handles_cancellation(
         self,
-        mock_check_db,
-        mock_check_sources,
-        mock_get_cache_stats,
-        mock_get_agent_stats,
-        mock_get_watchlist_stats,
-        mock_get_api_quotas,
-        mock_get_all_service_statuses,
+        mock_gather_status,
     ) -> None:
         """Test that status_event_stream handles asyncio.CancelledError gracefully."""
         print("Starting test_status_event_stream_handles_cancellation")
         from app.api.status_stream import status_event_stream
 
-        # Configure mocks
-        mock_check_db.return_value = CheckResult(status="ok")
-        mock_check_sources.return_value = {}
-        mock_get_cache_stats.return_value = CacheStats(total_cached=0)
-        mock_get_agent_stats.return_value = AgentStats(
-            total_runs=0, completed_runs=0, failed_runs=0
-        )
-        mock_get_watchlist_stats.return_value = WatchlistStats(total_items=0)
-        mock_get_api_quotas.return_value = []
-        mock_get_all_service_statuses.return_value = {}
+        mock_gather_status.return_value = {
+            "status": "healthy",
+            "services": {},
+            "timestamp": "2025-11-12T00:00:00Z",
+        }
 
         # Start stream and cancel it
         stream = status_event_stream(max_iterations=2)

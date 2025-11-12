@@ -46,6 +46,15 @@ class Agent(ABC):
         self.model = model
         self.agent_type = self.__class__.__name__
 
+    @staticmethod
+    def _json_serializer(value: Any) -> Any:
+        """Serialize non-JSON-compatible values (e.g., datetime) to strings."""
+        if isinstance(value, datetime):
+            if value.tzinfo is None:
+                value = value.replace(tzinfo=UTC)
+            return value.isoformat()
+        return value
+
     @abstractmethod
     def get_system_prompt(self) -> str:
         """Get the system prompt for this agent.
@@ -176,7 +185,7 @@ class Agent(ABC):
                     {
                         "type": "tool_result",
                         "tool_use_id": block.id,
-                        "content": json.dumps(result),
+                        "content": json.dumps(result, default=self._json_serializer),
                     }
                 )
 
@@ -324,7 +333,7 @@ class Agent(ABC):
                 "id": tool_call_id,
                 "agent_run_id": run_id,
                 "tool_name": tool_name,
-                "parameters": json.dumps(parameters),
+                "parameters": json.dumps(parameters, default=self._json_serializer),
                 "response_summary": result_summary,
                 "duration_ms": duration_ms,
                 "called_at": datetime.now(UTC),

@@ -10,8 +10,15 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.middleware.cache import clear_cache
 from app.portfolio.models import PriceData
 from app.storage import PortfolioStorage
+
+
+@pytest.fixture(autouse=True)
+def clear_response_cache() -> None:
+    """Ensure cached API responses don't leak between tests."""
+    clear_cache()
 
 
 @pytest.fixture
@@ -93,8 +100,23 @@ def test_get_market_conditions_success(mock_fetch: Mock, client: TestClient) -> 
     assert "dxy" in data
     assert data["dxy"]["price"] == 103.5
 
-    # Verify the correct symbols were requested
-    mock_fetch.assert_called_once_with(["^GSPC", "^VIX", "^TNX", "DX-Y.NYB"])
+    # Verify the correct symbols were requested for both indicator and sector fetches
+    assert mock_fetch.call_count == 2
+    indicator_call, sector_call = mock_fetch.call_args_list
+    assert indicator_call.args[0] == ["^GSPC", "^VIX", "^TNX", "DX-Y.NYB"]
+    assert sector_call.args[0] == [
+        "XLK",
+        "XLF",
+        "XLE",
+        "XLV",
+        "XLY",
+        "XLP",
+        "XLI",
+        "XLU",
+        "XLRE",
+        "XLB",
+        "XLC",
+    ]
 
 
 @patch("app.api.market.price_fetcher.fetch_price_data")

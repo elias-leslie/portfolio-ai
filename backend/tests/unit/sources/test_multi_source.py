@@ -26,8 +26,7 @@ def mock_storage(tmp_path):  # type: ignore[no-untyped-def]
     """Create a test storage instance."""
     from app.storage import get_storage
 
-    db_path = tmp_path / "test_multi_source.db"
-    storage = get_storage(db_path=str(db_path))
+    storage = get_storage()
 
     # Clean source_performance table to ensure fresh metrics for each test
     with storage.connection() as conn:
@@ -244,8 +243,10 @@ def test_rate_limit_cooldown_skips_source(
     fetcher = MultiSourceFetcher([mock_yfinance_source, mock_polygon_source], storage=mock_storage)
 
     # Manually set yfinance in rate limit cooldown
-    fetcher._metrics["yfinance"].rate_limit_hits = 1
-    fetcher._metrics["yfinance"].last_rate_limit_at = dt.datetime.now(dt.UTC)
+    metric = fetcher.metrics_manager.get_metric("yfinance")
+    assert metric is not None
+    metric.rate_limit_hits = 1
+    metric.last_rate_limit_at = dt.datetime.now(dt.UTC)
 
     # Mock Polygon returning valid data
     mock_data = pl.DataFrame(
