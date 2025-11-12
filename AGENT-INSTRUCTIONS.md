@@ -246,4 +246,55 @@ When user says: **"You are Cloud Agent X"**
 4. Generate report when done
 5. Push to branch
 
+---
+
+## VERIFICATION & MERGE (Local Agent)
+
+**After all 5 agents complete**, hand off to local agent with:
+
+```
+You are the Verification Agent.
+
+Pull the distributed code review branch and verify all work:
+
+1. Pull branch:
+   cd /home/user/portfolio-ai
+   git checkout claude/code-review-011CV3yYsKEbVuDcMNAiKG56
+   git pull origin claude/code-review-011CV3yYsKEbVuDcMNAiKG56
+
+2. Review commits:
+   git log --oneline -20
+   git diff main...HEAD --stat
+
+3. Run full test suite:
+   bash ~/portfolio-ai/scripts/lint.sh
+   cd ~/portfolio-ai/backend && source .venv/bin/activate && pytest tests/ -v
+
+4. Restart and verify services:
+   bash ~/portfolio-ai/scripts/restart.sh
+   sleep 10
+   bash ~/portfolio-ai/scripts/status.sh
+
+5. Manual smoke test:
+   - Visit http://192.168.8.233:3000
+   - Test each module (market, watchlist, portfolio, news, status)
+
+6. If all pass, merge to main:
+   git checkout main
+   git merge claude/code-review-011CV3yYsKEbVuDcMNAiKG56
+   git push origin main
+
+7. Generate final report with:
+   - Total commits from all agents
+   - Lines changed (added/removed)
+   - Test results
+   - Any issues found
+```
+
+**Expected outcome:**
+- All 508+ tests passing
+- All linting/mypy checks passing
+- Services healthy
+- Clean merge to main
+
 **Good luck!** 🚀
