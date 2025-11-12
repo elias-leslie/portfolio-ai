@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import pytest
+
 from app.portfolio.analytics import PortfolioAnalytics
 from app.portfolio.models import Position, PriceData
 
 
+@pytest.mark.smoke
 def test_calculate_portfolio_value() -> None:
     """Test calculating portfolio value."""
     analytics = PortfolioAnalytics()

@@ -48,6 +48,7 @@ def sample_ohlcv_data() -> pl.DataFrame:
     return pl.DataFrame(data)
 
 
+@pytest.mark.smoke
 def test_calculate_indicators_all_indicators(
     mock_storage: Mock, sample_ohlcv_data: pl.DataFrame
 ) -> None:

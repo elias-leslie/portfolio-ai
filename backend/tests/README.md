@@ -168,6 +168,36 @@ pytest tests/unit/ -n 4 -v
 
 **Note:** Parallel execution will be even faster once unit tests are properly isolated (currently some tests hit the database)
 
+### Smoke Tests (Fast Validation)
+
+**NEW: Smoke test suite for quick validation**
+
+```bash
+# Run only critical smoke tests (<5s)
+pytest tests/unit/portfolio tests/unit/analytics tests/unit/utils tests/unit/test_watchlist_price_change.py -m smoke
+
+# With parallel execution (even faster)
+pytest tests/unit/portfolio tests/unit/analytics tests/unit/utils tests/unit/test_watchlist_price_change.py -m smoke -n auto
+```
+
+**Performance:**
+- **5 critical tests** covering core functionality
+- **Execution time:** ~4.6 seconds
+- **Coverage:** Portfolio analytics, indicators, sectors, data mapping, watchlist
+
+**When to use:**
+- ✅ Quick sanity check after code changes
+- ✅ Before committing (faster than full suite)
+- ✅ During active development (fast feedback)
+- ✅ CI/CD pre-check before full test suite
+
+**Tests included:**
+- Portfolio value calculation
+- Technical indicators (RSI, MACD, SMA, EMA)
+- Sector rotation analytics
+- JSON path data extraction
+- Watchlist price change calculation
+
 ---
 
 ## 🔧 Test Fixtures and Utilities

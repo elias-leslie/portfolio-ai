@@ -16,6 +16,7 @@ from app.sources.jsonpath_mapper import (
 class TestExtractWithPath:
     """Test extract_with_path function."""
 
+    @pytest.mark.smoke
     def test_no_path_returns_original(self) -> None:
         """Test that None or empty path returns data as-is."""
         data = {"results": [{"o": 123.45}]}

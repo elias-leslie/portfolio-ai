@@ -17,6 +17,7 @@ def mock_storage() -> Mock:
     return Mock()
 
 
+@pytest.mark.smoke
 def test_get_sector_rotation_success(mock_storage: Mock) -> None:
     """Test successful sector rotation calculation."""
     # Mock sector data query

@@ -16,6 +16,7 @@ def mock_storage() -> MagicMock:
     return MagicMock()
 
 
+@pytest.mark.smoke
 def test_calculate_price_change_with_day_bars_data(mock_storage: MagicMock) -> None:
     """Test price change calculation when day_bars data is available."""
     # Mock day_bars query result (2 days of data)
