@@ -972,8 +972,10 @@ class TableFreshnessStatus(BaseModel):
     table_name: str = Field(description="Table name")
     last_updated: datetime | None = Field(description="Most recent timestamp in table")
     age_hours: float | None = Field(description="Age in hours since last update")
-    status: str = Field(description="Status: fresh (<24h), stale (24-48h), critical (>48h)")
+    status: str = Field(description="Status: fresh (within expected interval), stale (overdue)")
     row_count: int | None = Field(description="Total number of rows in table")
+    expected_refresh_hours: int = Field(description="Expected refresh interval in hours")
+    description: str = Field(description="Table description and update schedule")
 
 
 class TableFreshnessResponse(BaseModel):
@@ -1011,24 +1013,43 @@ async def get_table_freshness() -> TableFreshnessResponse:
     try:
         conn_mgr = get_connection_manager()
 
-        # Define tables with their timestamp columns
+        # Define tables with their timestamp columns and expected refresh intervals (in hours)
         table_configs = [
-            ("day_bars", "date", "date"),
-            ("fear_greed_inputs", "as_of_date", "date"),
-            ("fear_greed_daily", "as_of_date", "date"),
-            ("fear_greed_components", "as_of_date", "date"),
-            ("news_cache", "fetched_at", "timestamp"),
-            ("watchlist_items", "updated_at", "timestamp"),
-            ("portfolio_positions", "updated_at", "timestamp"),
-            ("portfolio_accounts", "updated_at", "timestamp"),
-            ("price_cache", "cached_at", "timestamp"),
+            ("day_bars", "date", "date", 24, "Daily OHLCV market data"),
+            ("fear_greed_inputs", "as_of_date", "date", 24, "Fear & Greed raw inputs"),
+            ("fear_greed_daily", "as_of_date", "date", 24, "Fear & Greed calculated scores"),
+            ("fear_greed_components", "as_of_date", "date", 24, "Fear & Greed component scores"),
+            (
+                "technical_indicators",
+                "calculated_at",
+                "timestamp",
+                24,
+                "Daily technical indicators (RSI, MACD, etc.)",
+            ),
+            (
+                "news_cache",
+                "fetched_at",
+                "timestamp",
+                2,
+                "News articles (refreshes every ~1min, 2h tolerance)",
+            ),
+            (
+                "watchlist_items",
+                "updated_at",
+                "timestamp",
+                2,
+                "Watchlist scores (refreshes every ~1min, 2h tolerance)",
+            ),
+            ("price_cache", "cached_at", "timestamp", 1, "Real-time price cache (on-demand)"),
+            ("ml_model_metrics", "trained_at", "timestamp", 24, "ML model training metrics"),
+            ("source_metrics", "created_at", "timestamp", 12, "News source quality profiling"),
         ]
 
         tables: list[TableFreshnessStatus] = []
         now = datetime.now(UTC)
 
         with conn_mgr.connection() as conn:
-            for table_name, timestamp_col, col_type in table_configs:
+            for table_name, timestamp_col, col_type, expected_hours, desc in table_configs:
                 try:
                     # Get latest timestamp
                     result = conn.execute(f"SELECT MAX({timestamp_col}) FROM {table_name}")
@@ -1040,7 +1061,7 @@ async def get_table_freshness() -> TableFreshnessResponse:
                     row = result.fetchone()
                     row_count = row[0] if row else 0
 
-                    # Calculate age and status
+                    # Calculate age and status based on expected refresh interval
                     age_hours = None
                     status = "unknown"
 
@@ -1054,9 +1075,10 @@ async def get_table_freshness() -> TableFreshnessResponse:
                         age_delta = now - last_updated
                         age_hours = age_delta.total_seconds() / 3600
 
-                        if age_hours < 24:
+                        # Status based on expected interval with 2x tolerance
+                        if age_hours <= expected_hours:
                             status = "fresh"
-                        elif age_hours < 48:
+                        elif age_hours <= expected_hours * 2:
                             status = "stale"
                         else:
                             status = "critical"
@@ -1068,6 +1090,8 @@ async def get_table_freshness() -> TableFreshnessResponse:
                             age_hours=age_hours,
                             status=status,
                             row_count=row_count,
+                            expected_refresh_hours=expected_hours,
+                            description=desc,
                         )
                     )
 
@@ -1081,6 +1105,8 @@ async def get_table_freshness() -> TableFreshnessResponse:
                             age_hours=None,
                             status="error",
                             row_count=0,
+                            expected_refresh_hours=0,
+                            description="Error checking table",
                         )
                     )
 

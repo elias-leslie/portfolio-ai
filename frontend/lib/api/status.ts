@@ -90,6 +90,8 @@ export interface TableFreshnessStatus {
   age_hours: number | null;
   status: "fresh" | "stale" | "critical" | "unknown" | "error";
   row_count: number | null;
+  expected_refresh_hours: number;
+  description: string;
 }
 
 export interface TableFreshnessResponse {

@@ -133,7 +133,7 @@ export function TableFreshnessCard() {
         <div
             key={table.table_name}
             className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
-            title={`Last updated: ${formatTimestamp(table.last_updated)}`}
+            title={`${table.description}\nExpected refresh: every ${table.expected_refresh_hours}h\nLast updated: ${formatTimestamp(table.last_updated)}`}
         >
             <div className="flex items-center gap-3 flex-1">
                 {getStatusIcon(table.status)}
@@ -141,6 +141,9 @@ export function TableFreshnessCard() {
                     <div className="font-medium">{formatTableName(table.table_name)}</div>
                     <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
                         <div>{formatAge(table.age_hours)}</div>
+                        <div className="text-muted-foreground/70">
+                            (refreshes every {table.expected_refresh_hours}h)
+                        </div>
                         {table.row_count !== null && table.row_count > 0 && (
                             <div>{table.row_count.toLocaleString()} rows</div>
                         )}
@@ -262,18 +265,21 @@ export function TableFreshnessCard() {
                 </Collapsible>
 
                 <div className="mt-4 p-3 bg-muted/50 rounded-lg text-xs text-muted-foreground">
-                    <p className="font-medium mb-1">Data Freshness Thresholds:</p>
+                    <p className="font-medium mb-1">Data Freshness Status:</p>
                     <ul className="list-disc list-inside space-y-1">
                         <li>
-                            <span className="text-green-600">Fresh:</span> Data updated within last 24 hours
+                            <span className="text-green-600">Fresh:</span> Updated within expected refresh interval
                         </li>
                         <li>
-                            <span className="text-yellow-600">Stale:</span> Data 24-48 hours old
+                            <span className="text-yellow-600">Stale:</span> Overdue but within 2x expected interval
                         </li>
                         <li>
-                            <span className="text-red-600">Critical:</span> Data over 48 hours old
+                            <span className="text-red-600">Critical:</span> Over 2x expected refresh interval
                         </li>
                     </ul>
+                    <p className="mt-2 text-muted-foreground/70">
+                        Each table has its own refresh schedule (shown in parentheses). Hover over a table for details.
+                    </p>
                 </div>
             </CardContent>
         </Card>

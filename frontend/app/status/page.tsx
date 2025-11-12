@@ -38,7 +38,6 @@ import { LogsCard } from "@/components/status/LogsCard";
 import { SourceQualityCard } from "@/components/status/SourceQualityCard";
 import { MLModelCard } from "@/components/status/MLModelCard";
 import { MaintenanceCard } from "@/components/status/MaintenanceCard";
-import { DataFreshnessCard } from "@/components/status/DataFreshnessCard";
 import { TableFreshnessCard } from "@/components/status/TableFreshnessCard";
 import { APIKeysCard } from "@/components/status/APIKeysCard";
 import {
@@ -466,11 +465,6 @@ export default function StatusPage() {
 
             {/* Data Freshness card - shows all tables */}
             <TableFreshnessCard />
-
-            {/* Day Bars Data Freshness card - legacy, keep for now */}
-            {detailedHealth?.day_bars_freshness && (
-                <DataFreshnessCard freshness={detailedHealth.day_bars_freshness} />
-            )}
 
             {/* Service cards grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
