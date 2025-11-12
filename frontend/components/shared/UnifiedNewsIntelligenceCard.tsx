@@ -97,6 +97,10 @@ interface UnifiedNewsIntelligenceCardProps {
 
   // Title customization
   title?: string;  // Default: "Market News" or "News Intelligence" or "News & Sentiment"
+
+  // Callbacks/state
+  onRequestExpanded?: () => void;
+  isLoadingMore?: boolean;
 }
 
 /**
@@ -133,6 +137,8 @@ export function UnifiedNewsIntelligenceCard({
   showSentimentBreakdown = true,  // Always show sentiment breakdown when available
   newsHidden = false,
   title,
+  onRequestExpanded,
+  isLoadingMore = false,
 }: UnifiedNewsIntelligenceCardProps) {
   const [showAll, setShowAll] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>("recent");
@@ -208,15 +214,26 @@ export function UnifiedNewsIntelligenceCard({
     return [...positive, ...negative].map(x => x.article);
   }, [articles, sortedArticles, sortBy]);
 
-  const displayCount = showAll ? sortedArticles.length : 6;
+  const DEFAULT_DISPLAY_COUNT = 6;
+  const displayCount = showAll ? sortedArticles.length : DEFAULT_DISPLAY_COUNT;
   const displayedArticles = showAll ? sortedArticles : balancedArticles.slice(0, displayCount);
-  const hasMore = sortedArticles.length > 6;
+  const showToggleButton =
+    Boolean(onRequestExpanded) || sortedArticles.length > DEFAULT_DISPLAY_COUNT;
 
   // Determine title
   const cardTitle = title || (ticker ? "📰 News Intelligence" : "Market News");
 
   // Determine if we should show gradient styling (market news) or standard (ticker news)
   const isMarketNews = !ticker;
+
+  const handleToggleShowAll = () => {
+    if (!showAll) {
+      onRequestExpanded?.();
+      setShowAll(true);
+      return;
+    }
+    setShowAll(false);
+  };
 
   // Early returns AFTER all hooks
   if (newsHidden) return null;
@@ -479,15 +496,20 @@ export function UnifiedNewsIntelligenceCard({
             </div>
 
             {/* Show All button */}
-            {hasMore && (
+            {showToggleButton && (
               <div className="mt-3 flex justify-center">
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setShowAll(!showAll)}
+                  onClick={handleToggleShowAll}
                   className="text-xs"
+                  disabled={isLoadingMore}
                 >
-                  {showAll ? "Show Less" : `Show All (${sortedArticles.length} total)`}
+                  {isLoadingMore
+                    ? "Loading headlines..."
+                    : showAll
+                    ? "Show Less"
+                    : `Show All (${sortedArticles.length} total)`}
                 </Button>
               </div>
             )}

@@ -23,8 +23,18 @@ from .analytics_risk import (
     calculate_sector_exposure,
     calculate_sharpe_ratio,
 )
-from .models import Position, PriceData
-from .models import PortfolioAnalytics as PortfolioAnalyticsModel
+from .models import (
+    ConcentrationMetrics,
+    DiversificationScore,
+    PortfolioValue,
+    Position,
+    PositionPerformance,
+    PriceData,
+    RiskProfile,
+)
+from .models import (
+    PortfolioAnalytics as PortfolioAnalyticsModel,
+)
 
 
 class PortfolioAnalytics:
@@ -39,7 +49,7 @@ class PortfolioAnalytics:
         self,
         positions: list[Position],
         price_data: dict[str, PriceData],
-    ) -> PriceData:
+    ) -> PortfolioValue:
         """Calculate total portfolio value and P&L."""
         return calculate_portfolio_value(positions, price_data)
 
@@ -71,13 +81,13 @@ class PortfolioAnalytics:
         self,
         positions: list[Position],
         price_data: dict[str, PriceData],
-    ) -> PriceData:
+    ) -> ConcentrationMetrics:
         """Calculate portfolio concentration risk metrics."""
         return calculate_concentration_risk(positions, price_data)
 
     def calculate_sharpe_ratio(
         self,
-        portfolio_value: PriceData,
+        portfolio_value: PortfolioValue,
         portfolio_volatility: float | None,
         risk_free_rate: float = 0.045,
     ) -> float | None:
@@ -88,8 +98,8 @@ class PortfolioAnalytics:
         self,
         portfolio_beta: float | None,
         portfolio_volatility: float | None,
-        concentration_metrics: PriceData,
-    ) -> PriceData | None:
+        concentration_metrics: ConcentrationMetrics,
+    ) -> RiskProfile | None:
         """Calculate portfolio risk profile."""
         return calculate_risk_profile(portfolio_beta, portfolio_volatility, concentration_metrics)
 
@@ -97,8 +107,8 @@ class PortfolioAnalytics:
         self,
         positions: list[Position],
         price_data: dict[str, PriceData],
-        concentration_metrics: PriceData,
-    ) -> PriceData:
+        concentration_metrics: ConcentrationMetrics,
+    ) -> DiversificationScore:
         """Calculate diversification score."""
         return calculate_diversification_score(positions, price_data, concentration_metrics)
 
@@ -107,7 +117,7 @@ class PortfolioAnalytics:
         positions: list[Position],
         price_data: dict[str, PriceData],
         top_n: int = 3,
-    ) -> tuple[list[PriceData], list[PriceData]]:
+    ) -> tuple[list[PositionPerformance], list[PositionPerformance]]:
         """Calculate top and bottom performing positions."""
         return calculate_top_performers(positions, price_data, top_n)
 

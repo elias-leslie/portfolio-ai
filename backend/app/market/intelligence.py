@@ -7,9 +7,9 @@ labels and grouping sectors by performance.
 from __future__ import annotations
 
 from app.market import plain_language
-from app.market.sentiment import ComponentScore, MarketHealthScore
+from app.market.sentiment import MarketHealthScore
 from app.models.market_intelligence import EnrichedIndicator, SectorInfo
-from app.portfolio.price_fetcher import PriceData
+from app.portfolio.models import PriceData
 
 
 def get_signal_emoji(signal: str) -> str:

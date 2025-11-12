@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import polars as pl
 import pytest
 
-from app.portfolio.price_fetcher import PriceData
+from app.portfolio.models import PriceData
 from app.watchlist.service import refresh_watchlist_scores
 
 

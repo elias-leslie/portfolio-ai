@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { MarketIntelligence } from "@/components/market/MarketIntelligence";
 import { PortfolioOverview } from "@/components/portfolio/PortfolioOverview";
 import { UnifiedNewsIntelligenceCard } from "@/components/shared/UnifiedNewsIntelligenceCard";
@@ -20,29 +20,78 @@ function LoadingSkeleton({ title }: { title: string }) {
   );
 }
 
+const MARKET_NEWS_INITIAL_LIMIT = 6;
+const MARKET_NEWS_EXPANDED_LIMIT = 50;
+
 function MarketNewsSection() {
-  const { data: newsData, isLoading, error } = useNewsIntelligence(undefined, { limit: 50 });
+  const sectionRef = useRef<HTMLDivElement | null>(null);
+  const [shouldFetch, setShouldFetch] = useState(false);
+  const [articleLimit, setArticleLimit] = useState(MARKET_NEWS_INITIAL_LIMIT);
 
-  if (isLoading) {
-    return <LoadingSkeleton title="Market News" />;
-  }
+  useEffect(() => {
+    if (shouldFetch) {
+      return;
+    }
 
-  if (error) {
-    return (
-      <Card className="p-6">
-        <div className="text-sm text-text-muted py-4">
-          Failed to load market news
-        </div>
-      </Card>
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setShouldFetch(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.15 }
     );
-  }
+
+    const current = sectionRef.current;
+    if (current) {
+      observer.observe(current);
+    }
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [shouldFetch]);
+
+  const {
+    data: newsData,
+    isLoading,
+    error,
+    isFetching,
+  } = useNewsIntelligence(undefined, {
+    limit: articleLimit,
+    enabled: shouldFetch,
+  });
+
+  const handleExpandRequest = () => {
+    if (articleLimit < MARKET_NEWS_EXPANDED_LIMIT) {
+      setArticleLimit(MARKET_NEWS_EXPANDED_LIMIT);
+    }
+  };
+
+  const showSkeleton = !shouldFetch || isLoading;
+  const isLoadingMore = isFetching && articleLimit > MARKET_NEWS_INITIAL_LIMIT;
 
   return (
-    <UnifiedNewsIntelligenceCard
-      marketNewsData={newsData}
-      ticker={null}
-      showHeader={false}
-    />
+    <div ref={sectionRef}>
+      {showSkeleton && <LoadingSkeleton title="Market News" />}
+      {!showSkeleton && error && (
+        <Card className="p-6">
+          <div className="text-sm text-text-muted py-4">Failed to load market news</div>
+        </Card>
+      )}
+      {!showSkeleton && !error && (
+        <UnifiedNewsIntelligenceCard
+          marketNewsData={newsData}
+          ticker={null}
+          showHeader={false}
+          onRequestExpanded={
+            articleLimit < MARKET_NEWS_EXPANDED_LIMIT ? handleExpandRequest : undefined
+          }
+          isLoadingMore={isLoadingMore}
+        />
+      )}
+    </div>
   );
 }
 

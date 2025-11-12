@@ -100,11 +100,18 @@ def test_get_rvol_success(client: TestClient):
 
 ## 🚀 Running Tests
 
+### Recommended Workflow
+- `pytest` &mdash; runs the fast suite (slow integration + watchlist suites are skipped automatically).
+- `pytest --runslow` &mdash; runs everything, including slow suites.
+- `pytest -m slow --runslow` &mdash; runs only the slow suites (useful before releases/infra changes).
+
+Slow suites currently include everything under `tests/integration/` and `tests/watchlist/`. These folders are automatically marked with `@pytest.mark.slow` so they are skipped unless you pass `--runslow`.
+
 ### All Tests
 ```bash
 cd ~/portfolio-ai/backend
 source .venv/bin/activate
-pytest tests/ -v
+pytest tests/ -v --runslow
 ```
 
 ### Only Unit Tests (Fast)
@@ -114,7 +121,7 @@ pytest tests/unit/ -v
 
 ### Only Integration Tests
 ```bash
-pytest tests/integration/ -v
+pytest tests/integration/ -v --runslow
 ```
 
 ### Specific Module

@@ -1,10 +1,51 @@
-"""Root conftest that imports all shared fixtures.
+"""Root conftest that imports all shared fixtures and sets global options."""
 
-Pytest automatically loads conftest.py from the tests/ directory.
-This file imports all fixtures from tests/fixtures/conftest.py to make
-them available to all tests.
-"""
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
 
 # Import all fixtures from the centralized fixtures module
 # This must come first to set up the test environment (PYTEST_RUNNING, logging, database)
 from tests.fixtures.conftest import *  # noqa: F403
+
+_TESTS_ROOT = Path(__file__).parent.resolve()
+_SLOW_FOLDERS = (
+    (_TESTS_ROOT / "integration").resolve(),
+    (_TESTS_ROOT / "watchlist").resolve(),
+)
+
+
+def pytest_addoption(parser: pytest.Parser) -> None:
+    """Add custom CLI flags."""
+    parser.addoption(
+        "--runslow",
+        action="store_true",
+        default=False,
+        help="Run tests marked as slow (integration/watchlist suites).",
+    )
+
+
+def _belongs_to_slow_suite(path: Path) -> bool:
+    for slow_dir in _SLOW_FOLDERS:
+        try:
+            path.relative_to(slow_dir)
+            return True
+        except ValueError:
+            continue
+    return False
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """Skip slow tests unless --runslow specified."""
+    runslow = config.getoption("--runslow")
+    skip_slow = pytest.mark.skip(reason="Skipped slow test. Use --runslow to include.")
+
+    for item in items:
+        item_path = Path(str(getattr(item, "fspath", ""))).resolve()
+        if _belongs_to_slow_suite(item_path):
+            item.add_marker(pytest.mark.slow)
+
+        if not runslow and "slow" in item.keywords:
+            item.add_marker(skip_slow)

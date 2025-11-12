@@ -20,6 +20,7 @@ from app.models.market_intelligence import (
 from app.models.market_intelligence import (
     MarketHealthScore as MarketHealthScoreResponse,
 )
+from app.portfolio.models import PriceData
 from app.portfolio.price_fetcher import PriceDataFetcher
 from app.storage import get_storage
 
@@ -61,7 +62,7 @@ class PricesResponse(BaseModel):
 # Helper functions
 def fetch_sector_data_with_changes(
     sector_symbols: list[str],
-    sector_price_data: dict[str, "PriceData"],
+    sector_price_data: dict[str, PriceData],
 ) -> dict[str, tuple[float | None, float | None, str | None]]:
     """Fetch sector data with daily change percentages using batch query.
 
@@ -204,7 +205,8 @@ async def get_prices(
 
 
 @router.get("/intelligence", response_model=MarketIntelligenceResponse)
-async def get_market_intelligence() -> MarketIntelligenceResponse:
+@cache_response(ttl=300)
+async def get_market_intelligence(_request: Request) -> MarketIntelligenceResponse:
     """Get unified market intelligence with narrative, dual scoring, and sector rotation.
 
     This endpoint combines:
@@ -256,9 +258,7 @@ async def get_market_intelligence() -> MarketIntelligenceResponse:
     sector_data_dict = fetch_sector_data_with_changes(sector_symbols, sector_price_data)
 
     # Convert to list format for intelligence helper
-    sector_data_list = [
-        (symbol, *sector_data_dict[symbol]) for symbol in sector_symbols
-    ]
+    sector_data_list = [(symbol, *sector_data_dict[symbol]) for symbol in sector_symbols]
 
     # Calculate market health score (existing logic)
     health_score_data = calculate_market_health(
