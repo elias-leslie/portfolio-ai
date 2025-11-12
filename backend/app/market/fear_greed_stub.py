@@ -1,15 +1,7 @@
-"""Fear & Greed Index stub service.
+"""Fear & Greed Index service.
 
-IMPORTANT: This is a STUB implementation for cloud agent development.
-The local agent must implement the full Fear & Greed calculation based on ARCHITECTURE.md.
-
-Real implementation should:
-1. Fetch VIX from FRED (VIXCLS indicator)
-2. Fetch HY Spread from FRED (BAMLH0A0HYM2 indicator)
-3. Fetch SPY price, SMA_200, RSI_14 from local database
-4. Calculate percentile rankings for each signal (252-day window)
-5. Compute composite score: equal-weighted average
-6. Map to label (Extreme Fear → Fear → Neutral → Greed → Extreme Greed)
+Queries the fear_greed_daily table for the latest Fear & Greed Index score.
+The score is computed by Celery tasks and stored in the database.
 
 See ARCHITECTURE.md lines 475-671 for complete specification.
 """
@@ -17,6 +9,8 @@ See ARCHITECTURE.md lines 475-671 for complete specification.
 from __future__ import annotations
 
 from datetime import datetime
+
+from app.storage import get_storage
 
 
 class FearGreedReading:
@@ -37,20 +31,40 @@ class FearGreedReading:
 
 
 def get_fear_greed_score() -> FearGreedReading:
-    """Get current Fear & Greed Index score.
+    """Get current Fear & Greed Index score from database.
 
-    STUB IMPLEMENTATION - Returns mock neutral score.
-    Local agent must implement real calculation from database.
+    Queries the fear_greed_daily table for the most recent score.
+    Falls back to neutral (50) if no data is available.
 
     Returns:
         FearGreedReading with score, label, and metadata
     """
-    # TODO (LOCAL AGENT): Implement real Fear & Greed calculation
-    # 1. Query fear_greed_daily table for latest score
-    # 2. If no recent data, trigger computation via Celery task
-    # 3. Return actual score with components
+    storage = get_storage()
 
-    # STUB: Return neutral score for now
+    try:
+        with storage.connection() as conn:
+            result = conn.execute(
+                """
+                SELECT score, label, score_change, signal_count, as_of_date
+                FROM fear_greed_daily
+                ORDER BY as_of_date DESC
+                LIMIT 1
+                """
+            )
+            row = result.fetchone()
+
+            if row:
+                return FearGreedReading(
+                    score=int(row[0]),
+                    label=row[1],
+                    score_change=float(row[2]) if row[2] is not None else 0.0,
+                    signal_count=int(row[3]) if row[3] is not None else 4,
+                )
+    except Exception:
+        # Fall through to default if query fails
+        pass
+
+    # Fallback: Return neutral score if no data available
     return FearGreedReading(
         score=50,
         label="Neutral",

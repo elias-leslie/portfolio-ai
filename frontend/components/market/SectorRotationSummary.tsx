@@ -68,14 +68,9 @@ export function SectorRotationSummary({
             </h4>
           </div>
           <div className="space-y-2 pl-8">
-            {rotation.leading.slice(0, 3).map((sector) => (
+            {rotation.leading.map((sector) => (
               <SectorBadge key={sector.symbol} sector={sector} />
             ))}
-            {rotation.leading.length > 3 && (
-              <p className="text-xs text-text-muted italic">
-                +{rotation.leading.length - 3} more
-              </p>
-            )}
           </div>
         </div>
       )}
@@ -91,10 +86,10 @@ export function SectorRotationSummary({
               Neutral ({rotation.neutral_count})
             </h4>
           </div>
-          <div className="pl-8">
-            <p className="text-xs text-text-muted">
-              {rotation.neutral.map((s) => s.name).join(", ")}
-            </p>
+          <div className="space-y-2 pl-8">
+            {rotation.neutral.map((sector) => (
+              <SectorBadge key={sector.symbol} sector={sector} />
+            ))}
           </div>
         </div>
       )}
@@ -111,14 +106,9 @@ export function SectorRotationSummary({
             </h4>
           </div>
           <div className="space-y-2 pl-8">
-            {rotation.lagging.slice(0, 3).map((sector) => (
+            {rotation.lagging.map((sector) => (
               <SectorBadge key={sector.symbol} sector={sector} />
             ))}
-            {rotation.lagging.length > 3 && (
-              <p className="text-xs text-text-muted italic">
-                +{rotation.lagging.length - 3} more
-              </p>
-            )}
           </div>
         </div>
       )}

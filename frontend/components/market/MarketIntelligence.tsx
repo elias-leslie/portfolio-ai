@@ -15,6 +15,7 @@ import { Card } from "@/components/ui/card";
 import { MarketNarrative } from "./MarketNarrative";
 import { LabeledIndicator } from "./LabeledIndicator";
 import { SectorRotationSummary } from "./SectorRotationSummary";
+import { formatRelativeTime } from "@/lib/utils";
 
 export function MarketIntelligence() {
   const { data, isLoading, error } = useMarketIntelligence();
@@ -194,6 +195,13 @@ export function MarketIntelligence() {
             <SectorRotationSummary rotation={sector_rotation} />
           </div>
         </div>
+      </div>
+
+      {/* Footer with timestamp */}
+      <div className="mt-4 pt-3 border-t border-border">
+        <p className="text-xs text-text-muted text-center">
+          Updated {formatRelativeTime(data.last_updated)}
+        </p>
       </div>
     </Card>
   );
