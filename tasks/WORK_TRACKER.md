@@ -20,7 +20,21 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **News Source Quality Profiling System (Phase 2)** (4-5 hours total (2 hours Phase 2a, 1.5 hours Phase 2b, 1 hour Phase 2c), 0/0 tasks (today))
+1. **Cloud Agent Branch Integration** (HIGH (6 branches × full testing cycle each), 0/8 tasks (yesterday))
+   - File: `tasks-0052-cloud-agent-branch-integration.md`
+   - Created: 2025-11-11
+   - Goal: Finalize and merge 6 cloud agent feature branches to main, ensuring quality and proper integration
+   - Tasks:
+     - [ ] Task 1: Branch 1: API Documentation Enhancement
+     - [ ] Task 2: Branch 2: Celery Logging Enhancement
+     - [ ] Task 3: Branch 3: Response Caching Middleware
+     - [ ] Task 4: Branch 4: Health Endpoint Enhancements
+     - [ ] Task 5: Branch 5: Toast Notification System
+     - [ ] Task 6: Branch 6: Maintenance CLI Scripts (Most Complex)
+     - [ ] Task 7: Final Integration Verification
+     - [ ] Task 8: Documentation and Cleanup
+
+2. **News Source Quality Profiling System (Phase 2)** (4-5 hours total (2 hours Phase 2a, 1.5 hours Phase 2b, 1 hour Phase 2c), 0/0 tasks (yesterday))
    - File: `tasks-0050-news-source-quality-phase2.md`
    - Created: 2025-11-11
    - Goal: Label 200-500 existing articles from news_cache with consistent quality criteria
@@ -28,7 +42,7 @@
    - Tasks:
      - (No tasks defined yet)
 
-2. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (today))
+3. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (yesterday))
    - File: `tasks-0042-customizable-dashboard-layouts.md`
    - Created: 2025-11-11
    - Goal: Enable users to customize dashboard layouts by dragging/resizing cards, with persistence to PostgreSQL backend
@@ -44,7 +58,7 @@
      - [ ] Task 9: Polish and Edge Cases
      - [ ] Task 10: Testing and Documentation
 
-3. **Trading Intelligence Roadmap** (High, 4/8 tasks)
+4. **Trading Intelligence Roadmap** (High, 4/8 tasks)
    - File: `tasks-trading-intelligence-roadmap.md`
    - Created: Unknown
    - Tasks:
