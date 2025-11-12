@@ -13,6 +13,7 @@ from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.storage import PortfolioStorage, get_storage
 from app.utils.market_hours import is_market_hours
+from app.utils.task_logging import log_task_skip, task_logger
 from app.watchlist.service import refresh_watchlist_scores as refresh_watchlist_scores_service
 
 logger = get_logger(__name__)
@@ -176,7 +177,8 @@ def refresh_watchlist_scores_task(self, account_id: str | None = None) -> dict[s
 
     Note: This task checks market hours for logging, but refreshes 24/7.
     """
-    start_time = time.time()  # Track task duration
+    skip_check_start = time.perf_counter()  # For skip duration measurement
+    start_time = time.time()  # For result duration_seconds
     task_id = self.request.id
     account_id = account_id or "default"
 
@@ -205,13 +207,17 @@ def refresh_watchlist_scores_task(self, account_id: str | None = None) -> dict[s
 
             # Skip if not enough time has passed
             if minutes_since_refresh < refresh_interval_minutes:
-                logger.info(
-                    "watchlist_refresh_skipped",
+                skip_duration_ms = (time.perf_counter() - skip_check_start) * 1000
+                log_task_skip(
+                    task_name="refresh_watchlist_scores",
                     task_id=task_id,
-                    account_id=account_id,
-                    minutes_since_refresh=round(minutes_since_refresh, 1),
-                    refresh_interval_minutes=refresh_interval_minutes,
-                    reason="Not enough time elapsed since last refresh",
+                    reason="refresh_interval_not_met",
+                    duration_ms=skip_duration_ms,
+                    extra_fields={
+                        "account_id": account_id,
+                        "minutes_since_refresh": round(minutes_since_refresh, 1),
+                        "refresh_interval_minutes": refresh_interval_minutes,
+                    },
                 )
                 return _build_skip_result(
                     task_id=task_id,
@@ -222,33 +228,33 @@ def refresh_watchlist_scores_task(self, account_id: str | None = None) -> dict[s
 
         # Proceed with refresh
         markets_open = is_market_hours()
-        logger.info(
-            "watchlist_refresh_task_started",
-            task_id=task_id,
-            account_id=account_id,
-            markets_open=markets_open,
-            refresh_interval_minutes=refresh_interval_minutes,
-        )
 
-        result = refresh_watchlist_scores_service(storage, account_id=account_id)
-        result.update(
+        with task_logger(
+            "refresh_watchlist_scores",
+            task_id,
             {
-                "task_id": task_id,
-                "markets_open": markets_open,
+                "account_id": account_id,
                 "refresh_interval_minutes": refresh_interval_minutes,
-                "duration_seconds": round(time.time() - start_time, 2),
-            }
-        )
+                "markets_open": markets_open,
+            },
+        ):
+            result = refresh_watchlist_scores_service(storage, account_id=account_id)
+            result.update(
+                {
+                    "task_id": task_id,
+                    "markets_open": markets_open,
+                    "refresh_interval_minutes": refresh_interval_minutes,
+                    "duration_seconds": round(time.time() - start_time, 2),
+                }
+            )
 
-        logger.info(
-            "watchlist_refresh_task_completed",
-            task_id=task_id,
-            processed=result.get("processed", 0),
-            markets_open=markets_open,
-            refresh_interval_minutes=refresh_interval_minutes,
-            duration_seconds=result["duration_seconds"],
-        )
-        return result
+            logger.info(
+                "watchlist_scores_refreshed",
+                task_id=task_id,
+                processed=result.get("processed", 0),
+                markets_open=markets_open,
+            )
+            return result
 
     except Exception as exc:  # pragma: no cover - safety net
         logger.error(
