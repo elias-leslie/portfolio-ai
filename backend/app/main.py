@@ -18,6 +18,7 @@ from app.api import (
     health,
     ideas,
     indicators,
+    maintenance,
     market,
     ml,
     news,
@@ -130,6 +131,7 @@ app.include_router(health.router)
 app.include_router(status.router)
 app.include_router(status_stream.router)
 app.include_router(celery_endpoints.router)
+app.include_router(maintenance.router)
 app.include_router(portfolio.router)
 app.include_router(ideas.router)
 app.include_router(market.router)

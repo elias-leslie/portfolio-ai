@@ -37,6 +37,7 @@ import { APIQuotasCard } from "@/components/status/APIQuotasCard";
 import { LogsCard } from "@/components/status/LogsCard";
 import { SourceQualityCard } from "@/components/status/SourceQualityCard";
 import { MLModelCard } from "@/components/status/MLModelCard";
+import { MaintenanceCard } from "@/components/status/MaintenanceCard";
 import {
     clearCache,
     refreshWatchlist,
@@ -522,6 +523,9 @@ export default function StatusPage() {
 
                 {/* Task table */}
                 <CeleryTaskTable />
+
+                {/* Database Maintenance */}
+                <MaintenanceCard />
             </div>
 
             {/* Service Action Dialog */}
