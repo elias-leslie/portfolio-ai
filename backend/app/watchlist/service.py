@@ -9,11 +9,11 @@ New code should import from:
 
 from __future__ import annotations
 
-# Re-export from refresh_processor (functions moved during refactoring)
-from .refresh_processor import (
+# Re-export from refresh_data_fetchers (functions moved during refactoring)
+from .refresh_data_fetchers import (
     calculate_price_change as _calculate_price_change,  # Renamed (removed _ prefix)
 )
-from .refresh_processor import (
+from .refresh_data_fetchers import (
     detect_missing_historical_data,
 )
 
