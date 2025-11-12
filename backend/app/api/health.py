@@ -16,9 +16,9 @@ from ..middleware.cache import clear_cache
 from ..middleware.cache import get_cache_stats as get_response_cache_stats
 from ..storage import get_storage
 from ..utils.health_service import (
+    AgentStats,
     APIKeyStatusInfo,
     APIQuotaInfo,
-    AgentStats,
     CacheStats,
     CeleryWorkerStatus,
     CheckResult,

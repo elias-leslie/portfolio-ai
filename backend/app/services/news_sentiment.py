@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import Sequence
 from importlib import import_module
 from typing import Any, Literal, cast
-from collections.abc import Sequence
 
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer  # type: ignore[import-untyped]
 

@@ -1,4 +1,8 @@
-"""Settings Profiles API routes."""
+"""Settings Profiles API routes.
+
+Note: This is legacy Flask code. Use app/api/settings_profiles.py (FastAPI) instead.
+"""
+# mypy: ignore-errors
 
 from typing import Any
 

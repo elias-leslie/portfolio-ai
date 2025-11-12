@@ -20,7 +20,27 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (yesterday))
+1. **UI Standardization & UX Fixes** (MEDIUM (3-5 hours), 0/0 tasks (today))
+   - File: `tasks-0055-ui-standardization-and-ux-fixes.md`
+   - Created: 2025-11-12
+   - Goal: Bring the Portfolio AI web UI up to a consistent design baseline by aligning headers, loading states, and critical interactions so that every surface communicates status clearly and meets accessibility expectations.
+   - Tasks:
+     - (No tasks defined yet)
+
+2. **Development Process Optimization** (MEDIUM (4-6 hours), 0/7 tasks (today))
+   - File: `tasks-0054-dev-process-optimization.md`
+   - Created: 2025-11-12
+   - Goal: Reduce development cycle time from 15-20 min to 5-7 min (3x faster) by fixing test performance and workflow bottlenecks.
+   - Tasks:
+     - [ ] Task 1: Quick Win: Enable Parallel Test Execution
+     - [ ] Task 2: Quick Win: Fix Database Cleanup Scope
+     - [ ] Task 3: Quick Win: Fix Pre-commit Hook Failures
+     - [ ] Task 4: High Impact: Fix Unit Tests Using Real Database
+     - [ ] Task 5: High Impact: Split Large Test File
+     - [ ] Task 6: Medium: Add Smoke Test Markers
+     - [ ] Task 7: Medium: Reduce Large Service Files
+
+3. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (yesterday))
    - File: `tasks-0042-customizable-dashboard-layouts.md`
    - Created: 2025-11-11
    - Goal: Enable users to customize dashboard layouts by dragging/resizing cards, with persistence to PostgreSQL backend
@@ -36,7 +56,7 @@
      - [ ] Task 9: Polish and Edge Cases
      - [ ] Task 10: Testing and Documentation
 
-3. **Trading Intelligence Roadmap** (High, 4/8 tasks)
+4. **Trading Intelligence Roadmap** (High, 4/8 tasks)
    - File: `tasks-trading-intelligence-roadmap.md`
    - Created: Unknown
    - Tasks:
@@ -49,7 +69,7 @@
      - [ ] Task 7: Frontend & UX
      - [ ] Task 8: Governance & documentation
 
-4. **Response Caching Middleware** (TBD, 0/8 tasks (yesterday))
+5. **Response Caching Middleware** (TBD, 0/8 tasks (yesterday))
    - File: `tasks-0047-response-caching-middleware.md`
    - Created: 2025-11-11
    - Tasks:
@@ -61,15 +81,6 @@
      - [ ] Task 6: Cache Invalidation Strategy
      - [ ] Task 7: Cache Management Endpoints
      - [ ] Task 8: Integration and Configuration
-
-5. **Browser Automation & Playwright Alignment** (MEDIUM, 0/4 tasks (2025-11-12))
-   - File: _TBD (create instructions + scripts after CLAUDE hand-off)_
-   - Purpose: Replace Vitest-driven “e2e” attempts with Playwright specs that mirror `.claude/skills/browser-automation` flows, then wire those specs into the CLAUDE testing workflow.
-   - Tasks:
-     - [ ] Task 1: Document required flows + selectors using existing browser-automation skill as reference (no direct dependency).
-     - [ ] Task 2: Build Playwright helper modules (`tests/e2e/helpers/*.ts`) that implement those flows.
-     - [ ] Task 3: Add CI/automation entry point (e.g., CLAUDE skill calling `npm run test:e2e`) and document run cadence.
-     - [ ] Task 4: Update README/testing docs once CLAUDE + Playwright integration is verified.
 
 
 ---

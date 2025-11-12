@@ -147,3 +147,7 @@ ignore_errors = true
 module = ["sentence_transformers", "sentence_transformers.*"]
 ignore_missing_imports = true
 ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = ["psycopg2", "psycopg2.*", "joblib", "joblib.*"]
+ignore_missing_imports = true

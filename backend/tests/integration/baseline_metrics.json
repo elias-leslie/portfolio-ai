@@ -1,6 +1,6 @@
 {
   "test_name": "baseline_watchlist_refresh_10_symbols",
-  "timestamp": "2025-11-12T21:58:12.606382+00:00",
+  "timestamp": "2025-11-12T22:12:55.211422+00:00",
   "metrics": {
     "total_queries": 123,
     "duplicate_queries": 11,
@@ -10,7 +10,7 @@
     "api_calls": 1,
     "unique_symbols": 10,
     "symbols_fetched_multiple_times": 0,
-    "execution_time_seconds": 7.319676399230957
+    "execution_time_seconds": 8.925362348556519
   },
   "duplicates_detail": [
     {

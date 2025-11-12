@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import threading
-from datetime import datetime, timedelta
-from typing import Any, TYPE_CHECKING
+from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 
 from ..logging_config import get_logger
 from ..storage.credential_loader import load_credentials_from_database
+from .news_constants import MARKET_TICKER
 
 if TYPE_CHECKING:
     from ..storage import PortfolioStorage
@@ -113,9 +114,7 @@ class NewsCacheRefresher:
         self.set_ttl_hours(hours)
         return self.lookback_hours
 
-    def refresh_cache(
-        self, *, ticker: str, query: str, max_articles: int, now: datetime
-    ) -> None:
+    def refresh_cache(self, *, ticker: str, query: str, max_articles: int, now: datetime) -> None:
         """Refresh cache with new articles from vendors.
 
         Args:
@@ -194,8 +193,6 @@ class NewsCacheRefresher:
         Returns:
             Latest fetch timestamp or None if no data
         """
-        from .news_constants import MARKET_TICKER
-
         query = (
             "SELECT MAX(fetched_at) FROM news_cache WHERE ticker = %s"
             if market
@@ -210,6 +207,4 @@ class NewsCacheRefresher:
             return None
         if not isinstance(fetched_at, datetime):
             return None
-        from datetime import UTC
-
         return fetched_at if fetched_at.tzinfo else fetched_at.replace(tzinfo=UTC)

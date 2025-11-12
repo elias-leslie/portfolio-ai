@@ -64,7 +64,7 @@ async def list_profiles(user_id: int = Query(default=1)) -> list[dict[str, Any]]
     """Get all settings profiles for the user."""
     try:
         with storage.connection() as conn:
-            profiles = get_all_profiles(conn._conn, user_id)  # type: ignore[attr-defined]
+            profiles = get_all_profiles(conn._conn, user_id)
             return [p.to_dict() for p in profiles]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e

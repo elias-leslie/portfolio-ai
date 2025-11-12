@@ -74,14 +74,17 @@ TABLES_TO_CLEAN = [
 ]
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(autouse=False)
 def clean_database() -> None:
     """Clean all test data from database tables between tests.
 
-    This fixture runs automatically before each test to ensure test isolation.
-    It truncates all application tables (but preserves schema/metadata tables).
+    This fixture provides database cleanup for integration tests that need
+    test isolation. It truncates all application tables (but preserves
+    schema/metadata tables).
 
     Note:
+        - Applied automatically to integration/watchlist tests only
+        - Unit tests do NOT use this fixture (they should mock database access)
         - Uses CASCADE to handle foreign key dependencies
         - Preserves schema_migrations, source_registry, source_credentials,
           endpoint_catalog, and table_registry (these are configuration data)

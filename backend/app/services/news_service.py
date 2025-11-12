@@ -348,7 +348,9 @@ class NewsService:
             "fallback_p95_latency_ms_24h": round(fallback_metrics["p95_latency_ms"], 2)
             if fallback_metrics["p95_latency_ms"] is not None
             else None,
-            "fallback_last_event_at": self.health_metrics.to_iso(fallback_metrics["last_fallback_at"])
+            "fallback_last_event_at": self.health_metrics.to_iso(
+                fallback_metrics["last_fallback_at"]
+            )
             if fallback_metrics["last_fallback_at"]
             else None,
             "article_mix": {

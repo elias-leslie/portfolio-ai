@@ -6,10 +6,11 @@ Uses scikit-learn to train a binary classifier on AI-labeled training data.
 
 import re
 from pathlib import Path
-from typing import TypedDict
+from typing import Any, TypedDict
 
-import joblib  # type: ignore[import-not-found]
+import joblib
 import numpy as np
+import numpy.typing as npt
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics import accuracy_score, classification_report, precision_recall_fscore_support
@@ -109,7 +110,7 @@ class ArticleQualityClassifier:
 
     def _prepare_features(
         self, headlines: list[str], summaries: list[str], fit_vectorizer: bool = False
-    ) -> np.ndarray:
+    ) -> npt.NDArray[Any]:
         """
         Prepare feature matrix combining TF-IDF and hand-crafted features.
 

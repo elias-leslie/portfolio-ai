@@ -1,10 +1,38 @@
 """Settings Profile models and database operations."""
 
-from datetime import datetime
-from typing import Any
+from __future__ import annotations
 
-from psycopg2.extensions import connection as Connection
+from collections.abc import Mapping, Sequence
+from datetime import datetime
+from typing import Any, Protocol
+
 from psycopg2.extras import Json, RealDictCursor
+
+
+class CursorProtocol(Protocol):
+    """Subset of psycopg2 cursor behaviour we rely on."""
+
+    rowcount: int
+
+    def __enter__(self) -> CursorProtocol: ...
+
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None: ...
+
+    def execute(
+        self, query: str, params: Sequence[Any] | Mapping[str, Any] | None = ...
+    ) -> Any: ...
+
+    def fetchone(self) -> Mapping[str, Any] | None: ...
+
+    def fetchall(self) -> list[Mapping[str, Any]]: ...
+
+
+class ConnectionProtocol(Protocol):
+    """Minimal connection contract for psycopg2 connection objects."""
+
+    def cursor(self, *args: Any, **kwargs: Any) -> CursorProtocol: ...
+
+    def commit(self) -> None: ...
 
 
 class SettingsProfile:
@@ -44,7 +72,7 @@ class SettingsProfile:
         }
 
 
-def get_all_profiles(conn: Connection, user_id: int = 1) -> list[SettingsProfile]:
+def get_all_profiles(conn: ConnectionProtocol, user_id: int = 1) -> list[SettingsProfile]:
     """Get all profiles for a user."""
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute(
@@ -62,7 +90,7 @@ def get_all_profiles(conn: Connection, user_id: int = 1) -> list[SettingsProfile
 
 
 def get_profile_by_id(
-    conn: Connection, profile_id: int, user_id: int = 1
+    conn: ConnectionProtocol, profile_id: int, user_id: int = 1
 ) -> SettingsProfile | None:
     """Get a specific profile by ID."""
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -79,7 +107,7 @@ def get_profile_by_id(
         return SettingsProfile(**row) if row else None
 
 
-def get_active_profile(conn: Connection, user_id: int = 1) -> SettingsProfile | None:
+def get_active_profile(conn: ConnectionProtocol, user_id: int = 1) -> SettingsProfile | None:
     """Get the currently active profile for a user."""
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute(
@@ -97,7 +125,7 @@ def get_active_profile(conn: Connection, user_id: int = 1) -> SettingsProfile | 
 
 
 def create_profile(
-    conn: Connection,
+    conn: ConnectionProtocol,
     user_id: int,
     name: str,
     profile_data: dict[str, Any],
@@ -123,7 +151,7 @@ def create_profile(
 
 
 def update_profile(
-    conn: Connection,
+    conn: ConnectionProtocol,
     profile_id: int,
     user_id: int,
     name: str | None = None,
@@ -170,7 +198,7 @@ def update_profile(
         return SettingsProfile(**row) if row else None
 
 
-def delete_profile(conn: Connection, profile_id: int, user_id: int = 1) -> bool:
+def delete_profile(conn: ConnectionProtocol, profile_id: int, user_id: int = 1) -> bool:
     """Delete a profile."""
     with conn.cursor() as cur:
         cur.execute(
@@ -185,13 +213,15 @@ def delete_profile(conn: Connection, profile_id: int, user_id: int = 1) -> bool:
         return deleted
 
 
-def activate_profile(conn: Connection, profile_id: int, user_id: int = 1) -> SettingsProfile | None:
+def activate_profile(
+    conn: ConnectionProtocol, profile_id: int, user_id: int = 1
+) -> SettingsProfile | None:
     """Activate a profile (deactivates all others automatically via trigger)."""
     return update_profile(conn, profile_id, user_id, is_active=True)
 
 
 def duplicate_profile(
-    conn: Connection,
+    conn: ConnectionProtocol,
     profile_id: int,
     new_name: str,
     user_id: int = 1,

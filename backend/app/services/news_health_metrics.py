@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import UTC, datetime, timedelta
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ..logging_config import get_logger
 

@@ -25,7 +25,7 @@ import os
 import re
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -53,9 +53,7 @@ class SafeMigrationRunner:
         self.migrations_dir = Path(__file__).parent.parent / "migrations"
         self.backup_dir = Path(__file__).parent.parent.parent / "backups"
 
-    def analyze_migration_impact(
-        self, sql_content: str
-    ) -> dict[str, Any]:
+    def analyze_migration_impact(self, sql_content: str) -> dict[str, Any]:
         """Analyze migration SQL for potential impact.
 
         Args:
@@ -115,9 +113,7 @@ class SafeMigrationRunner:
         critical_tables = ["watchlist_items", "watchlist_snapshots", "portfolio_positions"]
         for table in analysis["affected_tables"]:
             if table in critical_tables and analysis["is_destructive"]:
-                analysis["warnings"].append(
-                    f"🔴 CRITICAL: Destructive operation on {table}"
-                )
+                analysis["warnings"].append(f"🔴 CRITICAL: Destructive operation on {table}")
 
         return analysis
 
@@ -135,9 +131,7 @@ class SafeMigrationRunner:
         with self.conn_mgr.connection() as conn:
             for table in tables:
                 try:
-                    result = conn.execute(
-                        f"SELECT COUNT(*) as count FROM {table}"
-                    ).pl()
+                    result = conn.execute(f"SELECT COUNT(*) as count FROM {table}").pl()
                     counts[table] = result["count"][0]
                 except Exception as e:
                     logger.warning(
@@ -149,9 +143,7 @@ class SafeMigrationRunner:
 
         return counts
 
-    def create_pre_migration_backup(
-        self, version: int, affected_tables: list[str]
-    ) -> Path | None:
+    def create_pre_migration_backup(self, version: int, affected_tables: list[str]) -> Path | None:
         """Create pre-migration backup using pg_dump.
 
         Args:
@@ -165,7 +157,7 @@ class SafeMigrationRunner:
         self.backup_dir.mkdir(exist_ok=True)
 
         # Generate backup filename
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         backup_filename = f"pre-migration-{version:03d}-{timestamp}.sql"
         backup_path = self.backup_dir / backup_filename
 
@@ -194,11 +186,16 @@ class SafeMigrationRunner:
             # Build pg_dump command
             cmd = [
                 "pg_dump",
-                "-h", host,
-                "-p", port,
-                "-U", user,
-                "-d", dbname,
-                "-f", str(backup_path),
+                "-h",
+                host,
+                "-p",
+                port,
+                "-U",
+                user,
+                "-d",
+                dbname,
+                "-f",
+                str(backup_path),
                 "--no-owner",
                 "--no-acl",
             ]
@@ -215,6 +212,7 @@ class SafeMigrationRunner:
             # Run pg_dump
             result = subprocess.run(
                 cmd,
+                check=False,
                 env=env,
                 capture_output=True,
                 text=True,
@@ -253,9 +251,7 @@ class SafeMigrationRunner:
         all_migrations = self.migration_mgr._get_migration_files()
         applied_versions = self.migration_mgr._get_applied_migrations()
 
-        pending_migrations = [
-            m for m in all_migrations if m[0] not in applied_versions
-        ]
+        pending_migrations = [m for m in all_migrations if m[0] not in applied_versions]
 
         if version is not None:
             pending_migrations = [m for m in pending_migrations if m[0] == version]
@@ -279,7 +275,9 @@ class SafeMigrationRunner:
             print("\n🔍 Impact Analysis:")
             print(f"  Destructive: {'YES ⚠️' if impact['is_destructive'] else 'No'}")
             print(f"  Has CASCADE: {'YES ⚠️' if impact['has_cascade'] else 'No'}")
-            print(f"  Operations: {', '.join(impact['operations']) if impact['operations'] else 'DDL only'}")
+            print(
+                f"  Operations: {', '.join(impact['operations']) if impact['operations'] else 'DDL only'}"
+            )
 
             if impact["affected_tables"]:
                 print(f"  Affected tables: {', '.join(impact['affected_tables'])}")
@@ -340,9 +338,7 @@ class SafeMigrationRunner:
         all_migrations = self.migration_mgr._get_migration_files()
         applied_versions = self.migration_mgr._get_applied_migrations()
 
-        pending_migrations = [
-            m for m in all_migrations if m[0] not in applied_versions
-        ]
+        pending_migrations = [m for m in all_migrations if m[0] not in applied_versions]
 
         if version is not None:
             pending_migrations = [m for m in pending_migrations if m[0] == version]
@@ -375,13 +371,12 @@ class SafeMigrationRunner:
                 )
                 if backup_path:
                     print(f"✅ Pre-migration backup: {backup_path}")
-                else:
-                    if not force:
-                        print("\n⚠️  Backup failed. Continue anyway?")
-                        response = input("Type 'yes' to continue without backup: ")
-                        if response.lower() != "yes":
-                            print("❌ Aborted")
-                            return
+                elif not force:
+                    print("\n⚠️  Backup failed. Continue anyway?")
+                    response = input("Type 'yes' to continue without backup: ")
+                    if response.lower() != "yes":
+                        print("❌ Aborted")
+                        return
 
             # Execute migration
             try:

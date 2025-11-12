@@ -332,17 +332,19 @@ def generate_narrative_and_trade_levels(
         entry_price, stop_loss, profit_target, position_size = calculate_trade_levels(
             storage, symbol, price_data.price, signal_type, risk_budget
         )
-        action_plan, position_sizing, company_health_bullets, special_notes = generate_narrative_texts(
-            symbol,
-            signal_type,
-            signal_strength,
-            entry_price,
-            stop_loss,
-            profit_target,
-            position_size,
-            company_health_str,
-            earnings_days_away_val,
-            fundamentals_data,
+        action_plan, position_sizing, company_health_bullets, special_notes = (
+            generate_narrative_texts(
+                symbol,
+                signal_type,
+                signal_strength,
+                entry_price,
+                stop_loss,
+                profit_target,
+                position_size,
+                company_health_str,
+                earnings_days_away_val,
+                fundamentals_data,
+            )
         )
         return build_narrative_result(
             signal_type,

@@ -48,7 +48,9 @@ class MarketHealthScore(BaseModel):
     """Market health scoring from 4 indicators."""
 
     overall_score: int = Field(..., ge=0, le=100, description="Overall health score 0-100")
-    overall_label: str = Field(..., description="Very Bullish | Bullish | Neutral | Bearish | Extreme Fear")
+    overall_label: str = Field(
+        ..., description="Very Bullish | Bullish | Neutral | Bearish | Extreme Fear"
+    )
     last_updated: str = Field(..., description="Last update timestamp")
 
 
@@ -81,7 +83,9 @@ class MarketIntelligenceResponse(BaseModel):
     )
 
     # Sector rotation (grouped)
-    sector_rotation: SectorRotationSummary = Field(..., description="Sectors grouped by performance")
+    sector_rotation: SectorRotationSummary = Field(
+        ..., description="Sectors grouped by performance"
+    )
 
     # Metadata
     last_updated: str = Field(..., description="Last update timestamp (ISO 8601)")

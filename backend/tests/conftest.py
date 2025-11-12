@@ -38,7 +38,11 @@ def _belongs_to_slow_suite(path: Path) -> bool:
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
-    """Skip slow tests unless --runslow specified."""
+    """Skip slow tests unless --runslow specified.
+
+    Also automatically applies clean_database fixture to integration/watchlist tests
+    to ensure database isolation, while skipping it for unit tests (for speed).
+    """
     runslow = config.getoption("--runslow")
     skip_slow = pytest.mark.skip(reason="Skipped slow test. Use --runslow to include.")
 
@@ -46,6 +50,8 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
         item_path = Path(str(getattr(item, "fspath", ""))).resolve()
         if _belongs_to_slow_suite(item_path):
             item.add_marker(pytest.mark.slow)
+            # Auto-apply clean_database fixture to integration/watchlist tests
+            item.fixturenames.append("clean_database")
 
         if not runslow and "slow" in item.keywords:
             item.add_marker(skip_slow)

@@ -252,9 +252,7 @@ class MultiSourceFetcher:
         self.metrics_manager.record_success(source.name, fetch_duration_ms)
         return False
 
-    def _combine_results(
-        self, all_data: list[pl.DataFrame], verbose: bool
-    ) -> pl.DataFrame | None:
+    def _combine_results(self, all_data: list[pl.DataFrame], verbose: bool) -> pl.DataFrame | None:
         """Combine data from multiple sources.
 
         Args:

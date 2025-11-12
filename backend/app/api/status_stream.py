@@ -36,15 +36,16 @@ def gather_comprehensive_status() -> dict[str, Any]:
     # Combine into comprehensive status
     # Use model_dump(mode='json') to ensure datetime objects are serialized
     return {
-        "status": health_response.status,
+        "status": health_response["status"],
         "services": services,
         "timestamp": datetime.now(UTC).isoformat(),
-        "uptime_seconds": health_response.uptime_seconds,
+        "uptime_seconds": health_response["uptime_seconds"],
         "checks": {
-            name: check.model_dump(mode="json") for name, check in health_response.checks.items()
+            name: check.model_dump(mode="json") for name, check in health_response["checks"].items()
         },
         "sources": {
-            name: source.model_dump(mode="json") for name, source in health_response.sources.items()
+            name: source.model_dump(mode="json")
+            for name, source in health_response["sources"].items()
         },
     }
 
