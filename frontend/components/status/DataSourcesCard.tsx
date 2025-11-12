@@ -102,10 +102,10 @@ export function DataSourcesCard({ health }: DataSourcesCardProps) {
               <Clock className="h-3 w-3" />
               Last success: {formatTimestamp(sourceHealth.last_success)}
             </div>
-            {sourceHealth.success_rate !== null && (
+            {sourceHealth.success_rate != null && (
               <div>Success rate: {sourceHealth.success_rate.toFixed(1)}%</div>
             )}
-            {sourceHealth.avg_latency_ms !== null && (
+            {sourceHealth.avg_latency_ms != null && (
               <div>Avg latency: {sourceHealth.avg_latency_ms}ms</div>
             )}
           </div>

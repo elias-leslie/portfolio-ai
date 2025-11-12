@@ -62,6 +62,15 @@
      - [ ] Task 7: Cache Management Endpoints
      - [ ] Task 8: Integration and Configuration
 
+5. **Browser Automation & Playwright Alignment** (MEDIUM, 0/4 tasks (2025-11-12))
+   - File: _TBD (create instructions + scripts after CLAUDE hand-off)_
+   - Purpose: Replace Vitest-driven “e2e” attempts with Playwright specs that mirror `.claude/skills/browser-automation` flows, then wire those specs into the CLAUDE testing workflow.
+   - Tasks:
+     - [ ] Task 1: Document required flows + selectors using existing browser-automation skill as reference (no direct dependency).
+     - [ ] Task 2: Build Playwright helper modules (`tests/e2e/helpers/*.ts`) that implement those flows.
+     - [ ] Task 3: Add CI/automation entry point (e.g., CLAUDE skill calling `npm run test:e2e`) and document run cadence.
+     - [ ] Task 4: Update README/testing docs once CLAUDE + Playwright integration is verified.
+
 
 ---
 

@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactElement } from "react";
 import { Activity, AlertCircle, CheckCircle2, RotateCw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +29,7 @@ export function ServiceCard({ serviceName, status, onRestart }: ServiceCardProps
   // Get status badge variant and icon
   const getStatusDisplay = (
     statusValue: string
-  ): { variant: "default" | "secondary" | "destructive"; icon: JSX.Element } => {
+  ): { variant: "default" | "secondary" | "destructive"; icon: ReactElement } => {
     switch (statusValue) {
       case "running":
         return {

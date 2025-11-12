@@ -12,9 +12,17 @@ const badgeVariants = cva(
         secondary:
           "border-transparent bg-surface-muted text-text",
         outline: "border-border text-text",
+        destructive:
+          "border-transparent bg-destructive/20 text-destructive",
         gain: "border-transparent bg-gain/20 text-gain",
         loss: "border-transparent bg-loss/20 text-loss",
         neutral: "border-transparent bg-neutral/20 text-neutral",
+        success:
+          "border-transparent bg-gain/20 text-gain",
+        warning:
+          "border-transparent bg-warning/20 text-warning",
+        error:
+          "border-transparent bg-loss/20 text-loss",
         // Score-based variants using viz tokens
         "viz-0": "border-transparent bg-viz-0/30 text-viz-0",
         "viz-1": "border-transparent bg-viz-1/30 text-viz-1",

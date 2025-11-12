@@ -149,10 +149,12 @@ export function useUpdateWatchlistItem() {
 /**
  * Hook to delete a watchlist item with optimistic updates
  */
+type WatchlistMutationContext = { previousData?: WatchlistListResponse } | undefined;
+
 export function useDeleteWatchlistItem() {
   const queryClient = useQueryClient();
 
-  return useMutation<void, Error, string>({
+  return useMutation<void, Error, string, WatchlistMutationContext>({
     mutationFn: async (itemId) => {
       // Get the item details for toast message
       const previousData = queryClient.getQueryData<WatchlistListResponse>(

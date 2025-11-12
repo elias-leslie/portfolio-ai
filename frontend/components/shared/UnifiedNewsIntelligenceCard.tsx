@@ -37,6 +37,8 @@ interface NewsArticle {
   sentiment?: {
     score: number;
     label: string;
+    confidence?: number;
+    model?: string;
   };
   plain_language_headline?: string | null;
   impact_summary?: string | null;
@@ -54,10 +56,12 @@ interface TickerNewsIntelligence {
   article_count_24h: number;
   key_events: KeyEvent[];
   recent_articles: NewsArticle[];
+  summary?: NewsSentimentDetail | null;
 }
 
 interface MarketNewsData {
   articles: NewsArticle[];
+  summary?: NewsSentimentDetail | null;
 }
 
 interface NewsSentimentDetail {
