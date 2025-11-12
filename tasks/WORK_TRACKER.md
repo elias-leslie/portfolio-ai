@@ -20,18 +20,7 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Toast Notification System** (TBD, 0/5 tasks (yesterday))
-   - File: `tasks-0047-toast-notifications.md`
-   - Created: 2025-11-11
-   - Goal: Implement toast notification system using the already-installed sonner library to provide user feedback for key operations.
-   - Tasks:
-     - [ ] Task 1: Create useToast Hook
-     - [ ] Task 2: Add Toasts to Watchlist Operations
-     - [ ] Task 3: Add Toasts to Portfolio Operations
-     - [ ] Task 4: Add Toasts to Idea Status Updates
-     - [ ] Task 5: Documentation and Handoff
-
-2. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (yesterday))
+1. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (yesterday))
    - File: `tasks-0042-customizable-dashboard-layouts.md`
    - Created: 2025-11-11
    - Goal: Enable users to customize dashboard layouts by dragging/resizing cards, with persistence to PostgreSQL backend
@@ -80,7 +69,21 @@
 
 *Last 5 completions - older items auto-archive to tasks/archive/YYYY-MM.md*
 
-1. **Extend Data Freshness Card on Status Page** (2025-11-12) ✅ COMPLETE
+1. **Toast Notification System** (2025-11-11) ✅ COMPLETE (Already Implemented)
+   - File: `tasks-0047-toast-notifications.md`
+   - Duration: ~15 minutes (verification only)
+   - Results: All toast notifications already implemented
+   - Achievements:
+     - ✅ Watchlist add/delete: toast.promise in useWatchlist.ts
+     - ✅ Portfolio add/update/delete: toast.promise in usePortfolio.ts
+     - ✅ Idea status updates: toast.promise in useIdeas.ts
+     - ✅ Sonner configured in layout.tsx (top-right, richColors)
+     - ✅ All operations use loading → success/error states
+     - ✅ User-friendly error messages with context
+   - Documentation: HANDOFF-toast-notifications-verification.md
+   - Status: Ready for user testing on local environment
+
+2. **Extend Data Freshness Card on Status Page** (2025-11-12) ✅ COMPLETE
    - File: `tasks-0053-extend-data-freshness-card.md`
    - Commit: 4f5c8a3
    - Duration: ~2-3 hours

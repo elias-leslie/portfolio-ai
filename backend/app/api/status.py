@@ -1042,7 +1042,7 @@ async def get_table_freshness() -> TableFreshnessResponse:
             ),
             ("price_cache", "cached_at", "timestamp", 1, "Real-time price cache (on-demand)"),
             ("ml_model_metrics", "trained_at", "timestamp", 24, "ML model training metrics"),
-            ("source_metrics", "created_at", "timestamp", 12, "News source quality profiling"),
+            ("source_metrics", "calculated_at", "timestamp", 12, "News source quality profiling"),
         ]
 
         tables: list[TableFreshnessStatus] = []
