@@ -32,6 +32,7 @@ from .priority import calculate_priority_indicators
 from .refresh_builders import _extract_article_publisher, _extract_article_vendor
 from .scoring import _is_stale as scoring_is_stale
 from .scoring import calculate_watchlist_scores
+from .watchlist_repository import WatchlistRepository
 
 logger = get_logger(__name__)
 
@@ -187,6 +188,7 @@ class WatchlistService:
         """Initialize watchlist service."""
         self.storage = storage
         self.price_fetcher = PriceDataFetcher(storage)
+        self.repo = WatchlistRepository(storage)
 
     def _parse_json_field(self, value: Any) -> dict[str, Any] | None:
         """Parse JSON field if it's a string, otherwise return as-is.
@@ -331,25 +333,7 @@ class WatchlistService:
 
     def get_items_with_scores(self) -> list[dict[str, Any]]:
         """Get all watchlist items with latest scores (LATERAL JOIN eliminates N+1 pattern)."""
-        items_df = self.storage.query(
-            """
-            SELECT wi.id, wi.symbol, wi.note, wi.source, wi.created_at, wi.updated_at,
-                   ws.overall_score, ws.technical_score, ws.fetched_at, ws.raw_metrics,
-                   ws.signal_type, ws.signal_strength, ws.narrative_headline,
-                   ws.recommended_style, ws.style_confidence, ws.optimal_holding_period, ws.risk_level,
-                   ws.entry_price, ws.stop_loss, ws.profit_target, ws.position_size_shares,
-                   ws.narrative_action_plan, ws.narrative_position_sizing,
-                   ws.narrative_company_health, ws.narrative_special_notes,
-                   ws.company_health, ws.earnings_date, ws.earnings_days_away,
-                   ws.news_sentiment_score, ws.recent_news_headlines
-            FROM watchlist_items wi
-            LEFT JOIN LATERAL (
-                SELECT * FROM watchlist_snapshots WHERE item_id = wi.id
-                ORDER BY fetched_at DESC LIMIT 1
-            ) ws ON TRUE
-            ORDER BY wi.created_at DESC
-            """
-        )
+        items_df = self.repo.get_all_items_with_snapshots()
 
         if items_df.is_empty():
             return []
@@ -392,15 +376,7 @@ class WatchlistService:
 
     def get_item_with_score_by_id(self, item_id: str) -> dict[str, Any] | None:
         """Get a single watchlist item by ID with its latest score."""
-        item_df = self.storage.query(
-            """
-            SELECT wi.id, wi.symbol, wi.note,
-                   wi.created_at, wi.updated_at
-            FROM watchlist_items wi
-            WHERE wi.id = ?
-            """,
-            [item_id],
-        )
+        item_df = self.repo.get_item_by_id(item_id)
 
         if item_df.is_empty():
             return None
@@ -424,23 +400,7 @@ class WatchlistService:
             "score_alert": False,
         }
 
-        snapshot_df = self.storage.query(
-            """
-            SELECT overall_score, technical_score, fetched_at, raw_metrics,
-                   signal_type, signal_strength, narrative_headline,
-                   recommended_style, style_confidence, optimal_holding_period, risk_level,
-                   entry_price, stop_loss, profit_target, position_size_shares,
-                   narrative_action_plan, narrative_position_sizing,
-                   narrative_company_health, narrative_special_notes,
-                   company_health, earnings_date, earnings_days_away,
-                   news_sentiment_score, recent_news_headlines
-            FROM watchlist_snapshots
-            WHERE item_id = ?
-            ORDER BY fetched_at DESC
-            LIMIT 1
-            """,
-            [item_id],
-        )
+        snapshot_df = self.repo.get_latest_snapshot(item_id)
 
         if not snapshot_df.is_empty():
             snap_row = snapshot_df.to_dicts()[0]
@@ -503,46 +463,7 @@ class WatchlistService:
         Returns:
             List of row tuples from news_cache
         """
-        now = datetime.now(UTC)
-        start_time = now - timedelta(hours=hours)
-
-        with self.storage.connection() as conn:
-            rows: list[tuple[Any, ...]] = conn.execute(
-                """
-                SELECT
-                    ticker,
-                    headline,
-                    url,
-                    summary,
-                    news_source_name,
-                    author,
-                    image_url,
-                    published_at,
-                    sentiment_score,
-                    sentiment_label,
-                    sentiment_confidence,
-                    sentiment_model,
-                    raw_payload,
-                    content_hash,
-                    fetched_at,
-                    filing_type,
-                    is_material_event,
-                    plain_language_headline,
-                    story_id,
-                    is_primary_article,
-                    coverage_count,
-                    impact_summary,
-                    actionable_insight
-                FROM news_cache
-                WHERE ticker = %s
-                  AND published_at >= %s
-                  AND (is_primary_article = true OR is_primary_article IS NULL)
-                ORDER BY published_at DESC, is_material_event DESC
-                LIMIT 20
-                """,
-                [symbol, start_time],
-            ).fetchall()
-            return rows
+        return self.repo.get_recent_news(symbol, hours=hours, limit=20)
 
     def _parse_news_article(
         self,
@@ -768,7 +689,7 @@ class WatchlistService:
             raw_metrics=breakdown.to_snapshot_payload(),
         )
 
-        self.storage.query_mgr.upsert_watchlist_snapshot(**snapshot.to_upsert_params())
+        self.repo.upsert_snapshot(snapshot.to_upsert_params())
         logger.info("Watchlist item scores refreshed", item_id=item_id, symbol=symbol)
 
 
