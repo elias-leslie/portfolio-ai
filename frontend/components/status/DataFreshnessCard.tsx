@@ -1,0 +1,197 @@
+"use client";
+
+import { useState } from "react";
+import {
+    Database,
+    CheckCircle2,
+    AlertCircle,
+    XCircle,
+    ChevronDown,
+    ChevronRight,
+} from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { DayBarFreshnessInfo } from "@/lib/api/status";
+
+interface DataFreshnessCardProps {
+    freshness: DayBarFreshnessInfo[];
+}
+
+export function DataFreshnessCard({ freshness }: DataFreshnessCardProps) {
+    const [isOpen, setIsOpen] = useState(true);
+
+    if (!freshness || freshness.length === 0) {
+        return (
+            <Card className="border-border">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <Database className="h-5 w-5" />
+                        <span>Day Bars Data Freshness</span>
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <p className="text-sm text-muted-foreground">
+                        No day_bars data available. Price data may not have been ingested yet.
+                    </p>
+                </CardContent>
+            </Card>
+        );
+    }
+
+    // Categorize by freshness
+    const fresh = freshness.filter((f) => (f.age_days ?? 999) <= 1);
+    const stale = freshness.filter((f) => (f.age_days ?? 999) > 1 && (f.age_days ?? 999) <= 7);
+    const veryStale = freshness.filter((f) => (f.age_days ?? 999) > 7);
+
+    const getStatusIcon = (ageDays?: number) => {
+        if (ageDays === undefined || ageDays === null) {
+            return <XCircle className="h-4 w-4 text-gray-500" />;
+        }
+        if (ageDays <= 1) {
+            return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+        }
+        if (ageDays <= 7) {
+            return <AlertCircle className="h-4 w-4 text-yellow-500" />;
+        }
+        return <XCircle className="h-4 w-4 text-red-500" />;
+    };
+
+    const getStatusBadge = (ageDays?: number) => {
+        if (ageDays === undefined || ageDays === null) {
+            return <Badge variant="outline">No Data</Badge>;
+        }
+        if (ageDays <= 1) {
+            return <Badge className="bg-green-500 text-white">Fresh</Badge>;
+        }
+        if (ageDays <= 7) {
+            return <Badge className="bg-yellow-500 text-white">Stale</Badge>;
+        }
+        return <Badge variant="destructive">Very Stale</Badge>;
+    };
+
+    const formatDate = (dateStr?: string) => {
+        if (!dateStr) return "Never";
+        try {
+            return new Date(dateStr).toLocaleDateString();
+        } catch {
+            return "Invalid date";
+        }
+    };
+
+    const renderTickerRow = (item: DayBarFreshnessInfo) => (
+        <div
+            key={item.ticker}
+            className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+        >
+            <div className="flex items-center gap-3 flex-1">
+                {getStatusIcon(item.age_days)}
+                <div className="flex-1">
+                    <div className="font-medium font-mono">{item.ticker}</div>
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
+                        <div>Last updated: {formatDate(item.last_updated)}</div>
+                        {item.age_days !== undefined && item.age_days !== null && (
+                            <div>
+                                {item.age_days === 0
+                                    ? "Today"
+                                    : item.age_days === 1
+                                      ? "1 day old"
+                                      : `${item.age_days} days old`}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+            <div>{getStatusBadge(item.age_days)}</div>
+        </div>
+    );
+
+    return (
+        <Card className="border-border">
+            <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <Database className="h-5 w-5" />
+                        <span>Day Bars Data Freshness</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Badge className="bg-green-500 text-white">{fresh.length} Fresh</Badge>
+                        {stale.length > 0 && (
+                            <Badge className="bg-yellow-500 text-white">{stale.length} Stale</Badge>
+                        )}
+                        {veryStale.length > 0 && (
+                            <Badge variant="destructive">{veryStale.length} Very Stale</Badge>
+                        )}
+                    </div>
+                </CardTitle>
+            </CardHeader>
+            <CardContent>
+                <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+                    <CollapsibleTrigger asChild>
+                        <Button variant="outline" className="w-full justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                                {isOpen ? (
+                                    <ChevronDown className="h-4 w-4" />
+                                ) : (
+                                    <ChevronRight className="h-4 w-4" />
+                                )}
+                                <span className="font-semibold">
+                                    All Tickers ({freshness.length})
+                                </span>
+                            </div>
+                        </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                        <div className="space-y-3">
+                            {/* Very stale first */}
+                            {veryStale.length > 0 && (
+                                <>
+                                    <div className="text-sm font-semibold text-red-600">
+                                        Very Stale (&gt;7 days)
+                                    </div>
+                                    {veryStale
+                                        .sort((a, b) => a.ticker.localeCompare(b.ticker))
+                                        .map(renderTickerRow)}
+                                </>
+                            )}
+
+                            {/* Stale second */}
+                            {stale.length > 0 && (
+                                <>
+                                    <div className="text-sm font-semibold text-yellow-600 mt-4">
+                                        Stale (1-7 days)
+                                    </div>
+                                    {stale
+                                        .sort((a, b) => a.ticker.localeCompare(b.ticker))
+                                        .map(renderTickerRow)}
+                                </>
+                            )}
+
+                            {/* Fresh last */}
+                            {fresh.length > 0 && (
+                                <>
+                                    <div className="text-sm font-semibold text-green-600 mt-4">
+                                        Fresh (≤1 day)
+                                    </div>
+                                    {fresh
+                                        .sort((a, b) => a.ticker.localeCompare(b.ticker))
+                                        .map(renderTickerRow)}
+                                </>
+                            )}
+                        </div>
+                    </CollapsibleContent>
+                </Collapsible>
+
+                <div className="mt-4 p-3 bg-muted/50 rounded-lg text-xs text-muted-foreground">
+                    <p className="font-medium mb-1">Note:</p>
+                    <p>
+                        Data freshness indicates how recent the last day_bars entry is for each ticker.
+                        Fresh data (&lt;1 day) is normal. Stale data may indicate ingestion issues or
+                        market holidays.
+                    </p>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}

@@ -38,11 +38,17 @@ import { LogsCard } from "@/components/status/LogsCard";
 import { SourceQualityCard } from "@/components/status/SourceQualityCard";
 import { MLModelCard } from "@/components/status/MLModelCard";
 import { MaintenanceCard } from "@/components/status/MaintenanceCard";
+import { DataFreshnessCard } from "@/components/status/DataFreshnessCard";
+import { APIKeysCard } from "@/components/status/APIKeysCard";
 import {
     clearCache,
     refreshWatchlist,
     restartService,
 } from "@/lib/api/service-control";
+import {
+    fetchDetailedHealth,
+    DetailedHealthResponse,
+} from "@/lib/api/status";
 
 export default function StatusPage() {
     const {
@@ -59,6 +65,30 @@ export default function StatusPage() {
         error: newsHealthError,
         refresh: refreshNewsHealth,
     } = useNewsHealth(60000);
+
+    // Fetch detailed health info (day_bars, celery worker, API keys, disk)
+    const [detailedHealth, setDetailedHealth] = useState<DetailedHealthResponse | null>(null);
+    const [detailedLoading, setDetailedLoading] = useState(false);
+
+    // Fetch detailed health on mount and periodically
+    useEffect(() => {
+        const fetchDetailed = async () => {
+            setDetailedLoading(true);
+            try {
+                const data = await fetchDetailedHealth();
+                setDetailedHealth(data);
+            } catch (err) {
+                console.error("Failed to fetch detailed health:", err);
+            } finally {
+                setDetailedLoading(false);
+            }
+        };
+
+        fetchDetailed();
+        const interval = setInterval(fetchDetailed, 30000); // Refresh every 30 seconds
+
+        return () => clearInterval(interval);
+    }, []);
 
     const [actionDialogOpen, setActionDialogOpen] = useState(false);
     const [actionDialogConfig, setActionDialogConfig] = useState<{
@@ -428,6 +458,16 @@ export default function StatusPage() {
             {/* ML Model Status card */}
             <MLModelCard />
 
+            {/* API Keys Configuration card */}
+            {detailedHealth?.api_keys && detailedHealth.api_keys.length > 0 && (
+                <APIKeysCard apiKeys={detailedHealth.api_keys} />
+            )}
+
+            {/* Data Freshness card */}
+            {detailedHealth?.day_bars_freshness && (
+                <DataFreshnessCard freshness={detailedHealth.day_bars_freshness} />
+            )}
+
             {/* Service cards grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {serviceEntries.map(([serviceName, status]) => (
@@ -508,11 +548,42 @@ export default function StatusPage() {
             {/* Celery Monitoring Section */}
             <div className="space-y-4">
                 <div>
-                    <h2 className="text-2xl font-bold">Celery Monitoring</h2>
-                    <p className="text-muted-foreground text-sm">
-                        Task queue and worker status (manual refresh only to
-                        avoid performance issues)
-                    </p>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h2 className="text-2xl font-bold">Celery Monitoring</h2>
+                            <p className="text-muted-foreground text-sm">
+                                Task queue and worker status (manual refresh only to
+                                avoid performance issues)
+                            </p>
+                        </div>
+                        {detailedHealth?.celery_worker && (
+                            <div className="flex items-center gap-2">
+                                <Badge
+                                    variant={
+                                        detailedHealth.celery_worker.active
+                                            ? "default"
+                                            : "destructive"
+                                    }
+                                >
+                                    {detailedHealth.celery_worker.active
+                                        ? "Worker Active"
+                                        : "Worker Inactive"}
+                                </Badge>
+                                {detailedHealth.celery_worker.pool_size && (
+                                    <Badge variant="outline">
+                                        Pool: {detailedHealth.celery_worker.pool_size}
+                                    </Badge>
+                                )}
+                                {detailedHealth.celery_worker.active_tasks !== undefined &&
+                                    detailedHealth.celery_worker.active_tasks !== null && (
+                                        <Badge variant="outline">
+                                            Active Tasks:{" "}
+                                            {detailedHealth.celery_worker.active_tasks}
+                                        </Badge>
+                                    )}
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Queue depth and schedule cards */}

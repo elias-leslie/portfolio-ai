@@ -78,6 +78,43 @@ export interface APIQuotaInfo {
   estimated_capacity?: number;
 }
 
+export interface DayBarFreshnessInfo {
+  ticker: string;
+  last_updated?: string;
+  age_days?: number;
+}
+
+export interface CeleryWorkerStatus {
+  active: boolean;
+  pool_size?: number;
+  active_tasks?: number;
+  message: string;
+}
+
+export interface APIKeyStatusInfo {
+  source: string;
+  configured: boolean;
+  env_var: string;
+}
+
+export interface DiskUsageInfo {
+  total_gb: number;
+  used_gb: number;
+  free_gb: number;
+  percent_used: number;
+  status: "ok" | "warning" | "critical";
+}
+
+/**
+ * Detailed health check response with additional system information
+ */
+export interface DetailedHealthResponse extends HealthResponse {
+  day_bars_freshness?: DayBarFreshnessInfo[];
+  celery_worker?: CeleryWorkerStatus;
+  api_keys?: APIKeyStatusInfo[];
+  disk_usage?: DiskUsageInfo;
+}
+
 /**
  * Log response
  */
@@ -94,6 +131,13 @@ export interface LogResponse {
  */
 export async function fetchSystemStatus(): Promise<HealthResponse> {
   return get<HealthResponse>("/health");
+}
+
+/**
+ * Fetch detailed system status with additional checks
+ */
+export async function fetchDetailedHealth(): Promise<DetailedHealthResponse> {
+  return get<DetailedHealthResponse>("/health/detailed");
 }
 
 /**

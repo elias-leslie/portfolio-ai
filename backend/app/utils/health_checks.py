@@ -115,6 +115,40 @@ class APIQuotaInfo:
         self.estimated_capacity = estimated_capacity
 
 
+class DayBarFreshness:
+    """Freshness data for a ticker's day_bars."""
+
+    def __init__(self, ticker: str, last_updated: datetime | None, age_days: int | None):
+        self.ticker = ticker
+        self.last_updated = last_updated
+        self.age_days = age_days
+
+
+class CeleryWorkerInfo:
+    """Celery worker status information."""
+
+    def __init__(
+        self,
+        active: bool,
+        pool_size: int | None = None,
+        active_tasks: int | None = None,
+        message: str = "",
+    ):
+        self.active = active
+        self.pool_size = pool_size
+        self.active_tasks = active_tasks
+        self.message = message
+
+
+class APIKeyStatus:
+    """API key configuration and validation status."""
+
+    def __init__(self, source: str, configured: bool, env_var: str):
+        self.source = source
+        self.configured = configured
+        self.env_var = env_var
+
+
 def check_database(storage: PortfolioStorage) -> CheckResult:
     """Check database connectivity and performance.
 
@@ -449,3 +483,139 @@ def get_api_quotas(storage: PortfolioStorage) -> list[APIQuotaInfo]:
         logger.error("get_api_quotas_failed", error=str(e))
 
     return quotas
+
+
+def get_day_bars_freshness(storage: PortfolioStorage) -> list[DayBarFreshness]:
+    """Get data freshness for each ticker in day_bars table.
+
+    Args:
+        storage: PortfolioStorage instance
+
+    Returns:
+        List of DayBarFreshness with last updated date per ticker
+    """
+    freshness_list: list[DayBarFreshness] = []
+
+    try:
+        df = storage.query(
+            """
+            SELECT ticker, MAX(date) as last_updated
+            FROM day_bars
+            GROUP BY ticker
+            ORDER BY ticker
+            """
+        )
+
+        if df.is_empty():
+            logger.info("get_day_bars_freshness_empty_table")
+            return freshness_list
+
+        now = datetime.now(UTC)
+        for row in df.iter_rows(named=True):
+            ticker = row["ticker"]
+            last_updated = row.get("last_updated")
+
+            age_days = None
+            if last_updated:
+                # Convert date to datetime for age calculation
+                if isinstance(last_updated, datetime):
+                    age_delta = now - last_updated
+                else:
+                    # If it's a date object, convert to datetime
+                    from datetime import date as date_type  # noqa: PLC0415
+
+                    if isinstance(last_updated, date_type):
+                        last_updated_dt = datetime.combine(
+                            last_updated, datetime.min.time(), tzinfo=UTC
+                        )
+                        age_delta = now - last_updated_dt
+                    else:
+                        age_delta = timedelta(days=0)
+
+                age_days = age_delta.days
+
+            freshness_list.append(
+                DayBarFreshness(ticker=ticker, last_updated=last_updated, age_days=age_days)
+            )
+
+        logger.info("get_day_bars_freshness_success", ticker_count=len(freshness_list))
+
+    except Exception as e:
+        logger.error("get_day_bars_freshness_failed", error=str(e))
+
+    return freshness_list
+
+
+def get_celery_worker_info() -> CeleryWorkerInfo:
+    """Get Celery worker active status and stats.
+
+    Returns:
+        CeleryWorkerInfo with worker status
+    """
+    try:
+        # Import here to avoid circular dependency
+        from app.celery_app import celery_app  # noqa: PLC0415
+
+        inspect = celery_app.control.inspect(timeout=2.0)
+        try:
+            stats = inspect.stats()
+
+            if not stats:
+                return CeleryWorkerInfo(active=False, message="No workers responding to inspect")
+
+            # Get stats from first worker
+            worker_name = next(iter(stats.keys()))
+            worker_stats = stats[worker_name]
+
+            pool_size = worker_stats.get("pool", {}).get("max-concurrency")
+
+            # Get active tasks count
+            active = inspect.active()
+            active_tasks = len(active.get(worker_name, [])) if active else None
+
+            return CeleryWorkerInfo(
+                active=True,
+                pool_size=pool_size,
+                active_tasks=active_tasks,
+                message="Worker responding",
+            )
+
+        finally:
+            # Close the inspect connection to prevent connection leaks
+            if hasattr(inspect, "close"):
+                inspect.close()
+
+    except Exception as e:
+        logger.error("get_celery_worker_info_failed", error=str(e))
+        return CeleryWorkerInfo(active=False, message=f"Worker check failed: {e!s}")
+
+
+def get_api_key_statuses(storage: PortfolioStorage) -> list[APIKeyStatus]:
+    """Get API key configuration status for all sources.
+
+    Args:
+        storage: PortfolioStorage instance
+
+    Returns:
+        List of APIKeyStatus for each configured source
+    """
+    import os  # noqa: PLC0415
+
+    statuses: list[APIKeyStatus] = []
+
+    try:
+        # Load quota config to get list of sources with env vars
+        quota_map = load_quota_config()
+
+        for source_id, quota_info in quota_map.items():
+            env_var = quota_info.get("env_var", "")
+            configured = bool(os.environ.get(env_var))
+
+            statuses.append(APIKeyStatus(source=source_id, configured=configured, env_var=env_var))
+
+        statuses.sort(key=lambda x: x.source)
+
+    except Exception as e:
+        logger.error("get_api_key_statuses_failed", error=str(e))
+
+    return statuses

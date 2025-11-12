@@ -15,14 +15,18 @@ from pydantic import BaseModel, Field
 from ..logging_config import get_logger
 from ..middleware.cache import clear_cache
 from ..middleware.cache import get_cache_stats as get_response_cache_stats
+from ..services.resource_monitor import get_disk_usage
 from ..services.service_monitor import get_all_service_statuses
 from ..storage import get_storage
 from ..utils.health_checks import (
     check_database,
     check_sources,
     get_agent_stats,
+    get_api_key_statuses,
     get_api_quotas,
     get_cache_stats,
+    get_celery_worker_info,
+    get_day_bars_freshness,
     get_watchlist_stats,
 )
 
@@ -92,6 +96,41 @@ class APIQuotaInfo(BaseModel):
     estimated_capacity: int | None = None  # Max tickers for 15-min refresh
 
 
+class DayBarFreshnessInfo(BaseModel):
+    """Data freshness for a ticker's day_bars."""
+
+    ticker: str
+    last_updated: datetime | None = None
+    age_days: int | None = None
+
+
+class CeleryWorkerStatus(BaseModel):
+    """Celery worker status information."""
+
+    active: bool
+    pool_size: int | None = None
+    active_tasks: int | None = None
+    message: str = ""
+
+
+class APIKeyStatusInfo(BaseModel):
+    """API key configuration status."""
+
+    source: str
+    configured: bool
+    env_var: str
+
+
+class DiskUsageInfo(BaseModel):
+    """Disk usage statistics."""
+
+    total_gb: float
+    used_gb: float
+    free_gb: float
+    percent_used: float
+    status: Literal["ok", "warning", "critical"]
+
+
 class HealthCheckResponse(BaseModel):
     """Complete health check response."""
 
@@ -109,6 +148,15 @@ class HealthCheckResponse(BaseModel):
     agent_stats: AgentStats | None = None
     watchlist_stats: WatchlistStats | None = None
     api_quotas: list[APIQuotaInfo] = Field(default_factory=list)
+
+
+class DetailedHealthCheckResponse(HealthCheckResponse):
+    """Extended health check response with additional system details."""
+
+    day_bars_freshness: list[DayBarFreshnessInfo] = Field(default_factory=list)
+    celery_worker: CeleryWorkerStatus | None = None
+    api_keys: list[APIKeyStatusInfo] = Field(default_factory=list)
+    disk_usage: DiskUsageInfo | None = None
 
 
 class HealthCheckService:
@@ -219,6 +267,81 @@ class HealthCheckService:
             api_quotas=api_quotas_model,
         )
 
+    def perform_detailed_health_check(self) -> DetailedHealthCheckResponse:
+        """Perform comprehensive health check with additional system details.
+
+        Returns:
+            DetailedHealthCheckResponse with all check results including:
+            - All standard health checks
+            - Day bars data freshness per ticker
+            - Celery worker active status
+            - API key configuration status
+            - Disk usage information
+        """
+        # Get base health check data
+        base_health = self.perform_health_check()
+
+        # Get additional detailed checks
+        day_bars_freshness_internal = get_day_bars_freshness(self.storage)
+        day_bars_freshness_model = [
+            DayBarFreshnessInfo(
+                ticker=item.ticker,
+                last_updated=item.last_updated,
+                age_days=item.age_days,
+            )
+            for item in day_bars_freshness_internal
+        ]
+
+        celery_worker_internal = get_celery_worker_info()
+        celery_worker_model = CeleryWorkerStatus(
+            active=celery_worker_internal.active,
+            pool_size=celery_worker_internal.pool_size,
+            active_tasks=celery_worker_internal.active_tasks,
+            message=celery_worker_internal.message,
+        )
+
+        api_keys_internal = get_api_key_statuses(self.storage)
+        api_keys_model = [
+            APIKeyStatusInfo(
+                source=item.source,
+                configured=item.configured,
+                env_var=item.env_var,
+            )
+            for item in api_keys_internal
+        ]
+
+        disk_usage_internal = get_disk_usage()
+        disk_usage_model = DiskUsageInfo(**disk_usage_internal)
+
+        logger.info(
+            "detailed_health_check_performed",
+            status=base_health.status,
+            day_bars_tickers=len(day_bars_freshness_model),
+            celery_active=celery_worker_model.active,
+            api_keys_configured=sum(1 for k in api_keys_model if k.configured),
+            disk_percent_used=disk_usage_model.percent_used,
+        )
+
+        return DetailedHealthCheckResponse(
+            # Base fields
+            status=base_health.status,
+            timestamp=base_health.timestamp,
+            version=base_health.version,
+            uptime_seconds=base_health.uptime_seconds,
+            checks=base_health.checks,
+            sources=base_health.sources,
+            services=base_health.services,
+            cache_stats=base_health.cache_stats,
+            agent_stats=base_health.agent_stats,
+            watchlist_stats=base_health.watchlist_stats,
+            api_quotas=base_health.api_quotas,
+            # Detailed fields
+            day_bars_freshness=day_bars_freshness_model,
+            celery_worker=celery_worker_model,
+            api_keys=api_keys_model,
+            disk_usage=disk_usage_model,
+        )
+
 
 # Create singleton instance
 health_service = HealthCheckService()
@@ -248,6 +371,36 @@ async def health_check(response: Response) -> HealthCheckResponse:
         database_status=result.checks["database"].status,
         sources=source_status_summary,
         num_sources=len(result.sources),
+    )
+
+    return result
+
+
+@router.get("/detailed", response_model=DetailedHealthCheckResponse)
+async def detailed_health_check(response: Response) -> DetailedHealthCheckResponse:
+    """Comprehensive health check endpoint with additional system details.
+
+    Returns detailed health status including:
+    - All standard health checks (database, sources, services, etc.)
+    - Day bars data freshness per ticker
+    - Celery worker active status and pool information
+    - API key configuration status
+    - Disk usage statistics
+
+    Returns HTTP 503 if database is down, HTTP 200 otherwise.
+    """
+    result = health_service.perform_detailed_health_check()
+
+    # Set appropriate HTTP status code
+    if result.status == "down":
+        response.status_code = 503
+
+    logger.info(
+        "detailed_health_check_endpoint",
+        status=result.status,
+        day_bars_tickers=len(result.day_bars_freshness),
+        celery_active=result.celery_worker.active if result.celery_worker else False,
+        api_keys_configured=sum(1 for k in result.api_keys if k.configured),
     )
 
     return result
