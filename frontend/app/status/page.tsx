@@ -39,6 +39,7 @@ import { SourceQualityCard } from "@/components/status/SourceQualityCard";
 import { MLModelCard } from "@/components/status/MLModelCard";
 import { MaintenanceCard } from "@/components/status/MaintenanceCard";
 import { DataFreshnessCard } from "@/components/status/DataFreshnessCard";
+import { TableFreshnessCard } from "@/components/status/TableFreshnessCard";
 import { APIKeysCard } from "@/components/status/APIKeysCard";
 import {
     clearCache,
@@ -463,7 +464,10 @@ export default function StatusPage() {
                 <APIKeysCard apiKeys={detailedHealth.api_keys} />
             )}
 
-            {/* Data Freshness card */}
+            {/* Data Freshness card - shows all tables */}
+            <TableFreshnessCard />
+
+            {/* Day Bars Data Freshness card - legacy, keep for now */}
             {detailedHealth?.day_bars_freshness && (
                 <DataFreshnessCard freshness={detailedHealth.day_bars_freshness} />
             )}

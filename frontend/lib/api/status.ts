@@ -84,6 +84,22 @@ export interface DayBarFreshnessInfo {
   age_days?: number;
 }
 
+export interface TableFreshnessStatus {
+  table_name: string;
+  last_updated: string | null;
+  age_hours: number | null;
+  status: "fresh" | "stale" | "critical" | "unknown" | "error";
+  row_count: number | null;
+}
+
+export interface TableFreshnessResponse {
+  tables: TableFreshnessStatus[];
+  fresh_count: number;
+  stale_count: number;
+  critical_count: number;
+  timestamp: string;
+}
+
 export interface CeleryWorkerStatus {
   active: boolean;
   pool_size?: number;
@@ -148,4 +164,11 @@ export async function fetchServiceLogs(
   lines: number = 100
 ): Promise<LogResponse> {
   return get<LogResponse>(`/api/status/logs/${service}?lines=${lines}`);
+}
+
+/**
+ * Fetch table freshness status for all monitored tables
+ */
+export async function fetchTableFreshness(): Promise<TableFreshnessResponse> {
+  return get<TableFreshnessResponse>("/api/status/table-freshness");
 }

@@ -12,15 +12,18 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-**Update Market Data to Current Date** (HIGH PRIORITY, Quick fix)
-- Goal: Get market data from Nov 6 → Nov 11 (current)
-- Tasks:
-  - [ ] Update fear_greed_inputs table with latest data (VIX, SPY, RSI, HY spread)
-  - [ ] Run OHLCV refresh task for market indicators
-  - [ ] Trigger Fear & Greed calculation for new dates
-  - [ ] Verify dashboard shows current data
-- Impact: Market Intelligence card showing 5-day old data
-- Estimated: 30-60 minutes (mostly API calls + task execution)
+1. **Extend Data Freshness Card on Status Page** (0% - 0/5 complete)
+   - File: `tasks-0053-extend-data-freshness-card.md`
+   - Started: 2025-11-11 (yesterday)
+   - Last updated: Unknown
+   - Next: Task 1 - Backend API Endpoint
+   - Tasks:
+     - [ ] Task 1: Backend API Endpoint
+     - [ ] Task 2: Frontend Component Updates
+     - [ ] Task 3: Integration and Polish
+     - [ ] Task 4: Testing and Verification
+     - [ ] Task 5: Documentation and Cleanup
+
 
 ---
 
@@ -28,7 +31,18 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (today))
+1. **Toast Notification System** (TBD, 0/5 tasks (yesterday))
+   - File: `tasks-0047-toast-notifications.md`
+   - Created: 2025-11-11
+   - Goal: Implement toast notification system using the already-installed sonner library to provide user feedback for key operations.
+   - Tasks:
+     - [ ] Task 1: Create useToast Hook
+     - [ ] Task 2: Add Toasts to Watchlist Operations
+     - [ ] Task 3: Add Toasts to Portfolio Operations
+     - [ ] Task 4: Add Toasts to Idea Status Updates
+     - [ ] Task 5: Documentation and Handoff
+
+2. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (yesterday))
    - File: `tasks-0042-customizable-dashboard-layouts.md`
    - Created: 2025-11-11
    - Goal: Enable users to customize dashboard layouts by dragging/resizing cards, with persistence to PostgreSQL backend
@@ -44,19 +58,6 @@
      - [ ] Task 9: Polish and Edge Cases
      - [ ] Task 10: Testing and Documentation
 
-2. **Toast Notification System** (LOW, 0/5 tasks (today))
-   - File: `tasks-0047-toast-notifications.md`
-   - Created: 2025-11-11
-   - Goal: Implement toast notifications using sonner for user feedback on key operations
-   - Tasks:
-     - [ ] Task 1: Create useToast Hook
-     - [ ] Task 2: Add Toasts to Watchlist Operations
-     - [ ] Task 3: Add Toasts to Portfolio Operations
-     - [ ] Task 4: Add Toasts to Idea Status Updates
-     - [ ] Task 5: Documentation and Handoff
-   - Status: ✅ CODE COMPLETE - Ready for local testing
-   - Notes: All code implemented, handoff doc created for local testing
-
 3. **Trading Intelligence Roadmap** (High, 4/8 tasks)
    - File: `tasks-trading-intelligence-roadmap.md`
    - Created: Unknown
@@ -70,33 +71,18 @@
      - [ ] Task 7: Frontend & UX
      - [ ] Task 8: Governance & documentation
 
-3. **Response Caching Middleware** (MEDIUM (2-3 hours), 0/8 tasks, ready for local testing)
+4. **Response Caching Middleware** (TBD, 0/8 tasks (yesterday))
    - File: `tasks-0047-response-caching-middleware.md`
    - Created: 2025-11-11
-   - Branch: `claude/setup-task-methodology-011CV2GyoVTgkzZEveAK5kGc`
-   - Goal: Add response caching middleware to reduce load on expensive API calls, improving response times
-   - Status: ✅ Code complete, ready for local testing
-   - Implementation:
-     - ✅ Lightweight caching using cachetools (TTL-based, no Redis)
-     - ✅ @cache_response decorator with configurable TTL
-     - ✅ Market endpoints: 5 min TTL (conditions, prices)
-     - ✅ Watchlist endpoints: 1 min TTL
-     - ✅ Portfolio endpoints: 30 sec TTL
-     - ✅ Cache invalidation on mutations (POST/PUT/DELETE)
-     - ✅ X-Cache-Hit header for observability
-     - ✅ Cache management endpoints (stats, clear)
-     - ✅ Environment variable configuration
-   - Files Created:
-     - backend/app/middleware/__init__.py
-     - backend/app/middleware/cache.py
-   - Files Modified:
-     - backend/app/api/market.py
-     - backend/app/api/watchlist.py
-     - backend/app/api/portfolio.py
-     - backend/app/api/health.py
-     - backend/.env.example
-   - Handoff: `tasks/HANDOFF-caching-middleware-local-testing.md`
-   - Next: Local functional testing, integration tests, performance validation
+   - Tasks:
+     - [ ] Task 1: Create Middleware Infrastructure
+     - [ ] Task 2: Apply Caching to Market Endpoints
+     - [ ] Task 3: Apply Caching to Watchlist Endpoints
+     - [ ] Task 4: Apply Caching to Portfolio Endpoints
+     - [ ] Task 5: Apply Caching to Paper Trades Endpoints
+     - [ ] Task 6: Cache Invalidation Strategy
+     - [ ] Task 7: Cache Management Endpoints
+     - [ ] Task 8: Integration and Configuration
 
 
 ---
@@ -105,7 +91,22 @@
 
 *Last 5 completions - older items auto-archive to tasks/archive/YYYY-MM.md*
 
-1. **Market Intelligence Finalization** (2025-11-11) ⭐ COMPLETE
+1. **Update Market Data to Current Date** (2025-11-11) ✅ COMPLETE
+   - Duration: ~30 minutes
+   - Results: Market data updated from Nov 6 to Nov 10
+   - Achievements:
+     - ✅ Backfilled 252 days of SPY OHLCV data (259 days total)
+     - ✅ Created update_fear_greed_inputs.py script (reusable for future updates)
+     - ✅ Updated fear_greed_inputs table for 6 dates (Nov 3-7, Nov 10)
+     - ✅ Triggered Fear & Greed calculation task
+     - ✅ Verified dashboard shows current data (74 Greed, +12 change)
+   - Technical Details:
+     - Script calculates SMA_200 and RSI_14 from SPY data
+     - Uses estimates for VIX and HY spread (can be enhanced with real API calls)
+     - Dashboard now shows "1 day ago" instead of "5 days ago"
+   - Next: Script can be improved to fetch real VIX and HY spread data from APIs
+
+2. **Market Intelligence Finalization** (2025-11-11) ⭐ COMPLETE
    - Commits: d77231b, 0e447aa, 3d0d06c, 8d1189d (4 commits)
    - Duration: Full session (~3 hours)
    - Results: Market Intelligence card fully functional

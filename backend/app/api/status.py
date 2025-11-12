@@ -938,8 +938,8 @@ async def get_ml_model_metrics() -> MLModelStatusResponse:
                 "SELECT COUNT(*) FROM ml_model_metrics WHERE model_name = %s",
                 ["article_quality"],
             )
-            row = conn.fetchone()
-            models_trained = row[0] if row else 0  # type: ignore[index]
+            count_row = conn.fetchone()
+            models_trained = count_row[0] if count_row else 0
 
             # Total training samples (from current model)
             total_samples = (
@@ -964,3 +964,138 @@ async def get_ml_model_metrics() -> MLModelStatusResponse:
     except Exception as e:
         logger.error("failed_to_fetch_ml_metrics", error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to fetch ML model metrics: {e}") from e
+
+
+class TableFreshnessStatus(BaseModel):
+    """Freshness status for a single table."""
+
+    table_name: str = Field(description="Table name")
+    last_updated: datetime | None = Field(description="Most recent timestamp in table")
+    age_hours: float | None = Field(description="Age in hours since last update")
+    status: str = Field(description="Status: fresh (<24h), stale (24-48h), critical (>48h)")
+    row_count: int | None = Field(description="Total number of rows in table")
+
+
+class TableFreshnessResponse(BaseModel):
+    """Response model for table freshness endpoint."""
+
+    tables: list[TableFreshnessStatus] = Field(description="Freshness status for each table")
+    fresh_count: int = Field(description="Number of fresh tables")
+    stale_count: int = Field(description="Number of stale tables")
+    critical_count: int = Field(description="Number of critical tables")
+    timestamp: datetime = Field(
+        default_factory=lambda: datetime.now(UTC), description="Response timestamp"
+    )
+
+
+@router.get("/table-freshness", response_model=TableFreshnessResponse)
+async def get_table_freshness() -> TableFreshnessResponse:
+    """Get freshness status for all important tables.
+
+    Returns table-level freshness metrics:
+    - fresh: Data updated within last 24 hours
+    - stale: Data 24-48 hours old
+    - critical: Data >48 hours old
+
+    Tables monitored:
+    - day_bars: OHLCV market data
+    - fear_greed_inputs: F&G raw inputs
+    - fear_greed_daily: F&G calculated scores
+    - fear_greed_components: F&G component scores
+    - news: News articles
+    - watchlist_items: User watchlist entries
+    - positions: Portfolio positions
+    - accounts: Portfolio accounts
+    - price_cache: Real-time price cache
+    """
+    try:
+        conn_mgr = get_connection_manager()
+
+        # Define tables with their timestamp columns
+        table_configs = [
+            ("day_bars", "date", "date"),
+            ("fear_greed_inputs", "as_of_date", "date"),
+            ("fear_greed_daily", "as_of_date", "date"),
+            ("fear_greed_components", "as_of_date", "date"),
+            ("news_cache", "fetched_at", "timestamp"),
+            ("watchlist_items", "updated_at", "timestamp"),
+            ("portfolio_positions", "updated_at", "timestamp"),
+            ("portfolio_accounts", "updated_at", "timestamp"),
+            ("price_cache", "cached_at", "timestamp"),
+        ]
+
+        tables: list[TableFreshnessStatus] = []
+        now = datetime.now(UTC)
+
+        with conn_mgr.connection() as conn:
+            for table_name, timestamp_col, col_type in table_configs:
+                try:
+                    # Get latest timestamp
+                    result = conn.execute(f"SELECT MAX({timestamp_col}) FROM {table_name}")
+                    row = result.fetchone()
+                    last_updated = row[0] if row else None
+
+                    # Get row count
+                    result = conn.execute(f"SELECT COUNT(*) FROM {table_name}")
+                    row = result.fetchone()
+                    row_count = row[0] if row else 0
+
+                    # Calculate age and status
+                    age_hours = None
+                    status = "unknown"
+
+                    if last_updated:
+                        # Convert date to datetime for age calculation
+                        if col_type == "date":
+                            last_updated = datetime.combine(
+                                last_updated, datetime.min.time(), tzinfo=UTC
+                            )
+
+                        age_delta = now - last_updated
+                        age_hours = age_delta.total_seconds() / 3600
+
+                        if age_hours < 24:
+                            status = "fresh"
+                        elif age_hours < 48:
+                            status = "stale"
+                        else:
+                            status = "critical"
+
+                    tables.append(
+                        TableFreshnessStatus(
+                            table_name=table_name,
+                            last_updated=last_updated,
+                            age_hours=age_hours,
+                            status=status,
+                            row_count=row_count,
+                        )
+                    )
+
+                except Exception as e:
+                    logger.warning(f"failed_to_check_freshness_{table_name}", error=str(e))
+                    # Add table with unknown status
+                    tables.append(
+                        TableFreshnessStatus(
+                            table_name=table_name,
+                            last_updated=None,
+                            age_hours=None,
+                            status="error",
+                            row_count=0,
+                        )
+                    )
+
+        # Calculate summary counts
+        fresh_count = sum(1 for t in tables if t.status == "fresh")
+        stale_count = sum(1 for t in tables if t.status == "stale")
+        critical_count = sum(1 for t in tables if t.status == "critical")
+
+        return TableFreshnessResponse(
+            tables=tables,
+            fresh_count=fresh_count,
+            stale_count=stale_count,
+            critical_count=critical_count,
+        )
+
+    except Exception as e:
+        logger.error("failed_to_fetch_table_freshness", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to fetch table freshness: {e}") from e
