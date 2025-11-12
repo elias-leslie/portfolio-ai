@@ -22,6 +22,7 @@ import {
   type RefreshStatus,
 } from "@/lib/api/watchlist";
 import { fetchPreferences } from "@/lib/api/preferences";
+import { toast } from "sonner";
 
 // Query keys
 export const watchlistKeys = {
@@ -97,7 +98,18 @@ export function useAddTicker() {
   const queryClient = useQueryClient();
 
   return useMutation<WatchlistItem, Error, WatchlistItemCreate>({
-    mutationFn: createWatchlistItem,
+    mutationFn: async (data) => {
+      const promise = createWatchlistItem(data);
+      toast.promise(promise, {
+        loading: `Adding ${data.symbol.toUpperCase()} to watchlist...`,
+        success: (item) => `${item.symbol} added to watchlist`,
+        error: (error) => {
+          const errorMsg = error instanceof Error ? error.message : "Failed to add ticker";
+          return `Failed to add ${data.symbol.toUpperCase()}: ${errorMsg}`;
+        },
+      });
+      return promise;
+    },
     onSuccess: () => {
       // Invalidate and refetch watchlist query
       queryClient.invalidateQueries({
@@ -141,7 +153,25 @@ export function useDeleteWatchlistItem() {
   const queryClient = useQueryClient();
 
   return useMutation<void, Error, string>({
-    mutationFn: (itemId) => deleteWatchlistItem(itemId),
+    mutationFn: async (itemId) => {
+      // Get the item details for toast message
+      const previousData = queryClient.getQueryData<WatchlistListResponse>(
+        watchlistKeys.list()
+      );
+      const item = previousData?.items.find((i) => i.id === itemId);
+      const symbol = item?.symbol || "ticker";
+
+      const promise = deleteWatchlistItem(itemId);
+      toast.promise(promise, {
+        loading: `Removing ${symbol} from watchlist...`,
+        success: `${symbol} removed from watchlist`,
+        error: (error) => {
+          const errorMsg = error instanceof Error ? error.message : "Failed to delete ticker";
+          return `Failed to remove ${symbol}: ${errorMsg}`;
+        },
+      });
+      return promise;
+    },
     // Optimistic update: Remove item from cache immediately
     onMutate: async (itemId) => {
       // Cancel any outgoing refetches to avoid overwriting optimistic update

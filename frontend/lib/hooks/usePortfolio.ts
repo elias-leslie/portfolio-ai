@@ -3,6 +3,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   AddPositionRequest,
   CreateAccountRequest,
@@ -93,7 +94,20 @@ export function useAddPosition() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: AddPositionRequest) => addPosition(data),
+    mutationFn: async (data: AddPositionRequest) => {
+      const promise = addPosition(data);
+      const positionTypeLabel = data.position_type === "paper" ? "paper" : "live";
+      toast.promise(promise, {
+        loading: `Adding ${data.symbol.toUpperCase()} position...`,
+        success: (position) =>
+          `${position.symbol} ${positionTypeLabel} position added (${data.shares} shares @ $${data.cost_basis.toFixed(2)})`,
+        error: (error) => {
+          const errorMsg = error instanceof Error ? error.message : "Failed to add position";
+          return `Failed to add ${data.symbol.toUpperCase()}: ${errorMsg}`;
+        },
+      });
+      return promise;
+    },
     onSuccess: () => {
       // Invalidate and refetch both portfolio and analytics queries
       queryClient.invalidateQueries({ queryKey: ["portfolio"], refetchType: 'active' });
@@ -108,13 +122,25 @@ export function useUpdatePosition() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({
+    mutationFn: async ({
       positionId,
       data,
     }: {
       positionId: string;
       data: AddPositionRequest;
-    }) => updatePosition(positionId, data),
+    }) => {
+      const promise = updatePosition(positionId, data);
+      toast.promise(promise, {
+        loading: `Updating ${data.symbol.toUpperCase()} position...`,
+        success: (position) =>
+          `${position.symbol} position updated (${data.shares} shares @ $${data.cost_basis.toFixed(2)})`,
+        error: (error) => {
+          const errorMsg = error instanceof Error ? error.message : "Failed to update position";
+          return `Failed to update ${data.symbol.toUpperCase()}: ${errorMsg}`;
+        },
+      });
+      return promise;
+    },
     onSuccess: () => {
       // Invalidate and refetch both portfolio and analytics queries
       queryClient.invalidateQueries({ queryKey: ["portfolio"], refetchType: 'active' });
@@ -129,7 +155,25 @@ export function useDeletePosition() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (positionId: string) => deletePosition(positionId),
+    mutationFn: async (positionId: string) => {
+      // Get position details for toast message before deleting
+      const portfolioData = queryClient.getQueryData<{
+        positions: Array<{ id: string; symbol: string; shares: number }>;
+      }>(["portfolio"]);
+      const position = portfolioData?.positions.find((p) => p.id === positionId);
+      const symbol = position?.symbol || "position";
+
+      const promise = deletePosition(positionId);
+      toast.promise(promise, {
+        loading: `Deleting ${symbol} position...`,
+        success: `${symbol} position deleted`,
+        error: (error) => {
+          const errorMsg = error instanceof Error ? error.message : "Failed to delete position";
+          return `Failed to delete ${symbol}: ${errorMsg}`;
+        },
+      });
+      return promise;
+    },
     onSuccess: () => {
       // Invalidate and refetch both portfolio and analytics queries
       queryClient.invalidateQueries({ queryKey: ["portfolio"], refetchType: 'active' });

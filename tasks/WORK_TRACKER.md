@@ -1,10 +1,10 @@
 # Work Tracker
 
-**Last Updated:** 2025-11-11 (Headline Transformation Bug Fixed)
+**Last Updated:** 2025-11-11 (News Alignment Branch Merged)
 
-**Current Status:** ✅ Critical bug fix complete | 🟢 All feature branches merged! | ✅ Tests passing | 🎯 Next: Phase 2 feedback loop
+**Current Status:** ✅ News Alignment MERGED to main | 🟢 All feature branches merged! | ✅ 542 tests passing | 🎯 Next: Dashboard layouts
 
-**Priority**: Continue with Phase 2 feedback implementation
+**Priority**: Start dashboard layouts (no pending branches)
 
 ---
 
@@ -20,29 +20,7 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Cloud Agent Branch Integration** (HIGH (6 branches × full testing cycle each), 0/8 tasks (yesterday))
-   - File: `tasks-0052-cloud-agent-branch-integration.md`
-   - Created: 2025-11-11
-   - Goal: Finalize and merge 6 cloud agent feature branches to main, ensuring quality and proper integration
-   - Tasks:
-     - [ ] Task 1: Branch 1: API Documentation Enhancement
-     - [ ] Task 2: Branch 2: Celery Logging Enhancement
-     - [ ] Task 3: Branch 3: Response Caching Middleware
-     - [ ] Task 4: Branch 4: Health Endpoint Enhancements
-     - [ ] Task 5: Branch 5: Toast Notification System
-     - [ ] Task 6: Branch 6: Maintenance CLI Scripts (Most Complex)
-     - [ ] Task 7: Final Integration Verification
-     - [ ] Task 8: Documentation and Cleanup
-
-2. **News Source Quality Profiling System (Phase 2)** (4-5 hours total (2 hours Phase 2a, 1.5 hours Phase 2b, 1 hour Phase 2c), 0/0 tasks (yesterday))
-   - File: `tasks-0050-news-source-quality-phase2.md`
-   - Created: 2025-11-11
-   - Goal: Label 200-500 existing articles from news_cache with consistent quality criteria
-   - Status: PAUSED (2025-11-11)
-   - Tasks:
-     - (No tasks defined yet)
-
-3. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (yesterday))
+1. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (today))
    - File: `tasks-0042-customizable-dashboard-layouts.md`
    - Created: 2025-11-11
    - Goal: Enable users to customize dashboard layouts by dragging/resizing cards, with persistence to PostgreSQL backend
@@ -58,7 +36,20 @@
      - [ ] Task 9: Polish and Edge Cases
      - [ ] Task 10: Testing and Documentation
 
-4. **Trading Intelligence Roadmap** (High, 4/8 tasks)
+2. **Toast Notification System** (LOW, 0/5 tasks (today))
+   - File: `tasks-0047-toast-notifications.md`
+   - Created: 2025-11-11
+   - Goal: Implement toast notifications using sonner for user feedback on key operations
+   - Tasks:
+     - [ ] Task 1: Create useToast Hook
+     - [ ] Task 2: Add Toasts to Watchlist Operations
+     - [ ] Task 3: Add Toasts to Portfolio Operations
+     - [ ] Task 4: Add Toasts to Idea Status Updates
+     - [ ] Task 5: Documentation and Handoff
+   - Status: ✅ CODE COMPLETE - Ready for local testing
+   - Notes: All code implemented, handoff doc created for local testing
+
+3. **Trading Intelligence Roadmap** (High, 4/8 tasks)
    - File: `tasks-trading-intelligence-roadmap.md`
    - Created: Unknown
    - Tasks:
@@ -78,52 +69,7 @@
 
 *Last 5 completions - older items auto-archive to tasks/archive/YYYY-MM.md*
 
-1. **Fix Plain Language Headline Transformation Bug** (2025-11-11) ⭐ CRITICAL BUG FIX
-   - File: `tasks-0051-fix-headline-transformation-bug.md`
-   - Duration: 1 hour (implementation + verification)
-   - Status: Complete - infrastructure ready for Phase 2
-   - Achievements:
-     - ✅ Phase 1: Disabled broken keyword-based transformation
-       - Frontend: Original headlines displayed (UnifiedNewsIntelligenceCard.tsx)
-       - Backend: Feature flag ENABLE_PLAIN_LANGUAGE_HEADLINES=False
-     - ✅ Phase 2: Sentiment override infrastructure
-       - Database: sentiment_override column added (migration 028)
-       - API: ArticleFeedbackRequest accepts sentiment_override (-1.0 to 1.0)
-       - Backend: Stores overrides for future quality metrics integration
-     - ✅ Verification: UI tested, services restarted, linting passed
-   - Results: No more wrong transformations, sentiment matches display
-   - Commit: fd4cde3
-
-2. **News Source Quality Profiling System (Phase 1)** (2025-11-11) ⭐ COMPLETE
-   - File: `tasks-0049-news-source-quality-profiling.md`
-   - Duration: 6 hours (implementation + cleanup)
-   - Status: Foundation complete, Phase 2 queued
-   - Achievements:
-     - ✅ 6 quality metrics engine (1,276 lines: metrics, tasks, tests, UI)
-     - ✅ 3 database migrations (source_metrics, user_article_feedback, preferences)
-     - ✅ Celery profiling task (12h schedule + on-demand)
-     - ✅ 6 API endpoints (profiling, stats, feedback, reset)
-     - ✅ Status page SourceQualityCard (10 active vendors displayed)
-     - ✅ 27 new unit tests (all passing, 535 total)
-     - ✅ Dead code cleanup (removed GoogleNewsSource, -163 lines)
-     - ✅ Initial profiling run complete (6,022 articles analyzed)
-   - Results: 10 vendors rated 94-96% quality, metrics updating every 12h
-   - Phase 2: Article feedback buttons, weight sliders, neutral filtering, historical tracking
-
-2. **Unified News Intelligence Component (Frontend Only - Partial)** (2025-11-11) ⚠️ SUPERSEDED BY 0048
-   - File: `tasks-0047-unified-news-intelligence-component.md`
-   - Duration: 4 hours
-   - Status: Frontend component created, but NOT truly unified (different article layouts, missing backend unification)
-   - Achievements:
-     - ✅ Created UnifiedNewsIntelligenceCard component
-     - ✅ Deleted MarketNewsCard and NewsIntelligenceCard (435 lines eliminated)
-     - ✅ Both sections use same component code
-     - ❌ BUT: Different article layouts (simple vs detailed)
-     - ❌ BUT: No backend unification
-     - ❌ BUT: Market news lacks sentiment breakdown
-   - Next: Complete true unification in tasks-0048
-
-2. **News Alignment with AI Insights** (2025-11-11) ⭐ COMPLETE
+1. **News Alignment with AI Insights** (2025-11-11) ⭐ COMPLETE
    - File: `tasks-0046-finalize-news-alignment-branch.md`
    - Branch: `claude/align-news-sentiment-sections-011CUyEXr4XhbdjWn7Xapb7U` ✅ MERGED to main
    - Duration: Implementation and merge (3 hours)

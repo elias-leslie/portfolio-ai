@@ -3,6 +3,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   GenerateIdeasRequest,
   UpdateIdeaStatusRequest,
@@ -61,13 +62,34 @@ export function useUpdateIdeaStatus() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({
+    mutationFn: async ({
       ideaId,
       data,
     }: {
       ideaId: string;
       data: UpdateIdeaStatusRequest;
-    }) => updateIdeaStatus(ideaId, data),
+    }) => {
+      const promise = updateIdeaStatus(ideaId, data);
+
+      // Create human-readable status labels
+      const statusLabels: Record<string, string> = {
+        pending: "Pending",
+        validated: "Validated",
+        executed: "Executed",
+        rejected: "Rejected",
+      };
+      const statusLabel = statusLabels[data.status] || data.status;
+
+      toast.promise(promise, {
+        loading: `Updating idea status...`,
+        success: `Idea status updated to ${statusLabel}`,
+        error: (error) => {
+          const errorMsg = error instanceof Error ? error.message : "Failed to update status";
+          return `Failed to update idea: ${errorMsg}`;
+        },
+      });
+      return promise;
+    },
     onSuccess: (_, variables) => {
       // Invalidate both the list and the specific idea detail
       queryClient.invalidateQueries({ queryKey: ["ideas"] });
