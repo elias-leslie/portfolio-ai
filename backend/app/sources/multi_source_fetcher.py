@@ -16,58 +16,13 @@ import time
 from collections.abc import Iterable
 
 import polars as pl
-from httpx import HTTPStatusError
 
 from ..logging_config import get_logger
 from ..storage import PortfolioStorage
 from .base import DATASET_DAY, DATASET_NEWS, DATASET_REFERENCE, BaseSource, DatasetRequest
+from .source_metrics_manager import SourceMetrics, SourceMetricsManager
 
 logger = get_logger(__name__)
-
-# Rate limit cooldown duration (60 seconds)
-RATE_LIMIT_COOLDOWN_SECONDS = 60
-
-
-@dataclasses.dataclass
-class SourceMetrics:
-    """Performance metrics for a data source."""
-
-    source_name: str
-    success_count: int = 0
-    failure_count: int = 0
-    total_latency_ms: int = 0
-    rate_limit_hits: int = 0
-    last_success_at: dt.datetime | None = None
-    last_failure_at: dt.datetime | None = None
-    last_rate_limit_at: dt.datetime | None = None
-
-    @property
-    def success_rate(self) -> float:
-        """Calculate success rate as percentage."""
-        total = self.success_count + self.failure_count
-        return (self.success_count / total * 100) if total > 0 else 0.0
-
-    @property
-    def avg_latency_ms(self) -> float:
-        """Calculate average latency in milliseconds."""
-        return self.total_latency_ms / self.success_count if self.success_count > 0 else 0.0
-
-    def is_in_cooldown(self) -> bool:
-        """Check if source is in rate limit cooldown."""
-        if self.last_rate_limit_at is None:
-            return False
-
-        cooldown_until = self.last_rate_limit_at + dt.timedelta(seconds=RATE_LIMIT_COOLDOWN_SECONDS)
-        return dt.datetime.now(dt.UTC) < cooldown_until
-
-    def cooldown_remaining_seconds(self) -> int:
-        """Calculate remaining cooldown time in seconds."""
-        if not self.is_in_cooldown() or self.last_rate_limit_at is None:
-            return 0
-
-        cooldown_until = self.last_rate_limit_at + dt.timedelta(seconds=RATE_LIMIT_COOLDOWN_SECONDS)
-        remaining = (cooldown_until - dt.datetime.now(dt.UTC)).total_seconds()
-        return max(0, int(remaining))
 
 
 class MultiSourceFetcher:
@@ -92,165 +47,14 @@ class MultiSourceFetcher:
         self._sources = sorted([s for s in sources if s.is_enabled()], key=lambda s: s.priority)
         self.storage = storage
 
-        # In-memory metrics tracking
-        self._metrics: dict[str, SourceMetrics] = {}
+        # Initialize metrics manager
+        self.metrics_manager = SourceMetricsManager(storage)
         for source in self._sources:
-            self._metrics[source.name] = SourceMetrics(source_name=source.name)
+            self.metrics_manager.initialize_metric(source.name)
 
         # Load metrics from database if available
         if self.storage:
-            self._load_metrics_from_db()
-
-    def _load_metrics_from_db(self) -> None:
-        """Load source performance metrics from database.
-
-        Reads from source_performance table if it exists.
-        Silently skips if table doesn't exist (not created yet).
-        """
-        if not self.storage:
-            return
-
-        try:
-            df = self.storage.query(
-                """
-                SELECT source_name, success_count, failure_count,
-                       total_latency_ms, rate_limit_hits, last_success_at
-                FROM source_performance
-                """,
-                [],
-            )
-
-            if df.is_empty():
-                return
-
-            for row in df.iter_rows(named=True):
-                source_name = row["source_name"]
-                if source_name in self._metrics:
-                    self._metrics[source_name].success_count = row["success_count"] or 0
-                    self._metrics[source_name].failure_count = row["failure_count"] or 0
-                    self._metrics[source_name].total_latency_ms = row["total_latency_ms"] or 0
-                    self._metrics[source_name].rate_limit_hits = row["rate_limit_hits"] or 0
-                    self._metrics[source_name].last_success_at = row.get("last_success_at")
-
-            logger.info(
-                "metrics_loaded_from_db", num_sources=len(self._metrics), table="source_performance"
-            )
-
-        except Exception as e:
-            # Table might not exist yet (Task 1.2.1 creates it)
-            logger.debug("metrics_load_skipped", error=str(e), reason="table_not_ready")
-
-    def _save_metrics_to_db(self, source_name: str) -> None:
-        """Save source performance metrics to database using UPSERT.
-
-        Args:
-            source_name: Name of source to save metrics for
-        """
-        if not self.storage or source_name not in self._metrics:
-            return
-
-        metrics = self._metrics[source_name]
-
-        try:
-            with self.storage.connection() as conn:
-                conn.execute(
-                    """
-                    INSERT INTO source_performance (
-                        source_name, success_count, failure_count,
-                        total_latency_ms, rate_limit_hits, last_success_at
-                    ) VALUES (%s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (source_name)
-                    DO UPDATE SET
-                        success_count = EXCLUDED.success_count,
-                        failure_count = EXCLUDED.failure_count,
-                        total_latency_ms = EXCLUDED.total_latency_ms,
-                        rate_limit_hits = EXCLUDED.rate_limit_hits,
-                        last_success_at = EXCLUDED.last_success_at
-                    """,
-                    [
-                        source_name,
-                        metrics.success_count,
-                        metrics.failure_count,
-                        metrics.total_latency_ms,
-                        metrics.rate_limit_hits,
-                        metrics.last_success_at,
-                    ],
-                )
-                conn.commit()
-
-            logger.debug("metrics_saved_to_db", source=source_name)
-
-        except Exception as e:
-            # Non-fatal - metrics still tracked in memory
-            logger.debug("metrics_save_failed", source=source_name, error=str(e))
-
-    def _record_success(self, source_name: str, latency_ms: int) -> None:
-        """Record successful fetch.
-
-        Args:
-            source_name: Name of source
-            latency_ms: Request latency in milliseconds
-        """
-        if source_name not in self._metrics:
-            self._metrics[source_name] = SourceMetrics(source_name=source_name)
-
-        metrics = self._metrics[source_name]
-        metrics.success_count += 1
-        metrics.total_latency_ms += latency_ms
-        metrics.last_success_at = dt.datetime.now(dt.UTC)
-
-        logger.info(
-            "source_success",
-            source=source_name,
-            latency_ms=latency_ms,
-            success_rate=f"{metrics.success_rate:.1f}%",
-            avg_latency_ms=int(metrics.avg_latency_ms),
-        )
-
-        # Persist to database
-        if self.storage:
-            self._save_metrics_to_db(source_name)
-
-    def _record_failure(self, source_name: str, error: Exception) -> None:
-        """Record failed fetch.
-
-        Args:
-            source_name: Name of source
-            error: Exception that occurred
-        """
-        if source_name not in self._metrics:
-            self._metrics[source_name] = SourceMetrics(source_name=source_name)
-
-        metrics = self._metrics[source_name]
-        metrics.failure_count += 1
-        metrics.last_failure_at = dt.datetime.now(dt.UTC)
-
-        # Check if rate limit error (HTTP 429)
-        is_rate_limit = False
-        if isinstance(error, HTTPStatusError) and error.response.status_code == 429:
-            is_rate_limit = True
-            metrics.rate_limit_hits += 1
-            metrics.last_rate_limit_at = dt.datetime.now(dt.UTC)
-
-            logger.warning(
-                "source_rate_limit_hit",
-                source=source_name,
-                cooldown_seconds=RATE_LIMIT_COOLDOWN_SECONDS,
-                total_rate_limit_hits=metrics.rate_limit_hits,
-            )
-
-        if not is_rate_limit:
-            logger.warning(
-                "source_failure",
-                source=source_name,
-                error=str(error),
-                error_type=type(error).__name__,
-                success_rate=f"{metrics.success_rate:.1f}%",
-            )
-
-        # Persist to database
-        if self.storage:
-            self._save_metrics_to_db(source_name)
+            self.metrics_manager.load_all_from_db()
 
     def get_sources_for_dataset(self, dataset: str) -> list[BaseSource]:
         """Get all sources that support the given dataset type.
@@ -341,9 +145,8 @@ class MultiSourceFetcher:
         Returns:
             True if source is in cooldown (should skip), False otherwise
         """
-        metrics = self._metrics.get(source.name)
-        if metrics and metrics.is_in_cooldown():
-            cooldown_remaining = metrics.cooldown_remaining_seconds()
+        if self.metrics_manager.is_in_cooldown(source.name):
+            cooldown_remaining = self.metrics_manager.cooldown_remaining(source.name)
             if verbose:
                 logger.warning(
                     "source_skipped_cooldown",
@@ -440,23 +243,22 @@ class MultiSourceFetcher:
                 if not news_dataset:
                     tickers_remaining.clear()
 
-            self._record_success(source.name, fetch_duration_ms)
+            self.metrics_manager.record_success(source.name, fetch_duration_ms)
             return True
 
         # No data, but still success (no error)
         if verbose:
             logger.info("source_no_data", source=source.name)
-        self._record_success(source.name, fetch_duration_ms)
+        self.metrics_manager.record_success(source.name, fetch_duration_ms)
         return False
 
     def _combine_results(
-        self, all_data: list[pl.DataFrame], errors_by_source: dict[str, list[str]], verbose: bool
+        self, all_data: list[pl.DataFrame], verbose: bool
     ) -> pl.DataFrame | None:
         """Combine data from multiple sources.
 
         Args:
             all_data: List of DataFrames from successful sources
-            errors_by_source: Errors from failed sources
             verbose: Whether to log info
 
         Returns:
@@ -542,10 +344,10 @@ class MultiSourceFetcher:
                 if source.name not in errors_by_source:
                     errors_by_source[source.name] = []
                 errors_by_source[source.name].append(str(e))
-                self._record_failure(source.name, e)
+                self.metrics_manager.record_failure(source.name, e)
 
         # Combine and return results
-        combined = self._combine_results(all_data, errors_by_source, verbose)
+        combined = self._combine_results(all_data, verbose)
 
         if combined is None and verbose:
             logger.warning(
@@ -567,9 +369,10 @@ class MultiSourceFetcher:
             Dictionary mapping source name to SourceMetrics
         """
         if source_name:
-            return {source_name: self._metrics[source_name]} if source_name in self._metrics else {}
+            metric = self.metrics_manager.get_metric(source_name)
+            return {source_name: metric} if metric else {}
 
-        return dict(self._metrics)
+        return self.metrics_manager.get_all_metrics()
 
     @property
     def sources(self) -> list[BaseSource]:
