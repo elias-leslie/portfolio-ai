@@ -1,129 +1,128 @@
-# Setup Agent Instructions - Distributed Code Review System
+# Setup Agent - Distributed Code Review System
 
-You are the Setup Agent. Your job is to create the infrastructure for a distributed code review system where 5 agents work in parallel with zero merge conflicts.
+You are the Setup Agent. Read SETUP-PROMPT.md from main and execute.
 
-## Prerequisites
-
-**TWO branches required:**
-1. **Setup Branch**: Your current session branch (e.g., `claude/setup-distributed-review-XXXX`)
-   - Used to store AGENT-INSTRUCTIONS.md
-   - You can push to this branch (matches your session ID)
-2. **Working Branch**: The agent working branch (e.g., `claude/code-review-YYYY`)
-   - Where all 5 agents will do their work
-   - You cannot push to this branch (different session ID)
-
-**The user should tell you both branch names.**
+**Your mission:** Create infrastructure for 5 parallel code review agents with zero merge conflicts.
 
 ---
 
-## Step 1: Analyze Codebase Structure
+## Step 1: Create Working Branch
+
+All worker agents need a shared branch to collaborate on:
 
 ```bash
 cd /home/user/portfolio-ai
-git checkout <WORKING_BRANCH>
-git pull origin <WORKING_BRANCH>
+git checkout main
+git pull origin main
+
+# Create working branch for the 5 worker agents
+WORKING_BRANCH="claude/code-review-$(date +%Y%m%d-%H%M%S)"
+git checkout -b "$WORKING_BRANCH"
+git push -u origin "$WORKING_BRANCH"
+
+echo "Working branch created: $WORKING_BRANCH"
 ```
 
-Analyze and document:
+**Save this branch name** - you'll tell users to launch agents with it.
 
-### Backend Files
+---
+
+## Step 2: Analyze Codebase
+
+Find issues to assign to agents:
+
+### Backend
 ```bash
 find backend/app -type f -name "*.py" -exec wc -l {} + | sort -rn | head -20
 ```
 
 **Look for:**
 - Files >800 lines (P0: must split)
-- Files 500-800 lines (P1: should optimize)
-- N+1 queries (grep for loops with db queries)
-- SELECT * statements
-- Duplicate code patterns
-- Missing type hints
+- Files 500-800 lines (P1: optimize)
+- N+1 queries, SELECT *, duplicate code
 
-### Frontend Files
+### Frontend
 ```bash
 find frontend/components -type f \( -name "*.tsx" -o -name "*.ts" \) -exec wc -l {} + | sort -rn | head -20
 ```
 
 **Look for:**
 - Components >800 lines (P0: must split)
-- Duplicate JSX patterns
-- Unused imports
+- Duplicate patterns, unused imports
 
 ---
 
-## Step 2: Create Module Assignments (Zero Overlap)
+## Step 3: Create Module Assignments (Zero Overlap)
 
-Divide codebase into 5 modules with **ZERO file overlap**:
+Divide into 5 modules with **ZERO file overlap**:
 
 **Agent 1: Market Intelligence**
-- backend/app/market/* (ALL files)
+- backend/app/market/*
 - backend/app/api/market.py
-- frontend/components/market/* (ALL files)
-- frontend/lib/hooks/useMarketIntelligence.ts
+- frontend/components/market/*
 
 **Agent 2: Watchlist**
-- backend/app/watchlist/* (ALL files)
+- backend/app/watchlist/*
 - backend/app/api/watchlist.py
-- frontend/components/watchlist/* (ALL files)
-- frontend/components/settings/WatchlistPreferences.tsx
-- frontend/components/settings/sections/WatchlistSettingsSection.tsx
+- frontend/components/watchlist/*
+- frontend/components/settings/*WatchlistSettings*.tsx
 
 **Agent 3: Portfolio & Analytics**
-- backend/app/portfolio/* (ALL files)
-- backend/app/analytics/* (ALL files)
+- backend/app/portfolio/*
+- backend/app/analytics/*
 - backend/app/api/portfolio.py
 - backend/app/api/analytics.py
 - backend/app/api/ideas.py
-- frontend/components/portfolio/* (ALL files)
+- frontend/components/portfolio/*
 
 **Agent 4: News & Services**
-- backend/app/services/* (ALL files)
-- backend/app/sources/* (ALL files)
-- backend/app/ml/* (ALL files)
+- backend/app/services/*
+- backend/app/sources/*
+- backend/app/ml/*
 - backend/app/api/news.py
 - frontend/components/shared/UnifiedNewsIntelligence*.tsx
 
 **Agent 5: Tasks & Infrastructure**
-- backend/app/tasks/* (ALL files)
-- backend/app/utils/* (ALL files)
-- backend/app/storage/* (ALL files)
+- backend/app/tasks/*
+- backend/app/utils/*
+- backend/app/storage/*
 - backend/app/api/health.py
 - backend/app/api/status.py
 - backend/app/api/maintenance.py
-- backend/app/api/celery_endpoints.py
 - backend/app/celery_app.py
-- frontend/components/status/* (ALL files)
+- frontend/components/status/*
 
 ---
 
-## Step 3: Create AGENT-INSTRUCTIONS.md
+## Step 4: Create AGENT-INSTRUCTIONS.md
 
-Create this file with detailed instructions for all agents.
-
-**Template structure:**
+Create detailed instructions with your findings:
 
 ```markdown
 # Code Review Agent Instructions
 
 **USER WILL TELL YOU: "You are Cloud Agent X" - Find your section below.**
 
-Branch: <WORKING_BRANCH>
+Working Branch: $WORKING_BRANCH
+Setup Branch: <YOUR_CURRENT_BRANCH>
 
 ## Cloud Agent 1: Market Intelligence
 
 **Files YOU own:**
-[List from Step 2]
+- backend/app/market/* (ALL files)
+- backend/app/api/market.py (<XXX> lines)
+- frontend/components/market/* (ALL files)
 
 **Tasks:**
-- P0: [Files >800 lines, N+1 queries, SELECT *]
-- P1: [Files 500-800, duplicate code, missing types]
-- P2: [Dead code, TODOs, unused imports]
+- P0: [Critical issues you found]
+- P1: [Important issues you found]
+- P2: [Nice-to-have cleanups]
 
 **DO NOT TOUCH:** watchlist/*, portfolio/*, services/*, tasks/*, utils/*
 
 ---
 
-[Repeat for Agents 2-5]
+[Repeat for Agents 2-5 with actual findings from Step 2]
 
 ---
 
@@ -131,26 +130,16 @@ Branch: <WORKING_BRANCH>
 
 ### Setup
 ```bash
-# Step 1: Go to repo
 cd /home/user/portfolio-ai
-
-# Step 2: Fetch the AGENT-INSTRUCTIONS.md file from setup branch
-git fetch origin <SETUP_BRANCH>
-git checkout origin/<SETUP_BRANCH> -- AGENT-INSTRUCTIONS.md
-
-# Step 3: Switch to working branch
-git checkout <WORKING_BRANCH>
-git pull origin <WORKING_BRANCH>
-
-# Step 4: Verify you have the file
-ls -la AGENT-INSTRUCTIONS.md
+git checkout $WORKING_BRANCH
+git pull origin $WORKING_BRANCH
 ```
 
 ### Process
-1. **TodoWrite**: Create task list from your P0/P1/P2 tasks above
-2. **Read YOUR files only**: Use Read tool on files you own
-3. **Fix issues in order**: P0 (critical) → P1 (important) → P2 (nice-to-have)
-4. **Test after each fix**:
+1. **TodoWrite**: Create task list from P0/P1/P2 above
+2. **Read YOUR files only**: Don't touch other agents' files
+3. **Fix in order**: P0 → P1 → P2
+4. **Test each fix**:
    ```bash
    bash ~/portfolio-ai/scripts/lint.sh
    cd ~/portfolio-ai/backend && pytest tests/ -v
@@ -158,247 +147,189 @@ ls -la AGENT-INSTRUCTIONS.md
 5. **Commit frequently**:
    ```bash
    git add <files>
-   git commit -m "chore(cloud-X): <summary>"
+   git commit -m "chore(agent-X): brief description"
    ```
 6. **Push when done**:
    ```bash
-   git push origin <WORKING_BRANCH>
+   git push origin $WORKING_BRANCH
    ```
-7. **Generate report**: Use template below
+7. **Generate report** (see template below)
 
 ### Rules
-✅ **Edit ONLY your files** - Zero overlap ensures zero conflicts
-✅ **Test before commit** - All lint and tests must pass
-✅ **Small commits** - One logical change per commit
-✅ **Follow patterns** - Match existing code style
-❌ **NEVER touch other agents' files** - This prevents merge conflicts
-❌ **NEVER skip testing** - Broken code blocks other agents
-❌ **NEVER use `--no-verify`** - Pre-commit hooks must pass
+✅ Edit ONLY your assigned files
+✅ Test before every commit
+✅ Small commits (one logical change)
+❌ NEVER touch other agents' files
+❌ NEVER skip testing
+❌ NEVER use --no-verify
 
-### Priority Definitions
-- **P0 (Critical)**: Files >800 lines, N+1 queries, SELECT *, performance issues
+### Priority Levels
+- **P0 (Critical)**: Files >800 lines, N+1 queries, SELECT *, security issues
 - **P1 (Important)**: Files 500-800 lines, duplicate code, missing types
-- **P2 (Nice-to-have)**: Dead code, TODOs, unused imports, documentation
+- **P2 (Nice-to-have)**: Dead code, TODOs, unused imports
 
 ### Report Template
 ```markdown
-# Cloud Agent X: [Module Name]
+# Agent X: [Module Name]
 
 ## Summary
-[2-3 sentences describing what you accomplished]
+[2-3 sentences]
 
 ## Files Modified
-- `path/to/file.py` - [description of changes]
+- `file.py` - [changes]
 
 ## Issues Fixed
-
 ### P0: Critical
 1. **Issue**: [description]
-   - **Location**: `file.py:123`
+   - **Location**: file.py:123
    - **Fix**: [what you did]
    - **Impact**: [measurable improvement]
 
 ### P1: Important
-[Same format]
+[same format]
 
 ### P2: Nice-to-have
-[Same format]
+[same format]
 
 ## Metrics
-- **Files Modified**: X
-- **Lines Added**: +X
-- **Lines Removed**: -X
-- **Net Change**: -X lines (Y% reduction)
-- **Time Spent**: X hours
+- Files Modified: X
+- Lines Added: +X
+- Lines Removed: -X
+- Net Change: -X lines (Y% reduction)
 
 ## Testing
-- ✅ Linting: `bash ~/portfolio-ai/scripts/lint.sh` passed
-- ✅ Tests: All X tests passed
-- ✅ Manual: [brief description]
+- ✅ Lint passed
+- ✅ All X tests passed
+- ✅ Manual: [description]
 
 ## Notes
-[Any issues, blockers, or recommendations]
+[Issues, blockers, recommendations]
 ```
 
 ---
 
-## Example Workflow
-
-### Agent 1 starts:
+## Example: Agent 1 starts
 ```bash
 cd /home/user/portfolio-ai
-git fetch origin <SETUP_BRANCH>
-git checkout origin/<SETUP_BRANCH> -- AGENT-INSTRUCTIONS.md
-git checkout <WORKING_BRANCH>
-git pull origin <WORKING_BRANCH>
+git checkout $WORKING_BRANCH
+git pull
 ```
 
 Read files → Fix issues → Test → Commit → Push → Report
-
-### All 5 agents can work in parallel with ZERO conflicts because:
-- Each agent owns different files
-- No file overlap between agents
-- Each pushes to same branch (git handles auto-merge)
-
----
-
-## BEGIN WORK
-
-When user says: **"You are Cloud Agent X"**
-1. Find your section above (1-5)
-2. Use TodoWrite to create task list
-3. Follow the Process steps
-4. Generate report when done
-5. Push to branch
 
 ---
 
 ## VERIFICATION & MERGE (Local Agent)
 
-**After all 5 agents complete**, hand off to local agent with:
+**After all 5 agents complete:**
 
 ```
 You are the Verification Agent.
+Branch: $WORKING_BRANCH
 
-Pull the distributed code review branch and verify all work:
-
-1. Pull branch:
+1. Pull and review:
    cd /home/user/portfolio-ai
-   git checkout <WORKING_BRANCH>
-   git pull origin <WORKING_BRANCH>
-
-2. Review commits:
+   git checkout $WORKING_BRANCH
+   git pull origin $WORKING_BRANCH
    git log --oneline -20
    git diff main...HEAD --stat
 
-3. Run full test suite:
+2. Test everything:
    bash ~/portfolio-ai/scripts/lint.sh
    cd ~/portfolio-ai/backend && source .venv/bin/activate && pytest tests/ -v
 
-4. Restart and verify services:
+3. Verify services:
    bash ~/portfolio-ai/scripts/restart.sh
    sleep 10
    bash ~/portfolio-ai/scripts/status.sh
 
-5. Manual smoke test:
-   - Visit http://192.168.8.233:3000
-   - Test each module (market, watchlist, portfolio, news, status)
+4. Manual smoke test:
+   http://192.168.8.233:3000
+   Test: market, watchlist, portfolio, news, status pages
 
-6. If all pass, merge to main:
+5. If all pass:
    git checkout main
-   git merge <WORKING_BRANCH>
+   git merge $WORKING_BRANCH
    git push origin main
 
-7. Generate final report with:
-   - Total commits from all agents
-   - Lines changed (added/removed)
+6. Report:
+   - Total commits
+   - Lines changed
    - Test results
-   - Any issues found
+   - Issues found
 ```
-
-**Expected outcome:**
-- All 508+ tests passing
-- All linting/mypy checks passing
-- Services healthy
-- Clean merge to main
 
 **Good luck!** 🚀
 ```
 
-**IMPORTANT:** Replace `<SETUP_BRANCH>` and `<WORKING_BRANCH>` with actual branch names throughout the file.
+**Important:** Replace `$WORKING_BRANCH` with actual branch name from Step 1.
 
 ---
 
-## Step 4: Commit and Push AGENT-INSTRUCTIONS.md
+## Step 5: Commit AGENT-INSTRUCTIONS.md
 
-**Switch to YOUR setup branch** (you can push here):
+Commit to YOUR branch (the setup branch):
 
 ```bash
-git checkout <SETUP_BRANCH>
 git add AGENT-INSTRUCTIONS.md
-git commit -m "docs: add distributed code review agent instructions"
-git push origin <SETUP_BRANCH>
-```
-
-**Verify the file is accessible:**
-```bash
-git fetch origin <SETUP_BRANCH>
-git checkout origin/<SETUP_BRANCH> -- AGENT-INSTRUCTIONS.md
-ls -la AGENT-INSTRUCTIONS.md
+git commit -m "docs: distributed code review instructions"
+git push origin HEAD
 ```
 
 ---
 
-## Step 5: Tell User
+## Step 6: Tell User
 
-Report to user:
-
-```
-✅ Setup Complete - Distributed Code Review System Ready
-
-**File Location:**
-- Branch: `<SETUP_BRANCH>`
-- Path: `/home/user/portfolio-ai/AGENT-INSTRUCTIONS.md`
-- Pushed to remote: ✅
-
-**Launch Each Agent (1-5) with this prompt:**
+Report completion:
 
 ```
-You are Cloud Agent [1/2/3/4/5].
+✅ Setup Complete - Distributed Code Review Ready
 
-First, get the instructions:
+**Working Branch:** `<WORKING_BRANCH>`
+**Setup Branch:** `<YOUR_BRANCH>`
+**Instructions:** AGENT-INSTRUCTIONS.md (committed to setup branch)
+
+**Launch Each Worker Agent (1-5):**
+
+```
+You are Cloud Agent X.
+
 cd /home/user/portfolio-ai
-git fetch origin <SETUP_BRANCH>
-git checkout origin/<SETUP_BRANCH> -- AGENT-INSTRUCTIONS.md
+git fetch origin <YOUR_SETUP_BRANCH>
+git checkout origin/<YOUR_SETUP_BRANCH> -- AGENT-INSTRUCTIONS.md
 git checkout <WORKING_BRANCH>
 git pull origin <WORKING_BRANCH>
 
-Now read and execute:
-Read /home/user/portfolio-ai/AGENT-INSTRUCTIONS.md and execute your tasks.
-```
-
-**Simplified one-liner:**
-```
-You are Cloud Agent X.
-Run: cd /home/user/portfolio-ai && git fetch origin <SETUP_BRANCH> && git checkout origin/<SETUP_BRANCH> -- AGENT-INSTRUCTIONS.md && git checkout <WORKING_BRANCH> && git pull
-Then read /home/user/portfolio-ai/AGENT-INSTRUCTIONS.md and execute.
+Read /home/user/portfolio-ai/AGENT-INSTRUCTIONS.md and execute.
 ```
 
 **Module Summary:**
-- Agent 1: Market Intelligence (market/*, api/market.py)
-- Agent 2: Watchlist (watchlist/*, api/watchlist.py) [Has 1030-line file]
-- Agent 3: Portfolio & Analytics (portfolio/*, analytics/*)
-- Agent 4: News & Services (services/*, sources/*, ml/*, api/news.py) [Has 841-line file]
-- Agent 5: Tasks & Infrastructure (tasks/*, utils/*, api/status.py) [Has 966-line file]
+- Agent 1: Market (<size>L market.py)
+- Agent 2: Watchlist (<size>L refresh_processor.py - NEEDS SPLIT)
+- Agent 3: Portfolio (<size>L paper_trading.py)
+- Agent 4: News (<size>L news_service.py - NEEDS SPLIT)
+- Agent 5: Infrastructure (<size>L status.py - NEEDS SPLIT)
 
 **Workflow:**
-1. Launch 5 agents in parallel → All push to `<WORKING_BRANCH>`
-2. After all complete → Launch verification agent → Tests & merge to main
+1. Launch 5 worker agents → All push to `<WORKING_BRANCH>`
+2. After all complete → Launch verification agent
+3. Verification agent → Tests & merges to main
 
-Ready to launch! 🚀
+**Ready to launch!** 🚀
 ```
 
 ---
 
-## Step 6: Optional - Do Cleanup Work (If Tokens Available)
+## Step 7: Optional Cleanup (If Tokens Available)
 
-**If you have >50K tokens remaining after setup**, you can start working on code cleanup yourself!
-
-Check your token usage, then:
+**If you have >80K tokens remaining**, pick a simple module and start cleaning:
 
 ```bash
-# Pick the SIMPLEST module (usually Market or Portfolio)
-# DO NOT pick modules with >800 line files (those need splitting)
-
-# Example: Work on Market module
+# Pick module with no >800 line files (usually Market)
 cd /home/user/portfolio-ai
 git checkout <WORKING_BRANCH>
-git pull origin <WORKING_BRANCH>
 
-# Read the files
-Read backend/app/api/market.py
-
-# Fix issues:
+# Fix quick wins:
 # - Remove unused imports
 # - Fix obvious N+1 queries
 # - Add type hints
@@ -406,46 +337,32 @@ Read backend/app/api/market.py
 
 # Test
 bash ~/portfolio-ai/scripts/lint.sh
-cd ~/portfolio-ai/backend && pytest tests/ -v
+cd backend && pytest tests/ -v
 
 # Commit
-git add <files>
-git commit -m "chore(setup-agent): optimize market module"
+git commit -m "chore(setup-agent): cleanup <module>"
 git push origin <WORKING_BRANCH>
 ```
 
-**Guidelines for optional work:**
-- ✅ Only if >50K tokens remaining
-- ✅ Pick simplest module (no >800 line files)
-- ✅ Focus on quick wins (unused imports, dead code, obvious fixes)
-- ✅ Test before committing
-- ✅ Push to `<WORKING_BRANCH>` (same branch as other agents)
-- ❌ Don't start if <50K tokens (save for agents)
-- ❌ Don't tackle file splitting (leave for dedicated agents)
-
-This gives you a head start on the cleanup! Other agents will handle the heavy lifting.
+This gives agents a head start!
 
 ---
 
 ## Repeatable Process
 
-For future code reviews, just:
-1. Create two branches (setup branch + working branch)
-2. Start new session with this prompt
-3. Tell setup agent the branch names
-4. Setup agent creates AGENT-INSTRUCTIONS.md
-5. Launch 5 worker agents
-6. Launch 1 verification agent
-7. Merge to main
+**Future code reviews:**
 
-**Time estimate:**
-- Setup: 15-30 min
-- 5 agents in parallel: 2-4 hours each
-- Verification: 30-60 min
-- **Total wall time: ~4 hours (vs 20+ hours sequential)**
+1. Start new Claude session (auto-creates setup branch)
+2. Say: "Read SETUP-PROMPT.md from main and execute"
+3. Setup agent creates working branch + instructions
+4. Launch 5 worker agents
+5. Launch verification agent
+6. Merge to main
+
+**Estimated time:** ~4 hours parallel (vs 20+ sequential)
 
 ---
 
 ## BEGIN NOW
 
-The user has given you this prompt. Follow the steps above to set up the distributed code review system.
+Execute steps 1-6 above. Be thorough in analysis (Step 2) so agents have clear tasks.
