@@ -15,6 +15,7 @@ from typing import Any
 from cachetools import TTLCache  # type: ignore[import-untyped]
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -142,6 +143,15 @@ def cache_response(
 
             result = await func(*args, **kwargs)
 
+            # Serialize result for caching
+            serialized_result = result
+            if isinstance(result, BaseModel):
+                # Convert Pydantic models to dict for JSON serialization
+                serialized_result = result.model_dump(mode="json")
+            elif isinstance(result, list) and result and isinstance(result[0], BaseModel):
+                # Handle list of Pydantic models
+                serialized_result = [item.model_dump(mode="json") for item in result]
+
             # Store in cache
             if isinstance(result, JSONResponse):
                 _cache[cache_key] = (
@@ -157,21 +167,19 @@ def cache_response(
                     dict(result.headers) if hasattr(result, "headers") else {},
                 )
             else:
-                # For dict/list responses (auto-converted to JSON by FastAPI)
-                _cache[cache_key] = (result, 200, {})
+                # For dict/list/Pydantic responses (auto-converted to JSON by FastAPI)
+                _cache[cache_key] = (serialized_result, 200, {})
 
             # Add cache miss header to original response
             if isinstance(result, Response):
                 result.headers["X-Cache-Hit"] = "false"
-            else:
-                # Return new JSONResponse with header
-                return JSONResponse(
-                    content=result,
-                    status_code=200,
-                    headers={"X-Cache-Hit": "false"},
-                )
-
-            return result
+                return result
+            # Return new JSONResponse with header for non-Response results
+            return JSONResponse(
+                content=serialized_result,
+                status_code=200,
+                headers={"X-Cache-Hit": "false"},
+            )
 
         return wrapper
 

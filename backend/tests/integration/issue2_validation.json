@@ -4,7 +4,7 @@
   "validated": false,
   "evidence": {
     "watchlist_symbols": 10,
-    "get_symbol_news_calls": 0,
+    "get_news_intelligence_calls": 0,
     "get_watchlist_news_calls": 1,
     "total_api_calls": 1
   },
