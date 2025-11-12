@@ -196,6 +196,17 @@ celery_app.conf.beat_schedule = {
         # - Calculates RSI, SMA_200, and other technical indicators
         # - Must run after refresh-daily-ohlcv completes
     },
+    "calculate-fear-greed-daily": {
+        "task": "calculate_fear_greed",
+        "schedule": 86400.0,  # Daily (24 hours)
+        "args": [None],  # Calculate for latest available date
+        "options": {"expires": 3600},  # Task expires after 1 hour
+        # Notes:
+        # - Runs daily at ~03:00 UTC (after indicators update)
+        # - Calculates Fear & Greed Index from inputs table
+        # - Uses 252-day rolling window for percentile rankings
+        # - Must run after update-technical-indicators-daily completes
+    },
     # Future: Data cleanup task
     # Note: Commented example for future implementation
     # "cleanup-old-data": {

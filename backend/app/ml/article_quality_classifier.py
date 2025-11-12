@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 from typing import TypedDict
 
-import joblib  # type: ignore[import-untyped]
+import joblib  # type: ignore[import-not-found]
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -109,7 +109,7 @@ class ArticleQualityClassifier:
 
     def _prepare_features(
         self, headlines: list[str], summaries: list[str], fit_vectorizer: bool = False
-    ) -> np.ndarray:  # type: ignore[type-arg]
+    ) -> np.ndarray:
         """
         Prepare feature matrix combining TF-IDF and hand-crafted features.
 
