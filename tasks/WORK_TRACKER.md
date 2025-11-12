@@ -12,7 +12,7 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-*No active tasks*
+(No active tasks)
 
 ---
 
