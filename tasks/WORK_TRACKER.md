@@ -69,19 +69,20 @@
 
 *Last 5 completions - older items auto-archive to tasks/archive/YYYY-MM.md*
 
-1. **Toast Notification System** (2025-11-11) ✅ COMPLETE (Already Implemented)
-   - File: `tasks-0047-toast-notifications.md`
-   - Duration: ~15 minutes (verification only)
-   - Results: All toast notifications already implemented
+1. **Table Freshness Fixes** (2025-11-11) ✅ COMPLETE
+   - File: Commit b2c8cb2
+   - Duration: ~30 minutes
+   - Results: All 10 tables now monitored correctly
    - Achievements:
-     - ✅ Watchlist add/delete: toast.promise in useWatchlist.ts
-     - ✅ Portfolio add/update/delete: toast.promise in usePortfolio.ts
-     - ✅ Idea status updates: toast.promise in useIdeas.ts
-     - ✅ Sonner configured in layout.tsx (top-right, richColors)
-     - ✅ All operations use loading → success/error states
-     - ✅ User-friendly error messages with context
+     - ✅ Created maintenance_log table (migration 001, 001a)
+     - ✅ Fixed ML model metrics naive datetime (migration 030a)
+     - ✅ Fixed source_metrics column name (created_at → calculated_at)
+     - ✅ All tables timezone-aware (TIMESTAMPTZ)
+     - ✅ ML Model Metrics: fresh status (3 rows)
+     - ✅ Source Metrics: fresh status (11 rows)
+     - ✅ Maintenance API: working
+   - Additional: Toast notifications verified already implemented
    - Documentation: HANDOFF-toast-notifications-verification.md
-   - Status: Ready for user testing on local environment
 
 2. **Extend Data Freshness Card on Status Page** (2025-11-12) ✅ COMPLETE
    - File: `tasks-0053-extend-data-freshness-card.md`

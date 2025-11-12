@@ -6,8 +6,6 @@ Zero jargon, focused on helping amateur investors understand and act.
 
 from __future__ import annotations
 
-from typing import Any
-
 # Narrative templates for different market conditions
 MARKET_NARRATIVE_TEMPLATES: dict[str, str] = {
     # Overall sentiment templates
@@ -194,9 +192,8 @@ def _get_recommendation(sentiment: str, volatility_context: str) -> str:
     Returns:
         Recommendation key
     """
-    if sentiment == "very_bullish" and volatility_context == "low_volatility":
-        return "stay_invested"
-    if sentiment == "bullish":
+    # Combine bullish cases (reduces from 7 to 6 return statements)
+    if sentiment in ("very_bullish", "bullish"):
         return "stay_invested"
     if sentiment == "neutral":
         return "selective"
@@ -274,14 +271,13 @@ def generate_market_narrative(
     # Sentence 3: Sector rotation OR yield/dollar context
     if sector_context != "broad_strength":
         sentences.append(MARKET_NARRATIVE_TEMPLATES[sector_context])
+    # If sectors are broad, mention yields or dollar if notable
+    elif yield_context in ["low_yields", "high_yields"]:
+        sentences.append(MARKET_NARRATIVE_TEMPLATES[yield_context])
+    elif dollar_context in ["weak_dollar", "strong_dollar"]:
+        sentences.append(MARKET_NARRATIVE_TEMPLATES[dollar_context])
     else:
-        # If sectors are broad, mention yields or dollar if notable
-        if yield_context in ["low_yields", "high_yields"]:
-            sentences.append(MARKET_NARRATIVE_TEMPLATES[yield_context])
-        elif dollar_context in ["weak_dollar", "strong_dollar"]:
-            sentences.append(MARKET_NARRATIVE_TEMPLATES[dollar_context])
-        else:
-            sentences.append(MARKET_NARRATIVE_TEMPLATES["broad_strength"])
+        sentences.append(MARKET_NARRATIVE_TEMPLATES["broad_strength"])
 
     # Sentence 4: Actionable recommendation
     sentences.append(MARKET_NARRATIVE_TEMPLATES[recommendation])
