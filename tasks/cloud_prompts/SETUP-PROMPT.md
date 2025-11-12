@@ -6,6 +6,42 @@ You are the Setup Agent. Read SETUP-PROMPT.md from main and execute.
 
 ---
 
+## ⚠️ CRITICAL: Cloud Agent Constraints
+
+**YOU (Setup Agent) and ALL Worker Agents (1-5) are Cloud Agents with LIMITED capabilities:**
+
+### ✅ Cloud Agents CAN:
+- Read files (Read, Glob, Grep tools)
+- Edit files (Edit, Write tools)
+- Static analysis (code review, pattern detection)
+- Git operations (checkout, commit, push, pull, log, diff, status)
+- Create documentation and reports
+
+### ❌ Cloud Agents CANNOT:
+- **Run tests** (`pytest`, `npm test`, etc.) - No test execution
+- **Start/restart services** (`bash ~/portfolio-ai/scripts/restart.sh`) - No service management
+- **Run database migrations** - No database access
+- **Execute application code** (`python`, `node`, etc.) - No runtime execution
+- **Check service status** (except via git log/status) - No system inspection
+- **Access .venv/** - Virtual environment not available
+- **Run linters/formatters** (`ruff`, `mypy`, `eslint`) - Tools not installed
+
+### 🎯 Cloud Agent Workflow:
+1. **Read** code to understand issues
+2. **Edit** code to fix issues (based on static analysis)
+3. **Commit** changes with clear messages
+4. **Trust** that fixes are correct (no local verification possible)
+5. **Report** what you did for local verification agent
+
+### 🖥️ Local Verification Agent (Step 7):
+- **ONLY the Verification Agent** can run tests, restart services, and verify changes
+- Verification Agent runs on local dev machine with full capabilities
+- All 5 worker agents submit code blindly, verification agent validates
+
+**IMPORTANT:** Do NOT attempt to run tests or services. Focus on code quality through reading and editing only.
+
+---
+
 ## Step 1: Create Working Branch
 
 All worker agents need a shared branch to collaborate on:
@@ -139,11 +175,7 @@ git pull origin $WORKING_BRANCH
 1. **TodoWrite**: Create task list from P0/P1/P2 above
 2. **Read YOUR files only**: Don't touch other agents' files
 3. **Fix in order**: P0 → P1 → P2
-4. **Test each fix**:
-   ```bash
-   bash ~/portfolio-ai/scripts/lint.sh
-   cd ~/portfolio-ai/backend && pytest tests/ -v
-   ```
+4. **Review your changes**: Use static analysis (read the code, check logic)
 5. **Commit frequently**:
    ```bash
    git add <files>
@@ -155,13 +187,15 @@ git pull origin $WORKING_BRANCH
    ```
 7. **Generate report** (see template below)
 
-### Rules
+### Rules (Cloud Agent Constraints)
 ✅ Edit ONLY your assigned files
-✅ Test before every commit
+✅ Review changes carefully (no testing available)
 ✅ Small commits (one logical change)
+✅ Trust your static analysis
 ❌ NEVER touch other agents' files
-❌ NEVER skip testing
-❌ NEVER use --no-verify
+❌ NEVER attempt to run tests (you can't)
+❌ NEVER attempt to restart services (you can't)
+❌ NEVER use runtime verification (Verification Agent will test)
 
 ### Priority Levels
 - **P0 (Critical)**: Files >800 lines, N+1 queries, SELECT *, security issues
@@ -197,35 +231,40 @@ git pull origin $WORKING_BRANCH
 - Lines Removed: -X
 - Net Change: -X lines (Y% reduction)
 
-## Testing
-- ✅ Lint passed
-- ✅ All X tests passed
-- ✅ Manual: [description]
+## Testing (Cloud Agent - Static Analysis Only)
+- ✅ Code reviewed for correctness
+- ✅ Logic verified through static analysis
+- ⏳ Awaiting Verification Agent for runtime testing
 
 ## Notes
-[Issues, blockers, recommendations]
+[Issues, blockers, recommendations for Verification Agent]
 ```
 
 ---
 
-## Example: Agent 1 starts
+## Example: Agent 1 starts (Cloud Agent)
 ```bash
 cd /home/user/portfolio-ai
 git checkout $WORKING_BRANCH
 git pull
 ```
 
-Read files → Fix issues → Test → Commit → Push → Report
+Read files → Fix issues → Review changes → Commit → Push → Report
+
+**Note:** No testing step - Cloud agents rely on static analysis only.
 
 ---
 
-## VERIFICATION & MERGE (Local Agent)
+## VERIFICATION & MERGE (Local Agent ONLY)
+
+**⚠️ CRITICAL: This step requires a LOCAL agent with full capabilities (tests, services, database).**
 
 **After all 5 agents complete:**
 
 ```
-You are the Verification Agent.
+You are the Verification Agent running on LOCAL dev machine.
 Branch: $WORKING_BRANCH
+Environment: Local Dev (full capabilities)
 
 1. Pull and review:
    cd /home/user/portfolio-ai
@@ -311,9 +350,17 @@ Read /home/user/portfolio-ai/AGENT-INSTRUCTIONS.md and execute.
 - Agent 5: Infrastructure (<size>L status.py - NEEDS SPLIT)
 
 **Workflow:**
-1. Launch 5 worker agents → All push to `<WORKING_BRANCH>`
-2. After all complete → Launch verification agent
+1. Launch 5 **Cloud** worker agents (1-5) → All push to `<WORKING_BRANCH>`
+   - Cloud agents: Code review and editing only (no tests/services)
+   - Work in parallel on isolated modules
+2. After all complete → Launch **Local** verification agent
+   - Local agent: Full testing, service restart, validation
 3. Verification agent → Tests & merges to main
+
+**Agent Environment Summary:**
+- **Setup Agent (You)**: Cloud - Creates infrastructure, no testing
+- **Worker Agents (1-5)**: Cloud - Code fixes only, no testing
+- **Verification Agent**: Local - Full testing and merge
 
 **Ready to launch!** 🚀
 ```
@@ -329,20 +376,20 @@ Read /home/user/portfolio-ai/AGENT-INSTRUCTIONS.md and execute.
 cd /home/user/portfolio-ai
 git checkout <WORKING_BRANCH>
 
-# Fix quick wins:
+# Fix quick wins (static analysis only):
 # - Remove unused imports
 # - Fix obvious N+1 queries
 # - Add type hints
 # - Clean dead code
 
-# Test
-bash ~/portfolio-ai/scripts/lint.sh
-cd backend && pytest tests/ -v
-
-# Commit
+# Review your changes carefully (no testing available)
+# Commit with confidence based on static analysis
+git add <files>
 git commit -m "chore(setup-agent): cleanup <module>"
 git push origin <WORKING_BRANCH>
 ```
+
+**Note:** As a Cloud Agent, you can't run tests. Trust your static analysis. The Verification Agent will test everything.
 
 This gives agents a head start!
 
