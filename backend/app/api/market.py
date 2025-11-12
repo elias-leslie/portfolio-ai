@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, Field
 
+from app.middleware.cache import cache_response
 from app.portfolio.price_fetcher import PriceDataFetcher
 from app.storage import get_storage
 
@@ -313,7 +314,8 @@ def calculate_market_health(
 
 
 @router.get("/conditions", response_model=MarketConditionsResponse)
-async def get_market_conditions() -> MarketConditionsResponse:
+@cache_response(ttl=300)  # 5 minutes cache
+async def get_market_conditions(request: Request) -> MarketConditionsResponse:
     """Get current market conditions with health scoring.
 
     Returns:
@@ -406,7 +408,9 @@ async def get_market_conditions() -> MarketConditionsResponse:
 
 
 @router.get("/prices", response_model=PricesResponse)
+@cache_response(ttl=60)  # 1 minute cache
 async def get_prices(
+    request: Request,
     symbols: str = Query(..., description="Comma-separated symbols"),
 ) -> PricesResponse:
     """Get current prices for stock symbols."""

@@ -6,11 +6,12 @@ import json
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
 from app.logging_config import get_logger
+from app.middleware.cache import cache_response, invalidate_endpoint_cache
 from app.storage import get_storage
 from app.utils.watchlist_cache import invalidate_watchlist_cache
 from app.watchlist.background_tasks import schedule_new_ticker_tasks, schedule_refresh_tasks
@@ -49,7 +50,8 @@ watchlist_service = WatchlistService(storage)
 
 # Endpoints
 @router.get("", response_model=WatchlistListResponse)
-async def list_watchlist_items() -> WatchlistListResponse:
+@cache_response(ttl=60)  # 1 minute cache
+async def list_watchlist_items(request: Request) -> WatchlistListResponse:
     """
     List all watchlist items with current scores.
 
@@ -112,6 +114,9 @@ async def create_watchlist_item(data: WatchlistItemCreate) -> WatchlistItemRespo
 
         # Invalidate watchlist symbols cache (Issue #4 fix)
         invalidate_watchlist_cache()
+
+        # Invalidate response cache for watchlist endpoint
+        invalidate_endpoint_cache("/api/watchlist", method="GET")
 
         logger.info("Watchlist item created", item_id=item_id, symbol=symbol)
 
@@ -325,6 +330,9 @@ async def delete_watchlist_item(item_id: str) -> None:
 
         # Invalidate watchlist symbols cache (Issue #4 fix)
         invalidate_watchlist_cache()
+
+        # Invalidate response cache for watchlist endpoint
+        invalidate_endpoint_cache("/api/watchlist", method="GET")
 
         logger.info("Watchlist item deleted", item_id=item_id)
     except HTTPException:

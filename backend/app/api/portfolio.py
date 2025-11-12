@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app.logging_config import get_logger
+from app.middleware.cache import cache_response, invalidate_endpoint_cache
 from app.portfolio.analytics import PortfolioAnalytics
 from app.portfolio.manager import PortfolioManager
 from app.portfolio.price_fetcher import PriceDataFetcher
@@ -126,7 +127,8 @@ class AnalyticsResponse(BaseModel):
 
 
 @router.get("/", response_model=PortfolioResponse)
-async def get_portfolio() -> PortfolioResponse:
+@cache_response(ttl=30)  # 30 seconds cache
+async def get_portfolio(request: Request) -> PortfolioResponse:
     """Get all portfolio positions with current values."""
     positions = portfolio_mgr.get_positions()
 
@@ -263,6 +265,10 @@ async def create_position(position: PositionCreate) -> PositionResponse:
         position_type=position.position_type,
     )
 
+    # Invalidate portfolio cache
+    invalidate_endpoint_cache("/api/portfolio/", method="GET")
+    invalidate_endpoint_cache("/api/portfolio/analytics", method="GET")
+
     # Get current price if available
     price_data = price_fetcher.fetch_price_data([created.symbol])
     price_info = price_data.get(created.symbol)
@@ -317,6 +323,10 @@ async def update_position(position_id: str, position: PositionCreate) -> Positio
         position_type=position.position_type,
     )
 
+    # Invalidate portfolio cache
+    invalidate_endpoint_cache("/api/portfolio/", method="GET")
+    invalidate_endpoint_cache("/api/portfolio/analytics", method="GET")
+
     # Get current price if available
     price_data = price_fetcher.fetch_price_data([updated.symbol])
     price_info = price_data.get(updated.symbol)
@@ -351,11 +361,17 @@ async def update_position(position_id: str, position: PositionCreate) -> Positio
 async def delete_position(position_id: str) -> dict[str, str]:
     """Delete a portfolio position."""
     portfolio_mgr.delete_position(position_id)
+
+    # Invalidate portfolio cache
+    invalidate_endpoint_cache("/api/portfolio/", method="GET")
+    invalidate_endpoint_cache("/api/portfolio/analytics", method="GET")
+
     return {"status": "deleted", "position_id": position_id}
 
 
 @router.get("/analytics", response_model=AnalyticsResponse)
-async def get_analytics() -> AnalyticsResponse:
+@cache_response(ttl=30)  # 30 seconds cache
+async def get_analytics(request: Request) -> AnalyticsResponse:
     """Get portfolio analytics (value, beta, volatility, concentration, sector exposure)."""
     positions = portfolio_mgr.get_positions()
 

@@ -62,6 +62,34 @@
      - [ ] Task 7: Frontend & UX
      - [ ] Task 8: Governance & documentation
 
+3. **Response Caching Middleware** (MEDIUM (2-3 hours), 0/8 tasks, ready for local testing)
+   - File: `tasks-0047-response-caching-middleware.md`
+   - Created: 2025-11-11
+   - Branch: `claude/setup-task-methodology-011CV2GyoVTgkzZEveAK5kGc`
+   - Goal: Add response caching middleware to reduce load on expensive API calls, improving response times
+   - Status: ✅ Code complete, ready for local testing
+   - Implementation:
+     - ✅ Lightweight caching using cachetools (TTL-based, no Redis)
+     - ✅ @cache_response decorator with configurable TTL
+     - ✅ Market endpoints: 5 min TTL (conditions, prices)
+     - ✅ Watchlist endpoints: 1 min TTL
+     - ✅ Portfolio endpoints: 30 sec TTL
+     - ✅ Cache invalidation on mutations (POST/PUT/DELETE)
+     - ✅ X-Cache-Hit header for observability
+     - ✅ Cache management endpoints (stats, clear)
+     - ✅ Environment variable configuration
+   - Files Created:
+     - backend/app/middleware/__init__.py
+     - backend/app/middleware/cache.py
+   - Files Modified:
+     - backend/app/api/market.py
+     - backend/app/api/watchlist.py
+     - backend/app/api/portfolio.py
+     - backend/app/api/health.py
+     - backend/.env.example
+   - Handoff: `tasks/HANDOFF-caching-middleware-local-testing.md`
+   - Next: Local functional testing, integration tests, performance validation
+
 
 ---
 

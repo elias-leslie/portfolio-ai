@@ -13,6 +13,8 @@ from fastapi import APIRouter, Response
 from pydantic import BaseModel, Field
 
 from ..logging_config import get_logger
+from ..middleware.cache import clear_cache
+from ..middleware.cache import get_cache_stats as get_response_cache_stats
 from ..services.service_monitor import get_all_service_statuses
 from ..storage import get_storage
 from ..utils.health_checks import (
@@ -370,3 +372,91 @@ async def get_deletion_rate(hours: int = 1) -> DeletionRate:
             total_deletions=0,
             message=f"⚠️  Deletion auditing not enabled (migration 024 required): {e}",
         )
+
+
+class ResponseCacheStats(BaseModel):
+    """Response cache statistics."""
+
+    enabled: bool
+    size: int
+    max_size: int
+    ttl_default: int
+    hits: int
+    misses: int
+    hit_rate: float
+    invalidations: int
+
+
+@router.get("/cache/stats", response_model=ResponseCacheStats)
+async def get_cache_statistics() -> ResponseCacheStats:
+    """Get response cache statistics.
+
+    Returns cache size, hit rate, and other metrics for the response caching middleware.
+
+    Returns:
+        Response cache statistics including hit rate and size
+
+    Example:
+        GET /health/cache/stats
+        {
+            "enabled": true,
+            "size": 42,
+            "max_size": 1000,
+            "ttl_default": 300,
+            "hits": 1234,
+            "misses": 567,
+            "hit_rate": 68.5,
+            "invalidations": 89
+        }
+    """
+    stats = get_response_cache_stats()
+
+    logger.info(
+        "cache_stats_retrieved",
+        cache_size=stats["size"],
+        hit_rate=stats["hit_rate"],
+        total_hits=stats["hits"],
+        total_misses=stats["misses"],
+    )
+
+    return ResponseCacheStats(**stats)
+
+
+class CacheClearResponse(BaseModel):
+    """Response for cache clear operation."""
+
+    status: str
+    cleared_entries: int
+    message: str
+
+
+@router.post("/cache/clear", response_model=CacheClearResponse)
+async def clear_response_cache() -> CacheClearResponse:
+    """Clear all response cache entries.
+
+    Clears the entire response cache, forcing fresh data fetches for all cached endpoints.
+    Use this when you need to ensure all data is up-to-date.
+
+    Returns:
+        Cache clear status with number of entries cleared
+
+    Example:
+        POST /health/cache/clear
+        {
+            "status": "success",
+            "cleared_entries": 42,
+            "message": "Cleared 42 cache entries"
+        }
+    """
+    cleared_count = clear_cache()
+
+    logger.info(
+        "cache_cleared",
+        cleared_entries=cleared_count,
+    )
+
+    return CacheClearResponse(
+        status="success",
+        cleared_entries=cleared_count,
+        message=f"Cleared {cleared_count} cache entries",
+    )
