@@ -63,8 +63,10 @@ repos:
     hooks:
       - id: trailing-whitespace
         name: trim trailing whitespace
+        exclude: '\.md$'
       - id: end-of-file-fixer
         name: fix end of files
+        exclude: '\.md$'
       - id: check-yaml
         name: check yaml syntax
       - id: check-added-large-files
