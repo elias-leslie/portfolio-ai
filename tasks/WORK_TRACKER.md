@@ -1,10 +1,10 @@
 # Work Tracker
 
-**Last Updated:** 2025-11-11 (News Alignment Branch Merged)
+**Last Updated:** 2025-11-11 (Market Intelligence Complete + Data Freshness Fix)
 
-**Current Status:** ✅ News Alignment MERGED to main | 🟢 All feature branches merged! | ✅ 542 tests passing | 🎯 Next: Dashboard layouts
+**Current Status:** ✅ Market Intelligence COMPLETE | 🟢 Fear & Greed implemented | ⚠️ Data 5 days old (Nov 6) | 🎯 Next: Update data inputs
 
-**Priority**: Start dashboard layouts (no pending branches)
+**Priority**: Update fear_greed_inputs and OHLCV data to get current market data
 
 ---
 
@@ -12,7 +12,15 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-(No active tasks)
+**Update Market Data to Current Date** (HIGH PRIORITY, Quick fix)
+- Goal: Get market data from Nov 6 → Nov 11 (current)
+- Tasks:
+  - [ ] Update fear_greed_inputs table with latest data (VIX, SPY, RSI, HY spread)
+  - [ ] Run OHLCV refresh task for market indicators
+  - [ ] Trigger Fear & Greed calculation for new dates
+  - [ ] Verify dashboard shows current data
+- Impact: Market Intelligence card showing 5-day old data
+- Estimated: 30-60 minutes (mostly API calls + task execution)
 
 ---
 
@@ -97,7 +105,21 @@
 
 *Last 5 completions - older items auto-archive to tasks/archive/YYYY-MM.md*
 
-1. **News Alignment with AI Insights** (2025-11-11) ⭐ COMPLETE
+1. **Market Intelligence Finalization** (2025-11-11) ⭐ COMPLETE
+   - Commits: d77231b, 0e447aa, 3d0d06c, 8d1189d (4 commits)
+   - Duration: Full session (~3 hours)
+   - Results: Market Intelligence card fully functional
+   - Achievements:
+     - ✅ Fixed 500 error (MarketHealthScore model mismatch)
+     - ✅ Implemented Fear & Greed database query (score: 62 Greed)
+     - ✅ Added Fear & Greed calculation Celery task + scheduled daily run
+     - ✅ UI improvements (timestamp, show all 11 sectors, consistent formatting)
+     - ✅ Fixed timestamp to show actual data freshness (5 days old, not "16m ago")
+     - ✅ Resolved cherry-pick conflicts, pushed 13 commits to origin
+   - Status: Feature complete, waiting on data refresh
+   - Next: Update fear_greed_inputs and OHLCV tables with current data
+
+2. **News Alignment with AI Insights** (2025-11-11) ⭐ COMPLETE
    - File: `tasks-0046-finalize-news-alignment-branch.md`
    - Branch: `claude/align-news-sentiment-sections-011CUyEXr4XhbdjWn7Xapb7U` ✅ MERGED to main
    - Duration: Implementation and merge (3 hours)
