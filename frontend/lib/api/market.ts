@@ -90,11 +90,72 @@ export interface FearGreedResponse {
   components?: FearGreedComponent;
 }
 
+// Market Intelligence types (unified endpoint)
+export interface EnrichedIndicator {
+  value: number;
+  change_pct: number | null;
+  label: string;
+  short_label: string;
+  tooltip: string;
+  signal: "Bullish" | "Neutral" | "Bearish";
+  emoji: string;
+  last_updated: string | null;
+}
+
+export interface SectorInfo {
+  symbol: string;
+  name: string;
+  description: string;
+  price: number | null;
+  change_pct: number | null;
+  signal: "Leading" | "Neutral" | "Lagging";
+  last_updated: string | null;
+}
+
+export interface SectorRotationSummary {
+  leading: SectorInfo[];
+  neutral: SectorInfo[];
+  lagging: SectorInfo[];
+  leading_count: number;
+  neutral_count: number;
+  lagging_count: number;
+}
+
+export interface MarketHealthScoreSimple {
+  overall_score: number;
+  overall_label: string;
+  last_updated: string;
+}
+
+export interface FearGreedScore {
+  score: number;
+  label: "Extreme Fear" | "Fear" | "Neutral" | "Greed" | "Extreme Greed";
+  score_change: number | null;
+  signal_count: number;
+  last_updated: string;
+}
+
+export interface MarketIntelligenceResponse {
+  narrative: string;
+  market_health: MarketHealthScoreSimple;
+  fear_greed: FearGreedScore;
+  indicators: Record<string, EnrichedIndicator>;
+  sector_rotation: SectorRotationSummary;
+  last_updated: string;
+}
+
 /**
  * Get current market conditions (S&P 500, VIX, 10Y yield, USD index)
  */
 export async function fetchMarketConditions(): Promise<MarketConditionsResponse> {
   return apiRequest<MarketConditionsResponse>("/api/market/conditions");
+}
+
+/**
+ * Get unified market intelligence (narrative + dual scoring + sectors)
+ */
+export async function fetchMarketIntelligence(): Promise<MarketIntelligenceResponse> {
+  return apiRequest<MarketIntelligenceResponse>("/api/market/intelligence");
 }
 
 /**

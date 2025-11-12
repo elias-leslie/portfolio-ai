@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense } from "react";
-import { MarketConditions } from "@/components/portfolio/MarketConditions";
+import { MarketIntelligence } from "@/components/market/MarketIntelligence";
 import { PortfolioOverview } from "@/components/portfolio/PortfolioOverview";
 import { UnifiedNewsIntelligenceCard } from "@/components/shared/UnifiedNewsIntelligenceCard";
 import { useNewsIntelligence } from "@/lib/hooks/useNews";
@@ -60,10 +60,10 @@ export default function Dashboard() {
           </p>
         </div>
 
-        {/* Market Conditions */}
+        {/* Market Intelligence */}
         <div className="mb-10">
-          <Suspense fallback={<LoadingSkeleton title="Market Conditions" />}>
-            <MarketConditions />
+          <Suspense fallback={<LoadingSkeleton title="Market Intelligence" />}>
+            <MarketIntelligence />
           </Suspense>
         </div>
 
