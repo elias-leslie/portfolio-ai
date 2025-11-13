@@ -12,28 +12,37 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Market Conditions Card Improvements** (53% - 10/19 complete)
+1. **Market Conditions Card Improvements** (29% - 8/28 complete)
    - File: `tasks-0056-market-conditions-improvements.md`
    - Started: 2025-11-13 (today)
-   - Last updated: Paused - Phase 3 (P2) 75% Complete
+   - Last updated: Phase 1-6 COMPLETE ✅ | Phase 4 (P3 optional) remains
    - Next: Task 12.0 - Add Put/Call Ratio Indicator (data source research)
    - Tasks:
-     - [x] Task 1: Priority 0 - Critical Data Integrity (8 hours)
+     - [x] Task 1: Priority 0 - Critical Data Integrity (8 hours) ✅ COMPLETE
      - [x] Task 1: Create Scheduled Historical Data Maintenance Task ✅ COMPLETE
      - [ ] Task 2: Fix Misleading Last Updated Timestamp ✅ COMPLETE
      - [ ] Task 3: Add Daily Change Percentages for Main Indicators ✅ COMPLETE
      - [ ] Task 4: Fix Sector Change Calculation ✅ COMPLETE (Already Fixed)
      - [ ] Task 2: Priority 1 - High Priority UX Improvements (6 hours) ✅ COMPLETE
-     - [x] Task 5: Update S&P 500 Scoring Thresholds ✅ COMPLETE (Enhanced with Dynamic Approach)
-     - [x] Task 6: Investigate Missing Fear & Greed Signal ✅ COMPLETE
+     - [ ] Task 5: Update S&P 500 Scoring Thresholds ✅ COMPLETE (Enhanced with Dynamic Approach)
+     - [ ] Task 6: Investigate Missing Fear & Greed Signal ✅ COMPLETE
      - [x] Task 7: Add Staleness Warning for Old Fear & Greed Data ✅ COMPLETE
      - [x] Task 8: Remove Unused Code and Fields ✅ COMPLETE
-     - [ ] Task 3: Priority 2 - Enhanced Analytics (8 hours)
+     - [ ] Task 3: Priority 2 - Enhanced Analytics (8 hours) ✅ COMPLETE
      - [x] Task 9: Add Trend Indicators to Scores ✅ COMPLETE
      - [x] Task 10: Add 30-Day Sparkline Charts ✅ COMPLETE
      - [x] Task 11: Optimize Fear & Greed Caching ✅ COMPLETE
      - [x] Task 12: Add Put/Call Ratio Indicator ✅ COMPLETE (REFACTORED TO CBOE)
-     - [ ] Task 4: Priority 3 - Advanced Features (6 hours)
+     - [ ] Task 5: CBOE Status Page Integration (2 hours) ⏸️ **DO THIS FIRST**
+     - [ ] Task 16: Add CBOE Source to Status Page Monitoring
+     - [ ] Task 6: CBOE Options Intelligence Enhancements (6 hours)
+     - [ ] Task 17: Database Schema for Options Market Metrics
+     - [ ] Task 18: CBOE Most Active Options Scraper
+     - [ ] Task 19: Scheduled Task for Options Activity Metrics
+     - [ ] Task 20: Put/Call Ratio Historical Context
+     - [ ] Task 21: Options Activity Metrics Display
+     - [ ] Task 22: Plain-Language Narrative Enhancements
+     - [ ] Task 4: Priority 3 - Advanced Features (6 hours) [DEFERRED - Optional]
      - [ ] Task 13: Market Breadth Indicator (New Card)
      - [ ] Task 14: Correlation Matrix (Optional Expandable Section)
      - [ ] Task 15: Volatility Regime Indicator
