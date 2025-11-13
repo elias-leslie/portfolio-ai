@@ -14,11 +14,13 @@ import {
     ListRestart,
     Lock,
     Unlock,
+    Clock3,
 } from "lucide-react";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useStatusStream } from "@/lib/hooks/useStatusStream";
@@ -58,6 +60,8 @@ export default function StatusPage() {
         error,
         retryConnection,
     } = useStatusStream();
+    const [lastUpdateTimestamp, setLastUpdateTimestamp] = useState<number | null>(null);
+    const [isDataStale, setIsDataStale] = useState(false);
     const { resources, isLoading: resourcesLoading } = useSystemResources(5000); // Refresh every 5 seconds
     const {
         data: newsHealth,
@@ -100,6 +104,22 @@ export default function StatusPage() {
     } | null>(null);
     const [isActionLoading, setIsActionLoading] = useState(false);
 
+    useEffect(() => {
+        if (!health) {
+            return;
+        }
+        setLastUpdateTimestamp(Date.now());
+    }, [health]);
+
+    useEffect(() => {
+        if (lastUpdateTimestamp === null) {
+            return;
+        }
+        setIsDataStale(false);
+        const timeout = window.setTimeout(() => setIsDataStale(true), 10000);
+        return () => window.clearTimeout(timeout);
+    }, [lastUpdateTimestamp]);
+
     // Check if user has disabled confirmation dialogs
     const shouldShowDialog = (storageKey: string) => {
         if (typeof window === "undefined") return true;
@@ -111,11 +131,12 @@ export default function StatusPage() {
         setIsActionLoading(true);
         try {
             const result = await clearCache();
-            alert(`Success: ${result.message}`);
+            toast.success(result.message ?? "Price cache cleared");
         } catch (error) {
-            alert(
-                `Error: ${error instanceof Error ? error.message : "Failed to clear cache"}`,
-            );
+            const message =
+                error instanceof Error ? error.message : "Failed to clear cache";
+            toast.error(`Failed to clear cache: ${message}`);
+            throw error instanceof Error ? error : new Error(message);
         } finally {
             setIsActionLoading(false);
         }
@@ -126,11 +147,14 @@ export default function StatusPage() {
         setIsActionLoading(true);
         try {
             const result = await refreshWatchlist();
-            alert(`Success: ${result.message}`);
+            toast.success(result.message ?? "Watchlist refresh triggered");
         } catch (error) {
-            alert(
-                `Error: ${error instanceof Error ? error.message : "Failed to refresh watchlist"}`,
-            );
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : "Failed to refresh watchlist";
+            toast.error(`Failed to refresh watchlist: ${message}`);
+            throw error instanceof Error ? error : new Error(message);
         } finally {
             setIsActionLoading(false);
         }
@@ -177,11 +201,14 @@ export default function StatusPage() {
         setIsActionLoading(true);
         try {
             const result = await restartService(serviceName);
-            alert(`Success: ${result.message}`);
+            toast.success(result.message ?? `${serviceName} restart requested`);
         } catch (error) {
-            alert(
-                `Error: ${error instanceof Error ? error.message : "Failed to restart service"}`,
-            );
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : "Failed to restart service";
+            toast.error(`Failed to restart ${serviceName}: ${message}`);
+            throw error instanceof Error ? error : new Error(message);
         } finally {
             setIsActionLoading(false);
         }
@@ -235,6 +262,36 @@ export default function StatusPage() {
     };
 
     const connectionBadge = getConnectionBadge();
+    const connectionBanner = (() => {
+        if (connectionState === "disconnected") {
+            return {
+                tone: "danger" as const,
+                title: "Live stream disconnected",
+                description:
+                    "We lost connection to the SSE stream. Reconnect to resume real-time updates.",
+                icon: <WifiOff className="h-4 w-4 text-loss" />,
+            };
+        }
+        if (connectionState === "fallback") {
+            return {
+                tone: "warning" as const,
+                title: "Live stream unavailable",
+                description:
+                    "Showing backup polling data (5s interval). Retry the live stream for lower latency.",
+                icon: <Radio className="h-4 w-4 text-accent" />,
+            };
+        }
+        if (connectionState === "connected" && isDataStale) {
+            return {
+                tone: "warning" as const,
+                title: "No live events detected",
+                description:
+                    "We haven’t received new status events for 10 seconds. Refresh the stream to ensure accuracy.",
+                icon: <Clock3 className="h-4 w-4 text-accent" />,
+            };
+        }
+        return null;
+    })();
     const formatDateTime = (value?: string | null) =>
         value ? new Date(value).toLocaleString() : "—";
     const finbertStatus = newsHealth
@@ -304,16 +361,6 @@ export default function StatusPage() {
                         {connectionBadge.icon}
                         {connectionBadge.text}
                     </Badge>
-                    {connectionState === "fallback" && (
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={retryConnection}
-                        >
-                            <Wifi className="mr-2 h-4 w-4" />
-                            Retry Live Connection
-                        </Button>
-                    )}
                     <Button
                         variant="outline"
                         size="sm"
@@ -336,6 +383,37 @@ export default function StatusPage() {
             </div>
 
             {/* System overview card */}
+            {connectionBanner && (
+                <div
+                    className={`flex flex-col gap-3 rounded-2xl border p-4 text-sm sm:flex-row sm:items-center sm:justify-between ${
+                        connectionBanner.tone === "danger"
+                            ? "border-loss/50 bg-loss/10"
+                            : "border-accent/40 bg-accent/5"
+                    }`}
+                >
+                    <div className="flex items-start gap-3">
+                        {connectionBanner.icon}
+                        <div>
+                            <p className="font-semibold text-text">
+                                {connectionBanner.title}
+                            </p>
+                            <p className="text-xs text-text-muted">
+                                {connectionBanner.description}
+                            </p>
+                        </div>
+                    </div>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={retryConnection}
+                        className="shrink-0"
+                    >
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                        Retry Stream
+                    </Button>
+                </div>
+            )}
+
             <SystemStatusCard health={health} />
 
             {/* News health card */}

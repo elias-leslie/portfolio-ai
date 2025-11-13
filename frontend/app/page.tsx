@@ -2,21 +2,40 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { MarketIntelligence } from "@/components/market/MarketIntelligence";
-import { PortfolioOverview } from "@/components/portfolio/PortfolioOverview";
 import { UnifiedNewsIntelligenceCard } from "@/components/shared/UnifiedNewsIntelligenceCard";
+import { PageHeader } from "@/components/shared/PageHeader";
+import { SectionCard } from "@/components/shared/SectionCard";
 import { useNewsIntelligence } from "@/lib/hooks/useNews";
-import { Card } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 
-function LoadingSkeleton({ title }: { title: string }) {
+function SectionContentSkeleton({ rows = 3 }: { rows?: number }) {
   return (
-    <Card className="p-6">
-      <div className="flex items-center gap-2 mb-4">
-        <Loader2 className="h-5 w-5 animate-spin text-accent" />
-        <h3 className="text-sm font-semibold text-text">{title}</h3>
+    <div className="space-y-4">
+      {[...Array(rows)].map((_, index) => (
+        <div
+          key={`section-skeleton-${index}`}
+          className="h-16 w-full animate-pulse rounded-xl bg-surface-muted/50"
+        />
+      ))}
+    </div>
+  );
+}
+
+function SectionLoadingState({
+  label,
+  rows = 3,
+}: {
+  label: string;
+  rows?: number;
+}) {
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-2 text-sm font-semibold text-text-muted">
+        <Loader2 className="h-4 w-4 animate-spin text-accent" />
+        {label}
       </div>
-      <div className="h-32 animate-pulse rounded bg-surface-muted/60" />
-    </Card>
+      <SectionContentSkeleton rows={rows} />
+    </div>
   );
 }
 
@@ -58,6 +77,7 @@ function MarketNewsSection() {
     isLoading,
     error,
     isFetching,
+    refetch,
   } = useNewsIntelligence(undefined, {
     limit: articleLimit,
     enabled: shouldFetch,
@@ -74,23 +94,36 @@ function MarketNewsSection() {
 
   return (
     <div ref={sectionRef}>
-      {showSkeleton && <LoadingSkeleton title="Market News" />}
-      {!showSkeleton && error && (
-        <Card className="p-6">
-          <div className="text-sm text-text-muted py-4">Failed to load market news</div>
-        </Card>
-      )}
-      {!showSkeleton && !error && (
-        <UnifiedNewsIntelligenceCard
-          marketNewsData={newsData}
-          ticker={null}
-          showHeader={false}
-          onRequestExpanded={
-            articleLimit < MARKET_NEWS_EXPANDED_LIMIT ? handleExpandRequest : undefined
-          }
-          isLoadingMore={isLoadingMore}
-        />
-      )}
+      <SectionCard
+        variant="surface"
+        title="Market News"
+        description="Curated macro headlines and sentiment shifts across your tracked universe."
+      >
+        {showSkeleton && <SectionLoadingState label="Fetching latest headlines" rows={4} />}
+        {!showSkeleton && error && (
+          <div className="rounded-lg border border-border/50 bg-surface-muted/40 p-4 text-sm text-text-muted">
+            Failed to load market news.{" "}
+            <button
+              className="text-primary underline-offset-2 hover:underline"
+              onClick={() => refetch()}
+              type="button"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+        {!showSkeleton && !error && (
+          <UnifiedNewsIntelligenceCard
+            marketNewsData={newsData}
+            ticker={null}
+            showHeader={false}
+            onRequestExpanded={
+              articleLimit < MARKET_NEWS_EXPANDED_LIMIT ? handleExpandRequest : undefined
+            }
+            isLoadingMore={isLoadingMore}
+          />
+        )}
+      </SectionCard>
     </div>
   );
 }
@@ -98,35 +131,32 @@ function MarketNewsSection() {
 export default function Dashboard() {
   return (
     <div className="bg-bg">
-      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-10">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent">
-            Portfolio AI Dashboard
-          </h1>
-          <p className="mt-3 text-base text-text-muted">
-            AI-powered portfolio intelligence and market insights
-          </p>
-        </div>
+      <div className="mx-auto max-w-7xl space-y-10 px-4 py-10 sm:px-6 lg:px-8">
+        <PageHeader
+          title="Portfolio AI Dashboard"
+          description="AI-powered portfolio intelligence and market insights"
+        />
 
-        {/* Market Intelligence */}
-        <div className="mb-10">
-          <Suspense fallback={<LoadingSkeleton title="Market Intelligence" />}>
+        <SectionCard
+          variant="surface"
+          title="Market Intelligence"
+          description="Daily macro trends, sentiment shifts, and flow signals across sectors."
+        >
+          <Suspense fallback={<SectionLoadingState label="Loading market intelligence" rows={5} />}>
             <MarketIntelligence />
           </Suspense>
-        </div>
+        </SectionCard>
 
-        {/* Market News */}
-        <div className="mb-10">
-          <MarketNewsSection />
-        </div>
+        <MarketNewsSection />
 
-        {/* Portfolio Overview */}
-        {/* Temporarily disabled due to analytics.concentration error */}
-        {/* <div className="mb-10 space-y-4">
-          <h2 className="text-xl font-semibold text-text">Portfolio Overview</h2>
+        {/* Portfolio Overview re-enabled once analytics.concentration issue is resolved */}
+        {/* <SectionCard
+          variant="surface"
+          title="Portfolio Overview"
+          description="Snapshot of current allocation, risk profile, and performance."
+        >
           <PortfolioOverview />
-        </div> */}
+        </SectionCard> */}
       </div>
     </div>
   );

@@ -23,6 +23,7 @@ import {
   type MaintenanceResult,
   type LastRunSummary,
 } from "@/lib/api/maintenance";
+import { toast } from "sonner";
 
 interface TaskSectionProps {
   title: string;
@@ -242,14 +243,17 @@ export function MaintenanceCard() {
     setIsLoading(true);
     try {
       const result = await cleanupOldNews(dryRun);
-      alert(
-        `Cleanup ${result.status}: ${result.summary?.deleted || 0} articles ${dryRun ? "would be" : ""} deleted`
+      toast.success(
+        `Cleanup ${result.status}: ${result.summary?.deleted || 0} articles ${
+          dryRun ? "would be" : ""
+        } deleted`,
       );
       await fetchLastRunData();
     } catch (error) {
-      alert(
-        `Error: ${error instanceof Error ? error.message : "Failed to cleanup news"}`
-      );
+      const message =
+        error instanceof Error ? error.message : "Failed to cleanup news";
+      toast.error(`Cleanup failed: ${message}`);
+      throw error instanceof Error ? error : new Error(message);
     } finally {
       setIsLoading(false);
     }
@@ -269,7 +273,7 @@ export function MaintenanceCard() {
       });
       setActionDialogOpen(true);
     } else {
-      handleCleanupNews();
+      handleCleanupNews().catch(() => {});
     }
   };
 
@@ -278,14 +282,17 @@ export function MaintenanceCard() {
     setIsLoading(true);
     try {
       const result = await vacuumDatabase(dryRun);
-      alert(
-        `Vacuum ${result.status}: ${result.summary?.total_reclaimed_mb || 0} MB ${dryRun ? "could be" : ""} reclaimed`
+      toast.success(
+        `Vacuum ${result.status}: ${
+          result.summary?.total_reclaimed_mb || 0
+        } MB ${dryRun ? "could be" : ""} reclaimed`,
       );
       await fetchLastRunData();
     } catch (error) {
-      alert(
-        `Error: ${error instanceof Error ? error.message : "Failed to vacuum database"}`
-      );
+      const message =
+        error instanceof Error ? error.message : "Failed to vacuum database";
+      toast.error(`Vacuum failed: ${message}`);
+      throw error instanceof Error ? error : new Error(message);
     } finally {
       setIsLoading(false);
     }
@@ -305,7 +312,7 @@ export function MaintenanceCard() {
       });
       setActionDialogOpen(true);
     } else {
-      handleVacuumDatabase();
+      handleVacuumDatabase().catch(() => {});
     }
   };
 
@@ -319,14 +326,17 @@ export function MaintenanceCard() {
         (summary?.total_errors || 0) +
         (summary?.total_warnings || 0) +
         (summary?.total_info || 0);
-      alert(
-        `Validation ${result.status}: ${totalIssues} issues found (${summary?.total_errors || 0} errors, ${summary?.total_warnings || 0} warnings)`
+      toast.success(
+        `Validation ${result.status}: ${totalIssues} issues found (${
+          summary?.total_errors || 0
+        } errors, ${summary?.total_warnings || 0} warnings)`,
       );
       await fetchLastRunData();
     } catch (error) {
-      alert(
-        `Error: ${error instanceof Error ? error.message : "Failed to validate integrity"}`
-      );
+      const message =
+        error instanceof Error ? error.message : "Failed to validate integrity";
+      toast.error(`Validation failed: ${message}`);
+      throw error instanceof Error ? error : new Error(message);
     } finally {
       setIsLoading(false);
     }
@@ -346,7 +356,7 @@ export function MaintenanceCard() {
       });
       setActionDialogOpen(true);
     } else {
-      handleValidateIntegrity();
+      handleValidateIntegrity().catch(() => {});
     }
   };
 

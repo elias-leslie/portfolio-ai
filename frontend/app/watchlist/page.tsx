@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { PageHeader } from "@/components/shared/PageHeader";
 
 type StyleFilter = "all" | "Index" | "Trend" | "Value" | "Swing" | "Event";
 type SignalFilter = "all" | "BUY" | "HOLD" | "AVOID";
@@ -141,74 +142,75 @@ export default function WatchlistPage() {
   }, {} as Record<string, number>);
 
   return (
-    <div className="bg-bg min-h-screen">
-      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-semibold text-text">
-              Watchlist Intelligence Hub
-            </h1>
-            <p className="mt-2 text-sm text-text-muted">
-              {searchQuery.trim()
-                ? `Found ${filteredItems.length} ${filteredItems.length === 1 ? "ticker" : "tickers"} matching "${searchQuery}"`
-                : styleFilter === "all"
-                ? `Showing all ${watchlistData?.items.length || 0} tickers`
-                : `Showing ${filteredItems.length} ${styleFilter} ${filteredItems.length === 1 ? "play" : "plays"}`}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Select value={signalFilter} onValueChange={(value) => setSignalFilter(value as SignalFilter)}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Signal: All" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Signals ({watchlistData?.items.length || 0})</SelectItem>
-                <SelectItem value="BUY">🟢 BUY ({signalCounts["BUY"] || 0})</SelectItem>
-                <SelectItem value="HOLD">🟡 HOLD ({signalCounts["HOLD"] || 0})</SelectItem>
-                <SelectItem value="AVOID">🔴 AVOID ({signalCounts["AVOID"] || 0})</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={styleFilter} onValueChange={(value) => setStyleFilter(value as StyleFilter)}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Style: All" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Styles ({watchlistData?.items.length || 0})</SelectItem>
-                <SelectItem value="Index">📈 Index ({styleCounts["Index"] || 0})</SelectItem>
-                <SelectItem value="Trend">🔥 Trend ({styleCounts["Trend"] || 0})</SelectItem>
-                <SelectItem value="Value">💎 Value ({styleCounts["Value"] || 0})</SelectItem>
-                <SelectItem value="Swing">⚡ Swing ({styleCounts["Swing"] || 0})</SelectItem>
-                <SelectItem value="Event">📅 Event ({styleCounts["Event"] || 0})</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={riskFilter} onValueChange={(value) => setRiskFilter(value as RiskFilter)}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Risk: All" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Risk Levels ({watchlistData?.items.length || 0})</SelectItem>
-                <SelectItem value="Low">✓ Low ({riskCounts["Low"] || 0})</SelectItem>
-                <SelectItem value="Medium-Low">⚠ Med-Low ({riskCounts["Medium-Low"] || 0})</SelectItem>
-                <SelectItem value="Medium">⚠ Medium ({riskCounts["Medium"] || 0})</SelectItem>
-                <SelectItem value="High">⚠⚠ High ({riskCounts["High"] || 0})</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              onClick={handleRefresh}
-              disabled={refreshMutation.isPending}
-            >
-              <RefreshCw
-                className={`mr-2 h-4 w-4 ${refreshMutation.isPending ? "animate-spin" : ""}`}
-              />
-              Refresh
-            </Button>
-            <Button onClick={() => setAddTickerOpen(true)}>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Add Ticker
-            </Button>
-          </div>
+    <div className="bg-bg min-h-screen watchlist-page">
+      <div className="mx-auto max-w-7xl space-y-8 px-4 py-10 sm:px-6 lg:px-8">
+        <PageHeader
+          title="Watchlist Intelligence Hub"
+          description={
+            searchQuery.trim()
+              ? `Found ${filteredItems.length} ${filteredItems.length === 1 ? "ticker" : "tickers"} matching "${searchQuery}"`
+              : styleFilter === "all"
+              ? `Showing all ${watchlistData?.items.length || 0} tickers`
+              : `Showing ${filteredItems.length} ${styleFilter} ${filteredItems.length === 1 ? "play" : "plays"}`
+          }
+          size="md"
+          actions={
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                onClick={handleRefresh}
+                disabled={refreshMutation.isPending}
+              >
+                <RefreshCw
+                  className={`mr-2 h-4 w-4 ${refreshMutation.isPending ? "animate-spin" : ""}`}
+                />
+                Refresh
+              </Button>
+              <Button onClick={() => setAddTickerOpen(true)}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Add Ticker
+              </Button>
+            </div>
+          }
+        />
+
+        <div className="flex flex-wrap gap-2">
+          <Select value={signalFilter} onValueChange={(value) => setSignalFilter(value as SignalFilter)}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="Signal: All" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Signals ({watchlistData?.items.length || 0})</SelectItem>
+              <SelectItem value="BUY">🟢 BUY ({signalCounts["BUY"] || 0})</SelectItem>
+              <SelectItem value="HOLD">🟡 HOLD ({signalCounts["HOLD"] || 0})</SelectItem>
+              <SelectItem value="AVOID">🔴 AVOID ({signalCounts["AVOID"] || 0})</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={styleFilter} onValueChange={(value) => setStyleFilter(value as StyleFilter)}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="Style: All" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Styles ({watchlistData?.items.length || 0})</SelectItem>
+              <SelectItem value="Index">📈 Index ({styleCounts["Index"] || 0})</SelectItem>
+              <SelectItem value="Trend">🔥 Trend ({styleCounts["Trend"] || 0})</SelectItem>
+              <SelectItem value="Value">💎 Value ({styleCounts["Value"] || 0})</SelectItem>
+              <SelectItem value="Swing">⚡ Swing ({styleCounts["Swing"] || 0})</SelectItem>
+              <SelectItem value="Event">📅 Event ({styleCounts["Event"] || 0})</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={riskFilter} onValueChange={(value) => setRiskFilter(value as RiskFilter)}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="Risk: All" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Risk Levels ({watchlistData?.items.length || 0})</SelectItem>
+              <SelectItem value="Low">✓ Low ({riskCounts["Low"] || 0})</SelectItem>
+              <SelectItem value="Medium-Low">⚠ Med-Low ({riskCounts["Medium-Low"] || 0})</SelectItem>
+              <SelectItem value="Medium">⚠ Medium ({riskCounts["Medium"] || 0})</SelectItem>
+              <SelectItem value="High">⚠⚠ High ({riskCounts["High"] || 0})</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Search Bar */}
@@ -225,7 +227,7 @@ export default function WatchlistPage() {
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text"
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full text-text-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                 aria-label="Clear search"
               >
                 ✕

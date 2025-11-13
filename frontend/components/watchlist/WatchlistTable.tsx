@@ -30,9 +30,9 @@ import {
 } from "@/lib/hooks/useWatchlist";
 import { usePreferences } from "@/lib/hooks/usePreferences";
 import { usePortfolio } from "@/lib/hooks/usePortfolio";
-import { toast } from "sonner";
 import type { WatchlistItem } from "@/lib/api/watchlist";
 import { cn } from "@/lib/utils";
+import { ConfirmActionDialog } from "@/components/shared/ConfirmActionDialog";
 
 interface WatchlistTableProps {
   items: WatchlistItem[];
@@ -40,6 +40,15 @@ interface WatchlistTableProps {
 
 type SortField = "symbol" | "overall" | "price" | "technical" | "news" | "updated" | "style" | "risk";
 type SortDirection = "asc" | "desc";
+
+type WatchlistSnapshot = {
+  price: number | null;
+  score: number | null;
+  signal: WatchlistItem["signal_type"];
+  risk: WatchlistItem["risk_level"];
+  style: WatchlistItem["recommended_style"];
+  updatedAt: string | null;
+};
 
 export function WatchlistTable({ items }: WatchlistTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -52,6 +61,9 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
   const { data: portfolio } = usePortfolio();
   const searchParams = useSearchParams();
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
+  const previousSnapshots = useRef<Map<string, WatchlistSnapshot>>(new Map());
+  const [changedCells, setChangedCells] = useState<Record<string, Record<string, boolean>>>({});
+  const [recentlyUpdatedRows, setRecentlyUpdatedRows] = useState<Set<string>>(new Set());
 
   // Get user's timezone preference
   const userTimezone = preferences?.display_timezone ?? "America/New_York";
@@ -60,6 +72,18 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
   const portfolioSymbols = new Set(
     portfolio?.positions?.map((p) => p.symbol.toUpperCase()) ?? []
   );
+
+  const buildSnapshot = (item: WatchlistItem): WatchlistSnapshot => ({
+    price:
+      typeof item.current_score?.price.metadata?.price === "number"
+        ? item.current_score.price.metadata.price
+        : null,
+    score: item.current_score?.overall ?? null,
+    signal: item.signal_type ?? null,
+    risk: item.risk_level ?? null,
+    style: item.recommended_style ?? null,
+    updatedAt: item.current_score?.price?.updated_at ?? item.updated_at,
+  });
 
   // Scroll to ticker from query parameter
   useEffect(() => {
@@ -143,25 +167,46 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
       : (bVal as number) - (aVal as number);
   });
 
-  // Handle delete
-  const handleDelete = (itemId: string, symbol: string) => {
-    if (!confirm(`Remove ${symbol} from watchlist?`)) return;
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; symbol: string } | null>(null);
 
-    deleteMutation.mutate(
-      itemId,
-      {
-        onSuccess: () => {
-          toast.success(`${symbol} removed from watchlist`);
-          if (expandedId === itemId) {
-            setExpandedId(null);
-          }
-        },
-        onError: (error) => {
-          toast.error(`Failed to remove ticker: ${error.message}`);
-        },
-      },
-    );
+  // Handle delete (request confirmation)
+  const handleDelete = (itemId: string, symbol: string) => {
+    setPendingDelete({ id: itemId, symbol });
   };
+
+  const confirmDeleteTicker = async () => {
+    if (!pendingDelete) return;
+    try {
+      await deleteMutation.mutateAsync(pendingDelete.id);
+      if (expandedId === pendingDelete.id) {
+        setExpandedId(null);
+      }
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  const toggleRow = (itemId: string) => {
+    setExpandedId((current) => (current === itemId ? null : itemId));
+  };
+
+  const deleteDialog = (
+    <ConfirmActionDialog
+      open={!!pendingDelete}
+      onOpenChange={(open) => {
+        if (!open) {
+          setPendingDelete(null);
+        }
+      }}
+      title={
+        pendingDelete ? `Remove ${pendingDelete.symbol}` : "Remove ticker"
+      }
+      description="Removing a ticker clears its saved scores and expansions."
+      confirmLabel="Remove"
+      isPending={deleteMutation.isPending}
+      onConfirm={confirmDeleteTicker}
+    />
+  );
 
   // Get score badge variant based on score value
   const getScoreBadgeVariant = (
@@ -256,6 +301,66 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
     return `${formatted} ${tzAbbr}`;
   };
 
+  useEffect(() => {
+    if (!items.length) {
+      previousSnapshots.current = new Map();
+      setChangedCells({});
+      setRecentlyUpdatedRows(new Set());
+      return;
+    }
+
+    const nextSnapshots = new Map<string, WatchlistSnapshot>();
+    const nextChanged: Record<string, Record<string, boolean>> = {};
+    const updatedRows: string[] = [];
+
+    items.forEach((item) => {
+      const snapshot = buildSnapshot(item);
+      nextSnapshots.set(item.id, snapshot);
+      const previous = previousSnapshots.current.get(item.id);
+      if (!previous) {
+        updatedRows.push(item.id);
+        return;
+      }
+
+      const fieldChanges: Record<string, boolean> = {};
+      if (snapshot.price !== previous.price) fieldChanges.price = true;
+      if (snapshot.score !== previous.score) fieldChanges.score = true;
+      if (snapshot.signal !== previous.signal) fieldChanges.signal = true;
+      if (snapshot.risk !== previous.risk) fieldChanges.risk = true;
+      if (snapshot.style !== previous.style) fieldChanges.style = true;
+      if (snapshot.updatedAt !== previous.updatedAt) fieldChanges.updatedAt = true;
+
+      if (Object.keys(fieldChanges).length > 0) {
+        nextChanged[item.id] = fieldChanges;
+        updatedRows.push(item.id);
+      }
+    });
+
+    previousSnapshots.current = nextSnapshots;
+
+    let cellTimeout: number | undefined;
+    let rowTimeout: number | undefined;
+
+    if (Object.keys(nextChanged).length > 0) {
+      setChangedCells(nextChanged);
+      cellTimeout = window.setTimeout(() => setChangedCells({}), 2200);
+    } else {
+      setChangedCells({});
+    }
+
+    if (updatedRows.length > 0) {
+      setRecentlyUpdatedRows(new Set(updatedRows));
+      rowTimeout = window.setTimeout(() => setRecentlyUpdatedRows(new Set()), 1500);
+    } else {
+      setRecentlyUpdatedRows(new Set());
+    }
+
+    return () => {
+      if (cellTimeout) window.clearTimeout(cellTimeout);
+      if (rowTimeout) window.clearTimeout(rowTimeout);
+    };
+  }, [items]);
+
   if (items.length === 0) {
     return (
       <div className="rounded-md border border-border bg-surface p-8 text-center">
@@ -268,7 +373,8 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
   }
 
   return (
-    <div className="rounded-md border border-border bg-surface shadow-sm">
+    <>
+      <div className="rounded-md border border-border bg-surface shadow-sm">
       {/* Desktop Table View (hidden on mobile) */}
       <Table className="hidden md:table">
         <TableHeader>
@@ -390,13 +496,27 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                     }
                   }}
                   className={cn(
-                    "cursor-pointer transition-colors",
+                    "cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus",
                     isExpanded && "bg-surface-muted/40",
                     highlightedSymbol === item.symbol && "bg-blue-50 dark:bg-blue-950/30 animate-pulse"
                   )}
-                  onClick={() => setExpandedId(isExpanded ? null : item.id)}
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={isExpanded}
+                  aria-controls={`watchlist-row-${item.id}`}
+                  data-slot="table-row"
+                  data-recently-updated={
+                    recentlyUpdatedRows.has(item.id) ? "true" : undefined
+                  }
+                  onClick={() => toggleRow(item.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      toggleRow(item.id);
+                    }
+                  }}
                 >
-                  <TableCell>
+                  <TableCell data-slot="table-cell">
                     <button
                       className="rounded p-1 hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                       aria-label={isExpanded ? "Collapse row" : "Expand row"}
@@ -408,7 +528,7 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                       )}
                     </button>
                   </TableCell>
-                  <TableCell className="font-medium">
+                  <TableCell className="font-medium" data-slot="table-cell">
                     <div className="flex items-center gap-2">
                       <span>{item.symbol}</span>
                       {portfolioSymbols.has(item.symbol.toUpperCase()) && (
@@ -449,9 +569,17 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                       )}
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell
+                    data-slot="table-cell"
+                    data-changed={changedCells[item.id]?.price ? "true" : undefined}
+                  >
                     {item.current_score?.price.metadata?.price ? (
-                      <div className="text-sm">
+                      <div
+                        className="text-sm price-display"
+                        data-changed={
+                          changedCells[item.id]?.price ? "true" : undefined
+                        }
+                      >
                         <div className="font-medium">
                           ${typeof item.current_score.price.metadata.price === 'number'
                             ? item.current_score.price.metadata.price.toFixed(2)
@@ -474,7 +602,10 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                       <span className="text-text-muted">—</span>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell
+                    data-slot="table-cell"
+                    data-changed={changedCells[item.id]?.signal ? "true" : undefined}
+                  >
                     {item.signal_type ? (
                       (() => {
                         const signalDisplay = getSignalDisplay(item.signal_type);
@@ -519,10 +650,13 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                       <span className="text-text-muted">—</span>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell
+                    data-slot="table-cell"
+                    data-changed={changedCells[item.id]?.score ? "true" : undefined}
+                  >
                     {hasScore ? (
                       <div className="flex items-center gap-2">
-                        <Badge variant={getScoreBadgeVariant(overall)}>
+                        <Badge variant={getScoreBadgeVariant(overall)} className="score-badge">
                           {overall.toFixed(0)}
                         </Badge>
                         <div className="flex-1 h-2 bg-surface-muted rounded-full overflow-hidden min-w-[60px]">
@@ -539,7 +673,10 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                       <span className="text-text-muted">—</span>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell
+                    data-slot="table-cell"
+                    data-changed={changedCells[item.id]?.style ? "true" : undefined}
+                  >
                     {item.recommended_style ? (
                       <div className="text-xs">
                         <div className="font-medium">{item.recommended_style}</div>
@@ -551,7 +688,10 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                       <span className="text-text-muted">—</span>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell
+                    data-slot="table-cell"
+                    data-changed={changedCells[item.id]?.risk ? "true" : undefined}
+                  >
                     {item.risk_level ? (
                       (() => {
                         const riskConfig: Record<string, { label: string; icon: string; color: string }> = {
@@ -571,7 +711,7 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                       <span className="text-text-muted">—</span>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-slot="table-cell">
                     {hasScore ? (
                       <SparklineWithHistory
                         itemId={item.id}
@@ -583,12 +723,16 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                       <span className="text-text-muted">—</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-xs text-text-muted">
+                  <TableCell
+                    className="text-xs text-text-muted"
+                    data-slot="table-cell"
+                    data-changed={changedCells[item.id]?.updatedAt ? "true" : undefined}
+                  >
                     {item.current_score?.price?.updated_at
                       ? formatDate(item.current_score.price.updated_at, userTimezone)
                       : formatDate(item.updated_at, userTimezone)}
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-slot="table-cell">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -605,7 +749,7 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                   </TableCell>
                 </TableRow>
                 {isExpanded && (
-                  <TableRow>
+                  <TableRow id={`watchlist-row-${item.id}`}>
                     <TableCell colSpan={10} className="bg-surface-muted/20 p-4">
                       <ExpandedRow item={item} refreshStatus={refreshStatus} />
                     </TableCell>
@@ -618,16 +762,18 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
       </Table>
 
       {/* Mobile Card View (shown on mobile only) */}
-      <div className="md:hidden space-y-3 p-3">
-        {sortedItems.map((item) => (
-          <WatchlistCard
-            key={item.id}
-            item={item}
-            onDelete={handleDelete}
-            isDeleting={deleteMutation.isPending}
-          />
-        ))}
+        <div className="md:hidden space-y-3 p-3">
+          {sortedItems.map((item) => (
+            <WatchlistCard
+              key={item.id}
+              item={item}
+              onDelete={handleDelete}
+              isDeleting={deleteMutation.isPending}
+            />
+          ))}
+        </div>
       </div>
-    </div>
+      {deleteDialog}
+    </>
   );
 }

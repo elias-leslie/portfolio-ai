@@ -20,21 +20,21 @@
 }
 
 /* Apply flash animation to table cells with data-changed attribute */
-[data-slot="table-cell"][data-changed="true"] {
+.watchlist-page [data-slot="table-cell"][data-changed="true"] {
   animation: flash-update 2s ease-out;
 }
 
 /* Smooth transitions for score badge changes */
-.score-badge {
+.watchlist-page .score-badge {
   transition: all 0.3s ease-in-out;
 }
 
 /* Smooth transitions for price display changes */
-.price-display {
+.watchlist-page .price-display {
   transition: color 0.3s ease-in-out, transform 0.2s ease-in-out;
 }
 
-.price-display[data-changed="true"] {
+.watchlist-page .price-display[data-changed="true"] {
   animation: flash-update 2s ease-out;
 }
 
@@ -50,6 +50,6 @@ se effect for newly updated rows */
   }
 }
 
-[data-slot="table-row"][data-recently-updated="true"] {
+.watchlist-page [data-slot="table-row"][data-recently-updated="true"] {
   animation: pulse-row 1s ease-in-out 1;
 }

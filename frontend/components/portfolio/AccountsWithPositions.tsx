@@ -38,6 +38,46 @@ import {
 import { toast } from "sonner";
 import { Trash2, Pencil, PlusCircle } from "lucide-react";
 import type { PositionWithValue } from "@/lib/api/portfolio";
+import { ConfirmActionDialog } from "@/components/shared/ConfirmActionDialog";
+
+function AccountsWithPositionsSkeleton() {
+  return (
+    <Card data-testid="accounts-with-positions-skeleton">
+      <CardHeader>
+        <div className="space-y-2">
+          <div className="h-5 w-60 animate-pulse rounded-md bg-surface-muted/60" />
+          <div className="h-3 w-48 animate-pulse rounded-md bg-surface-muted/40" />
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          {[0, 1].map((item) => (
+            <div
+              key={`account-with-positions-skeleton-${item}`}
+              className="rounded-2xl border border-border/50 bg-surface/40 p-4"
+            >
+              <div className="flex items-center justify-between">
+                <div className="space-y-2">
+                  <div className="h-4 w-48 animate-pulse rounded bg-surface-muted/80" />
+                  <div className="h-3 w-32 animate-pulse rounded bg-surface-muted/60" />
+                </div>
+                <div className="h-10 w-10 rounded-full bg-surface-muted/60" />
+              </div>
+              <div className="mt-4 space-y-2">
+                {[0, 1, 2].map((row) => (
+                  <div
+                    key={`account-with-positions-skeleton-row-${item}-${row}`}
+                    className="h-10 w-full animate-pulse rounded-lg bg-surface-muted/50"
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 type PositionType = "long" | "short";
 
@@ -52,6 +92,11 @@ export function AccountsWithPositions({ onAddAccount, onAddPosition }: AccountsW
   const deleteAccount = useDeleteAccount();
   const deletePosition = useDeletePosition();
   const updatePosition = useUpdatePosition();
+  const [pendingAction, setPendingAction] = useState<
+    | { type: "account"; id: string; name: string; positionCount: number }
+    | { type: "position"; id: string; symbol: string }
+    | null
+  >(null);
 
   // Edit position dialog state
   const [editOpen, setEditOpen] = useState(false);
@@ -74,38 +119,39 @@ export function AccountsWithPositions({ onAddAccount, onAddPosition }: AccountsW
     return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
   };
 
+  // Helpers
+  const getAccountPositions = (accountId: string) => {
+    return portfolio?.positions.filter((p) => p.account_id === accountId) || [];
+  };
+
+  const getAccountTotalValue = (accountId: string) => {
+    const positions = getAccountPositions(accountId);
+    return positions.reduce((sum, p) => sum + (p.current_value || 0), 0);
+  };
+
+  const getAccountTotalGain = (accountId: string) => {
+    const positions = getAccountPositions(accountId);
+    const totalValue = positions.reduce((sum, p) => sum + (p.current_value || 0), 0);
+    const totalCost = positions.reduce((sum, p) => sum + (p.shares * p.cost_basis), 0);
+    return totalCost > 0 ? ((totalValue - totalCost) / totalCost) * 100 : 0;
+  };
+
   const handleDeleteAccount = (accountId: string, accountName: string) => {
-    const positionsInAccount = portfolio?.positions.filter(
-      (p) => p.account_id === accountId
-    ) || [];
-
-    const confirmMessage = positionsInAccount.length > 0
-      ? `Are you sure you want to delete "${accountName}"? This will also delete ${positionsInAccount.length} position${positionsInAccount.length > 1 ? "s" : ""} in this account.`
-      : `Are you sure you want to delete "${accountName}"?`;
-
-    if (confirm(confirmMessage)) {
-      deleteAccount.mutate(accountId, {
-        onSuccess: () => {
-          toast.success("Account deleted successfully!");
-        },
-        onError: (error) => {
-          toast.error(`Failed to delete account: ${error.message}`);
-        },
-      });
-    }
+    const positionsInAccount = getAccountPositions(accountId);
+    setPendingAction({
+      type: "account",
+      id: accountId,
+      name: accountName,
+      positionCount: positionsInAccount.length,
+    });
   };
 
   const handleDeletePosition = (positionId: string, symbol: string) => {
-    if (confirm(`Are you sure you want to delete ${symbol}?`)) {
-      deletePosition.mutate(positionId, {
-        onSuccess: () => {
-          toast.success("Position deleted successfully!");
-        },
-        onError: (error) => {
-          toast.error(`Failed to delete position: ${error.message}`);
-        },
-      });
-    }
+    setPendingAction({
+      type: "position",
+      id: positionId,
+      symbol,
+    });
   };
 
   const handleEditPosition = (position: PositionWithValue) => {
@@ -145,57 +191,101 @@ export function AccountsWithPositions({ onAddAccount, onAddPosition }: AccountsW
     );
   };
 
-  // Group positions by account
-  const getAccountPositions = (accountId: string) => {
-    return portfolio?.positions.filter((p) => p.account_id === accountId) || [];
+  const confirmDeletion = async () => {
+    if (!pendingAction) return;
+    try {
+      if (pendingAction.type === "account") {
+        await deleteAccount.mutateAsync(pendingAction.id);
+        toast.success(`Deleted account "${pendingAction.name}".`);
+      } else {
+        await deletePosition.mutateAsync(pendingAction.id);
+        toast.success(`${pendingAction.symbol} position deleted.`);
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to complete the request";
+      const target =
+        pendingAction.type === "account"
+          ? `account "${pendingAction.name}"`
+          : `${pendingAction.symbol} position`;
+      toast.error(`Failed to delete ${target}: ${message}`);
+      throw error;
+    }
   };
 
-  const getAccountTotalValue = (accountId: string) => {
-    const positions = getAccountPositions(accountId);
-    return positions.reduce((sum, p) => sum + (p.current_value || 0), 0);
-  };
-
-  const getAccountTotalGain = (accountId: string) => {
-    const positions = getAccountPositions(accountId);
-    const totalValue = positions.reduce((sum, p) => sum + (p.current_value || 0), 0);
-    const totalCost = positions.reduce((sum, p) => sum + (p.shares * p.cost_basis), 0);
-    return totalCost > 0 ? ((totalValue - totalCost) / totalCost) * 100 : 0;
-  };
+  const confirmDialog = (
+    <ConfirmActionDialog
+      open={!!pendingAction}
+      onOpenChange={(open) => {
+        if (!open) {
+          setPendingAction(null);
+        }
+      }}
+      title={
+        pendingAction
+          ? pendingAction.type === "account"
+            ? `Delete ${pendingAction.name}`
+            : `Delete ${pendingAction.symbol} position`
+          : "Delete item"
+      }
+      description={
+        pendingAction
+          ? pendingAction.type === "account"
+            ? pendingAction.positionCount > 0
+              ? `This will remove ${pendingAction.positionCount} linked position${
+                  pendingAction.positionCount === 1 ? "" : "s"
+                } permanently.`
+              : "This account has no positions and will be removed."
+            : "This position will be removed from the account permanently."
+          : undefined
+      }
+      confirmLabel={
+        pendingAction
+          ? pendingAction.type === "account"
+            ? "Delete account"
+            : "Delete position"
+          : "Delete"
+      }
+      isPending={deleteAccount.isPending || deletePosition.isPending}
+      onConfirm={confirmDeletion}
+    />
+  );
 
   if (accountsLoading || portfolioLoading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Accounts & Positions</CardTitle>
-          <CardDescription>Loading accounts and positions...</CardDescription>
-        </CardHeader>
-      </Card>
+      <>
+        <AccountsWithPositionsSkeleton />
+        {confirmDialog}
+      </>
     );
   }
 
   if (!accounts || accounts.length === 0) {
     return (
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Accounts & Positions</CardTitle>
-              <CardDescription>Organize your portfolio by account</CardDescription>
+      <>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Accounts & Positions</CardTitle>
+                <CardDescription>Organize your portfolio by account</CardDescription>
+              </div>
+              {onAddAccount && (
+                <Button variant="outline" size="sm" onClick={onAddAccount}>
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Add Account
+                </Button>
+              )}
             </div>
-            {onAddAccount && (
-              <Button variant="outline" size="sm" onClick={onAddAccount}>
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Add Account
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="text-sm text-text-muted">
-            No accounts yet. Click &quot;Add Account&quot; above to start managing your portfolio.
-          </div>
-        </CardContent>
-      </Card>
+          </CardHeader>
+          <CardContent>
+            <div className="text-sm text-text-muted">
+              No accounts yet. Click &quot;Add Account&quot; above to start managing your portfolio.
+            </div>
+          </CardContent>
+        </Card>
+        {confirmDialog}
+      </>
     );
   }
 
@@ -453,6 +543,7 @@ export function AccountsWithPositions({ onAddAccount, onAddPosition }: AccountsW
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {confirmDialog}
     </>
   );
 }

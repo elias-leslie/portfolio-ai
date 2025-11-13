@@ -20,14 +20,14 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **UI Standardization & UX Fixes** (MEDIUM (3-5 hours), 0/0 tasks (today))
+1. **UI Standardization & UX Fixes** (MEDIUM (3-5 hours), 0/0 tasks (yesterday))
    - File: `tasks-0055-ui-standardization-and-ux-fixes.md`
    - Created: 2025-11-12
    - Goal: Bring the Portfolio AI web UI up to a consistent design baseline by aligning headers, loading states, and critical interactions so that every surface communicates status clearly and meets accessibility expectations.
    - Tasks:
      - (No tasks defined yet)
 
-2. **Development Process Optimization** (MEDIUM (4-6 hours), 5/7 tasks (today))
+2. **Development Process Optimization** (MEDIUM (4-6 hours), 5/7 tasks (yesterday))
    - File: `tasks-0054-dev-process-optimization.md`
    - Created: 2025-11-12
    - Goal: Reduce development cycle time from 15-20 min to 5-7 min (3x faster) by fixing test performance and workflow bottlenecks.
@@ -40,7 +40,7 @@
      - [x] Task 6: Medium: Add Smoke Test Markers ✅ **COMPLETE**
      - [ ] Task 7: Medium: Reduce Large Service Files ⏸️ **DEFERRED**
 
-3. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (yesterday))
+3. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (2 days ago))
    - File: `tasks-0042-customizable-dashboard-layouts.md`
    - Created: 2025-11-11
    - Goal: Enable users to customize dashboard layouts by dragging/resizing cards, with persistence to PostgreSQL backend
@@ -69,7 +69,7 @@
      - [ ] Task 7: Frontend & UX
      - [ ] Task 8: Governance & documentation
 
-5. **Response Caching Middleware** (TBD, 0/8 tasks (yesterday))
+5. **Response Caching Middleware** (TBD, 0/8 tasks (2 days ago))
    - File: `tasks-0047-response-caching-middleware.md`
    - Created: 2025-11-11
    - Tasks:

@@ -22,6 +22,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import useSWR from "swr";
+import { toast } from "sonner";
 
 interface UnifiedLogEntry {
     timestamp: string;
@@ -218,7 +219,11 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
 
         } catch (error) {
             console.error('Failed to change log level:', error);
-            alert(`Failed to change log level: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            toast.error(
+                `Failed to change log level: ${
+                    error instanceof Error ? error.message : "Unknown error"
+                }`,
+            );
         } finally {
             setChangingLogLevel(false);
         }
@@ -244,11 +249,15 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
             // Refresh log level config
             await mutateLogLevel();
 
-            alert('Services restarted successfully!');
+            toast.success("Services restarted successfully!");
 
         } catch (error) {
             console.error('Failed to restart services:', error);
-            alert(`Failed to restart services: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            toast.error(
+                `Failed to restart services: ${
+                    error instanceof Error ? error.message : "Unknown error"
+                }`,
+            );
         } finally {
             setRestarting(false);
         }

@@ -17,6 +17,7 @@ import type {
   TechnicalSubWeights,
   FundamentalSubWeights,
 } from "@/lib/api/preferences";
+import { PageHeader } from "@/components/shared/PageHeader";
 
 export default function SettingsPage() {
   const { data: preferences, isLoading } = usePreferences();
@@ -426,14 +427,13 @@ export default function SettingsPage() {
 
   return (
     <div className="bg-bg pb-24">
-      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-10">
-          <h1 className="text-3xl font-semibold text-text">Settings</h1>
-          <p className="mt-2 text-sm text-text-muted">
-            Configure your preferences, risk tolerance, and system behavior
-          </p>
-        </div>
+      <div className="mx-auto max-w-6xl space-y-12 px-4 py-10 sm:px-6 lg:px-8">
+        <PageHeader
+          title="Settings"
+          description="Configure your preferences, risk tolerance, and system behavior."
+          variant="plain"
+          size="md"
+        />
 
         <div className="space-y-12">
           {/* Profile Selector */}

@@ -1,41 +1,61 @@
 "use client";
 
+import { useState } from "react";
 import { useAccounts, useDeleteAccount } from "@/lib/hooks/usePortfolio";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
+import { ConfirmActionDialog } from "@/components/shared/ConfirmActionDialog";
+
+function AccountsSkeleton() {
+  return (
+    <Card data-testid="accounts-skeleton">
+      <CardHeader>
+        <div className="space-y-2">
+          <div className="h-5 w-32 animate-pulse rounded-md bg-surface-muted/60" />
+          <div className="h-3 w-52 animate-pulse rounded-md bg-surface-muted/40" />
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          {[0, 1, 2].map((item) => (
+            <div
+              key={`account-skeleton-${item}`}
+              className="flex items-center justify-between rounded-xl border border-border/50 bg-surface/40 p-3"
+            >
+              <div className="space-y-2">
+                <div className="h-4 w-36 animate-pulse rounded bg-surface-muted/80" />
+                <div className="h-3 w-24 animate-pulse rounded bg-surface-muted/60" />
+              </div>
+              <div className="h-8 w-8 rounded-full bg-surface-muted/60" />
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export function AccountsCard() {
   const { data: accounts, isLoading } = useAccounts();
   const deleteAccount = useDeleteAccount();
+  const [accountToDelete, setAccountToDelete] = useState<{ id: string; name: string } | null>(null);
 
-  const handleDelete = (accountId: string, accountName: string) => {
-    if (
-      confirm(
-        `Are you sure you want to delete "${accountName}"? This will also delete all positions in this account.`
-      )
-    ) {
-      deleteAccount.mutate(accountId, {
-        onSuccess: () => {
-          toast.success("Account deleted successfully!");
-        },
-        onError: (error) => {
-          toast.error(`Failed to delete account: ${error.message}`);
-        },
-      });
+  const confirmDeleteAccount = async () => {
+    if (!accountToDelete) return;
+    try {
+      await deleteAccount.mutateAsync(accountToDelete.id);
+      toast.success(`Account "${accountToDelete.name}" deleted successfully!`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to delete account";
+      toast.error(`Failed to delete account: ${errorMessage}`);
+      throw error;
     }
   };
 
   if (isLoading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Accounts</CardTitle>
-          <CardDescription>Loading accounts...</CardDescription>
-        </CardHeader>
-      </Card>
-    );
+    return <AccountsSkeleton />;
   }
 
   if (!accounts || accounts.length === 0) {
@@ -78,7 +98,12 @@ export function AccountsCard() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => handleDelete(account.id, account.name)}
+                onClick={() =>
+                  setAccountToDelete({
+                    id: account.id,
+                    name: account.name,
+                  })
+                }
                 disabled={deleteAccount.isPending}
                 className="h-8 w-8 p-0"
               >
@@ -88,6 +113,23 @@ export function AccountsCard() {
           ))}
         </div>
       </CardContent>
+      <ConfirmActionDialog
+        open={!!accountToDelete}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAccountToDelete(null);
+          }
+        }}
+        title="Delete account"
+        description={
+          accountToDelete
+            ? `Deleting "${accountToDelete.name}" will also remove every position assigned to it. This action cannot be undone.`
+            : undefined
+        }
+        confirmLabel="Delete account"
+        isPending={deleteAccount.isPending}
+        onConfirm={confirmDeleteAccount}
+      />
     </Card>
   );
 }

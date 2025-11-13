@@ -23,6 +23,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAddPosition, useCreateAccount, useAccounts } from "@/lib/hooks/usePortfolio";
+import { PageHeader } from "@/components/shared/PageHeader";
+import { SectionCard } from "@/components/shared/SectionCard";
 
 type PositionType = "long" | "short";
 type AccountType = "IRA" | "Taxable" | "401k" | "Roth" | "HSA";
@@ -115,33 +117,29 @@ export default function PortfolioPage() {
 
   return (
     <div className="bg-bg">
-      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-10 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent">
-              Portfolio Management
-            </h1>
-            <p className="mt-3 text-base text-text-muted">
-              Manage your positions, accounts, and view detailed analytics
-            </p>
-          </div>
-          {/* Removed buttons - now in AccountsWithPositions card */}
-        </div>
-
-        {/* Portfolio Analytics */}
-        <div className="mb-10">
-          <PortfolioOverview />
-        </div>
-
-        {/* Accounts with Positions */}
-        <AccountsWithPositions
-          onAddAccount={() => setAccountOpen(true)}
-          onAddPosition={(accountId) => {
-            setAccountId(accountId);
-            setPositionOpen(true);
-          }}
+      <div className="mx-auto max-w-7xl space-y-10 px-4 py-10 sm:px-6 lg:px-8">
+        <PageHeader
+          title="Portfolio Management"
+          description="Manage your positions, accounts, and view detailed analytics."
         />
+
+        <SectionCard
+          variant="surface"
+          title="Portfolio Analytics"
+          description="Allocation, diversification, and performance snapshots powered by live market data."
+        >
+          <PortfolioOverview />
+        </SectionCard>
+
+        <SectionCard variant="ghost" padding="none">
+          <AccountsWithPositions
+            onAddAccount={() => setAccountOpen(true)}
+            onAddPosition={(accountId) => {
+              setAccountId(accountId);
+              setPositionOpen(true);
+            }}
+          />
+        </SectionCard>
 
         {/* Hidden Dialogs */}
         <div className="hidden">

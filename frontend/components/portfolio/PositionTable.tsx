@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/select";
 import { Pencil } from "lucide-react";
 import Link from "next/link";
+import { ConfirmActionDialog } from "@/components/shared/ConfirmActionDialog";
 
 type PositionType = "long" | "short";
 
@@ -52,6 +53,7 @@ export function PositionTable() {
   const deletePosition = useDeletePosition();
   const updatePosition = useUpdatePosition();
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [positionToDelete, setPositionToDelete] = useState<{ id: string; symbol: string } | null>(null);
 
   // Edit dialog state
   const [editOpen, setEditOpen] = useState(false);
@@ -109,6 +111,19 @@ export function PositionTable() {
         },
       }
     );
+  };
+
+  const confirmDeletePosition = async () => {
+    if (!positionToDelete) return;
+    try {
+      await deletePosition.mutateAsync(positionToDelete.id);
+      toast.success(`${positionToDelete.symbol} position deleted.`);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to delete position";
+      toast.error(`Failed to delete ${positionToDelete.symbol}: ${message}`);
+      throw error;
+    }
   };
 
   const isEditFormValid = () => {
@@ -212,16 +227,10 @@ export function PositionTable() {
             variant="outline"
             size="sm"
             onClick={() => {
-              if (confirm("Are you sure you want to delete this position?")) {
-                deletePosition.mutate(row.original.id, {
-                  onSuccess: () => {
-                    toast.success("Position deleted successfully!");
-                  },
-                  onError: (error) => {
-                    toast.error(`Failed to delete position: ${error.message}`);
-                  },
-                });
-              }
+              setPositionToDelete({
+                id: row.original.id,
+                symbol: row.original.symbol,
+              });
             }}
             disabled={deletePosition.isPending}
           >
@@ -243,25 +252,51 @@ export function PositionTable() {
     },
   });
 
+  const deleteDialog = (
+    <ConfirmActionDialog
+      open={!!positionToDelete}
+      onOpenChange={(open) => {
+        if (!open) {
+          setPositionToDelete(null);
+        }
+      }}
+      title={
+        positionToDelete
+          ? `Delete ${positionToDelete.symbol}`
+          : "Delete position"
+      }
+      description="This action permanently removes the position from your portfolio."
+      confirmLabel="Delete position"
+      isPending={deletePosition.isPending}
+      onConfirm={confirmDeletePosition}
+    />
+  );
+
   if (isLoading) {
     return (
-      <div className="rounded-md border border-border bg-surface/50">
-        <div className="flex h-64 items-center justify-center">
-          <div className="animate-pulse text-text-muted">
-            Loading positions...
+      <>
+        <div className="rounded-md border border-border bg-surface/50">
+          <div className="flex h-64 items-center justify-center">
+            <div className="animate-pulse text-text-muted">
+              Loading positions...
+            </div>
           </div>
         </div>
-      </div>
+        {deleteDialog}
+      </>
     );
   }
 
   if (!portfolio?.positions.length) {
     return (
-      <div className="rounded-md border border-border bg-surface/50">
-        <div className="flex h-64 items-center justify-center text-text-muted">
-          No positions yet. Add your first position to get started.
+      <>
+        <div className="rounded-md border border-border bg-surface/50">
+          <div className="flex h-64 items-center justify-center text-text-muted">
+            No positions yet. Add your first position to get started.
+          </div>
         </div>
-      </div>
+        {deleteDialog}
+      </>
     );
   }
 
@@ -393,8 +428,9 @@ export function PositionTable() {
               {updatePosition.isPending ? "Updating..." : "Update Position"}
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      </DialogContent>
+    </Dialog>
+      {deleteDialog}
     </>
   );
 }
