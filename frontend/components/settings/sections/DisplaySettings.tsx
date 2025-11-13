@@ -10,7 +10,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { SectionHeader } from "../SectionHeader";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/lib/hooks/useTheme";
@@ -20,7 +19,7 @@ interface DisplaySettingsProps {
   onDisplayTimezoneChange: (value: string) => void;
 }
 
-const TIMEZONE_OPTIONS = {
+export const TIMEZONE_OPTIONS = {
   "America/New_York": "Eastern Time (EST/EDT)",
   "America/Chicago": "Central Time (CST/CDT)",
   "America/Denver": "Mountain Time (MST/MDT)",
@@ -37,12 +36,6 @@ export function DisplaySettings({
 
   return (
     <div className="space-y-6">
-      <SectionHeader
-        icon={<Monitor className="h-6 w-6" />}
-        title="Display & Interface"
-        description="Customize how data is displayed across the application"
-      />
-
       {/* Theme Selection */}
       <Card>
         <CardContent className="pt-6">

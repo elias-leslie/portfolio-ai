@@ -9,7 +9,6 @@ import {
     Check,
     ArrowUpDown,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +22,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import useSWR from "swr";
 import { toast } from "sonner";
+import { ExpandableCard } from "@/components/status/ExpandableCard";
 
 interface UnifiedLogEntry {
     timestamp: string;
@@ -49,48 +49,7 @@ const SERVICE_DISPLAY_NAMES: Record<string, string> = {
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
-/**
- * Get CSS color class for log level.
- */
-function getLevelColor(level: string): string {
-    switch (level) {
-        case "CRITICAL":
-            return "text-red-600 font-bold";
-        case "ERROR":
-            return "text-red-400";
-        case "WARN":
-            return "text-yellow-400";
-        case "INFO":
-            return "text-blue-400";
-        case "DEBUG":
-            return "text-gray-400";
-        default:
-            return "text-gray-300";
-    }
-}
-
-/**
- * Format timestamp for display
- */
-function formatTimestamp(timestamp: string): string {
-    try {
-        const date = new Date(timestamp);
-        return date.toLocaleTimeString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: false
-        });
-    } catch {
-        return timestamp;
-    }
-}
-
-interface LogsCardProps {
-    autoRefresh?: boolean;
-}
-
-export function LogsCard({ autoRefresh = false }: LogsCardProps) {
+export function LogsCard() {
     const [levelFilter, setLevelFilter] = useState<string | undefined>(undefined);
     const [serviceFilter, setServiceFilter] = useState<string | undefined>(undefined);
     const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
@@ -98,11 +57,9 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
     const [changingLogLevel, setChangingLogLevel] = useState(false);
     const [restartRequired, setRestartRequired] = useState(false);
     const [restarting, setRestarting] = useState(false);
-    const [refreshInterval, setRefreshInterval] = useState<number>(30000); // Default 30 seconds
-    const [timeRange, setTimeRange] = useState<string>("5 minutes ago"); // Default 5 minutes
-    const [isCollapsed, setIsCollapsed] = useState(true);
+    const [refreshInterval, setRefreshInterval] = useState<number>(30000);
+    const [timeRange, setTimeRange] = useState<string>("5 minutes ago");
 
-    // Build API URL with filters
     const apiUrl = useMemo(() => {
         const params = new URLSearchParams({
             lines: "500",
@@ -110,14 +67,12 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
         });
         if (levelFilter && levelFilter !== "ALL") params.append("level", levelFilter);
         if (serviceFilter && serviceFilter !== "ALL") params.append("service", serviceFilter);
-        // Use backend URL (same server, port 8000)
         const backendUrl = typeof window !== 'undefined'
             ? `http://${window.location.hostname}:8000`
             : 'http://localhost:8000';
         return `${backendUrl}/api/status/unified-logs?${params}`;
     }, [levelFilter, serviceFilter, timeRange]);
 
-    // Fetch unified logs from API
     const { data, error, isLoading } = useSWR<UnifiedLogsResponse>(
         apiUrl,
         fetcher,
@@ -127,17 +82,16 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
         }
     );
 
-    // Fetch current log level configuration
     const backendUrl = typeof window !== 'undefined'
         ? `http://${window.location.hostname}:8000`
         : 'http://localhost:8000';
+
     const { data: logLevelConfig, mutate: mutateLogLevel } = useSWR(
         `${backendUrl}/api/status/log-level`,
         fetcher,
         { refreshInterval: 0 }
     );
 
-    // Sort logs by timestamp
     const sortedLogs = useMemo(() => {
         if (!data?.logs) return [];
         const logs = [...data.logs];
@@ -149,7 +103,6 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
         return logs;
     }, [data?.logs, sortOrder]);
 
-    // Get log level counts from API response (counts are from unfiltered data)
     const logCounts = useMemo(() => {
         return data?.level_counts || {
             CRITICAL: 0,
@@ -161,7 +114,6 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
         };
     }, [data?.level_counts]);
 
-    // Calculate total unfiltered log count
     const totalUnfilteredCount = useMemo(() => {
         return (logCounts.CRITICAL || 0) +
                (logCounts.ERROR || 0) +
@@ -171,7 +123,6 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
                (logCounts.UNKNOWN || 0);
     }, [logCounts]);
 
-    // Get log service counts
     const serviceCounts = useMemo(() => {
         const counts: Record<string, number> = {};
         data?.logs.forEach((log) => {
@@ -180,7 +131,6 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
         return counts;
     }, [data?.logs]);
 
-    // Copy logs to clipboard
     const handleCopy = async () => {
         const text = sortedLogs
             .map((log) => `[${formatTimestamp(log.timestamp)}] [${SERVICE_DISPLAY_NAMES[log.service] || log.service}] [${log.level}] ${log.message}`)
@@ -210,14 +160,8 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
                 throw new Error(error.detail || 'Failed to change log level');
             }
 
-            const result = await response.json();
-
-            // Refresh log level config
             await mutateLogLevel();
-
-            // Show restart required
             setRestartRequired(true);
-
         } catch (error) {
             console.error('Failed to change log level:', error);
             toast.error(
@@ -244,12 +188,8 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
                 throw new Error(error.detail || 'Failed to restart services');
             }
 
-            // Clear restart required flag
             setRestartRequired(false);
-
-            // Refresh log level config
             await mutateLogLevel();
-
             toast.success("Services restarted successfully!");
 
         } catch (error) {
@@ -273,116 +213,107 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
         .join(" • ");
 
     return (
-        <Card className="border-border">
-            <CardHeader className="space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                    <CardTitle className="flex items-center gap-2 shrink-0">
-                        <FileText className="h-5 w-5" />
-                        <span className="whitespace-nowrap">Unified Logging</span>
-                    </CardTitle>
-                    <div className="flex items-center gap-2">
-                        <p className="text-xs text-muted-foreground whitespace-nowrap">{summary}</p>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="flex items-center gap-1"
-                            onClick={() => setIsCollapsed((prev) => !prev)}
-                        >
-                            {isCollapsed ? "Expand" : "Collapse"}
-                            <ArrowUpDown
-                                className={`h-4 w-4 transition-transform ${isCollapsed ? "" : "rotate-180"}`}
-                            />
-                        </Button>
-                    </div>
+        <ExpandableCard
+            title={
+                <div className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    <span>Unified Logging</span>
                 </div>
-                {!isCollapsed && (
-                    <div className="flex flex-wrap items-center gap-2">
-                        <Select value={serviceFilter || "ALL"} onValueChange={(val) => setServiceFilter(val === "ALL" ? undefined : val)}>
-                            <SelectTrigger className="h-8 min-w-[150px]">
-                                <SelectValue placeholder="All Services" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="ALL">All Services ({totalUnfilteredCount})</SelectItem>
-                                {Object.entries(SERVICE_DISPLAY_NAMES).map(([key, name]) => (
-                                    <SelectItem key={key} value={key}>{name} ({serviceCounts[key] || 0})</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        <Select value={levelFilter || "ALL"} onValueChange={(val) => setLevelFilter(val === "ALL" ? undefined : val)}>
-                            <SelectTrigger className="h-8 min-w-[130px]">
-                                <SelectValue placeholder="All Levels" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="ALL">All Levels ({totalUnfilteredCount})</SelectItem>
-                                <SelectItem value="CRITICAL">Critical ({logCounts.CRITICAL || 0})</SelectItem>
-                                <SelectItem value="ERROR">Error ({logCounts.ERROR || 0})</SelectItem>
-                                <SelectItem value="WARN">Warning ({logCounts.WARN || 0})</SelectItem>
-                                <SelectItem value="INFO">Info ({logCounts.INFO || 0})</SelectItem>
-                                <SelectItem value="DEBUG">Debug ({logCounts.DEBUG || 0})</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        <Select value={timeRange} onValueChange={setTimeRange}>
-                            <SelectTrigger className="h-8 min-w-[140px]">
-                                <SelectValue placeholder="Time Range" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="1 minute ago">Last 1 min</SelectItem>
-                                <SelectItem value="5 minutes ago">Last 5 min</SelectItem>
-                                <SelectItem value="15 minutes ago">Last 15 min</SelectItem>
-                                <SelectItem value="1 hour ago">Last 1 hour</SelectItem>
-                                <SelectItem value="24 hours ago">Last 24 hours</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        <Select
-                            value={logLevelConfig?.current_level || "INFO"}
-                            onValueChange={handleLogLevelChange}
-                            disabled={changingLogLevel}
-                        >
-                            <SelectTrigger className="h-8 min-w-[120px]">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="DEBUG">DEBUG</SelectItem>
-                                <SelectItem value="INFO">INFO</SelectItem>
-                                <SelectItem value="WARN">WARN</SelectItem>
-                                <SelectItem value="ERROR">ERROR</SelectItem>
-                                <SelectItem value="CRITICAL">CRITICAL</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        {changingLogLevel && <RefreshCw className="h-4 w-4 animate-spin shrink-0" />}
-                        <Select
-                            value={refreshInterval.toString()}
-                            onValueChange={(val) => setRefreshInterval(parseInt(val))}
-                        >
-                            <SelectTrigger className="h-8 min-w-[110px]">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="1000">1s</SelectItem>
-                                <SelectItem value="5000">5s</SelectItem>
-                                <SelectItem value="15000">15s</SelectItem>
-                                <SelectItem value="30000">30s</SelectItem>
-                                <SelectItem value="60000">60s</SelectItem>
-                                <SelectItem value="0">Off</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        <Badge variant="outline" className="shrink-0">{sortedLogs.length}</Badge>
-                        <Button variant="outline" size="sm" onClick={toggleSortOrder} title={sortOrder === "desc" ? "Newest first" : "Oldest first"} className="shrink-0">
-                            <ArrowUpDown className="h-4 w-4" />
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={handleCopy} className="shrink-0">
-                            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                        </Button>
-                    </div>
-                )}
-            </CardHeader>
-            {!isCollapsed && (
-                <CardContent>
-                    {restartRequired && !restarting && (
-                    <Alert className="mb-4">
+            }
+            description="Live log stream with filtering, log-level control, and restart tooling."
+            summary={summary}
+            defaultCollapsed
+        >
+            <div className="space-y-4">
+                <div className="flex flex-wrap items-center gap-2">
+                    <Select value={serviceFilter || "ALL"} onValueChange={(val) => setServiceFilter(val === "ALL" ? undefined : val)}>
+                        <SelectTrigger className="h-8 min-w-[150px]">
+                            <SelectValue placeholder="All Services" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="ALL">All Services ({totalUnfilteredCount})</SelectItem>
+                            {Object.entries(SERVICE_DISPLAY_NAMES).map(([key, name]) => (
+                                <SelectItem key={key} value={key}>{name} ({serviceCounts[key] || 0})</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    <Select value={levelFilter || "ALL"} onValueChange={(val) => setLevelFilter(val === "ALL" ? undefined : val)}>
+                        <SelectTrigger className="h-8 min-w-[130px]">
+                            <SelectValue placeholder="All Levels" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="ALL">All Levels ({totalUnfilteredCount})</SelectItem>
+                            <SelectItem value="CRITICAL">Critical ({logCounts.CRITICAL || 0})</SelectItem>
+                            <SelectItem value="ERROR">Error ({logCounts.ERROR || 0})</SelectItem>
+                            <SelectItem value="WARN">Warning ({logCounts.WARN || 0})</SelectItem>
+                            <SelectItem value="INFO">Info ({logCounts.INFO || 0})</SelectItem>
+                            <SelectItem value="DEBUG">Debug ({logCounts.DEBUG || 0})</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <Select value={timeRange} onValueChange={setTimeRange}>
+                        <SelectTrigger className="h-8 min-w-[140px]">
+                            <SelectValue placeholder="Time Range" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="1 minute ago">Last 1 min</SelectItem>
+                            <SelectItem value="5 minutes ago">Last 5 min</SelectItem>
+                            <SelectItem value="15 minutes ago">Last 15 min</SelectItem>
+                            <SelectItem value="1 hour ago">Last 1 hour</SelectItem>
+                            <SelectItem value="24 hours ago">Last 24 hours</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <Select
+                        value={logLevelConfig?.current_level || "INFO"}
+                        onValueChange={handleLogLevelChange}
+                        disabled={changingLogLevel}
+                    >
+                        <SelectTrigger className="h-8 min-w-[120px]">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="DEBUG">DEBUG</SelectItem>
+                            <SelectItem value="INFO">INFO</SelectItem>
+                            <SelectItem value="WARN">WARN</SelectItem>
+                            <SelectItem value="ERROR">ERROR</SelectItem>
+                            <SelectItem value="CRITICAL">CRITICAL</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    {changingLogLevel && <RefreshCw className="h-4 w-4 animate-spin shrink-0" />}
+                    <Select
+                        value={refreshInterval.toString()}
+                        onValueChange={(val) => setRefreshInterval(parseInt(val))}
+                    >
+                        <SelectTrigger className="h-8 min-w-[110px]">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="1000">1s</SelectItem>
+                            <SelectItem value="5000">5s</SelectItem>
+                            <SelectItem value="15000">15s</SelectItem>
+                            <SelectItem value="30000">30s</SelectItem>
+                            <SelectItem value="60000">60s</SelectItem>
+                            <SelectItem value="0">Off</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <Badge variant="outline" className="shrink-0">{sortedLogs.length}</Badge>
+                    <Button variant="outline" size="sm" onClick={toggleSortOrder} title={sortOrder === "desc" ? "Newest first" : "Oldest first"} className="shrink-0">
+                        <ArrowUpDown className="h-4 w-4" />
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={handleCopy} className="shrink-0">
+                        {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    </Button>
+                </div>
+
+                {restartRequired && !restarting && (
+                    <Alert className="mb-0">
                         <AlertDescription>
-                            <div className="flex items-center justify-between">
-                                <span>Log level updated. Restart services to apply changes?</span>
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <div className="flex items-center gap-2">
+                                    <Filter className="h-4 w-4 text-warning" />
+                                    <span>
+                                        Log level changed. Restart services to apply the new level.
+                                    </span>
+                                </div>
                                 <Button
                                     variant="default"
                                     size="sm"
@@ -396,7 +327,7 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
                 )}
 
                 {restarting && (
-                    <Alert className="mb-4">
+                    <Alert className="mb-0">
                         <AlertDescription>
                             <div className="flex items-center gap-2">
                                 <RefreshCw className="h-4 w-4 animate-spin" />
@@ -404,27 +335,24 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
                             </div>
                         </AlertDescription>
                     </Alert>
-                    )}
+                )}
 
-                    {/* Error state */}
-                    {error && (
-                    <Alert variant="destructive" className="mb-4">
+                {error && (
+                    <Alert variant="destructive" className="mb-0">
                         <AlertDescription>
                             Failed to load unified logs. Check service status.
                         </AlertDescription>
                     </Alert>
-                    )}
+                )}
 
-                    {/* Loading state */}
-                    {isLoading && (
+                {isLoading && (
                     <div className="flex items-center justify-center p-8">
                         <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
                         <span className="ml-2 text-muted-foreground">Loading logs...</span>
                     </div>
-                    )}
+                )}
 
-                    {/* Log stream */}
-                    {!isLoading && (
+                {!isLoading && (
                     <ScrollArea className="h-[600px] w-full rounded-md border bg-gray-950 p-4">
                         {sortedLogs.length === 0 ? (
                             <div className="text-sm text-muted-foreground text-center py-8">
@@ -450,9 +378,39 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
                             </div>
                         )}
                     </ScrollArea>
-                    )}
-                </CardContent>
-            )}
-        </Card>
+                )}
+            </div>
+        </ExpandableCard>
     );
+}
+
+function getLevelColor(level: string): string {
+    switch (level) {
+        case "CRITICAL":
+            return "text-red-600 font-bold";
+        case "ERROR":
+            return "text-red-400";
+        case "WARN":
+            return "text-yellow-400";
+        case "INFO":
+            return "text-blue-400";
+        case "DEBUG":
+            return "text-gray-400";
+        default:
+            return "text-gray-300";
+    }
+}
+
+function formatTimestamp(timestamp: string): string {
+    try {
+        const date = new Date(timestamp);
+        return date.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        });
+    } catch {
+        return timestamp;
+    }
 }

@@ -13,7 +13,7 @@ import {
     Trash2,
     ListRestart,
     Clock3,
-    ChevronDown,
+    Newspaper,
 } from "lucide-react";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
@@ -21,11 +21,9 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useStatusStream } from "@/lib/hooks/useStatusStream";
 import { useSystemResources } from "@/lib/hooks/useSystemResources";
 import { useNewsHealth } from "@/lib/hooks/useNewsHealth";
-import { SystemStatusCard } from "@/components/status/SystemStatusCard";
 import { ServiceCard } from "@/components/status/ServiceCard";
 import { ResourceCard } from "@/components/status/ResourceCard";
 import { DatabasePoolCard } from "@/components/status/DatabasePoolCard";
@@ -41,6 +39,7 @@ import { MLModelCard } from "@/components/status/MLModelCard";
 import { MaintenanceCard } from "@/components/status/MaintenanceCard";
 import { TableFreshnessCard } from "@/components/status/TableFreshnessCard";
 import { APIKeysCard } from "@/components/status/APIKeysCard";
+import { ExpandableCard } from "@/components/status/ExpandableCard";
 import {
     clearCache,
     refreshWatchlist,
@@ -105,7 +104,6 @@ export default function StatusPage() {
         storageKey?: string;
     } | null>(null);
     const [isActionLoading, setIsActionLoading] = useState(false);
-    const [celeryExpanded, setCeleryExpanded] = useState(false);
 
     useEffect(() => {
         if (!health) {
@@ -388,29 +386,48 @@ export default function StatusPage() {
     const services = health.services || {};
     const serviceEntries = Object.entries(services);
 
-    const renderNewsHealthCard = () => (
-        <Card className="border-border">
-            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                    <CardTitle className="text-xl">News Health</CardTitle>
-                    <p className="text-sm text-muted-foreground">
-                        FinBERT availability and cache freshness for the News surface
-                    </p>
-                </div>
-                <div className="flex items-center gap-2">
-                    <Badge variant={finbertStatus.variant}>{finbertStatus.label}</Badge>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={refreshNewsHealth}
-                        disabled={newsHealthLoading}
-                    >
-                        <RefreshCw className="mr-2 h-4 w-4" />
-                        Refresh
-                    </Button>
-                </div>
-            </CardHeader>
-            <CardContent>
+    const renderNewsHealthCard = () => {
+        const summary = (() => {
+            if (newsHealthError) {
+                return newsHealthError.message || "Failed to load telemetry";
+            }
+            if (newsHealthLoading && !newsHealth) {
+                return "Loading telemetry...";
+            }
+            if (!newsHealth) {
+                return "Waiting for news telemetry";
+            }
+            const fallbackCount = newsHealth.fallback_headlines_24h ?? 0;
+            const fallbackSummary = fallbackCount > 0 ? `${fallbackCount} fallback` : "No fallback";
+            return `${newsHealth.headlines_24h ?? 0} headlines • ${fallbackSummary} • ${finbertStatus.label}`;
+        })();
+
+        return (
+            <ExpandableCard
+                title={
+                    <div className="flex items-center gap-2">
+                        <Newspaper className="h-5 w-5" />
+                        <span>News Health</span>
+                    </div>
+                }
+                description="FinBERT availability and cache freshness for the News surface."
+                summary={summary}
+                defaultCollapsed
+                actions={
+                    <div className="flex items-center gap-2">
+                        <Badge variant={finbertStatus.variant}>{finbertStatus.label}</Badge>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={refreshNewsHealth}
+                            disabled={newsHealthLoading}
+                        >
+                            <RefreshCw className="mr-2 h-4 w-4" />
+                            Refresh
+                        </Button>
+                    </div>
+                }
+            >
                 {newsHealthError ? (
                     <Alert variant="destructive">
                         <AlertTitle>Failed to load news health</AlertTitle>
@@ -481,23 +498,10 @@ export default function StatusPage() {
                         </div>
                     </div>
                 )}
-            </CardContent>
-        </Card>
-    );
+            </ExpandableCard>
+        );
+    };
 
-    const celerySummary = detailedHealth?.celery_worker
-        ? [
-              detailedHealth.celery_worker.active ? "Worker active" : "Worker inactive",
-              detailedHealth.celery_worker.active_tasks !== undefined
-                  ? `${detailedHealth.celery_worker.active_tasks} active tasks`
-                  : null,
-              detailedHealth.celery_worker.pool_size
-                  ? `Pool ${detailedHealth.celery_worker.pool_size}`
-                  : null,
-          ]
-              .filter(Boolean)
-              .join(" • ")
-        : "Worker telemetry unavailable";
 
     return renderShell(
         <>
@@ -505,158 +509,114 @@ export default function StatusPage() {
                 <SectionCard
                     variant="surface"
                     padding="sm"
-                    className={cn(
-                        "border border-border/60",
-                        connectionBanner.tone === "danger"
-                            ? "bg-loss/10"
-                            : "bg-accent/5"
-                    )}
-                    title={
-                        <div className="flex items-center gap-2">
-                            {connectionBanner.icon}
-                            <span>{connectionBanner.title}</span>
-                        </div>
-                    }
+                    title={connectionBanner.title}
                     description={connectionBanner.description}
                     actions={
                         <Button variant="outline" size="sm" onClick={retryConnection}>
                             <RefreshCw className="mr-2 h-4 w-4" />
-                            Retry stream
+                            Retry Stream
                         </Button>
                     }
-                />
+                >
+                    <div className="flex items-center gap-2 text-sm">
+                        {connectionBanner.icon}
+                        <span>
+                            {connectionState === "fallback"
+                                ? "Falling back to polling every 5s."
+                                : "Live SSE stream disconnected."}
+                        </span>
+                    </div>
+                </SectionCard>
             )}
 
             <SectionCard
                 variant="surface"
-                title="Live Overview"
-                description="Current service health and ingest telemetry."
-                contentClassName="space-y-6"
+                title="Overview"
+                description="Operational snapshot across services and resources."
             >
-                <SystemStatusCard health={health} />
-                {renderNewsHealthCard()}
+                <div className="space-y-6">
+                    {serviceEntries.length > 0 ? (
+                        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                            {serviceEntries.map(([serviceName, status]) => (
+                                <ServiceCard
+                                    key={serviceName}
+                                    serviceName={serviceName}
+                                    status={status}
+                                    onRestart={triggerRestartService}
+                                />
+                            ))}
+                        </div>
+                    ) : (
+                        <Alert>
+                            <AlertTitle>No Services Found</AlertTitle>
+                            <AlertDescription>
+                                No services are currently being monitored. Check your configuration.
+                            </AlertDescription>
+                        </Alert>
+                    )}
+                    <ResourceOverview
+                        resources={resources}
+                        resourcesLoading={resourcesLoading}
+                    />
+                </div>
             </SectionCard>
 
             <SectionCard
                 variant="surface"
-                title="Integrations & Data Pipelines"
-                description="Upstream APIs, models, and freshness checks."
-                contentClassName="space-y-6"
+                title="Data Pipelines"
+                description="Upstream vendors, data freshness, and credentials."
             >
-                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                <div className="space-y-4">
                     <DataSourcesCard health={health} />
+                    <TableFreshnessCard />
                     <APIQuotasCard health={health} />
+                    {detailedHealth?.api_keys && detailedHealth.api_keys.length > 0 && (
+                        <APIKeysCard apiKeys={detailedHealth.api_keys} />
+                    )}
+                </div>
+            </SectionCard>
+
+            <SectionCard
+                variant="surface"
+                title="Scheduled Tasks"
+                description="Worker health, queue depth, and beat schedules."
+            >
+                <div className="space-y-4">
+                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                        <QueueDepthCard />
+                        <BeatScheduleCard />
+                    </div>
+                    <CeleryTaskTable />
+                </div>
+            </SectionCard>
+
+            <SectionCard
+                variant="surface"
+                title="News Sources"
+                description="Sentiment, source quality, and article-quality models."
+            >
+                <div className="space-y-4">
+                    {renderNewsHealthCard()}
                     <SourceQualityCard />
                     <MLModelCard />
                 </div>
-                {detailedHealth?.api_keys && detailedHealth.api_keys.length > 0 && (
-                    <APIKeysCard apiKeys={detailedHealth.api_keys} />
-                )}
-                <TableFreshnessCard />
             </SectionCard>
 
             <SectionCard
                 variant="surface"
-                title="Services"
-                description="Individual service daemons with restart controls."
-                contentClassName="space-y-6"
+                title="Maintenance"
+                description="Database cleanup and integrity automation."
             >
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-                    {serviceEntries.map(([serviceName, status]) => (
-                        <ServiceCard
-                            key={serviceName}
-                            serviceName={serviceName}
-                            status={status}
-                            onRestart={triggerRestartService}
-                        />
-                    ))}
-                </div>
-                {serviceEntries.length === 0 && (
-                    <Alert>
-                        <AlertTitle>No Services Found</AlertTitle>
-                        <AlertDescription>
-                            No services are currently being monitored. Check your configuration.
-                        </AlertDescription>
-                    </Alert>
-                )}
+                <MaintenanceCard />
             </SectionCard>
 
             <SectionCard
                 variant="surface"
-                title="System Resources"
-                description="Auto-refreshing telemetry (5s)."
+                title="Unified Logging"
+                description="Centralized logs with filtering and restart controls."
             >
-                {resourcesLoading && !resources ? (
-                    <div className="text-center py-8">
-                        <RefreshCw className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
-                        <p className="text-muted-foreground mt-2">Loading resource data...</p>
-                    </div>
-                ) : resources ? (
-                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
-                        <ResourceCard
-                            title="Disk Usage"
-                            percent={resources.disk.percent_used}
-                            status={resources.disk.status}
-                            details={`${resources.disk.used_gb.toFixed(1)} GB / ${resources.disk.total_gb.toFixed(1)} GB used`}
-                            icon={<HardDrive className="h-5 w-5" />}
-                        />
-                        <ResourceCard
-                            title="Memory Usage"
-                            percent={resources.memory.percent_used}
-                            status={resources.memory.status}
-                            details={`${resources.memory.used_gb.toFixed(1)} GB / ${resources.memory.total_gb.toFixed(1)} GB used`}
-                            icon={<MemoryStick className="h-5 w-5" />}
-                        />
-                        <ResourceCard
-                            title="CPU Usage"
-                            percent={resources.cpu.percent_used}
-                            status={resources.cpu.status}
-                            details={`${resources.cpu.cores} cores available`}
-                            icon={<Cpu className="h-5 w-5" />}
-                        />
-                        <DatabasePoolCard
-                            poolSize={resources.database_pool.pool_size}
-                            checkedOut={resources.database_pool.checked_out}
-                            overflow={resources.database_pool.overflow}
-                            percent={resources.database_pool.percent_used}
-                            status={resources.database_pool.status}
-                        />
-                    </div>
-                ) : null}
+                <LogsCard />
             </SectionCard>
-
-            <SectionCard
-                variant="surface"
-                title="Celery & Maintenance"
-                description={celeryExpanded ? "Task queue depth, beat schedule, and maintenance tooling." : celerySummary}
-                actions={
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="flex items-center gap-1"
-                        onClick={() => setCeleryExpanded((prev) => !prev)}
-                    >
-                        {celeryExpanded ? "Collapse" : "Expand"}
-                        <ChevronDown
-                            className={`h-4 w-4 transition-transform ${celeryExpanded ? "rotate-180" : ""}`}
-                        />
-                    </Button>
-                }
-                contentClassName={celeryExpanded ? "space-y-6" : "hidden"}
-            >
-                {celeryExpanded && (
-                    <>
-                        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                            <QueueDepthCard />
-                            <BeatScheduleCard />
-                        </div>
-                        <CeleryTaskTable />
-                        <MaintenanceCard />
-                    </>
-                )}
-            </SectionCard>
-
-            <LogsCard />
 
             {actionDialogConfig && (
                 <ServiceActionDialog
@@ -688,5 +648,59 @@ function StatusSkeleton() {
                 </div>
             </div>
         </SectionCard>
+    );
+}
+
+function ResourceOverview({
+    resources,
+    resourcesLoading,
+}: {
+    resources: ReturnType<typeof useSystemResources>["resources"];
+    resourcesLoading: boolean;
+}) {
+    if (resourcesLoading && !resources) {
+        return (
+            <div className="text-center py-8">
+                <RefreshCw className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                <p className="text-muted-foreground mt-2">Loading resource data...</p>
+            </div>
+        );
+    }
+
+    if (!resources) {
+        return null;
+    }
+
+    return (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+            <ResourceCard
+                title="Disk Usage"
+                percent={resources.disk.percent_used}
+                status={resources.disk.status}
+                details={`${resources.disk.used_gb.toFixed(1)} GB / ${resources.disk.total_gb.toFixed(1)} GB used`}
+                icon={<HardDrive className="h-5 w-5" />}
+            />
+            <ResourceCard
+                title="Memory Usage"
+                percent={resources.memory.percent_used}
+                status={resources.memory.status}
+                details={`${resources.memory.used_gb.toFixed(1)} GB / ${resources.memory.total_gb.toFixed(1)} GB used`}
+                icon={<MemoryStick className="h-5 w-5" />}
+            />
+            <ResourceCard
+                title="CPU Usage"
+                percent={resources.cpu.percent_used}
+                status={resources.cpu.status}
+                details={`${resources.cpu.cores} cores available`}
+                icon={<Cpu className="h-5 w-5" />}
+            />
+            <DatabasePoolCard
+                poolSize={resources.database_pool.pool_size}
+                checkedOut={resources.database_pool.checked_out}
+                overflow={resources.database_pool.overflow}
+                percent={resources.database_pool.percent_used}
+                status={resources.database_pool.status}
+            />
+        </div>
     );
 }

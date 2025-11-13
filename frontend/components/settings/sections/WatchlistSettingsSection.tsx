@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { ListFilter } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
@@ -9,7 +8,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
-import { SectionHeader } from "../SectionHeader";
 import { WeightConfigurator } from "../WeightConfigurator";
 import type {
   ScoreWeights,
@@ -23,7 +21,6 @@ interface WatchlistSettingsSectionProps {
   newsOverride: number | null;
   newsLookbackHours: number;
   newsMaxArticles: number;
-  frontendPollInterval: number;
   showNews: boolean;
   autoExpand: boolean;
   scoreWeights: ScoreWeights;
@@ -47,7 +44,6 @@ export function WatchlistSettingsSection({
   newsOverride,
   newsLookbackHours,
   newsMaxArticles,
-  frontendPollInterval,
   showNews,
   autoExpand,
   scoreWeights,
@@ -70,12 +66,6 @@ export function WatchlistSettingsSection({
 
   return (
     <div className="space-y-6">
-      <SectionHeader
-        icon={<ListFilter className="h-6 w-6" />}
-        title="Watchlist Configuration"
-        description="Configure data refresh intervals, scoring weights, and display preferences"
-      />
-
       {/* Basic Settings */}
       <Card>
         <CardContent className="space-y-6 pt-6">
@@ -157,17 +147,6 @@ export function WatchlistSettingsSection({
             <p className="text-xs text-text-muted">
               Sets the default number of headlines returned for each ticker and the
               Market view.
-            </p>
-          </div>
-
-          {/* Frontend Polling */}
-          <div className="space-y-2">
-            <Label className="text-text-muted">
-              Frontend Polling: {frontendPollInterval} seconds (automatic)
-            </Label>
-            <p className="text-xs text-text-muted">
-              How often the UI checks for new data. This is separate from backend
-              refresh and optimized for responsiveness.
             </p>
           </div>
 

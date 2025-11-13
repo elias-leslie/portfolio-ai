@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Save, Download, Upload, Copy, Trash2, Plus, Check } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,12 +39,16 @@ interface ProfileSelectorProps {
   currentPreferences: PreferencesResponse;
   onProfileLoad: (preferences: PreferencesResponse) => void;
   userId?: number;
+  variant?: "card" | "plain";
+  className?: string;
 }
 
 export function ProfileSelector({
   currentPreferences,
   onProfileLoad,
   userId = 1,
+  variant = "card",
+  className,
 }: ProfileSelectorProps) {
   const { data: profiles = [], isLoading } = useProfiles(userId);
   const createProfile = useCreateProfile();
@@ -201,23 +205,29 @@ export function ProfileSelector({
     setShowDeleteDialog(true);
   };
 
+  const Wrapper = ({ children }: { children: ReactNode }) =>
+    variant === "card" ? (
+      <Card className={className}>
+        <CardContent className="space-y-4 pt-6">{children}</CardContent>
+      </Card>
+    ) : (
+      <div className={cn("space-y-4", className)}>{children}</div>
+    );
+
   if (isLoading) {
     return (
-      <Card>
-        <CardContent className="pt-6">
-          <div className="animate-pulse space-y-3">
-            <div className="h-4 w-32 rounded bg-surface-muted" />
-            <div className="h-10 rounded bg-surface-muted" />
-          </div>
-        </CardContent>
-      </Card>
+      <Wrapper>
+        <div className="animate-pulse space-y-3">
+          <div className="h-4 w-32 rounded bg-surface-muted" />
+          <div className="h-10 rounded bg-surface-muted" />
+        </div>
+      </Wrapper>
     );
   }
 
   return (
     <>
-      <Card>
-        <CardContent className="space-y-4 pt-6">
+      <Wrapper>
           <div className="flex items-center justify-between">
             <Label>Settings Profiles</Label>
             <div className="flex gap-2">
@@ -315,8 +325,7 @@ export function ProfileSelector({
             store all your preferences including risk tolerance, weights, and display
             settings.
           </p>
-        </CardContent>
-      </Card>
+      </Wrapper>
 
       {/* Save Profile Dialog */}
       <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>

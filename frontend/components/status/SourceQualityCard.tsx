@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Award, TrendingUp, AlertTriangle, RefreshCw } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ExpandableCard } from "@/components/status/ExpandableCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -100,40 +100,42 @@ export function SourceQualityCard() {
     }
   };
 
+  const summary = lastUpdate
+    ? `${metrics.filter((m) => m.article_count > 0).length} active sources • Updated ${formatTimestamp(lastUpdate)}`
+    : "No profiling data captured yet";
+
   return (
-    <Card className="border-border">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <Award className="h-5 w-5" />
-            <span>News Source Quality</span>
-          </CardTitle>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={fetchMetrics}
-              disabled={loading}
-            >
-              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={triggerProfiling}
-              disabled={profiling}
-            >
-              {profiling ? "Profiling..." : "Run Profiling"}
-            </Button>
-          </div>
+    <ExpandableCard
+      title={
+        <div className="flex items-center gap-2">
+          <Award className="h-5 w-5" />
+          <span>News Source Quality</span>
         </div>
-        {lastUpdate && (
-          <p className="text-sm text-muted-foreground mt-1">
-            Last updated: {formatTimestamp(lastUpdate)} • {metrics.filter((m) => m.article_count > 0).length} active sources
-          </p>
-        )}
-      </CardHeader>
-      <CardContent>
+      }
+      description="Quality, freshness, and diversity metrics for each news vendor."
+      summary={summary}
+      defaultCollapsed
+      actions={
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchMetrics}
+            disabled={loading}
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={triggerProfiling}
+            disabled={profiling}
+          >
+            {profiling ? "Profiling..." : "Run Profiling"}
+          </Button>
+        </div>
+      }
+    >
         {loading && metrics.length === 0 ? (
           <div className="flex justify-center py-8">
             <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -143,9 +145,9 @@ export function SourceQualityCard() {
             <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
             <p>No profiling data available</p>
             <p className="text-sm">Click "Run Profiling" to generate quality metrics</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
+            </div>
+          ) : (
+            <div className="space-y-3">
             {metrics.filter((m) => m.article_count > 0).map((metric) => (
               <div
                 key={metric.vendor}
@@ -191,9 +193,8 @@ export function SourceQualityCard() {
                 </div>
               </div>
             ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+            </div>
+          )}
+    </ExpandableCard>
   );
 }

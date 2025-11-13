@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -13,9 +12,9 @@ import {
   RefreshCw,
   AlertCircle,
   PlayCircle,
-  ChevronDown,
 } from "lucide-react";
 import { ServiceActionDialog } from "./ServiceActionDialog";
+import { ExpandableCard } from "@/components/status/ExpandableCard";
 import {
   cleanupOldNews,
   vacuumDatabase,
@@ -215,7 +214,6 @@ export function MaintenanceCard() {
     onConfirm: () => void;
     storageKey?: string;
   } | null>(null);
-  const [isCollapsed, setIsCollapsed] = useState(true);
 
   // Fetch last run data on mount
   useEffect(() => {
@@ -378,49 +376,32 @@ export function MaintenanceCard() {
 
   return (
     <>
-      <Card>
-        <CardHeader className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <CardTitle>Database Maintenance</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                {isCollapsed
-                  ? overviewSummary
-                  : "Cleanup, optimize, and validate database integrity"}
-              </p>
+      <ExpandableCard
+        title="Database Maintenance"
+        description="Cleanup, optimize, and validate database integrity."
+        summary={overviewSummary}
+        defaultCollapsed
+        actions={
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Switch id="dry-run" checked={dryRun} onCheckedChange={setDryRun} />
+              <Label htmlFor="dry-run" className="cursor-pointer">
+                Dry Run
+              </Label>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2">
-                <Switch id="dry-run" checked={dryRun} onCheckedChange={setDryRun} />
-                <Label htmlFor="dry-run" className="cursor-pointer">
-                  Dry Run
-                </Label>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={fetchLastRunData}
-                disabled={isFetching}
-                title="Refresh last run summary"
-              >
-                <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="flex items-center gap-1"
-                onClick={() => setIsCollapsed((prev) => !prev)}
-              >
-                {isCollapsed ? "Expand" : "Collapse"}
-                <ChevronDown
-                  className={`h-4 w-4 transition-transform ${isCollapsed ? "" : "rotate-180"}`}
-                />
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchLastRunData}
+              disabled={isFetching}
+              title="Refresh last run summary"
+            >
+              <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+            </Button>
           </div>
-        </CardHeader>
-        {!isCollapsed && (
-          <CardContent className="space-y-4">
+        }
+      >
+        <div className="space-y-4">
           <TaskSection
             title="Cleanup Old News"
             description="Remove news articles older than 90 days"
@@ -447,9 +428,8 @@ export function MaintenanceCard() {
             onTrigger={triggerValidateIntegrity}
             isLoading={isLoading}
           />
-        </CardContent>
-        )}
-      </Card>
+        </div>
+      </ExpandableCard>
 
       {/* Service Action Dialog */}
       {actionDialogConfig && (

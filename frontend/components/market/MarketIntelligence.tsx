@@ -83,6 +83,7 @@ export function MarketIntelligence() {
   const sp500Indicator = indicators.sp500;
   const tnxIndicator = indicators.tnx;
   const dxyIndicator = indicators.dxy;
+  const putcallIndicator = indicators.putcall;
 
   return (
     <Card className="p-6 shadow-lg">
@@ -250,6 +251,26 @@ export function MarketIntelligence() {
                       : "neutral"
                   }
                   emoji={dxyIndicator.emoji}
+                  size="sm"
+                />
+              </div>
+            )}
+
+            {putcallIndicator && (
+              <div className="p-4 rounded-lg bg-surface-muted/20 hover:bg-surface-muted/30 transition-colors">
+                <LabeledIndicator
+                  label={putcallIndicator.label}
+                  value={putcallIndicator.value.toFixed(2)}
+                  changePct={putcallIndicator.change_pct}
+                  tooltip={putcallIndicator.tooltip}
+                  signal={
+                    putcallIndicator.signal === "Bullish"
+                      ? "bullish"
+                      : putcallIndicator.signal === "Bearish"
+                      ? "bearish"
+                      : "neutral"
+                  }
+                  emoji={putcallIndicator.emoji}
                   size="sm"
                 />
               </div>

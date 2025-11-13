@@ -5,7 +5,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
-import { SectionHeader } from "../SectionHeader";
 import { ToggleCard } from "../ToggleCard";
 
 interface TradingRiskSettingsProps {
@@ -43,12 +42,6 @@ export function TradingRiskSettings({
 }: TradingRiskSettingsProps) {
   return (
     <div className="space-y-6">
-      <SectionHeader
-        icon={<TrendingUp className="h-6 w-6" />}
-        title="Trading & Risk"
-        description="Configure your risk tolerance and trading preferences for AI-generated ideas"
-      />
-
       {/* Risk Tolerance */}
       <Card>
         <CardContent className="space-y-6 pt-6">

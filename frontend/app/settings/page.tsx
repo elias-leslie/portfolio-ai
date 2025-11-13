@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, startTransition } from "react";
+import { useState, useEffect, startTransition, useMemo, useCallback } from "react";
 import {
   usePreferences,
   useUpdatePreferences,
@@ -18,10 +18,187 @@ import type {
   FundamentalSubWeights,
 } from "@/lib/api/preferences";
 import { PageHeader } from "@/components/shared/PageHeader";
+import {
+  DEFAULT_SCORE_WEIGHTS,
+  DEFAULT_TECH_WEIGHTS,
+  DEFAULT_FUND_WEIGHTS,
+} from "@/components/settings/DEFAULTS";
+import { SettingsSection } from "@/components/settings/SettingsSection";
+import { TIMEZONE_OPTIONS } from "@/components/settings/sections/DisplaySettings";
+import { useTheme } from "@/lib/hooks/useTheme";
+
+const PRICE_SUB_WEIGHTS = { change_pct: 100 } as const;
+
+type EditablePreferences = {
+  riskTolerance: number;
+  allowLong: boolean;
+  allowShort: boolean;
+  allowOptions: boolean;
+  allowCrypto: boolean;
+  allowFutures: boolean;
+  maxPositionSizePct: number;
+  displayTimezone: string;
+  defaultRefreshMinutes: number;
+  watchlistOverride: number | null;
+  newsOverride: number | null;
+  newsLookbackHours: number;
+  newsMaxArticles: number;
+  showNews: boolean;
+  autoExpand: boolean;
+  scoreWeights: ScoreWeights;
+  technicalSubWeights: TechnicalSubWeights;
+  fundamentalSubWeights: FundamentalSubWeights;
+};
+
+const PRIMITIVE_FIELDS: Array<keyof EditablePreferences> = [
+  "riskTolerance",
+  "allowLong",
+  "allowShort",
+  "allowOptions",
+  "allowCrypto",
+  "allowFutures",
+  "maxPositionSizePct",
+  "displayTimezone",
+  "defaultRefreshMinutes",
+  "watchlistOverride",
+  "newsOverride",
+  "newsLookbackHours",
+  "newsMaxArticles",
+  "showNews",
+  "autoExpand",
+];
+
+const OBJECT_FIELDS: Array<keyof EditablePreferences> = [
+  "scoreWeights",
+  "technicalSubWeights",
+  "fundamentalSubWeights",
+];
+
+const ensureScoreWeights = (weights?: ScoreWeights | null): ScoreWeights => ({
+  price: weights?.price ?? DEFAULT_SCORE_WEIGHTS.price,
+  technical: weights?.technical ?? DEFAULT_SCORE_WEIGHTS.technical,
+  fundamental: weights?.fundamental ?? DEFAULT_SCORE_WEIGHTS.fundamental,
+});
+
+const ensureTechnicalWeights = (
+  weights?: TechnicalSubWeights | null,
+): TechnicalSubWeights => ({
+  rsi_14: weights?.rsi_14 ?? DEFAULT_TECH_WEIGHTS.rsi_14,
+  trend: weights?.trend ?? DEFAULT_TECH_WEIGHTS.trend,
+  macd: weights?.macd ?? DEFAULT_TECH_WEIGHTS.macd,
+});
+
+const ensureFundamentalWeights = (
+  weights?: FundamentalSubWeights | null,
+): FundamentalSubWeights => ({
+  valuation: weights?.valuation ?? DEFAULT_FUND_WEIGHTS.valuation,
+  growth: weights?.growth ?? DEFAULT_FUND_WEIGHTS.growth,
+  health: weights?.health ?? DEFAULT_FUND_WEIGHTS.health,
+  sentiment: weights?.sentiment ?? DEFAULT_FUND_WEIGHTS.sentiment,
+});
+
+const parsePositionSize = (value: string) => {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const describeRiskTolerance = (value: number) => {
+  if (value <= 3) return "Conservative";
+  if (value >= 8) return "Aggressive";
+  return "Moderate";
+};
+
+const formatTimezoneLabel = (timezone: string) =>
+  TIMEZONE_OPTIONS[timezone as keyof typeof TIMEZONE_OPTIONS] ?? timezone;
+
+const formatThemeLabel = (theme: string | undefined) => {
+  switch (theme) {
+    case "dark":
+      return "Dark";
+    case "light":
+      return "Light";
+    default:
+      return "System";
+  }
+};
+
+const buildEditableFromResponse = (
+  prefs: PreferencesResponse,
+): EditablePreferences => ({
+  riskTolerance: prefs.risk_tolerance,
+  allowLong: prefs.allow_long,
+  allowShort: prefs.allow_short,
+  allowOptions: prefs.allow_options,
+  allowCrypto: prefs.allow_crypto,
+  allowFutures: prefs.allow_futures,
+  maxPositionSizePct: prefs.max_position_size_pct,
+  displayTimezone: prefs.display_timezone,
+  defaultRefreshMinutes: prefs.default_refresh_minutes,
+  watchlistOverride: prefs.watchlist_refresh_override,
+  newsOverride: prefs.news_refresh_override,
+  newsLookbackHours: prefs.news_lookback_hours,
+  newsMaxArticles: prefs.news_max_articles,
+  showNews: prefs.watchlist_show_news,
+  autoExpand: prefs.watchlist_auto_expand,
+  scoreWeights: ensureScoreWeights(prefs.watchlist_score_weights),
+  technicalSubWeights: ensureTechnicalWeights(prefs.technical_sub_weights),
+  fundamentalSubWeights: ensureFundamentalWeights(prefs.fundamental_sub_weights),
+});
+
+const editableToApiPayload = (editable: EditablePreferences) => ({
+  risk_tolerance: editable.riskTolerance,
+  allow_long: editable.allowLong,
+  allow_short: editable.allowShort,
+  allow_options: editable.allowOptions,
+  allow_crypto: editable.allowCrypto,
+  allow_futures: editable.allowFutures,
+  max_position_size_pct: editable.maxPositionSizePct,
+  display_timezone: editable.displayTimezone,
+  default_refresh_minutes: editable.defaultRefreshMinutes,
+  watchlist_refresh_override: editable.watchlistOverride,
+  news_refresh_override: editable.newsOverride,
+  news_lookback_hours: editable.newsLookbackHours,
+  news_max_articles: editable.newsMaxArticles,
+  watchlist_show_news: editable.showNews,
+  watchlist_auto_expand: editable.autoExpand,
+  watchlist_score_weights: editable.scoreWeights,
+  price_sub_weights: PRICE_SUB_WEIGHTS,
+  technical_sub_weights: editable.technicalSubWeights,
+  fundamental_sub_weights: editable.fundamentalSubWeights,
+});
+
+const mergeEditableIntoResponse = (
+  base: PreferencesResponse,
+  editable: EditablePreferences,
+): PreferencesResponse => ({
+  ...base,
+  ...editableToApiPayload(editable),
+});
+
+const deepEqual = <T,>(a: T, b: T) => JSON.stringify(a) === JSON.stringify(b);
+
+const countEditableDifferences = (
+  current: EditablePreferences,
+  baseline: EditablePreferences,
+) => {
+  let count = 0;
+  for (const key of PRIMITIVE_FIELDS) {
+    if (current[key] !== baseline[key]) {
+      count += 1;
+    }
+  }
+  for (const key of OBJECT_FIELDS) {
+    if (!deepEqual(current[key], baseline[key])) {
+      count += 1;
+    }
+  }
+  return count;
+};
 
 export default function SettingsPage() {
   const { data: preferences, isLoading } = usePreferences();
   const updatePreferences = useUpdatePreferences();
+  const { theme } = useTheme();
 
   // Trading & Risk state
   const [riskTolerance, setRiskTolerance] = useState<number>(5);
@@ -45,23 +222,33 @@ export default function SettingsPage() {
   const [showNews, setShowNews] = useState(true);
   const [autoExpand, setAutoExpand] = useState(false);
   const [scoreWeights, setScoreWeights] = useState<ScoreWeights>({
-    price: 33,
-    technical: 33,
-    fundamental: 34,
+    ...DEFAULT_SCORE_WEIGHTS,
   });
   const [technicalSubWeights, setTechnicalSubWeights] =
-    useState<TechnicalSubWeights>({
-      rsi_14: 33,
-      trend: 34,
-      macd: 33,
-    });
+    useState<TechnicalSubWeights>({ ...DEFAULT_TECH_WEIGHTS });
   const [fundamentalSubWeights, setFundamentalSubWeights] =
-    useState<FundamentalSubWeights>({
-      valuation: 30,
-      growth: 35,
-      health: 25,
-      sentiment: 10,
-    });
+    useState<FundamentalSubWeights>({ ...DEFAULT_FUND_WEIGHTS });
+
+  const applyEditable = useCallback((editable: EditablePreferences) => {
+    setRiskTolerance(editable.riskTolerance);
+    setAllowLong(editable.allowLong);
+    setAllowShort(editable.allowShort);
+    setAllowOptions(editable.allowOptions);
+    setAllowCrypto(editable.allowCrypto);
+    setAllowFutures(editable.allowFutures);
+    setMaxPositionSizePct(editable.maxPositionSizePct.toString());
+    setDisplayTimezone(editable.displayTimezone);
+    setDefaultRefreshMinutes(editable.defaultRefreshMinutes);
+    setWatchlistOverride(editable.watchlistOverride);
+    setNewsOverride(editable.newsOverride);
+    setNewsLookbackHours(editable.newsLookbackHours);
+    setNewsMaxArticles(editable.newsMaxArticles);
+    setShowNews(editable.showNews);
+    setAutoExpand(editable.autoExpand);
+    setScoreWeights({ ...editable.scoreWeights });
+    setTechnicalSubWeights({ ...editable.technicalSubWeights });
+    setFundamentalSubWeights({ ...editable.fundamentalSubWeights });
+  }, []);
 
   // Update form state when preferences load
   useEffect(() => {
@@ -70,164 +257,106 @@ export default function SettingsPage() {
     }
 
     startTransition(() => {
-      // Trading & Risk
-      setRiskTolerance(preferences.risk_tolerance);
-      setAllowLong(preferences.allow_long);
-      setAllowShort(preferences.allow_short);
-      setAllowOptions(preferences.allow_options);
-      setAllowCrypto(preferences.allow_crypto);
-      setAllowFutures(preferences.allow_futures);
-      setMaxPositionSizePct(preferences.max_position_size_pct.toString());
-
-      // Display
-      setDisplayTimezone(preferences.display_timezone);
-
-      // Watchlist
-      setDefaultRefreshMinutes(preferences.default_refresh_minutes);
-      setWatchlistOverride(preferences.watchlist_refresh_override);
-      setNewsOverride(preferences.news_refresh_override);
-      setNewsLookbackHours(preferences.news_lookback_hours);
-      setNewsMaxArticles(preferences.news_max_articles);
-      setShowNews(preferences.watchlist_show_news);
-      setAutoExpand(preferences.watchlist_auto_expand);
-      setScoreWeights(
-        preferences.watchlist_score_weights ?? {
-          price: 33,
-          technical: 33,
-          fundamental: 34,
-        }
-      );
-      setTechnicalSubWeights(
-        preferences.technical_sub_weights ?? {
-          rsi_14: 33,
-          trend: 34,
-          macd: 33,
-        }
-      );
-      setFundamentalSubWeights(
-        preferences.fundamental_sub_weights ?? {
-          valuation: 30,
-          growth: 35,
-          health: 25,
-          sentiment: 10,
-        }
-      );
+      applyEditable(buildEditableFromResponse(preferences));
     });
-  }, [preferences]);
+  }, [preferences, applyEditable]);
 
-  // Check if form has changed from saved preferences
-  const hasChanges = () => {
-    if (!preferences) return false;
-    return (
-      riskTolerance !== preferences.risk_tolerance ||
-      allowLong !== preferences.allow_long ||
-      allowShort !== preferences.allow_short ||
-      allowOptions !== preferences.allow_options ||
-      allowCrypto !== preferences.allow_crypto ||
-      allowFutures !== preferences.allow_futures ||
-      parseFloat(maxPositionSizePct) !== preferences.max_position_size_pct ||
-      displayTimezone !== preferences.display_timezone ||
-      defaultRefreshMinutes !== preferences.default_refresh_minutes ||
-      watchlistOverride !== preferences.watchlist_refresh_override ||
-      newsOverride !== preferences.news_refresh_override ||
-      newsLookbackHours !== preferences.news_lookback_hours ||
-      newsMaxArticles !== preferences.news_max_articles ||
-      showNews !== preferences.watchlist_show_news ||
-      autoExpand !== preferences.watchlist_auto_expand ||
-      JSON.stringify(scoreWeights) !==
-        JSON.stringify(
-          preferences.watchlist_score_weights ?? {
-            price: 33,
-            technical: 33,
-            fundamental: 34,
-          }
-        ) ||
-      JSON.stringify(technicalSubWeights) !==
-        JSON.stringify(
-          preferences.technical_sub_weights ?? {
-            rsi_14: 33,
-            trend: 34,
-            macd: 33,
-          }
-        ) ||
-      JSON.stringify(fundamentalSubWeights) !==
-        JSON.stringify(
-          preferences.fundamental_sub_weights ?? {
-            valuation: 30,
-            growth: 35,
-            health: 25,
-            sentiment: 10,
-          }
-        )
-    );
-  };
+  const currentEditable = useMemo<EditablePreferences>(
+    () => ({
+      riskTolerance,
+      allowLong,
+      allowShort,
+      allowOptions,
+      allowCrypto,
+      allowFutures,
+      maxPositionSizePct: parsePositionSize(maxPositionSizePct),
+      displayTimezone,
+      defaultRefreshMinutes,
+      watchlistOverride,
+      newsOverride,
+      newsLookbackHours,
+      newsMaxArticles,
+      showNews,
+      autoExpand,
+      scoreWeights,
+      technicalSubWeights,
+      fundamentalSubWeights,
+    }),
+    [
+      riskTolerance,
+      allowLong,
+      allowShort,
+      allowOptions,
+      allowCrypto,
+      allowFutures,
+      maxPositionSizePct,
+      displayTimezone,
+      defaultRefreshMinutes,
+      watchlistOverride,
+      newsOverride,
+      newsLookbackHours,
+      newsMaxArticles,
+      showNews,
+      autoExpand,
+      scoreWeights,
+      technicalSubWeights,
+      fundamentalSubWeights,
+    ],
+  );
 
-  // Count number of changes
-  const countChanges = () => {
-    if (!preferences) return 0;
-    let count = 0;
-    if (riskTolerance !== preferences.risk_tolerance) count++;
-    if (allowLong !== preferences.allow_long) count++;
-    if (allowShort !== preferences.allow_short) count++;
-    if (allowOptions !== preferences.allow_options) count++;
-    if (allowCrypto !== preferences.allow_crypto) count++;
-    if (allowFutures !== preferences.allow_futures) count++;
-    if (parseFloat(maxPositionSizePct) !== preferences.max_position_size_pct)
-      count++;
-    if (displayTimezone !== preferences.display_timezone) count++;
-    if (defaultRefreshMinutes !== preferences.default_refresh_minutes) count++;
-    if (watchlistOverride !== preferences.watchlist_refresh_override) count++;
-    if (newsOverride !== preferences.news_refresh_override) count++;
-    if (newsLookbackHours !== preferences.news_lookback_hours) count++;
-    if (newsMaxArticles !== preferences.news_max_articles) count++;
-    if (showNews !== preferences.watchlist_show_news) count++;
-    if (autoExpand !== preferences.watchlist_auto_expand) count++;
-    if (
-      JSON.stringify(scoreWeights) !==
-      JSON.stringify(
-        preferences.watchlist_score_weights ?? {
-          price: 33,
-          technical: 33,
-          fundamental: 34,
-        }
-      )
-    )
-      count++;
-    if (
-      JSON.stringify(technicalSubWeights) !==
-      JSON.stringify(
-        preferences.technical_sub_weights ?? {
-          rsi_14: 33,
-          trend: 34,
-          macd: 33,
-        }
-      )
-    )
-      count++;
-    if (
-      JSON.stringify(fundamentalSubWeights) !==
-      JSON.stringify(
-        preferences.fundamental_sub_weights ?? {
-          valuation: 30,
-          growth: 35,
-          health: 25,
-          sentiment: 10,
-        }
-      )
-    )
-      count++;
-    return count;
-  };
+  const persistedEditable = useMemo(
+    () => (preferences ? buildEditableFromResponse(preferences) : null),
+    [preferences],
+  );
+
+  const hasChanges = persistedEditable
+    ? !deepEqual(currentEditable, persistedEditable)
+    : false;
+  const changeCount = persistedEditable
+    ? countEditableDifferences(currentEditable, persistedEditable)
+    : 0;
+
+  const enabledInstrumentCount = [
+    currentEditable.allowLong,
+    currentEditable.allowShort,
+    currentEditable.allowOptions,
+    currentEditable.allowCrypto,
+    currentEditable.allowFutures,
+  ].filter(Boolean).length;
+
+  const tradingSummary = [
+    `Risk ${currentEditable.riskTolerance}/10 ${describeRiskTolerance(currentEditable.riskTolerance)}`,
+    `Max ${currentEditable.maxPositionSizePct}%`,
+    `${enabledInstrumentCount}/5 instruments`,
+  ].join(" • ");
+
+  const displaySummary = [`Theme: ${formatThemeLabel(theme)}`, `TZ: ${formatTimezoneLabel(currentEditable.displayTimezone)}`].join(
+    " • ",
+  );
+
+  const watchlistSummary = [
+    `Refresh ${currentEditable.defaultRefreshMinutes}m`,
+    `Lookback ${currentEditable.newsLookbackHours}h`,
+    `${currentEditable.newsMaxArticles} headlines`,
+    currentEditable.showNews ? "News visible" : "News hidden",
+    currentEditable.autoExpand ? "Auto-expand on" : "Auto-expand off",
+  ].join(" • ");
 
   // Validate weight totals
   const validateWeights = () => {
-    const mainTotal = scoreWeights.price + scoreWeights.technical + scoreWeights.fundamental;
-    const techTotal = technicalSubWeights.rsi_14 + technicalSubWeights.trend + technicalSubWeights.macd;
+    const mainTotal =
+      currentEditable.scoreWeights.price +
+      currentEditable.scoreWeights.technical +
+      currentEditable.scoreWeights.fundamental;
+    const techTotal =
+      currentEditable.technicalSubWeights.rsi_14 +
+      currentEditable.technicalSubWeights.trend +
+      currentEditable.technicalSubWeights.macd;
     const fundTotal =
-      fundamentalSubWeights.valuation +
-      fundamentalSubWeights.growth +
-      fundamentalSubWeights.health +
-      fundamentalSubWeights.sentiment;
+      currentEditable.fundamentalSubWeights.valuation +
+      currentEditable.fundamentalSubWeights.growth +
+      currentEditable.fundamentalSubWeights.health +
+      currentEditable.fundamentalSubWeights.sentiment;
 
     if (Math.abs(mainTotal - 100) > 0.1) {
       toast.error(
@@ -255,30 +384,7 @@ export default function SettingsPage() {
     }
 
     updatePreferences.mutate(
-      {
-        // Trading & Risk
-        risk_tolerance: riskTolerance,
-        allow_long: allowLong,
-        allow_short: allowShort,
-        allow_options: allowOptions,
-        allow_crypto: allowCrypto,
-        allow_futures: allowFutures,
-        max_position_size_pct: parseFloat(maxPositionSizePct),
-        // Display
-        display_timezone: displayTimezone,
-        // Watchlist
-        default_refresh_minutes: defaultRefreshMinutes,
-        watchlist_refresh_override: watchlistOverride,
-        news_refresh_override: newsOverride,
-        news_lookback_hours: newsLookbackHours,
-        news_max_articles: newsMaxArticles,
-        watchlist_show_news: showNews,
-        watchlist_auto_expand: autoExpand,
-        watchlist_score_weights: scoreWeights,
-        price_sub_weights: { change_pct: 100 },
-        technical_sub_weights: technicalSubWeights,
-        fundamental_sub_weights: fundamentalSubWeights,
-      },
+      editableToApiPayload(currentEditable),
       {
         onSuccess: () => {
           toast.success("Settings saved successfully!");
@@ -294,46 +400,7 @@ export default function SettingsPage() {
   const handleResetAll = () => {
     if (preferences) {
       startTransition(() => {
-        // Trading & Risk
-        setRiskTolerance(preferences.risk_tolerance);
-        setAllowLong(preferences.allow_long);
-        setAllowShort(preferences.allow_short);
-        setAllowOptions(preferences.allow_options);
-        setAllowCrypto(preferences.allow_crypto);
-        setAllowFutures(preferences.allow_futures);
-        setMaxPositionSizePct(preferences.max_position_size_pct.toString());
-        // Display
-        setDisplayTimezone(preferences.display_timezone);
-        // Watchlist
-        setDefaultRefreshMinutes(preferences.default_refresh_minutes);
-        setWatchlistOverride(preferences.watchlist_refresh_override);
-        setNewsOverride(preferences.news_refresh_override);
-        setNewsLookbackHours(preferences.news_lookback_hours);
-        setNewsMaxArticles(preferences.news_max_articles);
-        setShowNews(preferences.watchlist_show_news);
-        setAutoExpand(preferences.watchlist_auto_expand);
-        setScoreWeights(
-          preferences.watchlist_score_weights ?? {
-            price: 33,
-            technical: 33,
-            fundamental: 34,
-          }
-        );
-        setTechnicalSubWeights(
-          preferences.technical_sub_weights ?? {
-            rsi_14: 33,
-            trend: 34,
-            macd: 33,
-          }
-        );
-        setFundamentalSubWeights(
-          preferences.fundamental_sub_weights ?? {
-            valuation: 30,
-            growth: 35,
-            health: 25,
-            sentiment: 10,
-          }
-        );
+        applyEditable(buildEditableFromResponse(preferences));
       });
     }
   };
@@ -359,71 +426,17 @@ export default function SettingsPage() {
   // Helper function to load profile data into form state
   const handleProfileLoad = (profileData: PreferencesResponse) => {
     startTransition(() => {
-      // Trading & Risk
-      setRiskTolerance(profileData.risk_tolerance);
-      setAllowLong(profileData.allow_long);
-      setAllowShort(profileData.allow_short);
-      setAllowOptions(profileData.allow_options);
-      setAllowCrypto(profileData.allow_crypto);
-      setAllowFutures(profileData.allow_futures);
-      setMaxPositionSizePct(profileData.max_position_size_pct.toString());
-      // Display
-      setDisplayTimezone(profileData.display_timezone);
-      // Watchlist
-      setDefaultRefreshMinutes(profileData.default_refresh_minutes);
-      setWatchlistOverride(profileData.watchlist_refresh_override);
-      setNewsOverride(profileData.news_refresh_override);
-      setNewsLookbackHours(profileData.news_lookback_hours);
-      setNewsMaxArticles(profileData.news_max_articles);
-      setShowNews(profileData.watchlist_show_news);
-      setAutoExpand(profileData.watchlist_auto_expand);
-      setScoreWeights(
-        profileData.watchlist_score_weights ?? {
-          price: 33,
-          technical: 33,
-          fundamental: 34,
-        }
-      );
-      setTechnicalSubWeights(
-        profileData.technical_sub_weights ?? {
-          rsi_14: 33,
-          trend: 34,
-          macd: 33,
-        }
-      );
-      setFundamentalSubWeights(
-        profileData.fundamental_sub_weights ?? {
-          valuation: 30,
-          growth: 35,
-          health: 25,
-          sentiment: 10,
-        }
-      );
+      applyEditable(buildEditableFromResponse(profileData));
     });
   };
 
   // Helper to get current preferences as object for profile saving
-  const getCurrentPreferences = (): PreferencesResponse => ({
-    ...preferences!,
-    risk_tolerance: riskTolerance,
-    allow_long: allowLong,
-    allow_short: allowShort,
-    allow_options: allowOptions,
-    allow_crypto: allowCrypto,
-    allow_futures: allowFutures,
-    max_position_size_pct: parseFloat(maxPositionSizePct),
-    display_timezone: displayTimezone,
-    default_refresh_minutes: defaultRefreshMinutes,
-    watchlist_refresh_override: watchlistOverride,
-    news_refresh_override: newsOverride,
-    news_lookback_hours: newsLookbackHours,
-    news_max_articles: newsMaxArticles,
-    watchlist_show_news: showNews,
-    watchlist_auto_expand: autoExpand,
-    watchlist_score_weights: scoreWeights,
-    technical_sub_weights: technicalSubWeights,
-    fundamental_sub_weights: fundamentalSubWeights,
-  });
+  const getCurrentPreferences = (): PreferencesResponse => {
+    if (!preferences) {
+      throw new Error("Preferences not loaded");
+    }
+    return mergeEditableIntoResponse(preferences, currentEditable);
+  };
 
   return (
     <div className="bg-bg pb-24">
@@ -431,77 +444,97 @@ export default function SettingsPage() {
         <PageHeader
           title="Settings"
           description="Configure your preferences, risk tolerance, and system behavior."
-          variant="plain"
           size="md"
         />
 
-        <div className="space-y-12">
-          {/* Profile Selector */}
+        <div className="space-y-8">
           {preferences && (
-            <ProfileSelector
-              currentPreferences={getCurrentPreferences()}
-              onProfileLoad={handleProfileLoad}
-            />
+            <SettingsSection
+              title="Profiles"
+              description="Save and reuse preference sets for different strategies."
+              summary="Import, export, and activate saved profiles"
+              defaultCollapsed={false}
+            >
+              <ProfileSelector
+                variant="plain"
+                currentPreferences={getCurrentPreferences()}
+                onProfileLoad={handleProfileLoad}
+              />
+            </SettingsSection>
           )}
 
-          {/* Trading & Risk Settings */}
-          <TradingRiskSettings
-            riskTolerance={riskTolerance}
-            maxPositionSizePct={maxPositionSizePct}
-            allowLong={allowLong}
-            allowShort={allowShort}
-            allowOptions={allowOptions}
-            allowCrypto={allowCrypto}
-            allowFutures={allowFutures}
-            onRiskToleranceChange={setRiskTolerance}
-            onMaxPositionSizePctChange={setMaxPositionSizePct}
-            onAllowLongChange={setAllowLong}
-            onAllowShortChange={setAllowShort}
-            onAllowOptionsChange={setAllowOptions}
-            onAllowCryptoChange={setAllowCrypto}
-            onAllowFuturesChange={setAllowFutures}
-          />
+          <SettingsSection
+            title="Trading & Risk"
+            description="Control the instruments, position sizing, and risk tolerance available to AI agents."
+            summary={tradingSummary}
+          >
+            <TradingRiskSettings
+              riskTolerance={riskTolerance}
+              maxPositionSizePct={maxPositionSizePct}
+              allowLong={allowLong}
+              allowShort={allowShort}
+              allowOptions={allowOptions}
+              allowCrypto={allowCrypto}
+              allowFutures={allowFutures}
+              onRiskToleranceChange={setRiskTolerance}
+              onMaxPositionSizePctChange={setMaxPositionSizePct}
+              onAllowLongChange={setAllowLong}
+              onAllowShortChange={setAllowShort}
+              onAllowOptionsChange={setAllowOptions}
+              onAllowCryptoChange={setAllowCrypto}
+              onAllowFuturesChange={setAllowFutures}
+            />
+          </SettingsSection>
 
-          {/* Display Settings */}
-          <DisplaySettings
-            displayTimezone={displayTimezone}
-            onDisplayTimezoneChange={setDisplayTimezone}
-          />
+          <SettingsSection
+            title="Display & Interface"
+            description="Choose your timezone and presentation theme."
+            summary={displaySummary}
+          >
+            <DisplaySettings
+              displayTimezone={displayTimezone}
+              onDisplayTimezoneChange={setDisplayTimezone}
+            />
+          </SettingsSection>
 
-          {/* Watchlist Settings */}
-          <WatchlistSettingsSection
-            defaultRefreshMinutes={defaultRefreshMinutes}
-            watchlistOverride={watchlistOverride}
-            newsOverride={newsOverride}
-            newsLookbackHours={newsLookbackHours}
-            newsMaxArticles={newsMaxArticles}
-            frontendPollInterval={preferences?.frontend_poll_interval ?? 30}
-            showNews={showNews}
-            autoExpand={autoExpand}
-            scoreWeights={scoreWeights}
-            technicalSubWeights={technicalSubWeights}
-            fundamentalSubWeights={fundamentalSubWeights}
-            onDefaultRefreshMinutesChange={setDefaultRefreshMinutes}
-            onWatchlistOverrideChange={setWatchlistOverride}
-            onNewsOverrideChange={setNewsOverride}
-            onNewsLookbackHoursChange={setNewsLookbackHours}
-            onNewsMaxArticlesChange={setNewsMaxArticles}
-            onShowNewsChange={setShowNews}
-            onAutoExpandChange={setAutoExpand}
-            onScoreWeightsChange={setScoreWeights}
-            onTechnicalSubWeightsChange={setTechnicalSubWeights}
-            onFundamentalSubWeightsChange={setFundamentalSubWeights}
-          />
+          <SettingsSection
+            title="Watchlist & Scoring"
+            description="Tune refresh cadence, news visibility, and scoring weights for watchlist insights."
+            summary={watchlistSummary}
+          >
+            <WatchlistSettingsSection
+              defaultRefreshMinutes={defaultRefreshMinutes}
+              watchlistOverride={watchlistOverride}
+              newsOverride={newsOverride}
+              newsLookbackHours={newsLookbackHours}
+              newsMaxArticles={newsMaxArticles}
+              showNews={showNews}
+              autoExpand={autoExpand}
+              scoreWeights={scoreWeights}
+              technicalSubWeights={technicalSubWeights}
+              fundamentalSubWeights={fundamentalSubWeights}
+              onDefaultRefreshMinutesChange={setDefaultRefreshMinutes}
+              onWatchlistOverrideChange={setWatchlistOverride}
+              onNewsOverrideChange={setNewsOverride}
+              onNewsLookbackHoursChange={setNewsLookbackHours}
+              onNewsMaxArticlesChange={setNewsMaxArticles}
+              onShowNewsChange={setShowNews}
+              onAutoExpandChange={setAutoExpand}
+              onScoreWeightsChange={setScoreWeights}
+              onTechnicalSubWeightsChange={setTechnicalSubWeights}
+              onFundamentalSubWeightsChange={setFundamentalSubWeights}
+            />
+          </SettingsSection>
         </div>
       </div>
 
       {/* Unified Save Bar */}
       <SaveBar
-        hasChanges={hasChanges()}
+        hasChanges={hasChanges}
         onSave={handleSaveAll}
         onReset={handleResetAll}
         isPending={updatePreferences.isPending}
-        changeCount={countChanges()}
+        changeCount={changeCount}
       />
     </div>
   );
