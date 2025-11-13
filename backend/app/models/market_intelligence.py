@@ -5,7 +5,7 @@ Combines Market Health + Fear & Greed + Narrative into single response.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -21,6 +21,9 @@ class EnrichedIndicator(BaseModel):
     signal: str = Field(..., description="Bullish | Neutral | Bearish")
     emoji: str = Field(..., description="Visual indicator: 🟢 🟡 🔴")
     last_updated: str | None = Field(None, description="Last update timestamp (ISO 8601)")
+    context: dict[str, Any] | None = Field(
+        None, description="Optional historical context (trend, percentiles, etc.)"
+    )
 
 
 class SectorInfo(BaseModel):

@@ -6,6 +6,8 @@ labels and grouping sectors by performance.
 
 from __future__ import annotations
 
+from typing import Any
+
 from app.market import plain_language
 from app.market.sentiment import MarketHealthScore
 from app.models.market_intelligence import EnrichedIndicator, SectorInfo
@@ -55,6 +57,7 @@ def enrich_vix_indicator(
         signal=vix_component.signal if vix_component else "Neutral",
         emoji=get_signal_emoji(vix_component.signal if vix_component else "Neutral"),
         last_updated=vix_data.cached_at.isoformat(),
+        context=None,
     )
 
 
@@ -85,6 +88,7 @@ def enrich_sp500_indicator(
         signal=sp500_component.signal if sp500_component else "Neutral",
         emoji=get_signal_emoji(sp500_component.signal if sp500_component else "Neutral"),
         last_updated=sp500_data.cached_at.isoformat(),
+        context=None,
     )
 
 
@@ -115,6 +119,7 @@ def enrich_tnx_indicator(
         signal=tnx_component.signal if tnx_component else "Neutral",
         emoji=get_signal_emoji(tnx_component.signal if tnx_component else "Neutral"),
         last_updated=tnx_data.cached_at.isoformat(),
+        context=None,
     )
 
 
@@ -145,18 +150,21 @@ def enrich_dxy_indicator(
         signal=dxy_component.signal if dxy_component else "Neutral",
         emoji=get_signal_emoji(dxy_component.signal if dxy_component else "Neutral"),
         last_updated=dxy_data.cached_at.isoformat(),
+        context=None,
     )
 
 
 def enrich_putcall_indicator(
     put_call_ratio: float,
     last_updated: str,
+    context: dict[str, Any] | None = None,
 ) -> EnrichedIndicator:
     """Enrich Put/Call Ratio indicator with plain-language labels.
 
     Args:
         put_call_ratio: Current put/call ratio value
         last_updated: Last update timestamp (ISO 8601)
+        context: Optional historical context (trend, percentiles)
 
     Returns:
         Enriched Put/Call indicator
@@ -181,6 +189,7 @@ def enrich_putcall_indicator(
         signal=signal,
         emoji=get_signal_emoji(signal),
         last_updated=last_updated,
+        context=context,
     )
 
 

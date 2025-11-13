@@ -374,8 +374,14 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
             putcall_timestamp = dt.datetime.combine(
                 putcall_date, dt.time(21, 0, 0), tzinfo=dt.UTC
             ).isoformat()
+
+            # Calculate historical context
+            from app.market.options_context import calculate_putcall_context  # noqa: PLC0415
+
+            putcall_context = calculate_putcall_context(put_call_ratio, putcall_date, storage)
+
             enriched_indicators["putcall"] = intelligence.enrich_putcall_indicator(
-                put_call_ratio, putcall_timestamp
+                put_call_ratio, putcall_timestamp, context=putcall_context
             )
 
     # Build response
