@@ -10,6 +10,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from app.storage import get_storage
+
 
 # Response models for sentiment calculations
 class ComponentScore(BaseModel):
@@ -71,16 +73,58 @@ def calculate_vix_score(vix_price: float, timestamp: str | None) -> ComponentSco
 
 
 def calculate_sp500_score(sp500_price: float, timestamp: str | None) -> ComponentScore:
-    """Calculate S&P 500 level component score.
+    """Calculate S&P 500 level component score using dynamic percentile-based approach.
 
-    Thresholds updated for 2025 market levels (current S&P ~6000-6800).
-    Based on historical ranges and current market environment.
+    Scores based on where current price sits in 252-day rolling window (1 trading year).
+    This automatically adapts to any market environment without manual threshold updates.
 
-    Note: Consider future enhancement using percentile-based scoring
-    with 252-day rolling window for dynamic threshold adjustment.
+    Percentile Scoring:
+    - ≥80th percentile: 75 (Bullish) - Top 20% of recent range
+    - ≥60th percentile: 60 (Bullish) - Upper 40%
+    - ≥40th percentile: 50 (Neutral) - Middle 20%
+    - <40th percentile: 40 (Bearish) - Bottom 40%
+
+    Falls back to price-based thresholds only if historical data unavailable.
     """
-    # Normalize around 6000-6800 range (2025 levels)
-    if sp500_price > 6800:
+    storage = get_storage()
+    percentile = None
+
+    try:
+        with storage.connection() as conn:
+            # Calculate percentile rank of current price within 252-day window
+            result = conn.execute(
+                """
+                WITH recent_prices AS (
+                    SELECT close
+                    FROM day_bars
+                    WHERE ticker = '^GSPC'
+                    ORDER BY date DESC
+                    LIMIT 252
+                )
+                SELECT COUNT(*) FILTER (WHERE close <= %s) * 100.0 / COUNT(*) as percentile
+                FROM recent_prices
+                """,
+                (sp500_price,),
+            )
+            row = result.fetchone()
+            if row and row[0] is not None:
+                percentile = float(row[0])
+    except Exception:
+        # Fall through to fallback logic if query fails
+        pass
+
+    # Score based on percentile rank (or fallback to price-based)
+    if percentile is not None:
+        if percentile >= 80:
+            score, signal, interp = 75, "Bullish", "Strong market levels"
+        elif percentile >= 60:
+            score, signal, interp = 60, "Bullish", "Healthy market levels"
+        elif percentile >= 40:
+            score, signal, interp = 50, "Neutral", "Moderate market levels"
+        else:
+            score, signal, interp = 40, "Bearish", "Below average levels"
+    # Fallback: Price-based thresholds (used only if no historical data)
+    elif sp500_price > 6800:
         score, signal, interp = 75, "Bullish", "Strong market levels"
     elif sp500_price > 6400:
         score, signal, interp = 60, "Bullish", "Healthy market levels"
