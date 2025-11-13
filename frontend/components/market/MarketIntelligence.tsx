@@ -70,6 +70,23 @@ export function MarketIntelligence() {
         />
       </div>
 
+      {/* Staleness Warning */}
+      {fear_greed.is_stale && (
+        <div className="mb-6 p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+          <div className="flex items-start gap-3">
+            <span className="text-xl">⚠️</span>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-yellow-600 dark:text-yellow-400">
+                Fear & Greed data is {fear_greed.age_days} day{fear_greed.age_days > 1 ? 's' : ''} old
+              </p>
+              <p className="text-xs text-yellow-600/80 dark:text-yellow-400/80 mt-1">
+                Next update scheduled at 03:00 UTC daily
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Split View: Indicators (left) + Sector Rotation (right) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left Column: Key Indicators */}

@@ -71,13 +71,20 @@ def calculate_vix_score(vix_price: float, timestamp: str | None) -> ComponentSco
 
 
 def calculate_sp500_score(sp500_price: float, timestamp: str | None) -> ComponentScore:
-    """Calculate S&P 500 level component score."""
-    # Normalize around 4000-5000 range
-    if sp500_price > 4800:
+    """Calculate S&P 500 level component score.
+
+    Thresholds updated for 2025 market levels (current S&P ~6000-6800).
+    Based on historical ranges and current market environment.
+
+    Note: Consider future enhancement using percentile-based scoring
+    with 252-day rolling window for dynamic threshold adjustment.
+    """
+    # Normalize around 6000-6800 range (2025 levels)
+    if sp500_price > 6800:
         score, signal, interp = 75, "Bullish", "Strong market levels"
-    elif sp500_price > 4400:
+    elif sp500_price > 6400:
         score, signal, interp = 60, "Bullish", "Healthy market levels"
-    elif sp500_price > 4000:
+    elif sp500_price > 6000:
         score, signal, interp = 50, "Neutral", "Moderate market levels"
     else:
         score, signal, interp = 40, "Bearish", "Below average levels"

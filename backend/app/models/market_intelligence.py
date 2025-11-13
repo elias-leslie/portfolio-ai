@@ -55,13 +55,15 @@ class MarketHealthScore(BaseModel):
 
 
 class FearGreedScore(BaseModel):
-    """Fear & Greed Index scoring from 5 signals."""
+    """Fear & Greed Index scoring from 5 signals with staleness tracking."""
 
     score: int = Field(..., ge=0, le=100, description="Fear & Greed score 0-100")
     label: str = Field(..., description="Extreme Fear | Fear | Neutral | Greed | Extreme Greed")
     score_change: float | None = Field(None, description="Change from previous day")
     signal_count: int = Field(..., description="Number of signals used (4-5)")
     last_updated: str = Field(..., description="Last update timestamp")
+    is_stale: bool = Field(False, description="True if data is >2 days old")
+    age_days: int = Field(0, description="Age of data in days")
 
 
 class MarketIntelligenceResponse(BaseModel):

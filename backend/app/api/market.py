@@ -374,6 +374,8 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
             score_change=fg_reading.score_change,
             signal_count=fg_reading.signal_count,
             last_updated=fg_reading.date,
+            is_stale=fg_reading.is_stale,
+            age_days=fg_reading.age_days,
         ),
         indicators=enriched_indicators,
         sector_rotation=SectorRotationSummary(

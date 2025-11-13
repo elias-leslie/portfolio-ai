@@ -133,6 +133,8 @@ export interface FearGreedScore {
   score_change: number | null;
   signal_count: number;
   last_updated: string;
+  is_stale: boolean;
+  age_days: number;
 }
 
 export interface MarketIntelligenceResponse {
