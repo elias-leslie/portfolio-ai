@@ -12,7 +12,24 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-(No active tasks)
+1. **Market Conditions Card Improvements** (21% - 4/19 complete, Phase 1 P0 done)
+   - File: `tasks-0056-market-conditions-improvements.md`
+   - Started: 2025-11-13
+   - Last updated: 2025-11-13 16:00 (PAUSED)
+   - Next: Phase 2 (P1) - Task 5.0: Update S&P 500 Scoring Thresholds
+   - Pause Reason: User request for fresh /clear + /do_it restart
+   - Progress: Phase 1 (P0) complete - all 4 critical data integrity tasks done
+   - Tasks:
+     - [x] Task 1.0: Create Scheduled Historical Data Maintenance Task ✅
+     - [x] Task 2.0: Fix Misleading Last Updated Timestamp ✅
+     - [x] Task 3.0: Add Daily Change Percentages for Main Indicators ✅
+     - [x] Task 4.0: Fix Sector Change Calculation ✅
+     - [ ] Task 5.0: Update S&P 500 Scoring Thresholds ← NEXT
+     - [ ] Task 6.0: Investigate Missing Fear & Greed Signal
+     - [ ] Task 7.0: Add Staleness Warning for Old Fear & Greed Data
+     - [ ] Task 8.0: Remove Unused Code and Fields
+     - [ ] Phase 3 (P2): Enhanced Analytics (4 tasks)
+     - [ ] Phase 4 (P3): Advanced Features (3 tasks)
 
 ---
 
@@ -31,30 +48,16 @@
      - [ ] Task 3: Card Content Adjustments
      - [ ] Task 4: Verification & Tests
 
-2. **Market Conditions Card Improvements** (HIGH (28 hours total, phased implementation recommended), 0/19 tasks (today))
-   - File: `tasks-0056-market-conditions-improvements.md`
+2. **Status Page Standardization & Collapse Framework** (HIGH (6-8 hours, 15+ files), 0/5 tasks (today))
+   - File: `tasks-0057-status-page-standardization.md`
    - Created: 2025-11-13
-   - Goal: Fix critical data quality issues, improve user experience, and add advanced market intelligence features to the Market Conditions card. Address missing historical data, misleading timestamps, outdated thresholds, and add enhanced indicators.
+   - Goal: Bring the Status experience in line with the shared Portfolio AI layout system, introduce a reusable collapse/summary pattern, and reorganize sections so top-level information is surfaced first.
    - Tasks:
-     - [ ] Task 1: Priority 0 - Critical Data Integrity (8 hours)
-     - [ ] Task 1: Create Scheduled Historical Data Maintenance Task
-     - [ ] Task 2: Fix Misleading Last Updated Timestamp
-     - [ ] Task 3: Add Daily Change Percentages for Main Indicators
-     - [ ] Task 4: Fix Sector Change Calculation
-     - [ ] Task 2: Priority 1 - High Priority UX Improvements (6 hours)
-     - [ ] Task 5: Update S&P 500 Scoring Thresholds
-     - [ ] Task 6: Investigate Missing Fear & Greed Signal
-     - [ ] Task 7: Add Staleness Warning for Old Fear & Greed Data
-     - [ ] Task 8: Remove Unused Code and Fields
-     - [ ] Task 3: Priority 2 - Enhanced Analytics (8 hours)
-     - [ ] Task 9: Add Trend Indicators to Scores
-     - [ ] Task 10: Add 30-Day Sparkline Charts
-     - [ ] Task 11: Optimize Fear & Greed Caching
-     - [ ] Task 12: Add Put/Call Ratio Indicator
-     - [ ] Task 4: Priority 3 - Advanced Features (6 hours)
-     - [ ] Task 13: Market Breadth Indicator (New Card)
-     - [ ] Task 14: Correlation Matrix (Optional Expandable Section)
-     - [ ] Task 15: Volatility Regime Indicator
+     - [ ] Task 0: Scope Discovery (MANDATORY)
+     - [ ] Task 1: Shared Expandable Card Primitive
+     - [ ] Task 2: Status Page Layout Reorganization
+     - [ ] Task 3: Card Content Adjustments
+     - [ ] Task 4: Verification & Tests
 
 3. **UI Standardization & UX Fixes** (MEDIUM-HIGH (4-6 hours, 12-15 files), 0/0 tasks (yesterday))
    - File: `tasks-0055-ui-standardization-and-ux-fixes.md`
