@@ -150,6 +150,12 @@ export interface MarketIntelligenceResponse {
   last_updated: string;
 }
 
+export interface MarketTrendsResponse {
+  dates: string[];
+  fear_greed_scores: number[];
+  market_health_scores: number[];
+}
+
 /**
  * Get current market conditions (S&P 500, VIX, 10Y yield, USD index)
  */
@@ -192,4 +198,11 @@ export async function fetchFearGreed(
     : "/api/market/fear-greed";
 
   return apiRequest<FearGreedResponse>(url);
+}
+
+/**
+ * Get market trends for sparkline charts
+ */
+export async function fetchMarketTrends(days: number = 30): Promise<MarketTrendsResponse> {
+  return apiRequest<MarketTrendsResponse>(`/api/market/trends?days=${days}`);
 }

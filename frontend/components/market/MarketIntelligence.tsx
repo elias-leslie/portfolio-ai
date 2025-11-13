@@ -15,7 +15,10 @@ import { Card } from "@/components/ui/card";
 import { MarketNarrative } from "./MarketNarrative";
 import { LabeledIndicator } from "./LabeledIndicator";
 import { SectorRotationSummary } from "./SectorRotationSummary";
+import { MarketTrendChart } from "./MarketTrendChart";
 import { formatRelativeTime } from "@/lib/utils";
+import { fetchMarketTrends, MarketTrendsResponse } from "@/lib/api/market";
+import { useState, useEffect } from "react";
 
 // Helper function to render trend arrow
 const getTrendArrow = (trend?: "up" | "down" | "flat" | null, trendChange?: number | null) => {
@@ -31,6 +34,23 @@ const getTrendArrow = (trend?: "up" | "down" | "flat" | null, trendChange?: numb
 
 export function MarketIntelligence() {
   const { data, isLoading, error } = useMarketIntelligence();
+  const [trendData, setTrendData] = useState<MarketTrendsResponse | null>(null);
+  const [trendLoading, setTrendLoading] = useState(true);
+
+  // Fetch trend data
+  useEffect(() => {
+    async function loadTrends() {
+      try {
+        const trends = await fetchMarketTrends(30);
+        setTrendData(trends);
+      } catch (err) {
+        console.error("Failed to load market trends:", err);
+      } finally {
+        setTrendLoading(false);
+      }
+    }
+    loadTrends();
+  }, []);
 
   if (isLoading) {
     return (
@@ -140,6 +160,16 @@ export function MarketIntelligence() {
               {getTrendArrow(fear_greed.trend, fear_greed.trend_change)}
             </div>
           </div>
+
+          {/* 30-Day Sparkline */}
+          {!trendLoading && trendData && trendData.dates.length > 0 && (
+            <div className="p-4 rounded-lg bg-surface-muted/20">
+              <h4 className="text-xs font-semibold text-text-muted mb-2 uppercase tracking-wide">
+                30-Day Trend
+              </h4>
+              <MarketTrendChart data={trendData} height={60} />
+            </div>
+          )}
 
           {/* Market Indicators */}
           <div className="space-y-4">

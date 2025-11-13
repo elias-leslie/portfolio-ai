@@ -76,6 +76,16 @@ class FearGreedScore(BaseModel):
     trend_change: int | None = Field(None, description="Point change over 7 days")
 
 
+class MarketTrendsResponse(BaseModel):
+    """Market trends response with historical data for sparkline charts."""
+
+    dates: list[str] = Field(..., description="List of dates (ISO 8601 format)")
+    fear_greed_scores: list[float] = Field(..., description="Historical Fear & Greed scores")
+    market_health_scores: list[float] = Field(
+        ..., description="Historical Market Health scores (empty if not available)"
+    )
+
+
 class MarketIntelligenceResponse(BaseModel):
     """Unified market intelligence response.
 

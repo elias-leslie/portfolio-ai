@@ -15,6 +15,7 @@ from app.middleware.cache import cache_response
 from app.models.market_intelligence import (
     FearGreedScore,
     MarketIntelligenceResponse,
+    MarketTrendsResponse,
     SectorRotationSummary,
 )
 from app.models.market_intelligence import (
@@ -391,4 +392,52 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
             lagging_count=len(lagging_sectors),
         ),
         last_updated=current_timestamp,
+    )
+
+
+@router.get("/trends", response_model=MarketTrendsResponse)
+@cache_response(ttl=300)
+async def get_market_trends(
+    request: Request,
+    days: int = Query(30, ge=1, le=365, description="Number of days of historical data"),
+) -> MarketTrendsResponse:
+    """Get market trends for sparkline charts.
+
+    Returns historical Fear & Greed scores and Market Health scores (if available).
+    Market Health scores are not stored historically, so will be empty array.
+
+    Args:
+        days: Number of days of historical data (default: 30)
+
+    Returns:
+        MarketTrendsResponse with dates and scores
+    """
+    # Query fear_greed_daily table for historical data
+    with storage.connection() as conn:
+        result = conn.execute(
+            """
+            SELECT as_of_date, score
+            FROM fear_greed_daily
+            ORDER BY as_of_date DESC
+            LIMIT %s
+            """,
+            [days],
+        )
+        rows = result.fetchall()
+
+    # Reverse to get chronological order (oldest first)
+    rows = list(reversed(rows))
+
+    # Build response
+    dates = [row[0].isoformat() for row in rows]
+    fear_greed_scores = [float(row[1]) for row in rows]
+
+    # Market Health scores not stored historically
+    # Return empty array (frontend will handle gracefully)
+    market_health_scores: list[float] = []
+
+    return MarketTrendsResponse(
+        dates=dates,
+        fear_greed_scores=fear_greed_scores,
+        market_health_scores=market_health_scores,
     )
