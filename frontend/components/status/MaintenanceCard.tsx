@@ -13,6 +13,7 @@ import {
   RefreshCw,
   AlertCircle,
   PlayCircle,
+  ChevronDown,
 } from "lucide-react";
 import { ServiceActionDialog } from "./ServiceActionDialog";
 import {
@@ -214,6 +215,7 @@ export function MaintenanceCard() {
     onConfirm: () => void;
     storageKey?: string;
   } | null>(null);
+  const [isCollapsed, setIsCollapsed] = useState(true);
 
   // Fetch last run data on mount
   useEffect(() => {
@@ -237,6 +239,20 @@ export function MaintenanceCard() {
     if (typeof window === "undefined") return true;
     return !localStorage.getItem(storageKey);
   };
+
+  const formatTaskSummary = (label: string, result?: MaintenanceResult | null) => {
+    if (!result) return `${label}: —`;
+    const status = result.status ? result.status.replace(/_/g, " ") : "unknown";
+    if (!result.started_at) return `${label}: ${status}`;
+    const timestamp = new Date(result.started_at).toLocaleTimeString();
+    return `${label}: ${status} @ ${timestamp}`;
+  };
+
+  const overviewSummary = [
+    formatTaskSummary("Cleanup", lastRunSummary?.cleanup_news),
+    formatTaskSummary("Vacuum", lastRunSummary?.vacuum_database),
+    formatTaskSummary("Integrity", lastRunSummary?.validate_integrity),
+  ].join(" • ");
 
   // Cleanup News handler
   const handleCleanupNews = async () => {
@@ -363,21 +379,19 @@ export function MaintenanceCard() {
   return (
     <>
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
+        <CardHeader className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <CardTitle>Database Maintenance</CardTitle>
               <p className="text-sm text-muted-foreground">
-                Cleanup, optimize, and validate database integrity
+                {isCollapsed
+                  ? overviewSummary
+                  : "Cleanup, optimize, and validate database integrity"}
               </p>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2">
-                <Switch
-                  id="dry-run"
-                  checked={dryRun}
-                  onCheckedChange={setDryRun}
-                />
+                <Switch id="dry-run" checked={dryRun} onCheckedChange={setDryRun} />
                 <Label htmlFor="dry-run" className="cursor-pointer">
                   Dry Run
                 </Label>
@@ -387,15 +401,26 @@ export function MaintenanceCard() {
                 size="sm"
                 onClick={fetchLastRunData}
                 disabled={isFetching}
+                title="Refresh last run summary"
               >
-                <RefreshCw
-                  className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`}
+                <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="flex items-center gap-1"
+                onClick={() => setIsCollapsed((prev) => !prev)}
+              >
+                {isCollapsed ? "Expand" : "Collapse"}
+                <ChevronDown
+                  className={`h-4 w-4 transition-transform ${isCollapsed ? "" : "rotate-180"}`}
                 />
               </Button>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        {!isCollapsed && (
+          <CardContent className="space-y-4">
           <TaskSection
             title="Cleanup Old News"
             description="Remove news articles older than 90 days"
@@ -423,6 +448,7 @@ export function MaintenanceCard() {
             isLoading={isLoading}
           />
         </CardContent>
+        )}
       </Card>
 
       {/* Service Action Dialog */}

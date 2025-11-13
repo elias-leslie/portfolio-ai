@@ -12,9 +12,8 @@ import {
     MemoryStick,
     Trash2,
     ListRestart,
-    Lock,
-    Unlock,
     Clock3,
+    ChevronDown,
 } from "lucide-react";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
@@ -51,6 +50,9 @@ import {
     fetchDetailedHealth,
     DetailedHealthResponse,
 } from "@/lib/api/status";
+import { PageHeader } from "@/components/shared/PageHeader";
+import { SectionCard } from "@/components/shared/SectionCard";
+import { cn } from "@/lib/utils";
 
 export default function StatusPage() {
     const {
@@ -103,6 +105,7 @@ export default function StatusPage() {
         storageKey?: string;
     } | null>(null);
     const [isActionLoading, setIsActionLoading] = useState(false);
+    const [celeryExpanded, setCeleryExpanded] = useState(false);
 
     useEffect(() => {
         if (!health) {
@@ -262,6 +265,46 @@ export default function StatusPage() {
     };
 
     const connectionBadge = getConnectionBadge();
+    const headerActions = (
+        <div className="flex flex-wrap items-center gap-2">
+            <Badge
+                variant={connectionBadge.variant}
+                className="flex items-center gap-1.5"
+            >
+                {connectionBadge.icon}
+                {connectionBadge.text}
+            </Badge>
+            {(connectionState === "fallback" || connectionState === "disconnected") && (
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={retryConnection}
+                    className="flex items-center gap-1"
+                >
+                    <Wifi className="h-4 w-4" />
+                    Retry live
+                </Button>
+            )}
+            <Button
+                variant="outline"
+                size="sm"
+                onClick={triggerClearCache}
+                disabled={isActionLoading}
+            >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Clear Cache
+            </Button>
+            <Button
+                variant="outline"
+                size="sm"
+                onClick={triggerRefreshWatchlist}
+                disabled={isActionLoading}
+            >
+                <ListRestart className="mr-2 h-4 w-4" />
+                Refresh Watchlist
+            </Button>
+        </div>
+    );
     const connectionBanner = (() => {
         if (connectionState === "disconnected") {
             return {
@@ -306,9 +349,22 @@ export default function StatusPage() {
     const lookbackHours =
         newsHealth?.lookback_window_hours ?? newsHealth?.cache_ttl_hours ?? 0;
 
+    const renderShell = (content: React.ReactNode) => (
+        <div className="bg-bg">
+            <div className="mx-auto max-w-7xl space-y-8 px-4 py-10 sm:px-6 lg:px-8">
+                <PageHeader
+                    title="System Status"
+                    description="Real-time monitoring of services, workers, and integrations."
+                    actions={headerActions}
+                />
+                {content}
+            </div>
+        </div>
+    );
+
     if (error) {
-        return (
-            <div className="container mx-auto p-6">
+        return renderShell(
+            <SectionCard variant="surface">
                 <Alert variant="destructive">
                     <AlertTitle>Error Loading Status</AlertTitle>
                     <AlertDescription>
@@ -321,274 +377,222 @@ export default function StatusPage() {
                     <RefreshCw className="mr-2 h-4 w-4" />
                     Retry Connection
                 </Button>
-            </div>
+            </SectionCard>
         );
     }
 
     if (isLoading || !health) {
-        return (
-            <div className="container mx-auto p-6">
-                <div className="flex items-center justify-center min-h-[400px]">
-                    <div className="text-center space-y-4">
-                        <RefreshCw className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
-                        <p className="text-muted-foreground">
-                            Loading system status...
-                        </p>
-                    </div>
-                </div>
-            </div>
-        );
+        return renderShell(<StatusSkeleton />);
     }
 
     const services = health.services || {};
     const serviceEntries = Object.entries(services);
 
-    return (
-        <div className="container mx-auto p-6 space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
+    const renderNewsHealthCard = () => (
+        <Card className="border-border">
+            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold">System Status</h1>
-                    <p className="text-muted-foreground">
-                        Real-time monitoring of all services and infrastructure
+                    <CardTitle className="text-xl">News Health</CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                        FinBERT availability and cache freshness for the News surface
                     </p>
                 </div>
-                <div className="flex items-center gap-3">
-                    <Badge
-                        variant={connectionBadge.variant}
-                        className="flex items-center gap-1.5"
-                    >
-                        {connectionBadge.icon}
-                        {connectionBadge.text}
-                    </Badge>
+                <div className="flex items-center gap-2">
+                    <Badge variant={finbertStatus.variant}>{finbertStatus.label}</Badge>
                     <Button
                         variant="outline"
                         size="sm"
-                        onClick={triggerClearCache}
-                        disabled={isActionLoading}
-                    >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Clear Cache
-                    </Button>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={triggerRefreshWatchlist}
-                        disabled={isActionLoading}
-                    >
-                        <ListRestart className="mr-2 h-4 w-4" />
-                        Refresh Watchlist
-                    </Button>
-                </div>
-            </div>
-
-            {/* System overview card */}
-            {connectionBanner && (
-                <div
-                    className={`flex flex-col gap-3 rounded-2xl border p-4 text-sm sm:flex-row sm:items-center sm:justify-between ${
-                        connectionBanner.tone === "danger"
-                            ? "border-loss/50 bg-loss/10"
-                            : "border-accent/40 bg-accent/5"
-                    }`}
-                >
-                    <div className="flex items-start gap-3">
-                        {connectionBanner.icon}
-                        <div>
-                            <p className="font-semibold text-text">
-                                {connectionBanner.title}
-                            </p>
-                            <p className="text-xs text-text-muted">
-                                {connectionBanner.description}
-                            </p>
-                        </div>
-                    </div>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={retryConnection}
-                        className="shrink-0"
+                        onClick={refreshNewsHealth}
+                        disabled={newsHealthLoading}
                     >
                         <RefreshCw className="mr-2 h-4 w-4" />
-                        Retry Stream
+                        Refresh
                     </Button>
                 </div>
-            )}
-
-            <SystemStatusCard health={health} />
-
-            {/* News health card */}
-            <Card className="border-border">
-                <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                        <CardTitle className="text-xl">News Health</CardTitle>
-                        <p className="text-sm text-muted-foreground">
-                            FinBERT availability and cache freshness for the
-                            News surface
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <Badge variant={finbertStatus.variant}>
-                            {finbertStatus.label}
-                        </Badge>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={refreshNewsHealth}
-                            disabled={newsHealthLoading}
-                        >
-                            <RefreshCw className="mr-2 h-4 w-4" />
-                            Refresh
-                        </Button>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    {newsHealthError ? (
-                        <Alert variant="destructive">
-                            <AlertTitle>Failed to load news health</AlertTitle>
-                            <AlertDescription>
-                                {newsHealthError.message ||
-                                    "Unable to reach /api/news/health"}
-                            </AlertDescription>
-                        </Alert>
-                    ) : (
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                            <div>
-                                <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                                    Market Last Refresh
-                                </p>
-                                <p className="text-sm font-medium">
-                                    {newsHealthLoading && !newsHealth
-                                        ? "Loading..."
-                                        : formatDateTime(
-                                              newsHealth?.market_last_refreshed_at,
-                                          )}
-                                </p>
-                            </div>
-                            <div>
-                                <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                                    Watchlist Last Refresh
-                                </p>
-                                <p className="text-sm font-medium">
-                                    {newsHealthLoading && !newsHealth
-                                        ? "Loading..."
-                                        : formatDateTime(
-                                              newsHealth?.watchlist_last_refreshed_at,
-                                          )}
-                                </p>
-                            </div>
-                            <div>
-                                <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                                    Headlines (24h)
-                                </p>
-                                <p className="text-sm font-medium">
-                                    {newsHealth?.headlines_24h ?? 0}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                    Lookback window: {lookbackHours} hrs
-                                </p>
-                            </div>
-                            <div>
-                                <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                                    Fallback Usage (24h)
-                                </p>
-                                <p className="text-sm font-medium">
-                                    {newsHealth?.fallback_headlines_24h ?? 0}{" "}
-                                    headlines
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                    {newsHealth
-                                        ? `${fallbackRatePercent.toFixed(1)}% fallback`
-                                        : "0% fallback"}
-                                </p>
-                                {fallbackAvgLatency !== null && (
-                                    <p className="text-xs text-muted-foreground">
-                                        Avg latency:{" "}
-                                        {Math.round(fallbackAvgLatency)} ms
-                                    </p>
-                                )}
-                                {fallbackP95Latency !== null && (
-                                    <p className="text-xs text-muted-foreground">
-                                        P95 latency:{" "}
-                                        {Math.round(fallbackP95Latency)} ms
-                                    </p>
-                                )}
-                                {fallbackLastEventAt && (
-                                    <p className="text-xs text-muted-foreground">
-                                        Last fallback:{" "}
-                                        {formatDateTime(fallbackLastEventAt)}
-                                    </p>
-                                )}
-                            </div>
+            </CardHeader>
+            <CardContent>
+                {newsHealthError ? (
+                    <Alert variant="destructive">
+                        <AlertTitle>Failed to load news health</AlertTitle>
+                        <AlertDescription>
+                            {newsHealthError.message || "Unable to reach /api/news/health"}
+                        </AlertDescription>
+                    </Alert>
+                ) : (
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        <div>
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                Market Last Refresh
+                            </p>
+                            <p className="text-sm font-medium">
+                                {newsHealthLoading && !newsHealth
+                                    ? "Loading..."
+                                    : formatDateTime(newsHealth?.market_last_refreshed_at)}
+                            </p>
                         </div>
+                        <div>
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                Watchlist Last Refresh
+                            </p>
+                            <p className="text-sm font-medium">
+                                {newsHealthLoading && !newsHealth
+                                    ? "Loading..."
+                                    : formatDateTime(newsHealth?.watchlist_last_refreshed_at)}
+                            </p>
+                        </div>
+                        <div>
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                Headlines (24h)
+                            </p>
+                            <p className="text-sm font-medium">
+                                {newsHealth?.headlines_24h ?? 0}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                                Lookback window: {lookbackHours} hrs
+                            </p>
+                        </div>
+                        <div>
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                Fallback Usage (24h)
+                            </p>
+                            <p className="text-sm font-medium">
+                                {newsHealth?.fallback_headlines_24h ?? 0} headlines
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                                {newsHealth
+                                    ? `${fallbackRatePercent.toFixed(1)}% fallback`
+                                    : "0% fallback"}
+                            </p>
+                            {fallbackAvgLatency !== null && (
+                                <p className="text-xs text-muted-foreground">
+                                    Avg latency: {Math.round(fallbackAvgLatency)} ms
+                                </p>
+                            )}
+                            {fallbackP95Latency !== null && (
+                                <p className="text-xs text-muted-foreground">
+                                    P95 latency: {Math.round(fallbackP95Latency)} ms
+                                </p>
+                            )}
+                            {fallbackLastEventAt && (
+                                <p className="text-xs text-muted-foreground">
+                                    Last fallback: {formatDateTime(fallbackLastEventAt)}
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+
+    const celerySummary = detailedHealth?.celery_worker
+        ? [
+              detailedHealth.celery_worker.active ? "Worker active" : "Worker inactive",
+              detailedHealth.celery_worker.active_tasks !== undefined
+                  ? `${detailedHealth.celery_worker.active_tasks} active tasks`
+                  : null,
+              detailedHealth.celery_worker.pool_size
+                  ? `Pool ${detailedHealth.celery_worker.pool_size}`
+                  : null,
+          ]
+              .filter(Boolean)
+              .join(" • ")
+        : "Worker telemetry unavailable";
+
+    return renderShell(
+        <>
+            {connectionBanner && (
+                <SectionCard
+                    variant="surface"
+                    padding="sm"
+                    className={cn(
+                        "border border-border/60",
+                        connectionBanner.tone === "danger"
+                            ? "bg-loss/10"
+                            : "bg-accent/5"
                     )}
-                </CardContent>
-            </Card>
-
-            {/* Data Sources card */}
-            <DataSourcesCard health={health} />
-
-            {/* API Quotas card */}
-            <APIQuotasCard health={health} />
-
-            {/* News Source Quality card */}
-            <SourceQualityCard />
-
-            {/* ML Model Status card */}
-            <MLModelCard />
-
-            {/* API Keys Configuration card */}
-            {detailedHealth?.api_keys && detailedHealth.api_keys.length > 0 && (
-                <APIKeysCard apiKeys={detailedHealth.api_keys} />
+                    title={
+                        <div className="flex items-center gap-2">
+                            {connectionBanner.icon}
+                            <span>{connectionBanner.title}</span>
+                        </div>
+                    }
+                    description={connectionBanner.description}
+                    actions={
+                        <Button variant="outline" size="sm" onClick={retryConnection}>
+                            <RefreshCw className="mr-2 h-4 w-4" />
+                            Retry stream
+                        </Button>
+                    }
+                />
             )}
 
-            {/* Data Freshness card - shows all tables */}
-            <TableFreshnessCard />
+            <SectionCard
+                variant="surface"
+                title="Live Overview"
+                description="Current service health and ingest telemetry."
+                contentClassName="space-y-6"
+            >
+                <SystemStatusCard health={health} />
+                {renderNewsHealthCard()}
+            </SectionCard>
 
-            {/* Service cards grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {serviceEntries.map(([serviceName, status]) => (
-                    <ServiceCard
-                        key={serviceName}
-                        serviceName={serviceName}
-                        status={status}
-                        onRestart={triggerRestartService}
-                    />
-                ))}
-            </div>
-
-            {/* System Logs */}
-            <LogsCard />
-
-            {/* Empty state */}
-            {serviceEntries.length === 0 && (
-                <Alert>
-                    <AlertTitle>No Services Found</AlertTitle>
-                    <AlertDescription>
-                        No services are currently being monitored. Check your
-                        configuration.
-                    </AlertDescription>
-                </Alert>
-            )}
-
-            {/* System Resources Section */}
-            <div className="space-y-4">
-                <div>
-                    <h2 className="text-2xl font-bold">System Resources</h2>
-                    <p className="text-muted-foreground text-sm">
-                        Real-time monitoring of system resources (auto-refreshes
-                        every 5 seconds)
-                    </p>
+            <SectionCard
+                variant="surface"
+                title="Integrations & Data Pipelines"
+                description="Upstream APIs, models, and freshness checks."
+                contentClassName="space-y-6"
+            >
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                    <DataSourcesCard health={health} />
+                    <APIQuotasCard health={health} />
+                    <SourceQualityCard />
+                    <MLModelCard />
                 </div>
+                {detailedHealth?.api_keys && detailedHealth.api_keys.length > 0 && (
+                    <APIKeysCard apiKeys={detailedHealth.api_keys} />
+                )}
+                <TableFreshnessCard />
+            </SectionCard>
 
+            <SectionCard
+                variant="surface"
+                title="Services"
+                description="Individual service daemons with restart controls."
+                contentClassName="space-y-6"
+            >
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {serviceEntries.map(([serviceName, status]) => (
+                        <ServiceCard
+                            key={serviceName}
+                            serviceName={serviceName}
+                            status={status}
+                            onRestart={triggerRestartService}
+                        />
+                    ))}
+                </div>
+                {serviceEntries.length === 0 && (
+                    <Alert>
+                        <AlertTitle>No Services Found</AlertTitle>
+                        <AlertDescription>
+                            No services are currently being monitored. Check your configuration.
+                        </AlertDescription>
+                    </Alert>
+                )}
+            </SectionCard>
+
+            <SectionCard
+                variant="surface"
+                title="System Resources"
+                description="Auto-refreshing telemetry (5s)."
+            >
                 {resourcesLoading && !resources ? (
                     <div className="text-center py-8">
                         <RefreshCw className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
-                        <p className="text-muted-foreground mt-2">
-                            Loading resource data...
-                        </p>
+                        <p className="text-muted-foreground mt-2">Loading resource data...</p>
                     </div>
                 ) : resources ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
                         <ResourceCard
                             title="Disk Usage"
                             percent={resources.disk.percent_used}
@@ -619,63 +623,41 @@ export default function StatusPage() {
                         />
                     </div>
                 ) : null}
-            </div>
+            </SectionCard>
 
-            {/* Celery Monitoring Section */}
-            <div className="space-y-4">
-                <div>
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h2 className="text-2xl font-bold">Celery Monitoring</h2>
-                            <p className="text-muted-foreground text-sm">
-                                Task queue and worker status (manual refresh only to
-                                avoid performance issues)
-                            </p>
+            <SectionCard
+                variant="surface"
+                title="Celery & Maintenance"
+                description={celeryExpanded ? "Task queue depth, beat schedule, and maintenance tooling." : celerySummary}
+                actions={
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="flex items-center gap-1"
+                        onClick={() => setCeleryExpanded((prev) => !prev)}
+                    >
+                        {celeryExpanded ? "Collapse" : "Expand"}
+                        <ChevronDown
+                            className={`h-4 w-4 transition-transform ${celeryExpanded ? "rotate-180" : ""}`}
+                        />
+                    </Button>
+                }
+                contentClassName={celeryExpanded ? "space-y-6" : "hidden"}
+            >
+                {celeryExpanded && (
+                    <>
+                        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                            <QueueDepthCard />
+                            <BeatScheduleCard />
                         </div>
-                        {detailedHealth?.celery_worker && (
-                            <div className="flex items-center gap-2">
-                                <Badge
-                                    variant={
-                                        detailedHealth.celery_worker.active
-                                            ? "default"
-                                            : "destructive"
-                                    }
-                                >
-                                    {detailedHealth.celery_worker.active
-                                        ? "Worker Active"
-                                        : "Worker Inactive"}
-                                </Badge>
-                                {detailedHealth.celery_worker.pool_size && (
-                                    <Badge variant="outline">
-                                        Pool: {detailedHealth.celery_worker.pool_size}
-                                    </Badge>
-                                )}
-                                {detailedHealth.celery_worker.active_tasks !== undefined &&
-                                    detailedHealth.celery_worker.active_tasks !== null && (
-                                        <Badge variant="outline">
-                                            Active Tasks:{" "}
-                                            {detailedHealth.celery_worker.active_tasks}
-                                        </Badge>
-                                    )}
-                            </div>
-                        )}
-                    </div>
-                </div>
+                        <CeleryTaskTable />
+                        <MaintenanceCard />
+                    </>
+                )}
+            </SectionCard>
 
-                {/* Queue depth and schedule cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <QueueDepthCard />
-                    <BeatScheduleCard />
-                </div>
+            <LogsCard />
 
-                {/* Task table */}
-                <CeleryTaskTable />
-
-                {/* Database Maintenance */}
-                <MaintenanceCard />
-            </div>
-
-            {/* Service Action Dialog */}
             {actionDialogConfig && (
                 <ServiceActionDialog
                     open={actionDialogOpen}
@@ -687,6 +669,24 @@ export default function StatusPage() {
                     storageKey={actionDialogConfig.storageKey}
                 />
             )}
-        </div>
+        </>
+    );
+}
+
+function StatusSkeleton() {
+    return (
+        <SectionCard variant="surface" title="Loading status" description="Fetching live telemetry...">
+            <div className="space-y-4">
+                <div className="h-10 w-48 rounded-lg bg-surface-muted/50 animate-pulse" />
+                <div className="grid gap-4 md:grid-cols-3">
+                    {Array.from({ length: 3 }).map((_, index) => (
+                        <div
+                            key={`status-skeleton-${index}`}
+                            className="h-24 rounded-xl bg-surface-muted/40 animate-pulse"
+                        />
+                    ))}
+                </div>
+            </div>
+        </SectionCard>
     );
 }

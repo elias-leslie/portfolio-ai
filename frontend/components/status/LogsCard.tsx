@@ -100,6 +100,7 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
     const [restarting, setRestarting] = useState(false);
     const [refreshInterval, setRefreshInterval] = useState<number>(30000); // Default 30 seconds
     const [timeRange, setTimeRange] = useState<string>("5 minutes ago"); // Default 5 minutes
+    const [isCollapsed, setIsCollapsed] = useState(true);
 
     // Build API URL with filters
     const apiUrl = useMemo(() => {
@@ -263,17 +264,41 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
         }
     };
 
+    const summary = [
+        `${sortedLogs.length} entries`,
+        `Level ${logLevelConfig?.current_level ?? "INFO"}`,
+        serviceFilter ? SERVICE_DISPLAY_NAMES[serviceFilter] : "All services",
+    ]
+        .filter(Boolean)
+        .join(" • ");
+
     return (
         <Card className="border-border">
-            <CardHeader>
-                <div className="flex items-center justify-between gap-2 flex-nowrap">
+            <CardHeader className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                     <CardTitle className="flex items-center gap-2 shrink-0">
                         <FileText className="h-5 w-5" />
                         <span className="whitespace-nowrap">Unified Logging</span>
                     </CardTitle>
-                    <div className="flex items-center gap-2 flex-nowrap">
+                    <div className="flex items-center gap-2">
+                        <p className="text-xs text-muted-foreground whitespace-nowrap">{summary}</p>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="flex items-center gap-1"
+                            onClick={() => setIsCollapsed((prev) => !prev)}
+                        >
+                            {isCollapsed ? "Expand" : "Collapse"}
+                            <ArrowUpDown
+                                className={`h-4 w-4 transition-transform ${isCollapsed ? "" : "rotate-180"}`}
+                            />
+                        </Button>
+                    </div>
+                </div>
+                {!isCollapsed && (
+                    <div className="flex flex-wrap items-center gap-2">
                         <Select value={serviceFilter || "ALL"} onValueChange={(val) => setServiceFilter(val === "ALL" ? undefined : val)}>
-                            <SelectTrigger className="h-8 whitespace-nowrap">
+                            <SelectTrigger className="h-8 min-w-[150px]">
                                 <SelectValue placeholder="All Services" />
                             </SelectTrigger>
                             <SelectContent>
@@ -284,7 +309,7 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
                             </SelectContent>
                         </Select>
                         <Select value={levelFilter || "ALL"} onValueChange={(val) => setLevelFilter(val === "ALL" ? undefined : val)}>
-                            <SelectTrigger className="h-8 whitespace-nowrap">
+                            <SelectTrigger className="h-8 min-w-[130px]">
                                 <SelectValue placeholder="All Levels" />
                             </SelectTrigger>
                             <SelectContent>
@@ -297,7 +322,7 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
                             </SelectContent>
                         </Select>
                         <Select value={timeRange} onValueChange={setTimeRange}>
-                            <SelectTrigger className="h-8 whitespace-nowrap">
+                            <SelectTrigger className="h-8 min-w-[140px]">
                                 <SelectValue placeholder="Time Range" />
                             </SelectTrigger>
                             <SelectContent>
@@ -308,13 +333,12 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
                                 <SelectItem value="24 hours ago">Last 24 hours</SelectItem>
                             </SelectContent>
                         </Select>
-                        <div className="w-px h-6 bg-border shrink-0" />
                         <Select
                             value={logLevelConfig?.current_level || "INFO"}
                             onValueChange={handleLogLevelChange}
                             disabled={changingLogLevel}
                         >
-                            <SelectTrigger className="h-8 whitespace-nowrap">
+                            <SelectTrigger className="h-8 min-w-[120px]">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -330,7 +354,7 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
                             value={refreshInterval.toString()}
                             onValueChange={(val) => setRefreshInterval(parseInt(val))}
                         >
-                            <SelectTrigger className="h-8 whitespace-nowrap">
+                            <SelectTrigger className="h-8 min-w-[110px]">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -342,7 +366,6 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
                                 <SelectItem value="0">Off</SelectItem>
                             </SelectContent>
                         </Select>
-                        <div className="w-px h-6 bg-border shrink-0" />
                         <Badge variant="outline" className="shrink-0">{sortedLogs.length}</Badge>
                         <Button variant="outline" size="sm" onClick={toggleSortOrder} title={sortOrder === "desc" ? "Newest first" : "Oldest first"} className="shrink-0">
                             <ArrowUpDown className="h-4 w-4" />
@@ -351,11 +374,11 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
                             {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                         </Button>
                     </div>
-                </div>
+                )}
             </CardHeader>
-            <CardContent>
-
-                {restartRequired && !restarting && (
+            {!isCollapsed && (
+                <CardContent>
+                    {restartRequired && !restarting && (
                     <Alert className="mb-4">
                         <AlertDescription>
                             <div className="flex items-center justify-between">
@@ -381,27 +404,27 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
                             </div>
                         </AlertDescription>
                     </Alert>
-                )}
+                    )}
 
-                {/* Error state */}
-                {error && (
+                    {/* Error state */}
+                    {error && (
                     <Alert variant="destructive" className="mb-4">
                         <AlertDescription>
                             Failed to load unified logs. Check service status.
                         </AlertDescription>
                     </Alert>
-                )}
+                    )}
 
-                {/* Loading state */}
-                {isLoading && (
+                    {/* Loading state */}
+                    {isLoading && (
                     <div className="flex items-center justify-center p-8">
                         <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
                         <span className="ml-2 text-muted-foreground">Loading logs...</span>
                     </div>
-                )}
+                    )}
 
-                {/* Log stream */}
-                {!isLoading && (
+                    {/* Log stream */}
+                    {!isLoading && (
                     <ScrollArea className="h-[600px] w-full rounded-md border bg-gray-950 p-4">
                         {sortedLogs.length === 0 ? (
                             <div className="text-sm text-muted-foreground text-center py-8">
@@ -427,8 +450,9 @@ export function LogsCard({ autoRefresh = false }: LogsCardProps) {
                             </div>
                         )}
                     </ScrollArea>
-                )}
-            </CardContent>
+                    )}
+                </CardContent>
+            )}
         </Card>
     );
 }

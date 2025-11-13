@@ -20,14 +20,39 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **UI Standardization & UX Fixes** (MEDIUM (3-5 hours), 0/0 tasks (yesterday))
+1. **Market Conditions Card Improvements** (HIGH (28 hours total, phased implementation recommended), 0/19 tasks (today))
+   - File: `tasks-0056-market-conditions-improvements.md`
+   - Created: 2025-11-13
+   - Goal: Fix critical data quality issues, improve user experience, and add advanced market intelligence features to the Market Conditions card. Address missing historical data, misleading timestamps, outdated thresholds, and add enhanced indicators.
+   - Tasks:
+     - [ ] Task 1: Priority 0 - Critical Data Integrity (8 hours)
+     - [ ] Task 1: Create Scheduled Historical Data Maintenance Task
+     - [ ] Task 2: Fix Misleading Last Updated Timestamp
+     - [ ] Task 3: Add Daily Change Percentages for Main Indicators
+     - [ ] Task 4: Fix Sector Change Calculation
+     - [ ] Task 2: Priority 1 - High Priority UX Improvements (6 hours)
+     - [ ] Task 5: Update S&P 500 Scoring Thresholds
+     - [ ] Task 6: Investigate Missing Fear & Greed Signal
+     - [ ] Task 7: Add Staleness Warning for Old Fear & Greed Data
+     - [ ] Task 8: Remove Unused Code and Fields
+     - [ ] Task 3: Priority 2 - Enhanced Analytics (8 hours)
+     - [ ] Task 9: Add Trend Indicators to Scores
+     - [ ] Task 10: Add 30-Day Sparkline Charts
+     - [ ] Task 11: Optimize Fear & Greed Caching
+     - [ ] Task 12: Add Put/Call Ratio Indicator
+     - [ ] Task 4: Priority 3 - Advanced Features (6 hours)
+     - [ ] Task 13: Market Breadth Indicator (New Card)
+     - [ ] Task 14: Correlation Matrix (Optional Expandable Section)
+     - [ ] Task 15: Volatility Regime Indicator
+
+2. **UI Standardization & UX Fixes** (MEDIUM-HIGH (4-6 hours, 12-15 files), 0/0 tasks (yesterday))
    - File: `tasks-0055-ui-standardization-and-ux-fixes.md`
    - Created: 2025-11-12
    - Goal: Bring the Portfolio AI web UI up to a consistent design baseline by aligning headers, loading states, and critical interactions so that every surface communicates status clearly and meets accessibility expectations.
    - Tasks:
      - (No tasks defined yet)
 
-2. **Development Process Optimization** (MEDIUM (4-6 hours), 5/7 tasks (yesterday))
+3. **Development Process Optimization** (MEDIUM (4-6 hours), 5/7 tasks (yesterday))
    - File: `tasks-0054-dev-process-optimization.md`
    - Created: 2025-11-12
    - Goal: Reduce development cycle time from 15-20 min to 5-7 min (3x faster) by fixing test performance and workflow bottlenecks.
@@ -40,7 +65,7 @@
      - [x] Task 6: Medium: Add Smoke Test Markers ✅ **COMPLETE**
      - [ ] Task 7: Medium: Reduce Large Service Files ⏸️ **DEFERRED**
 
-3. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (2 days ago))
+4. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (2 days ago))
    - File: `tasks-0042-customizable-dashboard-layouts.md`
    - Created: 2025-11-11
    - Goal: Enable users to customize dashboard layouts by dragging/resizing cards, with persistence to PostgreSQL backend
@@ -56,7 +81,7 @@
      - [ ] Task 9: Polish and Edge Cases
      - [ ] Task 10: Testing and Documentation
 
-4. **Trading Intelligence Roadmap** (High, 4/8 tasks)
+5. **Trading Intelligence Roadmap** (High, 4/8 tasks)
    - File: `tasks-trading-intelligence-roadmap.md`
    - Created: Unknown
    - Tasks:
@@ -69,7 +94,7 @@
      - [ ] Task 7: Frontend & UX
      - [ ] Task 8: Governance & documentation
 
-5. **Response Caching Middleware** (TBD, 0/8 tasks (2 days ago))
+6. **Response Caching Middleware** (TBD, 0/8 tasks (2 days ago))
    - File: `tasks-0047-response-caching-middleware.md`
    - Created: 2025-11-11
    - Tasks:
