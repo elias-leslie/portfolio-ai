@@ -141,12 +141,27 @@ export interface FearGreedScore {
   trend_change?: number | null;
 }
 
+export interface SectorWeight {
+  sector: string;
+  weight_pct: number;
+}
+
+export interface OptionsActivityMetrics {
+  near_term_pct: number;
+  near_term_signal: "High" | "Normal" | "Low";
+  concentration_pct: number;
+  concentration_signal: "Focused" | "Balanced" | "Dispersed";
+  top_sectors: SectorWeight[];
+  last_updated: string;
+}
+
 export interface MarketIntelligenceResponse {
   narrative: string;
   market_health: MarketHealthScoreSimple;
   fear_greed: FearGreedScore;
   indicators: Record<string, EnrichedIndicator>;
   sector_rotation: SectorRotationSummary;
+  options_activity: OptionsActivityMetrics | null;
   last_updated: string;
 }
 

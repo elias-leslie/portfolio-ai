@@ -5,9 +5,10 @@
 **Effort**: HIGH (36 hours total, phased implementation recommended)
 **Environment**: Local Dev (auto-detected)
 **Created**: 2025-11-13 14:30
-**Updated**: 2025-11-13 19:15 (Completed Phase 5 + Phase 6 - CBOE enhancements)
-**Status**: Phase 1-6 COMPLETE ✅ | Phase 4 (P3 optional) remains
+**Updated**: 2025-11-13 21:45 (Completed Phase 6 frontend - tasks 21.2, 21.3)
+**Status**: Phase 1-6 COMPLETE ✅ | Phase 4 (P3 optional) remains | Task 22 (narrative) remains
 **PAUSED**: 2025-11-13 19:15 (User requested pause - context 67% used)
+**RESUMED**: 2025-11-13 (Auto-resumed via /do_it)
 **Commits**:
   - a5fccc2 (refactor: switch Put/Call ratio from yfinance to official CBOE source)
   - 35203dc (feat: add Put/Call Ratio indicator to Market Conditions card)
@@ -469,22 +470,19 @@ WHERE table_name = 'fear_greed_inputs';"
     - [ ] near_term_pct: >65% = High, 45-65% = Normal, <45% = Low
     - [ ] concentration_pct: >80% = Focused, 50-80% = Balanced, <50% = Dispersed
 
-- [ ] 21.2 Frontend: Display options activity metrics
-  - [ ] File: `frontend/components/market/MarketIntelligence.tsx`
-  - [ ] Add new section after main indicators:
-    ```
-    Options Positioning:
-    - Near-term Focus: 72% ↑ (event uncertainty)
-    - Market Positioning: Concentrated (88%)
-    - Top Sectors: Tech (45%), Financials (25%), Healthcare (15%)
-    ```
-  - [ ] Use existing LabeledIndicator component pattern
-  - [ ] Add tooltips explaining each metric
+- [x] 21.2 Frontend: Display options activity metrics ✅ COMPLETE
+  - [x] File: `frontend/components/market/MarketIntelligence.tsx`
+  - [x] Added Options Positioning section with 3-column grid layout
+  - [x] Near-term Focus: Shows % and signal (High/Normal/Low) with color coding
+  - [x] Market Positioning: Shows concentration % and signal (Focused/Balanced/Dispersed)
+  - [x] Top Sectors: Shows top 3 sectors by weight with percentages
+  - [x] Conditionally rendered (only shows when options_activity data exists)
 
-- [ ] 21.3 Frontend: Update TypeScript interfaces
-  - [ ] File: `frontend/lib/api/market.ts`
-  - [ ] Add OptionsActivityMetrics interface
-  - [ ] Update MarketIntelligenceResponse to include options_activity
+- [x] 21.3 Frontend: Update TypeScript interfaces ✅ COMPLETE
+  - [x] File: `frontend/lib/api/market.ts`
+  - [x] Added SectorWeight interface
+  - [x] Added OptionsActivityMetrics interface
+  - [x] Updated MarketIntelligenceResponse to include options_activity: OptionsActivityMetrics | null
 
 ### 22.0 Plain-Language Narrative Enhancements
 

@@ -76,7 +76,7 @@ export function MarketIntelligence() {
     );
   }
 
-  const { narrative, market_health, fear_greed, indicators, sector_rotation } = data;
+  const { narrative, market_health, fear_greed, indicators, sector_rotation, options_activity } = data;
 
   // Extract indicators in order
   const vixIndicator = indicators.vix;
@@ -288,6 +288,101 @@ export function MarketIntelligence() {
           </div>
         </div>
       </div>
+
+      {/* Options Activity Section */}
+      {options_activity && (
+        <div className="mt-6 pt-6 border-t border-border">
+          <h3 className="text-sm font-semibold text-text mb-4 uppercase tracking-wide">
+            Options Positioning
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Near-term Focus */}
+            <div className="p-4 rounded-lg bg-surface-muted/20 hover:bg-surface-muted/30 transition-colors">
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-text-muted uppercase tracking-wide">
+                    Near-term Focus
+                  </span>
+                  <span
+                    className={`text-xs font-semibold px-2 py-0.5 rounded ${
+                      options_activity.near_term_signal === "High"
+                        ? "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400"
+                        : options_activity.near_term_signal === "Low"
+                        ? "bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                        : "bg-surface-muted/40 text-text-muted"
+                    }`}
+                  >
+                    {options_activity.near_term_signal}
+                  </span>
+                </div>
+                <div className="text-2xl font-bold text-text">
+                  {options_activity.near_term_pct.toFixed(0)}%
+                </div>
+                <p className="text-xs text-text-muted">
+                  {options_activity.near_term_signal === "High"
+                    ? "Event uncertainty"
+                    : options_activity.near_term_signal === "Low"
+                    ? "Long-term positioning"
+                    : "Balanced time horizon"}
+                </p>
+              </div>
+            </div>
+
+            {/* Concentration */}
+            <div className="p-4 rounded-lg bg-surface-muted/20 hover:bg-surface-muted/30 transition-colors">
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-text-muted uppercase tracking-wide">
+                    Market Positioning
+                  </span>
+                  <span
+                    className={`text-xs font-semibold px-2 py-0.5 rounded ${
+                      options_activity.concentration_signal === "Focused"
+                        ? "bg-red-500/10 text-red-600 dark:text-red-400"
+                        : options_activity.concentration_signal === "Dispersed"
+                        ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                        : "bg-surface-muted/40 text-text-muted"
+                    }`}
+                  >
+                    {options_activity.concentration_signal}
+                  </span>
+                </div>
+                <div className="text-2xl font-bold text-text">
+                  {options_activity.concentration_pct.toFixed(0)}%
+                </div>
+                <p className="text-xs text-text-muted">
+                  {options_activity.concentration_signal === "Focused"
+                    ? "High conviction trades"
+                    : options_activity.concentration_signal === "Dispersed"
+                    ? "Broad participation"
+                    : "Balanced distribution"}
+                </p>
+              </div>
+            </div>
+
+            {/* Top Sectors */}
+            <div className="p-4 rounded-lg bg-surface-muted/20 hover:bg-surface-muted/30 transition-colors">
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-text-muted uppercase tracking-wide">
+                  Top Sectors
+                </span>
+                <div className="space-y-2 mt-2">
+                  {options_activity.top_sectors.map((sector, idx) => (
+                    <div key={idx} className="flex items-center justify-between">
+                      <span className="text-xs text-text truncate flex-1">
+                        {sector.sector}
+                      </span>
+                      <span className="text-xs font-semibold text-text ml-2">
+                        {sector.weight_pct.toFixed(0)}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Footer with timestamp */}
       <div className="mt-4 pt-3 border-t border-border">
