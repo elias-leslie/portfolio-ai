@@ -9,10 +9,9 @@ from __future__ import annotations
 import datetime as dt
 from typing import Any
 
-import yfinance as yf  # type: ignore[import-untyped]
-
 from app.celery_app import celery_app
 from app.logging_config import get_logger
+from app.sources.cboe_source import get_cboe_source
 from app.storage import get_storage
 from app.tasks.data_ingestion_tasks import ingest_historical_ohlcv
 
@@ -182,11 +181,12 @@ def fetch_putcall_ratio(  # type: ignore[no-untyped-def]
     self,
     as_of_date: str | None = None,
 ) -> dict[str, Any]:
-    """Fetch Put/Call Ratio from SPX options data.
+    """Fetch Put/Call Ratio from CBOE official data.
 
-    This task calculates the total put/call ratio from S&P 500 Index (^SPX)
-    options by comparing total put open interest to total call open interest
-    across all available expiration dates.
+    Scrapes CBOE Daily Market Statistics page for official put/call ratios.
+    This is the gold standard for market-wide options sentiment.
+
+    Data source: https://www.cboe.com/us/options/market_statistics/daily/
 
     The Put/Call Ratio is a market sentiment indicator:
     - Ratio > 1.0 = More puts than calls (bearish sentiment)
@@ -194,15 +194,17 @@ def fetch_putcall_ratio(  # type: ignore[no-untyped-def]
     - Ratio < 0.7 = More calls than puts (bullish sentiment)
 
     Args:
-        as_of_date: Date to fetch data for (YYYY-MM-DD). If None, uses today.
+        as_of_date: Date to fetch data for (YYYY-MM-DD). If None, uses today's data.
+                    Note: CBOE updates daily, so this should match the date shown on their page.
 
     Returns:
         Dict with task results:
         - task_id: Celery task ID
-        - as_of_date: Date of the data
-        - put_call_ratio: Calculated ratio (put OI / call OI)
-        - total_put_oi: Total put open interest
-        - total_call_oi: Total call open interest
+        - date: Date from CBOE page (YYYY-MM-DD)
+        - put_call_ratio: SPX+SPXW ratio (primary metric)
+        - total_ratio: Total market-wide ratio (all CBOE options)
+        - index_ratio: Index options ratio
+        - equity_ratio: Equity options ratio
         - success: Boolean indicating success
 
     Example:
@@ -210,92 +212,33 @@ def fetch_putcall_ratio(  # type: ignore[no-untyped-def]
         >>> celery -A app.celery_app call app.tasks.market_data_tasks.fetch_putcall_ratio
 
     Note:
-        This task should be scheduled daily at 04:30 UTC (after market close
-        and after maintain_historical_market_data task completes).
-        Uses yfinance to fetch SPX options chain data.
+        This task should be scheduled daily at 04:30 UTC (after market close).
+        Uses Playwright to render JavaScript-heavy CBOE page.
+        Data represents daily trading volume ratios (not open interest).
     """
     task_id = self.request.id
-    target_date = dt.date.fromisoformat(as_of_date) if as_of_date else dt.date.today()
 
     logger.info(
         "fetch_putcall_ratio_started",
         task_id=task_id,
-        as_of_date=target_date.isoformat(),
+        requested_date=as_of_date,
     )
 
     try:
-        # Fetch SPX options data
-        spx = yf.Ticker("^SPX")
-        expirations = spx.options
+        # Fetch from CBOE official source
+        cboe = get_cboe_source()
+        data = cboe.fetch_put_call_ratios()
 
-        if not expirations:
-            logger.warning("fetch_putcall_ratio_no_expirations", ticker="^SPX")
-            return {
-                "task_id": task_id,
-                "as_of_date": target_date.isoformat(),
-                "error": "No options expirations available",
-                "success": False,
-            }
-
-        # Calculate total put and call open interest across all expirations
-        total_put_oi = 0.0
-        total_call_oi = 0.0
-
-        for expiry in expirations:
-            try:
-                opts = spx.option_chain(expiry)
-
-                # Sum open interest for puts and calls (convert from numpy to Python native)
-                put_oi = float(opts.puts["openInterest"].sum())
-                call_oi = float(opts.calls["openInterest"].sum())
-
-                total_put_oi += put_oi
-                total_call_oi += call_oi
-
-                logger.debug(
-                    "fetch_putcall_ratio_expiry",
-                    expiry=expiry,
-                    put_oi=put_oi,
-                    call_oi=call_oi,
-                )
-
-            except Exception as e:
-                logger.warning(
-                    "fetch_putcall_ratio_expiry_failed",
-                    expiry=expiry,
-                    error=str(e),
-                )
-                continue
-
-        # Calculate ratio
-        if total_call_oi == 0:
-            logger.error(
-                "fetch_putcall_ratio_zero_call_oi",
-                total_put_oi=total_put_oi,
-                total_call_oi=total_call_oi,
-            )
-            return {
-                "task_id": task_id,
-                "as_of_date": target_date.isoformat(),
-                "error": "Zero call open interest",
-                "success": False,
-            }
-
-        put_call_ratio = total_put_oi / total_call_oi
+        # Extract key values
+        cboe_date = data["date"]
+        # Use SPX+SPXW as primary ratio (S&P 500 specific)
+        # Fall back to total if SPX not available
+        put_call_ratio = data.get("spx") or data["total"]
 
         # Store in fear_greed_inputs table
         storage = get_storage()
         with storage.connection() as conn:
-            conn.execute(
-                """
-                UPDATE fear_greed_inputs
-                SET put_call_ratio = %s
-                WHERE as_of_date = %s
-                """,
-                (put_call_ratio, target_date),
-            )
-
-            # If no row exists for this date, create one
+            # Insert or update
             conn.execute(
                 """
                 INSERT INTO fear_greed_inputs (as_of_date, put_call_ratio, source_map)
@@ -305,19 +248,20 @@ def fetch_putcall_ratio(  # type: ignore[no-untyped-def]
                     source_map = fear_greed_inputs.source_map || EXCLUDED.source_map
                 """,
                 (
-                    target_date,
+                    cboe_date,
                     put_call_ratio,
-                    '{"put_call_ratio": "yfinance_spx_options"}',
+                    '{"put_call_ratio": "cboe_daily_statistics"}',
                 ),
             )
             conn.commit()
 
         result = {
             "task_id": task_id,
-            "as_of_date": target_date.isoformat(),
-            "put_call_ratio": float(round(put_call_ratio, 4)),
-            "total_put_oi": int(total_put_oi),
-            "total_call_oi": int(total_call_oi),
+            "date": cboe_date,
+            "put_call_ratio": round(put_call_ratio, 4),
+            "total_ratio": round(data["total"], 4),
+            "index_ratio": round(data["index"], 4) if data.get("index") else None,
+            "equity_ratio": round(data["equity"], 4) if data.get("equity") else None,
             "success": True,
         }
 
@@ -337,7 +281,7 @@ def fetch_putcall_ratio(  # type: ignore[no-untyped-def]
         )
         return {
             "task_id": task_id,
-            "as_of_date": target_date.isoformat(),
+            "date": as_of_date or dt.date.today().isoformat(),
             "error": str(e),
             "success": False,
         }

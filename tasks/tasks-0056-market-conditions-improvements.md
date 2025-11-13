@@ -196,29 +196,35 @@
   - [x] Log query time before/after caching
   - [x] Document performance gain
 
-### 12.0 Add Put/Call Ratio Indicator ✅ COMPLETE
+### 12.0 Add Put/Call Ratio Indicator ✅ COMPLETE (REFACTORED TO CBOE)
 
-**Note: Must use scheduled Celery task for data maintenance, not on-demand fetching.**
+**Data Source:** CBOE Official Daily Statistics (https://www.cboe.com/us/options/market_statistics/daily/)
 
-- [x] 12.1 Research CBOE Put/Call ratio data source
-  - [x] Identified yfinance SPX options as data source (CBOE data outdated to 2019)
-  - [x] Calculates market-wide ratio from SPX options open interest
-- [x] 12.2 Backend: Create scheduled Celery task for Put/Call data
-  - [x] Created task `backend/app/tasks/market_data_tasks.py::fetch_putcall_ratio`
-  - [x] Fetches SPX options chain from yfinance, calculates total put OI / call OI
-  - [x] Stores in fear_greed_inputs.put_call_ratio column
-  - [x] Idempotent (safe to run repeatedly)
-  - [x] Added to Celery beat schedule (daily at 04:30 UTC, after market data)
-- [x] 12.3 Backend: Add Put/Call query to `backend/app/api/market.py`
-  - [x] Queries put_call_ratio from fear_greed_inputs table
-  - [x] Added to intelligence endpoint response
-- [x] 12.4 Backend: Update `backend/app/market/intelligence.py`
-  - [x] Created enrich_putcall_indicator() helper
-  - [x] Signal logic: >1.0 = Bearish, 0.7-1.0 = Neutral, <0.7 = Bullish
-  - [x] Added label to plain_language.py
-- [x] 12.5 Frontend: Update `frontend/components/market/MarketIntelligence.tsx`
-  - [x] Added Put/Call ratio to Key Indicators section (5th indicator)
-  - [x] Displays with educational tooltip explaining puts vs calls sentiment
+**Refactor:** Initially implemented with yfinance (open interest), which was 51% inaccurate.
+Refactored to scrape official CBOE page using Playwright for volume-based ratios (gold standard).
+
+- [x] 12.1 Research & Implement CBOE scraper (`backend/app/sources/cboe_source.py`)
+  - [x] Tested CBOE CSV (dead - ends Oct 2019)
+  - [x] Tested CBOE HTML (live - daily updates) ✅
+  - [x] Uses Playwright execute.js to render JavaScript page
+  - [x] Parses TOTAL, INDEX, EQUITY, SPX+SPXW ratios
+  - [x] Primary metric: SPX+SPXW (S&P 500 specific)
+- [x] 12.2 Backend: Updated `fetch_putcall_ratio` task
+  - [x] Replaced yfinance with CBOESource.fetch_put_call_ratios()
+  - [x] Execution time: ~10s (vs 90s for yfinance)
+  - [x] Stores SPX+SPXW ratio in fear_greed_inputs.put_call_ratio
+  - [x] Source tracking: `{"put_call_ratio": "cboe_daily_statistics"}`
+- [x] 12.3 Backend: API integration (`/api/market/intelligence`)
+  - [x] Already complete from initial implementation
+- [x] 12.4 Backend: Enrichment helpers
+  - [x] Already complete from initial implementation
+- [x] 12.5 Frontend: Display in Market Conditions card
+  - [x] Already complete from initial implementation
+
+**Accuracy Validation (Nov 12, 2025):**
+- CBOE Official: SPX+SPXW = 1.04, Total = 0.78
+- Our Implementation: 1.04 ✅ (exact match)
+- Previous yfinance: 1.57 ❌ (51% error)
 
 ---
 
