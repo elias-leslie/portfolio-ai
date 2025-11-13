@@ -12,24 +12,34 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Market Conditions Card Improvements** (21% - 4/19 complete, Phase 1 P0 done)
+1. **Market Conditions Card Improvements** (58% - 11/19 complete) ⏸️ PAUSED
    - File: `tasks-0056-market-conditions-improvements.md`
    - Started: 2025-11-13
-   - Last updated: 2025-11-13 16:00 (PAUSED)
-   - Next: Phase 2 (P1) - Task 5.0: Update S&P 500 Scoring Thresholds
-   - Pause Reason: User request for fresh /clear + /do_it restart
-   - Progress: Phase 1 (P0) complete - all 4 critical data integrity tasks done
+   - Last updated: 2025-11-13 17:37 (PAUSED)
+   - Commits: 8 total (8b0f56a → 7635689)
+   - Next: Task 12.0 - Add Put/Call Ratio Indicator (data source research)
+   - Pause Reason: User request via /pause_it (context 78%, 45K remaining)
    - Tasks:
-     - [x] Task 1.0: Create Scheduled Historical Data Maintenance Task ✅
-     - [x] Task 2.0: Fix Misleading Last Updated Timestamp ✅
-     - [x] Task 3.0: Add Daily Change Percentages for Main Indicators ✅
-     - [x] Task 4.0: Fix Sector Change Calculation ✅
-     - [ ] Task 5.0: Update S&P 500 Scoring Thresholds ← NEXT
-     - [ ] Task 6.0: Investigate Missing Fear & Greed Signal
-     - [ ] Task 7.0: Add Staleness Warning for Old Fear & Greed Data
-     - [ ] Task 8.0: Remove Unused Code and Fields
-     - [ ] Phase 3 (P2): Enhanced Analytics (4 tasks)
+     - [x] Phase 1 (P0): Critical Data Integrity (4 tasks) ✅ COMPLETE
+     - [x] Task 1: Create Scheduled Historical Data Maintenance Task ✅
+     - [x] Task 2: Fix Misleading Last Updated Timestamp ✅
+     - [x] Task 3: Add Daily Change Percentages for Main Indicators ✅
+     - [x] Task 4: Fix Sector Change Calculation ✅
+     - [x] Phase 2 (P1): High Priority UX Improvements (4 tasks) ✅ COMPLETE
+     - [x] Task 5: Update S&P 500 Scoring Thresholds (dynamic percentile-based) ✅
+     - [x] Task 6: Investigate Missing Fear & Greed Signal ✅
+     - [x] Task 7: Add Staleness Warning for Old Fear & Greed Data ✅
+     - [x] Task 8: Remove Unused Code and Fields ✅
+     - [x] Phase 3 (P2): Enhanced Analytics (3/4 tasks) 75% COMPLETE
+     - [x] Task 9: Add Trend Indicators to Scores (7-day arrows) ✅
+     - [x] Task 10: Add 30-Day Sparkline Charts ✅
+     - [x] Task 11: Optimize Fear & Greed Caching (Redis) ✅
+     - [ ] Task 12: Add Put/Call Ratio Indicator ← NEXT
      - [ ] Phase 4 (P3): Advanced Features (3 tasks)
+     - [ ] Task 13: Market Breadth Indicator (New Card)
+     - [ ] Task 14: Correlation Matrix (Optional Expandable Section)
+     - [ ] Task 15: Volatility Regime Indicator
+
 
 ---
 
@@ -37,27 +47,27 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Status Page Standardization & Collapse Framework** (HIGH (6-8 hours, 15+ files), 0/5 tasks (today))
+1. **Status Page Standardization & Collapse Framework** (HIGH (6-8 hours, 15+ files), 5/5 tasks (today))
    - File: `tasks-0057-status-page-standardization.md`
    - Created: 2025-11-13
    - Goal: Bring the Status experience in line with the shared Portfolio AI layout system, introduce a reusable collapse/summary pattern, and reorganize sections so top-level information is surfaced first.
    - Tasks:
-     - [ ] Task 0: Scope Discovery (MANDATORY)
-     - [ ] Task 1: Shared Expandable Card Primitive
-     - [ ] Task 2: Status Page Layout Reorganization
-     - [ ] Task 3: Card Content Adjustments
-     - [ ] Task 4: Verification & Tests
+     - [x] Task 0: Scope Discovery (MANDATORY)
+     - [x] Task 1: Shared Expandable Card Primitive
+     - [x] Task 2: Status Page Layout Reorganization
+     - [x] Task 3: Card Content Adjustments
+     - [x] Task 4: Verification & Tests
 
-2. **Status Page Standardization & Collapse Framework** (HIGH (6-8 hours, 15+ files), 0/5 tasks (today))
+2. **Status Page Standardization & Collapse Framework** (HIGH (6-8 hours, 15+ files), 5/5 tasks (today))
    - File: `tasks-0057-status-page-standardization.md`
    - Created: 2025-11-13
    - Goal: Bring the Status experience in line with the shared Portfolio AI layout system, introduce a reusable collapse/summary pattern, and reorganize sections so top-level information is surfaced first.
    - Tasks:
-     - [ ] Task 0: Scope Discovery (MANDATORY)
-     - [ ] Task 1: Shared Expandable Card Primitive
-     - [ ] Task 2: Status Page Layout Reorganization
-     - [ ] Task 3: Card Content Adjustments
-     - [ ] Task 4: Verification & Tests
+     - [x] Task 0: Scope Discovery (MANDATORY)
+     - [x] Task 1: Shared Expandable Card Primitive
+     - [x] Task 2: Status Page Layout Reorganization
+     - [x] Task 3: Card Content Adjustments
+     - [x] Task 4: Verification & Tests
 
 3. **UI Standardization & UX Fixes** (MEDIUM-HIGH (4-6 hours, 12-15 files), 0/0 tasks (yesterday))
    - File: `tasks-0055-ui-standardization-and-ux-fixes.md`
@@ -120,6 +130,17 @@
      - [ ] Task 6: Cache Invalidation Strategy
      - [ ] Task 7: Cache Management Endpoints
      - [ ] Task 8: Integration and Configuration
+
+8. **Settings & Status Standardization** (HIGH, 3/5 tasks (today))
+   - File: `tasks-0058-settings-and-status-standardization.md`
+   - Created: 2025-11-13
+   - Goal: Fully align the Status and Settings pages with the new UI system (PageHeader, SectionCard, ExpandableCard) while eliminating redundant data and ensuring DRY logic for collapsible cards, summaries, and defaults.
+   - Tasks:
+     - [x] Task 0: Scope Discovery (MANDATORY)
+     - [x] Task 1: Status Page – Structural Standardization
+     - [x] Task 2: Status Page – DRY Expandable Cards
+     - [ ] Task 3: Settings Page Modernization
+     - [ ] Task 4: Verification & Polish
 
 
 ---
