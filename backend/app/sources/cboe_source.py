@@ -15,10 +15,15 @@ import os
 import re
 import subprocess
 import tempfile
+import time
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..logging_config import get_logger
+from .source_metrics_manager import SourceMetricsManager
+
+if TYPE_CHECKING:
+    from ..storage import PortfolioStorage
 
 logger = get_logger(__name__)
 
@@ -31,15 +36,24 @@ class CBOESource:
     - Supports TOTAL, INDEX, EQUITY, and SPX+SPXW ratios
     - Robust scraping with retry logic
     - Minimal dependencies (uses existing Playwright)
+    - Health monitoring via SourceMetricsManager
     """
 
-    SOURCE_NAME = "cboe"
+    SOURCE_NAME = "cboe_daily_statistics"
     SOURCE_URL = "https://www.cboe.com/us/options/market_statistics/daily/"
 
-    def __init__(self) -> None:
-        """Initialize CBOE source."""
+    def __init__(self, storage: PortfolioStorage | None = None) -> None:
+        """Initialize CBOE source.
+
+        Args:
+            storage: Optional PortfolioStorage for metrics persistence
+        """
         self.last_fetch_time: dt.datetime | None = None
         self.last_fetch_data: dict[str, Any] | None = None
+
+        # Initialize metrics tracking
+        self.metrics_manager = SourceMetricsManager(storage)
+        self.metrics_manager.initialize_metric(self.SOURCE_NAME)
 
     def fetch_put_call_ratios(self) -> dict[str, Any]:
         """Fetch put/call ratios from CBOE daily statistics page.
@@ -58,7 +72,8 @@ class CBOESource:
         Raises:
             RuntimeError: If scraping fails or data cannot be parsed
         """
-        logger.info("cboe_fetch_started", url=self.SOURCE_URL)
+        start_time = time.time()
+        logger.info("cboe_fetch_started", url=self.SOURCE_URL, source=self.SOURCE_NAME)
 
         try:
             # Use Playwright to render page and extract text
@@ -72,16 +87,24 @@ class CBOESource:
             self.last_fetch_time = dt.datetime.now(dt.UTC)
             self.last_fetch_data = data
 
+            # Record success metrics
+            latency_ms = int((time.time() - start_time) * 1000)
+            self.metrics_manager.record_success(self.SOURCE_NAME, latency_ms)
+
             logger.info(
                 "cboe_fetch_success",
                 date=data["date"],
                 total_ratio=data["total"],
                 spx_ratio=data["spx"],
+                latency_ms=latency_ms,
             )
 
             return data
 
         except Exception as e:
+            # Record failure metrics
+            self.metrics_manager.record_failure(self.SOURCE_NAME, e)
+
             logger.error(
                 "cboe_fetch_failed",
                 error=str(e),
@@ -244,9 +267,16 @@ class CBOESource:
 _cboe_source: CBOESource | None = None
 
 
-def get_cboe_source() -> CBOESource:
-    """Get singleton CBOE source instance."""
+def get_cboe_source(storage: PortfolioStorage | None = None) -> CBOESource:
+    """Get singleton CBOE source instance.
+
+    Args:
+        storage: Optional PortfolioStorage for metrics persistence
+
+    Returns:
+        CBOESource instance with metrics tracking enabled
+    """
     global _cboe_source  # noqa: PLW0603
     if _cboe_source is None:
-        _cboe_source = CBOESource()
+        _cboe_source = CBOESource(storage=storage)
     return _cboe_source

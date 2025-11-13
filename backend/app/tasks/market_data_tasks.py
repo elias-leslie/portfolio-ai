@@ -225,8 +225,11 @@ def fetch_putcall_ratio(  # type: ignore[no-untyped-def]
     )
 
     try:
-        # Fetch from CBOE official source
-        cboe = get_cboe_source()
+        # Get storage for metrics tracking
+        storage = get_storage()
+
+        # Fetch from CBOE official source (with metrics tracking enabled)
+        cboe = get_cboe_source(storage=storage)
         data = cboe.fetch_put_call_ratios()
 
         # Extract key values
@@ -236,7 +239,6 @@ def fetch_putcall_ratio(  # type: ignore[no-untyped-def]
         put_call_ratio = data.get("spx") or data["total"]
 
         # Store in fear_greed_inputs table
-        storage = get_storage()
         with storage.connection() as conn:
             # Insert or update
             conn.execute(

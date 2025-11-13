@@ -1,11 +1,12 @@
 # Task List: Market Conditions Card Improvements
 
-**Source**: Comprehensive review of market intelligence card identified 15 improvements
+**Source**: Comprehensive review of market intelligence card identified 15 improvements + CBOE enhancements
 **Complexity**: Complex
-**Effort**: HIGH (28 hours total, phased implementation recommended)
+**Effort**: HIGH (36 hours total, phased implementation recommended)
 **Environment**: Local Dev (auto-detected)
 **Created**: 2025-11-13 14:30
-**Status**: Paused - Phase 3 (P2) COMPLETE, Phase 4 (P3) Not Started
+**Updated**: 2025-11-13 (Added Phase 5 + Phase 6 for CBOE enhancements)
+**Status**: Phase 3 (P2) COMPLETE, Phase 5 (CBOE Status) NEXT
 **PAUSED**: 2025-11-13 18:22 (Context 88% - natural pause point after Task 12 refactor)
 **Commits**:
   - a5fccc2 (refactor: switch Put/Call ratio from yfinance to official CBOE source)
@@ -19,17 +20,17 @@
   - 65be0e8 (fix: resolve sparkline rendering and visibility issues)
   - 7635689 (fix: actually fix sparkline visibility - use var(--color-gain) not hsl())
 **Completed**: Phase 1 (P0) + Phase 2 (P1) + Phase 3 (P2) ✅ ALL COMPLETE
-**Next**: Phase 4 (P3) - Task 13.0 - Add Market Regime Indicator (optional advanced feature, ~2 hours)
+**Next**: **Phase 5 (CBOE Status Integration) - DO THIS FIRST**, then Phase 6 (CBOE Options Intelligence)
 
-<!-- PAUSED: 2025-11-13 18:22 | Context: 88% | Next: Task 13.0 - Market Regime Indicator (Phase 4 start) OR DONE (all required work complete) -->
+<!-- NEXT: Phase 5 - CBOE Status Page Integration (missing from initial implementation) -->
 
 ---
 
 ## Summary
 
-**Goal**: Fix critical data quality issues, improve user experience, and add advanced market intelligence features to the Market Conditions card. Address missing historical data, misleading timestamps, outdated thresholds, and add enhanced indicators.
+**Goal**: Fix critical data quality issues, improve user experience, add advanced market intelligence features to the Market Conditions card, and enhance CBOE options data with comprehensive status monitoring and additional metrics.
 
-**Approach**: Phased implementation across 4 priority levels (P0 → P1 → P2 → P3). P0 focuses on critical data integrity fixes (including automated scheduled task for historical data maintenance), P1 on user experience improvements, P2 on enhanced analytics, P3 on advanced features.
+**Approach**: Phased implementation across 6 priority levels (P0 → P1 → P2 → **P_CBOE_STATUS** → **P_CBOE_INTEL** → P3). P0 focuses on critical data integrity fixes, P1 on user experience improvements, P2 on enhanced analytics, **P_CBOE_STATUS on monitoring existing CBOE integration**, **P_CBOE_INTEL on adding Most Active Options intelligence**, P3 on advanced features.
 
 **Key Principle**: NO manual backfilling. All data maintenance via scheduled Celery tasks that run automatically.
 
@@ -39,7 +40,7 @@
 
 ## Tasks
 
-### Phase 1: Priority 0 - Critical Data Integrity (8 hours)
+### Phase 1: Priority 0 - Critical Data Integrity (8 hours) ✅ COMPLETE
 
 ### 1.0 Create Scheduled Historical Data Maintenance Task ✅ COMPLETE
 
@@ -162,7 +163,7 @@
 
 ---
 
-### Phase 3: Priority 2 - Enhanced Analytics (8 hours)
+### Phase 3: Priority 2 - Enhanced Analytics (8 hours) ✅ COMPLETE
 
 ### 9.0 Add Trend Indicators to Scores ✅ COMPLETE
 
@@ -228,9 +229,277 @@ Refactored to scrape official CBOE page using Playwright for volume-based ratios
 - Our Implementation: 1.04 ✅ (exact match)
 - Previous yfinance: 1.57 ❌ (51% error)
 
+**⚠️ INCOMPLETE: Status page monitoring NOT implemented** → See Phase 5 below
+
 ---
 
-### Phase 4: Priority 3 - Advanced Features (6 hours)
+### Phase 5: CBOE Status Page Integration (2 hours) ⏸️ **DO THIS FIRST**
+
+**Priority**: **P_CBOE_STATUS** (must complete BEFORE Phase 6)
+
+**Issue**: Task 12.0 added CBOE put/call ratio but never integrated with status page monitoring. CBOE source is not visible on status page (no Data Sources entry, no Table Freshness entry).
+
+**Goal**: Make CBOE source fully observable on status page with health monitoring and data freshness tracking.
+
+### 16.0 Add CBOE Source to Status Page Monitoring
+
+- [ ] 16.1 Backend: Integrate cboe_source.py with SourceMetricsManager
+  - [ ] Import SourceMetricsManager in `backend/app/sources/cboe_source.py`
+  - [ ] Add metrics tracking to CBOESource class (`__init__` and `fetch_put_call_ratios`)
+  - [ ] Wrap `fetch_put_call_ratios()` with metrics tracking:
+    - [ ] Initialize metric: `self.metrics_manager.initialize_metric("cboe_daily_statistics")`
+    - [ ] Record success with latency: `record_success(source_name, latency_ms)`
+    - [ ] Record failures: `record_failure(source_name, error)`
+    - [ ] Save to DB after each fetch: `save_to_db(source_name)`
+  - [ ] Add get_health_status() method (already exists, verify it's complete)
+  - [ ] Pattern reference: See `backend/app/sources/base.py` and `backend/app/sources/source_metrics_manager.py`
+
+- [ ] 16.2 Backend: Add CBOE to source_performance table
+  - [ ] Verify `source_performance` table schema supports CBOE
+  - [ ] Manual verification: Check if CBOE appears after fetch task runs
+  - [ ] SQL query: `SELECT * FROM source_performance WHERE source_name = 'cboe_daily_statistics';`
+
+- [ ] 16.3 Backend: Add fear_greed_inputs to Table Freshness monitoring
+  - [ ] Update table_registry to include fear_greed_inputs
+  - [ ] File: `backend/app/storage/schema.py` or table_registry insert SQL
+  - [ ] Set expected_refresh_hours = 24 (daily updates at 03:00 UTC)
+  - [ ] Verify table appears in `/api/status/table-freshness` response
+
+- [ ] 16.4 Frontend: Verify CBOE appears on Status Page
+  - [ ] Navigate to http://localhost:3000/status (or deployed URL)
+  - [ ] **Data Sources Card** should show "CBOE Daily Statistics" with:
+    - [ ] Status badge (Healthy/Degraded/Down)
+    - [ ] Last success timestamp
+    - [ ] Success rate %
+    - [ ] Avg latency ms
+  - [ ] **Data Freshness Card** should show "Fear Greed Inputs" table with:
+    - [ ] Fresh/Stale/Critical badge
+    - [ ] Last updated timestamp
+    - [ ] Age in hours/days
+
+- [ ] 16.5 Test CBOE health monitoring end-to-end
+  - [ ] Trigger put/call fetch manually: `celery -A app.celery_app call app.tasks.market_data_tasks.fetch_putcall_ratio`
+  - [ ] Verify source_performance updated: `SELECT * FROM source_performance WHERE source_name = 'cboe_daily_statistics';`
+  - [ ] Check status page shows healthy CBOE source
+  - [ ] Simulate failure (disconnect network or break URL) and verify status changes to "Down"
+  - [ ] Restore and verify recovery
+
+**Verification:**
+```bash
+# Check CBOE in source_performance table
+psql postgresql://portfolio_ai_user:REDACTED_PASSWORD@localhost:5432/portfolio_ai -c "
+SELECT source_name, success_count, failure_count, last_success_at,
+       (success_count::float / NULLIF(success_count + failure_count, 0) * 100) as success_rate_pct
+FROM source_performance
+WHERE source_name = 'cboe_daily_statistics';"
+
+# Check fear_greed_inputs freshness
+psql postgresql://portfolio_ai_user:REDACTED_PASSWORD@localhost:5432/portfolio_ai -c "
+SELECT as_of_date, put_call_ratio,
+       EXTRACT(EPOCH FROM (NOW() - as_of_date::timestamp)) / 3600 as age_hours
+FROM fear_greed_inputs
+ORDER BY as_of_date DESC LIMIT 5;"
+
+# Check table_registry includes fear_greed_inputs
+psql postgresql://portfolio_ai_user:REDACTED_PASSWORD@localhost:5432/portfolio_ai -c "
+SELECT table_name, expected_refresh_hours
+FROM table_registry
+WHERE table_name = 'fear_greed_inputs';"
+```
+
+---
+
+### Phase 6: CBOE Options Intelligence Enhancements (6 hours)
+
+**Priority**: **P_CBOE_INTEL** (complete AFTER Phase 5)
+
+**Goal**: Add Most Active Options metrics and Put/Call historical context for richer market sentiment intelligence.
+
+**Data Strategy**: Store **aggregated daily metrics** (not raw contracts) for trend analysis over 90 days.
+
+### 17.0 Database Schema for Options Market Metrics
+
+- [ ] 17.1 Create migration for options_market_metrics table
+  - [ ] File: `backend/migrations/0XX_options_market_metrics.sql`
+  - [ ] Schema:
+    ```sql
+    CREATE TABLE IF NOT EXISTS options_market_metrics (
+        as_of_date DATE PRIMARY KEY,
+        most_active_call_pct DECIMAL(5,2),      -- % of top 25 that are calls (sentiment)
+        near_term_pct DECIMAL(5,2),              -- % expiring within 30 days (event positioning)
+        concentration_pct DECIMAL(5,2),          -- % of volume in top 5 vs top 25 (conviction)
+        sector_weights JSONB,                    -- {"tech": 45, "financials": 25, ...}
+        source_timestamp TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX idx_options_metrics_date ON options_market_metrics(as_of_date DESC);
+    ```
+  - [ ] Add to table_registry with expected_refresh_hours = 24
+
+- [ ] 17.2 Apply migration
+  - [ ] Run migration on local dev database
+  - [ ] Verify table created: `\d options_market_metrics` in psql
+  - [ ] Verify table_registry entry
+
+### 18.0 CBOE Most Active Options Scraper
+
+- [ ] 18.1 Create new source module
+  - [ ] File: `backend/app/sources/cboe_most_active.py`
+  - [ ] Class: `CBOEMostActiveSource`
+  - [ ] Method: `fetch_most_active_metrics() -> dict[str, Any]`
+  - [ ] Implementation:
+    - [ ] Uses Playwright to scrape https://www.cboe.com/us/options/market_statistics/most_active/
+    - [ ] Parses top 25 contracts (Symbol, Strike, Expiration, Call/Put, Volume)
+    - [ ] Calculates 4 aggregate metrics:
+      - [ ] `most_active_call_pct` = (call count / 25) * 100
+      - [ ] `near_term_pct` = (contracts expiring ≤30 days / 25) * 100
+      - [ ] `concentration_pct` = (top 5 volume / total top 25 volume) * 100
+      - [ ] `sector_weights` = map symbols to sectors, calculate % distribution
+    - [ ] Returns dict: `{as_of_date, most_active_call_pct, near_term_pct, concentration_pct, sector_weights, source_timestamp}`
+  - [ ] Pattern reference: `backend/app/sources/cboe_source.py` (use same Playwright approach)
+
+- [ ] 18.2 Add SourceMetricsManager tracking
+  - [ ] Track as source_name = "cboe_most_active"
+  - [ ] Record success/failure/latency for each fetch
+  - [ ] Save metrics to source_performance table
+
+- [ ] 18.3 Unit tests
+  - [ ] File: `backend/tests/unit/sources/test_cboe_most_active.py`
+  - [ ] Test metric calculation logic (mock Playwright response)
+  - [ ] Test error handling (empty page, timeout, parse failures)
+
+### 19.0 Scheduled Task for Options Activity Metrics
+
+- [ ] 19.1 Create Celery task
+  - [ ] File: `backend/app/tasks/market_data_tasks.py`
+  - [ ] Task: `fetch_options_activity_metrics()`
+  - [ ] Implementation:
+    - [ ] Calls CBOEMostActiveSource.fetch_most_active_metrics()
+    - [ ] Stores result in options_market_metrics table
+    - [ ] Uses INSERT ... ON CONFLICT (as_of_date) DO UPDATE
+    - [ ] Idempotent (safe to re-run for same date)
+  - [ ] Add comprehensive logging (metrics calculated, DB write, errors)
+
+- [ ] 19.2 Add to Celery beat schedule
+  - [ ] File: `backend/app/celery_app.py`
+  - [ ] Schedule: Daily at 16:15 ET (21:15 UTC) - after market close (16:00 ET)
+  - [ ] Add to beat_schedule dict:
+    ```python
+    'fetch-options-activity': {
+        'task': 'app.tasks.market_data_tasks.fetch_options_activity_metrics',
+        'schedule': crontab(hour=21, minute=15),  # 4:15 PM ET
+    }
+    ```
+
+- [ ] 19.3 Test task execution
+  - [ ] Manual trigger: `celery -A app.celery_app call app.tasks.market_data_tasks.fetch_options_activity_metrics`
+  - [ ] Verify data inserted: `SELECT * FROM options_market_metrics ORDER BY as_of_date DESC LIMIT 5;`
+  - [ ] Verify source_performance updated for "cboe_most_active"
+
+### 20.0 Put/Call Ratio Historical Context
+
+- [ ] 20.1 Backend: Add historical context calculation
+  - [ ] File: `backend/app/market/intelligence.py` or new file `backend/app/market/options_context.py`
+  - [ ] Function: `calculate_putcall_context(current_ratio: float, as_of_date: date) -> dict`
+  - [ ] Implementation:
+    - [ ] Query fear_greed_inputs for last 90 days of put_call_ratio
+    - [ ] Calculate 7-day trend: `(current - 7d_ago) / 7d_ago * 100`
+    - [ ] Calculate percentile rank: where current sits in 90-day distribution
+    - [ ] Return: `{trend: "up"|"down"|"flat", trend_pct: float, percentile_rank: int}`
+
+- [ ] 20.2 Backend: Update market intelligence API
+  - [ ] File: `backend/app/api/market.py`
+  - [ ] Endpoint: `/api/market/intelligence`
+  - [ ] Add put/call context to putcall indicator response:
+    ```python
+    putcall = {
+        "value": 0.95,
+        "change_pct": None,  # Daily change not meaningful for this
+        "label": "Put/Call Ratio",
+        "signal": "Bearish",
+        "emoji": "🔴",
+        "last_updated": "...",
+        "context": {
+            "trend": "up",         # ↑ NEW
+            "trend_pct": 12.3,     # ↑ NEW (up 12.3% over 7 days)
+            "percentile_rank": 78  # ↑ NEW (78th percentile = elevated)
+        }
+    }
+    ```
+
+- [ ] 20.3 Frontend: Display put/call context
+  - [ ] File: `frontend/components/market/MarketIntelligence.tsx`
+  - [ ] Update putcall indicator display:
+    - [ ] Add trend arrow: ↑ or ↓ next to value
+    - [ ] Add percentile badge: "78th percentile (elevated)" in tooltip
+  - [ ] Update TypeScript interfaces in `frontend/lib/api/market.ts`
+
+### 21.0 Options Activity Metrics Display
+
+- [ ] 21.1 Backend: Add options activity to market intelligence API
+  - [ ] File: `backend/app/api/market.py`
+  - [ ] Add new field to `/api/market/intelligence` response:
+    ```python
+    {
+        "narrative": {...},
+        "market_health": {...},
+        "fear_greed": {...},
+        "indicators": {...},
+        "sector_rotation": {...},
+        "options_activity": {  # ↑ NEW
+            "near_term_pct": 72,
+            "near_term_signal": "High",  # High/Normal/Low
+            "concentration_pct": 88,
+            "concentration_signal": "Focused",  # Focused/Balanced/Dispersed
+            "top_sectors": [
+                {"sector": "Technology", "weight_pct": 45},
+                {"sector": "Financials", "weight_pct": 25},
+                {"sector": "Healthcare", "weight_pct": 15}
+            ],
+            "last_updated": "2025-11-13T21:15:00Z"
+        }
+    }
+    ```
+  - [ ] Query options_market_metrics for latest date
+  - [ ] Calculate signal thresholds:
+    - [ ] near_term_pct: >65% = High, 45-65% = Normal, <45% = Low
+    - [ ] concentration_pct: >80% = Focused, 50-80% = Balanced, <50% = Dispersed
+
+- [ ] 21.2 Frontend: Display options activity metrics
+  - [ ] File: `frontend/components/market/MarketIntelligence.tsx`
+  - [ ] Add new section after main indicators:
+    ```
+    Options Positioning:
+    - Near-term Focus: 72% ↑ (event uncertainty)
+    - Market Positioning: Concentrated (88%)
+    - Top Sectors: Tech (45%), Financials (25%), Healthcare (15%)
+    ```
+  - [ ] Use existing LabeledIndicator component pattern
+  - [ ] Add tooltips explaining each metric
+
+- [ ] 21.3 Frontend: Update TypeScript interfaces
+  - [ ] File: `frontend/lib/api/market.ts`
+  - [ ] Add OptionsActivityMetrics interface
+  - [ ] Update MarketIntelligenceResponse to include options_activity
+
+### 22.0 Plain-Language Narrative Enhancements
+
+- [ ] 22.1 Backend: Add options activity to narrative generation
+  - [ ] File: `backend/app/market/plain_language.py` or `backend/app/market/narrative.py`
+  - [ ] Add templates for options context:
+    - [ ] "Options traders are **increasingly defensive** ↑ (put/call up 12% this week)"
+    - [ ] "Heavy near-term options activity suggests **event uncertainty**"
+    - [ ] "Concentrated positioning in tech sector (**55% of activity**)"
+    - [ ] "Put/call ratio at **78th percentile** - elevated fear"
+  - [ ] Integrate into existing narrative generation logic
+
+- [ ] 22.2 Test narrative generation
+  - [ ] Verify narratives update with new options metrics
+  - [ ] Check different scenarios: bullish, bearish, neutral, concentrated, dispersed
+
+---
+
+### Phase 4: Priority 3 - Advanced Features (6 hours) [DEFERRED - Optional]
 
 ### 13.0 Market Breadth Indicator (New Card)
 
@@ -319,10 +588,66 @@ FROM fear_greed_inputs
 GROUP BY input_type;
 ```
 
+**Phase 5 (CBOE Status) Verification:**
+```bash
+# Check CBOE appears in source_performance
+psql postgresql://portfolio_ai_user:REDACTED_PASSWORD@localhost:5432/portfolio_ai -c "
+SELECT source_name, success_count, failure_count,
+       last_success_at, avg_latency_ms
+FROM source_performance
+WHERE source_name IN ('cboe_daily_statistics', 'cboe_most_active');"
+
+# Check fear_greed_inputs in table_registry
+psql postgresql://portfolio_ai_user:REDACTED_PASSWORD@localhost:5432/portfolio_ai -c "
+SELECT table_name, expected_refresh_hours
+FROM table_registry
+WHERE table_name = 'fear_greed_inputs';"
+
+# Verify status page shows CBOE
+# Visit http://localhost:3000/status
+# Check Data Sources card has "CBOE Daily Statistics" with Healthy status
+# Check Data Freshness card has "Fear Greed Inputs" with Fresh status
+```
+
+**Phase 6 (CBOE Intel) Verification:**
+```bash
+# Check options_market_metrics table has data
+psql postgresql://portfolio_ai_user:REDACTED_PASSWORD@localhost:5432/portfolio_ai -c "
+SELECT as_of_date, most_active_call_pct, near_term_pct,
+       concentration_pct, sector_weights
+FROM options_market_metrics
+ORDER BY as_of_date DESC LIMIT 5;"
+
+# Verify beat schedule includes new task
+celery -A app.celery_app inspect scheduled | grep -i options
+
+# Verify cboe_most_active in source_performance
+psql postgresql://portfolio_ai_user:REDACTED_PASSWORD@localhost:5432/portfolio_ai -c "
+SELECT * FROM source_performance WHERE source_name = 'cboe_most_active';"
+
+# Test market intelligence API includes new fields
+curl http://localhost:8000/api/market/intelligence | jq '.options_activity'
+```
+
 **Final Verification:**
-- [ ] All 4 phases complete
+- [ ] All 6 phases complete (P0, P1, P2, P5, P6, P3 optional)
 - [ ] No regressions in existing functionality
 - [ ] Performance improvements measured (P2#11)
 - [ ] Documentation updated (OPERATIONS.md, CHANGELOG)
 - [ ] Clean: No Any types, single source of truth maintained
 - [ ] Screenshots showing before/after improvements
+- [ ] Status page shows all CBOE sources healthy
+- [ ] Market Conditions card shows enhanced options intelligence
+
+---
+
+## Summary of Changes
+
+**Phase 5 (CBOE Status)**: Fixes missing status page integration for existing CBOE put/call ratio feature. Makes CBOE observable and monitorable.
+
+**Phase 6 (CBOE Intel)**: Adds Most Active Options metrics (aggregated daily snapshots) and Put/Call historical context (trends, percentiles) for richer sentiment analysis.
+
+**Combined Value**:
+- **Observability**: Know when CBOE is down/stale before users notice
+- **Intelligence**: Understand WHERE traders are positioning (time horizon, sectors, conviction)
+- **Context**: "Put/call at 0.95 ↑ (78th percentile - elevated fear)" vs just "0.95"
