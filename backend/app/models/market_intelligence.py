@@ -89,10 +89,23 @@ class MarketTrendsResponse(BaseModel):
     )
 
 
+class OptionsActivityMetrics(BaseModel):
+    """Options market positioning metrics from CBOE Most Active."""
+
+    near_term_pct: float = Field(..., description="% of top 25 options expiring ≤30 days")
+    near_term_signal: str = Field(..., description="High | Normal | Low")
+    concentration_pct: float = Field(..., description="% of volume in top 5 contracts")
+    concentration_signal: str = Field(..., description="Focused | Balanced | Dispersed")
+    top_sectors: list[dict[str, Any]] = Field(
+        ..., description="Top 3 sectors by options activity weight"
+    )
+    last_updated: str = Field(..., description="Last update timestamp (ISO 8601)")
+
+
 class MarketIntelligenceResponse(BaseModel):
     """Unified market intelligence response.
 
-    Combines Market Health, Fear & Greed, Narrative, Indicators, and Sector Rotation.
+    Combines Market Health, Fear & Greed, Narrative, Indicators, Sector Rotation, and Options Activity.
     """
 
     # Narrative (top of UI)
@@ -110,6 +123,11 @@ class MarketIntelligenceResponse(BaseModel):
     # Sector rotation (grouped)
     sector_rotation: SectorRotationSummary = Field(
         ..., description="Sectors grouped by performance"
+    )
+
+    # Options market positioning (from CBOE Most Active)
+    options_activity: OptionsActivityMetrics | None = Field(
+        None, description="Options activity metrics (aggregated from CBOE Most Active)"
     )
 
     # Metadata

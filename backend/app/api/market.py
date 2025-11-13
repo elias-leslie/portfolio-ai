@@ -16,6 +16,7 @@ from app.models.market_intelligence import (
     FearGreedScore,
     MarketIntelligenceResponse,
     MarketTrendsResponse,
+    OptionsActivityMetrics,
     SectorRotationSummary,
 )
 from app.models.market_intelligence import (
@@ -384,6 +385,56 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
                 put_call_ratio, putcall_timestamp, context=putcall_context
             )
 
+    # Get Options Activity metrics from options_market_metrics table
+    options_activity = None
+    with storage.connection() as conn:
+        result = conn.execute(
+            """
+            SELECT near_term_pct, concentration_pct, sector_weights, source_timestamp
+            FROM options_market_metrics
+            ORDER BY as_of_date DESC
+            LIMIT 1
+            """
+        )
+        row = result.fetchone()
+        if row:
+            near_term_pct = float(row[0])
+            concentration_pct = float(row[1])
+            sector_weights = row[2]  # JSONB
+            source_timestamp = row[3]
+
+            # Calculate signals based on thresholds
+            # Near-term: >65% = High (event-driven), 45-65% = Normal, <45% = Low
+            if near_term_pct > 65:
+                near_term_signal = "High"
+            elif near_term_pct >= 45:
+                near_term_signal = "Normal"
+            else:
+                near_term_signal = "Low"
+
+            # Concentration: >80% = Focused, 50-80% = Balanced, <50% = Dispersed
+            if concentration_pct > 80:
+                concentration_signal = "Focused"
+            elif concentration_pct >= 50:
+                concentration_signal = "Balanced"
+            else:
+                concentration_signal = "Dispersed"
+
+            # Get top 3 sectors by weight
+            sector_items = sorted(sector_weights.items(), key=lambda x: x[1], reverse=True)[:3]
+            top_sectors = [
+                {"sector": sector, "weight_pct": weight} for sector, weight in sector_items
+            ]
+
+            options_activity = OptionsActivityMetrics(
+                near_term_pct=near_term_pct,
+                near_term_signal=near_term_signal,
+                concentration_pct=concentration_pct,
+                concentration_signal=concentration_signal,
+                top_sectors=top_sectors,
+                last_updated=source_timestamp.isoformat(),
+            )
+
     # Build response
     return MarketIntelligenceResponse(
         narrative=narrative,
@@ -414,6 +465,7 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
             neutral_count=len(neutral_sectors),
             lagging_count=len(lagging_sectors),
         ),
+        options_activity=options_activity,
         last_updated=current_timestamp,
     )
 
