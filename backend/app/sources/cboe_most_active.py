@@ -12,14 +12,10 @@ Provides aggregated daily metrics (not raw contract data):
 
 from __future__ import annotations
 
-import contextlib
 import datetime as dt
 import json
-import os
-import subprocess
-import tempfile
 import time
-from pathlib import Path
+import urllib.request
 from typing import TYPE_CHECKING, Any
 
 from ..logging_config import get_logger
@@ -88,7 +84,9 @@ class CBOEMostActiveSource:
     """
 
     SOURCE_NAME = "cboe_most_active"
-    SOURCE_URL = "https://www.cboe.com/us/options/market_statistics/most_active/"
+    SOURCE_URL = (
+        "https://www-api.cboe.com/us/options/market_statistics/most_active/data/?mkt=cone&limit=25"
+    )
 
     def __init__(self, storage: PortfolioStorage | None = None) -> None:
         """Initialize CBOE Most Active source.
@@ -161,87 +159,67 @@ class CBOEMostActiveSource:
             raise RuntimeError(f"CBOE Most Active fetch failed: {e}") from e
 
     def _fetch_contracts(self) -> list[dict[str, Any]]:
-        """Fetch contract data using Playwright.
+        """Fetch contract data from CBOE JSON API.
 
         Returns:
             List of contracts with keys: symbol, strike, expiration, type, volume
 
         Raises:
-            RuntimeError: If Playwright execution fails
+            RuntimeError: If API request fails
         """
-        # Use existing browser-automation script
-        script_path = (
-            "/home/kasadis/portfolio-ai/.claude/skills/browser-automation/scripts/execute.js"
-        )
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            output_file = f.name
-
         try:
-            # JavaScript to extract table data
-            js_code = """
-            // Wait for table to load
-            await new Promise(resolve => setTimeout(resolve, 3000));
+            # Fetch JSON from API
+            with urllib.request.urlopen(self.SOURCE_URL, timeout=30) as response:
+                data = json.load(response)
 
-            // Find the most active options table
-            const table = document.querySelector('table');
-            if (!table) return null;
-
-            const rows = Array.from(table.querySelectorAll('tbody tr'));
-            const contracts = rows.slice(0, 25).map(row => {
-                const cells = Array.from(row.querySelectorAll('td')).map(c => c.innerText.trim());
-                return {
-                    symbol: cells[0] || '',
-                    strike: cells[1] || '',
-                    expiration: cells[2] || '',
-                    type: cells[3] || '',
-                    volume: cells[4] || '0'
-                };
-            }).filter(c => c.symbol);
-
-            return JSON.stringify(contracts);
-            """
-
-            # Execute JavaScript
-            env = os.environ.copy()
-            env["HOME"] = "/home/kasadis"
-            subprocess.run(
-                [
-                    "node",
-                    script_path,
-                    self.SOURCE_URL,
-                    js_code,
-                    output_file,
-                ],
-                capture_output=True,
-                text=True,
-                timeout=45,
-                check=True,
-                env=env,
+            # Extract contracts from "all" category (All Options section)
+            all_category = next(
+                (cat for cat in data.get("categories", []) if cat.get("category") == "all"),
+                None,
             )
 
-            # Read result
-            with Path(output_file).open() as f:
-                data = json.load(f)
-                contracts_json = data.get("result", "[]")
+            if not all_category:
+                raise RuntimeError("No 'all' category found in API response")
 
-            contracts = json.loads(contracts_json) if contracts_json else []
+            # Combine calls and puts into single list
+            contracts = []
+
+            # Add calls
+            for call in all_category.get("calls", []):
+                contracts.append(
+                    {
+                        "symbol": call["symbol"],
+                        "expiration": call["expires"],  # Already ISO format (YYYY-MM-DD)
+                        "strike": str(call["strike"]),
+                        "volume": str(call["volume"]),
+                        "type": "Call",
+                    }
+                )
+
+            # Add puts
+            for put in all_category.get("puts", []):
+                contracts.append(
+                    {
+                        "symbol": put["symbol"],
+                        "expiration": put["expires"],  # Already ISO format (YYYY-MM-DD)
+                        "strike": str(put["strike"]),
+                        "volume": str(put["volume"]),
+                        "type": "Put",
+                    }
+                )
 
             if not contracts:
-                raise RuntimeError("No contracts found in table")
+                raise RuntimeError("No contracts found in API response")
 
-            logger.info("cboe_most_active_contracts_parsed", count=len(contracts))
+            logger.info("cboe_most_active_contracts_fetched", count=len(contracts))
             return contracts
 
-        except subprocess.TimeoutExpired as e:
-            raise RuntimeError(f"Playwright timeout after 45s: {e}") from e
-        except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"Playwright execution failed: {e.stderr}") from e
+        except urllib.error.URLError as e:
+            raise RuntimeError(f"Failed to fetch from CBOE API: {e}") from e
+        except json.JSONDecodeError as e:
+            raise RuntimeError(f"Invalid JSON response from CBOE API: {e}") from e
         except Exception as e:
             raise RuntimeError(f"Failed to fetch contracts: {e}") from e
-        finally:
-            with contextlib.suppress(Exception):
-                Path(output_file).unlink()
 
     def _calculate_metrics(self, contracts: list[dict[str, Any]]) -> dict[str, Any]:
         """Calculate aggregated metrics from contracts.
@@ -259,7 +237,7 @@ class CBOEMostActiveSource:
         today = dt.date.today()
 
         # 1. most_active_call_pct: % of contracts that are calls
-        call_count = sum(1 for c in contracts if c.get("type", "").upper() == "CALL")
+        call_count = sum(1 for c in contracts if c.get("type", "").lower() == "call")
         most_active_call_pct = round((call_count / total_contracts) * 100, 2)
 
         # 2. near_term_pct: % expiring within 30 days
@@ -328,8 +306,9 @@ class CBOEMostActiveSource:
 
         # Try common formats
         formats = [
+            "%Y-%m-%d",  # 2025-11-15 (CBOE API format - try first)
+            "%b %d, %y",  # Nov 13, 25 (old scraper format)
             "%m/%d/%Y",  # 11/15/2025
-            "%Y-%m-%d",  # 2025-11-15
             "%b %d %Y",  # Nov 15 2025
             "%B %d %Y",  # November 15 2025
             "%m-%d-%Y",  # 11-15-2025
