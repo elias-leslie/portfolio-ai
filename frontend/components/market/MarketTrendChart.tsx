@@ -77,38 +77,36 @@ export function MarketTrendChart({ data, height = 60 }: MarketTrendChartProps) {
   }));
 
   return (
-    <div className="w-full" style={{ height }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
-          {/* Hidden X-axis for cleaner look */}
-          <XAxis dataKey="date" hide />
+    <ResponsiveContainer width="100%" height={height}>
+      <LineChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
+        {/* Hidden X-axis for cleaner look */}
+        <XAxis dataKey="date" hide />
 
-          {/* Tooltip */}
-          <Tooltip content={<CustomTooltip />} />
+        {/* Tooltip */}
+        <Tooltip content={<CustomTooltip />} />
 
-          {/* Fear & Greed line (primary) - using gain color for visibility */}
+        {/* Fear & Greed line (primary) - using gain color for visibility */}
+        <Line
+          type="monotone"
+          dataKey="fearGreed"
+          stroke="hsl(var(--gain))"
+          strokeWidth={2}
+          dot={false}
+          activeDot={{ r: 4 }}
+        />
+
+        {/* Market Health line (secondary, if available) - using accent */}
+        {data.market_health_scores.length > 0 && (
           <Line
             type="monotone"
-            dataKey="fearGreed"
-            stroke="hsl(var(--gain))"
+            dataKey="marketHealth"
+            stroke="hsl(var(--chart-3))"
             strokeWidth={2}
             dot={false}
             activeDot={{ r: 4 }}
           />
-
-          {/* Market Health line (secondary, if available) - using accent */}
-          {data.market_health_scores.length > 0 && (
-            <Line
-              type="monotone"
-              dataKey="marketHealth"
-              stroke="hsl(var(--chart-3))"
-              strokeWidth={2}
-              dot={false}
-              activeDot={{ r: 4 }}
-            />
-          )}
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
+        )}
+      </LineChart>
+    </ResponsiveContainer>
   );
 }

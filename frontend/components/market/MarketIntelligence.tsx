@@ -167,7 +167,9 @@ export function MarketIntelligence() {
               <h4 className="text-xs font-semibold text-text-muted mb-2 uppercase tracking-wide">
                 30-Day Trend
               </h4>
-              <MarketTrendChart data={trendData} height={60} />
+              <div className="w-full h-[60px]">
+                <MarketTrendChart data={trendData} height={60} />
+              </div>
             </div>
           )}
 
