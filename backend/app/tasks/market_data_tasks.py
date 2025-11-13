@@ -7,6 +7,7 @@ ensuring all required market indicators have complete 252-day history.
 from __future__ import annotations
 
 import datetime as dt
+import json
 from typing import Any
 
 from app.celery_app import celery_app
@@ -284,6 +285,119 @@ def fetch_putcall_ratio(  # type: ignore[no-untyped-def]
         return {
             "task_id": task_id,
             "date": as_of_date or dt.date.today().isoformat(),
+            "error": str(e),
+            "success": False,
+        }
+
+
+@celery_app.task(name="fetch_options_activity_metrics", bind=True)  # type: ignore[misc]
+def fetch_options_activity_metrics(  # type: ignore[no-untyped-def]
+    self,
+) -> dict[str, Any]:
+    """Fetch aggregated options activity metrics from CBOE Most Active page.
+
+    Scrapes CBOE Most Active Options page and calculates daily metrics:
+    - Sentiment: % of calls vs puts in top 25
+    - Time horizon: % of near-term options (≤30 days)
+    - Concentration: % of volume in top 5 contracts
+    - Sector distribution: % by sector
+
+    Data source: https://www.cboe.com/us/options/market_statistics/most_active/
+
+    Returns:
+        Dict with task results:
+        - task_id: Celery task ID
+        - as_of_date: Date of metrics (YYYY-MM-DD)
+        - metrics: Dict with all calculated metrics
+        - success: Boolean indicating success
+
+    Example:
+        >>> # Manual trigger for testing
+        >>> celery -A app.celery_app call app.tasks.market_data_tasks.fetch_options_activity_metrics
+
+    Note:
+        This task should be scheduled daily at 21:15 UTC (4:15 PM ET, after market close).
+        Uses Playwright to render JavaScript-heavy CBOE page.
+        Stores aggregated metrics (not raw contracts) for trend analysis.
+    """
+    task_id = self.request.id
+
+    logger.info(
+        "fetch_options_activity_started",
+        task_id=task_id,
+    )
+
+    try:
+        # Get storage for metrics tracking
+        storage = get_storage()
+
+        # Import here to avoid circular dependency
+        from app.sources.cboe_most_active import get_cboe_most_active_source  # noqa: PLC0415
+
+        # Fetch from CBOE Most Active source (with metrics tracking enabled)
+        cboe_most_active = get_cboe_most_active_source(storage=storage)
+        metrics = cboe_most_active.fetch_most_active_metrics()
+
+        # Store in options_market_metrics table (upsert)
+        with storage.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO options_market_metrics (
+                    as_of_date,
+                    most_active_call_pct,
+                    near_term_pct,
+                    concentration_pct,
+                    sector_weights,
+                    source_timestamp
+                )
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (as_of_date) DO UPDATE SET
+                    most_active_call_pct = EXCLUDED.most_active_call_pct,
+                    near_term_pct = EXCLUDED.near_term_pct,
+                    concentration_pct = EXCLUDED.concentration_pct,
+                    sector_weights = EXCLUDED.sector_weights,
+                    source_timestamp = EXCLUDED.source_timestamp
+                """,
+                (
+                    metrics["as_of_date"],
+                    metrics["most_active_call_pct"],
+                    metrics["near_term_pct"],
+                    metrics["concentration_pct"],
+                    json.dumps(metrics["sector_weights"]),
+                    metrics["source_timestamp"],
+                ),
+            )
+            conn.commit()
+
+        result = {
+            "task_id": task_id,
+            "as_of_date": metrics["as_of_date"],
+            "metrics": {
+                "call_pct": metrics["most_active_call_pct"],
+                "near_term_pct": metrics["near_term_pct"],
+                "concentration_pct": metrics["concentration_pct"],
+                "sectors": len(metrics["sector_weights"]),
+            },
+            "success": True,
+        }
+
+        logger.info(
+            "fetch_options_activity_completed",
+            **result,
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error(
+            "fetch_options_activity_failed",
+            task_id=task_id,
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+        return {
+            "task_id": task_id,
+            "as_of_date": dt.date.today().isoformat(),
             "error": str(e),
             "success": False,
         }

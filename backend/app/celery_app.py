@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 
 from celery import Celery  # type: ignore[import-untyped]  # celery doesn't ship type stubs
+from celery.schedules import crontab  # type: ignore[import-untyped]
 from celery.signals import (  # type: ignore[import-untyped]
     after_setup_logger,
     after_setup_task_logger,
@@ -236,6 +237,21 @@ celery_app.conf.beat_schedule = {
         # - Calculates total put/call ratio (put OI / call OI)
         # - Stores in fear_greed_inputs.put_call_ratio column
         # - Market sentiment: >1.0 = Bearish, 0.7-1.0 = Neutral, <0.7 = Bullish
+    },
+    "fetch-options-activity-daily": {
+        "task": "fetch_options_activity_metrics",
+        "schedule": crontab(hour=21, minute=15),  # Daily at 21:15 UTC (4:15 PM ET)
+        "options": {"expires": 3600},  # Task expires after 1 hour
+        # Notes:
+        # - Runs daily at 21:15 UTC (4:15 PM ET, after market close at 4:00 PM)
+        # - Scrapes CBOE Most Active Options page
+        # - Calculates aggregated metrics:
+        #   * Call/put sentiment (% calls in top 25)
+        #   * Time horizon (% near-term ≤30 days)
+        #   * Concentration (% volume in top 5)
+        #   * Sector distribution
+        # - Stores in options_market_metrics table
+        # - Used for market positioning intelligence
     },
     # Future: Data cleanup task
     # Note: Commented example for future implementation
