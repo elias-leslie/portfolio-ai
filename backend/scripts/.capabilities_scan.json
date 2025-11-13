@@ -1,0 +1,1069 @@
+{
+  "scanned_at": "2025-11-13T22:29:40.262420",
+  "capabilities": [
+    {
+      "category": "analytics",
+      "name": "Agent Ideas Table",
+      "source_type": "database_table",
+      "source_location": "Database table: agent_ideas",
+      "coverage": "53 rows, 2025-11-07 to 2025-11-07",
+      "metadata": {
+        "table_name": "agent_ideas",
+        "columns": [
+          "id",
+          "agent_run_id",
+          "idea_type",
+          "title",
+          "thesis",
+          "action",
+          "confidence_score",
+          "risk_level",
+          "reward_estimate",
+          "portfolio_impact",
+          "data_needed",
+          "risks",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "row_count": 53,
+        "date_range": "2025-11-07 to 2025-11-07"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Agent Runs Table",
+      "source_type": "database_table",
+      "source_location": "Database table: agent_runs",
+      "coverage": "6 rows",
+      "metadata": {
+        "table_name": "agent_runs",
+        "columns": [
+          "id",
+          "agent_type",
+          "started_at",
+          "completed_at",
+          "status",
+          "num_ideas",
+          "cost_usd",
+          "error_message",
+          "metadata",
+          "celery_task_id"
+        ],
+        "row_count": 6,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Agent Tool Calls Table",
+      "source_type": "database_table",
+      "source_location": "Database table: agent_tool_calls",
+      "coverage": "2 rows",
+      "metadata": {
+        "table_name": "agent_tool_calls",
+        "columns": [
+          "id",
+          "agent_run_id",
+          "tool_name",
+          "parameters",
+          "response_summary",
+          "duration_ms",
+          "called_at"
+        ],
+        "row_count": 2,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Celery Taskmeta Table",
+      "source_type": "database_table",
+      "source_location": "Database table: celery_taskmeta",
+      "coverage": "28,794 rows",
+      "metadata": {
+        "table_name": "celery_taskmeta",
+        "columns": [
+          "id",
+          "task_id",
+          "status",
+          "result",
+          "date_done",
+          "traceback",
+          "name",
+          "args",
+          "kwargs",
+          "worker",
+          "retries",
+          "queue"
+        ],
+        "row_count": 28794,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Celery Tasksetmeta Table",
+      "source_type": "database_table",
+      "source_location": "Database table: celery_tasksetmeta",
+      "coverage": "0 rows",
+      "metadata": {
+        "table_name": "celery_tasksetmeta",
+        "columns": [
+          "id",
+          "taskset_id",
+          "result",
+          "date_done"
+        ],
+        "row_count": 0,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Day Bars Table",
+      "source_type": "database_table",
+      "source_location": "Database table: day_bars",
+      "coverage": "10,103 rows",
+      "metadata": {
+        "table_name": "day_bars",
+        "columns": [
+          "ticker",
+          "date",
+          "open",
+          "high",
+          "low",
+          "close",
+          "volume",
+          "vwap",
+          "source",
+          "ingest_run_id"
+        ],
+        "row_count": 10103,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Deletion Audit Table",
+      "source_type": "database_table",
+      "source_location": "Database table: deletion_audit",
+      "coverage": "0 rows",
+      "metadata": {
+        "table_name": "deletion_audit",
+        "columns": [
+          "id",
+          "table_name",
+          "record_id",
+          "deleted_by",
+          "deleted_at",
+          "deletion_reason",
+          "row_count",
+          "metadata",
+          "restored_at"
+        ],
+        "row_count": 0,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Endpoint Catalog Table",
+      "source_type": "database_table",
+      "source_location": "Database table: endpoint_catalog",
+      "coverage": "0 rows",
+      "metadata": {
+        "table_name": "endpoint_catalog",
+        "columns": [
+          "id",
+          "source_id",
+          "endpoint_key",
+          "target_table",
+          "path_template",
+          "field_mapping",
+          "created_at"
+        ],
+        "row_count": 0,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Fear Greed Components Table",
+      "source_type": "database_table",
+      "source_location": "Database table: fear_greed_components",
+      "coverage": "5 rows, 2025-11-07 to 2025-11-11",
+      "metadata": {
+        "table_name": "fear_greed_components",
+        "columns": [
+          "as_of_date",
+          "vix_pct",
+          "momentum_pct",
+          "rsi_pct",
+          "pcr_pct",
+          "credit_pct",
+          "breadth_pct",
+          "window_days",
+          "created_at"
+        ],
+        "row_count": 5,
+        "date_range": "2025-11-07 to 2025-11-11"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Fear Greed Daily Table",
+      "source_type": "database_table",
+      "source_location": "Database table: fear_greed_daily",
+      "coverage": "9 rows, 2025-11-07 to 2025-11-11",
+      "metadata": {
+        "table_name": "fear_greed_daily",
+        "columns": [
+          "as_of_date",
+          "score",
+          "label",
+          "previous_score",
+          "score_change",
+          "signal_count",
+          "created_at"
+        ],
+        "row_count": 9,
+        "date_range": "2025-11-07 to 2025-11-11"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Fear Greed Inputs Table",
+      "source_type": "database_table",
+      "source_location": "Database table: fear_greed_inputs",
+      "coverage": "10 rows, 2025-11-07 to 2025-11-13",
+      "metadata": {
+        "table_name": "fear_greed_inputs",
+        "columns": [
+          "as_of_date",
+          "vix_close",
+          "spy_close",
+          "spy_sma_200",
+          "rsi_14",
+          "put_call_ratio",
+          "hy_spread",
+          "breadth_pct",
+          "source_map",
+          "created_at"
+        ],
+        "row_count": 10,
+        "date_range": "2025-11-07 to 2025-11-13"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Idea Outcomes Table",
+      "source_type": "database_table",
+      "source_location": "Database table: idea_outcomes",
+      "coverage": "0 rows",
+      "metadata": {
+        "table_name": "idea_outcomes",
+        "columns": [
+          "idea_id",
+          "agent_run_id",
+          "ticker",
+          "idea_type",
+          "entry_price",
+          "entry_date",
+          "target_price",
+          "stop_loss_price",
+          "current_price",
+          "current_return_pct",
+          "status",
+          "exit_price",
+          "exit_date",
+          "exit_reason",
+          "realized_return_pct",
+          "holding_days",
+          "max_favorable_pct",
+          "max_adverse_pct",
+          "created_at",
+          "updated_at"
+        ],
+        "row_count": 0,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Maintenance Log Table",
+      "source_type": "database_table",
+      "source_location": "Database table: maintenance_log",
+      "coverage": "0 rows",
+      "metadata": {
+        "table_name": "maintenance_log",
+        "columns": [
+          "id",
+          "task_name",
+          "started_at",
+          "completed_at",
+          "status",
+          "dry_run",
+          "summary",
+          "error_message"
+        ],
+        "row_count": 0,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Minute Bars Table",
+      "source_type": "database_table",
+      "source_location": "Database table: minute_bars",
+      "coverage": "0 rows",
+      "metadata": {
+        "table_name": "minute_bars",
+        "columns": [
+          "ticker",
+          "ts_utc",
+          "open",
+          "high",
+          "low",
+          "close",
+          "volume",
+          "vwap",
+          "source"
+        ],
+        "row_count": 0,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Ml Model Metrics Table",
+      "source_type": "database_table",
+      "source_location": "Database table: ml_model_metrics",
+      "coverage": "6 rows, 2025-11-11 to 2025-11-12",
+      "metadata": {
+        "table_name": "ml_model_metrics",
+        "columns": [
+          "id",
+          "model_name",
+          "model_version",
+          "trained_at",
+          "training_samples",
+          "test_samples",
+          "accuracy",
+          "precision_score",
+          "recall_score",
+          "f1_score",
+          "useful_count",
+          "not_useful_count",
+          "model_path",
+          "training_duration_seconds",
+          "notes",
+          "created_at"
+        ],
+        "row_count": 6,
+        "date_range": "2025-11-11 to 2025-11-12"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Ml Training Progress Table",
+      "source_type": "database_table",
+      "source_location": "Database table: ml_training_progress",
+      "coverage": "10 rows, 2025-11-11 to 2025-11-12",
+      "metadata": {
+        "table_name": "ml_training_progress",
+        "columns": [
+          "id",
+          "session_id",
+          "status",
+          "current_step",
+          "progress_percent",
+          "articles_found",
+          "articles_labeled",
+          "articles_total",
+          "started_at",
+          "updated_at",
+          "completed_at",
+          "model_version",
+          "accuracy",
+          "error_message",
+          "created_at"
+        ],
+        "row_count": 10,
+        "date_range": "2025-11-11 to 2025-11-12"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Options Market Metrics Table",
+      "source_type": "database_table",
+      "source_location": "Database table: options_market_metrics",
+      "coverage": "1 rows, 2025-11-13 to 2025-11-13",
+      "metadata": {
+        "table_name": "options_market_metrics",
+        "columns": [
+          "as_of_date",
+          "most_active_call_pct",
+          "near_term_pct",
+          "concentration_pct",
+          "sector_weights",
+          "source_timestamp",
+          "created_at"
+        ],
+        "row_count": 1,
+        "date_range": "2025-11-13 to 2025-11-13"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Price Cache Table",
+      "source_type": "database_table",
+      "source_location": "Database table: price_cache",
+      "coverage": "18,361 rows",
+      "metadata": {
+        "table_name": "price_cache",
+        "columns": [
+          "symbol",
+          "price",
+          "beta",
+          "volatility",
+          "sector",
+          "cached_at",
+          "source",
+          "error"
+        ],
+        "row_count": 18361,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Reference Cache Table",
+      "source_type": "database_table",
+      "source_location": "Database table: reference_cache",
+      "coverage": "126 rows, 2025-11-02 to 2025-11-13",
+      "metadata": {
+        "table_name": "reference_cache",
+        "columns": [
+          "ticker",
+          "as_of_date",
+          "payload",
+          "source",
+          "created_at"
+        ],
+        "row_count": 126,
+        "date_range": "2025-11-02 to 2025-11-13"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Scheduled Task: Calculate Fear Greed Daily",
+      "source_type": "celery_task",
+      "source_location": "Celery task: calculate_fear_greed",
+      "coverage": "Runs 86400.0",
+      "metadata": {
+        "task_name": "calculate-fear-greed-daily",
+        "task_path": "calculate_fear_greed",
+        "schedule": "86400.0"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Schema Migrations Table",
+      "source_type": "database_table",
+      "source_location": "Database table: schema_migrations",
+      "coverage": "31 rows",
+      "metadata": {
+        "table_name": "schema_migrations",
+        "columns": [
+          "version",
+          "description",
+          "applied_at",
+          "checksum"
+        ],
+        "row_count": 31,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Sec Cik Cache Table",
+      "source_type": "database_table",
+      "source_location": "Database table: sec_cik_cache",
+      "coverage": "9,998 rows, 2025-11-06 to 2025-11-06",
+      "metadata": {
+        "table_name": "sec_cik_cache",
+        "columns": [
+          "ticker",
+          "cik",
+          "company_name",
+          "last_updated",
+          "created_at"
+        ],
+        "row_count": 9998,
+        "date_range": "2025-11-06 to 2025-11-06"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Settings Profiles Table",
+      "source_type": "database_table",
+      "source_location": "Database table: settings_profiles",
+      "coverage": "1 rows, 2025-11-11 to 2025-11-11",
+      "metadata": {
+        "table_name": "settings_profiles",
+        "columns": [
+          "id",
+          "user_id",
+          "name",
+          "description",
+          "is_active",
+          "profile_data",
+          "created_at",
+          "updated_at"
+        ],
+        "row_count": 1,
+        "date_range": "2025-11-11 to 2025-11-11"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Source Credentials Table",
+      "source_type": "database_table",
+      "source_location": "Database table: source_credentials",
+      "coverage": "14 rows, 2025-10-29 to 2025-10-29",
+      "metadata": {
+        "table_name": "source_credentials",
+        "columns": [
+          "source_id",
+          "field",
+          "value",
+          "updated_at"
+        ],
+        "row_count": 14,
+        "date_range": "2025-10-29 to 2025-10-29"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Source Metrics Table",
+      "source_type": "database_table",
+      "source_location": "Database table: source_metrics",
+      "coverage": "11 rows",
+      "metadata": {
+        "table_name": "source_metrics",
+        "columns": [
+          "id",
+          "vendor",
+          "duplicate_rate",
+          "diversity_score",
+          "confidence_avg",
+          "freshness_score",
+          "user_useful_rate",
+          "quality_score",
+          "article_count",
+          "sample_period_start",
+          "calculated_at"
+        ],
+        "row_count": 11,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Source Performance Table",
+      "source_type": "database_table",
+      "source_location": "Database table: source_performance",
+      "coverage": "17 rows",
+      "metadata": {
+        "table_name": "source_performance",
+        "columns": [
+          "source_name",
+          "success_count",
+          "failure_count",
+          "total_latency_ms",
+          "rate_limit_hits",
+          "last_success_at"
+        ],
+        "row_count": 17,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Source Registry Table",
+      "source_type": "database_table",
+      "source_location": "Database table: source_registry",
+      "coverage": "0 rows",
+      "metadata": {
+        "table_name": "source_registry",
+        "columns": [
+          "source_id",
+          "display_name",
+          "priority",
+          "enabled",
+          "definition",
+          "created_at",
+          "updated_at"
+        ],
+        "row_count": 0,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Table Registry Table",
+      "source_type": "database_table",
+      "source_location": "Database table: table_registry",
+      "coverage": "22 rows, 2025-10-27 to 2025-11-13",
+      "metadata": {
+        "table_name": "table_registry",
+        "columns": [
+          "table_name",
+          "table_type",
+          "description",
+          "row_count",
+          "last_written",
+          "created_at"
+        ],
+        "row_count": 22,
+        "date_range": "2025-10-27 to 2025-11-13"
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Technical Indicators Table",
+      "source_type": "database_table",
+      "source_location": "Database table: technical_indicators",
+      "coverage": "60 rows",
+      "metadata": {
+        "table_name": "technical_indicators",
+        "columns": [
+          "ticker",
+          "date",
+          "rsi_14",
+          "macd",
+          "macd_signal",
+          "macd_histogram",
+          "bb_upper",
+          "bb_middle",
+          "bb_lower",
+          "sma_20",
+          "sma_50",
+          "sma_200",
+          "ema_20",
+          "ema_50",
+          "ema_200",
+          "atr_14",
+          "stoch_k",
+          "stoch_d",
+          "calculated_at",
+          "sma_5"
+        ],
+        "row_count": 60,
+        "date_range": null
+      }
+    },
+    {
+      "category": "analytics",
+      "name": "Validation Results Table",
+      "source_type": "database_table",
+      "source_location": "Database table: validation_results",
+      "coverage": "0 rows",
+      "metadata": {
+        "table_name": "validation_results",
+        "columns": [
+          "id",
+          "idea_id",
+          "validation_type",
+          "passed",
+          "details",
+          "validated_at"
+        ],
+        "row_count": 0,
+        "date_range": null
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Fetch Options Activity Daily",
+      "source_type": "celery_task",
+      "source_location": "Celery task: fetch_options_activity_metrics",
+      "coverage": "Runs <crontab: 15 21 * * * (m/h/dM/MY/d)>",
+      "metadata": {
+        "task_name": "fetch-options-activity-daily",
+        "task_path": "fetch_options_activity_metrics",
+        "schedule": "<crontab: 15 21 * * * (m/h/dM/MY/d)>"
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Fetch Putcall Ratio Daily",
+      "source_type": "celery_task",
+      "source_location": "Celery task: fetch_putcall_ratio",
+      "coverage": "Runs 86400.0",
+      "metadata": {
+        "task_name": "fetch-putcall-ratio-daily",
+        "task_path": "fetch_putcall_ratio",
+        "schedule": "86400.0"
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Refresh Watchlist Scores",
+      "source_type": "celery_task",
+      "source_location": "Celery task: refresh_watchlist_scores",
+      "coverage": "Runs 60.0",
+      "metadata": {
+        "task_name": "refresh-watchlist-scores",
+        "task_path": "refresh_watchlist_scores",
+        "schedule": "60.0"
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Retrain Article Quality Model",
+      "source_type": "celery_task",
+      "source_location": "Celery task: retrain_article_quality_model",
+      "coverage": "Runs 86400.0",
+      "metadata": {
+        "task_name": "retrain-article-quality-model",
+        "task_path": "retrain_article_quality_model",
+        "schedule": "86400.0"
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Update Paper Trades Daily",
+      "source_type": "celery_task",
+      "source_location": "Celery task: update_paper_trades_task",
+      "coverage": "Runs 86400.0",
+      "metadata": {
+        "task_name": "update-paper-trades-daily",
+        "task_path": "update_paper_trades_task",
+        "schedule": "86400.0"
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "Scheduled Task: Update Technical Indicators Daily",
+      "source_type": "celery_task",
+      "source_location": "Celery task: update_technical_indicators",
+      "coverage": "Runs 86400.0",
+      "metadata": {
+        "task_name": "update-technical-indicators-daily",
+        "task_path": "update_technical_indicators",
+        "schedule": "86400.0"
+      }
+    },
+    {
+      "category": "infrastructure",
+      "name": "User Preferences Table",
+      "source_type": "database_table",
+      "source_location": "Database table: user_preferences",
+      "coverage": "1 rows, 2025-11-07 to 2025-11-07",
+      "metadata": {
+        "table_name": "user_preferences",
+        "columns": [
+          "id",
+          "risk_tolerance",
+          "allow_long",
+          "allow_short",
+          "allow_options",
+          "allow_crypto",
+          "allow_futures",
+          "max_position_size_pct",
+          "watchlist_refresh_minutes",
+          "watchlist_auto_expand",
+          "watchlist_price_weight",
+          "watchlist_technical_weight",
+          "created_at",
+          "updated_at",
+          "display_timezone",
+          "default_refresh_minutes",
+          "watchlist_refresh_override",
+          "portfolio_refresh_override",
+          "news_refresh_override",
+          "frontend_poll_interval",
+          "watchlist_risk_budget",
+          "watchlist_price_clamp",
+          "watchlist_show_news",
+          "watchlist_show_fundamentals",
+          "watchlist_score_weights",
+          "watchlist_avoid_threshold",
+          "watchlist_volume_surge_multiplier",
+          "news_lookback_hours",
+          "news_max_articles",
+          "price_sub_weights",
+          "technical_sub_weights",
+          "fundamental_sub_weights",
+          "source_duplicate_weight",
+          "source_diversity_weight",
+          "source_confidence_weight",
+          "source_freshness_weight",
+          "source_feedback_weight",
+          "filter_neutral_articles",
+          "news_profiling_interval_hours"
+        ],
+        "row_count": 1,
+        "date_range": "2025-11-07 to 2025-11-07"
+      }
+    },
+    {
+      "category": "market_data",
+      "name": "Scheduled Task: Maintain Historical Market Data",
+      "source_type": "celery_task",
+      "source_location": "Celery task: maintain_historical_market_data",
+      "coverage": "Runs 86400.0",
+      "metadata": {
+        "task_name": "maintain-historical-market-data",
+        "task_path": "maintain_historical_market_data",
+        "schedule": "86400.0"
+      }
+    },
+    {
+      "category": "market_data",
+      "name": "Scheduled Task: Refresh Daily Ohlcv",
+      "source_type": "celery_task",
+      "source_location": "Celery task: refresh_daily_ohlcv",
+      "coverage": "Runs 86400.0",
+      "metadata": {
+        "task_name": "refresh-daily-ohlcv",
+        "task_path": "refresh_daily_ohlcv",
+        "schedule": "86400.0"
+      }
+    },
+    {
+      "category": "news",
+      "name": "News Cache Table",
+      "source_type": "database_table",
+      "source_location": "Database table: news_cache",
+      "coverage": "8,218 rows, 2025-11-06 to 2025-11-13",
+      "metadata": {
+        "table_name": "news_cache",
+        "columns": [
+          "id",
+          "ticker",
+          "headline",
+          "url",
+          "summary",
+          "news_source_name",
+          "author",
+          "image_url",
+          "published_at",
+          "sentiment_score",
+          "sentiment_label",
+          "sentiment_confidence",
+          "sentiment_model",
+          "raw_payload",
+          "content_hash",
+          "fetched_at",
+          "created_at",
+          "updated_at",
+          "filing_type",
+          "is_material_event",
+          "plain_language_headline",
+          "story_id",
+          "is_primary_article",
+          "coverage_count",
+          "impact_summary",
+          "actionable_insight",
+          "quality_prediction",
+          "quality_confidence"
+        ],
+        "row_count": 8218,
+        "date_range": "2025-11-06 to 2025-11-13"
+      }
+    },
+    {
+      "category": "news",
+      "name": "News Summary Log Table",
+      "source_type": "database_table",
+      "source_location": "Database table: news_summary_log",
+      "coverage": "185,754 rows, 2025-11-05 to 2025-11-13",
+      "metadata": {
+        "table_name": "news_summary_log",
+        "columns": [
+          "id",
+          "ticker",
+          "window_start",
+          "window_end",
+          "sentiment_score",
+          "sentiment_delta",
+          "positive_count",
+          "neutral_count",
+          "negative_count",
+          "article_count",
+          "model_breakdown",
+          "created_at"
+        ],
+        "row_count": 185754,
+        "date_range": "2025-11-05 to 2025-11-13"
+      }
+    },
+    {
+      "category": "news",
+      "name": "Scheduled Task: Profile News Sources",
+      "source_type": "celery_task",
+      "source_location": "Celery task: profile_news_sources",
+      "coverage": "Runs 43200.0",
+      "metadata": {
+        "task_name": "profile-news-sources",
+        "task_path": "profile_news_sources",
+        "schedule": "43200.0"
+      }
+    },
+    {
+      "category": "news",
+      "name": "Scheduled Task: Refresh News Sentiment",
+      "source_type": "celery_task",
+      "source_location": "Celery task: refresh_news_sentiment",
+      "coverage": "Runs 65.0",
+      "metadata": {
+        "task_name": "refresh-news-sentiment",
+        "task_path": "refresh_news_sentiment",
+        "schedule": "65.0"
+      }
+    },
+    {
+      "category": "news",
+      "name": "User Article Feedback Table",
+      "source_type": "database_table",
+      "source_location": "Database table: user_article_feedback",
+      "coverage": "0 rows",
+      "metadata": {
+        "table_name": "user_article_feedback",
+        "columns": [
+          "id",
+          "user_id",
+          "article_url",
+          "article_hash",
+          "vendor",
+          "is_useful",
+          "created_at",
+          "sentiment_override"
+        ],
+        "row_count": 0,
+        "date_range": null
+      }
+    },
+    {
+      "category": "portfolio",
+      "name": "Portfolio Accounts Table",
+      "source_type": "database_table",
+      "source_location": "Database table: portfolio_accounts",
+      "coverage": "2 rows, 2025-11-02 to 2025-11-09",
+      "metadata": {
+        "table_name": "portfolio_accounts",
+        "columns": [
+          "id",
+          "name",
+          "account_type",
+          "created_at",
+          "updated_at"
+        ],
+        "row_count": 2,
+        "date_range": "2025-11-02 to 2025-11-09"
+      }
+    },
+    {
+      "category": "portfolio",
+      "name": "Portfolio Positions Table",
+      "source_type": "database_table",
+      "source_location": "Database table: portfolio_positions",
+      "coverage": "1 rows, 2025-11-08 to 2025-11-08",
+      "metadata": {
+        "table_name": "portfolio_positions",
+        "columns": [
+          "id",
+          "account_id",
+          "symbol",
+          "shares",
+          "cost_basis",
+          "position_type",
+          "created_at",
+          "updated_at"
+        ],
+        "row_count": 1,
+        "date_range": "2025-11-08 to 2025-11-08"
+      }
+    },
+    {
+      "category": "portfolio",
+      "name": "Watchlist Items Table",
+      "source_type": "database_table",
+      "source_location": "Database table: watchlist_items",
+      "coverage": "9 rows, 2025-11-09 to 2025-11-13",
+      "metadata": {
+        "table_name": "watchlist_items",
+        "columns": [
+          "id",
+          "symbol",
+          "metadata",
+          "note",
+          "created_at",
+          "updated_at",
+          "source"
+        ],
+        "row_count": 9,
+        "date_range": "2025-11-09 to 2025-11-13"
+      }
+    },
+    {
+      "category": "portfolio",
+      "name": "Watchlist Snapshots Table",
+      "source_type": "database_table",
+      "source_location": "Database table: watchlist_snapshots",
+      "coverage": "456 rows",
+      "metadata": {
+        "table_name": "watchlist_snapshots",
+        "columns": [
+          "item_id",
+          "fetched_at",
+          "price",
+          "change_pct",
+          "beta",
+          "volatility",
+          "news_score",
+          "technical_score",
+          "fundamental_score",
+          "ai_score",
+          "ai_confidence",
+          "sector_score",
+          "competitor_score",
+          "overall_score",
+          "raw_metrics",
+          "is_stale",
+          "signal_type",
+          "signal_strength",
+          "narrative_headline",
+          "narrative_why_bullets",
+          "narrative_company_health",
+          "narrative_technical",
+          "narrative_action_plan",
+          "narrative_position_sizing",
+          "narrative_special_notes",
+          "entry_price",
+          "stop_loss",
+          "profit_target",
+          "position_size_shares",
+          "recommended_style",
+          "style_confidence",
+          "optimal_holding_period",
+          "risk_level",
+          "company_health",
+          "earnings_date",
+          "earnings_days_away",
+          "news_sentiment_score",
+          "recent_news_headlines",
+          "volume_relative",
+          "timeframe_short_aligned",
+          "timeframe_long_aligned",
+          "percentile_rank_30d"
+        ],
+        "row_count": 456,
+        "date_range": null
+      }
+    }
+  ]
+}

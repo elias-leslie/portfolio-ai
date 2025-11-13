@@ -12,11 +12,10 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Market Conditions Card Improvements** (Phase 1-6 COMPLETE ✅)
+1. **Market Conditions Card Improvements** (29% - 8/28 complete)
    - File: `tasks-0056-market-conditions-improvements.md`
-   - Started: 2025-11-13
-   - Last updated: 2025-11-13 21:45 (Completed Phase 6 frontend - tasks 21.2, 21.3)
-   - Status: Phase 1-6 COMPLETE (P0, P1, P2, P5, P6) | Phase 4 (P3 optional) remains | Task 22 (narrative) optional
+   - Started: 2025-11-13 (today)
+   - Last updated: Phase 1-6 COMPLETE ✅ | Phase 4 (P3 optional) remains | Task 22 (narrative) remains
    - Next: User decision - archive task or continue with Phase 4 optional features
    - Tasks:
      - [x] Task 1: Priority 0 - Critical Data Integrity (8 hours) ✅ COMPLETE
@@ -55,14 +54,27 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **UI Standardization & UX Fixes** (MEDIUM-HIGH (4-6 hours, 12-15 files), 0/0 tasks (yesterday))
+1. **System Capabilities Registry (Three-Phase Intelligence)** (HIGH (20-24 hours), 0/16 tasks (today))
+   - File: `tasks-0059-system-capabilities-registry.md`
+   - Created: 2025-11-13
+   - Goal: Build intelligent registry that prevents AI agents from breaking features by providing queryable knowledge base of capabilities, data quality, and dependencies
+   - Tasks:
+     - [ ] Task 0: Scope Discovery & Architecture Review
+     - [ ] Task 1-2: Database Schema & Configuration
+     - [ ] Task 3-6: Scanners (DB, Celery, API) + Orchestration
+     - [ ] Task 7-8: AI Analysis Service + Automation
+     - [ ] Task 9: API Endpoints
+     - [ ] Task 10-13: Frontend UI (Main, Detail, Insights, Gaps)
+     - [ ] Task 14-16: Testing, Integration, Documentation
+
+2. **UI Standardization & UX Fixes** (MEDIUM-HIGH (4-6 hours, 12-15 files), 0/0 tasks (yesterday))
    - File: `tasks-0055-ui-standardization-and-ux-fixes.md`
    - Created: 2025-11-12
    - Goal: Bring the Portfolio AI web UI up to a consistent design baseline by aligning headers, loading states, and critical interactions so that every surface communicates status clearly and meets accessibility expectations.
    - Tasks:
      - (No tasks defined yet)
 
-4. **Development Process Optimization** (MEDIUM (4-6 hours), 5/7 tasks (yesterday))
+2. **Development Process Optimization** (MEDIUM (4-6 hours), 5/7 tasks (yesterday))
    - File: `tasks-0054-dev-process-optimization.md`
    - Created: 2025-11-12
    - Goal: Reduce development cycle time from 15-20 min to 5-7 min (3x faster) by fixing test performance and workflow bottlenecks.
@@ -75,7 +87,7 @@
      - [x] Task 6: Medium: Add Smoke Test Markers ✅ **COMPLETE**
      - [ ] Task 7: Medium: Reduce Large Service Files ⏸️ **DEFERRED**
 
-5. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (2 days ago))
+3. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (2 days ago))
    - File: `tasks-0042-customizable-dashboard-layouts.md`
    - Created: 2025-11-11
    - Goal: Enable users to customize dashboard layouts by dragging/resizing cards, with persistence to PostgreSQL backend
@@ -91,7 +103,7 @@
      - [ ] Task 9: Polish and Edge Cases
      - [ ] Task 10: Testing and Documentation
 
-6. **Trading Intelligence Roadmap** (High, 4/8 tasks)
+4. **Trading Intelligence Roadmap** (High, 4/8 tasks)
    - File: `tasks-trading-intelligence-roadmap.md`
    - Created: Unknown
    - Tasks:
@@ -104,7 +116,7 @@
      - [ ] Task 7: Frontend & UX
      - [ ] Task 8: Governance & documentation
 
-7. **Response Caching Middleware** (TBD, 0/8 tasks (2 days ago))
+5. **Response Caching Middleware** (TBD, 0/8 tasks (2 days ago))
    - File: `tasks-0047-response-caching-middleware.md`
    - Created: 2025-11-11
    - Tasks:
@@ -117,7 +129,7 @@
      - [ ] Task 7: Cache Management Endpoints
      - [ ] Task 8: Integration and Configuration
 
-8. **Settings & Status Standardization** (HIGH, 3/5 tasks (today))
+6. **Settings & Status Standardization** (HIGH, 3/5 tasks (today))
    - File: `tasks-0058-settings-and-status-standardization.md`
    - Created: 2025-11-13
    - Goal: Fully align the Status and Settings pages with the new UI system (PageHeader, SectionCard, ExpandableCard) while eliminating redundant data and ensuring DRY logic for collapsible cards, summaries, and defaults.
