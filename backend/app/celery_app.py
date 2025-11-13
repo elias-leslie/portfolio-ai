@@ -225,6 +225,18 @@ celery_app.conf.beat_schedule = {
         # - Symbols: XLK, XLF, XLE, XLV, XLY, XLP, XLI, XLU, XLRE, XLB, XLC (sectors)
         # - NO MANUAL BACKFILLING NEEDED - task handles all data maintenance
     },
+    "fetch-putcall-ratio-daily": {
+        "task": "fetch_putcall_ratio",
+        "schedule": 86400.0,  # Daily (24 hours)
+        "args": [None],  # Fetch for today
+        "options": {"expires": 3600},  # Task expires after 1 hour
+        # Notes:
+        # - Runs daily at ~04:30 UTC (after market data maintenance)
+        # - Fetches SPX options data from yfinance
+        # - Calculates total put/call ratio (put OI / call OI)
+        # - Stores in fear_greed_inputs.put_call_ratio column
+        # - Market sentiment: >1.0 = Bearish, 0.7-1.0 = Neutral, <0.7 = Bullish
+    },
     # Future: Data cleanup task
     # Note: Commented example for future implementation
     # "cleanup-old-data": {

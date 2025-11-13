@@ -62,6 +62,16 @@ INDICATOR_LABELS: dict[str, IndicatorLabel] = {
             "Weak dollar = helps US exports and international stocks."
         ),
     },
+    "putcall": {
+        "label": "Put/Call Ratio",
+        "short": "Put/Call",
+        "tooltip": (
+            "Ratio of bearish bets (puts) to bullish bets (calls) in the options market. "
+            "Above 1.0 = more bearish bets than bullish (fearful sentiment). "
+            "0.7-1.0 = balanced sentiment. "
+            "Below 0.7 = more bullish bets than bearish (optimistic sentiment)."
+        ),
+    },
 }
 
 # Sector ETF mappings: symbol → plain language name + description

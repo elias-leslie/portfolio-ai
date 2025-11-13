@@ -101,7 +101,7 @@ class MarketIntelligenceResponse(BaseModel):
 
     # Key indicators (enriched with labels)
     indicators: dict[str, EnrichedIndicator] = Field(
-        ..., description="4 key indicators: vix, sp500, tnx, dxy"
+        ..., description="5 key indicators: vix, sp500, tnx, dxy, putcall"
     )
 
     # Sector rotation (grouped)

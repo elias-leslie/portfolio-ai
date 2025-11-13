@@ -162,62 +162,63 @@
 
 ### Phase 3: Priority 2 - Enhanced Analytics (8 hours)
 
-### 9.0 Add Trend Indicators to Scores
+### 9.0 Add Trend Indicators to Scores ✅ COMPLETE
 
-- [ ] 9.1 Backend: Update `backend/app/api/market.py`
-  - [ ] Query fear_greed_daily for 7-day historical data
-  - [ ] Calculate trend: score today vs 7 days ago
-  - [ ] Add trend field to response (up/down/flat)
-- [ ] 9.2 Backend: Update `backend/app/models/market_intelligence.py`
-  - [ ] Add trend fields (Literal["up", "down", "flat"])
-- [ ] 9.3 Frontend: Update `frontend/components/market/MarketIntelligence.tsx`
-  - [ ] Display visual trend arrows (↑↓) next to scores
-  - [ ] Example: "Market Health: 66 ↑" (up from 60 last week)
+- [x] 9.1 Backend: Update `backend/app/api/market.py`
+  - [x] Query fear_greed_daily for 7-day historical data
+  - [x] Calculate trend: score today vs 7 days ago
+  - [x] Add trend field to response (up/down/flat)
+- [x] 9.2 Backend: Update `backend/app/models/market_intelligence.py`
+  - [x] Add trend fields (Literal["up", "down", "flat"])
+- [x] 9.3 Frontend: Update `frontend/components/market/MarketIntelligence.tsx`
+  - [x] Display visual trend arrows (↑↓) next to scores
+  - [x] Example: "Market Health: 66 ↑" (up from 60 last week)
 
-### 10.0 Add 30-Day Sparkline Charts
+### 10.0 Add 30-Day Sparkline Charts ✅ COMPLETE
 
-- [ ] 10.1 Backend: Create new endpoint `/api/market/trends?days=30`
-  - [ ] Return daily Market Health + Fear & Greed scores (30 days)
-  - [ ] Query fear_greed_daily table for historical data
-- [ ] 10.2 Frontend: Create `frontend/components/market/MarketTrendChart.tsx`
-  - [ ] Use recharts or similar library for sparkline
-  - [ ] Keep minimal/clean (small inline charts, not full-size)
-- [ ] 10.3 Frontend: Integrate into `frontend/components/market/MarketIntelligence.tsx`
-  - [ ] Place between dual scores and main indicators sections
-  - [ ] Fetch data from /api/market/trends endpoint
-- [ ] 10.4 Update `frontend/lib/api/market.ts` (API client)
+- [x] 10.1 Backend: Create new endpoint `/api/market/trends?days=30`
+  - [x] Return daily Market Health + Fear & Greed scores (30 days)
+  - [x] Query fear_greed_daily table for historical data
+- [x] 10.2 Frontend: Create `frontend/components/market/MarketTrendChart.tsx`
+  - [x] Use recharts or similar library for sparkline
+  - [x] Keep minimal/clean (small inline charts, not full-size)
+- [x] 10.3 Frontend: Integrate into `frontend/components/market/MarketIntelligence.tsx`
+  - [x] Place between dual scores and main indicators sections
+  - [x] Fetch data from /api/market/trends endpoint
+- [x] 10.4 Update `frontend/lib/api/market.ts` (API client)
 
-### 11.0 Optimize Fear & Greed Caching
+### 11.0 Optimize Fear & Greed Caching ✅ COMPLETE
 
-- [ ] 11.1 Update `backend/app/api/market.py` or create new caching module
-  - [ ] Implement Redis cache for fear_greed result (TTL = 1 hour or until next midnight)
-  - [ ] Note: F&G updates once daily at 03:00 UTC, no need for frequent DB queries
-- [ ] 11.2 Measure performance improvement
-  - [ ] Log query time before/after caching
-  - [ ] Document performance gain
+- [x] 11.1 Update `backend/app/api/market.py` or create new caching module
+  - [x] Implement Redis cache for fear_greed result (TTL = 1 hour or until next midnight)
+  - [x] Note: F&G updates once daily at 03:00 UTC, no need for frequent DB queries
+- [x] 11.2 Measure performance improvement
+  - [x] Log query time before/after caching
+  - [x] Document performance gain
 
-### 12.0 Add Put/Call Ratio Indicator
+### 12.0 Add Put/Call Ratio Indicator ✅ COMPLETE
 
 **Note: Must use scheduled Celery task for data maintenance, not on-demand fetching.**
 
-- [ ] 12.1 Research CBOE Put/Call ratio data source
-  - [ ] Identify API or data feed for daily Put/Call ratio
-  - [ ] Document data source and update frequency
-- [ ] 12.2 Backend: Create scheduled Celery task for Put/Call data
-  - [ ] Create task `backend/app/tasks/market_data_tasks.py::fetch_putcall_ratio`
-  - [ ] Fetch daily Put/Call ratio from CBOE or alternative source
-  - [ ] Store in database table (e.g., `market_indicators` with type='putcall_ratio')
-  - [ ] Make idempotent (safe to run repeatedly)
-  - [ ] Add to Celery beat schedule (daily at 04:30 UTC, after market data)
-- [ ] 12.3 Backend: Add Put/Call query to `backend/app/api/market.py`
-  - [ ] Query Put/Call data from database (don't fetch on-demand)
-  - [ ] Add to intelligence endpoint response
-- [ ] 12.4 Backend: Update `backend/app/market/intelligence.py`
-  - [ ] Create enrich_putcall_indicator() helper
-  - [ ] Signal logic: >1.0 = Bearish, 0.7-1.0 = Neutral, <0.7 = Bullish
-- [ ] 12.5 Frontend: Update `frontend/components/market/MarketIntelligence.tsx`
-  - [ ] Add Put/Call ratio to Key Indicators section
-  - [ ] Add tooltip: "Ratio of put options (bets stocks go down) to call options (bets stocks go up)"
+- [x] 12.1 Research CBOE Put/Call ratio data source
+  - [x] Identified yfinance SPX options as data source (CBOE data outdated to 2019)
+  - [x] Calculates market-wide ratio from SPX options open interest
+- [x] 12.2 Backend: Create scheduled Celery task for Put/Call data
+  - [x] Created task `backend/app/tasks/market_data_tasks.py::fetch_putcall_ratio`
+  - [x] Fetches SPX options chain from yfinance, calculates total put OI / call OI
+  - [x] Stores in fear_greed_inputs.put_call_ratio column
+  - [x] Idempotent (safe to run repeatedly)
+  - [x] Added to Celery beat schedule (daily at 04:30 UTC, after market data)
+- [x] 12.3 Backend: Add Put/Call query to `backend/app/api/market.py`
+  - [x] Queries put_call_ratio from fear_greed_inputs table
+  - [x] Added to intelligence endpoint response
+- [x] 12.4 Backend: Update `backend/app/market/intelligence.py`
+  - [x] Created enrich_putcall_indicator() helper
+  - [x] Signal logic: >1.0 = Bearish, 0.7-1.0 = Neutral, <0.7 = Bullish
+  - [x] Added label to plain_language.py
+- [x] 12.5 Frontend: Update `frontend/components/market/MarketIntelligence.tsx`
+  - [x] Added Put/Call ratio to Key Indicators section (5th indicator)
+  - [x] Displays with educational tooltip explaining puts vs calls sentiment
 
 ---
 

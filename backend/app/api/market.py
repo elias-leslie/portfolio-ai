@@ -361,6 +361,23 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
             dxy_data, health_score_data, change_pct=dxy_change
         )
 
+    # Get Put/Call Ratio from fear_greed_inputs
+    with storage.connection() as conn:
+        result = conn.execute(
+            "SELECT put_call_ratio, as_of_date FROM fear_greed_inputs WHERE put_call_ratio IS NOT NULL ORDER BY as_of_date DESC LIMIT 1"
+        )
+        row = result.fetchone()
+        if row and row[0]:
+            put_call_ratio = row[0]
+            putcall_date = row[1]
+            # Set time to market close (4:00 PM ET = 21:00 UTC) for consistency
+            putcall_timestamp = dt.datetime.combine(
+                putcall_date, dt.time(21, 0, 0), tzinfo=dt.UTC
+            ).isoformat()
+            enriched_indicators["putcall"] = intelligence.enrich_putcall_indicator(
+                put_call_ratio, putcall_timestamp
+            )
+
     # Build response
     return MarketIntelligenceResponse(
         narrative=narrative,

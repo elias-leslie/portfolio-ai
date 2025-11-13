@@ -148,6 +148,42 @@ def enrich_dxy_indicator(
     )
 
 
+def enrich_putcall_indicator(
+    put_call_ratio: float,
+    last_updated: str,
+) -> EnrichedIndicator:
+    """Enrich Put/Call Ratio indicator with plain-language labels.
+
+    Args:
+        put_call_ratio: Current put/call ratio value
+        last_updated: Last update timestamp (ISO 8601)
+
+    Returns:
+        Enriched Put/Call indicator
+    """
+    putcall_label = plain_language.get_indicator_label("putcall")
+
+    # Determine signal based on ratio thresholds
+    # >1.0 = More puts (bearish), 0.7-1.0 = Neutral, <0.7 = More calls (bullish)
+    if put_call_ratio > 1.0:
+        signal = "Bearish"
+    elif put_call_ratio < 0.7:
+        signal = "Bullish"
+    else:
+        signal = "Neutral"
+
+    return EnrichedIndicator(
+        value=put_call_ratio,
+        change_pct=None,  # Daily change not meaningful for this indicator
+        label=putcall_label["label"],
+        short_label=putcall_label["short"],
+        tooltip=putcall_label["tooltip"],
+        signal=signal,
+        emoji=get_signal_emoji(signal),
+        last_updated=last_updated,
+    )
+
+
 def group_sectors_by_performance(
     sector_data_list: list[tuple[str, float | None, float | None, str | None]],
 ) -> tuple[list[SectorInfo], list[SectorInfo], list[SectorInfo]]:

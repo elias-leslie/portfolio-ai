@@ -7,6 +7,9 @@ ensuring all required market indicators have complete 252-day history.
 from __future__ import annotations
 
 import datetime as dt
+from typing import Any
+
+import yfinance as yf  # type: ignore[import-untyped]
 
 from app.celery_app import celery_app
 from app.logging_config import get_logger
@@ -172,3 +175,169 @@ def maintain_historical_market_data(  # type: ignore[no-untyped-def]
             error_type=type(e).__name__,
         )
         raise
+
+
+@celery_app.task(name="fetch_putcall_ratio", bind=True)  # type: ignore[misc]
+def fetch_putcall_ratio(  # type: ignore[no-untyped-def]
+    self,
+    as_of_date: str | None = None,
+) -> dict[str, Any]:
+    """Fetch Put/Call Ratio from SPX options data.
+
+    This task calculates the total put/call ratio from S&P 500 Index (^SPX)
+    options by comparing total put open interest to total call open interest
+    across all available expiration dates.
+
+    The Put/Call Ratio is a market sentiment indicator:
+    - Ratio > 1.0 = More puts than calls (bearish sentiment)
+    - Ratio 0.7-1.0 = Neutral sentiment
+    - Ratio < 0.7 = More calls than puts (bullish sentiment)
+
+    Args:
+        as_of_date: Date to fetch data for (YYYY-MM-DD). If None, uses today.
+
+    Returns:
+        Dict with task results:
+        - task_id: Celery task ID
+        - as_of_date: Date of the data
+        - put_call_ratio: Calculated ratio (put OI / call OI)
+        - total_put_oi: Total put open interest
+        - total_call_oi: Total call open interest
+        - success: Boolean indicating success
+
+    Example:
+        >>> # Manual trigger for testing
+        >>> celery -A app.celery_app call app.tasks.market_data_tasks.fetch_putcall_ratio
+
+    Note:
+        This task should be scheduled daily at 04:30 UTC (after market close
+        and after maintain_historical_market_data task completes).
+        Uses yfinance to fetch SPX options chain data.
+    """
+    task_id = self.request.id
+    target_date = dt.date.fromisoformat(as_of_date) if as_of_date else dt.date.today()
+
+    logger.info(
+        "fetch_putcall_ratio_started",
+        task_id=task_id,
+        as_of_date=target_date.isoformat(),
+    )
+
+    try:
+        # Fetch SPX options data
+        spx = yf.Ticker("^SPX")
+        expirations = spx.options
+
+        if not expirations:
+            logger.warning("fetch_putcall_ratio_no_expirations", ticker="^SPX")
+            return {
+                "task_id": task_id,
+                "as_of_date": target_date.isoformat(),
+                "error": "No options expirations available",
+                "success": False,
+            }
+
+        # Calculate total put and call open interest across all expirations
+        total_put_oi = 0.0
+        total_call_oi = 0.0
+
+        for expiry in expirations:
+            try:
+                opts = spx.option_chain(expiry)
+
+                # Sum open interest for puts and calls (convert from numpy to Python native)
+                put_oi = float(opts.puts["openInterest"].sum())
+                call_oi = float(opts.calls["openInterest"].sum())
+
+                total_put_oi += put_oi
+                total_call_oi += call_oi
+
+                logger.debug(
+                    "fetch_putcall_ratio_expiry",
+                    expiry=expiry,
+                    put_oi=put_oi,
+                    call_oi=call_oi,
+                )
+
+            except Exception as e:
+                logger.warning(
+                    "fetch_putcall_ratio_expiry_failed",
+                    expiry=expiry,
+                    error=str(e),
+                )
+                continue
+
+        # Calculate ratio
+        if total_call_oi == 0:
+            logger.error(
+                "fetch_putcall_ratio_zero_call_oi",
+                total_put_oi=total_put_oi,
+                total_call_oi=total_call_oi,
+            )
+            return {
+                "task_id": task_id,
+                "as_of_date": target_date.isoformat(),
+                "error": "Zero call open interest",
+                "success": False,
+            }
+
+        put_call_ratio = total_put_oi / total_call_oi
+
+        # Store in fear_greed_inputs table
+        storage = get_storage()
+        with storage.connection() as conn:
+            conn.execute(
+                """
+                UPDATE fear_greed_inputs
+                SET put_call_ratio = %s
+                WHERE as_of_date = %s
+                """,
+                (put_call_ratio, target_date),
+            )
+
+            # If no row exists for this date, create one
+            conn.execute(
+                """
+                INSERT INTO fear_greed_inputs (as_of_date, put_call_ratio, source_map)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (as_of_date) DO UPDATE SET
+                    put_call_ratio = EXCLUDED.put_call_ratio,
+                    source_map = fear_greed_inputs.source_map || EXCLUDED.source_map
+                """,
+                (
+                    target_date,
+                    put_call_ratio,
+                    '{"put_call_ratio": "yfinance_spx_options"}',
+                ),
+            )
+            conn.commit()
+
+        result = {
+            "task_id": task_id,
+            "as_of_date": target_date.isoformat(),
+            "put_call_ratio": float(round(put_call_ratio, 4)),
+            "total_put_oi": int(total_put_oi),
+            "total_call_oi": int(total_call_oi),
+            "success": True,
+        }
+
+        logger.info(
+            "fetch_putcall_ratio_completed",
+            **result,
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error(
+            "fetch_putcall_ratio_failed",
+            task_id=task_id,
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+        return {
+            "task_id": task_id,
+            "as_of_date": target_date.isoformat(),
+            "error": str(e),
+            "success": False,
+        }
