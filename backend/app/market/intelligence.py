@@ -31,12 +31,14 @@ def get_signal_emoji(signal: str) -> str:
 def enrich_vix_indicator(
     vix_data: PriceData,
     health_score_data: MarketHealthScore,
+    change_pct: float | None = None,
 ) -> EnrichedIndicator:
     """Enrich VIX indicator with plain-language labels.
 
     Args:
         vix_data: VIX price data
         health_score_data: Market health score with components
+        change_pct: Daily change percentage (calculated from day_bars)
 
     Returns:
         Enriched VIX indicator
@@ -46,7 +48,7 @@ def enrich_vix_indicator(
 
     return EnrichedIndicator(
         value=vix_data.price,
-        change_pct=None,
+        change_pct=change_pct,
         label=vix_label["label"],
         short_label=vix_label["short"],
         tooltip=vix_label["tooltip"],
@@ -59,12 +61,14 @@ def enrich_vix_indicator(
 def enrich_sp500_indicator(
     sp500_data: PriceData,
     health_score_data: MarketHealthScore,
+    change_pct: float | None = None,
 ) -> EnrichedIndicator:
     """Enrich S&P 500 indicator with plain-language labels.
 
     Args:
         sp500_data: S&P 500 price data
         health_score_data: Market health score with components
+        change_pct: Daily change percentage (calculated from day_bars)
 
     Returns:
         Enriched S&P 500 indicator
@@ -74,7 +78,7 @@ def enrich_sp500_indicator(
 
     return EnrichedIndicator(
         value=sp500_data.price,
-        change_pct=None,
+        change_pct=change_pct,
         label=sp500_label["label"],
         short_label=sp500_label["short"],
         tooltip=sp500_label["tooltip"],
@@ -87,12 +91,14 @@ def enrich_sp500_indicator(
 def enrich_tnx_indicator(
     tnx_data: PriceData,
     health_score_data: MarketHealthScore,
+    change_pct: float | None = None,
 ) -> EnrichedIndicator:
     """Enrich 10Y Treasury indicator with plain-language labels.
 
     Args:
         tnx_data: 10Y Treasury price data
         health_score_data: Market health score with components
+        change_pct: Daily change percentage (calculated from day_bars)
 
     Returns:
         Enriched TNX indicator
@@ -102,7 +108,7 @@ def enrich_tnx_indicator(
 
     return EnrichedIndicator(
         value=tnx_data.price,
-        change_pct=None,
+        change_pct=change_pct,
         label=tnx_label["label"],
         short_label=tnx_label["short"],
         tooltip=tnx_label["tooltip"],
@@ -115,12 +121,14 @@ def enrich_tnx_indicator(
 def enrich_dxy_indicator(
     dxy_data: PriceData,
     health_score_data: MarketHealthScore,
+    change_pct: float | None = None,
 ) -> EnrichedIndicator:
     """Enrich US Dollar indicator with plain-language labels.
 
     Args:
         dxy_data: US Dollar price data
         health_score_data: Market health score with components
+        change_pct: Daily change percentage (calculated from day_bars)
 
     Returns:
         Enriched DXY indicator
@@ -130,7 +138,7 @@ def enrich_dxy_indicator(
 
     return EnrichedIndicator(
         value=dxy_data.price,
-        change_pct=None,
+        change_pct=change_pct,
         label=dxy_label["label"],
         short_label=dxy_label["short"],
         tooltip=dxy_label["tooltip"],

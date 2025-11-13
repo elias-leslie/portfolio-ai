@@ -60,11 +60,46 @@ class PricesResponse(BaseModel):
 
 
 # Helper functions
+def calculate_daily_change_pct(
+    ticker: str,
+    current_price: float,
+) -> float | None:
+    """Calculate daily change percentage from day_bars historical data.
+
+    Args:
+        ticker: Symbol to calculate change for
+        current_price: Current price
+
+    Returns:
+        Daily change percentage, or None if no historical data
+    """
+    with storage.connection() as conn:
+        result = conn.execute(
+            """
+            SELECT close
+            FROM day_bars
+            WHERE ticker = %s
+            ORDER BY date DESC
+            LIMIT 1 OFFSET 1
+            """,
+            [ticker],
+        )
+        row = result.fetchone()
+        if row and row[0]:
+            prev_close = float(row[0])
+            return ((current_price - prev_close) / prev_close) * 100
+    return None
+
+
 def fetch_sector_data_with_changes(
     sector_symbols: list[str],
     sector_price_data: dict[str, PriceData],
 ) -> dict[str, tuple[float | None, float | None, str | None]]:
     """Fetch sector data with daily change percentages using batch query.
+
+    IMPORTANT: Uses ONLY day_bars historical data for change calculation.
+    Never uses cache-to-cache comparison as cache timestamps are unreliable
+    (cache may be refreshed without market data actually changing).
 
     Args:
         sector_symbols: List of sector ETF symbols
@@ -77,6 +112,7 @@ def fetch_sector_data_with_changes(
 
     # Get previous closes in a single batch query (avoiding N+1 query problem)
     # Using window function to get second-most-recent close for each ticker
+    # This ensures we calculate change from actual market closes, not cache timestamps
     with storage.connection() as conn:
         result = conn.execute(
             """
@@ -230,20 +266,25 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
 
     # Get Fear & Greed date to determine actual data freshness
     # (This represents when the market data was created, not when we cached it)
+    # Get the actual market data date from Fear & Greed (most accurate source)
+    # This represents when the underlying market data is from, not when we cached it
     with storage.connection() as conn:
         result = conn.execute(
             "SELECT as_of_date FROM fear_greed_daily ORDER BY as_of_date DESC LIMIT 1"
         )
         row = result.fetchone()
         if row and row[0]:
-            # Convert date to datetime at market close (4:00 PM ET = 21:00 UTC)
+            # Use the actual market data date (as_of_date) for the timestamp
+            # This shows users the age of the underlying market data, not the cache
             market_data_date = row[0]
+            # Set time to market close (4:00 PM ET = 21:00 UTC) for consistency
             market_close_time = dt.datetime.combine(
                 market_data_date, dt.time(21, 0, 0), tzinfo=dt.UTC
             )
             current_timestamp = market_close_time.isoformat()
         else:
             # Fallback to cache timestamp if no Fear & Greed data
+            # This is less ideal but better than nothing
             current_timestamp = (
                 sp500_data.cached_at.isoformat()
                 if sp500_data
@@ -296,17 +337,28 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
     )
 
     # Enrich indicators with plain-language labels using intelligence helpers
+    # Calculate daily change percentages from day_bars historical data
     enriched_indicators = {}
     if vix_data:
-        enriched_indicators["vix"] = intelligence.enrich_vix_indicator(vix_data, health_score_data)
+        vix_change = calculate_daily_change_pct("^VIX", vix_data.price)
+        enriched_indicators["vix"] = intelligence.enrich_vix_indicator(
+            vix_data, health_score_data, change_pct=vix_change
+        )
     if sp500_data:
+        sp500_change = calculate_daily_change_pct("^GSPC", sp500_data.price)
         enriched_indicators["sp500"] = intelligence.enrich_sp500_indicator(
-            sp500_data, health_score_data
+            sp500_data, health_score_data, change_pct=sp500_change
         )
     if tnx_data:
-        enriched_indicators["tnx"] = intelligence.enrich_tnx_indicator(tnx_data, health_score_data)
+        tnx_change = calculate_daily_change_pct("^TNX", tnx_data.price)
+        enriched_indicators["tnx"] = intelligence.enrich_tnx_indicator(
+            tnx_data, health_score_data, change_pct=tnx_change
+        )
     if dxy_data:
-        enriched_indicators["dxy"] = intelligence.enrich_dxy_indicator(dxy_data, health_score_data)
+        dxy_change = calculate_daily_change_pct("DX-Y.NYB", dxy_data.price)
+        enriched_indicators["dxy"] = intelligence.enrich_dxy_indicator(
+            dxy_data, health_score_data, change_pct=dxy_change
+        )
 
     # Build response
     return MarketIntelligenceResponse(

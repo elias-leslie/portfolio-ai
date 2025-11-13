@@ -154,6 +154,11 @@ celery_app.conf.beat_schedule = {
         "args": [
             [
                 "SPY",  # S&P 500 (market regime indicators)
+                # Market indicators for Market Conditions card
+                "^GSPC",  # S&P 500 Index
+                "^VIX",  # Volatility Index
+                "^TNX",  # 10-Year Treasury Note Yield
+                "DX-Y.NYB",  # US Dollar Index
                 # Sector ETFs for Market Conditions sector breakdown
                 "XLK",  # Technology
                 "XLF",  # Financials
@@ -171,7 +176,7 @@ celery_app.conf.beat_schedule = {
         "options": {"expires": 3600},  # Task expires after 1 hour
         # Notes:
         # - Runs daily at ~02:00 UTC
-        # - Ensures SPY + sector ETFs fresh for market indicators
+        # - Ensures SPY + market indicators + sector ETFs fresh for market intelligence
         # - Fetches last 5 days to account for holidays/weekends
     },
     "retrain-article-quality-model": {
@@ -207,6 +212,19 @@ celery_app.conf.beat_schedule = {
         # - Uses 252-day rolling window for percentile rankings
         # - Must run after update-technical-indicators-daily completes
     },
+    "maintain-historical-market-data": {
+        "task": "maintain_historical_market_data",
+        "schedule": 86400.0,  # Daily (24 hours)
+        "options": {"expires": 3600},  # Task expires after 1 hour
+        # Notes:
+        # - Runs daily at ~04:00 UTC (after Fear & Greed calculation)
+        # - Maintains 252 trading days for all market indicators and sectors
+        # - Idempotent: Checks if data exists, backfills if needed, adds new day if current
+        # - Self-healing: Automatically fixes missing or stale data
+        # - Symbols: ^GSPC, ^VIX, ^TNX, DX-Y.NYB (indicators)
+        # - Symbols: XLK, XLF, XLE, XLV, XLY, XLP, XLI, XLU, XLRE, XLB, XLC (sectors)
+        # - NO MANUAL BACKFILLING NEEDED - task handles all data maintenance
+    },
     # Future: Data cleanup task
     # Note: Commented example for future implementation
     # "cleanup-old-data": {
@@ -223,6 +241,7 @@ from app.tasks import (  # noqa: E402, F401
     agent_tasks,
     data_ingestion_tasks,
     indicator_tasks,
+    market_data_tasks,
     ml_training_tasks,
     news_tasks,
     watchlist_tasks,

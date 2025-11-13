@@ -113,6 +113,7 @@ export function MarketIntelligence() {
                 <LabeledIndicator
                   label={vixIndicator.label}
                   value={vixIndicator.value.toFixed(2)}
+                  changePct={vixIndicator.change_pct}
                   tooltip={vixIndicator.tooltip}
                   signal={
                     vixIndicator.signal === "Bullish"
@@ -132,6 +133,7 @@ export function MarketIntelligence() {
                 <LabeledIndicator
                   label={sp500Indicator.label}
                   value={sp500Indicator.value.toFixed(2)}
+                  changePct={sp500Indicator.change_pct}
                   tooltip={sp500Indicator.tooltip}
                   signal={
                     sp500Indicator.signal === "Bullish"
@@ -151,6 +153,7 @@ export function MarketIntelligence() {
                 <LabeledIndicator
                   label={tnxIndicator.label}
                   value={`${tnxIndicator.value.toFixed(2)}%`}
+                  changePct={tnxIndicator.change_pct}
                   tooltip={tnxIndicator.tooltip}
                   signal={
                     tnxIndicator.signal === "Bullish"
@@ -170,6 +173,7 @@ export function MarketIntelligence() {
                 <LabeledIndicator
                   label={dxyIndicator.label}
                   value={dxyIndicator.value.toFixed(2)}
+                  changePct={dxyIndicator.change_pct}
                   tooltip={dxyIndicator.tooltip}
                   signal={
                     dxyIndicator.signal === "Bullish"
@@ -200,7 +204,7 @@ export function MarketIntelligence() {
       {/* Footer with timestamp */}
       <div className="mt-4 pt-3 border-t border-border">
         <p className="text-xs text-text-muted text-center">
-          Updated {formatRelativeTime(data.last_updated)}
+          Market Data as of {formatRelativeTime(data.last_updated)}
         </p>
       </div>
     </Card>

@@ -23,6 +23,11 @@ export interface LabeledIndicatorProps {
   value: string | number;
 
   /**
+   * Daily change percentage (optional, e.g., 2.5 for +2.5%)
+   */
+  changePct?: number | null;
+
+  /**
    * Educational tooltip (optional)
    */
   tooltip?: string;
@@ -51,6 +56,7 @@ export interface LabeledIndicatorProps {
 export function LabeledIndicator({
   label,
   value,
+  changePct,
   tooltip,
   signal = "neutral",
   emoji,
@@ -69,21 +75,31 @@ export function LabeledIndicator({
     }
   };
 
+  // Format change percentage with color
+  const formatChangePct = (pct: number) => {
+    const sign = pct >= 0 ? "+" : "";
+    const colorClass = pct >= 0 ? "text-gain" : "text-loss";
+    return { text: `${sign}${pct.toFixed(2)}%`, colorClass };
+  };
+
   // Size variants
   const sizes = {
     sm: {
       label: "text-xs",
       value: "text-lg",
+      change: "text-xs",
       spacing: "space-y-0.5",
     },
     md: {
       label: "text-sm",
       value: "text-2xl",
+      change: "text-sm",
       spacing: "space-y-1",
     },
     lg: {
       label: "text-base",
       value: "text-3xl",
+      change: "text-base",
       spacing: "space-y-2",
     },
   };
@@ -105,8 +121,8 @@ export function LabeledIndicator({
         {tooltip && <InfoTooltip content={tooltip} side="top" iconSize={12} />}
       </div>
 
-      {/* Value with optional emoji */}
-      <div className="flex items-center gap-2">
+      {/* Value with optional emoji and change percentage */}
+      <div className="flex items-baseline gap-2">
         <span
           className={cn(
             "font-bold",
@@ -117,6 +133,17 @@ export function LabeledIndicator({
           {value}
         </span>
         {emoji && <span className="text-xl" role="img">{emoji}</span>}
+        {changePct !== null && changePct !== undefined && (
+          <span
+            className={cn(
+              "font-semibold",
+              sizeClasses.change,
+              formatChangePct(changePct).colorClass
+            )}
+          >
+            {formatChangePct(changePct).text}
+          </span>
+        )}
       </div>
     </div>
   );
