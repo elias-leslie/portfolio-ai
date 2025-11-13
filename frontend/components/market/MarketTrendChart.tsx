@@ -50,14 +50,14 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
       </p>
       <div className="space-y-1">
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-primary" />
+          <div className="w-3 h-3 rounded-full bg-gain" />
           <span className="text-xs font-medium text-text">
             Fear & Greed: {data.fearGreed.toFixed(0)}
           </span>
         </div>
         {data.marketHealth !== undefined && (
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-accent" />
+            <div className="w-3 h-3 rounded-full bg-chart-3" />
             <span className="text-xs font-medium text-text">
               Market Health: {data.marketHealth.toFixed(0)}
             </span>
@@ -86,22 +86,22 @@ export function MarketTrendChart({ data, height = 60 }: MarketTrendChartProps) {
           {/* Tooltip */}
           <Tooltip content={<CustomTooltip />} />
 
-          {/* Fear & Greed line (primary) */}
+          {/* Fear & Greed line (primary) - using gain color for visibility */}
           <Line
             type="monotone"
             dataKey="fearGreed"
-            stroke="hsl(var(--primary))"
+            stroke="hsl(var(--gain))"
             strokeWidth={2}
             dot={false}
             activeDot={{ r: 4 }}
           />
 
-          {/* Market Health line (secondary, if available) */}
+          {/* Market Health line (secondary, if available) - using accent */}
           {data.market_health_scores.length > 0 && (
             <Line
               type="monotone"
               dataKey="marketHealth"
-              stroke="hsl(var(--accent))"
+              stroke="hsl(var(--chart-3))"
               strokeWidth={2}
               dot={false}
               activeDot={{ r: 4 }}
