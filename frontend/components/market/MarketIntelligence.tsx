@@ -17,6 +17,18 @@ import { LabeledIndicator } from "./LabeledIndicator";
 import { SectorRotationSummary } from "./SectorRotationSummary";
 import { formatRelativeTime } from "@/lib/utils";
 
+// Helper function to render trend arrow
+const getTrendArrow = (trend?: "up" | "down" | "flat" | null, trendChange?: number | null) => {
+  if (!trend || !trendChange) return null;
+
+  if (trend === "up") {
+    return <span className="text-gain ml-1" title={`+${trendChange} over 7 days`}>↑</span>;
+  } else if (trend === "down") {
+    return <span className="text-loss ml-1" title={`${trendChange} over 7 days`}>↓</span>;
+  }
+  return null; // flat - no arrow
+};
+
 export function MarketIntelligence() {
   const { data, isLoading, error } = useMarketIntelligence();
 
@@ -97,30 +109,36 @@ export function MarketIntelligence() {
 
           {/* Dual Scores */}
           <div className="grid grid-cols-2 gap-4 p-4 rounded-lg bg-surface-muted/20">
-            <LabeledIndicator
-              label="Market Health"
-              value={market_health.overall_score}
-              signal={
-                market_health.overall_score >= 60
-                  ? "bullish"
-                  : market_health.overall_score >= 40
-                  ? "neutral"
-                  : "bearish"
-              }
-              size="md"
-            />
-            <LabeledIndicator
-              label="Fear & Greed"
-              value={fear_greed.score}
-              signal={
-                fear_greed.score >= 60
-                  ? "bullish"
-                  : fear_greed.score >= 40
-                  ? "neutral"
-                  : "bearish"
-              }
-              size="md"
-            />
+            <div className="flex items-center gap-1">
+              <LabeledIndicator
+                label="Market Health"
+                value={market_health.overall_score}
+                signal={
+                  market_health.overall_score >= 60
+                    ? "bullish"
+                    : market_health.overall_score >= 40
+                    ? "neutral"
+                    : "bearish"
+                }
+                size="md"
+              />
+              {getTrendArrow(market_health.trend, market_health.trend_change)}
+            </div>
+            <div className="flex items-center gap-1">
+              <LabeledIndicator
+                label="Fear & Greed"
+                value={fear_greed.score}
+                signal={
+                  fear_greed.score >= 60
+                    ? "bullish"
+                    : fear_greed.score >= 40
+                    ? "neutral"
+                    : "bearish"
+                }
+                size="md"
+              />
+              {getTrendArrow(fear_greed.trend, fear_greed.trend_change)}
+            </div>
           </div>
 
           {/* Market Indicators */}

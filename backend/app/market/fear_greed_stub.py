@@ -9,12 +9,13 @@ See ARCHITECTURE.md lines 475-671 for complete specification.
 from __future__ import annotations
 
 import datetime as dt
+from typing import Literal
 
 from app.storage import get_storage
 
 
 class FearGreedReading:
-    """Fear & Greed Index reading with staleness tracking."""
+    """Fear & Greed Index reading with staleness tracking and 7-day trend."""
 
     def __init__(
         self,
@@ -24,6 +25,8 @@ class FearGreedReading:
         signal_count: int = 4,
         is_stale: bool = False,
         age_days: int = 0,
+        trend: Literal["up", "down", "flat"] | None = None,
+        trend_change: int | None = None,
     ):
         self.score = score
         self.label = label
@@ -31,6 +34,8 @@ class FearGreedReading:
         self.signal_count = signal_count
         self.is_stale = is_stale
         self.age_days = age_days
+        self.trend = trend
+        self.trend_change = trend_change
         self.date = dt.datetime.now(dt.UTC).isoformat()
 
 
@@ -60,6 +65,7 @@ def get_fear_greed_score() -> FearGreedReading:
             row = result.fetchone()
 
             if row:
+                current_score = int(row[0])
                 # Calculate age in days
                 as_of_date = row[4]  # as_of_date column
                 today = dt.date.today()
@@ -68,13 +74,46 @@ def get_fear_greed_score() -> FearGreedReading:
                 # Flag as stale if >2 days old
                 is_stale = age_days > 2
 
+                # Calculate 7-day trend
+                trend: Literal["up", "down", "flat"] | None = None
+                trend_change: int | None = None
+                try:
+                    # Get score from 7 days ago
+                    result_7d = conn.execute(
+                        """
+                        SELECT score
+                        FROM fear_greed_daily
+                        WHERE as_of_date <= %s
+                        ORDER BY as_of_date DESC
+                        LIMIT 1 OFFSET 7
+                        """,
+                        (as_of_date,),
+                    )
+                    row_7d = result_7d.fetchone()
+                    if row_7d and row_7d[0] is not None:
+                        score_7d_ago = int(row_7d[0])
+                        trend_change = current_score - score_7d_ago
+
+                        # Determine trend: >5 points = up, <-5 points = down, else flat
+                        if trend_change > 5:
+                            trend = "up"
+                        elif trend_change < -5:
+                            trend = "down"
+                        else:
+                            trend = "flat"
+                except Exception:
+                    # If trend calculation fails, just skip it
+                    pass
+
                 return FearGreedReading(
-                    score=int(row[0]),
+                    score=current_score,
                     label=row[1],
                     score_change=float(row[2]) if row[2] is not None else 0.0,
                     signal_count=int(row[3]) if row[3] is not None else 4,
                     is_stale=is_stale,
                     age_days=age_days,
+                    trend=trend,
+                    trend_change=trend_change,
                 )
     except Exception:
         # Fall through to default if query fails

@@ -367,6 +367,8 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
             overall_score=health_score_data.overall_score,
             overall_label=health_score_data.overall_label,
             last_updated=health_score_data.last_updated,
+            trend=None,  # TODO: Calculate from historical data
+            trend_change=None,
         ),
         fear_greed=FearGreedScore(
             score=int(fg_reading.score),
@@ -376,6 +378,8 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
             last_updated=fg_reading.date,
             is_stale=fg_reading.is_stale,
             age_days=fg_reading.age_days,
+            trend=fg_reading.trend,
+            trend_change=fg_reading.trend_change,
         ),
         indicators=enriched_indicators,
         sector_rotation=SectorRotationSummary(

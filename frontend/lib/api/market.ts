@@ -125,6 +125,8 @@ export interface MarketHealthScoreSimple {
   overall_score: number;
   overall_label: string;
   last_updated: string;
+  trend?: "up" | "down" | "flat" | null;
+  trend_change?: number | null;
 }
 
 export interface FearGreedScore {
@@ -135,6 +137,8 @@ export interface FearGreedScore {
   last_updated: string;
   is_stale: boolean;
   age_days: number;
+  trend?: "up" | "down" | "flat" | null;
+  trend_change?: number | null;
 }
 
 export interface MarketIntelligenceResponse {

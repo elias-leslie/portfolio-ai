@@ -5,6 +5,8 @@ Combines Market Health + Fear & Greed + Narrative into single response.
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -45,17 +47,21 @@ class SectorRotationSummary(BaseModel):
 
 
 class MarketHealthScore(BaseModel):
-    """Market health scoring from 4 indicators."""
+    """Market health scoring from 4 indicators with 7-day trend."""
 
     overall_score: int = Field(..., ge=0, le=100, description="Overall health score 0-100")
     overall_label: str = Field(
         ..., description="Very Bullish | Bullish | Neutral | Bearish | Extreme Fear"
     )
     last_updated: str = Field(..., description="Last update timestamp")
+    trend: Literal["up", "down", "flat"] | None = Field(
+        None, description="7-day trend: up (improved), down (declined), flat (unchanged)"
+    )
+    trend_change: int | None = Field(None, description="Point change over 7 days")
 
 
 class FearGreedScore(BaseModel):
-    """Fear & Greed Index scoring from 5 signals with staleness tracking."""
+    """Fear & Greed Index scoring from 5 signals with staleness tracking and 7-day trend."""
 
     score: int = Field(..., ge=0, le=100, description="Fear & Greed score 0-100")
     label: str = Field(..., description="Extreme Fear | Fear | Neutral | Greed | Extreme Greed")
@@ -64,6 +70,10 @@ class FearGreedScore(BaseModel):
     last_updated: str = Field(..., description="Last update timestamp")
     is_stale: bool = Field(False, description="True if data is >2 days old")
     age_days: int = Field(0, description="Age of data in days")
+    trend: Literal["up", "down", "flat"] | None = Field(
+        None, description="7-day trend: up (more greedy), down (more fearful), flat (unchanged)"
+    )
+    trend_change: int | None = Field(None, description="Point change over 7 days")
 
 
 class MarketIntelligenceResponse(BaseModel):
