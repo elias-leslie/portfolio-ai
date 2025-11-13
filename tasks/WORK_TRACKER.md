@@ -12,11 +12,12 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Market Conditions Card Improvements** (29% - 8/28 complete)
+1. **Market Conditions Card Improvements** (Phase 1-6 COMPLETE ✅)
    - File: `tasks-0056-market-conditions-improvements.md`
-   - Started: 2025-11-13 (today)
-   - Last updated: Phase 1-6 COMPLETE ✅ | Phase 4 (P3 optional) remains
-   - Next: Task 12.0 - Add Put/Call Ratio Indicator (data source research)
+   - Started: 2025-11-13
+   - Last updated: 2025-11-13 21:45 (Completed Phase 6 frontend - tasks 21.2, 21.3)
+   - Status: Phase 1-6 COMPLETE (P0, P1, P2, P5, P6) | Phase 4 (P3 optional) remains | Task 22 (narrative) optional
+   - Next: User decision - archive task or continue with Phase 4 optional features
    - Tasks:
      - [x] Task 1: Priority 0 - Critical Data Integrity (8 hours) ✅ COMPLETE
      - [x] Task 1: Create Scheduled Historical Data Maintenance Task ✅ COMPLETE
@@ -54,29 +55,7 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Status Page Standardization & Collapse Framework** (HIGH (6-8 hours, 15+ files), 5/5 tasks (today))
-   - File: `tasks-0057-status-page-standardization.md`
-   - Created: 2025-11-13
-   - Goal: Bring the Status experience in line with the shared Portfolio AI layout system, introduce a reusable collapse/summary pattern, and reorganize sections so top-level information is surfaced first.
-   - Tasks:
-     - [x] Task 0: Scope Discovery (MANDATORY)
-     - [x] Task 1: Shared Expandable Card Primitive
-     - [x] Task 2: Status Page Layout Reorganization
-     - [x] Task 3: Card Content Adjustments
-     - [x] Task 4: Verification & Tests
-
-2. **Status Page Standardization & Collapse Framework** (HIGH (6-8 hours, 15+ files), 5/5 tasks (today))
-   - File: `tasks-0057-status-page-standardization.md`
-   - Created: 2025-11-13
-   - Goal: Bring the Status experience in line with the shared Portfolio AI layout system, introduce a reusable collapse/summary pattern, and reorganize sections so top-level information is surfaced first.
-   - Tasks:
-     - [x] Task 0: Scope Discovery (MANDATORY)
-     - [x] Task 1: Shared Expandable Card Primitive
-     - [x] Task 2: Status Page Layout Reorganization
-     - [x] Task 3: Card Content Adjustments
-     - [x] Task 4: Verification & Tests
-
-3. **UI Standardization & UX Fixes** (MEDIUM-HIGH (4-6 hours, 12-15 files), 0/0 tasks (yesterday))
+1. **UI Standardization & UX Fixes** (MEDIUM-HIGH (4-6 hours, 12-15 files), 0/0 tasks (yesterday))
    - File: `tasks-0055-ui-standardization-and-ux-fixes.md`
    - Created: 2025-11-12
    - Goal: Bring the Portfolio AI web UI up to a consistent design baseline by aligning headers, loading states, and critical interactions so that every surface communicates status clearly and meets accessibility expectations.
@@ -156,7 +135,19 @@
 
 *Last 5 completions - older items auto-archive to tasks/archive/YYYY-MM.md*
 
-1. **Table Freshness Fixes** (2025-11-11) ✅ COMPLETE
+1. **Status Page Standardization & Collapse Framework** (2025-11-13) ✅ COMPLETE
+   - File: `tasks-0057-status-page-standardization.md`
+   - Duration: ~6-8 hours
+   - Results: Status page aligned with shared UI system
+   - Achievements:
+     - ✅ Created ExpandableCard shared primitive
+     - ✅ Reorganized Status page layout (summary-first pattern)
+     - ✅ Adjusted card content for collapsible sections
+     - ✅ Verification and tests completed
+     - ✅ All 5 tasks complete (100%)
+   - Notes: Introduced reusable collapse/summary pattern for all pages
+
+2. **Table Freshness Fixes** (2025-11-11) ✅ COMPLETE
    - File: Commit b2c8cb2
    - Duration: ~30 minutes
    - Results: All 10 tables now monitored correctly
