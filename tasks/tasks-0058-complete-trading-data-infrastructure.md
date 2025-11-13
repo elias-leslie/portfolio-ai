@@ -773,7 +773,287 @@ CREATE INDEX idx_snapshots_date ON portfolio_snapshots(snapshot_date DESC);
 
 ---
 
+## Task 0: Fix Real-Time Data Pipeline (CRITICAL - Do This FIRST!)
+
+**Problem**: Fear & Greed showing "3 days old" on dashboard
+
+**Root Causes**:
+1. **❌ Scheduled tasks run ONCE daily** at 02:00-04:00 UTC (before US market opens)
+2. **❌ Always fetch YESTERDAY's data** (not today's)
+3. **❌ No intraday updates** during market hours
+4. **❌ Data sits stale** from Friday close until Monday update
+
+**Current Behavior**:
+- Nov 13 (today): Dashboard shows Nov 10 data (3 days old!)
+- Scheduled update at 03:00 UTC Nov 14 will show Nov 13 data (still 1 day behind)
+- Always AT LEAST 1 day old, up to 3 days on weekends
+
+**Required Behavior**:
+
+**During Market Hours** (9:30 AM - 4:00 PM ET, Mon-Fri):
+- Fetch current prices every 15-30 minutes
+- Update Fear & Greed hourly
+- Show LIVE market sentiment
+
+**At Market Close** (4:00 PM ET):
+- Immediate update within 15 min of close
+- Calculate Fear & Greed with TODAY's final data
+- Dashboard shows "As of today's close" within 30 min
+
+**Pre-Market** (Before 9:30 AM ET):
+- Use previous trading day's close (acceptable)
+- Label clearly: "As of [date] close"
+
+**Implementation**:
+
+**0.1: Add Intraday Price Cache Updates**
+```python
+# New task: runs every 15 min during market hours
+@celery_app.task(name="refresh_intraday_prices")
+def refresh_intraday_prices():
+    """Fetch current prices for market symbols + watchlist.
+
+    Runs: Every 15 min, 9:30 AM - 4:00 PM ET, Mon-Fri
+    Updates: price_cache table with current bid/ask/last
+    """
+```
+
+**0.2: Add Market-Close Trigger**
+```python
+# New task: runs at 4:15 PM ET (15 min after close)
+@celery_app.task(name="update_end_of_day_data")
+def update_end_of_day_data():
+    """Fetch final close prices and update all calculated metrics.
+
+    Runs: 4:15 PM ET (16:15 ET, 21:15 UTC) Mon-Fri
+    Sequence:
+      1. Fetch today's OHLCV for all market symbols
+      2. Update technical indicators (RSI, MACD, etc.)
+      3. Calculate Fear & Greed with TODAY's data
+      4. Update market intelligence
+    """
+```
+
+**0.3: Update Fear & Greed to Use TODAY's Data**
+
+Current code fetches from `fear_greed_inputs` WHERE `as_of_date = yesterday`
+Change to: `as_of_date = today` and fall back to yesterday if today not available
+
+**0.4: Add Celery Beat Schedule**
+```python
+# In celery_app.py beat_schedule
+'refresh-intraday-prices': {
+    'task': 'refresh_intraday_prices',
+    'schedule': crontab(minute='*/15', hour='13-20', day_of_week='1-5'),  # 9:30 AM - 4:00 PM ET
+},
+'update-end-of-day-data': {
+    'task': 'update_end_of_day_data',
+    'schedule': crontab(hour=21, minute=15, day_of_week='1-5'),  # 4:15 PM ET daily
+},
+```
+
+**Acceptance Criteria**:
+- [ ] During market hours: Fear & Greed updates hourly with current prices
+- [ ] At 4:15 PM ET: Dashboard shows TODAY's close data within 30 min
+- [ ] Dashboard shows age: "As of 4:00 PM ET today" (not "3 days old")
+- [ ] Weekends show: "As of Friday close" (acceptable 1-2 day lag)
+- [ ] No more manual task triggering needed
+
+**Priority**: **P0 - BLOCKING** - Do this BEFORE all other tasks!
+
+---
+
+## Parallel Agent Orchestration
+
+**Objective**: Execute tasks concurrently using multiple explore/general agents to maximize throughput
+
+**Why**: 60-80 hours of work can be reduced to 1-2 weeks with parallel execution
+
+### Parallelization Strategy
+
+**Rules**:
+1. **Independent tasks run in parallel** (no data dependencies)
+2. **Sequential tasks run in series** (one depends on output of another)
+3. **Each agent gets complete task context** (self-contained work units)
+4. **All agents report back** to main orchestrator for integration
+
+### Execution Batches
+
+**Batch 1: Critical Fixes (Run in Parallel)**
+
+Agent assignments:
+- **Agent 1 (Explore)**: Task 0 - Fix real-time data pipeline
+  - Investigate current scheduling
+  - Add intraday refresh tasks
+  - Test end-of-day trigger
+
+- **Agent 2 (Explore)**: Task 1 - Fix watchlist score breakdown
+  - Investigate why Valuation/Growth/Health/Sentiment show N/A
+  - Find root cause (frontend vs backend vs data)
+  - Implement fix
+
+- **Agent 3 (General)**: Task 4 - Parse existing yfinance valuation data
+  - Extract P/E, P/S, P/B from reference_cache JSON
+  - Add columns to database
+  - Update API endpoints
+
+**Dependencies**: None - all independent
+**Duration**: 4-8 hours (parallel)
+**Outcome**: Real-time data + fixed watchlist + valuation metrics
+
+---
+
+**Batch 2: Data Foundation (Run in Parallel after Batch 1)**
+
+Agent assignments:
+- **Agent 1 (Explore)**: Task 2 - Fix Fear & Greed Index data pipeline
+  - Debug why VIX/SPY/HY_spread not populating
+  - Ensure all 5 components working
+  - Verify calculation with fresh data
+
+- **Agent 2 (General)**: Task 9 - Extend historical data to 252+ days
+  - Backfill SPY, VIX, sectors to 252 days
+  - Add watchlist symbols
+  - Verify data quality
+
+- **Agent 3 (General)**: Task 3 - Add earnings calendar
+  - Create earnings_calendar table
+  - Fetch from yfinance/FMP
+  - Add API endpoints
+  - Update frontend to show earnings dates
+
+**Dependencies**: Batch 1 must complete (need real-time pipeline working)
+**Duration**: 6-10 hours (parallel)
+**Outcome**: Complete Fear & Greed + historical depth + earnings calendar
+
+---
+
+**Batch 3: Enhanced Metrics (Run in Parallel after Batch 2)**
+
+Agent assignments:
+- **Agent 1 (General)**: Task 5 - Analyst ratings & price targets
+  - Parse existing yfinance analyst data
+  - Create analyst_ratings table
+  - Add API endpoints
+
+- **Agent 2 (General)**: Task 6 - Insider trading tracker
+  - Create insider_transactions table
+  - Integrate FMP insider data API
+  - Calculate insider sentiment score
+
+- **Agent 3 (General)**: Task 7 - Short interest data
+  - Create short_interest table
+  - Parse yfinance short data
+  - Add "high short %" flags to watchlist
+
+**Dependencies**: Batch 2 complete (need fundamental infrastructure)
+**Duration**: 8-12 hours (parallel)
+**Outcome**: Analyst consensus + insider activity + short interest
+
+---
+
+**Batch 4: Portfolio Tracking (Run After Batch 3)**
+
+Agent assignment:
+- **Agent 1 (General)**: Task 8 - Portfolio transaction ledger
+  - Create portfolio_transactions table
+  - Create portfolio_snapshots table
+  - Add P&L tracking
+  - Calculate risk metrics (Sharpe, max drawdown)
+
+**Dependencies**: Batch 3 complete (need all data sources for portfolio analysis)
+**Duration**: 6-8 hours (single agent)
+**Outcome**: Complete transaction history + performance tracking
+
+---
+
+### Orchestration Commands
+
+**Launch Batch 1** (3 agents in parallel):
+```bash
+# In a single /do_it or /task_it response, launch all 3:
+Task(subagent_type="Explore", description="Fix real-time data pipeline", prompt="...")
+Task(subagent_type="Explore", description="Fix watchlist scores", prompt="...")
+Task(subagent_type="general-purpose", description="Parse valuation data", prompt="...")
+```
+
+**Wait for Batch 1 completion, then launch Batch 2**, etc.
+
+---
+
+### Coordination Requirements
+
+**Each agent receives**:
+1. **Complete context**: Full task description from PRD
+2. **Acceptance criteria**: Clear definition of done
+3. **Database schema**: Current state + required changes
+4. **API contracts**: Expected request/response formats
+5. **Testing instructions**: How to verify their changes
+
+**Each agent reports back**:
+1. **Files changed**: List of all modified files
+2. **Database migrations**: SQL scripts to run
+3. **API changes**: New/modified endpoints
+4. **Test results**: Proof that acceptance criteria met
+5. **Integration notes**: What the orchestrator needs to merge their work
+
+**Orchestrator responsibilities**:
+1. Launch agents with complete task context
+2. Monitor progress (check for failures, ask clarifying questions)
+3. Integrate changes (ensure no conflicts)
+4. Run final integration tests
+5. Deploy to production
+
+---
+
+### Time Savings
+
+**Sequential execution**: 60-80 hours = 7-10 days (8 hrs/day)
+
+**Parallel execution**:
+- Batch 1: 8 hours (day 1)
+- Batch 2: 10 hours (day 2)
+- Batch 3: 12 hours (days 3-4)
+- Batch 4: 8 hours (day 5)
+- Integration & testing: 4 hours (day 6)
+
+**Total: ~6 days vs 10 days** (40% faster)
+
+**With more agents** (5-6 agents):
+- Could compress to 3-4 days
+
+---
+
 ## Implementation Order
+
+**REVISED ORDER** (with parallel execution):
+
+**Day 1 (Batch 1 - Critical Fixes)**:
+- Task 0: Real-time data pipeline (Agent 1)
+- Task 1: Watchlist score breakdown (Agent 2)
+- Task 4: Parse yfinance valuation data (Agent 3)
+
+**Day 2 (Batch 2 - Data Foundation)**:
+- Task 2: Fear & Greed Index (Agent 1)
+- Task 9: Extend historical data (Agent 2)
+- Task 3: Earnings calendar (Agent 3)
+
+**Days 3-4 (Batch 3 - Enhanced Metrics)**:
+- Task 5: Analyst ratings (Agent 1)
+- Task 6: Insider trading (Agent 2)
+- Task 7: Short interest (Agent 3)
+
+**Day 5 (Batch 4 - Portfolio)**:
+- Task 8: Transaction ledger (Agent 1)
+
+**Day 6 (Integration)**:
+- Merge all changes
+- Run integration tests
+- Deploy
+
+---
+
+## Original Implementation Order (Sequential)
 
 **Week 1 (Critical Fixes)**:
 1. Task 1: Fix Watchlist Score Breakdown (2-4 hours)
