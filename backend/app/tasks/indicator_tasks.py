@@ -265,7 +265,7 @@ def calculate_fear_greed(self, as_of_date: str | None = None) -> dict[str, Any]:
             # Get inputs for target date
             result = conn.execute(
                 """
-                SELECT vix_close, spy_close, spy_sma_200, rsi_14, hy_spread
+                SELECT vix_close, spy_close, spy_sma_200, rsi_14, hy_spread, breadth_pct
                 FROM fear_greed_inputs
                 WHERE as_of_date = %s
                 """,
@@ -277,7 +277,7 @@ def calculate_fear_greed(self, as_of_date: str | None = None) -> dict[str, Any]:
                 logger.warning("no_inputs_for_date", date=as_of_date)
                 return {"error": f"No inputs for date {as_of_date}", "success": False}
 
-            vix_close, spy_close, spy_sma_200, rsi_14, hy_spread = row
+            vix_close, spy_close, spy_sma_200, rsi_14, hy_spread, breadth_pct = row
 
             # Calculate 252-day percentiles for each component
             window_days = 252
@@ -355,24 +355,55 @@ def calculate_fear_greed(self, as_of_date: str | None = None) -> dict[str, Any]:
             )
             credit_pct = int(result.fetchone()[0] or 50)
 
+            # Market Breadth Percentile (higher breadth = more greed)
+            breadth_percentile = 50  # Default neutral if breadth_pct is None
+            if breadth_pct is not None:
+                result = conn.execute(
+                    """
+                    WITH recent_data AS (
+                        SELECT breadth_pct
+                        FROM fear_greed_inputs
+                        WHERE as_of_date <= %s AND breadth_pct IS NOT NULL
+                        ORDER BY as_of_date DESC
+                        LIMIT %s
+                    )
+                    SELECT
+                        COUNT(*) FILTER (WHERE breadth_pct <= %s) * 100.0 / COUNT(*) as breadth_percentile
+                    FROM recent_data
+                    """,
+                    (as_of_date, window_days, breadth_pct),
+                )
+                breadth_percentile = int(result.fetchone()[0] or 50)
+
             # Store components
             conn.execute(
                 """
                 INSERT INTO fear_greed_components
-                    (as_of_date, vix_pct, momentum_pct, rsi_pct, credit_pct, window_days)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                    (as_of_date, vix_pct, momentum_pct, rsi_pct, credit_pct, breadth_pct, window_days)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (as_of_date) DO UPDATE SET
                     vix_pct = EXCLUDED.vix_pct,
                     momentum_pct = EXCLUDED.momentum_pct,
                     rsi_pct = EXCLUDED.rsi_pct,
                     credit_pct = EXCLUDED.credit_pct,
+                    breadth_pct = EXCLUDED.breadth_pct,
                     window_days = EXCLUDED.window_days
                 """,
-                (as_of_date, vix_pct, momentum_pct, rsi_pct, credit_pct, window_days),
+                (
+                    as_of_date,
+                    vix_pct,
+                    momentum_pct,
+                    rsi_pct,
+                    credit_pct,
+                    breadth_percentile,
+                    window_days,
+                ),
             )
 
-            # Calculate composite score (equal-weighted average)
-            composite_score = int((vix_pct + momentum_pct + rsi_pct + credit_pct) / 4)
+            # Calculate composite score (equal-weighted average of 5 components)
+            composite_score = int(
+                (vix_pct + momentum_pct + rsi_pct + credit_pct + breadth_percentile) / 5
+            )
 
             # Map to label
             if composite_score >= 75:
@@ -414,7 +445,7 @@ def calculate_fear_greed(self, as_of_date: str | None = None) -> dict[str, Any]:
                     score_change = EXCLUDED.score_change,
                     signal_count = EXCLUDED.signal_count
                 """,
-                (as_of_date, composite_score, label, previous_score, score_change, 4),
+                (as_of_date, composite_score, label, previous_score, score_change, 5),
             )
 
             conn.commit()
@@ -430,6 +461,7 @@ def calculate_fear_greed(self, as_of_date: str | None = None) -> dict[str, Any]:
                     "momentum_pct": momentum_pct,
                     "rsi_pct": rsi_pct,
                     "credit_pct": credit_pct,
+                    "breadth_pct": breadth_percentile,
                 },
             }
 

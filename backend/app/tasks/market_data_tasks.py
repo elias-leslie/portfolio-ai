@@ -13,12 +13,15 @@ from typing import TYPE_CHECKING, Any
 from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.sources.cboe_source import get_cboe_source
+from app.sources.fred import FREDSource
 from app.storage import get_storage
 from app.tasks.data_ingestion_tasks import ingest_historical_ohlcv
 from app.tasks.indicator_tasks import calculate_fear_greed
 
 if TYPE_CHECKING:
     from celery import Task  # type: ignore[import-untyped]
+
+    from app.storage.facade import PortfolioStorage
 
 logger = get_logger(__name__)
 
@@ -468,7 +471,7 @@ def populate_fear_greed_inputs(self: Task, days: int = 7) -> dict[str, Any]:
         spy_dict = {row[0]: row[1] for row in spy_data}
         dates = sorted(spy_dict.keys())
 
-        # Get latest VIX and HY_spread for estimates
+        # Get latest VIX and HY_spread for fallback estimates
         with storage.connection() as conn:
             result = conn.execute(
                 """
@@ -481,9 +484,9 @@ def populate_fear_greed_inputs(self: Task, days: int = 7) -> dict[str, Any]:
             )
             latest = result.fetchone()
             vix_estimate = latest[0] if latest and latest[0] else 19.5
-            hy_spread_estimate = latest[1] if latest and latest[1] else 3.13
+            hy_spread_fallback = latest[1] if latest and latest[1] else 3.13
 
-        # Fetch VIX data if available
+        # Fetch VIX data from database if available
         with storage.connection() as conn:
             result = conn.execute(
                 """
@@ -497,6 +500,15 @@ def populate_fear_greed_inputs(self: Task, days: int = 7) -> dict[str, Any]:
                 (start_date, end_date),
             )
             vix_data = {row[0]: row[1] for row in result.fetchall()}
+
+        # Fetch HY spread data from FRED
+        fred_source = FREDSource()
+        hy_spread_data = fred_source.fetch_series("HY_SPREAD", start_date, end_date)
+        hy_spread_dict = dict(hy_spread_data)
+        logger.info(
+            f"Fetched {len(hy_spread_data)} HY spread observations from FRED",
+            task_id=task_id,
+        )
 
         # Process each date in target range
         updates_count = 0
@@ -526,23 +538,31 @@ def populate_fear_greed_inputs(self: Task, days: int = 7) -> dict[str, Any]:
             # Use real VIX if available, otherwise estimate
             vix_close = vix_data.get(date, vix_estimate)
 
+            # Use real HY spread from FRED if available, otherwise fallback
+            hy_spread = hy_spread_dict.get(date, hy_spread_fallback)
+
+            # Calculate market breadth from sector ETFs
+            breadth_pct = _calculate_market_breadth(storage, date)
+
             # Upsert fear_greed_inputs
             with storage.connection() as conn:
                 conn.execute(
                     """
                     INSERT INTO fear_greed_inputs
-                    (as_of_date, spy_close, spy_sma_200, rsi_14, vix_close, hy_spread)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    (as_of_date, spy_close, spy_sma_200, rsi_14, vix_close, hy_spread, breadth_pct)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (as_of_date)
                     DO UPDATE SET
                         spy_close = EXCLUDED.spy_close,
                         spy_sma_200 = EXCLUDED.spy_sma_200,
                         rsi_14 = EXCLUDED.rsi_14,
                         vix_close = EXCLUDED.vix_close,
-                        hy_spread = EXCLUDED.hy_spread
+                        hy_spread = EXCLUDED.hy_spread,
+                        breadth_pct = EXCLUDED.breadth_pct
                     """,
-                    (date, spy_close, sma_200, rsi_14, vix_close, hy_spread_estimate),
+                    (date, spy_close, sma_200, rsi_14, vix_close, hy_spread, breadth_pct),
                 )
+                conn.commit()
             updates_count += 1
 
         logger.info(
@@ -622,3 +642,107 @@ def _calculate_rsi(prices: list[float], period: int = 14) -> float | None:
     rsi = 100 - (100 / (1 + rs))
 
     return rsi
+
+
+def _calculate_market_breadth(storage: PortfolioStorage, target_date: dt.date) -> float | None:
+    """Calculate market breadth from 11 sector ETFs.
+
+    Market breadth is a sentiment indicator that measures the percentage of
+    sectors advancing vs declining. Higher breadth (more sectors up) typically
+    indicates bullish market conditions.
+
+    Args:
+        storage: Storage instance with connection context manager
+        target_date: Date to calculate breadth for
+
+    Returns:
+        Percentage (0-100) of sectors that closed higher than previous day,
+        or None if insufficient data (requires at least 8/11 sectors).
+
+    Example:
+        >>> breadth = _calculate_market_breadth(storage, dt.date(2025, 11, 12))
+        >>> breadth  # e.g., 63.64 (7 out of 11 sectors up)
+    """
+    sector_tickers = [
+        "XLK",  # Technology
+        "XLF",  # Financials
+        "XLE",  # Energy
+        "XLV",  # Healthcare
+        "XLY",  # Consumer Discretionary
+        "XLP",  # Consumer Staples
+        "XLI",  # Industrials
+        "XLU",  # Utilities
+        "XLRE",  # Real Estate
+        "XLB",  # Materials
+        "XLC",  # Communication Services
+    ]
+
+    with storage.connection() as conn:
+        # Use subquery with window function to get current and previous close
+        # We need to filter for the target_date specifically after computing LAG
+        result = conn.execute(
+            """
+            WITH price_data AS (
+                SELECT
+                    ticker,
+                    date,
+                    close as current_close,
+                    LAG(close) OVER (PARTITION BY ticker ORDER BY date) as prev_close
+                FROM day_bars
+                WHERE ticker = ANY(%s)
+                  AND date <= %s
+                  AND date >= %s - INTERVAL '10 days'
+            )
+            SELECT ticker, current_close, prev_close
+            FROM price_data
+            WHERE date = %s
+            """,
+            (sector_tickers, target_date, target_date, target_date),
+        )
+        rows = result.fetchall()
+
+    if not rows:
+        logger.warning(
+            "market_breadth_no_data",
+            target_date=str(target_date),
+        )
+        return None
+
+    # Collect data for each ticker
+    ticker_data: dict[str, tuple[float, float | None]] = {}
+    for ticker, current_close, prev_close in rows:
+        ticker_data[ticker] = (current_close, prev_close)
+
+    # Count sectors with valid data (both current and previous close)
+    sectors_up = 0
+    sectors_with_data = 0
+
+    for _ticker, (current_close, prev_close) in ticker_data.items():
+        if prev_close is not None:
+            sectors_with_data += 1
+            if current_close > prev_close:
+                sectors_up += 1
+
+    # Require at least 8/11 sectors for valid calculation (72% coverage)
+    min_required_sectors = 8
+    if sectors_with_data < min_required_sectors:
+        logger.warning(
+            "market_breadth_insufficient_data",
+            target_date=str(target_date),
+            sectors_with_data=sectors_with_data,
+            min_required=min_required_sectors,
+        )
+        return None
+
+    # Calculate breadth percentage
+    breadth_pct = (sectors_up / sectors_with_data) * 100
+
+    logger.info(
+        "market_breadth_calculated",
+        target_date=str(target_date),
+        sectors_up=sectors_up,
+        sectors_total=sectors_with_data,
+        breadth_pct=round(breadth_pct, 2),
+    )
+
+    return breadth_pct

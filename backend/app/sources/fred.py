@@ -6,6 +6,7 @@ Simplified FRED API integration for fetching economic indicators.
 from __future__ import annotations
 
 import os
+from datetime import date, datetime
 from typing import Any, ClassVar
 
 import httpx
@@ -110,3 +111,103 @@ class FREDSource:
                 result[indicator] = data
 
         return result
+
+    def fetch_series(
+        self,
+        indicator: str,
+        start_date: date | str | None = None,
+        end_date: date | str | None = None,
+    ) -> list[tuple[date, float]]:
+        """Fetch time series data for an indicator over a date range.
+
+        Args:
+            indicator: Indicator name (e.g., "HY_SPREAD", "VIX")
+            start_date: Start date (inclusive), defaults to all available
+            end_date: End date (inclusive), defaults to latest
+
+        Returns:
+            List of (date, value) tuples, sorted by date ascending.
+            Missing values (FRED returns ".") are filtered out.
+        """
+        if not self.api_key:
+            logger.warning("FRED API key not set")
+            return []
+
+        series_id = self.INDICATORS.get(indicator)
+        if not series_id:
+            logger.warning(f"Unknown indicator: {indicator}")
+            return []
+
+        try:
+            params: dict[str, str | int] = {
+                "series_id": series_id,
+                "api_key": self.api_key,
+                "file_type": "json",
+                "sort_order": "asc",
+            }
+
+            # Add date filters if provided
+            if start_date:
+                if isinstance(start_date, str):
+                    params["observation_start"] = start_date
+                else:
+                    params["observation_start"] = start_date.strftime("%Y-%m-%d")
+
+            if end_date:
+                if isinstance(end_date, str):
+                    params["observation_end"] = end_date
+                else:
+                    params["observation_end"] = end_date.strftime("%Y-%m-%d")
+
+            response = httpx.get(
+                self.BASE_URL,
+                params=params,
+                timeout=self.timeout,
+            )
+            response.raise_for_status()
+
+            data = response.json()
+            results = []
+
+            if observations := data.get("observations"):
+                for obs in observations:
+                    # Skip missing values (FRED returns "." for missing data)
+                    value_str = obs.get("value", "")
+                    if value_str == "." or not value_str:
+                        continue
+
+                    try:
+                        obs_date = datetime.strptime(obs["date"], "%Y-%m-%d").date()
+                        value = float(value_str)
+                        results.append((obs_date, value))
+                    except (ValueError, KeyError) as e:
+                        logger.warning(f"Skipping invalid observation: {obs}, error: {e}")
+                        continue
+
+            logger.info(f"Fetched {len(results)} observations for {indicator} (series {series_id})")
+            return results
+
+        except Exception as e:
+            logger.error(f"Failed to fetch {indicator} series from FRED: {e}")
+            return []
+
+    def get_latest_value(self, indicator: str) -> tuple[date, float] | None:
+        """Get the most recent value for an indicator.
+
+        Args:
+            indicator: Indicator name (e.g., "HY_SPREAD", "VIX")
+
+        Returns:
+            Tuple of (date, value) or None if unavailable
+        """
+        data = self.fetch_latest(indicator)
+        if not data:
+            return None
+
+        try:
+            obs_date = datetime.strptime(data["date"], "%Y-%m-%d").date()
+            value = float(data["value"])
+            return (obs_date, value)
+        except (ValueError, KeyError) as e:
+            logger.error(f"Failed to parse latest value for {indicator}: {e}")
+            return None
