@@ -1,0 +1,280 @@
+"""Transaction logging for paper trading audit trail.
+
+This module handles logging all cash transactions (trade entries and exits)
+to the paper_trade_transactions table for complete audit trail.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+from app.logging_config import get_logger
+
+if TYPE_CHECKING:
+    from app.storage import PortfolioStorage
+
+logger = get_logger(__name__)
+
+
+class TransactionLogger:
+    """Logs all paper trade transactions for audit trail."""
+
+    def __init__(self, storage: PortfolioStorage) -> None:
+        """Initialize transaction logger.
+
+        Args:
+            storage: PortfolioStorage instance for database operations
+        """
+        self.storage = storage
+
+    def log_entry(
+        self,
+        trade_id: str,
+        ticker: str,
+        shares: int,
+        price: float,
+        cash_before: float,
+        cash_after: float,
+        notes: str | None = None,
+    ) -> bool:
+        """Log a trade entry transaction.
+
+        Args:
+            trade_id: ID of the trade (idea_id from idea_outcomes)
+            ticker: Stock symbol
+            shares: Number of shares purchased
+            price: Entry price per share
+            cash_before: Cash balance before transaction
+            cash_after: Cash balance after transaction
+            notes: Optional transaction notes
+
+        Returns:
+            True if logged successfully, False otherwise
+        """
+        amount = shares * price
+
+        insert_query = """
+            INSERT INTO paper_trade_transactions (
+                trade_id,
+                transaction_type,
+                ticker,
+                shares,
+                price,
+                amount,
+                cash_before,
+                cash_after,
+                notes
+            )
+            VALUES ($1, 'ENTRY', $2, $3, $4, $5, $6, $7, $8)
+        """
+
+        try:
+            with self.storage.connection() as conn:
+                conn.execute(
+                    insert_query,
+                    [
+                        trade_id,
+                        ticker,
+                        shares,
+                        price,
+                        amount,
+                        cash_before,
+                        cash_after,
+                        notes or f"Entry: {ticker} {shares} shares @ ${price:.2f}",
+                    ],
+                )
+
+            logger.info(
+                f"Logged ENTRY transaction: {trade_id} - {ticker} "
+                f"{shares} shares @ ${price:.2f} (${amount:.2f})"
+            )
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to log entry transaction for {trade_id}: {e}")
+            return False
+
+    def log_exit(
+        self,
+        trade_id: str,
+        ticker: str,
+        shares: int,
+        price: float,
+        cash_before: float,
+        cash_after: float,
+        pnl: float,
+        notes: str | None = None,
+    ) -> bool:
+        """Log a trade exit transaction.
+
+        Args:
+            trade_id: ID of the trade (idea_id from idea_outcomes)
+            ticker: Stock symbol
+            shares: Number of shares sold
+            price: Exit price per share
+            cash_before: Cash balance before transaction
+            cash_after: Cash balance after transaction
+            pnl: Realized profit/loss
+            notes: Optional transaction notes (usually exit reason)
+
+        Returns:
+            True if logged successfully, False otherwise
+        """
+        amount = shares * price
+
+        # Include P&L in default notes if not provided
+        if not notes:
+            pnl_sign = "+" if pnl >= 0 else ""
+            notes = f"Exit: {ticker} {shares} shares @ ${price:.2f} (P&L: {pnl_sign}${pnl:.2f})"
+
+        insert_query = """
+            INSERT INTO paper_trade_transactions (
+                trade_id,
+                transaction_type,
+                ticker,
+                shares,
+                price,
+                amount,
+                cash_before,
+                cash_after,
+                notes
+            )
+            VALUES ($1, 'EXIT', $2, $3, $4, $5, $6, $7, $8)
+        """
+
+        try:
+            with self.storage.connection() as conn:
+                conn.execute(
+                    insert_query,
+                    [
+                        trade_id,
+                        ticker,
+                        shares,
+                        price,
+                        amount,
+                        cash_before,
+                        cash_after,
+                        notes,
+                    ],
+                )
+
+            logger.info(
+                f"Logged EXIT transaction: {trade_id} - {ticker} "
+                f"{shares} shares @ ${price:.2f} (${amount:.2f}, P&L: ${pnl:.2f})"
+            )
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to log exit transaction for {trade_id}: {e}")
+            return False
+
+    def get_transactions(
+        self,
+        account_id: str | None = None,
+        trade_id: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """Get recent transactions.
+
+        Args:
+            account_id: Optional filter by account (not directly stored, joins through trades)
+            trade_id: Optional filter by specific trade
+            limit: Maximum number of transactions to return
+
+        Returns:
+            List of transaction records ordered by timestamp (newest first)
+        """
+        if trade_id:
+            # Filter by specific trade
+            query = """
+                SELECT
+                    t.id,
+                    t.trade_id,
+                    t.transaction_type,
+                    t.ticker,
+                    t.shares,
+                    t.price,
+                    t.amount,
+                    t.cash_before,
+                    t.cash_after,
+                    t.timestamp,
+                    t.notes
+                FROM paper_trade_transactions t
+                WHERE t.trade_id = $1
+                ORDER BY t.timestamp DESC
+                LIMIT $2
+            """
+            result = self.storage.query(query, [trade_id, limit])
+
+        else:
+            # Get all transactions (optionally filtered by account via join)
+            # Note: This requires joining through idea_outcomes to find account
+            # For MVP, just return all transactions
+            query = """
+                SELECT
+                    id,
+                    trade_id,
+                    transaction_type,
+                    ticker,
+                    shares,
+                    price,
+                    amount,
+                    cash_before,
+                    cash_after,
+                    timestamp,
+                    notes
+                FROM paper_trade_transactions
+                ORDER BY timestamp DESC
+                LIMIT $1
+            """
+            result = self.storage.query(query, [limit])
+
+        if result.is_empty():
+            return []
+
+        # Convert to list of dicts
+        transactions = []
+        for row in result.iter_rows(named=True):
+            transactions.append(dict(row))
+
+        return transactions
+
+    def get_transactions_by_ticker(self, ticker: str, limit: int = 50) -> list[dict[str, Any]]:
+        """Get recent transactions for a specific ticker.
+
+        Args:
+            ticker: Stock symbol
+            limit: Maximum number of transactions to return
+
+        Returns:
+            List of transaction records for the ticker
+        """
+        query = """
+            SELECT
+                id,
+                trade_id,
+                transaction_type,
+                ticker,
+                shares,
+                price,
+                amount,
+                cash_before,
+                cash_after,
+                timestamp,
+                notes
+            FROM paper_trade_transactions
+            WHERE ticker = $1
+            ORDER BY timestamp DESC
+            LIMIT $2
+        """
+
+        result = self.storage.query(query, [ticker, limit])
+
+        if result.is_empty():
+            return []
+
+        transactions = []
+        for row in result.iter_rows(named=True):
+            transactions.append(dict(row))
+
+        return transactions

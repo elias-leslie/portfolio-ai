@@ -11,6 +11,13 @@
 **PAUSED**: 2025-11-14 00:22 (User request + git commit)
 **Next**: Task 3.3-3.6 (Frontend UI - no blockers)
 
+**Dependencies (Upstream)**:
+- **Task 0060** (CLI Agent Integration): Task 3.2a must complete to unblock Task 4.0 here (AI-powered gap analysis requires working ai_analyzer)
+
+**Dependencies (Related)**:
+- **Task 0063** (Backtesting Framework): Validates gap-fill effectiveness - strategies work better after gaps filled?
+- **Task 0064** (Paper Trading Engine): Tests strategies in real-time - gap fills improve paper trading results?
+
 **Execution Plan** (Option 2 - Partial Parallel):
 - **Phase 1**: Complete tasks-0058a (fix existing features) - 4-8 hours
 - **Phase 2**: Run THIS task in parallel with tasks-0060, BUT skip Task 4.0 (deferred)

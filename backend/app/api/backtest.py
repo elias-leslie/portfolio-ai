@@ -22,8 +22,16 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from app.backtest import storage
 from app.backtest.models import BacktestEquity, BacktestResult
+from app.backtest.storage import (
+    create_backtest_run,
+    delete_backtest_run,
+    get_backtest_equity_curve,
+    get_backtest_run,
+    get_backtest_trades,
+    list_backtest_runs,
+    update_backtest_status,
+)
 from app.storage.connection import get_connection_manager
 from app.tasks.backtest_tasks import run_backtest_task
 
@@ -118,7 +126,7 @@ async def start_backtest(request: StartBacktestRequest) -> StartBacktestResponse
         storage_mgr = get_connection_manager()
 
         # Create backtest run record
-        run_id = storage.create_backtest_run(
+        run_id = create_backtest_run(
             storage=storage_mgr,
             strategy_name=request.strategy_name,
             symbol=request.symbol,
@@ -128,7 +136,7 @@ async def start_backtest(request: StartBacktestRequest) -> StartBacktestResponse
         )
 
         # Update status to "running"
-        storage.update_backtest_status(storage_mgr, run_id, "running")
+        update_backtest_status(storage_mgr, run_id, "running")
 
         # Launch Celery task (async execution)
         task = run_backtest_task.delay(
@@ -159,7 +167,7 @@ async def start_backtest(request: StartBacktestRequest) -> StartBacktestResponse
 
 
 @router.get("/runs", response_model=list[BacktestRunListItem])
-async def list_backtest_runs(
+async def get_backtest_runs_list(
     limit: int = Query(default=50, ge=1, le=200, description="Maximum number of runs to return"),
     offset: int = Query(default=0, ge=0, description="Pagination offset"),
     symbol: str | None = Query(default=None, description="Filter by symbol"),
@@ -182,7 +190,7 @@ async def list_backtest_runs(
     try:
         storage_mgr = get_connection_manager()
 
-        runs = storage.list_backtest_runs(
+        runs = list_backtest_runs(
             storage=storage_mgr,
             limit=limit,
             offset=offset,
@@ -230,13 +238,13 @@ async def get_backtest_details(run_id: str) -> BacktestResult:
         storage_mgr = get_connection_manager()
 
         # Fetch run
-        run = storage.get_backtest_run(storage_mgr, run_id)
+        run = get_backtest_run(storage_mgr, run_id)
         if not run:
             raise HTTPException(status_code=404, detail=f"Backtest {run_id} not found")
 
         # Fetch trades and equity curve
-        trades = storage.get_backtest_trades(storage_mgr, run_id)
-        equity_curve = storage.get_backtest_equity_curve(storage_mgr, run_id)
+        trades = get_backtest_trades(storage_mgr, run_id)
+        equity_curve = get_backtest_equity_curve(storage_mgr, run_id)
 
         # Calculate additional metrics
         winning_trades = [t for t in trades if t.pnl and t.pnl > 0]
@@ -276,7 +284,7 @@ async def get_backtest_details(run_id: str) -> BacktestResult:
 
 
 @router.get("/runs/{run_id}/equity", response_model=list[BacktestEquity])
-async def get_backtest_equity_curve(run_id: str) -> list[BacktestEquity]:
+async def get_equity_curve(run_id: str) -> list[BacktestEquity]:
     """Get equity curve for backtest (for charting).
 
     Args:
@@ -293,12 +301,12 @@ async def get_backtest_equity_curve(run_id: str) -> list[BacktestEquity]:
         storage_mgr = get_connection_manager()
 
         # Verify run exists
-        run = storage.get_backtest_run(storage_mgr, run_id)
+        run = get_backtest_run(storage_mgr, run_id)
         if not run:
             raise HTTPException(status_code=404, detail=f"Backtest {run_id} not found")
 
         # Fetch equity curve
-        equity_curve = storage.get_backtest_equity_curve(storage_mgr, run_id)
+        equity_curve = get_backtest_equity_curve(storage_mgr, run_id)
 
         return equity_curve
 
@@ -328,7 +336,7 @@ async def delete_backtest(run_id: str) -> dict[str, str]:
     try:
         storage_mgr = get_connection_manager()
 
-        deleted = storage.delete_backtest_run(storage_mgr, run_id)
+        deleted = delete_backtest_run(storage_mgr, run_id)
 
         if not deleted:
             raise HTTPException(status_code=404, detail=f"Backtest {run_id} not found")

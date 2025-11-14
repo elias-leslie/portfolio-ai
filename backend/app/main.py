@@ -26,6 +26,7 @@ from app.api import (
     ml,
     news,
     news_profiling,
+    paper_trading,
     portfolio,
     preferences,
     settings_profiles,
@@ -152,6 +153,7 @@ app.include_router(ml.router)
 app.include_router(capabilities.router)
 app.include_router(gaps.router)
 app.include_router(backtest.router)
+app.include_router(paper_trading.router)
 
 
 @app.get("/")

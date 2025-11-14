@@ -10,9 +10,34 @@
 
 ## Summary
 
-**Goal**: Replace direct Anthropic API usage with Gemini CLI and Claude Code CLI headless agents, exposing them through a provider-agnostic backend plus shared/dedicated agent experiences in the UI.
-**Approach**: Introduce an interchangeable LLM client layer, add CLI adapters for Gemini and Claude Code, refactor the agent runtime/API/storage to use it, and build UI surfaces (global dock + /agents page) with streaming and progress telemetry.
+**Goal**: Replace direct Anthropic API usage with Gemini CLI and Claude Code CLI headless agents, exposing them through a provider-agnostic backend plus shared/dedicated agent experiences in the UI. **Extends to multi-agent collaboration** where multiple agents (Gemini + Claude) work together on complex tasks like daily trading intelligence analysis and strategy validation.
+**Approach**: Introduce an interchangeable LLM client layer, add CLI adapters for Gemini and Claude Code, refactor the agent runtime/API/storage to use it, build UI surfaces (global dock + /agents page) with streaming and progress telemetry, **and add multi-agent orchestration** for autonomous collaborative workflows.
 **Scope Discovery**: Required
+
+**Dependencies (Downstream)**:
+- **Task 0062** (Gap Detection Phase 3): Task 4.0 requires working ai_analyzer (Task 3.2a here)
+- **Task 0063** (Backtesting): Agents validate strategies using backtesting framework
+- **Task 0064** (Paper Trading): Agents execute autonomous paper trades
+
+**Autonomous Behavior & Limits** (for Task 3.7 - Multi-Agent Collaboration):
+- **Complete Autonomy**: Agents have full autonomy for trading/research/backtesting within rate/resource/utilization limits
+- **Agent Self-Awareness**: Agents must be able to check their own limits:
+  - Daily API rate limits (Gemini: check via `gemini --help`, Claude: monitor stderr warnings)
+  - Hourly request limits (implement tracking in agent_runs table)
+  - Token/context limits (track via CLI stats.models output, warn at 80% usage)
+  - Resource limits (CPU, memory, disk space - monitor via system tools)
+- **Commands to Implement**:
+  - `check_agent_limits()` tool - returns current usage vs limits (API calls, tokens, context)
+  - `get_agent_status()` tool - health check (can I run? any rate limit warnings?)
+  - Agents should call these BEFORE starting expensive workflows
+- **Failure Handling**: If agent hits limit, workflow fails gracefully (log + alert), other agent continues
+- **Git Workflow**:
+  - Commit to **main branch** (not feature branches)
+  - Auto-push to **remote** enabled (user can review on GitHub during vacation)
+  - Snapshot files: `reports/autonomous/{YYYY-MM-DD}-{workflow_type}.json`
+  - Commit message format: `[AUTONOMOUS] {date} - {workflow_type} - {result_summary}`
+  - Commit frequency: Daily after each workflow completion
+  - Example: `[AUTONOMOUS] 2025-11-15 - Daily Gap Analysis - 3 new gaps identified, 2 resolved, SPY backtest +2.1%`
 
 <details>
 <summary><strong>Internal PRD</strong></summary>
@@ -109,8 +134,31 @@
 - [ ] 3.4 Implement cancellation/timeouts + error handling for CLI processes with retries/fallback, mirroring doc best practices (e.g., wrap with `timeout 300`, capture stderr logs when `claude`/`gemini` fail)
 - [ ] 3.5 Add SSE/WebSocket streaming endpoint for run events (text chunks, tool calls, completion)
 - [ ] 3.6 Persist CLI usage metadata (Gemini `stats.models/tools`, Claude stream summaries) and multi-turn session IDs so `/agents` UI can show model usage, token counts, and support `--resume/--continue` follow-ups.
-
-### 4.0 Backend APIs & Services
+- [ ] 3.7 **Multi-Agent Collaboration Infrastructure** (for Tasks 0063/0064 autonomous workflows)
+  - [ ] 3.7.1 Create `agent_messages` table for inter-agent communication
+    - Schema: `id`, `from_agent_run_id`, `to_agent_type`, `message_type` (question/answer/data/consensus), `content` (JSONB), `status` (pending/read/replied), `created_at`, `read_at`
+    - Enables: Agent A asks Agent B for validation, Agent B responds with analysis
+  - [ ] 3.7.2 Create `agent_workflows` table for orchestration state
+    - Schema: `id`, `workflow_type` (daily_gap_analysis, paper_trade_validation), `status` (running/blocked/complete), `current_step`, `agents_involved` (array), `shared_context` (JSONB), `result` (JSONB), `started_at`, `completed_at`
+    - Enables: Multi-agent workflows like "daily gap analysis → strategy validation → paper trade execution"
+  - [ ] 3.7.3 Add agent tools for collaboration
+    - `send_message_to_agent(agent_type, message, data)` - Send message to another agent type
+    - `query_agent_memory(workflow_id, key)` - Query shared workflow context
+    - `vote_on_decision(workflow_id, decision_id, vote, reasoning)` - Consensus mechanism
+    - `wait_for_agent_response(message_id, timeout_seconds)` - Blocking wait for response
+  - [ ] 3.7.4 Create WorkflowOrchestrator service
+    - `start_workflow(workflow_type, config)` - Launches multi-agent workflow
+    - `assign_task_to_agent(workflow_id, agent_type, task, context)` - Task distribution
+    - `collect_agent_outputs(workflow_id)` - Gather results from all agents
+    - `resolve_conflicts(workflow_id, conflicting_outputs)` - Consensus logic (voting, majority, confidence-weighted)
+  - [ ] 3.7.5 Add fallback/redundancy logic
+    - If Agent A fails/timeouts → Agent B continues alone
+    - If agents disagree → Use confidence scores to decide OR escalate to user
+    - Maximum workflow time limit (prevent infinite loops)
+  - [ ] 3.7.6 Add scheduled multi-agent workflows (for daily autonomous operation)
+    - Daily gap analysis workflow: Gemini agent → Claude agent → Consensus → Report generation
+    - Paper trade validation workflow: Strategy agent → Risk agent → Consensus → Execution decision
+    - Celery beat tasks trigger workflows automatically
 
 - [ ] 4.1 Add FastAPI routes for agent profiles (list/detail), run creation, run history, run transcripts
 - [ ] 4.2 Wire Celery/background tasks (or async workers) to execute CLI runs without blocking HTTP threads
