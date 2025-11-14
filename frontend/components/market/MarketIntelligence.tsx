@@ -179,9 +179,16 @@ export function MarketIntelligence() {
           {/* 30-Day Sparkline */}
           {!trendLoading && trendData && trendData.dates.length > 0 && (
             <div className="p-4 rounded-lg bg-surface-muted/20">
-              <h4 className="text-xs font-semibold text-text-muted mb-2 uppercase tracking-wide">
-                30-Day Trend
-              </h4>
+              <div className="flex items-baseline justify-between mb-2">
+                <h4 className="text-xs font-semibold text-text-muted uppercase tracking-wide">
+                  30-Day Trend
+                </h4>
+                {trendData.dates.length > 0 && (
+                  <p className="text-[10px] text-text-muted">
+                    as of {trendData.dates[trendData.dates.length - 1]}
+                  </p>
+                )}
+              </div>
               <div className="w-full h-[60px]">
                 <MarketTrendChart data={trendData} height={60} />
               </div>
@@ -338,9 +345,16 @@ export function MarketIntelligence() {
       {/* Options Activity Section */}
       {options_activity && (
         <div className="mt-6 pt-6 border-t border-border">
-          <h3 className="text-sm font-semibold text-text mb-4 uppercase tracking-wide">
-            Options Positioning
-          </h3>
+          <div className="flex items-baseline justify-between mb-4">
+            <h3 className="text-sm font-semibold text-text uppercase tracking-wide">
+              Options Positioning
+            </h3>
+            {options_activity.last_updated && (
+              <p className="text-[10px] text-text-muted">
+                {formatRelativeTime(options_activity.last_updated)}
+              </p>
+            )}
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Near-term Focus */}
             <div className="p-4 rounded-lg bg-surface-muted/20 hover:bg-surface-muted/30 transition-colors">

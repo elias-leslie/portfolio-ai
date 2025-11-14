@@ -266,6 +266,18 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
     tnx_data = price_data.get("^TNX")
     dxy_data = price_data.get("DX-Y.NYB")
 
+    # Get ACTUAL data dates from day_bars (not cache timestamps)
+    # This shows when the market data was created, not when we fetched it
+    actual_data_dates = {}
+    with storage.connection() as conn:
+        for symbol in symbols:
+            result = conn.execute("SELECT MAX(date) FROM day_bars WHERE ticker = %s", [symbol])
+            row = result.fetchone()
+            if row and row[0]:
+                # Convert date to timestamp at market close (21:00 UTC = 4:00 PM ET)
+                data_timestamp = dt.datetime.combine(row[0], dt.time(21, 0, 0), tzinfo=dt.UTC)
+                actual_data_dates[symbol] = data_timestamp
+
     # Get Fear & Greed date to determine actual data freshness
     # (This represents when the market data was created, not when we cached it)
     # Get the actual market data date from Fear & Greed (most accurate source)
@@ -340,24 +352,38 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
 
     # Enrich indicators with plain-language labels using intelligence helpers
     # Calculate daily change percentages from day_bars historical data
+    # Use actual data timestamps (from day_bars) instead of cache timestamps
     enriched_indicators = {}
     if vix_data:
         vix_change = calculate_daily_change_pct("^VIX", vix_data.price)
+        vix_timestamp = actual_data_dates.get("^VIX")
+        # Temporarily override cached_at with actual data date
+        if vix_timestamp:
+            vix_data.cached_at = vix_timestamp
         enriched_indicators["vix"] = intelligence.enrich_vix_indicator(
             vix_data, health_score_data, change_pct=vix_change
         )
     if sp500_data:
         sp500_change = calculate_daily_change_pct("^GSPC", sp500_data.price)
+        sp500_timestamp = actual_data_dates.get("^GSPC")
+        if sp500_timestamp:
+            sp500_data.cached_at = sp500_timestamp
         enriched_indicators["sp500"] = intelligence.enrich_sp500_indicator(
             sp500_data, health_score_data, change_pct=sp500_change
         )
     if tnx_data:
         tnx_change = calculate_daily_change_pct("^TNX", tnx_data.price)
+        tnx_timestamp = actual_data_dates.get("^TNX")
+        if tnx_timestamp:
+            tnx_data.cached_at = tnx_timestamp
         enriched_indicators["tnx"] = intelligence.enrich_tnx_indicator(
             tnx_data, health_score_data, change_pct=tnx_change
         )
     if dxy_data:
         dxy_change = calculate_daily_change_pct("DX-Y.NYB", dxy_data.price)
+        dxy_timestamp = actual_data_dates.get("DX-Y.NYB")
+        if dxy_timestamp:
+            dxy_data.cached_at = dxy_timestamp
         enriched_indicators["dxy"] = intelligence.enrich_dxy_indicator(
             dxy_data, health_score_data, change_pct=dxy_change
         )
