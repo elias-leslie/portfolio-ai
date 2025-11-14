@@ -52,13 +52,20 @@
     - 24 new unit tests (17 FRED + 7 breadth, all passing)
   - **Verification**: signal_count = 5 in fear_greed_daily table
 
-- [x] **Task 4**: Parse Existing Valuation Data ⚠️ **INFRASTRUCTURE COMPLETE** (Commit: 74f66d4)
+- [x] **Task 4**: Parse Existing Valuation Data ✅ **COMPLETE** (2025-11-14)
   - Created migration adding 7 valuation columns
   - Implemented parse_valuation_metrics Celery task
   - Added /api/valuation endpoints with caching
   - 26 tests (all passing)
-  - **Note**: Task infrastructure complete, but source data lacks P/E, P/B metrics
-  - **Status**: Needs different data source (current fundamentals payload doesn't have trailingPE, forwardPE fields)
+  - **NEW**: Comprehensive multi-source implementation:
+    - **Primary**: yfinance (19/20 metrics, free, no API key)
+    - **Backup**: Alpha Vantage (15/16 metrics, 500 calls/day)
+    - **Future**: FMP tertiary source (requires stable API migration)
+  - **Data Pipeline**:
+    - Daily 04:00 UTC: Fetch yfinance reference data (all symbols)
+    - Daily 04:30 UTC: Parse valuation metrics from JSON
+    - Daily 04:45 UTC: Alpha Vantage backup (only missing/stale symbols)
+  - **Verification**: 8/8 watchlist symbols with P/E, P/B, P/S data
 
 **Quality Metrics**:
 - ✅ All linting checks passing (ruff, mypy)

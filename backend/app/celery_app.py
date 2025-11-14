@@ -254,6 +254,40 @@ celery_app.conf.beat_schedule = {
         # - Stores in fear_greed_inputs.put_call_ratio column
         # - Market sentiment: >1.0 = Bearish, 0.7-1.0 = Neutral, <0.7 = Bullish
     },
+    "refresh-yfinance-reference": {
+        "task": "refresh_yfinance_reference_data",
+        "schedule": crontab(hour=4, minute=0),  # Daily at 04:00 UTC
+        "options": {"expires": 3600},  # Task expires after 1 hour
+        # Notes:
+        # - Runs daily at 04:00 UTC
+        # - Fetches reference data (including valuation metrics) from yfinance
+        # - Updates reference_cache table for all watchlist symbols
+        # - Includes P/E, P/B, P/S, PEG, dividend yield, payout ratio
+        # - Also fetches bonus metrics: EPS, margins, growth rates, ratios
+    },
+    "parse-valuation-metrics": {
+        "task": "parse_valuation_metrics",
+        "schedule": crontab(hour=4, minute=30),  # Daily at 04:30 UTC (after fetch)
+        "options": {"expires": 3600},  # Task expires after 1 hour
+        # Notes:
+        # - Runs daily at 04:30 UTC (30 minutes after yfinance reference fetch)
+        # - Extracts valuation metrics from JSON payloads in reference_cache
+        # - Populates structured columns: pe_ratio_trailing, pe_ratio_forward, etc.
+        # - Idempotent: Safe to run multiple times
+    },
+    "refresh-alphavantage-reference-backup": {
+        "task": "refresh_alphavantage_reference_backup",
+        "schedule": crontab(hour=4, minute=45),  # Daily at 04:45 UTC (after yfinance + parsing)
+        "options": {"expires": 3600},  # Task expires after 1 hour
+        # Notes:
+        # - Runs daily at 04:45 UTC (after yfinance refresh at 04:00 and parsing at 04:30)
+        # - Fetches Alpha Vantage OVERVIEW data as backup for symbols with missing/stale yfinance data
+        # - Only processes symbols where yfinance data is missing or >7 days old
+        # - Rate limited: 500 calls/day, 5 calls/min (free tier)
+        # - Provides 15/16 valuation metrics (missing only payout_ratio, but calculated if possible)
+        # - Idempotent: Safe to run multiple times
+        # - Self-healing: Automatically fills gaps in valuation data coverage
+    },
     "fetch-options-activity-daily": {
         "task": "fetch_options_activity_metrics",
         "schedule": crontab(hour=21, minute=15),  # Daily at 21:15 UTC (4:15 PM ET)
@@ -321,6 +355,7 @@ from app.tasks import (  # noqa: E402, F401
     market_data_tasks,
     ml_training_tasks,
     news_tasks,
+    reference_tasks,
     watchlist_tasks,
 )
 

@@ -10,6 +10,7 @@ Rate limits:
 from __future__ import annotations
 
 import datetime as dt
+import json
 import os
 import threading
 from collections.abc import Iterable
@@ -107,6 +108,26 @@ class AlphaVantageClient(BaseHTTPClient):
         result: dict[str, Any] = self.get(params)
         return result
 
+    def get_company_overview(self, ticker: str) -> dict[str, Any]:
+        """Fetch company overview and fundamental data.
+
+        Args:
+            ticker: Stock symbol (e.g., "AAPL")
+
+        Returns:
+            Dict with company info, valuation metrics, and fundamentals
+
+        Example:
+            >>> client.get_company_overview("AAPL")
+            {"Symbol": "AAPL", "PERatio": "36.54", "DividendYield": "0.0037", ...}
+        """
+        params = {
+            "function": "OVERVIEW",
+            "symbol": ticker,
+        }
+        result: dict[str, Any] = self.get(params)
+        return result
+
 
 # Module-level singleton state
 class _ClientState:
@@ -146,7 +167,7 @@ class AlphaVantageSource(BaseSource):
     name = "alphavantage"
     priority = 30  # Lowest priority due to restrictive rate limits
     supports_day = True
-    supports_reference = False  # Not available in free tier
+    supports_reference = True  # OVERVIEW function available in free tier
     supports_news = False  # Not implemented
 
     def __init__(self) -> None:
@@ -300,9 +321,79 @@ class AlphaVantageSource(BaseSource):
     def fetch_reference_payload(
         self, tickers: Iterable[str], as_of: dt.date
     ) -> pl.DataFrame | None:
-        """Fetch company reference data from Alpha Vantage (not supported in free tier)."""
-        logger.warning("alphavantage_reference_not_supported")
-        return None
+        """Fetch company reference and fundamental data from Alpha Vantage.
+
+        Args:
+            tickers: Stock symbols to fetch
+            as_of: Reference date (used for logging; API returns latest data)
+
+        Returns:
+            Polars DataFrame with fundamental/valuation metrics, or None if fetch fails
+        """
+        records: list[dict[str, Any]] = []
+
+        logger.info(
+            "alphavantage_fetch_reference_start",
+            num_tickers=len(list(tickers)),
+            as_of=as_of.isoformat(),
+        )
+
+        for ticker in tickers:
+            try:
+                response = self.client.get_company_overview(ticker)
+
+                # Check for error messages
+                if "Error Message" in response:
+                    logger.warning(
+                        "alphavantage_api_error",
+                        ticker=ticker,
+                        error=response["Error Message"],
+                    )
+                    continue
+
+                if "Note" in response:
+                    logger.warning(
+                        "alphavantage_rate_limit",
+                        ticker=ticker,
+                        note=response["Note"],
+                    )
+                    continue
+
+                # Store full response as JSON payload
+                payload_json = json.dumps(response)
+
+                record = {
+                    "ticker": ticker,
+                    "as_of_date": as_of,
+                    "payload": payload_json,
+                    "source": "alphavantage",
+                }
+
+                records.append(record)
+
+                logger.debug("alphavantage_reference_fetched", ticker=ticker)
+
+            except Exception as e:
+                logger.warning(
+                    "alphavantage_reference_error",
+                    ticker=ticker,
+                    error=str(e),
+                    error_type=type(e).__name__,
+                )
+                continue
+
+        if not records:
+            logger.warning("alphavantage_no_reference_data")
+            return None
+
+        df = pl.DataFrame(records)
+
+        logger.info(
+            "alphavantage_reference_complete",
+            total_rows=len(df),
+        )
+
+        return df
 
     def fetch_news_payload(
         self, tickers: Iterable[str], start: dt.datetime, end: dt.datetime

@@ -12,7 +12,6 @@ from fastapi import APIRouter, HTTPException, Path, Query
 from pydantic import BaseModel, Field
 
 from app.logging_config import get_logger
-from app.middleware.cache import cache_response
 from app.storage import get_storage
 
 logger = get_logger(__name__)
@@ -49,7 +48,6 @@ class ValuationMetricsListResponse(BaseModel):
 
 
 @router.get("/{ticker}", response_model=ValuationMetrics)
-@cache_response(ttl=3600)  # 1 hour cache
 async def get_valuation_metrics(
     ticker: Annotated[str, Path(description="Stock ticker symbol (e.g., AAPL)")],
 ) -> ValuationMetrics:
@@ -120,7 +118,6 @@ async def get_valuation_metrics(
 
 
 @router.get("", response_model=ValuationMetricsListResponse)
-@cache_response(ttl=3600)  # 1 hour cache
 async def get_valuation_metrics_batch(
     tickers: Annotated[
         str,

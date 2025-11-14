@@ -13,6 +13,8 @@ from typing import Any
 
 from app.celery_app import celery_app
 from app.logging_config import get_logger
+from app.sources.alphavantage_source import AlphaVantageSource
+from app.sources.yfinance_source import YFinanceSource
 from app.storage import get_storage
 
 logger = get_logger(__name__)
@@ -21,7 +23,9 @@ logger = get_logger(__name__)
 def _extract_valuation_metrics(payload: dict[str, Any]) -> dict[str, float | None]:
     """Extract valuation metrics from JSON payload.
 
-    Maps JSON fields to database columns:
+    Supports both yfinance and Alpha Vantage payloads.
+
+    yfinance field mapping:
     - trailingPE -> pe_ratio_trailing
     - forwardPE -> pe_ratio_forward
     - priceToSalesTrailing12Months -> ps_ratio
@@ -30,20 +34,78 @@ def _extract_valuation_metrics(payload: dict[str, Any]) -> dict[str, float | Non
     - dividendYield -> dividend_yield
     - payoutRatio -> payout_ratio
 
+    Alpha Vantage field mapping:
+    - PERatio/TrailingPE -> pe_ratio_trailing
+    - ForwardPE -> pe_ratio_forward
+    - PriceToSalesRatioTTM -> ps_ratio
+    - PriceToBookRatio -> pb_ratio
+    - PEGRatio -> peg_ratio
+    - DividendYield -> dividend_yield
+    - (calculated from DividendPerShare / EPS) -> payout_ratio
+
     Args:
         payload: JSON payload dict from reference_cache
 
     Returns:
         Dict with extracted metrics (values are None if not in payload)
     """
+
+    # Helper to parse string to float
+    def parse_float(value: Any) -> float | None:
+        if value is None or value in {"None", ""}:
+            return None
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return None
+
+    # Check if yfinance format (has 'trailingPE') or Alpha Vantage (has 'PERatio')
+    if "trailingPE" in payload or "forwardPE" in payload:
+        # yfinance format
+        return {
+            "pe_ratio_trailing": payload.get("trailingPE"),
+            "pe_ratio_forward": payload.get("forwardPE"),
+            "ps_ratio": payload.get("priceToSalesTrailing12Months"),
+            "pb_ratio": payload.get("priceToBook"),
+            "peg_ratio": payload.get("pegRatio") or payload.get("trailingPegRatio"),
+            "dividend_yield": payload.get("dividendYield"),
+            "payout_ratio": payload.get("payoutRatio"),
+        }
+
+    if "PERatio" in payload or "PriceToBookRatio" in payload:
+        # Alpha Vantage format (all strings, need parsing)
+        pe_ratio = parse_float(payload.get("PERatio") or payload.get("TrailingPE"))
+        forward_pe = parse_float(payload.get("ForwardPE"))
+        pb_ratio = parse_float(payload.get("PriceToBookRatio"))
+        ps_ratio = parse_float(payload.get("PriceToSalesRatioTTM"))
+        peg_ratio = parse_float(payload.get("PEGRatio"))
+        div_yield = parse_float(payload.get("DividendYield"))
+        div_per_share = parse_float(payload.get("DividendPerShare"))
+        eps = parse_float(payload.get("EPS"))
+
+        # Calculate payout ratio if possible
+        payout_ratio = None
+        if div_per_share and eps and eps > 0:
+            payout_ratio = div_per_share / eps
+
+        return {
+            "pe_ratio_trailing": pe_ratio,
+            "pe_ratio_forward": forward_pe,
+            "ps_ratio": ps_ratio,
+            "pb_ratio": pb_ratio,
+            "peg_ratio": peg_ratio,
+            "dividend_yield": div_yield,
+            "payout_ratio": payout_ratio,
+        }
+    # Unknown format or no valuation data
     return {
-        "pe_ratio_trailing": payload.get("trailingPE"),
-        "pe_ratio_forward": payload.get("forwardPE"),
-        "ps_ratio": payload.get("priceToSalesTrailing12Months"),
-        "pb_ratio": payload.get("priceToBook"),
-        "peg_ratio": payload.get("pegRatio"),
-        "dividend_yield": payload.get("dividendYield"),
-        "payout_ratio": payload.get("payoutRatio"),
+        "pe_ratio_trailing": None,
+        "pe_ratio_forward": None,
+        "ps_ratio": None,
+        "pb_ratio": None,
+        "peg_ratio": None,
+        "dividend_yield": None,
+        "payout_ratio": None,
     }
 
 
@@ -247,3 +309,209 @@ def parse_valuation_metrics(self) -> dict[str, int | str]:  # type: ignore[no-un
             "error": str(e),
             "duration_seconds": int(duration),
         }
+
+
+@celery_app.task(name="refresh_yfinance_reference_data", bind=True)  # type: ignore[misc]
+def refresh_yfinance_reference_data(self) -> dict[str, int | str]:  # type: ignore[no-untyped-def]
+    """Fetch reference data (including valuation metrics) from yfinance for watchlist symbols.
+
+    Runs daily at 04:00 UTC to refresh fundamental and valuation data.
+
+    Returns:
+        Dict with task results:
+        - task_id: Celery task ID
+        - symbols_processed: Number of symbols attempted
+        - symbols_updated: Number of symbols successfully updated
+        - duration_seconds: Total execution time
+    """
+    task_id = self.request.id
+    start_time = dt.datetime.now(dt.UTC)
+
+    logger.info("yfinance_reference_refresh_started", task_id=task_id)
+
+    try:
+        storage = get_storage()
+
+        # Get all watchlist symbols
+        with storage.connection() as conn:
+            result = conn.execute("SELECT DISTINCT symbol FROM watchlist_items")
+            symbols = [row[0] for row in result.fetchall()]
+
+        if not symbols:
+            logger.warning("no_watchlist_symbols_found")
+            return {
+                "task_id": task_id,
+                "symbols_processed": 0,
+                "symbols_updated": 0,
+                "duration_seconds": 0,
+            }
+
+        logger.info("fetching_yfinance_reference", num_symbols=len(symbols))
+
+        # Fetch reference data from yfinance
+        source = YFinanceSource()
+        as_of = dt.date.today()
+
+        df = source.fetch_reference_payload(symbols, as_of)
+
+        if df is None or df.is_empty():
+            logger.warning("yfinance_reference_fetch_failed")
+            return {
+                "task_id": task_id,
+                "symbols_processed": len(symbols),
+                "symbols_updated": 0,
+                "duration_seconds": (dt.datetime.now(dt.UTC) - start_time).total_seconds(),
+            }
+
+        # Store in reference_cache table
+        symbols_updated = len(df)
+
+        # DataFrame should have: ticker, as_of_date, payload, source
+        # Insert into reference_cache
+        with storage.connection() as conn:
+            for row in df.iter_rows(named=True):
+                conn.execute(
+                    """
+                    INSERT INTO reference_cache (ticker, as_of_date, payload, source)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (ticker, as_of_date, source)
+                    DO UPDATE SET payload = EXCLUDED.payload
+                    """,
+                    [row["ticker"], row["as_of_date"], row["payload"], "yfinance"],
+                )
+            conn.commit()
+
+        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+
+        logger.info(
+            "yfinance_reference_refresh_completed",
+            task_id=task_id,
+            symbols_processed=len(symbols),
+            symbols_updated=symbols_updated,
+            duration_seconds=duration,
+        )
+
+        return {
+            "task_id": task_id,
+            "symbols_processed": len(symbols),
+            "symbols_updated": symbols_updated,
+            "duration_seconds": int(duration),
+        }
+
+    except Exception as e:
+        logger.error(
+            "yfinance_reference_refresh_error",
+            task_id=task_id,
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+        raise
+
+
+@celery_app.task(name="refresh_alphavantage_reference_backup", bind=True)  # type: ignore[misc]
+def refresh_alphavantage_reference_backup(self) -> dict[str, int | str]:  # type: ignore[no-untyped-def]
+    """Fetch Alpha Vantage reference data for symbols with missing/stale yfinance data.
+
+    Runs daily at 04:45 UTC, after yfinance refresh.
+    Only fetches symbols where yfinance data is missing or >7 days old.
+
+    Returns:
+        Dict with task results:
+        - task_id: Celery task ID
+        - symbols_processed: Number of symbols attempted
+        - symbols_updated: Number of symbols successfully updated
+        - duration_seconds: Total execution time
+    """
+    task_id = self.request.id
+    start_time = dt.datetime.now(dt.UTC)
+
+    logger.info("alphavantage_backup_refresh_started", task_id=task_id)
+
+    try:
+        storage = get_storage()
+
+        # Find symbols needing backup (no yfinance data or >7 days old)
+        with storage.connection() as conn:
+            result = conn.execute(
+                """
+                SELECT DISTINCT wi.symbol
+                FROM watchlist_items wi
+                LEFT JOIN (
+                    SELECT ticker, MAX(as_of_date) as latest_date
+                    FROM reference_cache
+                    WHERE source = 'yfinance'
+                    GROUP BY ticker
+                ) rc ON wi.symbol = rc.ticker
+                WHERE rc.ticker IS NULL
+                   OR rc.latest_date < CURRENT_DATE - INTERVAL '7 days'
+                """
+            )
+            symbols = [row[0] for row in result.fetchall()]
+
+        if not symbols:
+            logger.info("no_symbols_need_alphavantage_backup")
+            return {
+                "task_id": task_id,
+                "symbols_processed": 0,
+                "symbols_updated": 0,
+                "duration_seconds": 0,
+            }
+
+        logger.info("fetching_alphavantage_backup", num_symbols=len(symbols))
+
+        # Fetch from Alpha Vantage
+        source = AlphaVantageSource()
+        as_of = dt.date.today()
+
+        df = source.fetch_reference_payload(symbols, as_of)
+
+        if df is None or df.is_empty():
+            logger.warning("alphavantage_backup_fetch_failed")
+            return {
+                "task_id": task_id,
+                "symbols_processed": len(symbols),
+                "symbols_updated": 0,
+                "duration_seconds": (dt.datetime.now(dt.UTC) - start_time).total_seconds(),
+            }
+
+        # Store in reference_cache
+        symbols_updated = len(df)
+
+        with storage.connection() as conn:
+            for row in df.iter_rows(named=True):
+                conn.execute(
+                    """
+                    INSERT INTO reference_cache (ticker, as_of_date, payload, source)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (ticker, as_of_date, source)
+                    DO UPDATE SET payload = EXCLUDED.payload
+                    """,
+                    [row["ticker"], row["as_of_date"], row["payload"], "alphavantage"],
+                )
+            conn.commit()
+
+        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+
+        logger.info(
+            "alphavantage_backup_refresh_completed",
+            task_id=task_id,
+            symbols_processed=len(symbols),
+            symbols_updated=symbols_updated,
+            duration_seconds=duration,
+        )
+
+        return {
+            "task_id": task_id,
+            "symbols_processed": len(symbols),
+            "symbols_updated": symbols_updated,
+            "duration_seconds": int(duration),
+        }
+
+    except Exception as e:
+        logger.error(
+            "alphavantage_backup_refresh_error",
+            task_id=task_id,
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+        raise

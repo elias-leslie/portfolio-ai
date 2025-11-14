@@ -183,6 +183,28 @@ class YFinanceSource(BaseSource):
             "country": info.get("country"),
             "website": info.get("website"),
             "description": info.get("longBusinessSummary"),
+            # Core valuation ratios (7 target metrics)
+            "trailingPE": info.get("trailingPE"),
+            "forwardPE": info.get("forwardPE"),
+            "priceToBook": info.get("priceToBook"),
+            "priceToSalesTrailing12Months": info.get("priceToSalesTrailing12Months"),
+            "pegRatio": info.get("pegRatio") or info.get("trailingPegRatio"),
+            "dividendYield": info.get("dividendYield"),
+            "payoutRatio": info.get("payoutRatio"),
+            # Bonus metrics (for comprehensive fundamentals)
+            "trailingEps": info.get("trailingEps"),
+            "forwardEps": info.get("forwardEps"),
+            "enterpriseValue": info.get("enterpriseValue"),
+            "enterpriseToRevenue": info.get("enterpriseToRevenue"),
+            "enterpriseToEbitda": info.get("enterpriseToEbitda"),
+            "debtToEquity": info.get("debtToEquity"),
+            "currentRatio": info.get("currentRatio"),
+            "returnOnEquity": info.get("returnOnEquity"),
+            "returnOnAssets": info.get("returnOnAssets"),
+            "profitMargins": info.get("profitMargins"),
+            "operatingMargins": info.get("operatingMargins"),
+            "revenueGrowth": info.get("revenueGrowth"),
+            "earningsGrowth": info.get("earningsGrowth"),
         }
 
     def fetch_reference_payload(
