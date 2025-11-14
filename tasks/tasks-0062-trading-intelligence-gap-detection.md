@@ -138,16 +138,18 @@
 
 ---
 
-### 3.0 Frontend - Gap Detection UI (Extend Capabilities)
+### 3.0 Frontend - Gap Detection UI (Extend Capabilities) - 🔄 PARTIAL (2/6 complete)
 
-- [ ] 3.1 Add "Gaps" tab to capabilities page
-  - Update page.tsx: Dashboard | Database | Tasks | Endpoints | Insights | **Gaps**
-  - Tab shows trading intelligence gaps, not just missing tables
-- [ ] 3.2 Create GapsOverview component
-  - Show coverage % per analysis type (Technical: 85%, Fundamental: 45%, Sentiment: 30%, etc.)
-  - Visual: Progress bars or radial charts showing coverage
-  - Color coding: >80% green, 50-80% yellow, <50% red
-  - Click analysis type → drill down to specific gaps
+- [x] 3.1 Add "Gaps" tab to capabilities page
+  - ✅ Updated page.tsx: Dashboard | Database | Tasks | Endpoints | Insights | **Gaps**
+  - ✅ Tab shows trading intelligence gaps with gap count badge
+  - ✅ Integrated with fetchGapSummary API
+- [x] 3.2 Create GapsOverview component
+  - ✅ Shows coverage % per analysis type with progress bars
+  - ✅ Displays TOP 10 priority gaps with detailed cards
+  - ✅ Color coding: >80% green, 50-80% yellow, <50% red
+  - ✅ Maturity level badges (Missing/Minimal/Adequate/Complete)
+  - ✅ Summary cards (Total Gaps, P0 Critical, P1 High, Avg Coverage)
 - [ ] 3.3 Create GapsList component
   - Table showing all identified gaps
   - Columns: Analysis Type | Missing Capability | Severity | Impact | Recommendation | Actions
