@@ -9,7 +9,14 @@
 **Created**: 2025-11-13 23:45
 **Status**: PAUSED
 **PAUSED**: 2025-11-14 00:22 (User request + git commit)
-**Next**: Task 3.3-3.6 (Frontend UI - no blockers) OR Task 4.0 (BLOCKED - requires Task 0060 Task 3.2a first)
+**Next**: Task 3.3-3.6 (Frontend UI - no blockers)
+
+**Execution Plan** (Option 2 - Partial Parallel):
+- **Phase 1**: Complete tasks-0058a (fix existing features) - 4-8 hours
+- **Phase 2**: Run THIS task in parallel with tasks-0060, BUT skip Task 4.0 (deferred)
+  - Complete: Tasks 3.3-3.6, 5.0-9.0 (no blockers)
+  - Skip: Task 4.0 (DEFERRED - requires ai_analyzer working from 0060 Task 3.2a)
+- **Phase 3**: After 0060 completes, return and complete Task 4.0
 
 ---
 
@@ -174,34 +181,35 @@
 
 ---
 
-### 4.0 AI-Powered Gap Analysis & Recommendations
+### 4.0 AI-Powered Gap Analysis & Recommendations **[DEFERRED TO PHASE 3]**
 
-**⚠️ BLOCKED: Requires Task 0060 (CLI Agent Integration) Task 3.2a to complete first**
+**⚠️ SKIP THIS TASK DURING PHASE 2 - DEFERRED UNTIL AFTER TASK 0060 COMPLETES**
 
 **Dependency**: This task requires `backend/app/services/ai_analyzer.py` to be working. Currently it uses `Anthropic()` client but no API key exists (broken). Task 0060 Task 3.2a refactors ai_analyzer to use headless Claude CLI, which unblocks this task.
 
 **Execution order**:
-1. Complete Task 0060 Task 3.2a first (refactor ai_analyzer.py to use CLI adapter)
-2. Then return to Task 4.0 here (AI-powered gap analysis will now work via CLI)
+1. **Phase 2**: SKIP all Task 4.0 sub-tasks (4.1-4.4) - move to Tasks 5-9 instead
+2. **Phase 3**: After Task 0060 completes, return here and complete Task 4.0
+3. Verify ai_analyzer.py is working via CLI before starting Task 4.0
 
-**Alternative**: Skip Task 4.0 entirely and implement gap recommendations manually (no AI analysis)
+**During Phase 2**: Proceed directly from Task 3.6 → Task 5.1 (skip this entire section)
 
 ---
 
-- [ ] 4.1 Add gap analysis to capabilities AI insights
+- [DEFERRED] 4.1 Add gap analysis to capabilities AI insights
   - Extend existing AI analysis (from Task 0059) to include gap detection
   - Prompt: "Analyze available capabilities vs trading analysis requirements. Identify critical gaps."
   - AI identifies: Missing data, stale data, low coverage, edge-limiting gaps
   - **Requires**: ai_analyzer.py working via CLI (Task 0060 Task 3.2a)
-- [ ] 4.2 Generate actionable recommendations
+- [DEFERRED] 4.2 Generate actionable recommendations
   - AI suggests: "Missing earnings data blocks fundamental analysis for 60% of watchlist"
   - AI recommends: "Fetch from FMP API (earnings endpoint), estimated 4 hours to implement"
   - AI prioritizes: "High impact - fundamental analysis is critical for value investing strategies"
-- [ ] 4.3 Create gap insights in database
+- [DEFERRED] 4.3 Create gap insights in database
   - Store AI-generated gap insights in `capability_insights` table (reuse existing)
   - Tag with category: "gap_detection"
   - Include confidence score and recommended actions
-- [ ] 4.4 Add "Ask AI" feature for gaps
+- [DEFERRED] 4.4 Add "Ask AI" feature for gaps
   - User can ask: "What's blocking better NVDA analysis?"
   - AI responds: "Missing options flow data (can't gauge sentiment), stale fundamentals (earnings 45d old)"
   - AI suggests: "Fetch latest earnings from FMP, add CBOE options flow scraper"
@@ -287,11 +295,13 @@
   - Component tests: GapsOverview, GapsList render correctly
   - Test interactions: Expand gap, generate task list, navigate to ticker
   - Test watchlist coverage matrix
-- [ ] 8.4 End-to-end workflow testing
-  - Scenario: System has gaps → AI flags them → User generates task → Task appears in WORK_TRACKER
+- [ ] 8.4 End-to-end workflow testing **[PHASE 2 - Manual recommendations only]**
+  - Scenario: System has gaps → Manual recommendations → User generates task → Task appears in WORK_TRACKER
   - Verify: Gap recommendations are accurate and actionable
   - Test: Filling a gap actually improves coverage % (close the loop)
-- [ ] 8.5 Test AI-powered gap analysis
+  - **Note**: AI-powered workflow ("AI flags them") tested in Phase 3 (Task 8.5)
+- [DEFERRED] 8.5 Test AI-powered gap analysis **[PHASE 3 ONLY]**
+  - **Note**: Skip during Phase 2, complete in Phase 3 after Task 4.0 done
   - Verify: AI insights identify real gaps (not false positives)
   - Test: Recommendations are practical and prioritized correctly
   - Check: Confidence scores make sense
@@ -319,7 +329,9 @@
 
 ---
 
-## Verification
+## Verification (Phase 2)
+
+**Complete during Phase 2** (skip AI-related items):
 
 - [ ] Backend: Gap detector accurately identifies missing capabilities
 - [ ] Backend: Coverage % calculation matches manual verification
@@ -329,8 +341,8 @@
 - [ ] Frontend: Coverage % displayed correctly with color coding
 - [ ] Frontend: Watchlist coverage matrix shows per-ticker gaps
 - [ ] Frontend: Generate task list workflow works end-to-end
-- [ ] AI: Gap analysis insights are accurate and helpful
-- [ ] AI: Recommendations prioritized by trading edge impact
+- [DEFERRED] AI: Gap analysis insights are accurate and helpful **[PHASE 3]**
+- [DEFERRED] AI: Recommendations prioritized by trading edge impact **[PHASE 3]**
 - [ ] Integration: Gap warnings appear in watchlist/narrative UIs
 - [ ] Integration: Analysis readiness scores accurate
 - [ ] Scheduled: Daily gap analysis runs and outputs reports
@@ -338,3 +350,38 @@
 - [ ] Quality: ~/portfolio-ai/scripts/lint.sh passes (ruff + mypy)
 - [ ] Docs: User guide complete with examples and screenshots
 - [ ] Baseline: Initial gap report generated and documented
+
+---
+
+## Phase 3: After Task 0060 Completes
+
+**Execute AFTER tasks-0060-cli-agent-integration.md is 100% complete**
+
+### Prerequisites
+1. Verify Task 0060 Task 3.2a is complete (ai_analyzer.py refactored to use CLI)
+2. Test ai_analyzer manually: Should use `claude -p --output-format stream-json`
+3. Verify no Anthropic API calls (zero per-token costs)
+
+### Tasks to Complete
+
+1. **Task 4.0: AI-Powered Gap Analysis & Recommendations**
+   - [ ] 4.1 Add gap analysis to capabilities AI insights
+   - [ ] 4.2 Generate actionable recommendations
+   - [ ] 4.3 Create gap insights in database
+   - [ ] 4.4 Add "Ask AI" feature for gaps
+
+2. **Task 8.5: Test AI-Powered Gap Analysis**
+   - [ ] Verify AI insights identify real gaps
+   - [ ] Test recommendations are practical and prioritized
+   - [ ] Check confidence scores make sense
+
+3. **Verification (Phase 3 Only)**
+   - [ ] AI: Gap analysis insights are accurate and helpful
+   - [ ] AI: Recommendations prioritized by trading edge impact
+
+### Completion
+- [ ] All Task 4.0 sub-tasks complete
+- [ ] Task 8.5 complete
+- [ ] AI verification items checked
+- [ ] Update WORK_TRACKER.md: Mark Task 0062 as 100% complete
+- [ ] Final commit: "feat: complete AI-powered gap analysis (Task 0062 Phase 3)"
