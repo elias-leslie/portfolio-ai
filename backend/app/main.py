@@ -30,6 +30,7 @@ from app.api import (
     settings_profiles,
     status,
     status_stream,
+    valuation,
     watchlist,
 )
 from app.logging_config import SyslogPrefixFormatter, configure_logging, get_logger
@@ -144,6 +145,7 @@ app.include_router(preferences.router)
 app.include_router(settings_profiles.router)
 app.include_router(analytics.router)
 app.include_router(indicators.router)
+app.include_router(valuation.router)
 app.include_router(watchlist.router)
 app.include_router(ml.router)
 app.include_router(capabilities.router)
