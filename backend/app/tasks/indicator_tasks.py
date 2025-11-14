@@ -9,6 +9,8 @@ from __future__ import annotations
 import datetime as dt
 from typing import Any
 
+import redis
+
 from app.analytics.indicators import calculate_indicators
 from app.celery_app import celery_app
 from app.logging_config import get_logger
@@ -449,6 +451,22 @@ def calculate_fear_greed(self, as_of_date: str | None = None) -> dict[str, Any]:
             )
 
             conn.commit()
+
+            # CRITICAL: Invalidate Redis cache so new data is served immediately
+            try:
+                redis_client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+                deleted = redis_client.delete("fear_greed:latest")
+                logger.info(
+                    "fear_greed_cache_invalidated",
+                    cache_key="fear_greed:latest",
+                    deleted=deleted,
+                )
+            except Exception as cache_error:
+                # Don't fail the task if cache invalidation fails
+                logger.warning(
+                    "fear_greed_cache_invalidation_failed",
+                    error=str(cache_error),
+                )
 
             result_data = {
                 "success": True,

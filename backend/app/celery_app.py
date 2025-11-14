@@ -228,7 +228,34 @@ celery_app.conf.beat_schedule = {
         # - Calculates Fear & Greed Index from inputs table
         # - Uses 252-day rolling window for percentile rankings
         # - Must run after populate-fear-greed-inputs-daily completes
-        # - NOTE: Also triggered automatically by populate_fear_greed_inputs task
+        # - Invalidates Redis cache automatically after successful calculation
+    },
+    # Additional intraday runs to ensure data stays current
+    "maintain-market-data-midday": {
+        "task": "maintain_historical_market_data",
+        "schedule": crontab(hour=17, minute=0),  # Daily at 17:00 UTC (12:00 PM ET, midday)
+        "options": {"expires": 3600},
+        # Notes:
+        # - Midday check to catch intraday data updates
+        # - yfinance provides intraday data, so this ensures fresh data during market hours
+    },
+    "update-fear-greed-after-close": {
+        "task": "populate_fear_greed_inputs",
+        "schedule": crontab(hour=21, minute=45),  # Daily at 21:45 UTC (4:45 PM ET, after close)
+        "args": [7],
+        "options": {"expires": 3600},
+        # Notes:
+        # - Runs after market close (16:00 ET) to catch final closing data
+        # - Ensures Fear & Greed reflects end-of-day market conditions
+    },
+    "calculate-fear-greed-after-close": {
+        "task": "calculate_fear_greed",
+        "schedule": crontab(hour=22, minute=0),  # Daily at 22:00 UTC (5:00 PM ET)
+        "args": [None],
+        "options": {"expires": 3600},
+        # Notes:
+        # - Calculates F&G with end-of-day data
+        # - Invalidates Redis cache for immediate fresh data
     },
     "maintain-historical-market-data": {
         "task": "maintain_historical_market_data",
