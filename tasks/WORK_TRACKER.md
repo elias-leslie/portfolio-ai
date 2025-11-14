@@ -181,22 +181,23 @@
 1. **Phase 1: Fix Existing Features** ✅ (100% - 4/4 tasks, 2025-11-14)
    - File: `tasks/tasks-0058a-fix-existing-features.md`
    - Completed: 2025-11-14
-   - Summary: Fixed broken Fear & Greed Index components, completed real-time data pipeline, and implemented FRED API integration + Market Breadth calculation.
+   - Summary: Fixed ALL broken features with complete Fear & Greed Index (5 components) and comprehensive multi-source valuation data pipeline.
    - Key achievements:
      - ✅ Task 0: Real-time data pipeline (populate_fear_greed_inputs scheduled task)
      - ✅ Task 1: Watchlist score breakdown (sub_scores field added)
      - ✅ Task 2: Complete Fear & Greed with 5 components (FRED HY Spread + Market Breadth)
-     - ✅ Task 4: Valuation data infrastructure (parse_valuation_metrics task)
+     - ✅ Task 4: **Multi-source valuation data pipeline** (yfinance + Alpha Vantage backup)
    - Implementation:
-     - Extended FREDSource with date range fetching
-     - Added _calculate_market_breadth() using LAG() window function
-     - Updated calculate_fear_greed to use 5 components (was 4)
+     - Fear & Greed: Extended FREDSource, added _calculate_market_breadth(), 5-component calculation
+     - Valuation: yfinance primary (19/20 metrics), Alpha Vantage backup (15/16 metrics)
+     - Data pipeline: 3-stage automated refresh (04:00, 04:30, 04:45 UTC)
      - 24 new unit tests (17 FRED + 7 breadth, all passing)
    - Verification:
-     - fear_greed_daily: signal_count = 5 (Nov 12 onwards)
-     - HY spread: varying values (3.02-3.15, not constant 3.13)
-     - Market breadth: 42%-90% range
-   - Commit: 10144ef
+     - fear_greed_daily: signal_count = 5 (complete sentiment analysis)
+     - HY spread: varying 3.02-3.15 (real FRED data)
+     - Market breadth: 42%-90% range (sector ETF calculation)
+     - Valuation: 8/8 symbols with P/E, P/B, P/S ratios (yfinance pipeline working)
+   - Commits: 10144ef (Fear & Greed), 644abba (Valuation)
 
 2. **System Capabilities Registry** ✅ (100% - 17/17 tasks, 2025-11-13)
    - File: `tasks/tasks-0059-system-capabilities-registry.md`
