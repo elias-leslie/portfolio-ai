@@ -1,0 +1,894 @@
+# Trading Analysis Requirements Framework
+# Source: gap_definition.md (47 gaps identified)
+# Last Updated: 2025-11-13
+#
+# This file defines what data each analysis type needs to provide profitable trading edge.
+# Gap criticality: P0 (Critical) | P1 (High) | P2 (Medium) | P3 (Low)
+
+version: "1.0.0"
+
+# Metadata
+metadata:
+  total_gaps: 47
+  p0_critical: 17
+  p1_high: 20
+  p2_medium: 7
+  p3_low: 3
+  reference: /home/kasadis/portfolio-ai/gap_definition.md
+
+# Analysis Types
+# Structure: analysis_type → required/recommended/optional → capabilities
+# Each capability maps to a gap from gap_definition.md
+
+analysis_types:
+
+  # ========================================================================
+  # Technical Analysis
+  # ========================================================================
+  technical_analysis:
+    description: "Chart patterns, price action, volume, indicators, multi-timeframe analysis"
+
+    required:  # P0 - Blocking gaps
+      - capability: multi_horizon_momentum
+        gap_id: GAP-012
+        criticality: P0
+        current_state: "Only 1-day price change (noise, not signal)"
+        desired_state: "20/60/120-day momentum with cross-sectional ranks"
+        why: "1-day moves are random walk. 3-12 month momentum predicts returns (Jegadeesh & Titman 1993)"
+        data_sources:
+          - internal: day_bars
+        tables:
+          - day_bars
+        freshness_requirement: "< 1 day"
+        coverage_requirement: "100% of watchlist tickers"
+
+      - capability: sector_relative_strength
+        gap_id: GAP-013
+        criticality: P0
+        current_state: "Only absolute momentum (stock vs itself)"
+        desired_state: "Relative strength (stock vs sector ETF)"
+        why: "Sector rotation drives 30-40% of returns. Relative > absolute (Faber 2007)"
+        data_sources:
+          - internal: day_bars (XLK, XLE, XLF exist)
+        tables:
+          - day_bars
+        freshness_requirement: "< 1 day"
+        coverage_requirement: "All major sectors (XLK, XLE, XLF, XLV, XLF, XLP, XLU, XLI, XLB)"
+
+      - capability: adaptive_signal_thresholds
+        gap_id: GAP-014
+        criticality: P0
+        current_state: "Hard-coded RSI/EMA/volume thresholds (fail for volatile stocks)"
+        desired_state: "Percentile-based or volatility-adjusted thresholds per ticker"
+        why: "One size does not fit all. AAPL thresholds fail for biotech"
+        data_sources:
+          - internal: technical_indicators
+        tables:
+          - technical_indicators
+        freshness_requirement: "< 1 day"
+        coverage_requirement: "Historical percentiles (90 days minimum)"
+
+      - capability: multi_timeframe_analysis
+        gap_id: GAP-018
+        criticality: P0
+        current_state: "Single timeframe (daily only)"
+        desired_state: "Daily + weekly + monthly alignment"
+        why: "Multi-timeframe confluence reduces false signals"
+        data_sources:
+          - internal: day_bars (resample to weekly/monthly)
+        tables:
+          - day_bars
+        freshness_requirement: "< 1 day"
+        coverage_requirement: "100% of watchlist tickers"
+
+    recommended:  # P1 - High value
+      - capability: intraday_data
+        gap_id: GAP-001
+        criticality: P1
+        current_state: "minute_bars table empty, no intraday ingestion"
+        desired_state: "1-min OHLCV, 30-day rolling history"
+        why: "Enables day trading, realized volatility, breakouts. Unlocks 40% of strategies"
+        data_sources:
+          - polygon: "1-min bars, $200/mo"
+          - alpaca: "1-min bars, free with account"
+        tables:
+          - minute_bars
+        freshness_requirement: "< 1 hour (intraday), < 1 day (daily refresh)"
+        coverage_requirement: "All watchlist tickers"
+
+      - capability: premarket_afterhours_data
+        gap_id: GAP-038
+        criticality: P1
+        current_state: "Regular session only (9:30-16:00 ET)"
+        desired_state: "Extended hours (4:00-20:00 ET)"
+        why: "Earnings reactions happen pre-market. Miss initial reaction without this"
+        data_sources:
+          - polygon: "Extended hours support"
+          - alpaca: "Extended hours support"
+        tables:
+          - minute_bars
+        freshness_requirement: "< 1 hour"
+        coverage_requirement: "All watchlist tickers"
+
+      - capability: breadth_indicators
+        gap_id: GAP-016
+        criticality: P1
+        current_state: "No market breadth (AD line, new highs/lows)"
+        desired_state: "Advance-decline line, % above 200-day MA"
+        why: "Breadth divergences predict reversals (market up but breadth down = top)"
+        data_sources:
+          - internal: "Aggregate from day_bars"
+        tables:
+          - day_bars
+        freshness_requirement: "< 1 day"
+        coverage_requirement: "Broad market (S&P 500 components minimum)"
+
+      - capability: mean_reversion_signals
+        gap_id: GAP-017
+        criticality: P1
+        current_state: "Only momentum signals"
+        desired_state: "Bollinger Band bounces, RSI divergences"
+        why: "Momentum + mean reversion = diversified strategy set (uncorrelated)"
+        data_sources:
+          - internal: technical_indicators
+        tables:
+          - technical_indicators
+        freshness_requirement: "< 1 day"
+        coverage_requirement: "100% of watchlist tickers"
+
+    optional:  # P2-P3
+      - capability: tick_data
+        gap_id: GAP-030
+        criticality: P1
+        current_state: "No time & sales data"
+        desired_state: "Every trade (price, size, aggressor)"
+        why: "Institutional buying pressure detection, tape reading"
+        data_sources:
+          - polygon: "Time & sales API"
+        tables:
+          - tick_data (new table)
+        freshness_requirement: "Real-time or < 15 min"
+        coverage_requirement: "Watchlist tickers only"
+
+  # ========================================================================
+  # Fundamental Analysis
+  # ========================================================================
+  fundamental_analysis:
+    description: "Earnings, valuation, quality, cash flow, balance sheet strength"
+
+    required:  # P0
+      - capability: earnings_surprises
+        gap_id: GAP-003
+        criticality: P0
+        current_state: "Only next earnings date, no actual vs consensus"
+        desired_state: "Actual EPS, Consensus EPS, Surprise %, last 8 quarters"
+        why: "Earnings surprise = most persistent equity premium (Piotroski 2000). Post-earnings drift"
+        data_sources:
+          - fmp: "Earnings historical + surprise API"
+          - finnhub: "Earnings surprises API"
+        tables:
+          - earnings_surprises (new table)
+        freshness_requirement: "< 1 day after earnings"
+        coverage_requirement: "80% of watchlist tickers (exclude new IPOs)"
+
+      - capability: analyst_estimate_revisions
+        gap_id: GAP-005
+        criticality: P0
+        current_state: "Only static recommendation_mean"
+        desired_state: "EPS estimate trend (upgrades/downgrades), revision magnitude"
+        why: "Estimate revisions = leading indicator. Upgrades predict outperformance"
+        data_sources:
+          - fmp: "Analyst estimates API"
+          - finnhub: "Recommendation trends API"
+        tables:
+          - analyst_revisions (new table)
+        freshness_requirement: "< 1 week"
+        coverage_requirement: "60% of watchlist (large caps only)"
+
+    recommended:  # P1
+      - capability: valuation_ratios
+        gap_id: GAP-002
+        criticality: P1
+        current_state: "No P/E, P/B, PEG (TODO in fundamentals.py:307)"
+        desired_state: "P/E, P/B, PEG, P/S, EV/EBITDA"
+        why: "Cannot run value screens without basic valuation (Graham)"
+        data_sources:
+          - fmp: "Ratios API"
+          - finnhub: "Basic financials"
+          - yahoo: "info payload"
+        tables:
+          - reference_cache (extend)
+        freshness_requirement: "< 90 days"
+        coverage_requirement: "100% of watchlist"
+
+      - capability: cash_flow_metrics
+        gap_id: GAP-004
+        criticality: P1
+        current_state: "No FCF, OCF, cash conversion"
+        desired_state: "Free cash flow, operating cash flow, FCF yield"
+        why: "Profits can be manipulated. Cash flow is reliable (Greenblatt)"
+        data_sources:
+          - fmp: "Cash flow statement API"
+        tables:
+          - fundamentals_cache (extend)
+        freshness_requirement: "< 90 days"
+        coverage_requirement: "80% of watchlist"
+
+      - capability: insider_trading
+        gap_id: GAP-006
+        criticality: P1
+        current_state: "No Form 4 tracking"
+        desired_state: "Insider buying/selling clusters, unusual activity flags"
+        why: "Insider buying precedes outperformance (Seyhun 1986)"
+        data_sources:
+          - sec: "EDGAR Form 4 filings"
+          - finnhub: "Insider transactions API"
+          - fmp: "Insider trading API"
+        tables:
+          - insider_transactions (new table)
+        freshness_requirement: "< 1 week"
+        coverage_requirement: "Large caps only (manageable volume)"
+
+      - capability: institutional_ownership
+        gap_id: GAP-007
+        criticality: P1
+        current_state: "No 13F tracking"
+        desired_state: "Institutional ownership %, QoQ changes"
+        why: "Smart money positioning. Rising ownership = accumulation"
+        data_sources:
+          - sec: "13F filings"
+          - finnhub: "Institutional ownership API"
+        tables:
+          - institutional_holdings (new table)
+        freshness_requirement: "< 45 days (13F is quarterly)"
+        coverage_requirement: "Large caps only"
+
+      - capability: piotroski_fscore
+        gap_id: GAP-008
+        criticality: P1
+        current_state: "No composite quality score"
+        desired_state: "9-point Piotroski F-Score (profitability + leverage + efficiency)"
+        why: "F-Score 8-9 value stocks outperform 0-1 by ~20% annually (Piotroski 2000)"
+        data_sources:
+          - internal: "Calculate from fundamentals"
+        tables:
+          - fundamentals_cache (add f_score column)
+        freshness_requirement: "< 90 days"
+        coverage_requirement: "100% of watchlist (where data available)"
+
+      - capability: altman_zscore
+        gap_id: GAP-009
+        criticality: P1
+        current_state: "No bankruptcy prediction"
+        desired_state: "Altman Z-Score (Z < 1.8 = distress)"
+        why: "Avoid bankruptcy candidates (value traps)"
+        data_sources:
+          - internal: "Calculate from balance sheet"
+        tables:
+          - fundamentals_cache (add z_score column)
+        freshness_requirement: "< 90 days"
+        coverage_requirement: "100% of watchlist"
+
+      - capability: short_interest
+        gap_id: GAP-011
+        criticality: P1
+        current_state: "No short interest tracking"
+        desired_state: "Short interest % of float, days to cover, trends"
+        why: "High short interest + catalyst = squeeze potential (GME, AMC)"
+        data_sources:
+          - finnhub: "Short interest API"
+          - fmp: "Short interest"
+        tables:
+          - short_interest (new table)
+        freshness_requirement: "< 2 weeks (reported bi-weekly)"
+        coverage_requirement: "100% of watchlist"
+
+    optional:  # P2
+      - capability: share_buybacks
+        gap_id: GAP-010
+        criticality: P2
+        current_state: "No buyback tracking"
+        desired_state: "Buyback announcements, share count reduction"
+        why: "Buybacks reduce shares, boost EPS. Management confidence signal"
+        data_sources:
+          - fmp: "Stock buyback API"
+        tables:
+          - corporate_actions (new table)
+        freshness_requirement: "< 1 month"
+        coverage_requirement: "Large caps only"
+
+  # ========================================================================
+  # Sentiment Analysis
+  # ========================================================================
+  sentiment_analysis:
+    description: "News, analyst ratings, options flow, social media, insider sentiment"
+
+    required:  # P0
+      - capability: options_flow_scoring
+        gap_id: GAP-031
+        criticality: P0
+        current_state: "CBOE data collected but NEVER used in scoring"
+        desired_state: "Options flow as 4th scoring pillar (alongside price, technical, fundamental)"
+        why: "FREE EDGE - data exists, just wire it up. Pan & Poteshman 2006 proven"
+        data_sources:
+          - internal: options_market_metrics (already exists!)
+        tables:
+          - options_market_metrics
+        freshness_requirement: "< 1 day"
+        coverage_requirement: "Most active tickers (CBOE provides)"
+
+    recommended:  # P1
+      - capability: news_sentiment_pillar
+        gap_id: GAP-015
+        criticality: P1
+        current_state: "News exists (news_cache) but only a modifier, not a pillar"
+        desired_state: "News sentiment as dedicated scoring pillar (15-20% weight)"
+        why: "Textual tone adds alpha (Tetlock 2007). Positive clusters predict outperformance"
+        data_sources:
+          - internal: news_cache
+        tables:
+          - news_cache
+        freshness_requirement: "< 1 hour"
+        coverage_requirement: "All watchlist tickers"
+
+      - capability: ticker_putcall_ratio
+        gap_id: GAP-033
+        criticality: P1
+        current_state: "Only aggregate options flow (market-wide)"
+        desired_state: "Put/call ratio per ticker"
+        why: "Ticker-specific sentiment more actionable than market-wide"
+        data_sources:
+          - polygon: "Options data API"
+          - tradier: "Options chain"
+        tables:
+          - options_metrics (new table)
+        freshness_requirement: "< 1 day"
+        coverage_requirement: "Liquid options tickers only (~500 tickers)"
+
+  # ========================================================================
+  # Risk Analysis
+  # ========================================================================
+  risk_analysis:
+    description: "Volatility, correlation, VaR, drawdown, factor exposures, position sizing"
+
+    required:  # P0
+      - capability: covariance_matrix
+        gap_id: GAP-020
+        criticality: P0
+        current_state: "Portfolio risk = weighted avg (assumes perfect correlation ρ=1). WRONG!"
+        desired_state: "Pairwise covariance matrix, σ_portfolio = √(w' Σ w)"
+        why: "Current metrics overstate risk by 30-60%. Diversified portfolio ≠ weighted avg volatility"
+        data_sources:
+          - internal: day_bars (252-day returns)
+        tables:
+          - portfolio_covariance (new table)
+        freshness_requirement: "< 1 day"
+        coverage_requirement: "All portfolio holdings"
+
+      - capability: factor_exposures
+        gap_id: GAP-021
+        criticality: P0
+        current_state: "No factor decomposition (cannot distinguish alpha from beta)"
+        desired_state: "Fama-French 5-factor loadings (market, size, value, momentum, quality)"
+        why: "Is +20% return skill (alpha) or just 'big tech' exposure (beta)? Can't tell without factors"
+        data_sources:
+          - kenneth_french: "Free factor data"
+          - internal: "Calculate from reference_cache"
+        tables:
+          - portfolio_factors (new table)
+        freshness_requirement: "< 1 week"
+        coverage_requirement: "Portfolio level (all holdings aggregated)"
+
+      - capability: drawdown_tracking
+        gap_id: GAP-023
+        criticality: P0
+        current_state: "No max drawdown, current drawdown, underwater period"
+        desired_state: "Max DD, current DD, days since ATH"
+        why: "Drawdown = #1 reason traders quit. Volatility doesn't tell full story"
+        data_sources:
+          - internal: portfolio_snapshots
+        tables:
+          - portfolio_drawdowns (new table)
+        freshness_requirement: "Real-time (updated on portfolio value change)"
+        coverage_requirement: "Portfolio level"
+
+      - capability: correlation_monitoring
+        gap_id: GAP-024
+        criticality: P0
+        current_state: "No real-time correlation tracking"
+        desired_state: "Rolling 30-day correlation matrix, avg correlation alerts (>0.7 threshold)"
+        why: "Correlations spike to 1.0 in crashes. Diversification fails when needed most"
+        data_sources:
+          - internal: day_bars
+        tables:
+          - portfolio_covariance (extend with rolling calcs)
+        freshness_requirement: "< 1 day"
+        coverage_requirement: "All portfolio holdings"
+
+    recommended:  # P1
+      - capability: var_cvar
+        gap_id: GAP-027
+        criticality: P1
+        current_state: "No Value at Risk or Conditional VaR"
+        desired_state: "1-day VaR (95%), CVaR (expected loss beyond VaR)"
+        why: "Industry-standard risk metric. 'Max loss on 95% of days'"
+        data_sources:
+          - internal: portfolio_snapshots (historical returns)
+        tables:
+          - portfolio_risk_metrics (new table)
+        freshness_requirement: "< 1 day"
+        coverage_requirement: "Portfolio level"
+
+      - capability: beta_estimation_long_window
+        gap_id: GAP-022
+        criticality: P1
+        current_state: "Only 90-day betas (noisy)"
+        desired_state: "3-5 year betas with Bayesian shrinkage"
+        why: "Short windows inflate error. Betas mean-revert toward 1.0 (Blume 1975)"
+        data_sources:
+          - internal: day_bars (need 3+ years history)
+        tables:
+          - reference_cache (extend beta calculation)
+        freshness_requirement: "< 1 week"
+        coverage_requirement: "All tickers with sufficient history"
+
+      - capability: stress_testing
+        gap_id: GAP-025
+        criticality: P1
+        current_state: "No scenario analysis"
+        desired_state: "2008 crisis, 2020 COVID, VIX=80, tech crash scenarios"
+        why: "What's max loss in 2008-style event? Need to know tail risk"
+        data_sources:
+          - internal: "Historical correlation + shocks"
+        tables:
+          - stress_test_results (new table)
+        freshness_requirement: "< 1 week"
+        coverage_requirement: "Portfolio level"
+
+      - capability: marginal_var
+        gap_id: GAP-026
+        criticality: P1
+        current_state: "Don't know which position adds most risk"
+        desired_state: "Marginal VaR per position (risk contribution)"
+        why: "Which position to trim when reducing risk?"
+        data_sources:
+          - internal: "Calculated from covariance matrix"
+        tables:
+          - portfolio_risk_metrics (extend)
+        freshness_requirement: "< 1 day"
+        coverage_requirement: "All portfolio holdings"
+
+      - capability: exposure_budgets
+        gap_id: GAP-028
+        criticality: P1
+        current_state: "No limits on sector/factor/single-name exposure"
+        desired_state: "Max 10% per position, 30% per sector, ±1σ factor tilt"
+        why: "Prevent concentration blow-ups. Diversification discipline"
+        data_sources:
+          - internal: "Portfolio holdings + sector mapping"
+        tables:
+          - exposure_limits (new table)
+        freshness_requirement: "Real-time"
+        coverage_requirement: "Portfolio level"
+
+  # ========================================================================
+  # Execution Quality
+  # ========================================================================
+  execution_quality:
+    description: "Bid/ask spreads, slippage, market impact, liquidity, transaction costs"
+
+    required:  # P0
+      - capability: bid_ask_spreads
+        gap_id: GAP-029
+        criticality: P0
+        current_state: "No bid/ask fields in PriceData model"
+        desired_state: "Bid, ask, spread, bid_size, ask_size in price_cache"
+        why: "Transaction costs = difference between backtest and reality. Market orders pay the spread"
+        data_sources:
+          - polygon: "Real-time quotes API"
+          - alpaca: "Real-time quotes (free with account)"
+        tables:
+          - price_cache (extend)
+        freshness_requirement: "< 5 minutes"
+        coverage_requirement: "All watchlist tickers"
+
+      - capability: atr_based_stops
+        gap_id: GAP-042
+        criticality: P0
+        current_state: "Flat 5% stop when ATR missing"
+        desired_state: "Always volatility-adjusted stops (Entry - 2×ATR)"
+        why: "5% on utility = too wide. 5% on biotech = too tight. One size doesn't fit all"
+        data_sources:
+          - internal: technical_indicators (ATR) or day_bars (14-day range)
+        tables:
+          - technical_indicators
+        freshness_requirement: "< 1 day"
+        coverage_requirement: "100% of watchlist"
+
+      - capability: equity_based_position_sizing
+        gap_id: GAP-043
+        criticality: P0
+        current_state: "Fixed $500 risk (not linked to account equity)"
+        desired_state: "Risk = 1% of account equity (configurable)"
+        why: "$500 on $10k = 5% risk (too aggressive). $500 on $1M = 0.05% (too conservative)"
+        data_sources:
+          - internal: "Portfolio total value"
+        tables:
+          - portfolio_accounts (track equity)
+        freshness_requirement: "Real-time"
+        coverage_requirement: "All accounts"
+
+      - capability: liquidity_checks
+        gap_id: GAP-044
+        criticality: P0
+        current_state: "No ADV or spread checks before sizing"
+        desired_state: "Position ≤ 1% of ADV (average daily volume)"
+        why: "Large position in illiquid stock = move market, terrible fill, can't exit"
+        data_sources:
+          - internal: day_bars (20-day avg volume)
+        tables:
+          - day_bars
+        freshness_requirement: "< 1 day"
+        coverage_requirement: "All watchlist tickers"
+
+      - capability: kelly_position_sizing
+        gap_id: GAP-045
+        criticality: P0
+        current_state: "No Kelly criterion"
+        desired_state: "Kelly% = (WinRate×AvgWin - LossRate×AvgLoss)/AvgWin, use fractional Kelly (0.25-0.5)"
+        why: "Kelly maximizes long-term growth. Optimal bet size for edge"
+        data_sources:
+          - internal: "Strategy historical performance (win rate, avg win/loss)"
+        tables:
+          - strategy_performance (new table)
+        freshness_requirement: "< 1 week (recalculate after each trade)"
+        coverage_requirement: "Per strategy (momentum, value, etc.)"
+
+      - capability: transaction_cost_model
+        gap_id: GAP-046
+        criticality: P0
+        current_state: "No slippage or commission estimates"
+        desired_state: "Half-spread cost + market impact (square root law)"
+        why: "Strategies profitable before costs can be losers after. Need realistic backtest"
+        data_sources:
+          - internal: "Bid/ask spread + volatility + ADV"
+        tables:
+          - price_cache (for spread)
+          - day_bars (for vol, ADV)
+        freshness_requirement: "< 1 day"
+        coverage_requirement: "All tradable tickers"
+
+    recommended:  # P1
+      - capability: correlation_based_sizing
+        gap_id: GAP-047
+        criticality: P1
+        current_state: "Position sizing ignores correlation"
+        desired_state: "Reduce position size for correlated holdings"
+        why: "5 tech stocks = 1 big bet if highly correlated. Avoid concentration in disguise"
+        data_sources:
+          - internal: "Covariance matrix from GAP-020"
+        tables:
+          - portfolio_covariance
+        freshness_requirement: "< 1 day"
+        coverage_requirement: "All portfolio holdings"
+
+      - capability: slippage_tracking
+        gap_id: GAP-048
+        criticality: P1
+        current_state: "No tracking of actual vs expected fill"
+        desired_state: "Per-trade slippage (Actual - Expected), aggregate per strategy"
+        why: "Measure execution quality. Identify high-slippage strategies/symbols"
+        data_sources:
+          - broker: "Order history, actual fills"
+        tables:
+          - order_history (new table)
+        freshness_requirement: "Real-time (after each fill)"
+        coverage_requirement: "All live trades"
+
+      - capability: market_impact_model
+        gap_id: GAP-049
+        criticality: P1
+        current_state: "No estimate of price movement from order"
+        desired_state: "Impact (bps) = σ × √(OrderSize / ADV) × constant"
+        why: "Large orders move market. Know cost before placing"
+        data_sources:
+          - internal: "Volatility (σ), ADV from day_bars"
+        tables:
+          - day_bars
+        freshness_requirement: "< 1 day"
+        coverage_requirement: "All tradable tickers"
+
+  # ========================================================================
+  # Macro & Sentiment Layers
+  # ========================================================================
+  macro_analysis:
+    description: "Fed policy, rates, inflation, VIX, credit spreads, yield curve, commodities"
+
+    required:  # P0 - None (macro is enhancing, not blocking)
+
+    recommended:  # P1
+      - capability: automate_fear_greed
+        gap_id: GAP-032
+        criticality: P1
+        current_state: "Manual script with 'reasonable estimates' fallback"
+        desired_state: "Automated VIX and credit spread ingestion from FRED/CBOE"
+        why: "Synthetic VIX contradicts Whaley 2000. Use official sources only"
+        data_sources:
+          - fred: "VIX, credit spreads (free)"
+          - cboe: "VIX (official)"
+        tables:
+          - fear_greed_inputs
+        freshness_requirement: "< 1 day"
+        coverage_requirement: "All fear/greed components"
+
+      - capability: yield_curve
+        gap_id: GAP-034
+        criticality: P1
+        current_state: "No yield curve tracking"
+        desired_state: "2Y, 5Y, 10Y, 30Y yields from FRED. Track 2Y-10Y spread"
+        why: "Inverted yield curve (2Y > 10Y) predicts recessions"
+        data_sources:
+          - fred: "Treasury yields (free)"
+        tables:
+          - macro_indicators (new table)
+        freshness_requirement: "< 1 day"
+        coverage_requirement: "All maturities (2Y, 5Y, 10Y, 30Y)"
+
+      - capability: inflation_data
+        gap_id: GAP-035
+        criticality: P1
+        current_state: "No CPI, PPI, PCE tracking"
+        desired_state: "Monthly inflation data from FRED"
+        why: "Inflation ↑ → Fed hawkish → Risk-off. Key macro signal"
+        data_sources:
+          - fred: "CPI, PPI, PCE (free)"
+        tables:
+          - macro_indicators
+        freshness_requirement: "< 1 month (monthly releases)"
+        coverage_requirement: "All major inflation metrics"
+
+      - capability: fed_funds_rate
+        gap_id: GAP-036
+        criticality: P1
+        current_state: "No Fed funds rate or FOMC calendar"
+        desired_state: "Fed funds rate, rate hike probabilities (from futures), FOMC dates"
+        why: "Fed policy is THE macro driver. Hikes = risk-off, cuts = risk-on"
+        data_sources:
+          - fred: "Fed funds rate (free)"
+          - cme: "FedWatch Tool (probabilities)"
+        tables:
+          - macro_indicators
+        freshness_requirement: "< 1 day"
+        coverage_requirement: "Current rate + next 4 FOMC meetings"
+
+    optional:  # P2
+      - capability: commodity_signals
+        gap_id: GAP-037
+        criticality: P2
+        current_state: "No commodity correlation tracking"
+        desired_state: "Oil, gold, copper, silver prices"
+        why: "Oil ↑ → Energy up, airlines down. Gold ↑ → Miners up, inflation fears"
+        data_sources:
+          - yahoo: "CL=F (oil), GC=F (gold), HG=F (copper)"
+        tables:
+          - macro_indicators
+        freshness_requirement: "< 1 day"
+        coverage_requirement: "Major commodities (oil, gold, copper, silver)"
+
+  # ========================================================================
+  # ML Infrastructure
+  # ========================================================================
+  ml_infrastructure:
+    description: "Backtesting, feature engineering, model training, validation"
+
+    required:  # P0
+      - capability: backtesting_framework
+        gap_id: GAP-019
+        criticality: P0
+        current_state: "Signals are untested hypotheses"
+        desired_state: "Historical simulation with realistic fills, costs, slippage"
+        why: "CANNOT TRADE WITHOUT BACKTESTING. Don't know if signals work. Validate edge first"
+        data_sources:
+          - internal: "day_bars, technical_indicators, watchlist_scores"
+        tables:
+          - backtest_results (new table)
+        freshness_requirement: "N/A (historical simulation)"
+        coverage_requirement: "2020-2024 data minimum"
+        notes: "HIGH effort (2-3 weeks) but FOUNDATIONAL. Must validate gap fills"
+
+    recommended:  # P1
+      - capability: feature_engineering_pipeline
+        gap_id: GAP-050
+        criticality: P1
+        current_state: "No ML feature pipeline"
+        desired_state: "Transform raw data into ML features (lags, ratios, z-scores, ranks)"
+        why: "Without this, cannot train predictive models. Current signals are hand-crafted heuristics"
+        data_sources:
+          - internal: "All tables"
+        tables:
+          - feature_store (new table)
+        freshness_requirement: "< 1 day"
+        coverage_requirement: "All tickers"
+
+  # ========================================================================
+  # Compliance & Regulatory
+  # ========================================================================
+  compliance:
+    description: "PDT rules, wash sales, tax lots, short sale restrictions"
+
+    required:  # P0
+      - capability: pdt_rule_tracking
+        gap_id: GAP-052
+        criticality: P0
+        current_state: "No pattern day trader rule tracking"
+        desired_state: "Track day trades per 5-day window, alert at 3/5"
+        why: "Violating PDT locks account for 90 days. Must track if supporting day trading"
+        data_sources:
+          - internal: "Order history"
+        tables:
+          - order_history
+        freshness_requirement: "Real-time"
+        coverage_requirement: "Accounts < $25k only"
+        notes: "Only needed if supporting day trading (intraday entry + exit)"
+
+    recommended:  # P1
+      - capability: wash_sale_detection
+        gap_id: GAP-053
+        criticality: P1
+        current_state: "No wash sale tracking"
+        desired_state: "Detect: Sell at loss + rebuy within 30 days"
+        why: "Tax implications. Disallowed loss deduction"
+        data_sources:
+          - internal: "Order history, trade history"
+        tables:
+          - order_history
+        freshness_requirement: "Real-time (on sell)"
+        coverage_requirement: "All taxable accounts"
+
+# ========================================================================
+# Maturity Levels
+# ========================================================================
+maturity_levels:
+  level_0:
+    name: "Missing"
+    description: "No data, can't perform analysis"
+    coverage: "0%"
+    example: "No earnings surprise data → Cannot trade post-earnings drift"
+
+  level_1:
+    name: "Minimal"
+    description: "Basic data, limited insights"
+    coverage: "1-40%"
+    example: "Only next earnings date → Can prepare for event, but can't predict direction"
+
+  level_2:
+    name: "Adequate"
+    description: "Good coverage, reasonable insights"
+    coverage: "41-80%"
+    example: "Earnings surprise for 60% of tickers → Can trade strategy on covered names"
+
+  level_3:
+    name: "Complete"
+    description: "Comprehensive data, strong edge potential"
+    coverage: "81-100%"
+    example: "Earnings surprise + revisions + quality scores for all tickers → Full strategy deployment"
+
+# ========================================================================
+# Edge-Producing Capabilities (TOP 10)
+# ========================================================================
+# Ranked by Impact × (1/Effort) - Maximize bang-for-buck
+edge_capabilities:
+  rank_1:
+    capability: "Fix portfolio risk (covariance)"
+    gap_id: GAP-020
+    impact: "10/10"
+    effort: "LOW"
+    why: "Current metrics are WRONG. 1-week fix, foundational."
+
+  rank_2:
+    capability: "Wire options flow into scoring"
+    gap_id: GAP-031
+    impact: "9/10"
+    effort: "LOW"
+    why: "FREE EDGE - data exists, just connect it. Proven alpha (Pan & Poteshman)."
+
+  rank_3:
+    capability: "Multi-horizon momentum"
+    gap_id: GAP-012
+    impact: "9/10"
+    effort: "LOW"
+    why: "Replace noisy 1-day with proven 3-12 month. Jegadeesh & Titman."
+
+  rank_4:
+    capability: "Sector-relative strength"
+    gap_id: GAP-013
+    impact: "8/10"
+    effort: "LOW"
+    why: "Data exists (XLK, XLE, XLF). Relative > absolute momentum."
+
+  rank_5:
+    capability: "Fix position sizing (equity-based)"
+    gap_id: GAP-043
+    impact: "10/10"
+    effort: "LOW"
+    why: "Current $500 flat is BROKEN. Easy fix, huge impact."
+
+  rank_6:
+    capability: "Earnings surprise tracking"
+    gap_id: GAP-003
+    impact: "8/10"
+    effort: "LOW"
+    why: "Most persistent premium. Easy to add via FMP."
+
+  rank_7:
+    capability: "Fix flat 5% stops"
+    gap_id: GAP-042
+    impact: "9/10"
+    effort: "LOW"
+    why: "Always use ATR. Remove flat fallback."
+
+  rank_8:
+    capability: "Liquidity checks"
+    gap_id: GAP-044
+    impact: "9/10"
+    effort: "LOW"
+    why: "Prevent illiquid blow-ups. Use existing ADV data."
+
+  rank_9:
+    capability: "Drawdown tracking"
+    gap_id: GAP-023
+    impact: "8/10"
+    effort: "LOW"
+    why: "Psychological pain metric. Easy to calculate."
+
+  rank_10:
+    capability: "Kelly position sizing"
+    gap_id: GAP-045
+    impact: "10/10"
+    effort: "MED"
+    why: "Optimal bet sizing. Requires backtest data first."
+
+# ========================================================================
+# Minimum Viable Gap-Fill (4-Week Roadmap)
+# ========================================================================
+mvp_roadmap:
+  goal: "Profitable trading within 4 weeks with Sharpe ~1.5"
+
+  week_1:
+    phase: "Fix Foundations"
+    focus: "Correct broken infrastructure"
+    gaps:
+      - GAP-020  # Covariance matrix
+      - GAP-043  # Equity-based sizing
+      - GAP-042  # ATR stops
+      - GAP-044  # Liquidity checks
+    deliverable: "Accurate risk metrics, proper position sizing, safety checks"
+
+  week_2:
+    phase: "Add Proven Signals"
+    focus: "Replace noisy signals with proven alpha"
+    gaps:
+      - GAP-012  # Multi-horizon momentum
+      - GAP-013  # Sector relative strength
+      - GAP-031  # Options flow
+      - GAP-023  # Drawdown tracking
+    deliverable: "Momentum + relative strength + options sentiment signals"
+
+  week_3:
+    phase: "Add Fundamental Edge"
+    focus: "Earnings and quality signals"
+    gaps:
+      - GAP-003  # Earnings surprises
+      - GAP-002  # Valuation ratios
+      - GAP-008  # Piotroski F-Score
+    deliverable: "Earnings + value + quality fundamentals"
+
+  week_4:
+    phase: "Validate & Deploy"
+    focus: "Backtesting and paper trading"
+    gaps:
+      - GAP-019  # Backtesting framework (parallel work weeks 1-3)
+      - GAP-029  # Bid/ask spreads
+      - GAP-046  # Transaction cost model
+    deliverable: "Backtest validated, paper trading deployed"
+    expected_edge: "Sharpe 1.2-1.8, Max DD <20%, Win Rate 50-60%"

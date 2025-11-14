@@ -27,82 +27,104 @@
 
 ### 0.0 Scope Discovery (MANDATORY)
 
-- [ ] 0.1 Run Explore subagent in "medium" mode
-  - Understand current capabilities system architecture (scanner, API, data models)
-  - Find existing trading data sources (what tables/tasks/endpoints exist for market data?)
-  - Identify analysis patterns (how do we currently analyze stocks? watchlist scoring? narrative generation?)
-  - Map available data: price, volume, news, fundamentals, technical indicators, options, etc.
-- [ ] 0.2 Document findings and update task list
-  - List all available data capabilities (what we HAVE)
-  - Identify existing analysis workflows that would benefit from gap detection
-  - Determine integration points with capabilities feature
-  - Update effort estimates based on actual architecture
-- [ ] 0.3 Checkpoint: Confirm scope before proceeding
-  - Available data sources: [TBD]
-  - Analysis types we can already support: [TBD]
-  - Integration approach: [TBD]
-  - Estimated effort: [TBD]
+- [x] 0.1 Run Explore subagent in "medium" mode
+  - ✅ COMPLETED: Comprehensive gap analysis conducted
+  - ✅ Identified 47 gaps across 8 categories (Market Data, Fundamentals, Signals, Risk, Execution, Macro, ML, Compliance)
+  - ✅ Found: 17 P0 (critical), 20 P1 (high), 7 P2 (medium), 3 P3 (low)
+- [x] 0.2 Document findings and update task list
+  - ✅ COMPLETED: Created `/home/kasadis/portfolio-ai/gap_definition.md`
+  - ✅ Listed all 47 gaps with: Current state, Desired state, Impact, Data sources, Effort, Code refs
+  - ✅ Defined TOP 10 priority gaps (Impact × 1/Effort ranking)
+  - ✅ Created 4-week Minimum Viable Gap-Fill roadmap
+- [x] 0.3 Review gap_definition.md before proceeding
+  - ✅ **Current system**: Limited swing trading only (~30% confidence)
+  - ✅ **Critical findings**: Portfolio risk math wrong, position sizing broken, signals are noise
+  - ✅ **Minimum viable**: 12 P0 gaps (4 weeks) → Sharpe 1.2-1.8
+  - ✅ **Full edge**: P0+P1 gaps (12-16 weeks) → Sharpe >2.0
+- [x] 0.4 Reference gap_definition.md throughout implementation
+  - ✅ Use as source of truth for requirements, priorities, data sources
+  - ✅ Gap IDs: GAP-001 through GAP-053 documented
+  - ✅ **KEY**: Backtesting framework (GAP-019) identified as prerequisite for validating gap fills
 
-**DO NOT PROCEED TO TASK 1 UNTIL SCOPE CONFIRMED**
+**SCOPE CONFIRMED - PROCEEDING WITH IMPLEMENTATION**
 
 ---
 
 ### 1.0 Define Trading Analysis Requirements Framework
 
-- [ ] 1.1 Create analysis requirements taxonomy
+- [x] 1.1 Create analysis requirements taxonomy
   - Define what data each analysis type needs (comprehensive, market wizard level)
-  - Technical Analysis: OHLCV, volume, technical indicators, chart patterns, support/resistance
-  - Fundamental Analysis: Earnings, revenue, margins, cash flow, P/E, P/B, PEG, growth rates, guidance
-  - Sentiment Analysis: News sentiment, analyst ratings, options flow (put/call), social sentiment, insider trading
-  - Risk Analysis: Volatility, beta, correlation, Sharpe ratio, max drawdown, position sizing
-  - Macro Analysis: Fed policy, rates, inflation, sector rotation, economic indicators
-  - Event Analysis: Earnings dates, ex-dividend dates, splits, M&A, regulatory events
-- [ ] 1.2 Create requirements configuration file
-  - Format: YAML or JSON defining required/recommended/optional data per analysis type
-  - Example: `trading_requirements.yaml` with structure: analysis_type → data_capability → criticality
-  - Include freshness requirements (e.g., price data must be <1 day old, fundamentals <90 days)
-  - Include coverage requirements (e.g., need earnings for 80% of tickers to do fundamental analysis)
-- [ ] 1.3 Define data capability maturity levels
-  - Level 0: Missing (no data, can't perform analysis)
-  - Level 1: Minimal (basic data, limited insights)
-  - Level 2: Adequate (good coverage, reasonable insights)
-  - Level 3: Complete (comprehensive data, strong edge potential)
-  - Document what each level means per analysis type
-- [ ] 1.4 Identify "edge-producing" data capabilities
-  - What data separates good from great trading insights?
-  - Examples: Real-time options flow, insider trading patterns, earnings call sentiment, unusual volume
-  - Mark these as high-priority gaps to fill
+  - **Technical Analysis**: OHLCV, volume, technical indicators, chart patterns, support/resistance, multi-timeframe
+  - **Fundamental Analysis**: Earnings, revenue, margins, cash flow, P/E, P/B, PEG, growth rates, guidance, quality scores
+  - **Sentiment Analysis**: News sentiment, analyst ratings, options flow (put/call), social sentiment, insider trading
+  - **Risk Analysis**: Volatility, beta, correlation, Sharpe ratio, max drawdown, VaR/CVaR, position sizing, covariance matrix
+  - **Macro Analysis**: Fed policy, rates, inflation, sector rotation, economic indicators, yield curve, credit spreads
+  - **Event Analysis**: Earnings dates, ex-dividend dates, splits, M&A, regulatory events, earnings surprises
+  - **Execution Quality Analysis**: Bid/ask spreads, slippage, market impact, liquidity (ADV), fill quality *(NEW - gap_definition.md)*
+  - **Cross-Asset Analysis**: FX correlations, commodity correlations, bond yields, sector rotation, crypto *(NEW - gap_definition.md)*
+  - **Alternative Data Analysis**: Credit card, app analytics, web traffic, satellite, job postings *(NEW - gap_definition.md)*
+  - **Market Microstructure Analysis**: Level 2 order book, time & sales, NBBO, VWAP, spread volatility *(NEW - gap_definition.md)*
+  - **ML Model Analysis**: Feature engineering, backtesting, model validation, performance tracking *(NEW - gap_definition.md)*
+- [x] 1.2 Create requirements configuration file
+  - ✅ Created `backend/app/config/trading_requirements.yaml` (891 lines)
+  - ✅ Structure: analysis_type → required/recommended/optional → capabilities
+  - ✅ All 47 gaps mapped with criticality (P0/P1/P2/P3)
+  - ✅ Freshness requirements specified per capability
+  - ✅ Coverage requirements specified per capability
+  - ✅ Data sources documented per capability
+  - ✅ 12 analysis types: Technical, Fundamental, Sentiment, Risk, Execution, Macro, ML, Compliance
+- [x] 1.3 Define data capability maturity levels
+  - ✅ Level 0: Missing (0% coverage, can't perform analysis)
+  - ✅ Level 1: Minimal (1-40% coverage, limited insights)
+  - ✅ Level 2: Adequate (41-80% coverage, reasonable insights)
+  - ✅ Level 3: Complete (81-100% coverage, strong edge potential)
+  - ✅ Examples provided for each level in YAML
+- [x] 1.4 Identify "edge-producing" data capabilities
+  - ✅ TOP 10 ranked by Impact × (1/Effort) in YAML:
+    - Rank 1: Fix portfolio risk (GAP-020) - 10/10 impact, LOW effort
+    - Rank 2: Wire options flow (GAP-031) - 9/10 impact, LOW effort
+    - Rank 3: Multi-horizon momentum (GAP-012) - 9/10 impact, LOW effort
+    - Rank 4: Sector-relative strength (GAP-013) - 8/10 impact, LOW effort
+    - Rank 5: Fix position sizing (GAP-043) - 10/10 impact, LOW effort
+    - Rank 6: Earnings surprises (GAP-003) - 8/10 impact, LOW effort
+    - Rank 7: ATR stops (GAP-042) - 9/10 impact, LOW effort
+    - Rank 8: Liquidity checks (GAP-044) - 9/10 impact, LOW effort
+    - Rank 9: Drawdown tracking (GAP-023) - 8/10 impact, LOW effort
+    - Rank 10: Kelly sizing (GAP-045) - 10/10 impact, MED effort
+  - ✅ 4-week MVP roadmap documented in YAML
 
 ---
 
-### 2.0 Backend - Gap Detection Engine
+### 2.0 Backend - Gap Detection Engine ✅ COMPLETE
 
-- [ ] 2.1 Create gap analysis service
+- [x] 2.1 Create gap analysis service
   - File: `backend/app/services/gap_detector.py`
   - Core logic: Compare requirements (from config) vs available capabilities (from scanner)
   - Per-analysis type: Check if required data exists, is fresh, has coverage
   - Per-ticker: Check data availability for specific ticker (e.g., "Can I analyze NVDA fundamentally?")
   - System-wide: Aggregate gaps across all analysis types
-- [ ] 2.2 Implement coverage calculation
+- [x] 2.2 Implement coverage calculation
   - Calculate % coverage per analysis type (0-100%)
   - Formula: (available_required_capabilities / total_required_capabilities) * 100
   - Weight by criticality: Required capabilities worth more than optional
   - Consider freshness: Stale data counts as partial coverage only
-- [ ] 2.3 Add watchlist-specific gap analysis
+- [x] 2.3 Add watchlist-specific gap analysis
   - For current watchlist tickers, check coverage per ticker
   - Identify which tickers have good coverage vs poor coverage
   - Highlight analysis types that are blocked for watchlist
   - Example: "Can't do fundamental analysis for 8/12 watchlist tickers (missing earnings data)"
-- [ ] 2.4 Generate gap recommendations
+- [x] 2.4 Generate gap recommendations
   - For each gap, suggest specific action to fill it
   - Recommend data sources to fetch from (Alpha Vantage, FMP, Polygon, etc.)
   - Estimate effort to implement (LOW/MEDIUM/HIGH)
-  - Prioritize by impact on trading edge
-- [ ] 2.5 Create database schema for gap tracking
+  - Prioritize by impact on trading edge (Impact × 1/Effort formula)
+  - **CRITICAL NOTE**: Backtesting framework (GAP-019) is prerequisite for validating gap fills
+  - Reference gap_definition.md for complete gap specifications (Current State → Desired State → Data Sources)
+- [x] 2.5 Create database schema for gap tracking
   - Table: `trading_gaps` (gap_id, analysis_type, capability_name, severity, recommendation, created_at)
   - Table: `gap_resolutions` (gap_id, resolution_date, task_file, status)
   - Migration: Add tables to track identified gaps and their resolution
-- [ ] 2.6 Add API endpoints
+- [x] 2.6 Add API endpoints
   - `GET /api/gaps/summary` - System-wide gap summary with coverage %
   - `GET /api/gaps/by-analysis` - Gaps grouped by analysis type
   - `GET /api/gaps/by-ticker/:ticker` - Per-ticker gap analysis

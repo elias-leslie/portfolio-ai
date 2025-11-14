@@ -16,6 +16,7 @@ from app.api import (
     analytics,
     capabilities,
     celery_endpoints,
+    gaps,
     health,
     ideas,
     indicators,
@@ -146,6 +147,7 @@ app.include_router(indicators.router)
 app.include_router(watchlist.router)
 app.include_router(ml.router)
 app.include_router(capabilities.router)
+app.include_router(gaps.router)
 
 
 @app.get("/")

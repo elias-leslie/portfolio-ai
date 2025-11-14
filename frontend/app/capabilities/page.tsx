@@ -21,6 +21,7 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { CapabilitiesTable } from "@/components/capabilities/CapabilitiesTable";
 import { InsightCard } from "@/components/capabilities/InsightCard";
 import { CapabilitiesDashboard } from "@/components/capabilities/CapabilitiesDashboard";
+import { GapsOverview } from "@/components/capabilities/GapsOverview";
 import {
   RefreshCw,
   Search,
@@ -42,6 +43,7 @@ import {
   type InsightSeverity,
   type InsightStatus,
 } from "@/lib/api/capabilities";
+import { fetchGapSummary } from "@/lib/api/gaps";
 import { toast } from "sonner";
 
 type TabValue = "dashboard" | "database" | "celery" | "api" | "insights" | "gaps";
@@ -135,19 +137,13 @@ function CapabilitiesPageContent() {
     enabled: activeTab === "insights",
   });
 
-  // Fetch gaps (missing capabilities)
+  // Fetch gaps (trading intelligence gaps)
   const {
     data: gapsData,
     isLoading: gapsLoading,
   } = useQuery({
-    queryKey: ["gaps", page, pageSize],
-    queryFn: () =>
-      fetchInsights({
-        type: "missing_capability",
-        status: "pending",
-        limit: pageSize,
-        offset: page * pageSize,
-      }),
+    queryKey: ["gaps-summary"],
+    queryFn: fetchGapSummary,
     enabled: activeTab === "gaps",
   });
 
@@ -330,9 +326,9 @@ function CapabilitiesPageContent() {
             <TabsTrigger value="gaps">
               <TrendingUp className="mr-2 h-4 w-4" />
               Gaps
-              {gapsData && gapsData.total > 0 && (
+              {gapsData && gapsData.total_gaps > 0 && (
                 <span className="ml-2 rounded-full bg-accent/20 px-2 py-0.5 text-xs">
-                  {gapsData.total}
+                  {gapsData.total_gaps}
                 </span>
               )}
             </TabsTrigger>
@@ -517,30 +513,12 @@ function CapabilitiesPageContent() {
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
-            ) : gapsData && gapsData.insights.length > 0 ? (
-              <div className="space-y-3">
-                <div className="rounded-lg border border-border bg-surface p-4">
-                  <h3 className="text-lg font-medium mb-2">Missing Capabilities</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    The AI has identified {gapsData.total} potential data sources or features that
-                    could enhance the system.
-                  </p>
-                </div>
-                {gapsData.insights.map((insight) => (
-                  <InsightCard
-                    key={insight.id}
-                    insight={insight}
-                    onReview={async (insightId, status, reason) => {
-                      await reviewMutation.mutateAsync({ insightId, status, reason });
-                    }}
-                    isLoading={reviewMutation.isPending}
-                  />
-                ))}
-              </div>
+            ) : gapsData ? (
+              <GapsOverview data={gapsData} />
             ) : (
               <div className="rounded-lg border border-border bg-surface p-8 text-center">
                 <TrendingUp className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
-                <p className="mt-4 text-sm text-muted-foreground">No capability gaps identified</p>
+                <p className="mt-4 text-sm text-muted-foreground">No gap data available</p>
               </div>
             )}
           </TabsContent>
@@ -552,8 +530,7 @@ function CapabilitiesPageContent() {
           activeTab !== "gaps" &&
           capabilitiesData &&
           capabilitiesData.total > pageSize) ||
-          (activeTab === "insights" && insightsData && insightsData.total > pageSize) ||
-          (activeTab === "gaps" && gapsData && gapsData.total > pageSize)) && (
+          (activeTab === "insights" && insightsData && insightsData.total > pageSize)) && (
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
               Showing {page * pageSize + 1} -{" "}
@@ -561,15 +538,11 @@ function CapabilitiesPageContent() {
                 (page + 1) * pageSize,
                 activeTab === "insights"
                   ? insightsData?.total || 0
-                  : activeTab === "gaps"
-                  ? gapsData?.total || 0
                   : capabilitiesData?.total || 0
               )}{" "}
               of{" "}
               {activeTab === "insights"
                 ? insightsData?.total || 0
-                : activeTab === "gaps"
-                ? gapsData?.total || 0
                 : capabilitiesData?.total || 0}
             </p>
             <div className="flex gap-2">
@@ -583,8 +556,6 @@ function CapabilitiesPageContent() {
                 disabled={
                   (activeTab === "insights" &&
                     (!insightsData || (page + 1) * pageSize >= insightsData.total)) ||
-                  (activeTab === "gaps" &&
-                    (!gapsData || (page + 1) * pageSize >= gapsData.total)) ||
                   ((activeTab === "database" || activeTab === "celery" || activeTab === "api") &&
                     (!capabilitiesData || (page + 1) * pageSize >= capabilitiesData.total))
                 }

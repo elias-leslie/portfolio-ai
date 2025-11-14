@@ -67,15 +67,15 @@
      - [ ] Task 5: Frontend Agent Experiences
      - [ ] Task 6: Testing, Docs, and Verification
 
-2. **System Capabilities UI - Specialized Tabs Refactor** (MEDIUM (10-12 hours, reduced from 30-40h), 1/8 tasks (yesterday))
+2. **System Capabilities UI - Specialized Tabs Refactor** (MEDIUM (10-12 hours, reduced from 30-40h), 4/8 tasks (yesterday))
    - File: `tasks-0061-capabilities-ui-specialized-tabs.md`
    - Created: 2025-11-13
    - Goal: Improve capabilities UI by removing modal popups, adding expandable inline details, and showing maximum data in collapsed rows. Add Dashboard tab for health summary. Automate orphan/health detection with backend scripts (no complex UI).
    - Tasks:
      - [x] Task 0: Scope Discovery (COMPLETE)
-     - [ ] Task 1: Backend - Health Detection (3-4 hours)
-     - [ ] Task 2: Frontend - Remove Modal, Add Expandable Rows (3-4 hours)
-     - [ ] Task 3: Frontend - Maximize Data in Main Row (2-3 hours)
+     - [x] Task 1: Backend - Health Detection (3-4 hours) ✅ COMPLETE
+     - [x] Task 2: Frontend - Remove Modal, Add Expandable Rows (3-4 hours) ✅ COMPLETE
+     - [x] Task 3: Frontend - Maximize Data in Main Row (2-3 hours) ✅ COMPLETE
      - [ ] Task 4: Frontend - Dashboard Tab (2-3 hours)
      - [ ] Task 5: Frontend - Health Filtering & Polish (1-2 hours)
      - [ ] Task 6: Testing and Verification (1-2 hours)
