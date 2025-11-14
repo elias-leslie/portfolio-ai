@@ -253,6 +253,38 @@ celery_app.conf.beat_schedule = {
         # - Stores in options_market_metrics table
         # - Used for market positioning intelligence
     },
+    "scan-system-capabilities": {
+        "task": "scan_system_capabilities",
+        "schedule": crontab(hour=3, minute=0),  # Daily at 03:00 UTC
+        "options": {"expires": 1800},  # Task expires after 30 minutes
+        # Notes:
+        # - Runs daily at 03:00 UTC (after data refresh tasks complete)
+        # - Auto-discovers all system capabilities:
+        #   * Database tables (row counts, completeness, freshness)
+        #   * Celery scheduled tasks (schedules, success rates)
+        #   * API endpoints (paths, dependencies)
+        # - Stores results in capability registry tables:
+        #   * db_capabilities
+        #   * celery_capabilities
+        #   * api_capabilities
+        # - Enables AI-powered monitoring and gap detection
+        # - Critical for preventing AI agents from breaking features
+    },
+    "analyze-capabilities": {
+        "task": "analyze_capabilities",
+        "schedule": crontab(hour=3, minute=15),  # Daily at 03:15 UTC (15 min after scan)
+        "options": {"expires": 1800},  # Task expires after 30 minutes
+        # Notes:
+        # - Runs daily at 03:15 UTC (15 minutes after capability scan)
+        # - Uses Claude AI to analyze capability data and identify:
+        #   * Data quality issues (stale, incomplete, missing fields)
+        #   * Missing capabilities (gaps in data sources, missing tasks)
+        #   * Broken dependencies (tasks failing, endpoints broken)
+        # - Stores insights in capability_insights table
+        # - Filters insights by confidence threshold (default: 0.70)
+        # - Provides actionable suggestions with file paths
+        # - Critical for proactive monitoring before AI agents break things
+    },
     # Future: Data cleanup task
     # Note: Commented example for future implementation
     # "cleanup-old-data": {
@@ -267,6 +299,7 @@ celery_app.conf.beat_schedule = {
 # This must come after celery_app is defined
 from app.tasks import (  # noqa: E402, F401
     agent_tasks,
+    capability_tasks,
     data_ingestion_tasks,
     indicator_tasks,
     market_data_tasks,

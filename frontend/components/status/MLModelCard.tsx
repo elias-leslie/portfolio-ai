@@ -339,7 +339,7 @@ function renderMetricRow(
   label: string,
   current: number,
   previous?: number,
-  badgeRenderer?: (value: number) => JSX.Element,
+  badgeRenderer?: (value: number) => React.ReactElement,
 ) {
   return (
     <div className="flex items-center justify-between text-sm">

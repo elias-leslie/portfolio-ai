@@ -5,6 +5,10 @@
 **Effort**: HIGH (20-24 hours sequential, 10-12 hours with parallel agents)
 **Environment**: Local Dev (auto-detected)
 **Created**: 2025-11-13 22:35
+**Status**: COMPLETE (with outstanding UI bugs)
+**Completed**: 2025-11-13
+**PAUSED**: 2025-11-13 21:06 (User-requested: clear context to fix UI bugs)
+**Next**: Debug and fix frontend NaN values and console errors
 
 ---
 
@@ -556,3 +560,37 @@
 **End-to-End:**
 - ✅ Market analyst scenario: Ask "what data is missing?", AI queries capabilities API, provides accurate gap analysis
 - ✅ Refactoring scenario: Claude Code checks capabilities before changes, sees known issues, reads human notes, proceeds safely
+
+---
+
+## Outstanding Issues
+
+**Frontend UI Bugs (Reported 2025-11-13):**
+- [ ] **NaN values appearing** in capabilities page
+  - Location: Unknown (needs investigation)
+  - Likely: Data fields not properly handled when null/undefined
+  - Priority: HIGH (user-facing bug)
+
+- [ ] **Console errors when expanding items**
+  - Location: Detail modal or expandable sections
+  - Likely: Event handlers, state management, or missing data checks
+  - Priority: HIGH (user-facing bug)
+
+- [ ] **Additional testing needed:**
+  - [ ] E2E testing of UI interactions (expand/collapse, modal open/close)
+  - [ ] Component-level testing for edge cases (null data, empty arrays)
+  - [ ] Browser console monitoring during full workflow
+  - [ ] Fix all console errors and warnings
+
+**Action Items:**
+1. Run comprehensive UI testing
+2. Fix NaN display issues (likely missing null checks in number formatting)
+3. Fix console errors (likely missing optional chaining or error boundaries)
+4. Add proper loading states and error handling
+5. Re-test entire UI workflow
+
+**To Debug:**
+- Open browser console on `/capabilities` page
+- Expand various capability items
+- Check for specific error messages
+- Verify data structure from API matches component expectations

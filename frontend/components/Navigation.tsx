@@ -8,6 +8,7 @@ import {
   Settings,
   Eye,
   Activity,
+  Database,
 } from "lucide-react";
 
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -28,6 +29,11 @@ const links = [
     href: "/watchlist",
     label: "Watchlist",
     icon: Eye,
+  },
+  {
+    href: "/capabilities",
+    label: "Capabilities",
+    icon: Database,
   },
   {
     href: "/status",
