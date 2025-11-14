@@ -61,9 +61,10 @@
   - Output: Complete list with file paths + line numbers for runtime, tools, APIs, UI hooks
   - **Known files requiring refactoring** (as of 2025-11-13):
     - `backend/app/agents/base.py` - Base Agent class with Anthropic client
-    - `backend/app/services/ai_analyzer.py` - **NEW** Capability AI analyzer (Task 0059)
+    - `backend/app/services/ai_analyzer.py` - **BROKEN** Capability AI analyzer (no Anthropic API key configured, must refactor to CLI)
     - `backend/app/tasks/capability_tasks.py` - Calls ai_analyzer
     - Tests referencing above
+  - **CRITICAL**: ai_analyzer.py is currently non-functional (no API key), blocking Task 0062 Task 4.0
 - [ ] 0.2 Update this task list with ALL discovered files
   - Add concrete sub-tasks per file/area, adjust numbering/effort based on findings
 - [ ] 0.3 Checkpoint: Confirm scope before proceeding
@@ -97,11 +98,12 @@
 
 - [ ] 3.1 Inject `LLMClient` into `Agent` base class, removing direct `Anthropic` import/usage
 - [ ] 3.2 Update Discovery/Portfolio Analyzer (and future personas) to use provider profiles + new runtime
-- [ ] 3.2a **Refactor CapabilityAnalyzer (Task 0059)** to use CLI adapter
+- [ ] 3.2a **Refactor CapabilityAnalyzer (Task 0059)** to use CLI adapter **[HIGH PRIORITY - UNBLOCKS TASK 0062]**
   - File: `backend/app/services/ai_analyzer.py`
-  - Current: Uses `Anthropic()` client directly with model "claude-sonnet-4.5-20250929"
+  - Current: Uses `Anthropic()` client directly with model "claude-sonnet-4.5-20250929" **[BROKEN - no API key configured]**
   - Target: Use provider-agnostic LLMClient with headless `claude -p --output-format stream-json`
   - Benefit: Zero per-token costs for daily automated analysis
+  - **CRITICAL**: This unblocks Task 0062 Task 4.0 (AI-Powered Gap Analysis) which depends on working ai_analyzer
   - Note: Celery task `analyze_capabilities` calls this, must continue working
 - [ ] 3.3 Extend `agent_runs` schema to capture provider/model/status telemetry (CLI command, model flag, session/resume token, exit code, duration stats) and expose via API
 - [ ] 3.4 Implement cancellation/timeouts + error handling for CLI processes with retries/fallback, mirroring doc best practices (e.g., wrap with `timeout 300`, capture stderr logs when `claude`/`gemini` fail)

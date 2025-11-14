@@ -1,4 +1,4 @@
-<!-- PAUSED: 2025-11-14 00:22 | Context: 79% | Next: Task 4.0 - AI-Powered Gap Analysis & Recommendations -->
+<!-- PAUSED: 2025-11-14 00:22 | Context: 79% | Next: Task 3.3-3.6 (Frontend UI) OR BLOCKED on Task 4.0 (requires 0060 Task 3.2a first) -->
 
 # Task List: Trading Intelligence Gap Detection
 
@@ -9,7 +9,7 @@
 **Created**: 2025-11-13 23:45
 **Status**: PAUSED
 **PAUSED**: 2025-11-14 00:22 (User request + git commit)
-**Next**: Task 4.0 - AI-Powered Gap Analysis & Recommendations
+**Next**: Task 3.3-3.6 (Frontend UI - no blockers) OR Task 4.0 (BLOCKED - requires Task 0060 Task 3.2a first)
 
 ---
 
@@ -176,10 +176,23 @@
 
 ### 4.0 AI-Powered Gap Analysis & Recommendations
 
+**⚠️ BLOCKED: Requires Task 0060 (CLI Agent Integration) Task 3.2a to complete first**
+
+**Dependency**: This task requires `backend/app/services/ai_analyzer.py` to be working. Currently it uses `Anthropic()` client but no API key exists (broken). Task 0060 Task 3.2a refactors ai_analyzer to use headless Claude CLI, which unblocks this task.
+
+**Execution order**:
+1. Complete Task 0060 Task 3.2a first (refactor ai_analyzer.py to use CLI adapter)
+2. Then return to Task 4.0 here (AI-powered gap analysis will now work via CLI)
+
+**Alternative**: Skip Task 4.0 entirely and implement gap recommendations manually (no AI analysis)
+
+---
+
 - [ ] 4.1 Add gap analysis to capabilities AI insights
   - Extend existing AI analysis (from Task 0059) to include gap detection
   - Prompt: "Analyze available capabilities vs trading analysis requirements. Identify critical gaps."
   - AI identifies: Missing data, stale data, low coverage, edge-limiting gaps
+  - **Requires**: ai_analyzer.py working via CLI (Task 0060 Task 3.2a)
 - [ ] 4.2 Generate actionable recommendations
   - AI suggests: "Missing earnings data blocks fundamental analysis for 60% of watchlist"
   - AI recommends: "Fetch from FMP API (earnings endpoint), estimated 4 hours to implement"
