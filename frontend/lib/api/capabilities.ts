@@ -40,6 +40,7 @@ export interface DbCapability extends BaseCapability {
   expected_refresh_hours: number;
   description: string;
   source: string | null;
+  health_status: string;
 }
 
 /**
@@ -51,11 +52,23 @@ export interface CeleryCapability extends BaseCapability {
   category: string;
   schedule_type: string | null;
   schedule_interval: string | null;
+  schedule_description: string | null;
+  schedule_crontab: string | null;
+  schedule_interval_seconds: number | null;
   description: string;
   populates_tables: string[];
   depends_on_tasks: string[];
   last_run_at: string | null;
   last_run_status: string | null;
+  next_run_at: string | null;
+  success_count_7d: number | null;
+  failure_count_7d: number | null;
+  success_rate_pct: number | null;
+  avg_duration_ms: number | null;
+  max_duration_ms: number | null;
+  task_path: string | null;
+  function_name: string | null;
+  health_status: string;
 }
 
 /**
@@ -69,6 +82,14 @@ export interface ApiCapability extends BaseCapability {
   description: string;
   depends_on_tables: string[];
   response_format: string | null;
+  route_file: string | null;
+  function_name: string | null;
+  avg_response_time_ms: number | null;
+  p95_response_time_ms: number | null;
+  p99_response_time_ms: number | null;
+  error_rate_pct: number | null;
+  last_7d_request_count: number | null;
+  health_status: string;
 }
 
 /**

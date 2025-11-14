@@ -189,6 +189,15 @@ class DatabaseScanner:
         # Categorize table
         category = categorize_by_name(table_name)
 
+        # Calculate health status
+        health_status = self._calculate_health_status(
+            row_count=row_count,
+            columns_with_data=columns_with_data,
+            columns=column_names,
+            freshness_status=freshness_status,
+            days_since_update=days_since_update,
+        )
+
         return {
             "table_name": table_name,
             "category": category,
@@ -203,6 +212,7 @@ class DatabaseScanner:
             "expected_freshness": expected_freshness,
             "days_since_update": days_since_update,
             "freshness_status": freshness_status,
+            "health_status": health_status,
         }
 
     def _detect_date_range(
@@ -272,6 +282,61 @@ class DatabaseScanner:
             return "stale"
         return "critical"
 
+    def _calculate_health_status(
+        self,
+        row_count: int,
+        columns_with_data: list[str],
+        columns: list[str],
+        freshness_status: str,
+        days_since_update: int | None,
+    ) -> str:
+        """Calculate health status for database table.
+
+        Args:
+            row_count: Number of rows in table
+            columns_with_data: Columns with non-NULL values
+            columns: All columns
+            freshness_status: Current freshness status
+            days_since_update: Days since last update
+
+        Returns:
+            Health status: "active", "orphaned", "legacy", or "suspect"
+
+        Database health logic:
+        - orphaned: Very low row count (<100) AND no substantial data
+        - legacy: No data (row_count=0) OR critically stale (>30 days + critical freshness)
+        - suspect: Low data completeness (<20%) OR stale freshness
+        - active: default (healthy table)
+        """
+        # Legacy: No data at all
+        if row_count == 0:
+            return "legacy"
+
+        # Orphaned: Very low row count and minimal data
+        if row_count < 100:
+            # Calculate data completeness
+            completeness = len(columns_with_data) / len(columns) if columns else 0
+            if completeness < 0.2:  # Less than 20% columns have data
+                return "orphaned"
+
+        # Legacy: Critically stale data
+        if (
+            freshness_status == "critical"
+            and days_since_update is not None
+            and days_since_update > 30
+        ):
+            return "legacy"
+
+        # Suspect: Low completeness or stale
+        completeness = len(columns_with_data) / len(columns) if columns else 0
+        if completeness < 0.3:  # Less than 30% columns have data
+            return "suspect"
+
+        if freshness_status in ["stale", "critical"]:
+            return "suspect"
+
+        return "active"
+
     def save_capabilities(self, capabilities: list[dict[str, Any]]) -> int:
         """Save scanned capabilities to db_capabilities table.
 
@@ -304,9 +369,9 @@ class DatabaseScanner:
                         columns, columns_with_data, columns_mostly_null,
                         completeness_pct, date_range_start, date_range_end,
                         expected_freshness, days_since_update, freshness_status,
-                        last_scanned_at, created_at, updated_at
+                        health_status, last_scanned_at, created_at, updated_at
                     ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                     )
                     ON CONFLICT (table_name) DO UPDATE SET
                         category = EXCLUDED.category,
@@ -321,6 +386,7 @@ class DatabaseScanner:
                         expected_freshness = EXCLUDED.expected_freshness,
                         days_since_update = EXCLUDED.days_since_update,
                         freshness_status = EXCLUDED.freshness_status,
+                        health_status = EXCLUDED.health_status,
                         last_scanned_at = EXCLUDED.last_scanned_at,
                         updated_at = EXCLUDED.updated_at
                     """,
@@ -338,6 +404,7 @@ class DatabaseScanner:
                         cap["expected_freshness"],
                         cap["days_since_update"],
                         cap["freshness_status"],
+                        cap["health_status"],
                         datetime.now(UTC),  # last_scanned_at
                         datetime.now(UTC),  # created_at
                         datetime.now(UTC),  # updated_at
@@ -462,6 +529,18 @@ class CeleryScanner:
         # Categorize task
         category = categorize_by_name(task_name)
 
+        # Detect dependencies (placeholder for now)
+        depends_on_tasks: list[str] = []  # TODO: Implement dependency detection
+
+        # Calculate health status
+        health_status = self._calculate_celery_health_status(
+            populates_tables=populates_tables,
+            depends_on_tasks=depends_on_tasks,
+            last_run_at=last_run_at,
+            success_rate_pct=success_rate,
+            schedule_interval_seconds=schedule_interval_seconds,
+        )
+
         return {
             "task_name": task_name,
             "category": category,
@@ -478,7 +557,8 @@ class CeleryScanner:
             "avg_duration_ms": avg_duration,
             "max_duration_ms": max_duration,
             "populates_tables": populates_tables,
-            "depends_on_tasks": [],  # TODO: Implement dependency detection
+            "depends_on_tasks": depends_on_tasks,
+            "health_status": health_status,
         }
 
     def _parse_schedule(
@@ -615,6 +695,50 @@ class CeleryScanner:
 
         return None, None, 0, 0, None, None, None
 
+    def _calculate_celery_health_status(
+        self,
+        populates_tables: list[str],
+        depends_on_tasks: list[str],
+        last_run_at: Any | None,
+        success_rate_pct: int | None,
+        schedule_interval_seconds: int | None,
+    ) -> str:
+        """Calculate health status for Celery task.
+
+        Args:
+            populates_tables: Tables this task populates
+            depends_on_tasks: Tasks this task depends on
+            last_run_at: Last execution timestamp
+            success_rate_pct: Success rate over last 7 days
+            schedule_interval_seconds: Schedule interval in seconds
+
+        Returns:
+            Health status: "active", "orphaned", "legacy", or "suspect"
+
+        Celery health logic:
+        - orphaned: Not in schedule (interval=None) AND no populates AND no depends_on
+        - legacy: Never run (last_run_at=None) OR success_rate=0% consistently
+        - suspect: Low success rate (<50%) OR irregular execution
+        - active: default (healthy task)
+        """
+        # Orphaned: Not scheduled and no dependencies
+        if schedule_interval_seconds is None and not populates_tables and not depends_on_tasks:
+            return "orphaned"
+
+        # Legacy: Never executed
+        if last_run_at is None:
+            return "legacy"
+
+        # Legacy: Complete failure (0% success rate)
+        if success_rate_pct is not None and success_rate_pct == 0:
+            return "legacy"
+
+        # Suspect: Low success rate
+        if success_rate_pct is not None and success_rate_pct < 50:
+            return "suspect"
+
+        return "active"
+
     def _detect_populates_tables(self, task_path: str) -> list[str]:
         """Detect which tables a task populates by scanning task file.
 
@@ -695,10 +819,10 @@ class CeleryScanner:
                         last_run_at, next_run_at,
                         success_count_7d, failure_count_7d, success_rate_pct,
                         avg_duration_ms, max_duration_ms,
-                        populates_tables, depends_on_tasks,
+                        populates_tables, depends_on_tasks, health_status,
                         last_scanned_at, created_at, updated_at
                     ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                     )
                     ON CONFLICT (task_name) DO UPDATE SET
                         category = EXCLUDED.category,
@@ -716,6 +840,7 @@ class CeleryScanner:
                         max_duration_ms = EXCLUDED.max_duration_ms,
                         populates_tables = EXCLUDED.populates_tables,
                         depends_on_tasks = EXCLUDED.depends_on_tasks,
+                        health_status = EXCLUDED.health_status,
                         last_scanned_at = EXCLUDED.last_scanned_at,
                         updated_at = EXCLUDED.updated_at
                     """,
@@ -736,6 +861,7 @@ class CeleryScanner:
                         cap["max_duration_ms"],
                         populates_tables_json,
                         depends_on_tasks_json,
+                        cap["health_status"],
                         datetime.now(UTC),  # last_scanned_at
                         datetime.now(UTC),  # created_at
                         datetime.now(UTC),  # updated_at
@@ -860,6 +986,11 @@ class APIScanner:
             # Categorize endpoint
             category = categorize_by_name(path)
 
+            # Calculate health status
+            health_status = self._calculate_api_health_status(
+                depends_on_tables=depends_on_tables,
+            )
+
             endpoints.append(
                 {
                     "endpoint_path": path,
@@ -868,6 +999,7 @@ class APIScanner:
                     "route_file": str(route_file.name),
                     "function_name": function_name or "unknown",
                     "depends_on_tables": depends_on_tables,
+                    "health_status": health_status,
                     # Performance metrics - NULL for Phase 1 (no middleware yet)
                     "avg_response_time_ms": None,
                     "p95_response_time_ms": None,
@@ -910,6 +1042,34 @@ class APIScanner:
             logger.debug("failed_to_extract_function_name", error=str(e))
 
         return None
+
+    def _calculate_api_health_status(
+        self,
+        depends_on_tables: list[str],
+    ) -> str:
+        """Calculate health status for API endpoint.
+
+        Args:
+            depends_on_tables: Tables this endpoint depends on
+
+        Returns:
+            Health status: "active", "orphaned", "legacy", or "suspect"
+
+        API health logic:
+        - orphaned: No table dependencies (isolated endpoint)
+        - legacy: Not implemented yet (requires table health cross-reference)
+        - suspect: Not implemented yet (requires table health cross-reference)
+        - active: default
+
+        NOTE: Full implementation requires querying db_capabilities to check
+        if depends_on_tables are orphaned/legacy. This is Phase 2 work.
+        """
+        # Orphaned: No dependencies on any tables
+        if not depends_on_tables:
+            return "orphaned"
+
+        # Default: Active (full logic requires cross-referencing db_capabilities)
+        return "active"
 
     def _detect_table_dependencies(self, content: str, function_name: str | None) -> list[str]:
         """Detect which tables an endpoint depends on.
@@ -973,18 +1133,19 @@ class APIScanner:
                     """
                     INSERT INTO api_capabilities (
                         endpoint_path, http_method, category, route_file, function_name,
-                        depends_on_tables,
+                        depends_on_tables, health_status,
                         avg_response_time_ms, p95_response_time_ms, p99_response_time_ms,
                         error_rate_pct, last_7d_request_count,
                         last_scanned_at, created_at, updated_at
                     ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                     )
                     ON CONFLICT (endpoint_path, http_method) DO UPDATE SET
                         category = EXCLUDED.category,
                         route_file = EXCLUDED.route_file,
                         function_name = EXCLUDED.function_name,
                         depends_on_tables = EXCLUDED.depends_on_tables,
+                        health_status = EXCLUDED.health_status,
                         avg_response_time_ms = EXCLUDED.avg_response_time_ms,
                         p95_response_time_ms = EXCLUDED.p95_response_time_ms,
                         p99_response_time_ms = EXCLUDED.p99_response_time_ms,
@@ -1000,6 +1161,7 @@ class APIScanner:
                         cap["route_file"],
                         cap["function_name"],
                         depends_on_tables_json,
+                        cap["health_status"],
                         cap["avg_response_time_ms"],
                         cap["p95_response_time_ms"],
                         cap["p99_response_time_ms"],

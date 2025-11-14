@@ -4,7 +4,8 @@
 
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,8 +19,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { CapabilitiesTable } from "@/components/capabilities/CapabilitiesTable";
-import { CapabilityDetailModal } from "@/components/capabilities/CapabilityDetailModal";
 import { InsightCard } from "@/components/capabilities/InsightCard";
+import { CapabilitiesDashboard } from "@/components/capabilities/CapabilitiesDashboard";
 import {
   RefreshCw,
   Search,
@@ -30,31 +31,37 @@ import {
   AlertTriangle,
   TrendingUp,
   Loader2,
+  X,
 } from "lucide-react";
 import {
   fetchCapabilities,
   fetchInsights,
   reviewInsight,
   triggerScan,
-  type Capability,
   type CapabilityType,
   type InsightSeverity,
   type InsightStatus,
 } from "@/lib/api/capabilities";
 import { toast } from "sonner";
 
-type TabValue = "all" | "database" | "celery" | "api" | "insights" | "gaps";
+type TabValue = "dashboard" | "database" | "celery" | "api" | "insights" | "gaps";
 
-export default function CapabilitiesPage() {
+function CapabilitiesPageContent() {
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Get initial health filter from URL
+  const initialHealthFilter = searchParams.get("health") || "all";
 
   // Tab state
-  const [activeTab, setActiveTab] = useState<TabValue>("all");
+  const [activeTab, setActiveTab] = useState<TabValue>("dashboard");
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [healthFilter, setHealthFilter] = useState<string>(initialHealthFilter);
   const [severityFilter, setSeverityFilter] = useState<string>("all");
   const [insightStatusFilter, setInsightStatusFilter] = useState<InsightStatus | "all">("all");
 
@@ -62,9 +69,20 @@ export default function CapabilitiesPage() {
   const [page, setPage] = useState(0);
   const pageSize = 50;
 
-  // Modal state
-  const [selectedCapability, setSelectedCapability] = useState<Capability | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  // Handle health filter change with URL sync
+  const handleHealthFilterChange = (value: string) => {
+    setHealthFilter(value);
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (value === "all") {
+        params.delete("health");
+      } else {
+        params.set("health", value);
+      }
+      const newUrl = params.toString() ? `?${params.toString()}` : window.location.pathname;
+      router.push(newUrl);
+    }
+  };
 
   // Determine capability type filter based on active tab
   const capabilityTypeFilter: "all" | CapabilityType =
@@ -80,13 +98,13 @@ export default function CapabilitiesPage() {
   const {
     data: capabilitiesData,
     isLoading: capabilitiesLoading,
-    error: capabilitiesError,
   } = useQuery({
     queryKey: [
       "capabilities",
       capabilityTypeFilter,
       categoryFilter,
       statusFilter,
+      healthFilter,
       page,
       pageSize,
     ],
@@ -98,14 +116,13 @@ export default function CapabilitiesPage() {
         limit: pageSize,
         offset: page * pageSize,
       }),
-    enabled: activeTab !== "insights" && activeTab !== "gaps",
+    enabled: activeTab !== "dashboard" && activeTab !== "insights" && activeTab !== "gaps",
   });
 
   // Fetch insights for insights tab
   const {
     data: insightsData,
     isLoading: insightsLoading,
-    error: insightsError,
   } = useQuery({
     queryKey: ["insights", severityFilter, insightStatusFilter, page, pageSize],
     queryFn: () =>
@@ -122,7 +139,6 @@ export default function CapabilitiesPage() {
   const {
     data: gapsData,
     isLoading: gapsLoading,
-    error: gapsError,
   } = useQuery({
     queryKey: ["gaps", page, pageSize],
     queryFn: () =>
@@ -172,12 +188,13 @@ export default function CapabilitiesPage() {
     },
   });
 
-  // Filter capabilities by search query
+  // Filter capabilities by search query and health status
   const filteredCapabilities = useMemo(() => {
     if (!capabilitiesData?.capabilities) return [];
 
     let filtered = capabilitiesData.capabilities;
 
+    // Apply search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter((cap) => {
@@ -195,8 +212,13 @@ export default function CapabilitiesPage() {
       });
     }
 
+    // Apply health filter
+    if (healthFilter !== "all") {
+      filtered = filtered.filter((cap) => cap.health_status === healthFilter);
+    }
+
     return filtered;
-  }, [capabilitiesData, searchQuery]);
+  }, [capabilitiesData, searchQuery, healthFilter]);
 
   // Get unique categories from capabilities
   const categories = useMemo(() => {
@@ -207,17 +229,21 @@ export default function CapabilitiesPage() {
     return Array.from(cats).sort();
   }, [capabilitiesData]);
 
-  // Handle capability row click
-  const handleCapabilityClick = (capability: Capability) => {
-    setSelectedCapability(capability);
-    setIsModalOpen(true);
-  };
+  // Calculate health status counts
+  const healthCounts = useMemo(() => {
+    if (!capabilitiesData?.capabilities) {
+      return { total: 0, active: 0, orphaned: 0, legacy: 0, suspect: 0, filtered: 0 };
+    }
 
-  // Handle modal close
-  const handleModalClose = () => {
-    setIsModalOpen(false);
-    setSelectedCapability(null);
-  };
+    const total = capabilitiesData.capabilities.length;
+    const active = capabilitiesData.capabilities.filter((c) => c.health_status === "active").length;
+    const orphaned = capabilitiesData.capabilities.filter((c) => c.health_status === "orphaned").length;
+    const legacy = capabilitiesData.capabilities.filter((c) => c.health_status === "legacy").length;
+    const suspect = capabilitiesData.capabilities.filter((c) => c.health_status === "suspect").length;
+    const filtered = filteredCapabilities.length;
+
+    return { total, active, orphaned, legacy, suspect, filtered };
+  }, [capabilitiesData, filteredCapabilities]);
 
   // Render loading state
   if (capabilitiesLoading && !capabilitiesData) {
@@ -268,11 +294,8 @@ export default function CapabilitiesPage() {
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as TabValue)}>
           <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="all">
-              All
-              <span className="ml-2 rounded-full bg-surface-muted px-2 py-0.5 text-xs">
-                {capabilitiesData?.total || 0}
-              </span>
+            <TabsTrigger value="dashboard">
+              Dashboard
             </TabsTrigger>
             <TabsTrigger value="database">
               <Database className="mr-2 h-4 w-4" />
@@ -316,53 +339,91 @@ export default function CapabilitiesPage() {
           </TabsList>
 
           {/* Filters (for capability tabs) */}
-          {activeTab !== "insights" && activeTab !== "gaps" && (
-            <div className="flex flex-wrap gap-3">
-              {/* Search */}
-              <div className="relative flex-1 min-w-[250px]">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Search capabilities..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
-                />
+          {activeTab !== "dashboard" && activeTab !== "insights" && activeTab !== "gaps" && (
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-3">
+                {/* Search */}
+                <div className="relative flex-1 min-w-[250px]">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Search capabilities..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+
+                {/* Category Filter */}
+                {categories.length > 0 && (
+                  <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                    <SelectTrigger className="w-[180px]">
+                      <Filter className="mr-2 h-4 w-4" />
+                      <SelectValue placeholder="Category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Categories</SelectItem>
+                      {categories.map((cat) => (
+                        <SelectItem key={cat} value={cat}>
+                          {cat}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+
+                {/* Status Filter (DB only) */}
+                {activeTab === "database" && (
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-[160px]">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="fresh">Fresh</SelectItem>
+                      <SelectItem value="stale">Stale</SelectItem>
+                      <SelectItem value="critical">Critical</SelectItem>
+                      <SelectItem value="unknown">Unknown</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+
+                {/* Health Filter */}
+                <Select value={healthFilter} onValueChange={handleHealthFilterChange}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="Health Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All ({healthCounts.total})</SelectItem>
+                    <SelectItem value="active">Active ({healthCounts.active})</SelectItem>
+                    <SelectItem value="orphaned">Orphaned ({healthCounts.orphaned})</SelectItem>
+                    <SelectItem value="legacy">Legacy ({healthCounts.legacy})</SelectItem>
+                    <SelectItem value="suspect">Suspect ({healthCounts.suspect})</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {/* Clear Health Filter Button */}
+                {healthFilter !== "all" && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleHealthFilterChange("all")}
+                  >
+                    <X className="mr-2 h-4 w-4" />
+                    Clear Filter
+                  </Button>
+                )}
               </div>
 
-              {/* Category Filter */}
-              {categories.length > 0 && (
-                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                  <SelectTrigger className="w-[180px]">
-                    <Filter className="mr-2 h-4 w-4" />
-                    <SelectValue placeholder="Category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Categories</SelectItem>
-                    {categories.map((cat) => (
-                      <SelectItem key={cat} value={cat}>
-                        {cat}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-
-              {/* Status Filter (DB only) */}
-              {activeTab === "database" && (
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-[160px]">
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="fresh">Fresh</SelectItem>
-                    <SelectItem value="stale">Stale</SelectItem>
-                    <SelectItem value="critical">Critical</SelectItem>
-                    <SelectItem value="unknown">Unknown</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
+              {/* Result Count */}
+              <div className="flex items-center justify-between text-sm text-muted-foreground">
+                <span>
+                  Showing {healthCounts.filtered}{" "}
+                  {healthFilter !== "all" && `${healthFilter} `}
+                  {healthCounts.filtered === 1 ? "capability" : "capabilities"}
+                  {healthFilter !== "all" && ` (of ${healthCounts.total} total)`}
+                </span>
+              </div>
             </div>
           )}
 
@@ -403,36 +464,24 @@ export default function CapabilitiesPage() {
             </div>
           )}
 
-          {/* All Capabilities Tab */}
-          <TabsContent value="all">
-            <CapabilitiesTable
-              capabilities={filteredCapabilities}
-              onRowClick={handleCapabilityClick}
-            />
+          {/* Dashboard Tab */}
+          <TabsContent value="dashboard">
+            <CapabilitiesDashboard />
           </TabsContent>
 
           {/* Database Tab */}
           <TabsContent value="database">
-            <CapabilitiesTable
-              capabilities={filteredCapabilities}
-              onRowClick={handleCapabilityClick}
-            />
+            <CapabilitiesTable capabilities={filteredCapabilities} />
           </TabsContent>
 
           {/* Celery Tasks Tab */}
           <TabsContent value="celery">
-            <CapabilitiesTable
-              capabilities={filteredCapabilities}
-              onRowClick={handleCapabilityClick}
-            />
+            <CapabilitiesTable capabilities={filteredCapabilities} />
           </TabsContent>
 
           {/* API Endpoints Tab */}
           <TabsContent value="api">
-            <CapabilitiesTable
-              capabilities={filteredCapabilities}
-              onRowClick={handleCapabilityClick}
-            />
+            <CapabilitiesTable capabilities={filteredCapabilities} />
           </TabsContent>
 
           {/* Insights Tab */}
@@ -498,7 +547,8 @@ export default function CapabilitiesPage() {
         </Tabs>
 
         {/* Pagination */}
-        {((activeTab !== "insights" &&
+        {((activeTab !== "dashboard" &&
+          activeTab !== "insights" &&
           activeTab !== "gaps" &&
           capabilitiesData &&
           capabilitiesData.total > pageSize) ||
@@ -535,8 +585,7 @@ export default function CapabilitiesPage() {
                     (!insightsData || (page + 1) * pageSize >= insightsData.total)) ||
                   (activeTab === "gaps" &&
                     (!gapsData || (page + 1) * pageSize >= gapsData.total)) ||
-                  (activeTab !== "insights" &&
-                    activeTab !== "gaps" &&
+                  ((activeTab === "database" || activeTab === "celery" || activeTab === "api") &&
                     (!capabilitiesData || (page + 1) * pageSize >= capabilitiesData.total))
                 }
               >
@@ -546,13 +595,27 @@ export default function CapabilitiesPage() {
           </div>
         )}
       </div>
-
-      {/* Detail Modal */}
-      <CapabilityDetailModal
-        capability={selectedCapability}
-        isOpen={isModalOpen}
-        onClose={handleModalClose}
-      />
     </div>
+  );
+}
+
+export default function CapabilitiesPage() {
+  return (
+    <Suspense fallback={
+      <div className="bg-bg min-h-screen">
+        <div className="mx-auto max-w-7xl space-y-8 px-4 py-10 sm:px-6 lg:px-8">
+          <PageHeader
+            title="System Capabilities"
+            description="Loading..."
+            size="md"
+          />
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        </div>
+      </div>
+    }>
+      <CapabilitiesPageContent />
+    </Suspense>
   );
 }

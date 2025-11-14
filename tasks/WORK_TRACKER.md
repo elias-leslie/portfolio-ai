@@ -67,32 +67,44 @@
      - [ ] Task 5: Frontend Agent Experiences
      - [ ] Task 6: Testing, Docs, and Verification
 
-2. **System Capabilities UI - Specialized Tabs Refactor** (HIGH (6-8 hours), 0/12 tasks (yesterday))
+2. **System Capabilities UI - Specialized Tabs Refactor** (MEDIUM (10-12 hours, reduced from 30-40h), 1/8 tasks (yesterday))
    - File: `tasks-0061-capabilities-ui-specialized-tabs.md`
    - Created: 2025-11-13
-   - Goal: Replace the unified "All" tab approach with specialized, optimized tabs for each capability type (Database, Tasks, Endpoints). Add a Dashboard/Overview tab for system-wide health summary. Each tab gets type-specific tables, columns, filters, and visualizations optimized for that data type's unique structure.
+   - Goal: Improve capabilities UI by removing modal popups, adding expandable inline details, and showing maximum data in collapsed rows. Add Dashboard tab for health summary. Automate orphan/health detection with backend scripts (no complex UI).
+   - Tasks:
+     - [x] Task 0: Scope Discovery (COMPLETE)
+     - [ ] Task 1: Backend - Health Detection (3-4 hours)
+     - [ ] Task 2: Frontend - Remove Modal, Add Expandable Rows (3-4 hours)
+     - [ ] Task 3: Frontend - Maximize Data in Main Row (2-3 hours)
+     - [ ] Task 4: Frontend - Dashboard Tab (2-3 hours)
+     - [ ] Task 5: Frontend - Health Filtering & Polish (1-2 hours)
+     - [ ] Task 6: Testing and Verification (1-2 hours)
+     - [ ] Task 7: Documentation (30min - 1hr)
+
+3. **Trading Intelligence Gap Detection** (HIGH (15-20 hours), 0/10 tasks (yesterday))
+   - File: `tasks-0062-trading-intelligence-gap-detection.md`
+   - Created: 2025-11-13
+   - Goal: Build gap detection system that identifies missing data capabilities needed for profitable trading strategies. Primary purpose: Help AI trading agent (Claude) detect what data it's missing to provide true edge and successful trading insights. Extend existing capabilities feature with trading-focused gap analysis.
    - Tasks:
      - [ ] Task 0: Scope Discovery (MANDATORY)
-     - [ ] Task 1: Design Dashboard/Overview Tab
-     - [ ] Task 2: Create Specialized Database Table Component
-     - [ ] Task 3: Create Specialized Tasks Table Component
-     - [ ] Task 4: Create Specialized Endpoints Table Component
-     - [ ] Task 5: Refactor Tab Navigation
-     - [ ] Task 6: Create Type-Specific Detail Modals
-     - [ ] Task 7: Update API Client and Data Fetching
-     - [ ] Task 8: Add Visualizations and Polish
-     - [ ] Task 9: Update Search and Filtering
-     - [ ] Task 10: Testing and Verification
-     - [ ] Task 11: Documentation and Cleanup
+     - [ ] Task 1: Define Trading Analysis Requirements Framework
+     - [ ] Task 2: Backend - Gap Detection Engine
+     - [ ] Task 3: Frontend - Gap Detection UI (Extend Capabilities)
+     - [ ] Task 4: AI-Powered Gap Analysis & Recommendations
+     - [ ] Task 5: Integration with Trading Workflows
+     - [ ] Task 6: Scheduled Gap Analysis & Monitoring
+     - [ ] Task 7: Documentation & Examples
+     - [ ] Task 8: Testing & Verification
+     - [ ] Task 9: Baseline & Production Deployment
 
-3. **UI Standardization & UX Fixes** (MEDIUM-HIGH (4-6 hours, 12-15 files), 0/0 tasks (2 days ago))
+4. **UI Standardization & UX Fixes** (MEDIUM-HIGH (4-6 hours, 12-15 files), 0/0 tasks (2 days ago))
    - File: `tasks-0055-ui-standardization-and-ux-fixes.md`
    - Created: 2025-11-12
    - Goal: Bring the Portfolio AI web UI up to a consistent design baseline by aligning headers, loading states, and critical interactions so that every surface communicates status clearly and meets accessibility expectations.
    - Tasks:
      - (No tasks defined yet)
 
-4. **Development Process Optimization** (MEDIUM (4-6 hours), 5/7 tasks (2 days ago))
+5. **Development Process Optimization** (MEDIUM (4-6 hours), 5/7 tasks (2 days ago))
    - File: `tasks-0054-dev-process-optimization.md`
    - Created: 2025-11-12
    - Goal: Reduce development cycle time from 15-20 min to 5-7 min (3x faster) by fixing test performance and workflow bottlenecks.
@@ -105,7 +117,7 @@
      - [x] Task 6: Medium: Add Smoke Test Markers ✅ **COMPLETE**
      - [ ] Task 7: Medium: Reduce Large Service Files ⏸️ **DEFERRED**
 
-5. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (3 days ago))
+6. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (3 days ago))
    - File: `tasks-0042-customizable-dashboard-layouts.md`
    - Created: 2025-11-11
    - Goal: Enable users to customize dashboard layouts by dragging/resizing cards, with persistence to PostgreSQL backend
@@ -121,7 +133,7 @@
      - [ ] Task 9: Polish and Edge Cases
      - [ ] Task 10: Testing and Documentation
 
-6. **Trading Intelligence Roadmap** (High, 4/8 tasks)
+7. **Trading Intelligence Roadmap** (High, 4/8 tasks)
    - File: `tasks-trading-intelligence-roadmap.md`
    - Created: Unknown
    - Tasks:
@@ -134,7 +146,7 @@
      - [ ] Task 7: Frontend & UX
      - [ ] Task 8: Governance & documentation
 
-7. **Response Caching Middleware** (TBD, 0/8 tasks (3 days ago))
+8. **Response Caching Middleware** (TBD, 0/8 tasks (3 days ago))
    - File: `tasks-0047-response-caching-middleware.md`
    - Created: 2025-11-11
    - Tasks:
@@ -147,7 +159,7 @@
      - [ ] Task 7: Cache Management Endpoints
      - [ ] Task 8: Integration and Configuration
 
-8. **Settings & Status Standardization** (HIGH, 3/5 tasks (yesterday))
+9. **Settings & Status Standardization** (HIGH, 3/5 tasks (yesterday))
    - File: `tasks-0058-settings-and-status-standardization.md`
    - Created: 2025-11-13
    - Goal: Fully align the Status and Settings pages with the new UI system (PageHeader, SectionCard, ExpandableCard) while eliminating redundant data and ensuring DRY logic for collapsible cards, summaries, and defaults.

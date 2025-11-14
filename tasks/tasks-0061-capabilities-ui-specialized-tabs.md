@@ -1,18 +1,25 @@
 # Task List: System Capabilities UI - Specialized Tabs Refactor
 
 **Source**: User request via /task_it
-**Complexity**: Complex
-**Effort**: HIGH (6-8 hours)
+**Complexity**: Medium (simplified from original)
+**Effort**: MEDIUM (10-12 hours, reduced from 30-40h)
 **Environment**: Local Dev (auto-detected)
 **Created**: 2025-11-13 21:45
+**Revised**: 2025-11-13 23:30 (simplified approach)
 
 ---
 
 ## Summary
 
-**Goal**: Replace the unified "All" tab approach with specialized, optimized tabs for each capability type (Database, Tasks, Endpoints). Add a Dashboard/Overview tab for system-wide health summary. Each tab gets type-specific tables, columns, filters, and visualizations optimized for that data type's unique structure.
+**Goal**: Improve capabilities UI by removing modal popups, adding expandable inline details, and showing maximum data in collapsed rows. Add Dashboard tab for health summary. Automate orphan/health detection with backend scripts (no complex UI).
 
-**Approach**: Remove lowest-common-denominator table structure. Create dedicated components for each capability type with appropriate visualizations (completeness bars, success rate charts, HTTP method badges). Refactor modals to be type-specific. Add Dashboard tab with health summary cards.
+**Approach**:
+- Keep existing unified table (don't build 3 specialized tables)
+- Remove 545-line modal, replace with expandable accordion rows
+- Pack maximum data into main row (~10 columns, no expansion needed for quick scan)
+- Add simple Dashboard tab with summary cards
+- Backend: Add health_status field + automated health reporting script
+- Focus on data density and quick scanning, not fancy visualizations
 
 **Scope Discovery**: Required (find all affected frontend components)
 
@@ -20,265 +27,173 @@
 
 ## Tasks
 
-### 0.0 Scope Discovery (MANDATORY)
+### 0.0 Scope Discovery (COMPLETE)
 
-- [ ] 0.1 Run Explore subagent in "very thorough" mode
-  - Pattern: All frontend components related to capabilities (tables, tabs, modals, API clients)
-  - Goal: Find ALL components that need refactoring or creation
-  - Search: `frontend/app/capabilities/`, `frontend/components/capabilities/`, `frontend/lib/api/capabilities.ts`
-  - Output: Complete list of existing components + identify what needs to be created
-- [ ] 0.2 Update this task list with component-specific tasks
-  - List all components to modify
-  - List all new components to create
-  - Estimate effort per component
-- [ ] 0.3 Checkpoint: Confirm scope before proceeding
-  - Total components affected: [TBD]
-  - New components needed: [TBD]
-  - Estimated effort: [TBD]
-  - Design decisions needed: [TBD]
+- [x] 0.1 Run Explore subagent ✅
+- [x] 0.2 Analyze findings and simplify approach ✅
+- [x] 0.3 Finalized plan ✅
 
-**DO NOT PROCEED TO TASK 1 UNTIL SCOPE CONFIRMED**
+**Simplified Scope:**
+- Files to modify: 3 (page.tsx, CapabilitiesTable.tsx, capabilities.ts)
+- Files to delete: 1 (CapabilityDetailModal.tsx - 545L)
+- New files: 1 (CapabilitiesDashboard.tsx - simple summary cards)
+- Backend: Add health_status field + health report script
+- Total effort: 10-12 hours (vs original 30-40h)
 
 ---
 
-### 1.0 Design Dashboard/Overview Tab
+### 1.0 Backend - Health Detection (3-4 hours) ✅ COMPLETE
 
-- [ ] 1.1 Create health summary card components
-  - Database health card (total tables, % current, % stale, % unknown)
-  - Tasks health card (total tasks, avg success rate, failures last 7d)
-  - Endpoints health card (total endpoints, categories breakdown)
-- [ ] 1.2 Add quick actions section
-  - Scan Now button (triggers manual scan)
-  - View Recent Insights link
-  - System-wide search input
-- [ ] 1.3 Create overview statistics component
-  - Recent scan timestamp
-  - Next scheduled scan countdown
-  - Total capabilities count
-- [ ] 1.4 Implement responsive grid layout for dashboard
+- [x] 1.1 Add health_status calculation to capability_scanner.py ✅
+  - Detect orphaned (no readers/writers, low row count)
+  - Detect legacy (stale >30d, 0 rows, not scheduled)
+  - Detect suspect (depends on orphaned, low success rate)
+  - Default: active
+- [x] 1.2 Add health_status field to database scan results ✅
+  - Update save_capabilities() to store health_status
+  - Add health_status to db_capabilities table (migration 039 applied)
+- [x] 1.3 Create health report automation script ✅
+  - Script: backend/scripts/health_report.py
+  - Output: logs + JSON file with orphan/legacy counts
+  - Schedule: runs after capabilities scan (03:15 UTC)
+- [x] 1.4 Add health filter to capabilities API ✅
+  - Support: GET /api/capabilities?health_status=orphaned
+  - Add health summary endpoint: GET /api/capabilities/health/summary
 
-### 2.0 Create Specialized Database Table Component
+### 2.0 Frontend - Remove Modal, Add Expandable Rows (3-4 hours) ✅ COMPLETE
 
-- [ ] 2.1 Design DatabaseCapabilitiesTable component
-  - Columns: Table Name | Category | Rows | Completeness | Freshness | Age | Actions
-  - Remove generic "Source/Schedule" column
-  - Add completeness as visual progress bar (0-100%)
-- [ ] 2.2 Implement freshness color coding
-  - Current: green badge
-  - Acceptable: yellow badge
-  - Stale: orange badge
-  - Critical: red badge
-  - Unknown: gray badge with question mark
-- [ ] 2.3 Add age formatting helper
-  - Convert `age_hours` to human format: "2h", "3d", "1w", "2mo"
-  - Show "—" for null/unknown
-- [ ] 2.4 Create database-specific filters
-  - Filter by category (Infrastructure, Analytics, Market Data, etc.)
-  - Filter by freshness status
-  - Filter by completeness range (0-25%, 25-50%, 50-75%, 75-100%)
-- [ ] 2.5 Implement database-specific sorting
-  - Sort by staleness (days since update)
-  - Sort by completeness percentage
-  - Sort by row count
+- [x] 2.1 Delete CapabilityDetailModal.tsx (545L) ✅
+  - Remove file completely
+  - Remove imports from page.tsx
+- [x] 2.2 Update CapabilitiesTable.tsx - add accordion rows ✅
+  - Keep existing unified table structure (don't split into 3 tables)
+  - Add expandable row state (track which rows are expanded)
+  - Add click handler to toggle row expansion
+  - Design: Row click or ▶ arrow toggles expand/collapse
+- [x] 2.3 Design expanded row content sections ✅
+  - All: Overview (metadata), Insights (inline list), Notes (inline list + add form)
+  - Database: + Columns section (list with data vs null), Dependencies (who populates/reads)
+  - Tasks: + Execution History (last 10 runs), Schedule details, Dependencies
+  - Endpoints: + Full path, Dependencies (tables + freshness status)
+- [x] 2.4 Implement inline notes functionality ✅
+  - Simple textarea + Type dropdown (Info/Warning/Critical) + Save/Cancel
+  - Show existing notes in expanded row
+  - Edit/Delete buttons for existing notes
+- [x] 2.5 Add visual indicators for expandable rows ✅
+  - ▶ arrow (collapsed) / ▼ arrow (expanded)
+  - Subtle hover effect on row
+  - Expanded row has distinct background color
 
-### 3.0 Create Specialized Tasks Table Component
+### 3.0 Frontend - Maximize Data in Main Row (2-3 hours) ✅ COMPLETE
 
-- [ ] 3.1 Design TasksCapabilitiesTable component
-  - Columns: Task Name | Schedule | Last Run | Success Rate | Avg Duration | Actions
-  - Remove generic columns not relevant to tasks
-- [ ] 3.2 Implement schedule display
-  - Show human-readable schedule ("Every 1 minutes", "Daily at 03:00 UTC")
-  - Show crontab on hover tooltip
-  - Visual indicator for frequency (high-frequency tasks get badge)
-- [ ] 3.3 Add success rate visualization
-  - Circular progress or pie chart badge (0-100%)
-  - Color coding: >95% green, 90-95% yellow, <90% red
-  - Show success/failure counts on hover
-- [ ] 3.4 Format duration display
-  - Show average duration in human format (ms, s, m)
-  - Show max duration on hover
-- [ ] 3.5 Create task-specific filters
-  - Filter by schedule frequency (high/medium/low)
-  - Filter by success rate threshold (>99%, >95%, >90%, <90%)
-  - Filter by category
-- [ ] 3.6 Implement task-specific sorting
-  - Sort by last run (most recent first)
-  - Sort by success rate (lowest first to highlight issues)
-  - Sort by execution frequency
+- [x] 3.1 Update table columns for maximum data density ✅
+  - **Database tables** (11 cols): Icon | Name | Category | Rows | Health | Freshness | Age | Insights | Notes | Updated | Actions
+  - **Tasks** (11 cols): Icon | Name | Category | Schedule | Last Run | Success % | Health | Duration | Insights | Notes | Actions
+  - **Endpoints** (10 cols): Icon | Path | Method | Category | Deps | Health | Insights | Notes | File | Actions
+  - Use compact formatting, abbreviations where needed
+- [x] 3.2 Add health status column with color coding ✅
+  - Active: green text/badge
+  - Suspect: yellow text/badge
+  - Orphaned: red text/badge
+  - Legacy: gray text/badge (strikethrough)
+- [x] 3.3 Format columns for readability ✅
+  - Rows: Show "1.2k", "45k" (abbreviated)
+  - Age: Show "2h", "3d", "1w" (compact)
+  - Success %: Show "95%" with color (green >95%, yellow >90%, red <90%)
+  - Schedule: Show "Every 5m", "Daily 06:00" (compact)
+  - Duration: Show "1.2s", "450ms" (compact)
+- [x] 3.4 Add tooltips for truncated data ✅
+  - Hover over compact values to see full details
+  - Hover over health status to see why (orphan reason, etc.)
 
-### 4.0 Create Specialized Endpoints Table Component
+### 4.0 Frontend - Dashboard Tab (2-3 hours)
 
-- [ ] 4.1 Design EndpointsCapabilitiesTable component
-  - Columns: Path | Method | Category | Dependencies | Performance | Actions
-  - Remove non-relevant columns
-- [ ] 4.2 Implement HTTP method badges
-  - Color-coded badges: GET=blue, POST=green, PUT=orange, DELETE=red
-  - Icon per method type
-- [ ] 4.3 Create dependency chips display
-  - Show depends_on_tables as clickable chips
-  - Click chip → navigate to that table in Database tab
-  - Truncate long lists with "+N more" expandable
-- [ ] 4.4 Add performance metrics placeholders
-  - Show "—" for null metrics (Phase 2 not implemented)
-  - Design structure for future: Avg Response Time | P95 | P99
-- [ ] 4.5 Create endpoint-specific filters
-  - Filter by HTTP method
-  - Filter by category
-  - Filter by has dependencies (yes/no)
-- [ ] 4.6 Implement endpoint-specific sorting
-  - Sort by path (alphabetical)
-  - Sort by method
-  - Sort by category
+- [ ] 4.1 Create CapabilitiesDashboard.tsx component
+  - Simple summary cards layout (3-column grid)
+  - Keep minimal - just numbers and health distribution
+- [ ] 4.2 Add health summary cards
+  - Database card: Total, Active, Orphaned, Legacy counts
+  - Tasks card: Total, Active, Orphaned, Avg success rate
+  - Endpoints card: Total, Active, Orphaned
+- [ ] 4.3 Add recent insights section
+  - Show top 5-10 insights (critical/warning only)
+  - Simple list with severity badge + message
+  - Click insight → navigate to relevant tab + expand that row
+- [ ] 4.4 Add quick actions
+  - "Scan Now" button (trigger manual scan)
+  - Last scan timestamp
+  - Next scan countdown (if scheduled)
+- [ ] 4.5 Update page.tsx to use Dashboard as default tab
+  - Replace "All" tab with "Dashboard" tab
+  - Keep: Dashboard | Database | Tasks | Endpoints | Insights | Gaps
 
-### 5.0 Refactor Tab Navigation
+### 5.0 Frontend - Health Filtering & Polish (1-2 hours)
 
-- [ ] 5.1 Update tab order and structure
-  - New order: Dashboard | Database (42) | Tasks (13) | Endpoints (16) | Insights | Gaps
-  - Remove "All (71)" tab completely
-  - Update tab component to handle new structure
-- [ ] 5.2 Implement tab-specific routing
-  - URL routes: `/capabilities` (dashboard), `/capabilities?tab=database`, etc.
-  - Persist selected tab in URL
-  - Deep linking support
-- [ ] 5.3 Add tab badges with counts
-  - Show dynamic counts from API
-  - Update counts after scan completes
-- [ ] 5.4 Create tab-specific loading states
-  - Different skeleton loaders per tab type
-  - Show appropriate placeholders
+- [ ] 5.1 Add health filter dropdown
+  - Filter: All | Active Only | Orphaned Only | Legacy Only | Suspect Only
+  - Apply to current tab's table view
+  - Persist filter in URL params
+- [ ] 5.2 Add visual polish for health status
+  - Color-code entire row based on health (subtle background tint)
+  - Orphaned/Legacy rows slightly dimmed (lower opacity?)
+  - Active rows normal, Suspect rows yellow tint
+- [ ] 5.3 Update existing filters to work with health
+  - Combine category filter + health filter
+  - Show result counts: "Showing 5 orphaned tables (5 total)"
+- [ ] 5.4 Add sort by health status
+  - Priority order: Orphaned > Legacy > Suspect > Active
+  - Allow sorting by any column including health
 
-### 6.0 Create Type-Specific Detail Modals
+### 6.0 Testing and Verification (1-2 hours)
 
-- [ ] 6.1 Create DatabaseDetailModal component
-  - Overview tab: Show all DB-specific fields (row_count, completeness_pct, columns list, date_range)
-  - Columns tab: List columns_with_data (✅) vs columns_mostly_null (❌)
-  - History tab: Show update history, freshness timeline
-  - Insights/Notes tabs: Keep existing structure
-- [ ] 6.2 Create TaskDetailModal component
-  - Overview tab: Schedule details, execution stats, populated tables
-  - Execution History tab: Last 20 runs with status, duration, timestamps
-  - Dependencies tab: Show populates_tables, depends_on_tasks
-  - Insights/Notes tabs: Keep existing structure
-- [ ] 6.3 Create EndpointDetailModal component
-  - Overview tab: Full path, method, category, route file, function name
-  - Dependencies tab: Show depends_on_tables with links
-  - Usage tab: Placeholder for future performance metrics
-  - Insights/Notes tabs: Keep existing structure
-- [ ] 6.4 Remove generic CapabilityDetailModal
-  - Migrate any shared logic to utils
-  - Each type now has its own optimized modal
+- [ ] 6.1 Test expandable rows
+  - Click to expand/collapse works
+  - All type-specific sections render correctly
+  - Inline notes add/edit/delete works
+- [ ] 6.2 Test Dashboard tab
+  - Summary cards show correct counts
+  - Health distribution accurate
+  - Recent insights link to correct rows
+- [ ] 6.3 Test health filtering
+  - Health filter dropdown works on all tabs
+  - Correct results for each health status
+  - URL params persist filters
+- [ ] 6.4 Test data density
+  - All 9-10 columns visible without horizontal scroll (1920px width)
+  - Compact formatting readable
+  - Tooltips show full details
+- [ ] 6.5 Run automated tests
+  - Frontend component tests (npm test)
+  - TypeScript checks (no errors)
+  - ESLint (no warnings)
 
-### 7.0 Update API Client and Data Fetching
+### 7.0 Documentation (30min - 1hr)
 
-- [ ] 7.1 Refactor API hooks for type-specific queries
-  - Update `useCapabilities` hook to handle type filtering
-  - Create `useDatabaseCapabilities`, `useTaskCapabilities`, `useEndpointCapabilities` hooks
-  - Optimize data fetching (don't fetch all types if viewing one tab)
-- [ ] 7.2 Add dashboard summary API call
-  - New endpoint or aggregate existing data
-  - Fetch health metrics for summary cards
-- [ ] 7.3 Update TypeScript interfaces
-  - Create specific types: `DatabaseCapability`, `TaskCapability`, `EndpointCapability`
-  - Remove overly generic `Capability` union type
-  - Ensure type safety for each specialized component
-
-### 8.0 Add Visualizations and Polish
-
-- [ ] 8.1 Create completeness progress bar component
-  - Reusable visual bar (0-100%)
-  - Color gradient: red → yellow → green
-  - Show percentage text overlay
-- [ ] 8.2 Create success rate circular chart
-  - Small circular progress indicator
-  - Color coding based on threshold
-  - Tooltip with details
-- [ ] 8.3 Add category icons/emojis
-  - Infrastructure: ⚙️
-  - Analytics: 📊
-  - Market Data: 💰
-  - Portfolio: 📈
-  - News: 📰
-- [ ] 8.4 Implement responsive design
-  - Mobile: Stack cards vertically
-  - Tablet: 2-column grid
-  - Desktop: 3-column grid
-
-### 9.0 Update Search and Filtering
-
-- [ ] 9.1 Create tab-specific search logic
-  - Database tab: Search table names, categories
-  - Tasks tab: Search task names, schedules
-  - Endpoints tab: Search paths, methods
-- [ ] 9.2 Implement filter persistence
-  - Store active filters in URL params
-  - Restore filters on page reload
-- [ ] 9.3 Add filter reset button
-  - Clear all active filters
-  - Reset to default view
-
-### 10.0 Testing and Verification
-
-- [ ] 10.1 Test Dashboard tab
-  - Verify health cards show correct data
-  - Test quick actions (Scan Now button)
-  - Verify responsive layout
-- [ ] 10.2 Test Database tab
-  - Verify completeness bars render correctly
-  - Test freshness color coding
-  - Verify age formatting (hours → days → weeks)
-  - Test filters and sorting
-- [ ] 10.3 Test Tasks tab
-  - Verify schedule display
-  - Test success rate visualization
-  - Verify duration formatting
-  - Test filters and sorting
-- [ ] 10.4 Test Endpoints tab
-  - Verify HTTP method badges
-  - Test dependency chips (click navigation)
-  - Verify filters and sorting
-- [ ] 10.5 Test detail modals
-  - Verify type-specific modals open correctly
-  - Test all tabs within each modal
-  - Verify data displays correctly
-- [ ] 10.6 Test navigation and routing
-  - Verify tab switching works
-  - Test deep linking (URL params)
-  - Verify browser back/forward
-- [ ] 10.7 Run frontend tests
-  - Component tests for new components
-  - Integration tests for tab switching
-  - Accessibility tests (a11y)
-
-### 11.0 Documentation and Cleanup
-
-- [ ] 11.1 Update component documentation
-  - Add JSDoc comments to new components
-  - Document props and behavior
-- [ ] 11.2 Remove old unified table code
-  - Delete CapabilitiesTable.tsx if fully replaced
-  - Clean up unused utility functions
-  - Remove obsolete type definitions
-- [ ] 11.3 Update user documentation
-  - Update docs/reference/system-capabilities-registry.md
-  - Add screenshots of new UI
-  - Document how to use each tab
-- [ ] 11.4 Add code comments for future enhancements
-  - Mark performance metrics placeholders
-  - Note where AI insights integration will go
-  - Document extension points for new capability types
+- [ ] 7.1 Update docs/reference/system-capabilities-registry.md
+  - Document new expandable row UI
+  - Document health status meanings
+  - Document inline notes workflow
+  - Add screenshots of Dashboard + expandable rows
+- [ ] 7.2 Add code comments
+  - JSDoc for health_status calculation logic
+  - Comment health detection edge cases
+  - Note future enhancements (performance metrics, etc.)
 
 ---
 
 ## Verification
 
-- [ ] Functional: All 6 tabs working (Dashboard, Database, Tasks, Endpoints, Insights, Gaps)
-- [ ] UI: Each tab shows type-appropriate columns and visualizations
-- [ ] Data: All 71 capabilities display correctly in their respective tabs
-- [ ] Filters: Type-specific filters work correctly on each tab
-- [ ] Modals: Type-specific detail modals open and display all data
-- [ ] Navigation: Tab switching, URL routing, deep linking all work
-- [ ] Responsive: UI works on mobile, tablet, desktop
-- [ ] Tests: Frontend tests passing (npm test)
-- [ ] Quality: ESLint/TypeScript checks pass
-- [ ] Clean: No console errors or warnings
-- [ ] Docs: Updated with new UI structure and screenshots
+- [ ] Backend: health_status field in scanner output and API responses
+- [ ] Backend: Health filter works (`?health_status=orphaned`)
+- [ ] Backend: Health summary endpoint returns correct counts
+- [ ] Backend: Health report script runs and outputs logs/JSON
+- [ ] Frontend: NO MORE MODAL - deleted CapabilityDetailModal.tsx
+- [ ] Frontend: Expandable rows work (click to expand, shows all details inline)
+- [ ] Frontend: Maximum data in main row (9-10 columns, readable without scrolling)
+- [ ] Frontend: Inline notes work (add/edit/delete in expanded row)
+- [ ] Frontend: Dashboard tab shows summary cards + recent insights
+- [ ] Frontend: Health filter dropdown works on all tabs
+- [ ] Frontend: Health color coding visible (green/yellow/red rows)
+- [ ] Tests: All frontend tests passing (npm test)
+- [ ] Tests: TypeScript + ESLint clean
+- [ ] Docs: Updated with screenshots and health status documentation

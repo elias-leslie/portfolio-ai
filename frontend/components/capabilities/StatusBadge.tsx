@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import type { InsightSeverity } from "@/lib/api/capabilities";
 
 interface StatusBadgeProps {
-  type: "severity" | "freshness" | "status" | "category";
+  type: "severity" | "freshness" | "status" | "category" | "health";
   value: string;
   className?: string;
 }
@@ -176,6 +176,44 @@ function getCategoryStyle(category: string) {
 }
 
 /**
+ * Get badge variant for health status
+ */
+function getHealthStyle(health: string) {
+  switch (health.toLowerCase()) {
+    case "active":
+      return {
+        variant: "default" as const,
+        icon: "✅",
+        className: "bg-gain/10 text-gain border-gain/20",
+      };
+    case "orphaned":
+      return {
+        variant: "destructive" as const,
+        icon: "🔴",
+        className: "bg-loss/10 text-loss border-loss/20",
+      };
+    case "legacy":
+      return {
+        variant: "secondary" as const,
+        icon: "📦",
+        className: "bg-muted text-muted-foreground opacity-70",
+      };
+    case "suspect":
+      return {
+        variant: "default" as const,
+        icon: "⚠️",
+        className: "bg-accent/10 text-accent border-accent/20",
+      };
+    default:
+      return {
+        variant: "secondary" as const,
+        icon: "❓",
+        className: "bg-muted text-muted-foreground",
+      };
+  }
+}
+
+/**
  * StatusBadge component
  */
 export function StatusBadge({ type, value, className = "" }: StatusBadgeProps) {
@@ -204,6 +242,10 @@ export function StatusBadge({ type, value, className = "" }: StatusBadgeProps) {
         .split("_")
         .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
         .join(" ");
+      break;
+    case "health":
+      style = getHealthStyle(value);
+      displayValue = value.charAt(0).toUpperCase() + value.slice(1);
       break;
     default:
       style = { variant: "secondary" as const, icon: "", className: "" };

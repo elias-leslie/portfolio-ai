@@ -129,6 +129,9 @@ async def get_capabilities(
     type: str = Query("all", description="Filter by type: db, celery, api, or all"),
     category: str | None = Query(None, description="Filter by category"),
     status: str | None = Query(None, description="Filter by status (db only)"),
+    health_status: str | None = Query(
+        None, description="Filter by health: active, orphaned, legacy, suspect"
+    ),
     limit: int = Query(50, ge=1, le=200, description="Results per page"),
     offset: int = Query(0, ge=0, description="Results offset"),
 ) -> CapabilitiesListResponse:
@@ -141,6 +144,7 @@ async def get_capabilities(
         - type: Filter by capability type (db|celery|api|all)
         - category: Filter by category
         - status: Filter by status (freshness_status for db_capabilities)
+        - health_status: Filter by health (active|orphaned|legacy|suspect)
         - limit: Results per page (default 50, max 200)
         - offset: Results offset for pagination
     """
@@ -183,6 +187,9 @@ async def get_capabilities(
                     if category:
                         where_clauses.append("c.category = %s")
                         query_params.append(category)
+                    if health_status:
+                        where_clauses.append("c.health_status = %s")
+                        query_params.append(health_status)
 
                     if where_clauses:
                         query += " WHERE " + " AND ".join(where_clauses)
@@ -242,6 +249,9 @@ async def get_capabilities(
                 if status and type == "db":
                     where_clauses.append("c.freshness_status = %s")
                     params_list.append(status)
+                if health_status:
+                    where_clauses.append("c.health_status = %s")
+                    params_list.append(health_status)
 
                 if where_clauses:
                     query += " WHERE " + " AND ".join(where_clauses)
@@ -275,6 +285,7 @@ async def get_capabilities(
                 type=type,
                 category=category,
                 status=status,
+                health_status=health_status,
                 total=total,
                 returned=len(capabilities),
                 limit=limit,
@@ -286,6 +297,103 @@ async def get_capabilities(
     except Exception as e:
         logger.error("capabilities_list_error", error=str(e), type=type)
         raise HTTPException(status_code=500, detail=f"Failed to retrieve capabilities: {e}") from e
+
+
+@router.get("/health/summary")
+async def get_health_summary() -> dict[str, Any]:
+    """Get health status summary across all capability types.
+
+    Returns counts of capabilities grouped by type and health status.
+
+    Example response:
+    {
+        "total": 71,
+        "by_type": {
+            "database": {"active": 35, "orphaned": 3, "legacy": 2, "suspect": 2},
+            "celery": {"active": 11, "orphaned": 1, "legacy": 0, "suspect": 1},
+            "api": {"active": 14, "orphaned": 1, "legacy": 0, "suspect": 1}
+        },
+        "by_status": {
+            "active": 60,
+            "orphaned": 5,
+            "legacy": 2,
+            "suspect": 4
+        }
+    }
+    """
+    conn_mgr = get_connection_manager()
+
+    try:
+        with conn_mgr.connection() as conn:
+            # Query health counts from all three tables
+            summary: dict[str, Any] = {
+                "total": 0,
+                "by_type": {
+                    "database": {"active": 0, "orphaned": 0, "legacy": 0, "suspect": 0},
+                    "celery": {"active": 0, "orphaned": 0, "legacy": 0, "suspect": 0},
+                    "api": {"active": 0, "orphaned": 0, "legacy": 0, "suspect": 0},
+                },
+                "by_status": {"active": 0, "orphaned": 0, "legacy": 0, "suspect": 0},
+            }
+
+            # Query db_capabilities
+            db_query = """
+                SELECT health_status, COUNT(*) as count
+                FROM db_capabilities
+                WHERE health_status IS NOT NULL
+                GROUP BY health_status
+            """
+            result = conn.execute(db_query)
+            for row in result.fetchall():
+                health_status_val, count = row
+                summary["by_type"]["database"][health_status_val] = count
+                summary["by_status"][health_status_val] += count
+                summary["total"] += count
+
+            # Query celery_capabilities
+            celery_query = """
+                SELECT health_status, COUNT(*) as count
+                FROM celery_capabilities
+                WHERE health_status IS NOT NULL
+                GROUP BY health_status
+            """
+            result = conn.execute(celery_query)
+            for row in result.fetchall():
+                health_status_val, count = row
+                summary["by_type"]["celery"][health_status_val] = count
+                summary["by_status"][health_status_val] += count
+                summary["total"] += count
+
+            # Query api_capabilities
+            api_query = """
+                SELECT health_status, COUNT(*) as count
+                FROM api_capabilities
+                WHERE health_status IS NOT NULL
+                GROUP BY health_status
+            """
+            result = conn.execute(api_query)
+            for row in result.fetchall():
+                health_status_val, count = row
+                summary["by_type"]["api"][health_status_val] = count
+                summary["by_status"][health_status_val] += count
+                summary["total"] += count
+
+            logger.info(
+                "health_summary_retrieved",
+                total=summary["total"],
+                active=summary["by_status"]["active"],
+                orphaned=summary["by_status"]["orphaned"],
+                legacy=summary["by_status"]["legacy"],
+                suspect=summary["by_status"]["suspect"],
+            )
+
+            return summary
+
+    except Exception as e:
+        logger.error("health_summary_error", error=str(e))
+        raise HTTPException(
+            status_code=500, detail=f"Failed to retrieve health summary: {e}"
+        ) from e
 
 
 @router.get("/{capability_type}/{capability_id}", response_model=CapabilityDetailResponse)

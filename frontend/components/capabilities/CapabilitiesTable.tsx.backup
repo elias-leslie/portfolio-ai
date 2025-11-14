@@ -1,0 +1,635 @@
+/**
+ * CapabilitiesTable component for displaying system capabilities
+ */
+
+import {
+  Database,
+  Zap,
+  Globe,
+  ChevronRight,
+  Hash,
+  FileText,
+  Clock,
+  Activity,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { StatusBadge } from "./StatusBadge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import type {
+  Capability,
+  DbCapability,
+  CeleryCapability,
+  ApiCapability,
+} from "@/lib/api/capabilities";
+import { formatDistanceToNow } from "date-fns";
+
+interface CapabilitiesTableProps {
+  capabilities: Capability[];
+  onRowClick: (capability: Capability) => void;
+}
+
+/**
+ * Get icon for capability type
+ */
+function getCapabilityIcon(type: string) {
+  switch (type) {
+    case "db":
+      return <Database className="h-4 w-4" />;
+    case "celery":
+      return <Zap className="h-4 w-4" />;
+    case "api":
+      return <Globe className="h-4 w-4" />;
+    default:
+      return <FileText className="h-4 w-4" />;
+  }
+}
+
+/**
+ * Format number with abbreviations (1.2k, 45k, 1.5M)
+ */
+function formatNumber(n: number | null): string {
+  if (n === null) return "—";
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return n.toString();
+}
+
+/**
+ * Format age for display (compact)
+ */
+function formatAge(ageHours: number | null): string {
+  if (ageHours === null) return "—";
+  if (ageHours < 1) return `${Math.round(ageHours * 60)}m`;
+  if (ageHours < 24) return `${Math.round(ageHours)}h`;
+  if (ageHours < 168) return `${Math.round(ageHours / 24)}d`;
+  if (ageHours < 720) return `${Math.round(ageHours / 168)}w`;
+  return `${Math.round(ageHours / 720)}mo`;
+}
+
+/**
+ * Format duration (compact: 450ms, 1.2s, 2.5m)
+ */
+function formatDuration(ms: number | null): string {
+  if (ms === null) return "—";
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${(ms / 60_000).toFixed(1)}m`;
+}
+
+/**
+ * Format schedule to human-readable format
+ */
+function formatSchedule(capability: CeleryCapability): string {
+  if (capability.schedule_description) {
+    return capability.schedule_description;
+  }
+
+  if (capability.schedule_interval_seconds) {
+    const seconds = capability.schedule_interval_seconds;
+    if (seconds < 60) return `Every ${seconds}s`;
+    if (seconds < 3600) return `Every ${Math.round(seconds / 60)}m`;
+    if (seconds < 86400) return `Every ${Math.round(seconds / 3600)}h`;
+    return `Every ${Math.round(seconds / 86400)}d`;
+  }
+
+  if (capability.schedule_crontab) {
+    // Parse common crontab patterns
+    const cron = capability.schedule_crontab;
+    if (cron === "*/5 * * * *") return "Every 5m";
+    if (cron === "*/15 * * * *") return "Every 15m";
+    if (cron === "0 * * * *") return "Hourly";
+    if (cron === "0 6 * * *") return "Daily 06:00";
+    if (cron === "0 0 * * *") return "Daily 00:00";
+    return "Scheduled";
+  }
+
+  return "Manual";
+}
+
+/**
+ * Get health status color classes
+ */
+function getHealthColor(health: string): string {
+  switch (health) {
+    case "active":
+      return "text-green-600 bg-green-50 border-green-200";
+    case "suspect":
+      return "text-yellow-600 bg-yellow-50 border-yellow-200";
+    case "orphaned":
+      return "text-red-600 bg-red-50 border-red-200";
+    case "legacy":
+      return "text-gray-600 bg-gray-50 border-gray-200 line-through";
+    default:
+      return "text-gray-600 bg-gray-50 border-gray-200";
+  }
+}
+
+/**
+ * Get HTTP method color
+ */
+function getMethodColor(method: string): string {
+  switch (method.toUpperCase()) {
+    case "GET":
+      return "text-blue-600 bg-blue-50 border-blue-200";
+    case "POST":
+      return "text-green-600 bg-green-50 border-green-200";
+    case "PUT":
+    case "PATCH":
+      return "text-yellow-600 bg-yellow-50 border-yellow-200";
+    case "DELETE":
+      return "text-red-600 bg-red-50 border-red-200";
+    default:
+      return "text-gray-600 bg-gray-50 border-gray-200";
+  }
+}
+
+/**
+ * Get success rate color classes
+ */
+function getSuccessRateColor(rate: number | null): string {
+  if (rate === null) return "text-gray-600";
+  if (rate >= 95) return "text-green-600";
+  if (rate >= 80) return "text-yellow-600";
+  return "text-red-600";
+}
+
+/**
+ * Truncate text with ellipsis
+ */
+function truncate(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength - 1) + "…";
+}
+
+/**
+ * Render database table row (10 columns)
+ */
+function DbTableRow({ db, onClick }: { db: DbCapability; onClick: () => void }) {
+  return (
+    <TooltipProvider>
+      <div
+        className="grid grid-cols-[auto_200px_120px_100px_100px_80px_80px_70px_70px_120px_60px] gap-3 px-4 py-3 hover:bg-surface-muted transition-colors cursor-pointer items-center border-b border-border"
+        onClick={onClick}
+      >
+        {/* 1. Icon + Name */}
+        <div className="flex items-center gap-2 min-w-0">
+          <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+          <Database className="h-4 w-4 text-accent flex-shrink-0" />
+        </div>
+
+        {/* 2. Name */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="font-medium text-sm truncate">{db.table_name}</div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <div className="space-y-1">
+              <div className="font-medium">{db.table_name}</div>
+              {db.description && <div className="text-xs">{db.description}</div>}
+            </div>
+          </TooltipContent>
+        </Tooltip>
+
+        {/* 3. Category */}
+        <div>
+          <StatusBadge type="category" value={db.category || "unknown"} />
+        </div>
+
+        {/* 4. Rows */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="text-sm text-muted-foreground flex items-center gap-1">
+              <Hash className="h-3 w-3" />
+              {formatNumber(db.row_count)}
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>{db.row_count?.toLocaleString() || "0"} rows</TooltipContent>
+        </Tooltip>
+
+        {/* 5. Health */}
+        <div>
+          <span className={`px-2 py-1 text-xs font-medium rounded border ${getHealthColor(db.health_status)}`}>
+            {db.health_status}
+          </span>
+        </div>
+
+        {/* 6. Freshness */}
+        <div>
+          <StatusBadge type="freshness" value={db.freshness_status} />
+        </div>
+
+        {/* 7. Age */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="text-sm text-muted-foreground flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {formatAge(db.age_hours)}
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            {db.last_updated ? new Date(db.last_updated).toLocaleString() : "Never updated"}
+          </TooltipContent>
+        </Tooltip>
+
+        {/* 8. Insights */}
+        <div className="text-center">
+          {db.insights_count > 0 ? (
+            <span className="inline-flex items-center justify-center rounded-full bg-accent/10 px-2 py-1 text-xs font-medium text-accent">
+              {db.insights_count}
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
+        </div>
+
+        {/* 9. Notes */}
+        <div className="text-center">
+          {db.notes_count > 0 ? (
+            <span className="inline-flex items-center justify-center rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-600">
+              {db.notes_count}
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
+        </div>
+
+        {/* 10. Updated */}
+        <div className="text-xs text-muted-foreground">
+          {db.updated_at ? formatDistanceToNow(new Date(db.updated_at), { addSuffix: true }) : "—"}
+        </div>
+
+        {/* 11. Actions */}
+        <div className="flex items-center justify-end">
+          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    </TooltipProvider>
+  );
+}
+
+/**
+ * Render Celery task row (10 columns)
+ */
+function CeleryTaskRow({ task, onClick }: { task: CeleryCapability; onClick: () => void }) {
+  const successRate = task.success_rate_pct;
+
+  return (
+    <TooltipProvider>
+      <div
+        className="grid grid-cols-[auto_200px_120px_140px_120px_100px_100px_80px_70px_70px_60px] gap-3 px-4 py-3 hover:bg-surface-muted transition-colors cursor-pointer items-center border-b border-border"
+        onClick={onClick}
+      >
+        {/* 1. Icon + Name */}
+        <div className="flex items-center gap-2 min-w-0">
+          <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+          <Zap className="h-4 w-4 text-yellow-600 flex-shrink-0" />
+        </div>
+
+        {/* 2. Name */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="font-medium text-sm truncate">{task.task_name}</div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <div className="space-y-1">
+              <div className="font-medium">{task.task_name}</div>
+              {task.description && <div className="text-xs">{task.description}</div>}
+              {task.task_path && <div className="text-xs text-muted-foreground">{task.task_path}</div>}
+            </div>
+          </TooltipContent>
+        </Tooltip>
+
+        {/* 3. Category */}
+        <div>
+          <StatusBadge type="category" value={task.category || "unknown"} />
+        </div>
+
+        {/* 4. Schedule */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="text-sm text-muted-foreground truncate">{formatSchedule(task)}</div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <div className="space-y-1">
+              <div>{formatSchedule(task)}</div>
+              {task.next_run_at && (
+                <div className="text-xs">Next: {new Date(task.next_run_at).toLocaleString()}</div>
+              )}
+            </div>
+          </TooltipContent>
+        </Tooltip>
+
+        {/* 5. Last Run */}
+        <div className="text-sm text-muted-foreground">
+          {task.last_run_at ? formatDistanceToNow(new Date(task.last_run_at), { addSuffix: true }) : "Never"}
+        </div>
+
+        {/* 6. Success % */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className={`text-sm font-medium ${getSuccessRateColor(successRate)}`}>
+              {successRate !== null ? `${successRate}%` : "—"}
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <div className="space-y-1">
+              <div>Success: {task.success_count_7d || 0} / 7 days</div>
+              <div>Failure: {task.failure_count_7d || 0} / 7 days</div>
+            </div>
+          </TooltipContent>
+        </Tooltip>
+
+        {/* 7. Health */}
+        <div>
+          <span className={`px-2 py-1 text-xs font-medium rounded border ${getHealthColor(task.health_status)}`}>
+            {task.health_status}
+          </span>
+        </div>
+
+        {/* 8. Duration */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="text-sm text-muted-foreground flex items-center gap-1">
+              <Activity className="h-3 w-3" />
+              {formatDuration(task.avg_duration_ms)}
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <div className="space-y-1">
+              <div>Avg: {formatDuration(task.avg_duration_ms)}</div>
+              <div>Max: {formatDuration(task.max_duration_ms)}</div>
+            </div>
+          </TooltipContent>
+        </Tooltip>
+
+        {/* 9. Insights */}
+        <div className="text-center">
+          {task.insights_count > 0 ? (
+            <span className="inline-flex items-center justify-center rounded-full bg-accent/10 px-2 py-1 text-xs font-medium text-accent">
+              {task.insights_count}
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
+        </div>
+
+        {/* 10. Notes */}
+        <div className="text-center">
+          {task.notes_count > 0 ? (
+            <span className="inline-flex items-center justify-center rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-600">
+              {task.notes_count}
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
+        </div>
+
+        {/* 11. Actions */}
+        <div className="flex items-center justify-end">
+          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    </TooltipProvider>
+  );
+}
+
+/**
+ * Render API endpoint row (9 columns)
+ */
+function ApiEndpointRow({ api, onClick }: { api: ApiCapability; onClick: () => void }) {
+  return (
+    <TooltipProvider>
+      <div
+        className="grid grid-cols-[auto_250px_80px_120px_80px_100px_70px_70px_200px_60px] gap-3 px-4 py-3 hover:bg-surface-muted transition-colors cursor-pointer items-center border-b border-border"
+        onClick={onClick}
+      >
+        {/* 1. Icon + Method */}
+        <div className="flex items-center gap-2 min-w-0">
+          <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+          <Globe className="h-4 w-4 text-blue-600 flex-shrink-0" />
+        </div>
+
+        {/* 2. Path */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="font-medium text-sm truncate">{truncate(api.endpoint_path, 35)}</div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <div className="space-y-1">
+              <div className="font-medium">{api.endpoint_path}</div>
+              {api.description && <div className="text-xs">{api.description}</div>}
+              {api.route_file && <div className="text-xs text-muted-foreground">{api.route_file}</div>}
+            </div>
+          </TooltipContent>
+        </Tooltip>
+
+        {/* 3. Method */}
+        <div>
+          <span className={`px-2 py-1 text-xs font-medium rounded border ${getMethodColor(api.http_method)}`}>
+            {api.http_method}
+          </span>
+        </div>
+
+        {/* 4. Category */}
+        <div>
+          <StatusBadge type="category" value={api.category || "unknown"} />
+        </div>
+
+        {/* 5. Deps */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="text-sm text-muted-foreground">
+              {api.depends_on_tables.length > 0 ? `${api.depends_on_tables.length} tables` : "—"}
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            {api.depends_on_tables.length > 0 ? (
+              <ul className="space-y-1">
+                {api.depends_on_tables.map((table) => (
+                  <li key={table} className="text-xs">
+                    • {table}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              "No table dependencies"
+            )}
+          </TooltipContent>
+        </Tooltip>
+
+        {/* 6. Health */}
+        <div>
+          <span className={`px-2 py-1 text-xs font-medium rounded border ${getHealthColor(api.health_status)}`}>
+            {api.health_status}
+          </span>
+        </div>
+
+        {/* 7. Insights */}
+        <div className="text-center">
+          {api.insights_count > 0 ? (
+            <span className="inline-flex items-center justify-center rounded-full bg-accent/10 px-2 py-1 text-xs font-medium text-accent">
+              {api.insights_count}
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
+        </div>
+
+        {/* 8. Notes */}
+        <div className="text-center">
+          {api.notes_count > 0 ? (
+            <span className="inline-flex items-center justify-center rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-600">
+              {api.notes_count}
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
+        </div>
+
+        {/* 9. File */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="text-xs text-muted-foreground truncate">
+              {api.route_file ? truncate(api.route_file, 30) : "—"}
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>{api.route_file || "No file info"}</TooltipContent>
+        </Tooltip>
+
+        {/* 10. Actions */}
+        <div className="flex items-center justify-end">
+          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    </TooltipProvider>
+  );
+}
+
+/**
+ * CapabilitiesTable component with maximum data density
+ */
+export function CapabilitiesTable({ capabilities, onRowClick }: CapabilitiesTableProps) {
+  if (capabilities.length === 0) {
+    return (
+      <div className="rounded-lg border border-border bg-surface p-8 text-center">
+        <FileText className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
+        <p className="mt-4 text-sm text-muted-foreground">No capabilities found</p>
+      </div>
+    );
+  }
+
+  // Group capabilities by type for type-specific rendering
+  const dbCapabilities = capabilities.filter((c) => c.capability_type === "db") as DbCapability[];
+  const celeryCapabilities = capabilities.filter((c) => c.capability_type === "celery") as CeleryCapability[];
+  const apiCapabilities = capabilities.filter((c) => c.capability_type === "api") as ApiCapability[];
+
+  return (
+    <div className="space-y-6">
+      {/* Database Tables Section */}
+      {dbCapabilities.length > 0 && (
+        <div className="overflow-hidden rounded-lg border border-border bg-surface">
+          <div className="bg-surface-muted px-4 py-2 border-b border-border">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <Database className="h-4 w-4" />
+              Database Tables ({dbCapabilities.length})
+            </h3>
+          </div>
+          <div className="overflow-x-auto">
+            {/* Header */}
+            <div className="grid grid-cols-[auto_200px_120px_100px_100px_80px_80px_70px_70px_120px_60px] gap-3 px-4 py-2 bg-surface-muted/50 border-b border-border text-xs font-medium text-muted-foreground">
+              <div></div>
+              <div>Name</div>
+              <div>Category</div>
+              <div>Rows</div>
+              <div>Health</div>
+              <div>Freshness</div>
+              <div>Age</div>
+              <div className="text-center">Insights</div>
+              <div className="text-center">Notes</div>
+              <div>Updated</div>
+              <div></div>
+            </div>
+            {/* Rows */}
+            {dbCapabilities.map((db) => (
+              <DbTableRow key={`db-${db.id}`} db={db} onClick={() => onRowClick(db)} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Celery Tasks Section */}
+      {celeryCapabilities.length > 0 && (
+        <div className="overflow-hidden rounded-lg border border-border bg-surface">
+          <div className="bg-surface-muted px-4 py-2 border-b border-border">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <Zap className="h-4 w-4" />
+              Celery Tasks ({celeryCapabilities.length})
+            </h3>
+          </div>
+          <div className="overflow-x-auto">
+            {/* Header */}
+            <div className="grid grid-cols-[auto_200px_120px_140px_120px_100px_100px_80px_70px_70px_60px] gap-3 px-4 py-2 bg-surface-muted/50 border-b border-border text-xs font-medium text-muted-foreground">
+              <div></div>
+              <div>Name</div>
+              <div>Category</div>
+              <div>Schedule</div>
+              <div>Last Run</div>
+              <div>Success %</div>
+              <div>Health</div>
+              <div>Duration</div>
+              <div className="text-center">Insights</div>
+              <div className="text-center">Notes</div>
+              <div></div>
+            </div>
+            {/* Rows */}
+            {celeryCapabilities.map((task) => (
+              <CeleryTaskRow key={`celery-${task.id}`} task={task} onClick={() => onRowClick(task)} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* API Endpoints Section */}
+      {apiCapabilities.length > 0 && (
+        <div className="overflow-hidden rounded-lg border border-border bg-surface">
+          <div className="bg-surface-muted px-4 py-2 border-b border-border">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <Globe className="h-4 w-4" />
+              API Endpoints ({apiCapabilities.length})
+            </h3>
+          </div>
+          <div className="overflow-x-auto">
+            {/* Header */}
+            <div className="grid grid-cols-[auto_250px_80px_120px_80px_100px_70px_70px_200px_60px] gap-3 px-4 py-2 bg-surface-muted/50 border-b border-border text-xs font-medium text-muted-foreground">
+              <div></div>
+              <div>Path</div>
+              <div>Method</div>
+              <div>Category</div>
+              <div>Deps</div>
+              <div>Health</div>
+              <div className="text-center">Insights</div>
+              <div className="text-center">Notes</div>
+              <div>File</div>
+              <div></div>
+            </div>
+            {/* Rows */}
+            {apiCapabilities.map((api) => (
+              <ApiEndpointRow key={`api-${api.id}`} api={api} onClick={() => onRowClick(api)} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
