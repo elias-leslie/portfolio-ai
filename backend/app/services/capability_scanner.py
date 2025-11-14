@@ -79,16 +79,17 @@ class DatabaseScanner:
 
         logger.info("scanning_database_tables")
 
-        # Create SQLAlchemy engine for table introspection
+        # Create SQLAlchemy engine for table introspection only
         engine = create_engine(DATABASE_URL)
         inspector = inspect(engine)
 
         capabilities = []
 
-        with engine.connect() as raw_conn:
+        # Use our connection manager for executing queries
+        with self.conn_mgr.connection() as conn:
             for table_name in inspector.get_table_names():
                 try:
-                    capability = self._scan_single_table(table_name, raw_conn, inspector)
+                    capability = self._scan_single_table(table_name, conn, inspector)
                     capabilities.append(capability)
                 except Exception as e:
                     logger.error(
@@ -123,7 +124,8 @@ class DatabaseScanner:
         # Get row count
         # Note: table_name is from database introspection, not user input
         result = conn.execute(f"SELECT COUNT(*) FROM {table_name}")
-        row_count = result.scalar()
+        row = result.fetchone()
+        row_count = row[0] if row else 0
 
         # Get columns
         columns = inspector.get_columns(table_name)
@@ -142,7 +144,8 @@ class DatabaseScanner:
                     # Count non-NULL values
                     # Note: col_name from introspection, not user input
                     result = conn.execute(f"SELECT COUNT({col_name}) as cnt FROM {table_name}")
-                    non_null_count = result.scalar()
+                    row = result.fetchone()
+                    non_null_count = row[0] if row else 0
 
                     if non_null_count > 0:
                         columns_with_data.append(col_name)
@@ -560,7 +563,8 @@ class CeleryScanner:
                     )
                     """
                 )
-                table_exists = check_table.scalar()
+                row = check_table.fetchone()
+                table_exists = row[0] if row else False
 
                 if not table_exists:
                     return None, None, 0, 0, None, None, None
@@ -575,13 +579,13 @@ class CeleryScanner:
                         COUNT(*) FILTER (WHERE status = 'SUCCESS') as success_count,
                         COUNT(*) FILTER (WHERE status = 'FAILURE') as failure_count
                     FROM celery_taskmeta
-                    WHERE task_name = %s
+                    WHERE name = %s
                     AND date_done >= NOW() - INTERVAL '{lookback_days} days'
                     """,
                     [task_path],
                 )
 
-                row = result.first()
+                row = result.fetchone()
 
                 if row:
                     last_run = row[0]
