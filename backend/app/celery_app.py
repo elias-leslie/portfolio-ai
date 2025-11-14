@@ -132,10 +132,10 @@ celery_app.conf.beat_schedule = {
     # ============================================================================
     "update-paper-trades-daily": {
         "task": "update_paper_trades_task",
-        "schedule": 86400.0,  # Daily (24 hours)
+        "schedule": crontab(hour=21, minute=30),  # Daily at 21:30 UTC (4:30 PM ET)
         "options": {"expires": 3600},  # Task expires after 1 hour
         # Notes:
-        # - Runs daily at 4:30 PM ET (market close + 30 min)
+        # - Runs daily at 21:30 UTC (4:30 PM ET, market close + 30 min)
         # - Not configurable by user (business logic requirement)
     },
     "profile-news-sources": {
@@ -151,7 +151,7 @@ celery_app.conf.beat_schedule = {
     },
     "refresh-daily-ohlcv": {
         "task": "refresh_daily_ohlcv",
-        "schedule": 86400.0,  # Daily (24 hours)
+        "schedule": crontab(hour=2, minute=0),  # Daily at 02:00 UTC
         "args": [
             [
                 "SPY",  # S&P 500 (market regime indicators)
@@ -176,15 +176,16 @@ celery_app.conf.beat_schedule = {
         ],
         "options": {"expires": 3600},  # Task expires after 1 hour
         # Notes:
-        # - Runs daily at ~02:00 UTC
+        # - Runs daily at 02:00 UTC
         # - Ensures SPY + market indicators + sector ETFs fresh for market intelligence
         # - Fetches last 5 days to account for holidays/weekends
     },
     "retrain-article-quality-model": {
         "task": "retrain_article_quality_model",
-        "schedule": 86400.0,  # Daily (24 hours)
+        "schedule": crontab(hour=5, minute=0),  # Daily at 05:00 UTC
         "options": {"expires": 7200},  # Task expires after 2 hours
         # Notes:
+        # - Runs daily at 05:00 UTC (after all market data tasks complete)
         # - Queries 100 newest unlabeled articles from news_cache
         # - Labels them with Gemini for quality assessment
         # - Retrains sklearn model with accumulated training data
@@ -194,21 +195,21 @@ celery_app.conf.beat_schedule = {
     },
     "update-technical-indicators-daily": {
         "task": "update_technical_indicators",
-        "schedule": 86400.0,  # Daily (24 hours)
+        "schedule": crontab(hour=2, minute=30),  # Daily at 02:30 UTC
         "args": [["SPY"]],  # Update SPY indicators
         "options": {"expires": 3600},  # Task expires after 1 hour
         # Notes:
-        # - Runs daily at ~02:30 UTC (after OHLCV refresh)
+        # - Runs daily at 02:30 UTC (after OHLCV refresh at 02:00)
         # - Calculates RSI, SMA_200, and other technical indicators
         # - Must run after refresh-daily-ohlcv completes
     },
     "populate-fear-greed-inputs-daily": {
         "task": "populate_fear_greed_inputs",
-        "schedule": 86400.0,  # Daily (24 hours)
+        "schedule": crontab(hour=2, minute=45),  # Daily at 02:45 UTC
         "args": [7],  # Update last 7 days
         "options": {"expires": 3600},  # Task expires after 1 hour
         # Notes:
-        # - Runs daily at ~02:45 UTC (after indicators update at 02:30)
+        # - Runs daily at 02:45 UTC (after indicators update at 02:30)
         # - Replaces manual update_fear_greed_inputs.py script
         # - Fetches SPY OHLCV and calculates SMA_200, RSI_14
         # - Fetches VIX if available, uses estimate if missing
@@ -219,11 +220,11 @@ celery_app.conf.beat_schedule = {
     },
     "calculate-fear-greed-daily": {
         "task": "calculate_fear_greed",
-        "schedule": 86400.0,  # Daily (24 hours)
+        "schedule": crontab(hour=3, minute=0),  # Daily at 03:00 UTC
         "args": [None],  # Calculate for latest available date
         "options": {"expires": 3600},  # Task expires after 1 hour
         # Notes:
-        # - Runs daily at ~03:00 UTC (after populate-fear-greed-inputs completes)
+        # - Runs daily at 03:00 UTC (after populate-fear-greed-inputs completes at 02:45)
         # - Calculates Fear & Greed Index from inputs table
         # - Uses 252-day rolling window for percentile rankings
         # - Must run after populate-fear-greed-inputs-daily completes
@@ -231,10 +232,10 @@ celery_app.conf.beat_schedule = {
     },
     "maintain-historical-market-data": {
         "task": "maintain_historical_market_data",
-        "schedule": 86400.0,  # Daily (24 hours)
+        "schedule": crontab(hour=4, minute=15),  # Daily at 04:15 UTC
         "options": {"expires": 3600},  # Task expires after 1 hour
         # Notes:
-        # - Runs daily at ~04:00 UTC (after Fear & Greed calculation)
+        # - Runs daily at 04:15 UTC (after yfinance reference data at 04:00)
         # - Maintains 252 trading days for all market indicators and sectors
         # - Idempotent: Checks if data exists, backfills if needed, adds new day if current
         # - Self-healing: Automatically fixes missing or stale data
@@ -244,11 +245,11 @@ celery_app.conf.beat_schedule = {
     },
     "fetch-putcall-ratio-daily": {
         "task": "fetch_putcall_ratio",
-        "schedule": 86400.0,  # Daily (24 hours)
+        "schedule": crontab(hour=4, minute=30),  # Daily at 04:30 UTC
         "args": [None],  # Fetch for today
         "options": {"expires": 3600},  # Task expires after 1 hour
         # Notes:
-        # - Runs daily at ~04:30 UTC (after market data maintenance)
+        # - Runs daily at 04:30 UTC (after market data maintenance at 04:00)
         # - Fetches SPX options data from yfinance
         # - Calculates total put/call ratio (put OI / call OI)
         # - Stores in fear_greed_inputs.put_call_ratio column

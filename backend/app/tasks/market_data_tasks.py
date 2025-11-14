@@ -50,7 +50,7 @@ TARGET_DAYS = 252
 
 
 def _check_symbol_data(ticker: str) -> tuple[bool, int]:
-    """Check if symbol has sufficient historical data.
+    """Check if symbol has sufficient historical data AND is current.
 
     Args:
         ticker: Symbol to check
@@ -60,15 +60,21 @@ def _check_symbol_data(ticker: str) -> tuple[bool, int]:
     """
     storage = get_storage()
     with storage.connection() as conn:
+        # Check both count AND latest date
         result = conn.execute(
-            "SELECT COUNT(*) as days FROM day_bars WHERE ticker = %s",
+            "SELECT COUNT(*) as days, MAX(date) as latest_date FROM day_bars WHERE ticker = %s",
             [ticker],
         ).fetchone()
 
     days_available = result[0] if result else 0
+    latest_date = result[1] if result and result[1] else None
 
-    # Need backfill if less than TARGET_DAYS
-    needs_backfill = days_available < TARGET_DAYS
+    # Need backfill if less than TARGET_DAYS OR data is not current
+    # Data should be from today (intraday data available via yfinance)
+    today = dt.date.today()
+
+    is_stale = latest_date is None or latest_date < today
+    needs_backfill = days_available < TARGET_DAYS or is_stale
 
     return needs_backfill, days_available
 
@@ -141,9 +147,8 @@ def maintain_historical_market_data(  # type: ignore[no-untyped-def]
             )
 
             # Call the existing ingest_historical_ohlcv task
-            # Note: Using self (the task instance) to call the task synchronously
+            # Note: This is a bound task so self is automatically provided
             backfill_result = ingest_historical_ohlcv(
-                self,
                 tickers=symbols_to_backfill,
                 days=TARGET_DAYS,
             )
