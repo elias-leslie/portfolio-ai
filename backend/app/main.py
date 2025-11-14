@@ -14,6 +14,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api import (
     analytics,
+    backtest,
     capabilities,
     celery_endpoints,
     gaps,
@@ -150,6 +151,7 @@ app.include_router(watchlist.router)
 app.include_router(ml.router)
 app.include_router(capabilities.router)
 app.include_router(gaps.router)
+app.include_router(backtest.router)
 
 
 @app.get("/")
