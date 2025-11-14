@@ -91,7 +91,7 @@
      - [x] Task 1: Define Trading Analysis Requirements Framework
      - [x] Task 2: Backend - Gap Detection Engine ✅ COMPLETE
      - [ ] Task 3: Frontend - Gap Detection UI (Extend Capabilities) - 🔄 PARTIAL (2/6 complete)
-     - [ ] Task 4: AI-Powered Gap Analysis & Recommendations
+     - [ ] Task 4: AI-Powered Gap Analysis & Recommendations **[DEFERRED TO PHASE 3]**
      - [ ] Task 5: Integration with Trading Workflows
      - [ ] Task 6: Scheduled Gap Analysis & Monitoring
      - [ ] Task 7: Documentation & Examples
