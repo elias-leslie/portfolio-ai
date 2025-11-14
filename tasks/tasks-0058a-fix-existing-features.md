@@ -378,139 +378,454 @@ Questions:
 ## Task 2: Fix Fear & Greed Index Data Pipeline ⚠️ PARTIAL
 
 **Status**: ⚠️ **PARTIAL** - Core automation working, enhancements deferred to Phase 2
-**Priority**: P0 - CRITICAL
-**Dependency**: Should run AFTER Task 0 completes (need real-time pipeline working)
+**Priority**: P1 - HIGH (Phase 2 enhancement)
+**Dependency**: Task 0 complete ✅ (populate_fear_greed_inputs task running daily)
 
-**What's Working** (via Task 0 automation):
+**What's Working** (completed by Task 0):
 - ✅ SPY close, SMA_200, RSI_14 (automated daily via populate_fear_greed_inputs)
 - ✅ VIX close (fetched from day_bars when available)
 - ✅ Put/Call ratio (existing fetch_putcall_ratio task)
 
-**What's Missing** (deferred to Phase 2):
-- ❌ HY Spread (still using estimate 3.13) - Requires FRED API integration
-- ❌ Market Breadth (breadth_pct NULL) - Can calculate from 11 sector ETFs
+**Phase 2 Work Remaining** (2 sub-tasks):
 
-**Problem**: Only 1 of 5 components working
+### 2A: HY Spread - Add FRED API Integration ⏸️ NOT STARTED
+**Current**: Using hardcoded estimate (3.13)
+**Goal**: Fetch real high-yield bond spread from FRED daily
 
-```sql
-as_of_date | vix_close | put_call_ratio | hy_spread | breadth_pct | spy_close | rsi_14
-2025-11-12 |   NULL    |      1.04      |   NULL    |    NULL     |   NULL    | NULL
-```
+### 2B: Market Breadth - Calculate from Sector ETFs ⏸️ NOT STARTED
+**Current**: breadth_pct is NULL (never implemented)
+**Goal**: Calculate daily breadth percentage from 11 sector ETF performance
 
-**Components Status**:
-1. ❌ VIX Close (vix_close) - NULL
-2. ✅ Put/Call Ratio (put_call_ratio) - WORKING (1.04)
-3. ❌ HY Spread (hy_spread) - NULL
-4. ❌ Market Breadth (breadth_pct) - NULL
-5. ❌ SPY/RSI data (spy_close, spy_sma_200, rsi_14) - NULL
+**Estimated Effort**: 3-4 hours total (2h for HY spread, 1-2h for breadth)
 
-**Investigation Steps**:
+---
 
-### 2.1: Check SPY/VIX Data in day_bars
+### Task 2A: Add FRED API Integration for HY Spread
 
-```sql
--- Is the data being fetched?
-SELECT as_of_date, symbol, close, volume
-FROM day_bars
-WHERE symbol IN ('SPY', '^VIX', '^GSPC')
-ORDER BY as_of_date DESC LIMIT 10;
-```
+**Objective**: Replace hardcoded HY spread estimate (3.13) with real data from FRED API
 
-**If data exists**: Data is fetched but not copied to fear_greed_inputs
-**If data missing**: Scheduled task not running or failing
+**Background**:
+- HY Spread = High-Yield Bond Spread (difference between HY bonds and Treasury yields)
+- FRED Series: `BAMLH0A0HYM2` (ICE BofA US High Yield Index Option-Adjusted Spread)
+- Current implementation in `populate_fear_greed_inputs` uses estimate
 
-### 2.2: Check Data Flow from day_bars → fear_greed_inputs
+**Implementation Steps**:
 
-**File**: `backend/app/tasks/indicator_tasks.py` (likely location)
+#### 2A.1: Create FRED Data Source Module
 
-Find the function that populates `fear_greed_inputs`:
-- Does it read from day_bars?
-- Is there error handling that's silently failing?
-- Are there date mismatches (yesterday vs today)?
+**File**: `backend/app/sources/fred_source.py` (NEW)
 
-**Add logging**:
 ```python
-logger.info("populating_fear_greed_inputs",
-           date=str(as_of_date),
-           vix_close=vix_close,
-           spy_close=spy_close,
-           rsi_14=rsi_14)
+"""FRED (Federal Reserve Economic Data) API integration."""
+
+from __future__ import annotations
+
+import os
+from datetime import date, datetime, timedelta
+from typing import Any
+
+import requests
+
+from app.logging_config import get_logger
+from app.storage import get_storage
+
+logger = get_logger(__name__)
+
+FRED_API_KEY = os.getenv("FRED_API_KEY")
+FRED_BASE_URL = "https://api.stlouisfed.org/fred/series/observations"
+
+# Series IDs
+HY_SPREAD_SERIES = "BAMLH0A0HYM2"  # ICE BofA US High Yield Index OAS
+
+
+def fetch_hy_spread(
+    start_date: date | None = None,
+    end_date: date | None = None
+) -> list[tuple[date, float]]:
+    """Fetch high-yield bond spread from FRED.
+
+    Args:
+        start_date: Start date (default: 30 days ago)
+        end_date: End date (default: today)
+
+    Returns:
+        List of (date, spread_value) tuples
+
+    Raises:
+        ValueError: If FRED_API_KEY not set
+        requests.HTTPError: If API request fails
+    """
+    if not FRED_API_KEY:
+        raise ValueError("FRED_API_KEY environment variable not set")
+
+    if not start_date:
+        start_date = date.today() - timedelta(days=30)
+    if not end_date:
+        end_date = date.today()
+
+    params = {
+        "series_id": HY_SPREAD_SERIES,
+        "api_key": FRED_API_KEY,
+        "file_type": "json",
+        "observation_start": start_date.isoformat(),
+        "observation_end": end_date.isoformat(),
+        "sort_order": "desc",
+    }
+
+    logger.info(
+        "fetching_fred_hy_spread",
+        series=HY_SPREAD_SERIES,
+        start=str(start_date),
+        end=str(end_date),
+    )
+
+    response = requests.get(FRED_BASE_URL, params=params, timeout=30)
+    response.raise_for_status()
+
+    data = response.json()
+    observations = data.get("observations", [])
+
+    results = []
+    for obs in observations:
+        obs_date = datetime.strptime(obs["date"], "%Y-%m-%d").date()
+        value_str = obs["value"]
+
+        # FRED uses "." for missing values
+        if value_str == ".":
+            logger.warning("fred_missing_value", date=str(obs_date), series=HY_SPREAD_SERIES)
+            continue
+
+        value = float(value_str)
+        results.append((obs_date, value))
+
+    logger.info(
+        "fred_hy_spread_fetched",
+        series=HY_SPREAD_SERIES,
+        count=len(results),
+    )
+
+    return results
+
+
+def get_latest_hy_spread() -> tuple[date, float] | None:
+    """Get most recent HY spread value from FRED.
+
+    Returns:
+        Tuple of (date, spread_value) or None if unavailable
+    """
+    try:
+        results = fetch_hy_spread(start_date=date.today() - timedelta(days=7))
+        if results:
+            return results[0]  # Most recent (sorted desc)
+        return None
+    except Exception as e:
+        logger.error("fred_hy_spread_error", error=str(e))
+        return None
 ```
 
-### 2.3: Check HY Spread from FRED
+**Testing**:
+```python
+# backend/tests/unit/sources/test_fred_source.py
+def test_fetch_hy_spread_success():
+    """Test successful HY spread fetch from FRED."""
+    # Mock requests.get to return sample data
+    # Verify parsing logic
 
-**File**: `backend/app/sources/fred.py`
+def test_fetch_hy_spread_missing_values():
+    """Test handling of missing values (.)."""
 
-**Test**:
+def test_get_latest_hy_spread():
+    """Test retrieval of most recent spread value."""
+```
+
+#### 2A.2: Update populate_fear_greed_inputs Task
+
+**File**: `backend/app/tasks/market_data_tasks.py`
+
+**Current code** (around line 478):
+```python
+# Get latest VIX and HY_spread for estimates
+with storage.connection() as conn:
+    result = conn.execute(...)
+    latest = result.fetchone()
+    vix_estimate = latest[0] if latest and latest[0] else 19.5
+    hy_spread_estimate = latest[1] if latest and latest[1] else 3.13  # ← HARDCODED
+```
+
+**Change to**:
+```python
+from app.sources.fred_source import fetch_hy_spread
+
+# Get latest VIX and HY_spread
+with storage.connection() as conn:
+    result = conn.execute(...)
+    latest = result.fetchone()
+    vix_estimate = latest[0] if latest and latest[0] else 19.5
+    hy_spread_fallback = latest[1] if latest and latest[1] else 3.13
+
+# Fetch HY spread data from FRED
+try:
+    hy_spread_data = fetch_hy_spread(start_date=start_date, end_date=end_date)
+    hy_spread_dict = {d: v for d, v in hy_spread_data}
+except Exception as e:
+    logger.warning("fred_hy_spread_unavailable", error=str(e))
+    hy_spread_dict = {}
+
+# In the date processing loop:
+# Use real HY spread if available, otherwise fallback
+hy_spread = hy_spread_dict.get(date, hy_spread_fallback)
+```
+
+#### 2A.3: Environment Configuration
+
+**File**: `.env` (add to both production and development)
+
 ```bash
-# Check if FRED_API_KEY is set
-echo $FRED_API_KEY
-
-# Test FRED API directly
-curl "https://api.stlouisfed.org/fred/series/observations?series_id=BAMLH0A0HYM2&api_key=YOUR_KEY&limit=5&sort_order=desc"
+# FRED API Key (get from https://fred.stlouisfed.org/docs/api/api_key.html)
+FRED_API_KEY=your_api_key_here
 ```
 
-**Questions**:
-- Is FRED API key configured?
-- Is data being fetched successfully?
-- Is it being inserted into fear_greed_inputs?
+**Documentation**: Update `docs/core/SETUP.md` with FRED API key setup instructions
 
-### 2.4: Check RSI Calculation
+#### 2A.4: Acceptance Criteria
 
-**File**: `backend/app/tasks/indicator_tasks.py`
+- [ ] FRED API key configured in environment
+- [ ] `fred_source.py` module created with fetch functions
+- [ ] Unit tests for FRED integration (3+ tests)
+- [ ] `populate_fear_greed_inputs` updated to use real HY spread
+- [ ] Falls back to estimate gracefully if FRED unavailable
+- [ ] HY spread values in fear_greed_inputs no longer constant 3.13
+- [ ] Fear & Greed calculation uses real HY spread data
 
-**Check**:
-```sql
-SELECT as_of_date, rsi_14
-FROM technical_indicators
-WHERE ticker = 'SPY'
-ORDER BY as_of_date DESC LIMIT 5;
-```
+---
 
-**Questions**:
-- Is SPY RSI being calculated daily?
-- Is it being copied to fear_greed_inputs.rsi_14?
+### Task 2B: Implement Market Breadth Calculation
 
-### 2.5: Market Breadth Implementation
+**Objective**: Calculate market breadth percentage from 11 sector ETF performance
 
-**Current**: breadth_pct is NULL everywhere (likely never implemented)
+**Background**:
+- Market Breadth = Percentage of sectors advancing (positive daily change)
+- Breadth % = (Number of sectors up today) / 11 × 100
+- Uses existing sector ETF data already fetched daily (XLK, XLF, XLE, etc.)
 
-**Options**:
-1. Calculate from NYSE advance/decline data (need new data source)
-2. Calculate from sector ETF performance (11 sectors up vs down)
-3. Mark as "not implemented" and adjust Fear & Greed to 4 components
+**Implementation Steps**:
 
-**Recommendation**: Option 2 (quick win using existing sector data)
+#### 2B.1: Add Breadth Calculation to populate_fear_greed_inputs
+
+**File**: `backend/app/tasks/market_data_tasks.py`
+
+**Add helper function** (after `_calculate_rsi`):
 
 ```python
-def calculate_market_breadth():
-    """Calculate breadth from 11 sector ETFs.
+def _calculate_market_breadth(
+    storage: Any,
+    target_date: date,
+) -> float | None:
+    """Calculate market breadth from 11 sector ETFs.
 
     Breadth % = (Number of sectors up today) / 11 * 100
+
+    Args:
+        storage: Database storage instance
+        target_date: Date to calculate breadth for
+
+    Returns:
+        Breadth percentage (0-100) or None if insufficient data
     """
-    sectors = ['XLK', 'XLF', 'XLE', 'XLV', 'XLY', 'XLP',
-               'XLI', 'XLU', 'XLRE', 'XLB', 'XLC']
+    sector_tickers = [
+        "XLK",   # Technology
+        "XLF",   # Financials
+        "XLE",   # Energy
+        "XLV",   # Healthcare
+        "XLY",   # Consumer Discretionary
+        "XLP",   # Consumer Staples
+        "XLI",   # Industrials
+        "XLU",   # Utilities
+        "XLRE",  # Real Estate
+        "XLB",   # Materials
+        "XLC",   # Communication Services
+    ]
 
-    # Count how many closed higher than previous day
-    up_count = 0
-    for sector in sectors:
-        # Get today and yesterday close
-        if today_close > yesterday_close:
-            up_count += 1
+    # Get previous trading day (need to look back to find it)
+    previous_date = target_date - timedelta(days=1)
 
-    breadth_pct = (up_count / 11) * 100
+    # Fetch today and yesterday prices for all sectors
+    with storage.connection() as conn:
+        result = conn.execute(
+            """
+            WITH date_prices AS (
+                SELECT
+                    ticker,
+                    date,
+                    close,
+                    LAG(close) OVER (PARTITION BY ticker ORDER BY date) as prev_close
+                FROM day_bars
+                WHERE ticker = ANY(%s)
+                  AND date <= %s
+                  AND date >= %s
+                ORDER BY ticker, date DESC
+            )
+            SELECT ticker, close, prev_close
+            FROM date_prices
+            WHERE date = %s
+              AND prev_close IS NOT NULL
+            """,
+            (sector_tickers, target_date, target_date - timedelta(days=7), target_date)
+        )
+
+        sectors = result.fetchall()
+
+    if len(sectors) < 8:  # Need at least 8/11 sectors for valid calculation
+        logger.warning(
+            "insufficient_sector_data_for_breadth",
+            date=str(target_date),
+            sectors_found=len(sectors),
+        )
+        return None
+
+    # Count sectors that closed higher than previous day
+    up_count = sum(1 for _, close, prev_close in sectors if close > prev_close)
+
+    breadth_pct = (up_count / len(sectors)) * 100
+
+    logger.info(
+        "market_breadth_calculated",
+        date=str(target_date),
+        up_count=up_count,
+        total_sectors=len(sectors),
+        breadth_pct=breadth_pct,
+    )
+
     return breadth_pct
 ```
 
-**Acceptance Criteria**:
-- [ ] All 5 components of fear_greed_inputs populated daily
-- [ ] VIX close fetched and stored
-- [ ] SPY close, SMA_200, RSI_14 populated
-- [ ] HY spread fetched from FRED
-- [ ] Market breadth calculated (or documented as N/A if no source)
-- [ ] fear_greed_daily table shows complete scores (0-100)
-- [ ] 7-day trend working
-- [ ] /api/market/intelligence returns valid Fear & Greed data with all components
+#### 2B.2: Integrate Breadth into populate_fear_greed_inputs Loop
+
+**File**: `backend/app/tasks/market_data_tasks.py`
+
+**In the date processing loop** (around line 500), add:
+
+```python
+# Calculate market breadth
+breadth_pct = _calculate_market_breadth(storage, date)
+
+# Update the UPSERT to include breadth_pct
+with storage.connection() as conn:
+    conn.execute(
+        """
+        INSERT INTO fear_greed_inputs
+        (as_of_date, spy_close, spy_sma_200, rsi_14, vix_close, hy_spread, breadth_pct)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        ON CONFLICT (as_of_date)
+        DO UPDATE SET
+            spy_close = EXCLUDED.spy_close,
+            spy_sma_200 = EXCLUDED.spy_sma_200,
+            rsi_14 = EXCLUDED.rsi_14,
+            vix_close = EXCLUDED.vix_close,
+            hy_spread = EXCLUDED.hy_spread,
+            breadth_pct = EXCLUDED.breadth_pct
+        """,
+        (date, spy_close, sma_200, rsi_14, vix_close, hy_spread, breadth_pct),
+    )
+```
+
+#### 2B.3: Update Fear & Greed Calculation to Use Breadth
+
+**File**: `backend/app/tasks/indicator_tasks.py`
+
+**Current calculation** (around line 280) uses 4 components. Update to 5:
+
+```python
+# Current (4 components):
+components = [
+    vix_percentile,
+    put_call_percentile,
+    hy_spread_percentile,
+    # breadth is missing
+]
+
+# Updated (5 components):
+components = [
+    vix_percentile,
+    put_call_percentile,
+    hy_spread_percentile,
+    breadth_percentile,  # ADD THIS
+]
+
+# Calculate breadth_percentile from breadth_pct (higher breadth = more greed)
+# Range: 0-100% breadth
+# Greed when >70%, Fear when <30%
+```
+
+**Note**: May need to adjust percentile calculation logic to include breadth_pct column.
+
+#### 2B.4: Testing
+
+**Manual Test**:
+```bash
+# After implementation, test the calculation
+celery -A app.celery_app call populate_fear_greed_inputs --args='[7]'
+
+# Check results
+psql portfolio_ai -c "
+SELECT as_of_date, breadth_pct,
+       vix_close, put_call_ratio, hy_spread
+FROM fear_greed_inputs
+ORDER BY as_of_date DESC
+LIMIT 5;
+"
+
+# Verify breadth_pct is no longer NULL
+```
+
+**Unit Tests**:
+```python
+# backend/tests/unit/tasks/test_market_data_tasks.py
+
+def test_calculate_market_breadth_all_up():
+    """Test breadth calculation when all sectors up."""
+    # Mock sector data with all positive changes
+    # Assert breadth_pct == 100.0
+
+def test_calculate_market_breadth_mixed():
+    """Test breadth with 6/11 sectors up."""
+    # Mock sector data with 6 up, 5 down
+    # Assert breadth_pct ~= 54.5
+
+def test_calculate_market_breadth_insufficient_data():
+    """Test handling when <8 sectors available."""
+    # Mock only 5 sectors
+    # Assert returns None
+```
+
+#### 2B.5: Acceptance Criteria
+
+- [ ] `_calculate_market_breadth()` function added to market_data_tasks.py
+- [ ] Function uses existing sector ETF data from day_bars
+- [ ] Breadth percentage calculated correctly (up_count / total * 100)
+- [ ] Handles missing data gracefully (requires 8/11 sectors minimum)
+- [ ] Integrated into populate_fear_greed_inputs task
+- [ ] breadth_pct column populated in fear_greed_inputs table
+- [ ] Fear & Greed calculation updated to use 5 components
+- [ ] Unit tests for breadth calculation (3+ tests)
+- [ ] Manual testing shows breadth_pct no longer NULL
+
+---
+
+### Task 2: Final Acceptance Criteria (All Components)
+
+After completing both 2A and 2B:
+
+- [ ] All 5 components of fear_greed_inputs populated daily:
+  - [ ] VIX close (from day_bars) ✅ Already working
+  - [ ] Put/Call ratio (from fetch_putcall_ratio) ✅ Already working
+  - [ ] SPY close, SMA_200, RSI_14 (from populate task) ✅ Already working
+  - [ ] HY spread (from FRED API) ⏸️ Task 2A
+  - [ ] Market breadth (from sector ETFs) ⏸️ Task 2B
+- [ ] fear_greed_daily table shows complete scores with all 5 components
+- [ ] Dashboard Fear & Greed score more accurate (using real data, not estimates)
+- [ ] /api/market/intelligence returns all components with actual values
+- [ ] Monitoring: Check Celery logs daily to verify FRED/breadth calculations succeed
 
 ---
 
