@@ -130,35 +130,49 @@ export function MarketIntelligence() {
 
           {/* Dual Scores */}
           <div className="grid grid-cols-2 gap-4 p-4 rounded-lg bg-surface-muted/20">
-            <div className="flex items-center gap-1">
-              <LabeledIndicator
-                label="Market Health"
-                value={market_health.overall_score}
-                signal={
-                  market_health.overall_score >= 60
-                    ? "bullish"
-                    : market_health.overall_score >= 40
-                    ? "neutral"
-                    : "bearish"
-                }
-                size="md"
-              />
-              {getTrendArrow(market_health.trend, market_health.trend_change)}
+            <div className="flex flex-col">
+              <div className="flex items-center gap-1">
+                <LabeledIndicator
+                  label="Market Health"
+                  value={market_health.overall_score}
+                  signal={
+                    market_health.overall_score >= 60
+                      ? "bullish"
+                      : market_health.overall_score >= 40
+                      ? "neutral"
+                      : "bearish"
+                  }
+                  size="md"
+                />
+                {getTrendArrow(market_health.trend, market_health.trend_change)}
+              </div>
+              {market_health.last_updated && (
+                <p className="text-[10px] text-text-muted mt-1">
+                  {formatRelativeTime(market_health.last_updated)}
+                </p>
+              )}
             </div>
-            <div className="flex items-center gap-1">
-              <LabeledIndicator
-                label="Fear & Greed"
-                value={fear_greed.score}
-                signal={
-                  fear_greed.score >= 60
-                    ? "bullish"
-                    : fear_greed.score >= 40
-                    ? "neutral"
-                    : "bearish"
-                }
-                size="md"
-              />
-              {getTrendArrow(fear_greed.trend, fear_greed.trend_change)}
+            <div className="flex flex-col">
+              <div className="flex items-center gap-1">
+                <LabeledIndicator
+                  label="Fear & Greed"
+                  value={fear_greed.score}
+                  signal={
+                    fear_greed.score >= 60
+                      ? "bullish"
+                      : fear_greed.score >= 40
+                      ? "neutral"
+                      : "bearish"
+                  }
+                  size="md"
+                />
+                {getTrendArrow(fear_greed.trend, fear_greed.trend_change)}
+              </div>
+              {fear_greed.last_updated && (
+                <p className="text-[10px] text-text-muted mt-1">
+                  {formatRelativeTime(fear_greed.last_updated)}
+                </p>
+              )}
             </div>
           </div>
 
@@ -193,6 +207,11 @@ export function MarketIntelligence() {
                   emoji={vixIndicator.emoji}
                   size="sm"
                 />
+                {vixIndicator.last_updated && (
+                  <p className="text-[10px] text-text-muted mt-1">
+                    {formatRelativeTime(vixIndicator.last_updated)}
+                  </p>
+                )}
               </div>
             )}
 
@@ -213,6 +232,11 @@ export function MarketIntelligence() {
                   emoji={sp500Indicator.emoji}
                   size="sm"
                 />
+                {sp500Indicator.last_updated && (
+                  <p className="text-[10px] text-text-muted mt-1">
+                    {formatRelativeTime(sp500Indicator.last_updated)}
+                  </p>
+                )}
               </div>
             )}
 
@@ -233,6 +257,11 @@ export function MarketIntelligence() {
                   emoji={tnxIndicator.emoji}
                   size="sm"
                 />
+                {tnxIndicator.last_updated && (
+                  <p className="text-[10px] text-text-muted mt-1">
+                    {formatRelativeTime(tnxIndicator.last_updated)}
+                  </p>
+                )}
               </div>
             )}
 
@@ -253,6 +282,11 @@ export function MarketIntelligence() {
                   emoji={dxyIndicator.emoji}
                   size="sm"
                 />
+                {dxyIndicator.last_updated && (
+                  <p className="text-[10px] text-text-muted mt-1">
+                    {formatRelativeTime(dxyIndicator.last_updated)}
+                  </p>
+                )}
               </div>
             )}
 
@@ -273,6 +307,11 @@ export function MarketIntelligence() {
                   emoji={putcallIndicator.emoji}
                   size="sm"
                 />
+                {putcallIndicator.last_updated && (
+                  <p className="text-[10px] text-text-muted mt-1">
+                    {formatRelativeTime(putcallIndicator.last_updated)}
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -280,9 +319,16 @@ export function MarketIntelligence() {
 
         {/* Right Column: Sector Rotation */}
         <div className="space-y-4">
-          <h3 className="text-sm font-semibold text-text mb-4 uppercase tracking-wide">
-            Sector Rotation
-          </h3>
+          <div className="flex items-baseline justify-between mb-4">
+            <h3 className="text-sm font-semibold text-text uppercase tracking-wide">
+              Sector Rotation
+            </h3>
+            {sector_rotation.leading?.[0]?.last_updated && (
+              <p className="text-[10px] text-text-muted">
+                {formatRelativeTime(sector_rotation.leading[0].last_updated)}
+              </p>
+            )}
+          </div>
           <div className="p-4 rounded-lg bg-surface-muted/20">
             <SectorRotationSummary rotation={sector_rotation} />
           </div>
@@ -384,12 +430,6 @@ export function MarketIntelligence() {
         </div>
       )}
 
-      {/* Footer with timestamp */}
-      <div className="mt-4 pt-3 border-t border-border">
-        <p className="text-xs text-text-muted text-center">
-          Market Data as of {formatRelativeTime(data.last_updated)}
-        </p>
-      </div>
     </Card>
   );
 }
