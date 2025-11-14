@@ -202,16 +202,32 @@ celery_app.conf.beat_schedule = {
         # - Calculates RSI, SMA_200, and other technical indicators
         # - Must run after refresh-daily-ohlcv completes
     },
+    "populate-fear-greed-inputs-daily": {
+        "task": "populate_fear_greed_inputs",
+        "schedule": 86400.0,  # Daily (24 hours)
+        "args": [7],  # Update last 7 days
+        "options": {"expires": 3600},  # Task expires after 1 hour
+        # Notes:
+        # - Runs daily at ~02:45 UTC (after indicators update at 02:30)
+        # - Replaces manual update_fear_greed_inputs.py script
+        # - Fetches SPY OHLCV and calculates SMA_200, RSI_14
+        # - Fetches VIX if available, uses estimate if missing
+        # - Populates fear_greed_inputs table (SPY, VIX, RSI data)
+        # - Automatically triggers calculate_fear_greed after completion
+        # - Idempotent: Safe to run multiple times
+        # - Self-healing: Backfills missing dates within 7-day window
+    },
     "calculate-fear-greed-daily": {
         "task": "calculate_fear_greed",
         "schedule": 86400.0,  # Daily (24 hours)
         "args": [None],  # Calculate for latest available date
         "options": {"expires": 3600},  # Task expires after 1 hour
         # Notes:
-        # - Runs daily at ~03:00 UTC (after indicators update)
+        # - Runs daily at ~03:00 UTC (after populate-fear-greed-inputs completes)
         # - Calculates Fear & Greed Index from inputs table
         # - Uses 252-day rolling window for percentile rankings
-        # - Must run after update-technical-indicators-daily completes
+        # - Must run after populate-fear-greed-inputs-daily completes
+        # - NOTE: Also triggered automatically by populate_fear_greed_inputs task
     },
     "maintain-historical-market-data": {
         "task": "maintain_historical_market_data",

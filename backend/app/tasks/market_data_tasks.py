@@ -8,13 +8,17 @@ from __future__ import annotations
 
 import datetime as dt
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.sources.cboe_source import get_cboe_source
 from app.storage import get_storage
 from app.tasks.data_ingestion_tasks import ingest_historical_ohlcv
+from app.tasks.indicator_tasks import calculate_fear_greed
+
+if TYPE_CHECKING:
+    from celery import Task  # type: ignore[import-untyped]
 
 logger = get_logger(__name__)
 
@@ -401,3 +405,220 @@ def fetch_options_activity_metrics(  # type: ignore[no-untyped-def]
             "error": str(e),
             "success": False,
         }
+
+
+@celery_app.task(name="populate_fear_greed_inputs", bind=True)  # type: ignore[misc]
+def populate_fear_greed_inputs(self: Task, days: int = 7) -> dict[str, Any]:
+    """Populate fear_greed_inputs table with latest market data.
+
+    This task replaces the manual script update_fear_greed_inputs.py.
+    Runs daily to ensure fear_greed_inputs is up-to-date.
+
+    Process:
+    1. Fetch SPY OHLCV from day_bars (last N days + 200 for SMA_200)
+    2. Calculate SMA_200 and RSI_14 from SPY data
+    3. Fetch VIX from day_bars (if available)
+    4. Use estimates for missing VIX/HY_spread data
+    5. Upsert fear_greed_inputs for each date
+    6. Trigger calculate_fear_greed task
+
+    Args:
+        days: Number of days to update (default 7)
+
+    Returns:
+        dict: Task result with update count and status
+    """
+    task_id = self.request.id
+    logger.info("populate_fear_greed_inputs_started", task_id=task_id, days=days)
+
+    try:
+        storage = get_storage()
+        end_date = dt.date.today()
+        start_date = end_date - dt.timedelta(days=days)
+
+        # Need extra data for SMA_200 calculation (200 trading days ≈ 280 calendar days + buffer)
+        data_start = end_date - dt.timedelta(days=300)
+
+        # Fetch SPY OHLCV data
+        with storage.connection() as conn:
+            result = conn.execute(
+                """
+                SELECT date, close
+                FROM day_bars
+                WHERE ticker = 'SPY'
+                  AND date >= %s
+                  AND date <= %s
+                ORDER BY date ASC
+                """,
+                (data_start, end_date),
+            )
+            spy_data = result.fetchall()
+
+        if len(spy_data) < 200:
+            error_msg = f"Insufficient SPY data: got {len(spy_data)} days, need >= 200"
+            logger.error("populate_fear_greed_inputs_failed", task_id=task_id, error=error_msg)
+            return {
+                "task_id": task_id,
+                "updates_count": 0,
+                "error": error_msg,
+                "success": False,
+            }
+
+        # Convert to dict for easy lookup
+        spy_dict = {row[0]: row[1] for row in spy_data}
+        dates = sorted(spy_dict.keys())
+
+        # Get latest VIX and HY_spread for estimates
+        with storage.connection() as conn:
+            result = conn.execute(
+                """
+                SELECT vix_close, hy_spread
+                FROM fear_greed_inputs
+                WHERE vix_close IS NOT NULL
+                ORDER BY as_of_date DESC
+                LIMIT 1
+                """
+            )
+            latest = result.fetchone()
+            vix_estimate = latest[0] if latest and latest[0] else 19.5
+            hy_spread_estimate = latest[1] if latest and latest[1] else 3.13
+
+        # Fetch VIX data if available
+        with storage.connection() as conn:
+            result = conn.execute(
+                """
+                SELECT date, close
+                FROM day_bars
+                WHERE ticker = '^VIX'
+                  AND date >= %s
+                  AND date <= %s
+                ORDER BY date ASC
+                """,
+                (start_date, end_date),
+            )
+            vix_data = {row[0]: row[1] for row in result.fetchall()}
+
+        # Process each date in target range
+        updates_count = 0
+        for i, date in enumerate(dates):
+            if date < start_date:
+                continue
+
+            # Get prices up to this date for calculations
+            prices_up_to_date = [spy_dict[d] for d in dates[: i + 1]]
+
+            if len(prices_up_to_date) < 200:
+                logger.warning(
+                    "insufficient_data_for_indicators",
+                    date=str(date),
+                    data_points=len(prices_up_to_date),
+                )
+                continue
+
+            spy_close = spy_dict[date]
+            sma_200 = _calculate_sma(prices_up_to_date, 200)
+            rsi_14 = _calculate_rsi(prices_up_to_date, 14)
+
+            if sma_200 is None or rsi_14 is None:
+                logger.warning("indicator_calculation_failed", date=str(date))
+                continue
+
+            # Use real VIX if available, otherwise estimate
+            vix_close = vix_data.get(date, vix_estimate)
+
+            # Upsert fear_greed_inputs
+            with storage.connection() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO fear_greed_inputs
+                    (as_of_date, spy_close, spy_sma_200, rsi_14, vix_close, hy_spread)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (as_of_date)
+                    DO UPDATE SET
+                        spy_close = EXCLUDED.spy_close,
+                        spy_sma_200 = EXCLUDED.spy_sma_200,
+                        rsi_14 = EXCLUDED.rsi_14,
+                        vix_close = EXCLUDED.vix_close,
+                        hy_spread = EXCLUDED.hy_spread
+                    """,
+                    (date, spy_close, sma_200, rsi_14, vix_close, hy_spread_estimate),
+                )
+            updates_count += 1
+
+        logger.info(
+            "populate_fear_greed_inputs_completed",
+            task_id=task_id,
+            updates_count=updates_count,
+        )
+
+        # Trigger Fear & Greed calculation
+        calculate_fear_greed.apply_async()
+
+        return {
+            "task_id": task_id,
+            "updates_count": updates_count,
+            "date_range": f"{start_date} to {end_date}",
+            "success": True,
+        }
+
+    except Exception as e:
+        logger.error(
+            "populate_fear_greed_inputs_failed",
+            task_id=task_id,
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+        return {
+            "task_id": task_id,
+            "updates_count": 0,
+            "error": str(e),
+            "success": False,
+        }
+
+
+def _calculate_sma(prices: list[float], period: int) -> float | None:
+    """Calculate Simple Moving Average.
+
+    Args:
+        prices: List of closing prices (oldest first)
+        period: SMA period
+
+    Returns:
+        SMA value or None if insufficient data
+    """
+    if len(prices) < period:
+        return None
+    return sum(prices[-period:]) / period
+
+
+def _calculate_rsi(prices: list[float], period: int = 14) -> float | None:
+    """Calculate RSI indicator.
+
+    Args:
+        prices: List of closing prices (oldest first)
+        period: RSI period (default 14)
+
+    Returns:
+        RSI value (0-100) or None if insufficient data
+    """
+    if len(prices) < period + 1:
+        return None
+
+    # Calculate price changes
+    deltas = [prices[i] - prices[i - 1] for i in range(1, len(prices))]
+
+    # Separate gains and losses
+    gains = [d if d > 0 else 0 for d in deltas]
+    losses = [-d if d < 0 else 0 for d in deltas]
+
+    # Calculate average gain/loss
+    avg_gain = sum(gains[-period:]) / period
+    avg_loss = sum(losses[-period:]) / period
+
+    if avg_loss == 0:
+        return 100.0
+
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+
+    return rsi
