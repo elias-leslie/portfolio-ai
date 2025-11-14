@@ -1,8 +1,8 @@
 # Work Tracker
 
-**Last Updated:** 2025-11-13 (System Capabilities Registry COMPLETE)
+**Last Updated:** 2025-11-14 (Phase 1: Fix Existing Features COMPLETE)
 
-**Current Status:** ✅ Market Intelligence | ✅ System Capabilities Registry | 🎯 Next: CLI Agent Integration (Task 0060)
+**Current Status:** ✅ Market Intelligence | ✅ System Capabilities Registry | ✅ Phase 1 Fix Existing Features | 🎯 Next: CLI Agent Integration (Task 0060)
 
 **Priority**: Begin Task 0060 (CLI Agent Integration) or continue Market Conditions improvements
 
@@ -178,7 +178,27 @@
 
 *Last 5 completions - older items auto-archive to tasks/archive/YYYY-MM.md*
 
-1. **System Capabilities Registry** ✅ (100% - 17/17 tasks, 2025-11-13)
+1. **Phase 1: Fix Existing Features** ✅ (100% - 4/4 tasks, 2025-11-14)
+   - File: `tasks/tasks-0058a-fix-existing-features.md`
+   - Completed: 2025-11-14
+   - Summary: Fixed broken Fear & Greed Index components, completed real-time data pipeline, and implemented FRED API integration + Market Breadth calculation.
+   - Key achievements:
+     - ✅ Task 0: Real-time data pipeline (populate_fear_greed_inputs scheduled task)
+     - ✅ Task 1: Watchlist score breakdown (sub_scores field added)
+     - ✅ Task 2: Complete Fear & Greed with 5 components (FRED HY Spread + Market Breadth)
+     - ✅ Task 4: Valuation data infrastructure (parse_valuation_metrics task)
+   - Implementation:
+     - Extended FREDSource with date range fetching
+     - Added _calculate_market_breadth() using LAG() window function
+     - Updated calculate_fear_greed to use 5 components (was 4)
+     - 24 new unit tests (17 FRED + 7 breadth, all passing)
+   - Verification:
+     - fear_greed_daily: signal_count = 5 (Nov 12 onwards)
+     - HY spread: varying values (3.02-3.15, not constant 3.13)
+     - Market breadth: 42%-90% range
+   - Commit: 10144ef
+
+2. **System Capabilities Registry** ✅ (100% - 17/17 tasks, 2025-11-13)
    - File: `tasks/tasks-0059-system-capabilities-registry.md`
    - Completed: 2025-11-13
    - Summary: Built intelligent auto-discovery system for all capabilities (42 DB tables, 13 Celery tasks, 16 API endpoints). Added AI-powered analysis with Claude Sonnet 4.5 to identify data quality issues, missing capabilities, and broken dependencies. Created comprehensive frontend UI with insights review, human annotations, and gap tracking. Deployed with scheduled tasks (daily at 03:00 & 03:15 UTC), 82 tests (94% passing), full API coverage (7 endpoints), and production documentation.
