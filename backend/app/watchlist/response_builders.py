@@ -44,6 +44,7 @@ class ScoreComponentResponse(BaseModel):
     stale: bool
     updated_at: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+    sub_scores: dict[str, float] | None = None
 
 
 class ScoreBreakdownResponse(BaseModel):
