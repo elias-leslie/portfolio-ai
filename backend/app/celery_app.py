@@ -363,6 +363,25 @@ celery_app.conf.beat_schedule = {
         # - Provides actionable suggestions with file paths
         # - Critical for proactive monitoring before AI agents break things
     },
+    # ============================================================================
+    # MULTI-AGENT WORKFLOW TASKS
+    # ============================================================================
+    # These tasks orchestrate collaboration between multiple AI agents
+    # ============================================================================
+    "daily-gap-analysis-workflow": {
+        "task": "app.tasks.workflow_tasks.daily_gap_analysis_workflow",
+        "schedule": crontab(hour=3, minute=30),  # Daily at 03:30 UTC (after capability analysis)
+        "options": {"expires": 1800},  # Task expires after 30 minutes
+        # Notes:
+        # - Runs daily at 03:30 UTC (after capability analysis at 03:15)
+        # - Multi-agent workflow:
+        #   1. Gemini agent analyzes current market gaps
+        #   2. Claude agent validates and enhances analysis
+        #   3. Consensus mechanism resolves conflicts
+        #   4. Generate final report and commit to git
+        # - Infrastructure ready, awaiting agent execution implementation
+        # - Part of Phase 3 autonomous trading intelligence
+    },
     # Future: Data cleanup task
     # Note: Commented example for future implementation
     # "cleanup-old-data": {
@@ -385,6 +404,7 @@ from app.tasks import (  # noqa: E402, F401
     news_tasks,
     reference_tasks,
     watchlist_tasks,
+    workflow_tasks,
 )
 
 

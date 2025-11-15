@@ -20,19 +20,19 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Multi-Agent Collaboration Infrastructure (Task 0060 Task 3.7)** (HIGH (6-8 days), 0/6 sub-tasks)
-   - File: `tasks-0060-cli-agent-integration.md` (Task 3.7 only)
-   - Created: 2025-02-14 (updated 2025-11-14 with Task 3.7)
-   - Goal: Enable Gemini + Claude agents to collaborate on daily workflows (gap analysis → paper trading → git commits)
-   - Status: **CRITICAL - Phase 2 blocker** (blocks Phase 3 orchestration and Phase 4 deployment)
-   - Roadmap Phase: Phase 2 (Days 6-9) - Currently on Day 6
-   - Sub-tasks:
-     - [ ] Task 3.7.1: Create agent_messages table (migration 044)
-     - [ ] Task 3.7.2: Create agent_workflows table (migration 044)
-     - [ ] Task 3.7.3: Add agent collaboration tools (send_message, query_memory, vote_on_decision, wait_for_response)
-     - [ ] Task 3.7.4: Create WorkflowOrchestrator service (start_workflow, assign_task, collect_outputs, resolve_conflicts)
-     - [ ] Task 3.7.5: Add fallback/redundancy logic (failure handling, conflict resolution, timeout limits)
-     - [ ] Task 3.7.6: Add scheduled multi-agent workflows (daily gap analysis, paper trade validation)
+1. **Multi-Agent Collaboration Infrastructure (Task 0060 Task 3.7)** (0% - 0/6 complete)
+   - File: `tasks-0060-cli-agent-integration.md`
+   - Started: 2025-02-14 (9 months ago)
+   - Last updated: Unknown
+   - Next: Task 0 - Scope Discovery (MANDATORY)
+   - Tasks:
+     - [ ] Task 0: Scope Discovery (MANDATORY)
+     - [ ] Task 1: Design Provider-Agnostic Agent Runtime
+     - [ ] Task 2: Implement CLI Client Adapters & Configuration
+     - [ ] Task 3: Refactor Backend Agent Execution
+     - [ ] Task 5: Frontend Agent Experiences
+     - [ ] Task 6: Testing, Docs, and Verification
+
 
 ---
 
