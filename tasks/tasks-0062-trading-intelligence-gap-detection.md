@@ -226,20 +226,23 @@
 
 ---
 
-### 5.0 Integration with Trading Workflows
+### 5.0 Integration with Trading Workflows - 🔄 PARTIAL (3/4 complete)
 
-- [ ] 5.1 Add gap warnings to watchlist scoring
-  - When generating watchlist scores, check if data is complete
-  - Show warning: "Score confidence: 60% (missing fundamental data)"
-  - Link to gaps tab: "View missing data →"
-- [ ] 5.2 Add gap warnings to narrative generation
-  - When generating trading narrative, flag missing data
-  - Example: "Note: This analysis lacks insider trading data, which could reveal management confidence"
-  - Suggest: "Enable insider tracking for deeper insights →"
-- [ ] 5.3 Create "Analysis Readiness" indicator
-  - For each ticker, show readiness score (0-100%)
-  - Based on: Data availability × Data freshness × Coverage completeness
-  - Display in watchlist UI: "NVDA: 85% ready (missing options flow)"
+- [x] 5.1 Add gap warnings to watchlist scoring ✅ COMPLETE
+  - Implemented ticker-specific gap analysis (analyze_ticker_gaps)
+  - Added readiness_score, confidence_level, gap_warning to API response
+  - Created GET /api/gaps/by-ticker/{ticker} endpoint
+  - Integrated into single-item watchlist endpoint
+- [x] 5.2 Add gap warnings to narrative generation ✅ COMPLETE
+  - Modified generate_special_notes() to include gap warnings
+  - LOW confidence: "⚠️ DATA GAPS DETECTED" with top 3 missing capabilities
+  - MEDIUM confidence: "💡 MODERATE DATA COVERAGE" with key gap
+  - Integrated into refresh_narrative.py pipeline
+- [x] 5.3 Create "Analysis Readiness" indicator ✅ COMPLETE
+  - Created ReadinessIndicator.tsx component
+  - Displays readiness score (0-100%) with color coding
+  - Shows confidence level badge (LOW/MEDIUM/HIGH)
+  - Supports compact and full display modes
 - [ ] 5.4 Add gap-based data refresh prioritization
   - Identify which data fetches would fill most critical gaps
   - Prioritize scheduled tasks based on gap severity
