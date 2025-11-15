@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Literal
@@ -59,23 +60,32 @@ class WorkflowOrchestrator:
                 "messages": [],  # Will store workflow messages
             }
 
-            # Insert workflow record
-            self.storage.insert_dict(
-                "agent_workflows",
-                {
-                    "id": workflow_id,
-                    "workflow_type": workflow_type,
-                    "status": "pending",
-                    "current_step": "initializing",
-                    "agents_involved": agents_involved or [],
-                    "shared_context": shared_context,
-                    "triggered_by": triggered_by,
-                    "priority": priority,
-                    "max_duration_seconds": max_duration_seconds,
-                    "created_at": datetime.now(UTC),
-                    "last_updated_at": datetime.now(UTC),
-                },
-            )
+            # Insert workflow record using direct SQL to avoid numpy array conversion
+            agents_list = agents_involved if agents_involved else []
+
+            with self.storage.connection() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO agent_workflows (
+                        id, workflow_type, status, current_step, agents_involved,
+                        shared_context, triggered_by, priority, max_duration_seconds,
+                        created_at, last_updated_at
+                    ) VALUES ($1, $2, $3, $4, $5::TEXT[], $6::JSONB, $7, $8, $9, $10, $11)
+                    """,
+                    [
+                        workflow_id,
+                        workflow_type,
+                        "pending",
+                        "initializing",
+                        agents_list,
+                        json.dumps(shared_context),
+                        triggered_by,
+                        priority,
+                        max_duration_seconds,
+                        datetime.now(UTC),
+                        datetime.now(UTC),
+                    ],
+                )
 
             logger.info(
                 f"Started workflow {workflow_id} ({workflow_type}) "
@@ -200,11 +210,11 @@ class WorkflowOrchestrator:
             }
             shared_context["agents"][agent_type]["tasks"].append(task_assignment)
 
-            # Update workflow
+            # Update workflow (JSON-serialize shared_context)
             with self.storage.connection() as conn:
                 conn.execute(
-                    "UPDATE agent_workflows SET shared_context = $1, last_updated_at = $2 WHERE id = $3",
-                    [shared_context, datetime.now(UTC), workflow_id],
+                    "UPDATE agent_workflows SET shared_context = $1::JSONB, last_updated_at = $2 WHERE id = $3",
+                    [json.dumps(shared_context), datetime.now(UTC), workflow_id],
                 )
 
             logger.info(f"Assigned task to {agent_type} in workflow {workflow_id}: {task[:100]}")
@@ -268,11 +278,11 @@ class WorkflowOrchestrator:
             shared_context["agents"][agent_type]["outputs"].append(output_record)
             shared_context["agents"][agent_type]["status"] = "completed"
 
-            # Update workflow
+            # Update workflow (JSON-serialize shared_context)
             with self.storage.connection() as conn:
                 conn.execute(
-                    "UPDATE agent_workflows SET shared_context = $1, last_updated_at = $2 WHERE id = $3",
-                    [shared_context, datetime.now(UTC), workflow_id],
+                    "UPDATE agent_workflows SET shared_context = $1::JSONB, last_updated_at = $2 WHERE id = $3",
+                    [json.dumps(shared_context), datetime.now(UTC), workflow_id],
                 )
 
             logger.info(f"Recorded output from {agent_type} in workflow {workflow_id}")
@@ -527,10 +537,10 @@ class WorkflowOrchestrator:
                 conn.execute(
                     """
                     UPDATE agent_workflows
-                    SET status = 'complete', result = $1, completed_at = $2, last_updated_at = $2
+                    SET status = 'complete', result = $1::JSONB, completed_at = $2, last_updated_at = $2
                     WHERE id = $3
                     """,
-                    [result, datetime.now(UTC), workflow_id],
+                    [json.dumps(result), datetime.now(UTC), workflow_id],
                 )
 
             logger.info(f"Workflow {workflow_id} completed successfully")
