@@ -336,23 +336,51 @@ def generate_special_notes(
     signal_strength: int,
     earnings_days_away: int | None,
     company_health: str,
+    gap_result: dict[str, Any] | None = None,
 ) -> str:
-    """Generate special notes and warnings (earnings, WHY THIS WORKS).
+    """Generate special notes and warnings (earnings, WHY THIS WORKS, data gaps).
 
     Args:
         signal_type: Signal type (BUY, HOLD, or AVOID)
         signal_strength: Signal strength (0-10)
         earnings_days_away: Days until next earnings (None if unknown)
         company_health: Company health rating (EXCELLENT, GOOD, WEAK)
+        gap_result: Optional gap analysis result (readiness_score, confidence_level, missing_capabilities)
 
     Returns:
         Plain-language special notes text
 
     Example:
         >>> notes = generate_special_notes("BUY", 9, 3, "EXCELLENT")
-        >>> # Returns text with earnings warning + WHY THIS WORKS
+        >>> # Returns text with earnings warning + WHY THIS WORKS + gap warnings
     """
     sections: list[str] = []
+
+    # Gap warnings (Task 5.2 - trading intelligence)
+    if gap_result:
+        confidence = gap_result.get("confidence_level", "UNKNOWN")
+        readiness = gap_result.get("readiness_score", 0)
+        missing = gap_result.get("missing_capabilities", [])
+
+        if confidence == "LOW":
+            gap_text = (
+                f"⚠️ DATA GAPS DETECTED ({readiness:.0f}% analysis coverage):\n"
+                f"• This analysis lacks {len(missing)} key data capabilities\n"
+            )
+            # Show top 3 missing capabilities
+            for cap in missing[:3]:
+                cap_name = cap.split(" (")[0]  # Extract capability name
+                gap_text += f"• Missing: {cap_name}\n"
+            gap_text += "• View Gaps tab for complete coverage details"
+            sections.append(gap_text.rstrip())
+        elif confidence == "MEDIUM":
+            gap_text = (
+                f"💡 MODERATE DATA COVERAGE ({readiness:.0f}%):\n"
+                f"• Analysis based on available data - some capabilities missing\n"
+                f"• Key gaps: {missing[0].split(' (')[0] if missing else 'See Gaps tab'}\n"
+                f"• View Gaps tab to improve analysis depth"
+            )
+            sections.append(gap_text.rstrip())
 
     # Earnings warnings (only if earnings soon)
     if earnings_days_away is not None:

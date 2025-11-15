@@ -15,7 +15,9 @@ from typing import Any, TypedDict, cast
 
 from ..logging_config import get_logger
 from ..portfolio.models import PriceData
+from ..services.gap_detector import GapDetector
 from ..storage import PortfolioStorage
+from ..storage.connection import ConnectionManager
 from .calculator import (
     calculate_entry_price,
     calculate_position_size,
@@ -135,8 +137,22 @@ def generate_narrative_texts(
     company_health_str: str | None,
     earnings_days_away: int | None,
     fundamentals_data: FundamentalData | None,
+    gap_result: dict[str, Any] | None = None,
 ) -> tuple[str | None, str | None, list[str] | None, str | None]:
     """Generate all narrative text components.
+
+    Args:
+        symbol: Stock ticker symbol
+        signal_type: BUY/HOLD/AVOID signal
+        signal_strength: Signal strength (0-10)
+        entry_price: Calculated entry price
+        stop_loss: Calculated stop loss price
+        profit_target: Calculated profit target price
+        position_size: Calculated position size in shares
+        company_health_str: Company health rating
+        earnings_days_away: Days until next earnings
+        fundamentals_data: Fundamental data for company health bullets
+        gap_result: Optional gap analysis result for data coverage warnings
 
     Returns:
         Tuple of (action_plan, position_sizing, company_health_bullets, special_notes)
@@ -202,6 +218,7 @@ def generate_narrative_texts(
                 signal_strength=signal_strength,
                 earnings_days_away=earnings_days_away,
                 company_health=company_health_str,
+                gap_result=gap_result,  # Task 5.2: Include gap warnings
             )
         except Exception as e:
             logger.warning("special_notes_generation_failed", symbol=symbol, error=str(e))
@@ -332,6 +349,16 @@ def generate_narrative_and_trade_levels(
         entry_price, stop_loss, profit_target, position_size = calculate_trade_levels(
             storage, symbol, price_data.price, signal_type, risk_budget
         )
+
+        # Gap analysis for data coverage warnings (Task 5.2)
+        gap_result = None
+        try:
+            conn_mgr = ConnectionManager()
+            gap_detector = GapDetector(conn_mgr)
+            gap_result = gap_detector.analyze_ticker_gaps(symbol)
+        except Exception as e:
+            logger.warning("gap_analysis_failed", symbol=symbol, error=str(e))
+
         action_plan, position_sizing, company_health_bullets, special_notes = (
             generate_narrative_texts(
                 symbol,
@@ -344,6 +371,7 @@ def generate_narrative_and_trade_levels(
                 company_health_str,
                 earnings_days_away_val,
                 fundamentals_data,
+                gap_result,  # Task 5.2: Include gap analysis
             )
         )
         return build_narrative_result(
