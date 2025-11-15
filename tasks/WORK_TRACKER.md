@@ -28,21 +28,7 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **System Capabilities UI - Specialized Tabs Refactor** (MEDIUM (10-12 hours, reduced from 30-40h), 4/8 tasks (2 days ago))
-   - File: `tasks-0061-capabilities-ui-specialized-tabs.md`
-   - Created: 2025-11-13
-   - Goal: Improve capabilities UI by removing modal popups, adding expandable inline details, and showing maximum data in collapsed rows. Add Dashboard tab for health summary. Automate orphan/health detection with backend scripts (no complex UI).
-   - Tasks:
-     - [x] Task 0: Scope Discovery (COMPLETE)
-     - [x] Task 1: Backend - Health Detection (3-4 hours) ✅ COMPLETE
-     - [x] Task 2: Frontend - Remove Modal, Add Expandable Rows (3-4 hours) ✅ COMPLETE
-     - [x] Task 3: Frontend - Maximize Data in Main Row (2-3 hours) ✅ COMPLETE
-     - [ ] Task 4: Frontend - Dashboard Tab (2-3 hours)
-     - [ ] Task 5: Frontend - Health Filtering & Polish (1-2 hours)
-     - [ ] Task 6: Testing and Verification (1-2 hours)
-     - [ ] Task 7: Documentation (30min - 1hr)
-
-2. **Trading Intelligence Gap Detection (Phase 2 Completion + Phase 3)** (HIGH (15-20 hours), 3/10 tasks (2 days ago))
+1. **Trading Intelligence Gap Detection (Phase 2 Completion + Phase 3)** (HIGH (15-20 hours), 3/10 tasks (2 days ago))
    - File: `tasks-0062-trading-intelligence-gap-detection.md`
    - Created: 2025-11-13
    - Goal: Build gap detection system that identifies missing data capabilities needed for profitable trading strategies. Primary purpose: Help AI trading agent (Claude) detect what data it's missing to provide true edge and successful trading insights. Extend existing capabilities feature with trading-focused gap analysis.
@@ -139,7 +125,31 @@
 
 *Last 5 completions - older items auto-archive to tasks/archive/YYYY-MM.md*
 
-1. **Paper Trading Engine Phase A MVP** ✅ (100% - 6/6 tasks, 2025-11-14)
+1. **System Capabilities UI - Dashboard & Health Sorting** ✅ (100% - 8/8 tasks, 2025-11-14)
+   - File: `tasks-0061-capabilities-ui-specialized-tabs.md`
+   - Completed: 2025-11-14
+   - Duration: Minimal (~30 min for Tasks 4-7, Tasks 0-3 already complete)
+   - Summary: Completed final 4 tasks of capabilities UI refactor, adding health-based sorting
+   - Key achievements:
+     - ✅ Task 4: Dashboard tab already fully implemented (health summary cards, insights)
+     - ✅ Task 5: Added automatic health-based sorting (orphaned > legacy > suspect > active)
+     - ✅ Task 6: Verified implementation via browser automation and API testing
+     - ✅ Task 7: Updated documentation with health status meanings and sorting behavior
+   - Implementation:
+     - Health sorting: Priority-based sort with secondary alphabetical ordering
+     - Fixed array mutation bug by creating copy before sorting
+     - Dashboard displays correct counts (50 DB, 20 Tasks, 17 Endpoints)
+     - Health filter with URL persistence already in place
+   - Code Quality:
+     - TypeScript: ✅ No errors in capabilities files
+     - ESLint: ✅ No new warnings
+   - Files Modified:
+     - `frontend/app/capabilities/page.tsx` (added sorting logic)
+     - `docs/reference/system-capabilities-registry.md` (updated to v1.1.0)
+   - Commit: 08c4e0e
+   - Note: Tasks 0-3 were already complete from previous work (health detection, expandable rows, data density)
+
+2. **Paper Trading Engine Phase A MVP** ✅ (100% - 6/6 tasks, 2025-11-14)
    - File: `tasks-0064-paper-trading-engine.md`
    - Completed: 2025-11-14
    - Duration: ~4 hours
