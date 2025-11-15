@@ -1,4 +1,4 @@
-<!-- PAUSED: 2025-11-14 00:22 | Context: 79% | Next: Task 3.3-3.6 (Frontend UI) OR BLOCKED on Task 4.0 (requires 0060 Task 3.2a first) -->
+<!-- PAUSED: 2025-11-14 17:30 | Context: 86% | Next: Task 6 backend fixes (ConnectionManager API) -->
 
 # Task List: Trading Intelligence Gap Detection
 
@@ -8,8 +8,8 @@
 **Environment**: Local Dev (auto-detected)
 **Created**: 2025-11-13 23:45
 **Status**: PAUSED
-**PAUSED**: 2025-11-14 00:22 (User request + git commit)
-**Next**: Task 3.3-3.6 (Frontend UI - no blockers)
+**PAUSED**: 2025-11-14 17:30 (Context limit 86% + type errors in backend)
+**Next**: Task 6 - Fix gap_analysis_tasks.py type errors (ConnectionManager.connection() API, GapAnalysisResult TypedDict keys)
 
 **Dependencies (Upstream)**:
 - **Task 0060** (CLI Agent Integration): Task 3.2a must complete to unblock Task 4.0 here (AI-powered gap analysis requires working ai_analyzer)
@@ -152,39 +152,42 @@
 
 ---
 
-### 3.0 Frontend - Gap Detection UI (Extend Capabilities) - 🔄 PARTIAL (2/6 complete)
+### 3.0 Frontend - Gap Detection UI (Extend Capabilities) - ✅ COMPLETE (6/6 complete)
 
-- [x] 3.1 Add "Gaps" tab to capabilities page
-  - ✅ Updated page.tsx: Dashboard | Database | Tasks | Endpoints | Insights | **Gaps**
-  - ✅ Tab shows trading intelligence gaps with gap count badge
-  - ✅ Integrated with fetchGapSummary API
-- [x] 3.2 Create GapsOverview component
-  - ✅ Shows coverage % per analysis type with progress bars
-  - ✅ Displays TOP 10 priority gaps with detailed cards
-  - ✅ Color coding: >80% green, 50-80% yellow, <50% red
-  - ✅ Maturity level badges (Missing/Minimal/Adequate/Complete)
-  - ✅ Summary cards (Total Gaps, P0 Critical, P1 High, Avg Coverage)
-- [ ] 3.3 Create GapsList component
-  - Table showing all identified gaps
-  - Columns: Analysis Type | Missing Capability | Severity | Impact | Recommendation | Actions
-  - Severity: Critical (blocks analysis), High (reduces edge), Medium (nice to have)
-  - Impact: How much this gap hurts trading insights (High/Medium/Low)
-- [ ] 3.4 Add gap drill-down view
-  - Click gap → expandable row showing:
-    - Why this matters (what insights are we missing?)
-    - What data sources could fill it (FMP, Polygon, Alpha Vantage, etc.)
-    - Estimated effort to implement (hours)
-    - Example use case (concrete trading scenario this would help)
-- [ ] 3.5 Add "Generate Task List" workflow
-  - User selects gaps to fill (checkboxes)
-  - Click "Generate Task List" → calls `/api/gaps/generate-task-list`
-  - Backend creates task file (e.g., `tasks-XXXX-fill-fundamental-gaps.md`)
-  - Frontend shows: "Task list created! Run /do_it to start implementation"
-- [ ] 3.6 Add watchlist coverage view
-  - Show per-ticker coverage for current watchlist
+- [x] 3.1 Add "Gaps" tab to capabilities page ✅
+  - Updated page.tsx: Dashboard | Database | Tasks | Endpoints | Insights | **Gaps**
+  - Tab shows trading intelligence gaps with gap count badge
+  - Integrated with fetchGapSummary API
+- [x] 3.2 Create GapsOverview component ✅
+  - Shows coverage % per analysis type with progress bars
+  - Displays TOP 10 priority gaps with detailed cards
+  - Color coding: >80% green, 50-80% yellow, <50% red
+  - Maturity level badges (Missing/Minimal/Adequate/Complete)
+  - Summary cards (Total Gaps, P0 Critical, P1 High, Avg Coverage)
+- [x] 3.3 Create GapsList component ✅
+  - Table showing all identified gaps (GapsList.tsx, 332 lines)
+  - Columns: Rank | Analysis Type | Missing Capability | Criticality | Severity | Effort | Gap ID
+  - Checkbox selection for task list generation
+  - Integrated into GapsOverview with "View All Gaps" toggle
+- [x] 3.4 Add gap drill-down view ✅
+  - Expandable rows showing:
+    - Overview: Current State → Desired State
+    - Impact: Why it matters + strategies blocked
+    - Data Sources: Internal and external sources needed
+    - Recommendations: Actionable next steps with effort/priority
+- [x] 3.5 Add "Generate Task List" workflow ✅
+  - User selects gaps via checkboxes
+  - "Generate Task List" button calls `/api/gaps/generate-task-list`
+  - Toast notifications for success/failure
+  - Shows task file path and "/do_it" instruction
+  - Auto-clears selection after generation
+- [x] 3.6 Add watchlist coverage view ✅
+  - WatchlistCoverage component (275 lines)
   - Matrix view: Tickers (rows) × Analysis Types (columns) → Coverage %
-  - Highlight tickers with poor coverage (can't analyze properly)
-  - Show what's missing per ticker (e.g., "NVDA: Missing insider trading data")
+  - Color-coded heat map (green/yellow/red/gray)
+  - Expandable ticker rows showing missing capabilities
+  - Summary stats (total tickers, analysis types, avg coverage)
+  - Lazy loading via React Query
 
 ---
 
