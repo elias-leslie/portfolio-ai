@@ -9,14 +9,69 @@
 
 "use client";
 
-import { AlertTriangle, TrendingUp, CheckCircle2, XCircle } from "lucide-react";
-import type { GapSummary, GapInfo } from "@/lib/api/gaps";
+import { useState } from "react";
+import { AlertTriangle, TrendingUp, CheckCircle2, XCircle, List, FileText, Loader2, BarChart3 } from "lucide-react";
+import type { GapSummary, GapInfo, WatchlistGaps } from "@/lib/api/gaps";
+import { generateTaskList, fetchWatchlistGaps } from "@/lib/api/gaps";
+import { GapsList } from "./GapsList";
+import { WatchlistCoverage } from "./WatchlistCoverage";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 
 interface GapsOverviewProps {
   data: GapSummary;
 }
 
 export function GapsOverview({ data }: GapsOverviewProps) {
+  const [showAllGaps, setShowAllGaps] = useState(false);
+  const [selectedGapIds, setSelectedGapIds] = useState<string[]>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [showWatchlistCoverage, setShowWatchlistCoverage] = useState(false);
+
+  // Fetch watchlist coverage data
+  const { data: watchlistData, isLoading: watchlistLoading } = useQuery({
+    queryKey: ["watchlist-gaps"],
+    queryFn: fetchWatchlistGaps,
+    enabled: showWatchlistCoverage,
+  });
+
+  // Get all gaps from analysis types
+  const allGaps: GapInfo[] = Object.values(data.analysis_types || {}).flatMap(
+    (result) => result.gaps || []
+  );
+
+  // Handle task list generation
+  const handleGenerateTaskList = async () => {
+    if (selectedGapIds.length === 0) {
+      toast.error("Please select at least one gap to fill");
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const result = await generateTaskList(selectedGapIds);
+
+      toast.success(
+        `Task list generated!`,
+        {
+          description: `File: ${result.task_file}\nRun /do_it to start implementation`,
+          duration: 8000,
+        }
+      );
+
+      // Clear selection after successful generation
+      setSelectedGapIds([]);
+    } catch (error) {
+      console.error("Failed to generate task list:", error);
+      toast.error("Failed to generate task list", {
+        description: error instanceof Error ? error.message : "Unknown error occurred",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   // Get criticality color
   const getCriticalityColor = (criticality: string) => {
     switch (criticality) {
@@ -223,6 +278,126 @@ export function GapsOverview({ data }: GapsOverviewProps) {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* All Gaps Section */}
+      {data.total_gaps > 0 && (
+        <div className="mt-8">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <List className="h-5 w-5 text-primary" />
+              <h3 className="text-lg font-semibold text-text">All Gaps</h3>
+              <span className="text-sm text-muted-foreground">
+                ({allGaps.length} total)
+              </span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowAllGaps(!showAllGaps)}
+            >
+              {showAllGaps ? "Hide Details" : "View All Gaps"}
+            </Button>
+          </div>
+
+          {showAllGaps && (
+            <div className="space-y-4">
+              <GapsList
+                gaps={allGaps}
+                onSelectionChange={setSelectedGapIds}
+              />
+
+              {/* Generate Task List Button */}
+              {selectedGapIds.length > 0 && (
+                <div className="rounded-lg border-2 border-primary/20 bg-primary/5 p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-text">
+                      {selectedGapIds.length} gap{selectedGapIds.length !== 1 ? "s" : ""} selected
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Generate a task list to systematically fill these gaps
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handleGenerateTaskList}
+                    disabled={isGenerating}
+                    className="flex items-center gap-2"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="h-4 w-4" />
+                        Generate Task List
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {!showAllGaps && (
+            <div className="rounded-lg border border-border bg-surface p-6 text-center">
+              <p className="text-sm text-muted-foreground">
+                Click "View All Gaps" to see detailed table with all {allGaps.length} gaps
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Watchlist Coverage Section */}
+      {data.total_gaps > 0 && (
+        <div className="mt-8">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-primary" />
+              <h3 className="text-lg font-semibold text-text">Watchlist Coverage</h3>
+              <span className="text-sm text-muted-foreground">
+                (per-ticker analysis)
+              </span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowWatchlistCoverage(!showWatchlistCoverage)}
+            >
+              {showWatchlistCoverage ? "Hide Coverage" : "Show Coverage Matrix"}
+            </Button>
+          </div>
+
+          {showWatchlistCoverage && (
+            <div>
+              {watchlistLoading ? (
+                <div className="rounded-lg border border-border bg-surface p-8 text-center">
+                  <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+                  <p className="mt-4 text-sm text-muted-foreground">Loading watchlist coverage...</p>
+                </div>
+              ) : watchlistData ? (
+                <WatchlistCoverage data={watchlistData} />
+              ) : (
+                <div className="rounded-lg border border-border bg-surface p-8 text-center">
+                  <AlertTriangle className="mx-auto h-12 w-12 text-accent opacity-50" />
+                  <p className="mt-4 text-sm text-muted-foreground">
+                    Failed to load watchlist coverage data
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {!showWatchlistCoverage && (
+            <div className="rounded-lg border border-border bg-surface p-6 text-center">
+              <p className="text-sm text-muted-foreground">
+                Click "Show Coverage Matrix" to see per-ticker gap analysis
+              </p>
+            </div>
+          )}
         </div>
       )}
 

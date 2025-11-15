@@ -1,0 +1,386 @@
+/**
+ * GapsList component for displaying all trading intelligence gaps in a table format
+ *
+ * Features:
+ * - Expandable rows with detailed gap information
+ * - Sortable by criticality, impact, effort
+ * - Checkbox selection for task list generation
+ * - Color-coded criticality badges
+ */
+
+import { useState } from "react";
+import {
+  ChevronRight,
+  ChevronDown,
+  Database,
+  TrendingUp,
+  AlertTriangle,
+  CheckCircle2,
+  Target,
+  Lightbulb,
+  ExternalLink,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import type { GapInfo } from "@/lib/api/gaps";
+
+interface GapsListProps {
+  gaps: GapInfo[];
+  onSelectionChange?: (selectedGapIds: string[]) => void;
+}
+
+/**
+ * Get criticality badge color
+ */
+function getCriticalityColor(criticality: string): string {
+  switch (criticality) {
+    case "P0":
+      return "bg-red-500/10 text-red-500 border-red-500/20";
+    case "P1":
+      return "bg-orange-500/10 text-orange-500 border-orange-500/20";
+    case "P2":
+      return "bg-yellow-500/10 text-yellow-500 border-yellow-500/20";
+    case "P3":
+      return "bg-blue-500/10 text-blue-500 border-blue-500/20";
+    default:
+      return "bg-muted text-muted-foreground";
+  }
+}
+
+/**
+ * Get effort badge color
+ */
+function getEffortColor(effort: string): string {
+  switch (effort) {
+    case "LOW":
+      return "bg-green-500/10 text-green-500 border-green-500/20";
+    case "MEDIUM":
+      return "bg-yellow-500/10 text-yellow-500 border-yellow-500/20";
+    case "HIGH":
+      return "bg-red-500/10 text-red-500 border-red-500/20";
+    default:
+      return "bg-muted text-muted-foreground";
+  }
+}
+
+/**
+ * Get severity badge color
+ */
+function getSeverityColor(severity: string): string {
+  switch (severity) {
+    case "blocking":
+      return "bg-loss/10 text-loss border-loss/20";
+    case "limiting":
+      return "bg-accent/10 text-accent border-accent/20";
+    case "optional":
+      return "bg-muted text-muted-foreground";
+    default:
+      return "bg-muted text-muted-foreground";
+  }
+}
+
+/**
+ * Format analysis type for display
+ */
+function formatAnalysisType(type: string): string {
+  return type
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+/**
+ * Individual gap row component
+ */
+function GapRow({
+  gap,
+  rank,
+  isExpanded,
+  isSelected,
+  onToggle,
+  onSelect,
+}: {
+  gap: GapInfo;
+  rank: number;
+  isExpanded: boolean;
+  isSelected: boolean;
+  onToggle: () => void;
+  onSelect: (selected: boolean) => void;
+}) {
+  return (
+    <div className="border-b border-border last:border-0">
+      {/* Main row */}
+      <div
+        className="grid grid-cols-[auto_60px_150px_200px_80px_120px_80px_auto] gap-3 px-4 py-3 hover:bg-surface-muted transition-colors cursor-pointer"
+        onClick={onToggle}
+      >
+        {/* Checkbox + Expand icon */}
+        <div className="flex items-center gap-2">
+          <Checkbox
+            checked={isSelected}
+            onCheckedChange={onSelect}
+            onClick={(e) => e.stopPropagation()}
+          />
+          {isExpanded ? (
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          )}
+        </div>
+
+        {/* Rank badge */}
+        <div className="flex items-center">
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+            {rank}
+          </span>
+        </div>
+
+        {/* Analysis Type */}
+        <div className="flex items-center">
+          <span className="truncate text-sm font-medium" title={formatAnalysisType(gap.analysis_type)}>
+            {formatAnalysisType(gap.analysis_type)}
+          </span>
+        </div>
+
+        {/* Missing Capability */}
+        <div className="flex items-center">
+          <span className="truncate text-sm text-text" title={gap.capability}>
+            {gap.capability.split("_").join(" ")}
+          </span>
+        </div>
+
+        {/* Criticality */}
+        <div className="flex items-center">
+          <Badge className={getCriticalityColor(gap.criticality)} variant="outline">
+            {gap.criticality}
+          </Badge>
+        </div>
+
+        {/* Severity */}
+        <div className="flex items-center">
+          <Badge className={getSeverityColor(gap.severity)} variant="outline">
+            {gap.severity}
+          </Badge>
+        </div>
+
+        {/* Effort */}
+        <div className="flex items-center">
+          <Badge className={getEffortColor(gap.effort)} variant="outline">
+            {gap.effort}
+          </Badge>
+        </div>
+
+        {/* Gap ID */}
+        <div className="flex items-center justify-end">
+          <span className="text-xs font-mono text-muted-foreground">{gap.gap_id}</span>
+        </div>
+      </div>
+
+      {/* Expanded detail section */}
+      {isExpanded && (
+        <div
+          className="border-t border-border bg-surface-muted p-6 space-y-6"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Overview Section */}
+          <section>
+            <h4 className="flex items-center gap-2 text-sm font-semibold text-text mb-3">
+              <Target className="h-4 w-4 text-primary" />
+              Overview
+            </h4>
+            <div className="rounded-lg border border-border bg-surface p-4 space-y-3">
+              <div className="flex gap-8">
+                <div className="flex-1">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
+                    Current State
+                  </p>
+                  <p className="text-sm text-text">{gap.current_state}</p>
+                </div>
+                <div className="flex items-center justify-center">
+                  <ChevronRight className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
+                    Desired State
+                  </p>
+                  <p className="text-sm text-text">{gap.desired_state}</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Impact Section */}
+          <section>
+            <h4 className="flex items-center gap-2 text-sm font-semibold text-text mb-3">
+              <TrendingUp className="h-4 w-4 text-gain" />
+              Impact & Why This Matters
+            </h4>
+            <div className="rounded-lg border border-border bg-surface p-4">
+              <p className="text-sm text-text leading-relaxed">{gap.impact}</p>
+              {gap.blocks_strategies && gap.blocks_strategies.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
+                    Blocks These Strategies
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {gap.blocks_strategies.map((strategy) => (
+                      <Badge key={strategy} variant="outline" className="bg-loss/5 text-loss border-loss/20">
+                        <AlertTriangle className="mr-1 h-3 w-3" />
+                        {strategy}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Data Sources Section */}
+          {gap.data_sources && gap.data_sources.length > 0 && (
+            <section>
+              <h4 className="flex items-center gap-2 text-sm font-semibold text-text mb-3">
+                <Database className="h-4 w-4 text-primary" />
+                Data Sources Needed
+              </h4>
+              <div className="rounded-lg border border-border bg-surface p-4">
+                <div className="grid gap-3">
+                  {gap.data_sources.map((source, idx) => {
+                    const sourceName = Object.keys(source)[0];
+                    const sourceDesc = source[sourceName];
+                    return (
+                      <div key={idx} className="flex items-start gap-3">
+                        <CheckCircle2 className="h-4 w-4 mt-0.5 text-gain" />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-text">
+                            {sourceName.charAt(0).toUpperCase() + sourceName.slice(1)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">{sourceDesc}</p>
+                        </div>
+                        {!sourceName.startsWith("internal") && (
+                          <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Recommendation Section */}
+          <section>
+            <h4 className="flex items-center gap-2 text-sm font-semibold text-text mb-3">
+              <Lightbulb className="h-4 w-4 text-accent" />
+              Recommended Action
+            </h4>
+            <div className="rounded-lg border-2 border-primary/20 bg-primary/5 p-4">
+              <p className="text-sm text-text leading-relaxed font-medium">{gap.recommendation}</p>
+              <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
+                <span>
+                  <span className="font-semibold">Effort:</span> {gap.effort}
+                </span>
+                <span>•</span>
+                <span>
+                  <span className="font-semibold">Priority:</span> {gap.criticality}
+                </span>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Main GapsList component
+ */
+export function GapsList({ gaps, onSelectionChange }: GapsListProps) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [selectedGapIds, setSelectedGapIds] = useState<string[]>([]);
+
+  const toggleExpand = (gapId: string) => {
+    setExpandedId(expandedId === gapId ? null : gapId);
+  };
+
+  const toggleSelection = (gapId: string, selected: boolean) => {
+    const newSelection = selected
+      ? [...selectedGapIds, gapId]
+      : selectedGapIds.filter((id) => id !== gapId);
+
+    setSelectedGapIds(newSelection);
+    onSelectionChange?.(newSelection);
+  };
+
+  const toggleSelectAll = (selected: boolean) => {
+    const newSelection = selected ? gaps.map((g) => g.gap_id) : [];
+    setSelectedGapIds(newSelection);
+    onSelectionChange?.(newSelection);
+  };
+
+  const allSelected = gaps.length > 0 && selectedGapIds.length === gaps.length;
+  const someSelected = selectedGapIds.length > 0 && selectedGapIds.length < gaps.length;
+
+  if (gaps.length === 0) {
+    return (
+      <div className="rounded-lg border border-border bg-surface p-8 text-center">
+        <CheckCircle2 className="mx-auto h-12 w-12 text-gain opacity-50" />
+        <p className="mt-4 text-sm font-medium text-text">No gaps found!</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          All trading analysis capabilities are available
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-border bg-surface">
+      {/* Header */}
+      <div className="grid grid-cols-[auto_60px_150px_200px_80px_120px_80px_auto] gap-3 border-b border-border bg-surface-muted px-4 py-3 text-xs font-medium text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <Checkbox
+            checked={allSelected}
+            indeterminate={someSelected}
+            onCheckedChange={toggleSelectAll}
+          />
+        </div>
+        <div>Rank</div>
+        <div>Analysis Type</div>
+        <div>Missing Capability</div>
+        <div>Priority</div>
+        <div>Severity</div>
+        <div>Effort</div>
+        <div className="text-right">Gap ID</div>
+      </div>
+
+      {/* Rows */}
+      <div className="divide-y divide-border">
+        {gaps.map((gap, index) => (
+          <GapRow
+            key={gap.gap_id}
+            gap={gap}
+            rank={index + 1}
+            isExpanded={expandedId === gap.gap_id}
+            isSelected={selectedGapIds.includes(gap.gap_id)}
+            onToggle={() => toggleExpand(gap.gap_id)}
+            onSelect={(selected) => toggleSelection(gap.gap_id, selected)}
+          />
+        ))}
+      </div>
+
+      {/* Selection Summary */}
+      {selectedGapIds.length > 0 && (
+        <div className="border-t border-border bg-primary/5 px-4 py-3 flex items-center justify-between">
+          <p className="text-sm text-text">
+            <span className="font-semibold">{selectedGapIds.length}</span> gap
+            {selectedGapIds.length !== 1 ? "s" : ""} selected
+          </p>
+          <Button variant="outline" size="sm" onClick={() => toggleSelectAll(false)}>
+            Clear Selection
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
