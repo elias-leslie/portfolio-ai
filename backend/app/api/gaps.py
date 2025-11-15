@@ -73,7 +73,11 @@ class TickerGapsResponse(BaseModel):
     """Per-ticker gap analysis."""
 
     ticker: str
-    analysis_types: dict[str, Any]  # analysis_type → coverage % + missing capabilities
+    readiness_score: float  # 0-100% overall readiness
+    confidence_level: str  # LOW/MEDIUM/HIGH
+    coverage_by_analysis: dict[str, float]  # analysis_type → coverage %
+    missing_capabilities: list[str]  # Top 10 missing capabilities
+    data_availability: dict[str, Any]  # table → availability status
 
 
 class WatchlistGapsResponse(BaseModel):

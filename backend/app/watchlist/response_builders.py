@@ -104,6 +104,13 @@ class WatchlistItemResponse(BaseModel):
         description="Priority indicators (🔥 hot, 📋 earnings, 📰 news, etc.)",
     )
 
+    # Gap analysis / readiness fields (Task 5.1)
+    readiness_score: float | None = Field(
+        None, description="Analysis readiness score 0-100% (data completeness)"
+    )
+    confidence_level: str | None = Field(None, description="Confidence level: LOW/MEDIUM/HIGH")
+    gap_warning: str | None = Field(None, description="Warning message if data gaps exist")
+
     @classmethod
     def from_service_dict(cls, item: dict[str, Any]) -> WatchlistItemResponse:
         """
@@ -181,6 +188,10 @@ class WatchlistItemResponse(BaseModel):
             news_intelligence=item.get("news_intelligence"),
             # Priority indicators
             priority_indicators=item.get("priority_indicators", []),
+            # Gap analysis / readiness (Task 5.1)
+            readiness_score=item.get("readiness_score"),
+            confidence_level=item.get("confidence_level"),
+            gap_warning=item.get("gap_warning"),
         )
 
 

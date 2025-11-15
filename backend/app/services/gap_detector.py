@@ -597,6 +597,97 @@ class GapDetector:
 
         return top_10[:10]
 
+    def _check_ticker_data_availability(self, ticker: str) -> dict[str, Any]:
+        """Check what data exists for a specific ticker.
+
+        Args:
+            ticker: Stock ticker symbol
+
+        Returns:
+            Dict mapping table names to availability status
+        """
+        availability: dict[str, Any] = {}
+
+        # Check key tables for ticker-specific data
+        tables_to_check = [
+            ("day_bars", "SELECT COUNT(*) FROM day_bars WHERE ticker = %s", [ticker]),
+            (
+                "technical_indicators",
+                "SELECT COUNT(*) FROM technical_indicators WHERE ticker = %s",
+                [ticker],
+            ),
+            (
+                "fundamentals",
+                "SELECT COUNT(*) FROM fundamentals WHERE ticker = %s",
+                [ticker],
+            ),
+            (
+                "news_cache",
+                "SELECT COUNT(*) FROM news_cache WHERE ticker = %s",
+                [ticker],
+            ),
+            (
+                "analyst_ratings",
+                "SELECT COUNT(*) FROM analyst_ratings WHERE ticker = %s",
+                [ticker],
+            ),
+        ]
+
+        # Check each table individually to avoid transaction rollback issues
+        for table_name, query, params in tables_to_check:
+            try:
+                with self.conn_mgr.connection() as conn:
+                    result = conn.execute(query, params).fetchone()
+                    row_count = result[0] if result else 0
+                    availability[table_name] = {
+                        "exists": True,
+                        "has_data": row_count > 0,
+                        "row_count": row_count,
+                    }
+            except Exception as e:
+                logger.warning(
+                    f"Failed to check {table_name} for {ticker}: {e}",
+                    table=table_name,
+                    ticker=ticker,
+                )
+                availability[table_name] = {
+                    "exists": False,
+                    "has_data": False,
+                    "row_count": 0,
+                }
+
+        return availability
+
+    def _ticker_has_capability(
+        self,
+        ticker: str,
+        requirement: CapabilityRequirement,
+        ticker_data_availability: dict[str, Any],
+    ) -> bool:
+        """Check if a ticker has data for a specific capability.
+
+        Args:
+            ticker: Stock ticker symbol
+            requirement: Capability requirement from trading_requirements.yaml
+            ticker_data_availability: Pre-fetched data availability for ticker
+
+        Returns:
+            True if ticker has data for this capability
+        """
+        required_tables = requirement.get("tables", [])
+
+        if not required_tables:
+            # No specific tables required - assume available
+            return True
+
+        # Check if ticker has data in ALL required tables
+        for table_name in required_tables:
+            table_avail = ticker_data_availability.get(table_name, {})
+            if not table_avail.get("has_data", False):
+                return False
+
+        return True
+
     def analyze_ticker_gaps(self, ticker: str) -> dict[str, Any]:
         """Analyze gaps for a specific ticker.
 
@@ -604,18 +695,74 @@ class GapDetector:
             ticker: Stock ticker symbol
 
         Returns:
-            Dict with ticker-specific gap analysis
+            Dict with ticker-specific gap analysis including:
+            - readiness_score: 0-100% overall readiness
+            - coverage_by_analysis: Coverage % per analysis type
+            - missing_capabilities: List of missing capabilities
+            - confidence_level: LOW/MEDIUM/HIGH based on readiness
         """
         logger.info("analyzing_ticker_gaps", ticker=ticker)
 
-        # TODO: Implement ticker-specific gap analysis
-        # - Check which analysis types have data for this ticker
-        # - Report per-ticker coverage
-        # - Identify missing data for this specific ticker
+        # Check what data exists for this ticker
+        ticker_data_availability = self._check_ticker_data_availability(ticker)
+
+        # Calculate coverage per analysis type
+        coverage_by_analysis: dict[str, float] = {}
+        all_missing: list[str] = []
+
+        for analysis_type, type_reqs in self.requirements["analysis_types"].items():
+            required_caps = type_reqs.get("required") or []
+            recommended_caps = type_reqs.get("recommended") or []
+
+            # Count available capabilities
+            available_required = sum(
+                1
+                for req in required_caps
+                if self._ticker_has_capability(ticker, req, ticker_data_availability)
+            )
+            available_recommended = sum(
+                1
+                for req in recommended_caps
+                if self._ticker_has_capability(ticker, req, ticker_data_availability)
+            )
+
+            # Calculate coverage (required weighted 2x, recommended 1x)
+            total_weight = len(required_caps) * 2 + len(recommended_caps)
+            if total_weight > 0:
+                coverage_pct = (
+                    (available_required * 2 + available_recommended) / total_weight
+                ) * 100
+            else:
+                coverage_pct = 0.0
+
+            coverage_by_analysis[analysis_type] = coverage_pct
+
+            # Track missing capabilities
+            for req in required_caps:
+                if not self._ticker_has_capability(ticker, req, ticker_data_availability):
+                    all_missing.append(f"{req['capability']} ({analysis_type})")
+
+        # Calculate overall readiness score (average of all analysis types)
+        if coverage_by_analysis:
+            readiness_score = sum(coverage_by_analysis.values()) / len(coverage_by_analysis)
+        else:
+            readiness_score = 0.0
+
+        # Determine confidence level
+        if readiness_score >= 75:
+            confidence_level = "HIGH"
+        elif readiness_score >= 50:
+            confidence_level = "MEDIUM"
+        else:
+            confidence_level = "LOW"
 
         return {
             "ticker": ticker,
-            "message": "Ticker-specific gap analysis not yet implemented",
+            "readiness_score": round(readiness_score, 1),
+            "confidence_level": confidence_level,
+            "coverage_by_analysis": {k: round(v, 1) for k, v in coverage_by_analysis.items()},
+            "missing_capabilities": all_missing[:10],  # Top 10 most critical
+            "data_availability": ticker_data_availability,
         }
 
     def analyze_watchlist_gaps(self) -> dict[str, Any]:
