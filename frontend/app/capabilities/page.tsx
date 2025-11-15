@@ -213,7 +213,30 @@ function CapabilitiesPageContent() {
       filtered = filtered.filter((cap) => cap.health_status === healthFilter);
     }
 
-    return filtered;
+    // Sort by health status (priority: orphaned > legacy > suspect > active)
+    const healthPriority: Record<string, number> = {
+      orphaned: 0,
+      legacy: 1,
+      suspect: 2,
+      active: 3,
+    };
+
+    // Create a copy before sorting to avoid mutating the original array
+    const sorted = [...filtered].sort((a, b) => {
+      const priorityA = healthPriority[a.health_status] ?? 4;
+      const priorityB = healthPriority[b.health_status] ?? 4;
+
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB;
+      }
+
+      // Secondary sort by name for same health status
+      const nameA = a.capability_type === "db" ? a.table_name : a.capability_type === "celery" ? a.task_name : a.endpoint_path;
+      const nameB = b.capability_type === "db" ? b.table_name : b.capability_type === "celery" ? b.task_name : b.endpoint_path;
+      return nameA.localeCompare(nameB);
+    });
+
+    return sorted;
   }, [capabilitiesData, searchQuery, healthFilter]);
 
   // Get unique categories from capabilities

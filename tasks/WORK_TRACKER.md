@@ -28,7 +28,7 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **System Capabilities UI - Specialized Tabs Refactor** (MEDIUM (10-12 hours, reduced from 30-40h), 4/8 tasks (yesterday))
+1. **System Capabilities UI - Specialized Tabs Refactor** (MEDIUM (10-12 hours, reduced from 30-40h), 4/8 tasks (2 days ago))
    - File: `tasks-0061-capabilities-ui-specialized-tabs.md`
    - Created: 2025-11-13
    - Goal: Improve capabilities UI by removing modal popups, adding expandable inline details, and showing maximum data in collapsed rows. Add Dashboard tab for health summary. Automate orphan/health detection with backend scripts (no complex UI).
@@ -42,7 +42,7 @@
      - [ ] Task 6: Testing and Verification (1-2 hours)
      - [ ] Task 7: Documentation (30min - 1hr)
 
-2. **Trading Intelligence Gap Detection (Phase 2 Completion + Phase 3)** (HIGH (15-20 hours), 3/10 tasks (yesterday))
+2. **Trading Intelligence Gap Detection (Phase 2 Completion + Phase 3)** (HIGH (15-20 hours), 3/10 tasks (2 days ago))
    - File: `tasks-0062-trading-intelligence-gap-detection.md`
    - Created: 2025-11-13
    - Goal: Build gap detection system that identifies missing data capabilities needed for profitable trading strategies. Primary purpose: Help AI trading agent (Claude) detect what data it's missing to provide true edge and successful trading insights. Extend existing capabilities feature with trading-focused gap analysis.
@@ -59,14 +59,14 @@
      - [ ] Task 8: Testing & Verification
      - [ ] Task 9: Baseline & Production Deployment
 
-3. **UI Standardization & UX Fixes** (MEDIUM-HIGH (4-6 hours, 12-15 files), 0/0 tasks (2 days ago))
+3. **UI Standardization & UX Fixes** (MEDIUM-HIGH (4-6 hours, 12-15 files), 0/0 tasks (3 days ago))
    - File: `tasks-0055-ui-standardization-and-ux-fixes.md`
    - Created: 2025-11-12
    - Goal: Bring the Portfolio AI web UI up to a consistent design baseline by aligning headers, loading states, and critical interactions so that every surface communicates status clearly and meets accessibility expectations.
    - Tasks:
      - (No tasks defined yet)
 
-4. **Development Process Optimization** (MEDIUM (4-6 hours), 5/7 tasks (2 days ago))
+4. **Development Process Optimization** (MEDIUM (4-6 hours), 5/7 tasks (3 days ago))
    - File: `tasks-0054-dev-process-optimization.md`
    - Created: 2025-11-12
    - Goal: Reduce development cycle time from 15-20 min to 5-7 min (3x faster) by fixing test performance and workflow bottlenecks.
@@ -79,7 +79,7 @@
      - [x] Task 6: Medium: Add Smoke Test Markers ✅ **COMPLETE**
      - [ ] Task 7: Medium: Reduce Large Service Files ⏸️ **DEFERRED**
 
-5. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (3 days ago))
+5. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (4 days ago))
    - File: `tasks-0042-customizable-dashboard-layouts.md`
    - Created: 2025-11-11
    - Goal: Enable users to customize dashboard layouts by dragging/resizing cards, with persistence to PostgreSQL backend
@@ -108,7 +108,7 @@
      - [ ] Task 7: Frontend & UX
      - [ ] Task 8: Governance & documentation
 
-7. **Response Caching Middleware** (TBD, 0/8 tasks (3 days ago))
+7. **Response Caching Middleware** (TBD, 0/8 tasks (4 days ago))
    - File: `tasks-0047-response-caching-middleware.md`
    - Created: 2025-11-11
    - Tasks:
@@ -121,7 +121,7 @@
      - [ ] Task 7: Cache Management Endpoints
      - [ ] Task 8: Integration and Configuration
 
-8. **Settings & Status Standardization** (HIGH, 3/5 tasks (yesterday))
+8. **Settings & Status Standardization** (HIGH, 3/5 tasks (2 days ago))
    - File: `tasks-0058-settings-and-status-standardization.md`
    - Created: 2025-11-13
    - Goal: Fully align the Status and Settings pages with the new UI system (PageHeader, SectionCard, ExpandableCard) while eliminating redundant data and ensuring DRY logic for collapsible cards, summaries, and defaults.
