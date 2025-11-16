@@ -20,14 +20,7 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Split Critical Oversized Files** (HIGH (10-14 hours), 0/10 tasks, PAUSED 2025-11-16)
-   - File: `tasks-0066-split-critical-oversized-files.md`
-   - Created: 2025-11-15
-   - Goal: Split 2 CRITICAL files exceeding 800-line hard limit (agents/tools.py 1214L, services/capability_scanner.py 1192L) into focused modules
-   - Status: PAUSED (2025-11-16 12:00)
-   - Context: 70% used, Task 0065 complete (commit 29191cb)
-   - Next: Task 0.1 - Scope Discovery
-   - Resume: `/do_it tasks-0066-split-critical-oversized-files.md` or just `/do_it`
+(No active tasks)
 
 ---
 
@@ -35,7 +28,22 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Trading Intelligence Gap Detection (Phase 2 Completion + Phase 3)** (HIGH (15-20 hours), 4/10 tasks (3 days ago))
+1. **Automated Maintenance & Cleanup System** (MEDIUM-HIGH (8-12 hours), 0/9 tasks (today))
+   - File: `tasks-0068-automated-maintenance-system.md`
+   - Created: 2025-11-16
+   - Goal: Implement comprehensive automated maintenance system with scheduled cleanup tasks, monitoring, and UI controls to prevent resource issues (disk space, database bloat, log accumulation).
+   - Tasks:
+     - [ ] Task 1: Backend - Database Maintenance Tasks
+     - [ ] Task 2: Backend - Log & Temp File Cleanup Tasks
+     - [ ] Task 3: Backend - Maintenance History & Status Tracking
+     - [ ] Task 4: Backend - Celery Beat Schedule Configuration
+     - [ ] Task 5: Backend - Maintenance API Endpoints
+     - [ ] Task 6: Frontend - Maintenance Status UI (Status Page)
+     - [ ] Task 7: Frontend - Integration with Status Page
+     - [ ] Task 8: Configuration & Documentation
+     - [ ] Task 9: Testing & Verification
+
+2. **Trading Intelligence Gap Detection (Phase 2 Completion + Phase 3)** (HIGH (15-20 hours), 4/10 tasks (3 days ago))
    - File: `tasks-0062-trading-intelligence-gap-detection.md`
    - Created: 2025-11-13
    - Goal: Build gap detection system that identifies missing data capabilities needed for profitable trading strategies. Primary purpose: Help AI trading agent (Claude) detect what data it's missing to provide true edge and successful trading insights. Extend existing capabilities feature with trading-focused gap analysis.
@@ -52,14 +60,14 @@
      - [ ] Task 8: Testing & Verification
      - [ ] Task 9: Baseline & Production Deployment
 
-2. **UI Standardization & UX Fixes** (MEDIUM-HIGH (4-6 hours, 12-15 files), 0/0 tasks (4 days ago))
+3. **UI Standardization & UX Fixes** (MEDIUM-HIGH (4-6 hours, 12-15 files), 0/0 tasks (4 days ago))
    - File: `tasks-0055-ui-standardization-and-ux-fixes.md`
    - Created: 2025-11-12
    - Goal: Bring the Portfolio AI web UI up to a consistent design baseline by aligning headers, loading states, and critical interactions so that every surface communicates status clearly and meets accessibility expectations.
    - Tasks:
      - (No tasks defined yet)
 
-3. **Development Process Optimization** (MEDIUM (4-6 hours), 5/7 tasks (4 days ago))
+4. **Development Process Optimization** (MEDIUM (4-6 hours), 5/7 tasks (4 days ago))
    - File: `tasks-0054-dev-process-optimization.md`
    - Created: 2025-11-12
    - Goal: Reduce development cycle time from 15-20 min to 5-7 min (3x faster) by fixing test performance and workflow bottlenecks.
@@ -72,7 +80,7 @@
      - [x] Task 6: Medium: Add Smoke Test Markers ✅ **COMPLETE**
      - [ ] Task 7: Medium: Reduce Large Service Files ⏸️ **DEFERRED**
 
-4. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (5 days ago))
+5. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (5 days ago))
    - File: `tasks-0042-customizable-dashboard-layouts.md`
    - Created: 2025-11-11
    - Goal: Enable users to customize dashboard layouts by dragging/resizing cards, with persistence to PostgreSQL backend
@@ -88,7 +96,7 @@
      - [ ] Task 9: Polish and Edge Cases
      - [ ] Task 10: Testing and Documentation
 
-5. **Trading Intelligence Roadmap** (High, 4/8 tasks)
+6. **Trading Intelligence Roadmap** (High, 4/8 tasks)
    - File: `tasks-trading-intelligence-roadmap.md`
    - Created: Unknown
    - Tasks:
@@ -101,7 +109,7 @@
      - [ ] Task 7: Frontend & UX
      - [ ] Task 8: Governance & documentation
 
-6. **Response Caching Middleware** (TBD, 0/8 tasks (5 days ago))
+7. **Response Caching Middleware** (TBD, 0/8 tasks (5 days ago))
    - File: `tasks-0047-response-caching-middleware.md`
    - Created: 2025-11-11
    - Tasks:
@@ -114,7 +122,7 @@
      - [ ] Task 7: Cache Management Endpoints
      - [ ] Task 8: Integration and Configuration
 
-7. **Settings & Status Standardization** (HIGH, 3/5 tasks (3 days ago))
+8. **Settings & Status Standardization** (HIGH, 3/5 tasks (3 days ago))
    - File: `tasks-0058-settings-and-status-standardization.md`
    - Created: 2025-11-13
    - Goal: Fully align the Status and Settings pages with the new UI system (PageHeader, SectionCard, ExpandableCard) while eliminating redundant data and ensuring DRY logic for collapsible cards, summaries, and defaults.
@@ -127,6 +135,15 @@
 
 
 ---
+
+## ✅ Recently Completed
+
+1. **Split Critical Oversized Files** ✅ COMPLETE (2025-11-16)
+   - File: `tasks-0066-split-critical-oversized-files.md`
+   - Completed: 2025-11-16
+   - Impact: Eliminated ALL CRITICAL files (>800L), created 10 focused modules
+   - Commits: 3743dc3, f97ffd0
+
 
 ## ✅ Recently Completed
 

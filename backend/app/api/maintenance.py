@@ -13,10 +13,19 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from celery.result import AsyncResult  # type: ignore[import-untyped]
+from celery.schedules import (  # type: ignore[import-untyped]
+    crontab as CrontabSchedule,  # noqa: N812 - Using CamelCase for isinstance checks
+)
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from ..celery_app import celery_app
 from ..logging_config import get_logger
+from ..services.maintenance_tracker import (
+    get_all_metrics_summary,
+    get_cleanup_trends,
+)
 from ..storage.connection import get_connection_manager
 
 logger = get_logger(__name__)
@@ -492,4 +501,264 @@ async def get_history(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to fetch maintenance history: {e!s}",
+        ) from e
+
+
+# New endpoints for Celery-based maintenance tasks
+
+
+@router.post("/trigger/{task_name}")
+async def trigger_maintenance_task(task_name: str) -> dict[str, Any]:
+    """Manually trigger a specific maintenance task.
+
+    Args:
+        task_name: Name of the task to trigger (e.g., 'cleanup_old_logs_task')
+
+    Returns:
+        Dict with task_id and status
+
+    Raises:
+        HTTPException: If task name is invalid or trigger fails
+    """
+    # Validate task name
+    valid_tasks = {
+        "vacuum_database_task",
+        "cleanup_old_news_task",
+        "cleanup_old_agent_runs_task",
+        "cleanup_orphaned_data_task",
+        "cleanup_old_logs_task",
+        "cleanup_temp_files_task",
+        "check_disk_space_task",
+        "get_database_size_task",
+    }
+
+    if task_name not in valid_tasks:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid task name. Valid tasks: {', '.join(valid_tasks)}",
+        )
+
+    try:
+        # Trigger the Celery task
+        task = celery_app.send_task(task_name)
+
+        logger.info(
+            "maintenance_task_triggered",
+            task_name=task_name,
+            task_id=task.id,
+        )
+
+        return {
+            "task_id": task.id,
+            "task_name": task_name,
+            "status": "triggered",
+            "message": f"Task {task_name} has been triggered successfully",
+        }
+
+    except Exception as e:
+        logger.error(
+            "trigger_maintenance_task_failed",
+            task_name=task_name,
+            error=str(e),
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to trigger task {task_name}: {e!s}",
+        ) from e
+
+
+@router.get("/status/{task_id}")
+async def get_task_status(task_id: str) -> dict[str, Any]:
+    """Get status of a running maintenance task.
+
+    Args:
+        task_id: Celery task ID
+
+    Returns:
+        Dict with task status and result
+
+    Raises:
+        HTTPException: If status check fails
+    """
+    try:
+        result = AsyncResult(task_id, app=celery_app)
+
+        return {
+            "task_id": task_id,
+            "state": result.state,
+            "ready": result.ready(),
+            "successful": result.successful() if result.ready() else None,
+            "result": result.result if result.ready() else None,
+        }
+
+    except Exception as e:
+        logger.error(
+            "get_task_status_failed",
+            task_id=task_id,
+            error=str(e),
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get task status: {e!s}",
+        ) from e
+
+
+@router.get("/disk-space")
+async def get_disk_space() -> dict[str, Any]:
+    """Get current disk space usage for all monitored partitions.
+
+    Returns:
+        Dict with partition information and alerts
+
+    Raises:
+        HTTPException: If disk space check fails
+    """
+    try:
+        # Trigger disk space check task and wait for result
+        task = celery_app.send_task("check_disk_space_task")
+        result: dict[str, Any] = task.get(timeout=10)  # Wait up to 10 seconds
+
+        return result
+
+    except Exception as e:
+        logger.error(
+            "get_disk_space_failed",
+            error=str(e),
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get disk space: {e!s}",
+        ) from e
+
+
+@router.get("/database-size")
+async def get_database_size() -> dict[str, Any]:
+    """Get current database size and table sizes.
+
+    Returns:
+        Dict with database size and top tables
+
+    Raises:
+        HTTPException: If database size check fails
+    """
+    try:
+        # Trigger database size task and wait for result
+        task = celery_app.send_task("get_database_size_task")
+        result: dict[str, Any] = task.get(timeout=10)  # Wait up to 10 seconds
+
+        return result
+
+    except Exception as e:
+        logger.error(
+            "get_database_size_failed",
+            error=str(e),
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get database size: {e!s}",
+        ) from e
+
+
+@router.get("/stats")
+async def get_maintenance_stats(
+    metric_name: str | None = None,
+    days: int = 30,
+) -> dict[str, Any]:
+    """Get maintenance statistics and trends.
+
+    Args:
+        metric_name: Specific metric to retrieve (None = all metrics summary)
+        days: Number of days of history for trends (default: 30)
+
+    Returns:
+        Dict with metric values over time or summary of all metrics
+
+    Raises:
+        HTTPException: If stats retrieval fails
+    """
+    try:
+        if metric_name:
+            # Get trend data for specific metric
+            trends = get_cleanup_trends(metric_name, days)
+            return {
+                "metric_name": metric_name,
+                "days": days,
+                "data_points": len(trends),
+                "trends": trends,
+            }
+        # Get summary of all metrics
+        summary = get_all_metrics_summary()
+        return {
+            "summary": summary,
+            "metric_count": len(summary),
+        }
+
+    except Exception as e:
+        logger.error(
+            "get_maintenance_stats_failed",
+            metric_name=metric_name,
+            error=str(e),
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get maintenance stats: {e!s}",
+        ) from e
+
+
+@router.get("/schedule")
+async def get_maintenance_schedule() -> dict[str, Any]:
+    """Get schedule information for all maintenance tasks.
+
+    Returns:
+        Dict with scheduled tasks and their next run times
+
+    Raises:
+        HTTPException: If schedule retrieval fails
+    """
+    try:
+        # Get schedule from Celery Beat
+        schedule = celery_app.conf.beat_schedule
+
+        # Filter to only maintenance tasks
+        maintenance_schedule = {}
+        for task_name, config in schedule.items():
+            if (
+                "cleanup" in task_name
+                or "vacuum" in task_name
+                or "check-disk" in task_name
+                or "database-size" in task_name
+            ):
+                schedule_info = config["schedule"]
+
+                # Format schedule information
+                if isinstance(schedule_info, CrontabSchedule):
+                    schedule_str = f"crontab({schedule_info})"
+                else:
+                    schedule_str = f"every {schedule_info} seconds"
+
+                maintenance_schedule[task_name] = {
+                    "task": config["task"],
+                    "schedule": schedule_str,
+                    "args": config.get("args", []),
+                }
+
+        return {
+            "scheduled_tasks": maintenance_schedule,
+            "total_count": len(maintenance_schedule),
+        }
+
+    except Exception as e:
+        logger.error(
+            "get_maintenance_schedule_failed",
+            error=str(e),
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get maintenance schedule: {e!s}",
         ) from e

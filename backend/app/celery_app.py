@@ -382,14 +382,97 @@ celery_app.conf.beat_schedule = {
         # - Infrastructure ready, awaiting agent execution implementation
         # - Part of Phase 3 autonomous trading intelligence
     },
-    # Future: Data cleanup task
-    # Note: Commented example for future implementation
-    # "cleanup-old-data": {
-    #     "task": "cleanup_old_data",  # noqa: ERA001
-    #     "schedule": 604800.0,  # Weekly (7 days)  # noqa: ERA001
-    #     "options": {"expires": 3600},  # noqa: ERA001
-    #     # Runs Sunday 2:00 AM - not configurable
-    # },
+    # ============================================================================
+    # AUTOMATED MAINTENANCE TASKS
+    # ============================================================================
+    # These tasks maintain system health through automated cleanup and monitoring
+    # ============================================================================
+    "cleanup-old-logs-daily": {
+        "task": "cleanup_old_logs_task",
+        "schedule": crontab(hour=2, minute=0),  # Daily at 02:00 UTC
+        "args": [7],  # Delete logs older than 7 days
+        "options": {"expires": 3600},
+        # Notes:
+        # - Runs daily at 02:00 UTC (before market data tasks)
+        # - Deletes rotated log files (.log.TIMESTAMP) older than 7 days
+        # - Searches /tmp and /var/log/portfolio-ai directories
+        # - Tracks bytes freed in maintenance_stats table
+    },
+    "cleanup-temp-files-daily": {
+        "task": "cleanup_temp_files_task",
+        "schedule": crontab(hour=2, minute=15),  # Daily at 02:15 UTC
+        "args": [24],  # Delete temp files older than 24 hours
+        "options": {"expires": 3600},
+        # Notes:
+        # - Runs daily at 02:15 UTC (15 min after log cleanup)
+        # - Deletes temporary files matching patterns (portfolio-ai-*, celery-*, tmpfile*, *.tmp)
+        # - Only processes /tmp directory
+        # - Tracks bytes freed in maintenance_stats table
+    },
+    "vacuum-database-weekly": {
+        "task": "vacuum_database_task",
+        "schedule": crontab(day_of_week=0, hour=3, minute=30),  # Sunday 03:30 UTC
+        "args": [None],  # Vacuum all tables
+        "options": {"expires": 7200},  # 2 hour timeout for large databases
+        # Notes:
+        # - Runs weekly on Sunday at 03:30 UTC (after capability analysis)
+        # - VACUUM ANALYZE reclaims space and updates table statistics
+        # - Improves query performance by updating planner statistics
+        # - Can take several minutes for large tables
+    },
+    "cleanup-old-news-weekly": {
+        "task": "cleanup_old_news_task",
+        "schedule": crontab(day_of_week=0, hour=4, minute=0),  # Sunday 04:00 UTC
+        "args": [90],  # Delete news older than 90 days
+        "options": {"expires": 3600},
+        # Notes:
+        # - Runs weekly on Sunday at 04:00 UTC (after database vacuum)
+        # - Deletes news articles from news_cache older than 90 days
+        # - Prevents unbounded growth of news_cache table
+        # - Tracks rows deleted in maintenance_stats table
+    },
+    "cleanup-old-agent-runs-weekly": {
+        "task": "cleanup_old_agent_runs_task",
+        "schedule": crontab(day_of_week=0, hour=4, minute=15),  # Sunday 04:15 UTC
+        "args": [30],  # Delete agent runs older than 30 days
+        "options": {"expires": 3600},
+        # Notes:
+        # - Runs weekly on Sunday at 04:15 UTC (after news cleanup)
+        # - Deletes agent runs and associated ideas older than 30 days
+        # - Prevents unbounded growth of agent_runs and agent_ideas tables
+        # - Tracks runs/ideas deleted in maintenance_stats table
+    },
+    "cleanup-orphaned-data-weekly": {
+        "task": "cleanup_orphaned_data_task",
+        "schedule": crontab(day_of_week=0, hour=4, minute=30),  # Sunday 04:30 UTC
+        "options": {"expires": 3600},
+        # Notes:
+        # - Runs weekly on Sunday at 04:30 UTC (after agent run cleanup)
+        # - Removes orphaned records (ideas without runs, insights without capabilities)
+        # - Maintains referential integrity after deletions
+        # - Tracks orphaned records deleted in maintenance_stats table
+    },
+    "check-disk-space-periodic": {
+        "task": "check_disk_space_task",
+        "schedule": crontab(hour="*/6"),  # Every 6 hours
+        "options": {"expires": 600},
+        # Notes:
+        # - Runs every 6 hours (00:00, 06:00, 12:00, 18:00 UTC)
+        # - Checks disk usage for /, /tmp, /var/log partitions
+        # - Alerts (via logs) if any partition > 85% used
+        # - Tracks disk usage trends in maintenance_stats table
+        # - Critical for preventing disk space issues
+    },
+    "get-database-size-daily": {
+        "task": "get_database_size_task",
+        "schedule": crontab(hour=5, minute=0),  # Daily at 05:00 UTC
+        "options": {"expires": 600},
+        # Notes:
+        # - Runs daily at 05:00 UTC (after all cleanup tasks complete)
+        # - Gets total database size and top 10 largest tables
+        # - Tracks database growth trends in maintenance_stats table
+        # - Helps identify which tables are growing fastest
+    },
 }
 
 # Import tasks to register them with Celery
@@ -399,6 +482,8 @@ from app.tasks import (  # noqa: E402, F401
     capability_tasks,
     data_ingestion_tasks,
     indicator_tasks,
+    log_cleanup_tasks,
+    maintenance_tasks,
     market_data_tasks,
     ml_training_tasks,
     news_tasks,
