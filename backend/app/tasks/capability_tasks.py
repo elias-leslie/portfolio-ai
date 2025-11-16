@@ -113,6 +113,11 @@ def analyze_capabilities() -> dict[str, Any]:
     Runs automatically on schedule (daily at 03:15 UTC, 15 min after scan)
     to generate insights about data quality, freshness, and missing capabilities.
 
+    Uses Claude Code CLI (zero API cost) for analysis. No ANTHROPIC_API_KEY required.
+    Claude CLI is auto-detected from PATH or CLAUDE_CLI_PATH environment variable.
+
+    Typical execution time: 2-5 minutes (CLI subprocess overhead ~200ms + analysis time)
+
     Returns:
         Dict with analysis results:
             - status: "success" or "error"

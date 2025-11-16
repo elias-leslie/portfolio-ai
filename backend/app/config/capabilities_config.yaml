@@ -53,9 +53,11 @@ scan_config:
       max_error_rate_warn_pct: 5.0
 
   # AI Analysis settings (Phase 2)
+  # Uses Claude Code CLI (zero API cost) - no ANTHROPIC_API_KEY needed
+  # CLI auto-detected from PATH or CLAUDE_CLI_PATH environment variable
   ai_analysis:
     enabled: true  # Set to false to skip Phase 2
-    model: "claude-sonnet-4.5"  # or "gemini-2.0-flash"
+    model: "claude-sonnet-4.5"  # Maps to CLI model flag (sonnet/opus)
     confidence_threshold: 0.70  # Only store insights with confidence >= 0.70
     include_logs: true
     log_lookback_hours: 24

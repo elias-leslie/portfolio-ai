@@ -97,9 +97,9 @@ class TestCapabilityAnalyzer:
         }
 
     def test_init_with_api_key(self, mock_conn_mgr: MagicMock, mock_config: dict) -> None:
-        """Test initialization with valid API key."""
+        """Test initialization with valid CLI path."""
         with (
-            patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}),
+            patch("shutil.which", return_value="/usr/local/bin/claude"),
             patch(
                 "app.services.ai_analyzer.load_capabilities_config",
                 return_value=mock_config,
@@ -111,12 +111,14 @@ class TestCapabilityAnalyzer:
             assert analyzer.enabled is True
             assert analyzer.model == "claude-sonnet-4.5"
             assert analyzer.confidence_threshold == 0.70
-            assert analyzer.client is not None
+            assert analyzer.cli_path is not None
 
     def test_init_without_api_key(self, mock_conn_mgr: MagicMock, mock_config: dict) -> None:
-        """Test initialization without API key."""
+        """Test initialization without CLI."""
         with (
             patch.dict("os.environ", {}, clear=True),
+            patch("shutil.which", return_value=None),
+            patch("os.path.isfile", return_value=False),
             patch(
                 "app.services.ai_analyzer.load_capabilities_config",
                 return_value=mock_config,
@@ -124,7 +126,7 @@ class TestCapabilityAnalyzer:
         ):
             analyzer = CapabilityAnalyzer(mock_conn_mgr)
 
-            assert analyzer.client is None
+            assert analyzer.cli_path is None
 
     def test_analyze_disabled(self, mock_conn_mgr: MagicMock, mock_config: dict) -> None:
         """Test analyze returns empty list when disabled."""
@@ -140,9 +142,11 @@ class TestCapabilityAnalyzer:
             assert result == []
 
     def test_analyze_no_api_key(self, mock_conn_mgr: MagicMock, mock_config: dict) -> None:
-        """Test analyze returns empty list when no API key."""
+        """Test analyze returns empty list when no CLI."""
         with (
             patch.dict("os.environ", {}, clear=True),
+            patch("shutil.which", return_value=None),
+            patch("os.path.isfile", return_value=False),
             patch(
                 "app.services.ai_analyzer.load_capabilities_config",
                 return_value=mock_config,
@@ -264,39 +268,47 @@ class TestCapabilityAnalyzer:
             assert "Return a JSON array" in prompt
 
     def test_call_ai_api_success(self, mock_conn_mgr: MagicMock, mock_config: dict) -> None:
-        """Test successful AI API call."""
-        mock_client = MagicMock()
-        mock_message = MagicMock()
-        mock_block = MagicMock()
-        mock_block.text = '{"test": "response"}'
-        mock_message.content = [mock_block]
-        mock_message.usage.output_tokens = 100
-        mock_message.usage.input_tokens = 200
-        mock_client.messages.create.return_value = mock_message
+        """Test successful CLI call."""
+        import json
+
+        # Mock CLI response
+        mock_cli_response = {
+            "type": "result",
+            "subtype": "success",
+            "is_error": False,
+            "result": '{"test": "response"}',
+        }
+
+        mock_result = MagicMock()
+        mock_result.stdout = json.dumps(mock_cli_response)
+        mock_result.returncode = 0
 
         with (
-            patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}),
+            patch("subprocess.run", return_value=mock_result),
+            patch("shutil.which", return_value="/usr/local/bin/claude"),
             patch(
                 "app.services.ai_analyzer.load_capabilities_config",
                 return_value=mock_config,
             ),
         ):
             analyzer = CapabilityAnalyzer(mock_conn_mgr)
-            analyzer.client = mock_client
 
             response = analyzer.call_ai_api("test prompt")
 
             assert response == '{"test": "response"}'
-            mock_client.messages.create.assert_called_once()
 
     def test_call_ai_api_no_client(self, mock_conn_mgr: MagicMock, mock_config: dict) -> None:
-        """Test AI API call fails without client."""
-        with patch(
-            "app.services.ai_analyzer.load_capabilities_config",
-            return_value=mock_config,
+        """Test CLI call fails without CLI."""
+        with (
+            patch("shutil.which", return_value=None),
+            patch("os.path.isfile", return_value=False),
+            patch(
+                "app.services.ai_analyzer.load_capabilities_config",
+                return_value=mock_config,
+            ),
         ):
             analyzer = CapabilityAnalyzer(mock_conn_mgr)
-            analyzer.client = None
+            analyzer.cli_path = None
 
             with pytest.raises(ValueError) as exc_info:
                 analyzer.call_ai_api("test prompt")
