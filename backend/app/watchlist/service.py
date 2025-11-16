@@ -11,19 +11,23 @@ from __future__ import annotations
 
 # Re-export from refresh_data_fetchers (functions moved during refactoring)
 from .refresh_data_fetchers import (
-    calculate_price_change as _calculate_price_change,  # Renamed (removed _ prefix)
+    calculate_price_change as _calculate_price_change,
 )
 from .refresh_data_fetchers import (
     detect_missing_historical_data,
 )
 
-# Re-export from scoring_service (for refresh_watchlist_scores and helpers)
-# NOTE: _load_default_weights, _load_stale_ttl_minutes, _load_risk_budget removed
-# Use app.utils.preferences_loader.UserPreferences.load_all() instead (Issue #3 fix)
+# Re-export from scoring_service package (for refresh_watchlist_scores and helpers)
 from .scoring_service import (
-    _get_redis_client,
-    _load_latest_technical,
-    _load_watchlist_items,
+    get_redis_client as _get_redis_client,
+)
+from .scoring_service import (
+    load_latest_technical as _load_latest_technical,
+)
+from .scoring_service import (
+    load_watchlist_items as _load_watchlist_items,
+)
+from .scoring_service import (
     refresh_watchlist_scores,
 )
 
