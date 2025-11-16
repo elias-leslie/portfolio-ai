@@ -5,9 +5,10 @@
  * - Cleanup old news articles
  * - Vacuum database tables
  * - Validate data integrity
+ * - Monitor maintenance schedule and resources
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://192.168.8.233:8000";
+import { get, post } from "./client";
 
 // Types
 
@@ -18,7 +19,7 @@ export interface MaintenanceResult {
   started_at: string;
   completed_at: string | null;
   dry_run: boolean;
-  summary: Record<string, any> | null;
+  summary: Record<string, unknown> | null;
   error_message: string | null;
 }
 
@@ -33,7 +34,150 @@ export interface MaintenanceHistory {
   total: number;
 }
 
+export interface ScheduledTask {
+  task: string;
+  schedule: string;
+  args?: unknown[];
+}
+
+export interface MaintenanceScheduleResponse {
+  scheduled_tasks: Record<string, ScheduledTask>;
+  total_count: number;
+}
+
+export interface PartitionInfo {
+  path: string;
+  name: string;
+  total_bytes: number;
+  used_bytes: number;
+  free_bytes: number;
+  used_percentage: number;
+}
+
+export interface DiskSpaceResponse {
+  task_id: string;
+  partitions: PartitionInfo[];
+  alerts: Array<{
+    partition: string;
+    used_percentage: number;
+    free_mb: number;
+  }>;
+  alert_count: number;
+  duration_seconds: number;
+  success: boolean;
+}
+
+export interface TableSize {
+  table: string;
+  size_bytes: number;
+  size_pretty: string;
+}
+
+export interface DatabaseSizeResponse {
+  task_id: string;
+  database_size_bytes: number;
+  database_size_mb: number;
+  top_tables: TableSize[];
+  duration_seconds: number;
+  success: boolean;
+}
+
+export interface MaintenanceStatsResponse {
+  metric_name?: string;
+  days?: number;
+  data_points?: number;
+  trends?: Array<{
+    recorded_at: string;
+    value: number;
+    unit: string | null;
+    metadata: Record<string, unknown> | null;
+  }>;
+  summary?: Record<
+    string,
+    {
+      value: number;
+      unit: string | null;
+      recorded_at: string;
+    }
+  >;
+  metric_count?: number;
+}
+
+export interface TriggerTaskResponse {
+  task_id: string;
+  task_name: string;
+  status: string;
+  message: string;
+}
+
 // API Functions
+
+/**
+ * Get maintenance schedule for all tasks.
+ *
+ * @returns Schedule information for all maintenance tasks
+ */
+export async function getMaintenanceSchedule(): Promise<MaintenanceScheduleResponse> {
+  return get<MaintenanceScheduleResponse>("/api/maintenance/schedule");
+}
+
+/**
+ * Get disk space usage information.
+ *
+ * @returns Disk space details for all mounted filesystems
+ */
+export async function getMaintenanceDiskSpace(): Promise<DiskSpaceResponse> {
+  return get<DiskSpaceResponse>("/api/maintenance/disk-space");
+}
+
+/**
+ * Get database size and table breakdown.
+ *
+ * @returns Database size information with per-table breakdown
+ */
+export async function getMaintenanceDatabaseSize(): Promise<DatabaseSizeResponse> {
+  return get<DatabaseSizeResponse>("/api/maintenance/database-size");
+}
+
+/**
+ * Get maintenance statistics.
+ *
+ * @param metricName - Specific metric to fetch (optional)
+ * @param days - Number of days of historical data (optional)
+ * @returns Maintenance statistics data
+ */
+export async function getMaintenanceStats(
+  metricName?: string,
+  days?: number
+): Promise<MaintenanceStatsResponse> {
+  const params = new URLSearchParams();
+
+  if (metricName) {
+    params.append("metric_name", metricName);
+  }
+
+  if (days !== undefined) {
+    params.append("days", days.toString());
+  }
+
+  const url = params.toString()
+    ? `/api/maintenance/stats?${params.toString()}`
+    : "/api/maintenance/stats";
+
+  return get<MaintenanceStatsResponse>(url);
+}
+
+/**
+ * Trigger a maintenance task by name.
+ *
+ * @param taskName - The name of the maintenance task to trigger
+ * @returns Task trigger response with status and ID
+ */
+export async function triggerMaintenanceTask(
+  taskName: string
+): Promise<TriggerTaskResponse> {
+  return post<TriggerTaskResponse>(`/api/maintenance/trigger/${taskName}`, {});
+}
 
 /**
  * Trigger cleanup of old news articles.
@@ -46,23 +190,10 @@ export async function cleanupOldNews(
   dryRun: boolean = true,
   days: number = 90
 ): Promise<MaintenanceResult> {
-  const response = await fetch(`${API_BASE_URL}/api/maintenance/cleanup-news`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      dry_run: dryRun,
-      days,
-    }),
+  return post<MaintenanceResult>("/api/maintenance/cleanup-news", {
+    dry_run: dryRun,
+    days,
   });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Failed to cleanup news: ${error}`);
-  }
-
-  return response.json();
 }
 
 /**
@@ -76,23 +207,10 @@ export async function vacuumDatabase(
   dryRun: boolean = false,
   tables?: string[]
 ): Promise<MaintenanceResult> {
-  const response = await fetch(`${API_BASE_URL}/api/maintenance/vacuum-database`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      dry_run: dryRun,
-      tables: tables || null,
-    }),
+  return post<MaintenanceResult>("/api/maintenance/vacuum-database", {
+    dry_run: dryRun,
+    tables: tables || null,
   });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Failed to vacuum database: ${error}`);
-  }
-
-  return response.json();
 }
 
 /**
@@ -104,22 +222,9 @@ export async function vacuumDatabase(
 export async function validateIntegrity(
   dryRun: boolean = true
 ): Promise<MaintenanceResult> {
-  const response = await fetch(`${API_BASE_URL}/api/maintenance/validate-integrity`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      dry_run: dryRun,
-    }),
+  return post<MaintenanceResult>("/api/maintenance/validate-integrity", {
+    dry_run: dryRun,
   });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Failed to validate integrity: ${error}`);
-  }
-
-  return response.json();
 }
 
 /**
@@ -128,19 +233,7 @@ export async function validateIntegrity(
  * @returns Last run summary for all tasks
  */
 export async function getMaintenanceLastRun(): Promise<LastRunSummary> {
-  const response = await fetch(`${API_BASE_URL}/api/maintenance/last-run`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Failed to fetch last run data: ${error}`);
-  }
-
-  return response.json();
+  return get<LastRunSummary>("/api/maintenance/last-run");
 }
 
 /**
@@ -162,20 +255,5 @@ export async function getMaintenanceHistory(
 
   params.append("limit", limit.toString());
 
-  const response = await fetch(
-    `${API_BASE_URL}/api/maintenance/history?${params.toString()}`,
-    {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    }
-  );
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Failed to fetch maintenance history: ${error}`);
-  }
-
-  return response.json();
+  return get<MaintenanceHistory>(`/api/maintenance/history?${params.toString()}`);
 }
