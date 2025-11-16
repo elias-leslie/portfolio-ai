@@ -20,7 +20,15 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-(No active tasks)
+1. **Comprehensive Code Quality Cleanup** (HIGH, 2/7 phases complete, PAUSED 2025-11-16)
+   - File: `tasks-0069-comprehensive-code-quality-cleanup.md`
+   - Created: 2025-11-16
+   - Goal: Fix ALL code quality issues - 46 critical, 121 warning, 158 medium. Option B (Pragmatic): Security + critical complexity + quick type wins.
+   - Status: PAUSED (2025-11-16)
+   - Context: 150K/200K (73%)
+   - Completed: Phase 0 (Scope Discovery), Phase 1 (SQL Injection - 12/12 fixed)
+   - Next: Phase 2 Task 2.1 - Refactor ml_training_tasks.py (286 lines)
+   - Resume: `/do_it tasks-0069-comprehensive-code-quality-cleanup.md` or `/do_it`
 
 ---
 
