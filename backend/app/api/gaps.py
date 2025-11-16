@@ -16,7 +16,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from ..logging_config import get_logger
-from ..services.gap_detector import GapDetector
+from ..services.gap_detection import GapDetector
 from ..storage.connection import ConnectionManager
 
 logger = get_logger(__name__)

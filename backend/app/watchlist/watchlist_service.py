@@ -14,7 +14,7 @@ from typing import Any
 
 from ..logging_config import get_logger
 from ..portfolio.price_fetcher import PriceDataFetcher
-from ..services.gap_detector import GapDetector
+from ..services.gap_detection import GapDetector
 from ..storage import PortfolioStorage
 from ..storage.connection import ConnectionManager
 from ..utils.preferences_loader import UserPreferences

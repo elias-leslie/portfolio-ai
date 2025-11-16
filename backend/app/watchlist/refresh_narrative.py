@@ -15,7 +15,7 @@ from typing import Any, TypedDict, cast
 
 from ..logging_config import get_logger
 from ..portfolio.models import PriceData
-from ..services.gap_detector import GapDetector
+from ..services.gap_detection import GapDetector
 from ..storage import PortfolioStorage
 from ..storage.connection import ConnectionManager
 from .calculator import (

@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.celery_app import celery_app
-from app.services.gap_detector import GapDetector
+from app.services.gap_detection import GapDetector
 from app.storage.connection import ConnectionManager
 
 logger = logging.getLogger(__name__)
