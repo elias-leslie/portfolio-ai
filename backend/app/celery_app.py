@@ -67,12 +67,16 @@ from app.tasks import (  # noqa: E402, F401
     indicator_tasks,
     log_cleanup_tasks,
     maintenance_tasks,
-    market_data_tasks,
     ml_training_tasks,
     news_tasks,
     reference_tasks,
     watchlist_tasks,
     workflow_tasks,
+)
+from app.tasks.market_data import (  # noqa: E402, F401
+    fear_greed_pipeline,
+    historical_ohlcv_pipeline,
+    options_pipeline,
 )
 
 

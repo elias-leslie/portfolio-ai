@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.tasks.market_data_tasks import _calculate_market_breadth
+from app.tasks.market_data.fear_greed_pipeline import _calculate_market_breadth
 
 
 class TestCalculateMarketBreadth:
