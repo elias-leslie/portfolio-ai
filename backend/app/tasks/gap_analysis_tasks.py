@@ -181,6 +181,99 @@ def track_gap_trends() -> dict[str, Any]:
         }
 
 
+def _alert_p0_gaps(conn_mgr: ConnectionManager, p0_gaps: int, total_gaps: int) -> int:
+    """Create alert for P0 (critical) gaps.
+
+    Args:
+        conn_mgr: Database connection manager
+        p0_gaps: Number of P0 gaps detected
+        total_gaps: Total number of gaps
+
+    Returns:
+        1 if alert created, 0 otherwise
+    """
+    if p0_gaps <= 0:
+        return 0
+
+    with conn_mgr.connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO status_logs (
+                component,
+                level,
+                message,
+                metadata,
+                timestamp
+            ) VALUES (
+                'gap_detector',
+                'warning',
+                %s,
+                %s,
+                %s
+            )
+            """,
+            [
+                f"{p0_gaps} critical gaps (P0) blocking trading strategies",
+                {"p0_gaps": p0_gaps, "total_gaps": total_gaps},
+                datetime.now(UTC),
+            ],
+        )
+        conn.commit()
+    return 1
+
+
+def _alert_low_coverage(
+    conn_mgr: ConnectionManager,
+    analysis_types: dict[str, Any],
+    threshold: float = 50.0,
+) -> int:
+    """Create alerts for analysis types with low coverage.
+
+    Args:
+        conn_mgr: Database connection manager
+        analysis_types: Dict of analysis type results with coverage metrics
+        threshold: Coverage threshold percentage (default 50%)
+
+    Returns:
+        Number of alerts created
+    """
+    alerts_created = 0
+
+    for analysis_type, coverage_result in analysis_types.items():
+        if coverage_result["coverage_pct"] < threshold:
+            with conn_mgr.connection() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO status_logs (
+                        component,
+                        level,
+                        message,
+                        metadata,
+                        timestamp
+                    ) VALUES (
+                        'gap_detector',
+                        'warning',
+                        %s,
+                        %s,
+                        %s
+                    )
+                    """,
+                    [
+                        f"{analysis_type} coverage critically low: {coverage_result['coverage_pct']:.1f}%",
+                        {
+                            "analysis_type": analysis_type,
+                            "coverage_pct": coverage_result["coverage_pct"],
+                            "missing_capabilities": coverage_result["missing_capabilities"],
+                        },
+                        datetime.now(UTC),
+                    ],
+                )
+                conn.commit()
+            alerts_created += 1
+
+    return alerts_created
+
+
 @celery_app.task(name="alert_critical_gaps")  # type: ignore[misc]
 def alert_critical_gaps() -> dict[str, Any]:
     """Alert on critical gaps (P0 priority).
@@ -202,67 +295,8 @@ def alert_critical_gaps() -> dict[str, Any]:
         result = detector.analyze_gaps()
 
         alerts_created = 0
-
-        # Alert on P0 gaps
-        if result["p0_gaps"] > 0:
-            with conn_mgr.connection() as conn:
-                conn.execute(
-                    """
-                    INSERT INTO status_logs (
-                        component,
-                        level,
-                        message,
-                        metadata,
-                        timestamp
-                    ) VALUES (
-                        'gap_detector',
-                        'warning',
-                        %s,
-                        %s,
-                        %s
-                    )
-                    """,
-                    [
-                        f"{result['p0_gaps']} critical gaps (P0) blocking trading strategies",
-                        {"p0_gaps": result["p0_gaps"], "total_gaps": result["total_gaps"]},
-                        datetime.now(UTC),
-                    ],
-                )
-                conn.commit()
-                alerts_created += 1
-
-        # Alert on low coverage
-        for analysis_type, coverage_result in result["analysis_types"].items():
-            if coverage_result["coverage_pct"] < 50:
-                with conn_mgr.connection() as conn:
-                    conn.execute(
-                        """
-                        INSERT INTO status_logs (
-                            component,
-                            level,
-                            message,
-                            metadata,
-                            timestamp
-                        ) VALUES (
-                            'gap_detector',
-                            'warning',
-                            %s,
-                            %s,
-                            %s
-                        )
-                        """,
-                        [
-                            f"{analysis_type} coverage critically low: {coverage_result['coverage_pct']:.1f}%",
-                            {
-                                "analysis_type": analysis_type,
-                                "coverage_pct": coverage_result["coverage_pct"],
-                                "missing_capabilities": coverage_result["missing_capabilities"],
-                            },
-                            datetime.now(UTC),
-                        ],
-                    )
-                    conn.commit()
-                    alerts_created += 1
+        alerts_created += _alert_p0_gaps(conn_mgr, result["p0_gaps"], result["total_gaps"])
+        alerts_created += _alert_low_coverage(conn_mgr, result["analysis_types"])
 
         logger.info(f"Critical gap check complete: {alerts_created} alerts created")
 

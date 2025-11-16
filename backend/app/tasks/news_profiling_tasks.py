@@ -15,6 +15,7 @@ from typing import Any
 from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.services.news_quality_metrics import (
+    QualityWeights,
     calculate_all_metrics,
     load_quality_weights_from_preferences,
 )
@@ -92,6 +93,132 @@ def _get_active_vendors() -> list[str]:
     return [v for v in vendors if v and v not in {"null", "unknown"}]
 
 
+def _should_skip_profiling(
+    interval_hours: int, last_profiling: datetime | None
+) -> dict[str, Any] | None:
+    """Check if profiling should be skipped due to interval.
+
+    Args:
+        interval_hours: Required interval between profiling runs
+        last_profiling: Timestamp of last profiling, or None
+
+    Returns:
+        None if should proceed, or dict with skip reason if should skip
+    """
+    if not last_profiling:
+        return None
+
+    now = datetime.now(UTC)
+    elapsed = (now - last_profiling).total_seconds() / 3600.0
+    if elapsed < interval_hours:
+        logger.info(
+            "profiling_skipped_too_soon",
+            elapsed_hours=round(elapsed, 2),
+            interval_hours=interval_hours,
+            next_run_in=round(interval_hours - elapsed, 2),
+        )
+        return {
+            "status": "skipped",
+            "reason": "interval_not_elapsed",
+            "elapsed_hours": round(elapsed, 2),
+            "interval_hours": interval_hours,
+        }
+
+    return None
+
+
+def _calculate_vendor_metrics(
+    storage: Any,
+    vendor: str,
+    window_start: datetime,
+    window_end: datetime,
+    weights: QualityWeights,
+    user_id: str,
+) -> dict[str, Any]:
+    """Calculate all quality metrics for a single vendor.
+
+    Args:
+        storage: Storage instance
+        vendor: Vendor name
+        window_start: Start of analysis window
+        window_end: End of analysis window
+        weights: Quality metric weights
+        user_id: User identifier
+
+    Returns:
+        Dict with metrics (duplicate_rate, diversity_score, etc.)
+    """
+    metrics = calculate_all_metrics(
+        storage=storage,
+        vendor=vendor,
+        window_start=window_start,
+        window_end=window_end,
+        weights=weights,
+        user_id=user_id,
+    )
+
+    return {
+        "duplicate_rate": metrics.duplicate_rate,
+        "diversity_score": metrics.diversity_score,
+        "confidence_avg": metrics.confidence_avg,
+        "freshness_score": metrics.freshness_score,
+        "user_useful_rate": metrics.user_useful_rate,
+        "quality_score": metrics.quality_score,
+        "article_count": metrics.article_count,
+        "sample_period_start": metrics.sample_period_start,
+        "calculated_at": metrics.calculated_at,
+    }
+
+
+def _process_all_vendors(
+    storage: Any,
+    vendors: list[str],
+    window_start: datetime,
+    window_end: datetime,
+    weights: QualityWeights,
+    user_id: str,
+) -> tuple[list[tuple[str, dict[str, Any]]], list[str]]:
+    """Calculate metrics for all vendors, return results and errors.
+
+    Args:
+        storage: Storage instance
+        vendors: List of vendor names
+        window_start: Start of analysis window
+        window_end: End of analysis window
+        weights: Quality metric weights
+        user_id: User identifier
+
+    Returns:
+        (metrics_results, errors) where metrics_results is list of (vendor, metrics_dict)
+    """
+    metrics_results: list[tuple[str, dict[str, Any]]] = []
+    errors: list[str] = []
+
+    for vendor in vendors:
+        try:
+            logger.debug("calculating_metrics_for_vendor", vendor=vendor)
+            metrics_dict = _calculate_vendor_metrics(
+                storage, vendor, window_start, window_end, weights, user_id
+            )
+            metrics_results.append((vendor, metrics_dict))
+            logger.info(
+                "vendor_metrics_calculated",
+                vendor=vendor,
+                quality_score=round(metrics_dict["quality_score"], 3),
+                article_count=metrics_dict["article_count"],
+            )
+        except Exception as exc:
+            error_msg = f"{vendor}: {exc!s}"
+            errors.append(error_msg)
+            logger.error(
+                "vendor_metrics_calculation_failed",
+                vendor=vendor,
+                error=str(exc),
+            )
+
+    return metrics_results, errors
+
+
 def _store_metrics(metrics: list[tuple[str, dict[str, Any]]]) -> None:
     """Store calculated metrics in database.
 
@@ -136,12 +263,6 @@ def _store_metrics(metrics: list[tuple[str, dict[str, Any]]]) -> None:
 def profile_news_sources_task(self: Any, user_id: str = "default") -> dict[str, Any]:
     """Profile all active news sources and calculate quality metrics.
 
-    This task:
-    1. Checks if enough time has elapsed since last profiling
-    2. Gets list of active vendors from news_cache
-    3. Calculates 6 quality metrics for each vendor
-    4. Stores results in source_metrics table
-
     Args:
         user_id: User identifier (default: "default")
 
@@ -155,22 +276,9 @@ def profile_news_sources_task(self: Any, user_id: str = "default") -> dict[str, 
     interval_hours = _get_profiling_interval_hours()
     last_profiling = _get_last_profiling_time()
 
-    now = datetime.now(UTC)
-    if last_profiling:
-        elapsed = (now - last_profiling).total_seconds() / 3600.0
-        if elapsed < interval_hours:
-            logger.info(
-                "profiling_skipped_too_soon",
-                elapsed_hours=round(elapsed, 2),
-                interval_hours=interval_hours,
-                next_run_in=round(interval_hours - elapsed, 2),
-            )
-            return {
-                "status": "skipped",
-                "reason": "interval_not_elapsed",
-                "elapsed_hours": round(elapsed, 2),
-                "interval_hours": interval_hours,
-            }
+    skip_result = _should_skip_profiling(interval_hours, last_profiling)
+    if skip_result:
+        return skip_result
 
     logger.info("profiling_news_sources_started", user_id=user_id, interval_hours=interval_hours)
 
@@ -185,61 +293,16 @@ def profile_news_sources_task(self: Any, user_id: str = "default") -> dict[str, 
         }
 
     logger.info("active_vendors_found", num_vendors=len(vendors), vendors=vendors)
-
-    # Load user quality weights
     weights = load_quality_weights_from_preferences(storage, user_id)
 
-    # Calculate metrics for each vendor (last 24 hours)
-    window_end = now
-    window_start = now - timedelta(hours=24)
+    # Calculate metrics for all vendors (last 24 hours)
+    now = datetime.now(UTC)
+    window_start, window_end = now - timedelta(hours=24), now
+    metrics_results, errors = _process_all_vendors(
+        storage, vendors, window_start, window_end, weights, user_id
+    )
 
-    metrics_results: list[tuple[str, dict[str, Any]]] = []
-    errors: list[str] = []
-
-    for vendor in vendors:
-        try:
-            logger.debug("calculating_metrics_for_vendor", vendor=vendor)
-            metrics = calculate_all_metrics(
-                storage=storage,
-                vendor=vendor,
-                window_start=window_start,
-                window_end=window_end,
-                weights=weights,
-                user_id=user_id,
-            )
-
-            # Convert to dict for storage
-            metrics_dict = {
-                "duplicate_rate": metrics.duplicate_rate,
-                "diversity_score": metrics.diversity_score,
-                "confidence_avg": metrics.confidence_avg,
-                "freshness_score": metrics.freshness_score,
-                "user_useful_rate": metrics.user_useful_rate,
-                "quality_score": metrics.quality_score,
-                "article_count": metrics.article_count,
-                "sample_period_start": metrics.sample_period_start,
-                "calculated_at": metrics.calculated_at,
-            }
-
-            metrics_results.append((vendor, metrics_dict))
-
-            logger.info(
-                "vendor_metrics_calculated",
-                vendor=vendor,
-                quality_score=round(metrics.quality_score, 3),
-                article_count=metrics.article_count,
-            )
-
-        except Exception as exc:
-            error_msg = f"{vendor}: {exc!s}"
-            errors.append(error_msg)
-            logger.error(
-                "vendor_metrics_calculation_failed",
-                vendor=vendor,
-                error=str(exc),
-            )
-
-    # Store all metrics
+    # Store metrics
     if metrics_results:
         try:
             _store_metrics(metrics_results)
@@ -249,10 +312,11 @@ def profile_news_sources_task(self: Any, user_id: str = "default") -> dict[str, 
             errors.append(f"Storage failed: {exc!s}")
 
     duration = round(time.time() - start_time, 2)
+    num_profiled = len(metrics_results)
 
     result = {
         "status": "completed",
-        "vendors_profiled": len(metrics_results),
+        "vendors_profiled": num_profiled,
         "total_vendors": len(vendors),
         "errors": errors,
         "duration_seconds": duration,
@@ -262,12 +326,11 @@ def profile_news_sources_task(self: Any, user_id: str = "default") -> dict[str, 
 
     logger.info(
         "profiling_news_sources_completed",
-        vendors_profiled=len(metrics_results),
+        vendors_profiled=num_profiled,
         total_vendors=len(vendors),
         errors_count=len(errors),
         duration_seconds=duration,
     )
-
     return result
 
 

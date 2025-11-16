@@ -10,12 +10,105 @@ Tasks:
 import logging
 from datetime import date
 from decimal import Decimal
+from typing import Any
 
 from app.backtest import metrics, replay, storage, strategies
 from app.celery_app import celery_app
 from app.storage.connection import get_connection_manager
 
 logger = logging.getLogger(__name__)
+
+
+def _initialize_strategy(
+    strategy_name: str, min_signal_strength: int, max_holding_days: int
+) -> strategies.SignalStrategy:
+    """Initialize backtest strategy from name and parameters.
+
+    Args:
+        strategy_name: Strategy identifier
+        min_signal_strength: Minimum signal strength for entry (1-10)
+        max_holding_days: Maximum holding period
+
+    Returns:
+        Initialized SignalStrategy instance
+
+    Raises:
+        ValueError: If strategy_name is unknown
+    """
+    if strategy_name == "signal_classifier":
+        return strategies.SignalStrategy(
+            min_signal_strength=min_signal_strength,
+            max_holding_days=max_holding_days,
+            stop_loss_atr_multiplier=Decimal("2.0"),
+        )
+    raise ValueError(f"Unknown strategy: {strategy_name}")
+
+
+def _calculate_performance_metrics(
+    state: replay.BacktestState, initial_capital: Decimal
+) -> dict[str, Any]:
+    """Calculate all performance metrics from backtest state.
+
+    Args:
+        state: BacktestState object containing trades and equity curve
+        initial_capital: Starting capital amount
+
+    Returns:
+        Dict containing metrics:
+        - final_equity: Final account equity
+        - total_return_pct: Total return percentage
+        - sharpe_ratio: Sharpe ratio
+        - max_drawdown_pct: Maximum drawdown percentage
+        - win_rate: Win rate (0.0-100.0)
+        - profit_factor: Profit factor
+        - num_trades: Number of trades executed
+    """
+    final_equity = state.equity_curve[-1].equity if state.equity_curve else initial_capital
+    return {
+        "final_equity": final_equity,
+        "total_return_pct": metrics.calculate_total_return(initial_capital, final_equity),
+        "sharpe_ratio": metrics.calculate_sharpe_ratio(state.equity_curve),
+        "max_drawdown_pct": metrics.calculate_max_drawdown(state.equity_curve),
+        "win_rate": metrics.calculate_win_rate(state.trades),
+        "profit_factor": metrics.calculate_profit_factor(state.trades),
+        "num_trades": len(state.trades),
+    }
+
+
+def _save_backtest_results(
+    storage_mgr: Any,
+    state: replay.BacktestState,
+    metrics_dict: dict[str, Any],
+    run_id: str,
+) -> None:
+    """Save trades, equity curve, and update backtest_run with final metrics.
+
+    Args:
+        storage_mgr: Storage connection manager
+        state: BacktestState object with trades and equity curve
+        metrics_dict: Performance metrics dict from _calculate_performance_metrics
+        run_id: Backtest run ID
+    """
+    # Save trades to database
+    for trade in state.trades:
+        storage.save_backtest_trade(storage_mgr, trade)
+
+    # Save equity curve to database
+    for snapshot in state.equity_curve:
+        storage.save_equity_snapshot(storage_mgr, snapshot)
+
+    # Update backtest_run with final results
+    storage.update_backtest_result(
+        storage=storage_mgr,
+        run_id=run_id,
+        final_equity=metrics_dict["final_equity"],
+        total_return_pct=metrics_dict["total_return_pct"],
+        sharpe_ratio=metrics_dict["sharpe_ratio"],
+        max_drawdown_pct=metrics_dict["max_drawdown_pct"],
+        win_rate=metrics_dict["win_rate"],
+        num_trades=metrics_dict["num_trades"],
+        profit_factor=metrics_dict["profit_factor"],
+    )
 
 
 @celery_app.task(  # type: ignore[misc]
@@ -72,14 +165,7 @@ def run_backtest_task(  # type: ignore[no-untyped-def]
         end = date.fromisoformat(end_date)
 
         # Initialize strategy
-        if strategy_name == "signal_classifier":
-            strategy = strategies.SignalStrategy(
-                min_signal_strength=min_signal_strength,
-                max_holding_days=max_holding_days,
-                stop_loss_atr_multiplier=Decimal("2.0"),
-            )
-        else:
-            raise ValueError(f"Unknown strategy: {strategy_name}")
+        strategy = _initialize_strategy(strategy_name, min_signal_strength, max_holding_days)
 
         # Run backtest replay
         state = replay.replay_backtest(
@@ -94,55 +180,28 @@ def run_backtest_task(  # type: ignore[no-untyped-def]
             size_value=Decimal(str(position_size_value)),
         )
 
-        # Calculate final metrics
-        final_equity = (
-            state.equity_curve[-1].equity if state.equity_curve else Decimal(str(initial_capital))
-        )
-        total_return_pct = metrics.calculate_total_return(
-            Decimal(str(initial_capital)), final_equity
-        )
-        sharpe_ratio = metrics.calculate_sharpe_ratio(state.equity_curve)
-        max_drawdown_pct = metrics.calculate_max_drawdown(state.equity_curve)
-        win_rate = metrics.calculate_win_rate(state.trades)
-        profit_factor = metrics.calculate_profit_factor(state.trades)
-        num_trades = len(state.trades)
+        # Calculate metrics
+        metrics_dict = _calculate_performance_metrics(state, Decimal(str(initial_capital)))
 
-        # Save trades to database
-        for trade in state.trades:
-            storage.save_backtest_trade(storage_mgr, trade)
-
-        # Save equity curve to database
-        for snapshot in state.equity_curve:
-            storage.save_equity_snapshot(storage_mgr, snapshot)
-
-        # Update backtest_run with final results
-        storage.update_backtest_result(
-            storage=storage_mgr,
-            run_id=run_id,
-            final_equity=final_equity,
-            total_return_pct=total_return_pct,
-            sharpe_ratio=sharpe_ratio,
-            max_drawdown_pct=max_drawdown_pct,
-            win_rate=win_rate,
-            num_trades=num_trades,
-            profit_factor=profit_factor,
-        )
+        # Save results
+        _save_backtest_results(storage_mgr, state, metrics_dict, run_id)
 
         logger.info(
-            f"Backtest complete: {run_id} | Return: {total_return_pct:.2f}% | "
-            f"Sharpe: {sharpe_ratio:.2f} | Trades: {num_trades} | Win Rate: {win_rate:.1f}%"
+            f"Backtest complete: {run_id} | Return: {metrics_dict['total_return_pct']:.2f}% | "
+            f"Sharpe: {metrics_dict['sharpe_ratio']:.2f} | Trades: {metrics_dict['num_trades']} | "
+            f"Win Rate: {metrics_dict['win_rate']:.1f}%"
         )
 
         return {
             "run_id": run_id,
             "status": "completed",
-            "final_equity": float(final_equity),
-            "total_return_pct": float(total_return_pct),
-            "sharpe_ratio": float(sharpe_ratio),
-            "max_drawdown_pct": float(max_drawdown_pct),
-            "win_rate": float(win_rate),
-            "num_trades": num_trades,
-            "profit_factor": float(profit_factor),
+            "final_equity": float(metrics_dict["final_equity"]),
+            "total_return_pct": float(metrics_dict["total_return_pct"]),
+            "sharpe_ratio": float(metrics_dict["sharpe_ratio"]),
+            "max_drawdown_pct": float(metrics_dict["max_drawdown_pct"]),
+            "win_rate": float(metrics_dict["win_rate"]),
+            "num_trades": metrics_dict["num_trades"],
+            "profit_factor": float(metrics_dict["profit_factor"]),
         }
 
     except Exception as e:

@@ -415,6 +415,286 @@ def fetch_options_activity_metrics(  # type: ignore[no-untyped-def]
         }
 
 
+def _fetch_spy_data(
+    storage: PortfolioStorage, start_date: dt.date, end_date: dt.date
+) -> dict[dt.date, float]:
+    """Fetch SPY OHLCV data from day_bars table.
+
+    Args:
+        storage: Storage instance
+        start_date: Start date for data fetch
+        end_date: End date for data fetch
+
+    Returns:
+        Dict mapping date to closing price
+    """
+    with storage.connection() as conn:
+        result = conn.execute(
+            """
+            SELECT date, close
+            FROM day_bars
+            WHERE ticker = 'SPY'
+              AND date >= %s
+              AND date <= %s
+            ORDER BY date ASC
+            """,
+            (start_date, end_date),
+        )
+        spy_data = result.fetchall()
+
+    return {row[0]: row[1] for row in spy_data}
+
+
+def _fetch_market_indicators(
+    storage: PortfolioStorage, start_date: dt.date, end_date: dt.date
+) -> tuple[dict[dt.date, float], dict[dt.date, float], float, float]:
+    """Fetch VIX, HY spread, and fallback estimates.
+
+    Args:
+        storage: Storage instance
+        start_date: Start date for data fetch
+        end_date: End date for data fetch
+
+    Returns:
+        Tuple of (vix_dict, hy_spread_dict, vix_estimate, hy_spread_fallback)
+    """
+    # Get latest VIX and HY_spread for fallback estimates
+    with storage.connection() as conn:
+        result = conn.execute(
+            """
+            SELECT vix_close, hy_spread
+            FROM fear_greed_inputs
+            WHERE vix_close IS NOT NULL
+            ORDER BY as_of_date DESC
+            LIMIT 1
+            """
+        )
+        latest = result.fetchone()
+        vix_estimate = latest[0] if latest and latest[0] else 19.5
+        hy_spread_fallback = latest[1] if latest and latest[1] else 3.13
+
+    # Fetch VIX data from database if available
+    with storage.connection() as conn:
+        result = conn.execute(
+            """
+            SELECT date, close
+            FROM day_bars
+            WHERE ticker = '^VIX'
+              AND date >= %s
+              AND date <= %s
+            ORDER BY date ASC
+            """,
+            (start_date, end_date),
+        )
+        vix_dict = {row[0]: row[1] for row in result.fetchall()}
+
+    # Fetch HY spread data from FRED
+    fred_source = FREDSource()
+    hy_spread_data = fred_source.fetch_series("HY_SPREAD", start_date, end_date)
+    hy_spread_dict = dict(hy_spread_data)
+
+    return vix_dict, hy_spread_dict, vix_estimate, hy_spread_fallback
+
+
+def _compute_date_indicators(
+    spy_close: float,
+    prices_up_to_date: list[float],
+    date: dt.date,
+    vix_data: dict[dt.date, float],
+    hy_spread_dict: dict[dt.date, float],
+    vix_estimate: float,
+    hy_spread_fallback: float,
+) -> tuple[float, float, float, float] | None:
+    """Compute all indicators for a single date.
+
+    Returns tuple of (sma_200, rsi_14, vix_close, hy_spread) or None if calculation fails.
+    """
+    sma_200 = _calculate_sma(prices_up_to_date, 200)
+    rsi_14 = _calculate_rsi(prices_up_to_date, 14)
+
+    if sma_200 is None or rsi_14 is None:
+        logger.warning("indicator_calculation_failed", date=str(date))
+        return None
+
+    vix_close = vix_data.get(date, vix_estimate)
+    hy_spread = hy_spread_dict.get(date, hy_spread_fallback)
+
+    return sma_200, rsi_14, vix_close, hy_spread
+
+
+def _upsert_inputs_record(
+    storage: PortfolioStorage,
+    date: dt.date,
+    spy_close: float,
+    sma_200: float,
+    rsi_14: float,
+    vix_close: float,
+    hy_spread: float,
+    breadth_pct: float | None,
+) -> None:
+    """Upsert a single fear_greed_inputs record to database."""
+    with storage.connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO fear_greed_inputs
+            (as_of_date, spy_close, spy_sma_200, rsi_14, vix_close, hy_spread, breadth_pct)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (as_of_date)
+            DO UPDATE SET
+                spy_close = EXCLUDED.spy_close,
+                spy_sma_200 = EXCLUDED.spy_sma_200,
+                rsi_14 = EXCLUDED.rsi_14,
+                vix_close = EXCLUDED.vix_close,
+                hy_spread = EXCLUDED.hy_spread,
+                breadth_pct = EXCLUDED.breadth_pct
+            """,
+            (date, spy_close, sma_200, rsi_14, vix_close, hy_spread, breadth_pct),
+        )
+        conn.commit()
+
+
+def _calculate_and_upsert_inputs(
+    storage: PortfolioStorage,
+    spy_dict: dict[dt.date, float],
+    dates: list[dt.date],
+    start_date: dt.date,
+    vix_data: dict[dt.date, float],
+    hy_spread_dict: dict[dt.date, float],
+    vix_estimate: float,
+    hy_spread_fallback: float,
+) -> int:
+    """Calculate indicators for each date and upsert to database.
+
+    Args:
+        storage: Storage instance
+        spy_dict: SPY prices by date
+        dates: Sorted list of all dates with SPY data
+        start_date: Start date for processing
+        vix_data: VIX prices by date
+        hy_spread_dict: HY spread values by date
+        vix_estimate: Fallback VIX estimate
+        hy_spread_fallback: Fallback HY spread value
+
+    Returns:
+        Number of successful updates
+    """
+    updates_count = 0
+    for i, date in enumerate(dates):
+        if date < start_date:
+            continue
+
+        prices_up_to_date = [spy_dict[d] for d in dates[: i + 1]]
+
+        if len(prices_up_to_date) < 200:
+            logger.warning(
+                "insufficient_data_for_indicators",
+                date=str(date),
+                data_points=len(prices_up_to_date),
+            )
+            continue
+
+        spy_close = spy_dict[date]
+        indicators = _compute_date_indicators(
+            spy_close,
+            prices_up_to_date,
+            date,
+            vix_data,
+            hy_spread_dict,
+            vix_estimate,
+            hy_spread_fallback,
+        )
+
+        if indicators is None:
+            continue
+
+        sma_200, rsi_14, vix_close, hy_spread = indicators
+        breadth_pct = _calculate_market_breadth(storage, date)
+
+        _upsert_inputs_record(
+            storage, date, spy_close, sma_200, rsi_14, vix_close, hy_spread, breadth_pct
+        )
+        updates_count += 1
+
+    return updates_count
+
+
+def _validate_and_fetch_data(
+    storage: PortfolioStorage, end_date: dt.date, start_date: dt.date, data_start: dt.date
+) -> (
+    tuple[
+        dict[dt.date, float],
+        list[dt.date],
+        dict[dt.date, float],
+        dict[dt.date, float],
+        float,
+        float,
+    ]
+    | None
+):
+    """Validate SPY data and fetch all required market indicators.
+
+    Returns (spy_dict, dates, vix_data, hy_spread_dict, vix_est, hy_fallback) or None on error.
+    """
+    spy_dict = _fetch_spy_data(storage, data_start, end_date)
+
+    if len(spy_dict) < 200:
+        return None
+
+    dates = sorted(spy_dict.keys())
+    vix_data, hy_spread_dict, vix_estimate, hy_spread_fallback = _fetch_market_indicators(
+        storage, start_date, end_date
+    )
+
+    return spy_dict, dates, vix_data, hy_spread_dict, vix_estimate, hy_spread_fallback
+
+
+def _process_and_return_results(
+    task_id: str,
+    storage: PortfolioStorage,
+    spy_dict: dict[dt.date, float],
+    dates: list[dt.date],
+    start_date: dt.date,
+    end_date: dt.date,
+    vix_data: dict[dt.date, float],
+    hy_spread_dict: dict[dt.date, float],
+    vix_estimate: float,
+    hy_spread_fallback: float,
+) -> dict[str, Any]:
+    """Process market data and return task results."""
+    logger.info(
+        "populated_market_indicators",
+        task_id=task_id,
+        vix_count=len(vix_data),
+        hy_spread_count=len(hy_spread_dict),
+    )
+
+    updates_count = _calculate_and_upsert_inputs(
+        storage,
+        spy_dict,
+        dates,
+        start_date,
+        vix_data,
+        hy_spread_dict,
+        vix_estimate,
+        hy_spread_fallback,
+    )
+
+    logger.info(
+        "populate_fear_greed_inputs_completed",
+        task_id=task_id,
+        updates_count=updates_count,
+    )
+
+    calculate_fear_greed.apply_async()
+
+    return {
+        "task_id": task_id,
+        "updates_count": updates_count,
+        "date_range": f"{start_date} to {end_date}",
+        "success": True,
+    }
+
+
 @celery_app.task(name="populate_fear_greed_inputs", bind=True)  # type: ignore[misc]
 def populate_fear_greed_inputs(self: Task, days: int = 7) -> dict[str, Any]:
     """Populate fear_greed_inputs table with latest market data.
@@ -443,27 +723,12 @@ def populate_fear_greed_inputs(self: Task, days: int = 7) -> dict[str, Any]:
         storage = get_storage()
         end_date = dt.date.today()
         start_date = end_date - dt.timedelta(days=days)
-
-        # Need extra data for SMA_200 calculation (200 trading days ≈ 280 calendar days + buffer)
         data_start = end_date - dt.timedelta(days=300)
 
-        # Fetch SPY OHLCV data
-        with storage.connection() as conn:
-            result = conn.execute(
-                """
-                SELECT date, close
-                FROM day_bars
-                WHERE ticker = 'SPY'
-                  AND date >= %s
-                  AND date <= %s
-                ORDER BY date ASC
-                """,
-                (data_start, end_date),
-            )
-            spy_data = result.fetchall()
+        result = _validate_and_fetch_data(storage, end_date, start_date, data_start)
 
-        if len(spy_data) < 200:
-            error_msg = f"Insufficient SPY data: got {len(spy_data)} days, need >= 200"
+        if result is None:
+            error_msg = "Insufficient SPY data: need >= 200 days"
             logger.error("populate_fear_greed_inputs_failed", task_id=task_id, error=error_msg)
             return {
                 "task_id": task_id,
@@ -472,119 +737,20 @@ def populate_fear_greed_inputs(self: Task, days: int = 7) -> dict[str, Any]:
                 "success": False,
             }
 
-        # Convert to dict for easy lookup
-        spy_dict = {row[0]: row[1] for row in spy_data}
-        dates = sorted(spy_dict.keys())
+        spy_dict, dates, vix_data, hy_spread_dict, vix_estimate, hy_spread_fallback = result
 
-        # Get latest VIX and HY_spread for fallback estimates
-        with storage.connection() as conn:
-            result = conn.execute(
-                """
-                SELECT vix_close, hy_spread
-                FROM fear_greed_inputs
-                WHERE vix_close IS NOT NULL
-                ORDER BY as_of_date DESC
-                LIMIT 1
-                """
-            )
-            latest = result.fetchone()
-            vix_estimate = latest[0] if latest and latest[0] else 19.5
-            hy_spread_fallback = latest[1] if latest and latest[1] else 3.13
-
-        # Fetch VIX data from database if available
-        with storage.connection() as conn:
-            result = conn.execute(
-                """
-                SELECT date, close
-                FROM day_bars
-                WHERE ticker = '^VIX'
-                  AND date >= %s
-                  AND date <= %s
-                ORDER BY date ASC
-                """,
-                (start_date, end_date),
-            )
-            vix_data = {row[0]: row[1] for row in result.fetchall()}
-
-        # Fetch HY spread data from FRED
-        fred_source = FREDSource()
-        hy_spread_data = fred_source.fetch_series("HY_SPREAD", start_date, end_date)
-        hy_spread_dict = dict(hy_spread_data)
-        logger.info(
-            f"Fetched {len(hy_spread_data)} HY spread observations from FRED",
-            task_id=task_id,
+        return _process_and_return_results(
+            task_id,
+            storage,
+            spy_dict,
+            dates,
+            start_date,
+            end_date,
+            vix_data,
+            hy_spread_dict,
+            vix_estimate,
+            hy_spread_fallback,
         )
-
-        # Process each date in target range
-        updates_count = 0
-        for i, date in enumerate(dates):
-            if date < start_date:
-                continue
-
-            # Get prices up to this date for calculations
-            prices_up_to_date = [spy_dict[d] for d in dates[: i + 1]]
-
-            if len(prices_up_to_date) < 200:
-                logger.warning(
-                    "insufficient_data_for_indicators",
-                    date=str(date),
-                    data_points=len(prices_up_to_date),
-                )
-                continue
-
-            spy_close = spy_dict[date]
-            sma_200 = _calculate_sma(prices_up_to_date, 200)
-            rsi_14 = _calculate_rsi(prices_up_to_date, 14)
-
-            if sma_200 is None or rsi_14 is None:
-                logger.warning("indicator_calculation_failed", date=str(date))
-                continue
-
-            # Use real VIX if available, otherwise estimate
-            vix_close = vix_data.get(date, vix_estimate)
-
-            # Use real HY spread from FRED if available, otherwise fallback
-            hy_spread = hy_spread_dict.get(date, hy_spread_fallback)
-
-            # Calculate market breadth from sector ETFs
-            breadth_pct = _calculate_market_breadth(storage, date)
-
-            # Upsert fear_greed_inputs
-            with storage.connection() as conn:
-                conn.execute(
-                    """
-                    INSERT INTO fear_greed_inputs
-                    (as_of_date, spy_close, spy_sma_200, rsi_14, vix_close, hy_spread, breadth_pct)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (as_of_date)
-                    DO UPDATE SET
-                        spy_close = EXCLUDED.spy_close,
-                        spy_sma_200 = EXCLUDED.spy_sma_200,
-                        rsi_14 = EXCLUDED.rsi_14,
-                        vix_close = EXCLUDED.vix_close,
-                        hy_spread = EXCLUDED.hy_spread,
-                        breadth_pct = EXCLUDED.breadth_pct
-                    """,
-                    (date, spy_close, sma_200, rsi_14, vix_close, hy_spread, breadth_pct),
-                )
-                conn.commit()
-            updates_count += 1
-
-        logger.info(
-            "populate_fear_greed_inputs_completed",
-            task_id=task_id,
-            updates_count=updates_count,
-        )
-
-        # Trigger Fear & Greed calculation
-        calculate_fear_greed.apply_async()
-
-        return {
-            "task_id": task_id,
-            "updates_count": updates_count,
-            "date_range": f"{start_date} to {end_date}",
-            "success": True,
-        }
 
     except Exception as e:
         logger.error(

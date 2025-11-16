@@ -188,6 +188,74 @@ def _update_valuation_metrics(ticker: str, source: str, payload: dict[str, Any])
         )
 
 
+def _process_cache_entries() -> tuple[int, int]:
+    """Process all cache entries and extract valuation metrics.
+
+    Queries all reference_cache entries with payloads, parses JSON,
+    extracts metrics, and updates database.
+
+    Returns:
+        Tuple of (entries_processed, entries_updated)
+    """
+    storage = get_storage()
+    entries_processed = 0
+    entries_updated = 0
+
+    with storage.connection() as conn:
+        # Get all cache entries with non-null payloads
+        results = conn.execute(
+            """
+            SELECT ticker, source, payload
+            FROM reference_cache
+            WHERE payload IS NOT NULL
+            ORDER BY ticker, source, as_of_date DESC
+            """
+        ).fetchall()
+
+        logger.info(
+            "valuation_metrics_found_entries",
+            total_entries=len(results),
+        )
+
+        # Track which ticker/source combinations we've processed
+        # (only process most recent for each pair)
+        processed_pairs: set[tuple[str, str]] = set()
+
+        for ticker, source, payload_json in results:
+            pair = (ticker, source)
+
+            # Skip if we've already processed this ticker/source combo
+            if pair in processed_pairs:
+                continue
+
+            entries_processed += 1
+            processed_pairs.add(pair)
+
+            # Parse payload
+            try:
+                if isinstance(payload_json, str):
+                    payload = json.loads(payload_json)
+                else:
+                    payload = payload_json
+            except json.JSONDecodeError:
+                logger.warning(
+                    "invalid_json_payload",
+                    ticker=ticker,
+                    source=source,
+                )
+                continue
+
+            # Extract and update metrics
+            metrics = _extract_valuation_metrics(payload)
+
+            # Only count as "updated" if we found at least one metric
+            if any(v is not None for v in metrics.values()):
+                entries_updated += 1
+                _update_valuation_metrics(ticker, source, payload)
+
+    return entries_processed, entries_updated
+
+
 @celery_app.task(name="parse_valuation_metrics", bind=True)  # type: ignore[misc]
 def parse_valuation_metrics(self) -> dict[str, int | str]:  # type: ignore[no-untyped-def]
     """Parse valuation metrics from cached JSON payloads.
@@ -220,62 +288,7 @@ def parse_valuation_metrics(self) -> dict[str, int | str]:  # type: ignore[no-un
     )
 
     try:
-        storage = get_storage()
-        entries_processed = 0
-        entries_updated = 0
-
-        with storage.connection() as conn:
-            # Get all cache entries with non-null payloads
-            results = conn.execute(
-                """
-                SELECT ticker, source, payload
-                FROM reference_cache
-                WHERE payload IS NOT NULL
-                ORDER BY ticker, source, as_of_date DESC
-                """
-            ).fetchall()
-
-            logger.info(
-                "valuation_metrics_found_entries",
-                total_entries=len(results),
-            )
-
-            # Track which ticker/source combinations we've processed
-            # (only process most recent for each pair)
-            processed_pairs: set[tuple[str, str]] = set()
-
-            for ticker, source, payload_json in results:
-                pair = (ticker, source)
-
-                # Skip if we've already processed this ticker/source combo
-                if pair in processed_pairs:
-                    continue
-
-                entries_processed += 1
-                processed_pairs.add(pair)
-
-                # Parse payload
-                try:
-                    if isinstance(payload_json, str):
-                        payload = json.loads(payload_json)
-                    else:
-                        payload = payload_json
-                except json.JSONDecodeError:
-                    logger.warning(
-                        "invalid_json_payload",
-                        ticker=ticker,
-                        source=source,
-                    )
-                    continue
-
-                # Extract and update metrics
-                metrics = _extract_valuation_metrics(payload)
-
-                # Only count as "updated" if we found at least one metric
-                if any(v is not None for v in metrics.values()):
-                    entries_updated += 1
-                    _update_valuation_metrics(ticker, source, payload)
-
+        entries_processed, entries_updated = _process_cache_entries()
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
 
         logger.info(
@@ -408,6 +421,76 @@ def refresh_yfinance_reference_data(self) -> dict[str, int | str]:  # type: igno
         raise
 
 
+def _fetch_stale_symbols() -> list[str]:
+    """Fetch symbols needing Alpha Vantage backup data.
+
+    Identifies symbols from watchlist with:
+    - No yfinance data in cache, OR
+    - yfinance data older than 7 days
+
+    Returns:
+        List of ticker symbols needing backup data
+    """
+    storage = get_storage()
+
+    with storage.connection() as conn:
+        result = conn.execute(
+            """
+            SELECT DISTINCT wi.symbol
+            FROM watchlist_items wi
+            LEFT JOIN (
+                SELECT ticker, MAX(as_of_date) as latest_date
+                FROM reference_cache
+                WHERE source = 'yfinance'
+                GROUP BY ticker
+            ) rc ON wi.symbol = rc.ticker
+            WHERE rc.ticker IS NULL
+               OR rc.latest_date < CURRENT_DATE - INTERVAL '7 days'
+            """
+        )
+        return [row[0] for row in result.fetchall()]
+
+
+def _store_alphavantage_payload(symbols: list[str]) -> int:
+    """Store Alpha Vantage reference data in database.
+
+    Fetches reference data from Alpha Vantage API and inserts/updates
+    cache entries.
+
+    Args:
+        symbols: List of ticker symbols to fetch
+
+    Returns:
+        Number of symbols successfully stored
+    """
+    source = AlphaVantageSource()
+    as_of = dt.date.today()
+
+    df = source.fetch_reference_payload(symbols, as_of)
+
+    if df is None or df.is_empty():
+        logger.warning("alphavantage_backup_fetch_failed")
+        return 0
+
+    symbols_stored = len(df)
+    storage = get_storage()
+
+    with storage.connection() as conn:
+        for row in df.iter_rows(named=True):
+            conn.execute(
+                """
+                INSERT INTO reference_cache (ticker, as_of_date, payload, source)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (ticker, as_of_date, source)
+                DO UPDATE SET payload = EXCLUDED.payload
+                """,
+                [row["ticker"], row["as_of_date"], row["payload"], "alphavantage"],
+            )
+        conn.commit()
+
+    return symbols_stored
+
+
 @celery_app.task(name="refresh_alphavantage_reference_backup", bind=True)  # type: ignore[misc]
 def refresh_alphavantage_reference_backup(self) -> dict[str, int | str]:  # type: ignore[no-untyped-def]
     """Fetch Alpha Vantage reference data for symbols with missing/stale yfinance data.
@@ -428,25 +511,7 @@ def refresh_alphavantage_reference_backup(self) -> dict[str, int | str]:  # type
     logger.info("alphavantage_backup_refresh_started", task_id=task_id)
 
     try:
-        storage = get_storage()
-
-        # Find symbols needing backup (no yfinance data or >7 days old)
-        with storage.connection() as conn:
-            result = conn.execute(
-                """
-                SELECT DISTINCT wi.symbol
-                FROM watchlist_items wi
-                LEFT JOIN (
-                    SELECT ticker, MAX(as_of_date) as latest_date
-                    FROM reference_cache
-                    WHERE source = 'yfinance'
-                    GROUP BY ticker
-                ) rc ON wi.symbol = rc.ticker
-                WHERE rc.ticker IS NULL
-                   OR rc.latest_date < CURRENT_DATE - INTERVAL '7 days'
-                """
-            )
-            symbols = [row[0] for row in result.fetchall()]
+        symbols = _fetch_stale_symbols()
 
         if not symbols:
             logger.info("no_symbols_need_alphavantage_backup")
@@ -459,37 +524,7 @@ def refresh_alphavantage_reference_backup(self) -> dict[str, int | str]:  # type
 
         logger.info("fetching_alphavantage_backup", num_symbols=len(symbols))
 
-        # Fetch from Alpha Vantage
-        source = AlphaVantageSource()
-        as_of = dt.date.today()
-
-        df = source.fetch_reference_payload(symbols, as_of)
-
-        if df is None or df.is_empty():
-            logger.warning("alphavantage_backup_fetch_failed")
-            return {
-                "task_id": task_id,
-                "symbols_processed": len(symbols),
-                "symbols_updated": 0,
-                "duration_seconds": (dt.datetime.now(dt.UTC) - start_time).total_seconds(),
-            }
-
-        # Store in reference_cache
-        symbols_updated = len(df)
-
-        with storage.connection() as conn:
-            for row in df.iter_rows(named=True):
-                conn.execute(
-                    """
-                    INSERT INTO reference_cache (ticker, as_of_date, payload, source)
-                    VALUES (%s, %s, %s, %s)
-                    ON CONFLICT (ticker, as_of_date, source)
-                    DO UPDATE SET payload = EXCLUDED.payload
-                    """,
-                    [row["ticker"], row["as_of_date"], row["payload"], "alphavantage"],
-                )
-            conn.commit()
-
+        symbols_updated = _store_alphavantage_payload(symbols)
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
 
         logger.info(
