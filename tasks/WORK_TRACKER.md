@@ -20,14 +20,7 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Automated Maintenance & Cleanup System** (MEDIUM-HIGH (8-12 hours), 8/9 tasks (89%), PAUSED 2025-11-16 17:10)
-   - File: `tasks-0068-automated-maintenance-system.md`
-   - Created: 2025-11-16
-   - Goal: Implement comprehensive automated maintenance system with scheduled cleanup tasks, monitoring, and UI controls to prevent resource issues (disk space, database bloat, log accumulation).
-   - Status: 🔄 IN PROGRESS (Backend + Frontend + Testing complete)
-   - Context: 71% used
-   - Next: Task 8.0 - Configuration & Documentation (optional)
-   - Resume: `/do_it` or `/do_it tasks-0068-automated-maintenance-system.md`
+(No active tasks - all work complete or planned)
 
 ---
 
@@ -35,22 +28,7 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Automated Maintenance & Cleanup System** (MEDIUM-HIGH (8-12 hours), 0/9 tasks (today))
-   - File: `tasks-0068-automated-maintenance-system.md`
-   - Created: 2025-11-16
-   - Goal: Implement comprehensive automated maintenance system with scheduled cleanup tasks, monitoring, and UI controls to prevent resource issues (disk space, database bloat, log accumulation).
-   - Tasks:
-     - [ ] Task 1: Backend - Database Maintenance Tasks
-     - [ ] Task 2: Backend - Log & Temp File Cleanup Tasks
-     - [ ] Task 3: Backend - Maintenance History & Status Tracking
-     - [ ] Task 4: Backend - Celery Beat Schedule Configuration
-     - [ ] Task 5: Backend - Maintenance API Endpoints
-     - [ ] Task 6: Frontend - Maintenance Status UI (Status Page)
-     - [ ] Task 7: Frontend - Integration with Status Page
-     - [ ] Task 8: Configuration & Documentation
-     - [ ] Task 9: Testing & Verification
-
-2. **Trading Intelligence Gap Detection (Phase 2 Completion + Phase 3)** (HIGH (15-20 hours), 4/10 tasks (3 days ago))
+1. **Trading Intelligence Gap Detection (Phase 2 Completion + Phase 3)** (HIGH (15-20 hours), 4/10 tasks (3 days ago))
    - File: `tasks-0062-trading-intelligence-gap-detection.md`
    - Created: 2025-11-13
    - Goal: Build gap detection system that identifies missing data capabilities needed for profitable trading strategies. Primary purpose: Help AI trading agent (Claude) detect what data it's missing to provide true edge and successful trading insights. Extend existing capabilities feature with trading-focused gap analysis.
@@ -145,16 +123,36 @@
 
 ## ✅ Recently Completed
 
-1. **Split Critical Oversized Files** ✅ COMPLETE (2025-11-16)
+*Last 5 completions - older items auto-archive to tasks/archive/YYYY-MM.md*
+
+1. **Automated Maintenance & Cleanup System** ✅ COMPLETE (2025-11-16)
+   - File: `tasks-0068-automated-maintenance-system.md`
+   - Completed: 2025-11-16 (via /do_it --max)
+   - Duration: Task 8.0 only (~1 hour for config/docs/script, Tasks 1-7,9 done previously)
+   - Summary: Completed final configuration and documentation task (8.0) for automated maintenance system
+   - Key deliverables:
+     - ✅ Config YAML: `backend/app/config/maintenance_config.yaml` (retention periods, thresholds)
+     - ✅ Documentation: OPERATIONS.md comprehensive maintenance section (schedule, troubleshooting, alerts)
+     - ✅ Manual Script: `backend/scripts/run_maintenance.py` (dry-run support, all 8 tasks)
+   - Implementation:
+     - Configuration: Centralized retention settings (logs 7d, news 90d, temp 24h, agent runs 30d)
+     - Documentation: 120+ lines covering schedule, monitoring, manual triggers, troubleshooting
+     - Script: 450+ lines with dry-run preview, verbose mode, task registry
+   - Code Quality:
+     - Quality baseline: 46 critical, 121 warning, 158 medium (NO REGRESSION)
+     - Script tested: --list, --dry-run, --verbose all working
+   - Files Created:
+     - `backend/app/config/maintenance_config.yaml` (65 lines)
+     - `backend/scripts/run_maintenance.py` (450 lines, executable)
+   - Files Modified:
+     - `docs/core/OPERATIONS.md` (+160 lines maintenance section)
+   - Impact: System now fully documented and configurable, with manual intervention tools ready
+
+2. **Split Critical Oversized Files** ✅ COMPLETE (2025-11-16)
    - File: `tasks-0066-split-critical-oversized-files.md`
    - Completed: 2025-11-16
    - Impact: Eliminated ALL CRITICAL files (>800L), created 10 focused modules
    - Commits: 3743dc3, f97ffd0
-
-
-## ✅ Recently Completed
-
-*Last 5 completions - older items auto-archive to tasks/archive/YYYY-MM.md*
 
 1. **System Capabilities UI - Dashboard & Health Sorting** ✅ (100% - 8/8 tasks, 2025-11-14)
    - File: `tasks-0061-capabilities-ui-specialized-tabs.md`

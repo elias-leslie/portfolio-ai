@@ -1,0 +1,79 @@
+# Maintenance Configuration
+# ========================
+#
+# This file defines retention periods and thresholds for automated maintenance tasks.
+# These values control how long data is kept before cleanup.
+#
+# Schedule: Configured in backend/app/celery_app.py beat_schedule
+# Tasks: Implemented in backend/app/tasks/maintenance_tasks.py and log_cleanup_tasks.py
+
+# Retention Periods
+# -----------------
+retention:
+  # Logs: How long to keep log files before deletion
+  # Daily cleanup runs at 02:00 UTC
+  log_retention_days: 7
+
+  # News: How long to keep cached news articles
+  # Weekly cleanup runs Sunday 04:00 UTC
+  news_retention_days: 90
+
+  # Temp files: How long to keep temporary files
+  # Daily cleanup runs at 02:15 UTC
+  temp_retention_hours: 24
+
+  # Agent runs: How long to keep agent run history
+  # Weekly cleanup runs Sunday 04:15 UTC
+  agent_run_retention_days: 30
+
+  # Orphaned data: Cleanup interval (not time-based, integrity-based)
+  # Weekly cleanup runs Sunday 04:30 UTC
+  orphaned_data_cleanup_enabled: true
+
+# Monitoring Thresholds
+# ---------------------
+monitoring:
+  # Disk space: Alert threshold (percentage)
+  # Checked every 6 hours
+  disk_space_alert_threshold: 85
+
+  # Database size: Warning threshold (GB)
+  # Checked daily at 03:45 UTC
+  database_size_warning_gb: 10
+
+  # Database size: Critical threshold (GB)
+  database_size_critical_gb: 20
+
+# Vacuum Settings
+# ---------------
+vacuum:
+  # VACUUM ANALYZE schedule: Weekly Sunday 03:30 UTC
+  # Full vacuum (all tables) or specific tables only
+  vacuum_all_tables: true
+
+  # Analyze tables after vacuum to update query planner statistics
+  analyze_after_vacuum: true
+
+# Cleanup Behaviors
+# -----------------
+cleanup:
+  # Log rotation: Rotate logs before cleanup
+  rotate_before_cleanup: true
+
+  # Temp files: Patterns to exclude from cleanup
+  temp_exclude_patterns:
+    - "*.lock"
+    - "celerybeat-schedule"
+    - ".gitkeep"
+
+  # News cleanup: Only delete if fetched_at is older than retention period
+  # This preserves news that was re-fetched recently
+  news_respect_refetch: true
+
+# Notes
+# -----
+# - To change retention periods, update values here and restart Celery Beat
+# - Retention periods in celery_app.py beat_schedule should match these values
+# - All tasks are idempotent and safe to run multiple times
+# - Manual triggers available via API: POST /api/maintenance/trigger/{task_name}
+# - View status and history: Status page > Maintenance tab
