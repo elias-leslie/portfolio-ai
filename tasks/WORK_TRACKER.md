@@ -20,7 +20,14 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-(No active tasks)
+1. **Split Critical Oversized Files** (HIGH (10-14 hours), 0/10 tasks, PAUSED 2025-11-16)
+   - File: `tasks-0066-split-critical-oversized-files.md`
+   - Created: 2025-11-15
+   - Goal: Split 2 CRITICAL files exceeding 800-line hard limit (agents/tools.py 1214L, services/capability_scanner.py 1192L) into focused modules
+   - Status: PAUSED (2025-11-16 12:00)
+   - Context: 70% used, Task 0065 complete (commit 29191cb)
+   - Next: Task 0.1 - Scope Discovery
+   - Resume: `/do_it tasks-0066-split-critical-oversized-files.md` or just `/do_it`
 
 ---
 
