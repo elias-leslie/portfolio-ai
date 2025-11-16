@@ -25,8 +25,9 @@ test.describe('Portfolio Page', () => {
   test('can navigate to portfolio page from home', async ({ page }) => {
     await page.goto('/')
 
-    // Find and click portfolio link in navigation
-    const portfolioLink = page.getByRole('link', { name: /portfolio/i })
+    // Find and click portfolio link in navigation (use exact match and scope to nav)
+    const nav = page.locator('nav').first()
+    const portfolioLink = nav.getByRole('link', { name: 'Portfolio', exact: true })
     await portfolioLink.click()
 
     // Verify navigation occurred

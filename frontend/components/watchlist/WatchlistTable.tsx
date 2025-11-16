@@ -749,7 +749,7 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                   </TableCell>
                 </TableRow>
                 {isExpanded && (
-                  <TableRow id={`watchlist-row-${item.id}`}>
+                  <TableRow id={`watchlist-row-${item.id}`} data-state="open">
                     <TableCell colSpan={10} className="bg-surface-muted/20 p-4">
                       <ExpandedRow item={item} refreshStatus={refreshStatus} />
                     </TableCell>

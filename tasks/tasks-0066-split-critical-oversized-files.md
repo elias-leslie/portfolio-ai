@@ -1,3 +1,5 @@
+<!-- PAUSED: 2025-11-16 12:00 | Context: 70% | Reason: User request | Next: Task 0.1 - Scope Discovery -->
+
 # Task List: Split Critical Oversized Files
 
 **Source**: Code review - Cloud agent analysis (2025-11-15)
@@ -5,7 +7,13 @@
 **Effort**: HIGH (10-14 hours total, 5-7 hours per file)
 **Environment**: Local Dev
 **Created**: 2025-11-15
-**Status**: NOT STARTED
+**Last Updated**: 2025-11-16 12:00
+**Status**: PAUSED
+**Pause Reason**: User request (end of session)
+**Context Used**: 140K/200K (70%)
+**Completed This Session**: Task 0065 (AI Analyzer CLI migration - commit 29191cb)
+**Next Action**: Task 0.1 - Scope Discovery for agents/tools.py and services/capability_scanner.py
+**Resume Command**: `/do_it tasks-0066-split-critical-oversized-files.md`
 
 ---
 

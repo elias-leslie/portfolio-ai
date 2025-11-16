@@ -72,7 +72,7 @@ export default function RootLayout({
         />
         <Providers>
           <Navigation />
-          {children}
+          <main>{children}</main>
           <Toaster position="top-right" richColors />
         </Providers>
       </body>
