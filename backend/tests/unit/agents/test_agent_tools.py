@@ -485,9 +485,11 @@ def test_agent_tools_initialization(
         analytics=mock_analytics,
     )
 
+    # Verify AgentTools correctly initializes with dependencies
     assert tools.storage is mock_storage
-    assert tools.news_service is mock_news_service
-    assert tools.fred_source is mock_fred_source
-    assert tools.price_fetcher is mock_price_fetcher
-    assert tools.portfolio_mgr is mock_portfolio_mgr
-    assert tools.analytics is mock_analytics
+    # Dependencies are delegated to specialized executors
+    assert tools.data.news_service is mock_news_service
+    assert tools.data.fred_source is mock_fred_source
+    assert tools.data.price_fetcher is mock_price_fetcher
+    assert tools.data.portfolio_mgr is mock_portfolio_mgr
+    assert tools.data.analytics is mock_analytics
