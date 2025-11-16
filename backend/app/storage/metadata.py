@@ -55,9 +55,27 @@ class MetadataManager:
             return  # table_registry not initialized yet
 
         # Get current row count
+        # Validate table_name against information_schema to prevent SQL injection
         try:
-            result = conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()
-            row_count = result[0] if result else 0
+            # Verify table exists in public schema
+            table_exists = conn.execute(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.tables
+                WHERE table_schema = 'public'
+                  AND table_name = %s
+                """,
+                [table_name],
+            ).fetchone()
+
+            if not table_exists or table_exists[0] == 0:
+                row_count = 0
+            else:
+                # Safe to use table_name after validation
+                result = conn.execute(
+                    f"SELECT COUNT(*) FROM {table_name}"
+                ).fetchone()  # validated: table from information_schema
+                row_count = result[0] if result else 0
         except Exception:
             row_count = 0
 
@@ -90,9 +108,11 @@ class MetadataManager:
                 "validation_results",
             ]
             counts = {}
-            for table in tables:
+            for table in tables:  # validated: table from hardcoded list
                 try:
-                    result = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
+                    result = conn.execute(
+                        f"SELECT COUNT(*) FROM {table}"
+                    ).fetchone()  # validated: table from hardcoded list above
                     counts[table] = result[0] if result else 0
                 except Exception:
                     counts[table] = 0

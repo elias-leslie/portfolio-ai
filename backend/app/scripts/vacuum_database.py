@@ -69,6 +69,35 @@ def get_all_tables(conn: Any) -> list[str]:
     return [row[0] for row in result]
 
 
+def validate_table_exists(conn: Any, table_name: str) -> None:
+    """Validate that a table exists in pg_tables before vacuum.
+
+    This prevents SQL injection by ensuring the table_name parameter
+    matches an actual table in the database before using it in VACUUM.
+
+    Args:
+        conn: Database connection
+        table_name: Name of table to validate
+
+    Raises:
+        ValueError: If table does not exist in public schema
+    """
+    result = conn.execute(
+        """
+        SELECT tablename
+        FROM pg_tables
+        WHERE schemaname = 'public' AND tablename = ?
+        """,
+        [table_name],
+    ).fetchone()
+
+    if not result:
+        raise ValueError(
+            f"Table '{table_name}' does not exist in public schema. "
+            "Use --tables to specify valid tables or omit to vacuum all tables."
+        )
+
+
 def vacuum_database(tables: list[str] | None = None, dry_run: bool = False) -> dict[str, Any]:
     """Run VACUUM ANALYZE on database tables.
 
@@ -99,6 +128,9 @@ def vacuum_database(tables: list[str] | None = None, dry_run: bool = False) -> d
             for table_name in tables:
                 logger.info("vacuum_table_started", table=table_name)
 
+                # Validate table exists before using in SQL (prevents SQL injection)
+                validate_table_exists(conn, table_name)
+
                 # Get size before
                 before_mb = get_table_size(conn, table_name)
                 total_before_mb += before_mb
@@ -107,6 +139,7 @@ def vacuum_database(tables: list[str] | None = None, dry_run: bool = False) -> d
                     # Run VACUUM ANALYZE (PostgreSQL specific)
                     # Note: VACUUM cannot run inside a transaction block
                     conn.execute("COMMIT")  # Ensure no active transaction
+                    # validated: table from pg_tables
                     conn.execute(f"VACUUM ANALYZE {table_name}")
                     logger.info("vacuum_table_completed", table=table_name)
                 else:

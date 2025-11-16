@@ -20,7 +20,7 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-(No active tasks - all work complete or planned)
+(No active tasks)
 
 ---
 
@@ -28,7 +28,21 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Trading Intelligence Gap Detection (Phase 2 Completion + Phase 3)** (HIGH (15-20 hours), 4/10 tasks (3 days ago))
+1. **Comprehensive Code Quality Cleanup** (HIGH (20-30 hours), 0/8 tasks (today))
+   - File: `tasks-0069-comprehensive-code-quality-cleanup.md`
+   - Created: 2025-11-16
+   - Goal: Fix ALL code quality issues from baseline report - 46 critical, 121 warning, 158 medium issues. Zero tolerance for skipping pre-existing issues. Systematic cleanup with quality gates at each phase.
+   - Tasks:
+     - [ ] Task 0: Scope Discovery (MANDATORY)
+     - [ ] Task 1: PHASE 1: CRITICAL Security - SQL Injection Fixes (P0)
+     - [ ] Task 2: PHASE 2: CRITICAL Complexity - Long Functions (P0)
+     - [ ] Task 3: PHASE 3: WARNING File Sizes (P1)
+     - [ ] Task 4: PHASE 4: Any Type Cleanup (P2)
+     - [ ] Task 5: PHASE 5: Multiple Concerns Files (P2)
+     - [ ] Task 6: PHASE 6: Technical Debt (TODOs) (P3)
+     - [ ] Task 7: PHASE 7: Final Verification & Documentation
+
+2. **Trading Intelligence Gap Detection (Phase 2 Completion + Phase 3)** (HIGH (15-20 hours), 4/10 tasks (3 days ago))
    - File: `tasks-0062-trading-intelligence-gap-detection.md`
    - Created: 2025-11-13
    - Goal: Build gap detection system that identifies missing data capabilities needed for profitable trading strategies. Primary purpose: Help AI trading agent (Claude) detect what data it's missing to provide true edge and successful trading insights. Extend existing capabilities feature with trading-focused gap analysis.

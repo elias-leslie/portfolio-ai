@@ -36,6 +36,50 @@ class IngestionManager:
         self.connection_mgr = connection_mgr
         self.metadata_mgr = metadata_mgr
 
+    def _validate_table_exists(self, conn: Any, table_name: str) -> bool:
+        """Validate table exists in public schema (SQL injection prevention).
+
+        Args:
+            conn: Database connection
+            table_name: Table name to validate
+
+        Returns:
+            True if table exists, False otherwise
+        """
+        result = conn.execute(
+            """
+            SELECT COUNT(*)
+            FROM information_schema.tables
+            WHERE table_schema = 'public'
+              AND table_name = %s
+            """,
+            [table_name],
+        ).fetchone()
+        return result is not None and result[0] > 0
+
+    def _validate_column_exists(self, conn: Any, table_name: str, column_name: str) -> bool:
+        """Validate column exists in table (SQL injection prevention).
+
+        Args:
+            conn: Database connection
+            table_name: Table name (already validated)
+            column_name: Column name to validate
+
+        Returns:
+            True if column exists, False otherwise
+        """
+        result = conn.execute(
+            """
+            SELECT COUNT(*)
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = %s
+              AND column_name = %s
+            """,
+            [table_name, column_name],
+        ).fetchone()
+        return result is not None and result[0] > 0
+
     def insert_dataframe(
         self,
         table_name: str,
@@ -56,8 +100,14 @@ class IngestionManager:
             return 0
 
         with self.connection_mgr.connection() as conn:
+            # Validate table exists to prevent SQL injection
+            if not self._validate_table_exists(conn, table_name):
+                raise ValueError(f"Table '{table_name}' does not exist in public schema")
+
             if mode == "replace":
-                conn.execute(f"DELETE FROM {table_name}")
+                conn.execute(
+                    f"DELETE FROM {table_name}"
+                )  # validated: table from information_schema
                 conn.commit()  # Commit the deletion before insert
 
             # Use explicit DataFrame insertion instead of variable reference
@@ -95,13 +145,19 @@ class IngestionManager:
             return 0
 
         with self.connection_mgr.connection() as conn:
+            # Validate table and column exist to prevent SQL injection
+            if not self._validate_table_exists(conn, table_name):
+                raise ValueError(f"Table '{table_name}' does not exist in public schema")
+            if not self._validate_column_exists(conn, table_name, id_column):
+                raise ValueError(f"Column '{id_column}' does not exist in table '{table_name}'")
+
             # Get unique IDs to delete
             ids = df[id_column].to_list()
             placeholders = ",".join(["?" for _ in ids])
 
-            # Delete existing rows
+            # Delete existing rows (safe after validation)
             conn.execute(
-                f"DELETE FROM {table_name} WHERE {id_column} IN ({placeholders})",
+                f"DELETE FROM {table_name} WHERE {id_column} IN ({placeholders})",  # validated: table/column from information_schema
                 ids,
             )
 

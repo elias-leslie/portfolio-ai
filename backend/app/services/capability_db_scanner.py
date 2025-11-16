@@ -114,7 +114,9 @@ class DatabaseScanner:
         """
         # Get row count
         # Note: table_name is from database introspection, not user input
-        result = conn.execute(f"SELECT COUNT(*) FROM {table_name}")
+        result = conn.execute(
+            f"SELECT COUNT(*) FROM {table_name}"
+        )  # validated: table from SQLAlchemy inspector
         row = result.fetchone()
         row_count = row[0] if row else 0
 
@@ -134,7 +136,9 @@ class DatabaseScanner:
                 try:
                     # Count non-NULL values
                     # Note: col_name from introspection, not user input
-                    result = conn.execute(f"SELECT COUNT({col_name}) as cnt FROM {table_name}")
+                    result = conn.execute(
+                        f"SELECT COUNT({col_name}) as cnt FROM {table_name}"
+                    )  # validated: table/column from SQLAlchemy inspector
                     row = result.fetchone()
                     non_null_count = row[0] if row else 0
 

@@ -137,14 +137,71 @@ async def get_table_freshness() -> TableFreshnessResponse:
         now = datetime.now(UTC)
 
         with conn_mgr.connection() as conn:
+            # Validate all table and column names exist before executing queries
+            # This prevents SQL injection by verifying configuration against schema
+            validated_configs = []
             for table_name, timestamp_col, col_type, expected_hours, desc in table_configs:
                 try:
+                    # Check table exists in information_schema
+                    table_check = conn.execute(
+                        """
+                        SELECT EXISTS(
+                            SELECT 1 FROM information_schema.tables
+                            WHERE table_schema = 'public' AND table_name = %s
+                        )
+                        """,
+                        [table_name],
+                    )
+                    table_exists = table_check.fetchone()[0]
+
+                    if not table_exists:
+                        logger.warning(
+                            f"table_not_found_{table_name}",
+                            table=table_name,
+                        )
+                        continue
+
+                    # Check column exists in table
+                    col_check = conn.execute(
+                        """
+                        SELECT EXISTS(
+                            SELECT 1 FROM information_schema.columns
+                            WHERE table_schema = 'public' AND table_name = %s AND column_name = %s
+                        )
+                        """,
+                        [table_name, timestamp_col],
+                    )
+                    col_exists = col_check.fetchone()[0]
+
+                    if not col_exists:
+                        logger.warning(
+                            f"column_not_found_{table_name}_{timestamp_col}",
+                            table=table_name,
+                            column=timestamp_col,
+                        )
+                        continue
+
+                    # validated: table/column from information_schema
+                    validated_configs.append(
+                        (table_name, timestamp_col, col_type, expected_hours, desc)
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"failed_to_validate_config_{table_name}",
+                        error=str(e),
+                    )
+                    continue
+
+            for table_name, timestamp_col, col_type, expected_hours, desc in validated_configs:
+                try:
                     # Get latest timestamp
+                    # validated: table/column from information_schema
                     result = conn.execute(f"SELECT MAX({timestamp_col}) FROM {table_name}")
                     row = result.fetchone()
                     last_updated = row[0] if row else None
 
                     # Get row count
+                    # validated: table/column from information_schema
                     result = conn.execute(f"SELECT COUNT(*) FROM {table_name}")
                     row = result.fetchone()
                     row_count = row[0] if row else 0

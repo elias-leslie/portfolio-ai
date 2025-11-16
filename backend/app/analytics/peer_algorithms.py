@@ -203,7 +203,7 @@ def validate_and_get_group_data(
     Returns:
         Tuple of (group_name, peer_tickers) or (None, None) if validation fails
     """
-    # Validate group_by parameter
+    # Validate group_by parameter to prevent SQL injection
     if group_by not in ["sector", "industry"]:
         logger.error(
             "invalid_group_by",
@@ -213,6 +213,7 @@ def validate_and_get_group_data(
         return None, None
 
     # Get the ticker's sector/industry from price_cache
+    # validated: group_by from whitelist above
     ticker_group_query = f"""
         SELECT DISTINCT ON (symbol)
             symbol as ticker,
@@ -234,6 +235,7 @@ def validate_and_get_group_data(
     group_name = ticker_group_data[group_by][0]
 
     # Get all tickers in the same sector/industry
+    # validated: group_by from whitelist above
     peers_query = f"""
         SELECT DISTINCT ON (symbol)
             symbol as ticker

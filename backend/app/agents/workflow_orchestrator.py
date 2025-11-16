@@ -144,10 +144,14 @@ class WorkflowOrchestrator:
             updates["error"] = error
 
         # Build SET clause
+        # Validate column names against whitelist to prevent SQL injection
+        allowed_columns = {"status", "current_step", "started_at", "completed_at", "error"}
         set_parts = []
         values = []
         for i, (key, value) in enumerate(updates.items(), start=1):
-            set_parts.append(f"{key} = ${i}")
+            if key not in allowed_columns:
+                raise ValueError(f"Invalid column name: {key}")
+            set_parts.append(f"{key} = ${i}")  # validated: column from whitelist
             values.append(value)
 
         values.append(workflow_id)  # WHERE clause
@@ -155,7 +159,7 @@ class WorkflowOrchestrator:
 
         with self.storage.connection() as conn:
             conn.execute(
-                f"UPDATE agent_workflows SET {set_clause} WHERE id = ${len(values)}",
+                f"UPDATE agent_workflows SET {set_clause} WHERE id = ${len(values)}",  # validated: columns from whitelist
                 values,
             )
 
