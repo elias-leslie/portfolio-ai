@@ -20,7 +20,14 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-(No active tasks)
+1. **Automated Maintenance & Cleanup System** (MEDIUM-HIGH (8-12 hours), 8/9 tasks (89%), PAUSED 2025-11-16 17:10)
+   - File: `tasks-0068-automated-maintenance-system.md`
+   - Created: 2025-11-16
+   - Goal: Implement comprehensive automated maintenance system with scheduled cleanup tasks, monitoring, and UI controls to prevent resource issues (disk space, database bloat, log accumulation).
+   - Status: 🔄 IN PROGRESS (Backend + Frontend + Testing complete)
+   - Context: 71% used
+   - Next: Task 8.0 - Configuration & Documentation (optional)
+   - Resume: `/do_it` or `/do_it tasks-0068-automated-maintenance-system.md`
 
 ---
 
