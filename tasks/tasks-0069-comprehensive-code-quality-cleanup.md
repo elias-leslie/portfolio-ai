@@ -1,16 +1,16 @@
 # Task List: Comprehensive Code Quality Cleanup
 
-<!-- PAUSED: 2025-11-16 | Context: 73% | Reason: User request | Next: Phase 2 - Task 2.1 (Refactor CRITICAL long functions) -->
+<!-- PAUSED: 2025-11-16 19:45 | Context: 72% | Reason: User request | Next: Task 3.2 - Refactor gap_detector.py -->
 
 **Source**: User request via /task_it
 **Complexity**: Complex
-**Effort**: HIGH (20-30 hours total, ~12 hours remaining)
+**Effort**: HIGH (20-30 hours total, ~8 hours remaining)
 **Environment**: Local Dev (auto-detected)
 **Created**: 2025-11-16 17:30
-**Status**: PAUSED (Option B - Pragmatic approach)
-**Last Updated**: 2025-11-16
+**Status**: PAUSED (After Phase 2 + Phase 3.1 complete)
+**Last Updated**: 2025-11-16 19:45
 **Pause Reason**: User request (73% context used, good stopping point)
-**Context Used**: 150K/200K (73%)
+**Context Used**: 149K/200K (72%)
 **Completed This Session**: Phase 0 (Scope Discovery) + Phase 1 (SQL Injection Fixes - 12/12)
 **Next Action**: Phase 2 Task 2.1 - Refactor ml_training_tasks.py (286 lines)
 **Resume Command**: `/do_it tasks-0069-comprehensive-code-quality-cleanup.md` or `/do_it`
@@ -115,54 +115,46 @@
   - Imports: All functions and 30+ helpers verified
   - Committed: 16c1498
 
-### 3.0 PHASE 3: WARNING File Sizes (P1)
+### 3.0 🔄 PARTIAL PHASE 3: WARNING File Sizes (P1) - 1/6 complete
 
 **Baseline**: 14 files >500 lines (500-804 lines)
+**Progress**: 1 file refactored (celery_app.py), 5 files with complete plans ready
 
 **Strategy**: Group by related functionality, refactor in batches
 
-- [ ] 3.1 Refactor gap_detector.py (804 lines) - Largest file
-  - Split: Gap detection engine (core logic)
-  - Split: Gap analysis strategies (different gap types)
-  - Split: Report generation
-  - Split: Database persistence
-  - Target: <500 lines per file
-- [ ] 3.2 Refactor capabilities.py (798 lines)
-  - Split: Scanner implementations (DB, Celery, Endpoints)
-  - Split: Analysis engine
-  - Split: Insight generators
-  - Target: <500 lines per file
-- [ ] 3.3 Refactor maintenance.py (764 lines)
-  - Split: Maintenance task wrappers
-  - Split: Status/history queries
-  - Split: Manual trigger handlers
-  - Target: <500 lines per file
-- [ ] 3.4 Refactor market_data_tasks.py (753 lines)
-  - Split: Fear & Greed data pipeline
-  - Split: Options data pipeline
-  - Split: Market breadth calculations
-  - Target: <500 lines per file
-- [ ] 3.5 Refactor watchlist_service.py (733 lines)
-  - Split: Snapshot building
-  - Split: Score management
-  - Split: News parsing
-  - Target: <500 lines per file
-- [ ] 3.6 Refactor scoring_service.py (644 lines)
-  - Split: Context initialization
-  - Split: Ticker processing
-  - Split: Batch operations
-  - Target: <500 lines per file
-- [ ] 3.7 Refactor remaining 8 WARNING files (500-631 lines)
-  - workflow_orchestrator.py (631 lines)
-  - news_vendor_manager.py (565 lines)
-  - ai_analyzer.py (555 lines)
-  - news_quality_metrics.py (532 lines)
-  - fundamentals.py (531 lines)
-  - celery_app.py (530 lines)
-  - finnhub_source.py (463 lines)
-  - fmp_source.py (455 lines)
-  - Apply focused module extraction
-- [ ] 3.8 Verification gate
+- [x] 3.1 ✅ Refactor celery_app.py (530→113 lines, 79% reduction)
+  - Extracted: 387-line beat_schedule → celery_schedules.py (421 lines)
+  - All 29 periodic tasks now in dedicated module
+  - Commit: a007bbd
+- [ ] 3.2 Refactor gap_detector.py (804 lines) - Largest file
+  - **Plan Ready**: 5 modules (types, requirements, capability_checker, analyzer, facade)
+  - Target: 804→100 lines facade (87% reduction)
+- [ ] 3.3 Refactor capabilities.py (798 lines)
+  - **Plan Ready**: 3 routers (capabilities, insights, notes)
+  - Target: 798→280 lines + 3 modules @130-280 lines
+- [ ] 3.4 Refactor maintenance.py (764 lines)
+  - **Plan Ready**: 4 routers (scripts, history, tasks, monitoring)
+  - Target: 764→220 lines + 4 modules @140-220 lines
+- [ ] 3.5 Refactor market_data_tasks.py (919 lines)
+  - **Plan Ready**: 3 pipeline modules (fear_greed, options, historical_ohlcv)
+  - Target: 919→150 lines + 3 modules @150-450 lines
+  - Note: Grew from 753→919 in Phase 2 (helper functions added)
+- [ ] 3.6 Refactor watchlist_service.py (733 lines)
+  - **Plan Ready**: 6 sub-modules (formatters, builders, intelligence, services)
+  - Target: 733→280 lines + 6 modules @50-250 lines
+- [ ] 3.7 Refactor scoring_service.py (644 lines)
+  - **Plan Ready**: 5 sub-modules (redis_tracker, batch_loader, context, processor, aggregator)
+  - Target: 644→150 lines + 5 modules @50-200 lines
+- [ ] 3.8 Refactor remaining 8 WARNING files (500-631 lines) - DEFERRED
+  - workflow_orchestrator.py (635 lines) - **Plan Ready**: Split conflict resolution
+  - news_vendor_manager.py (565 lines) - **Plan Ready**: Split config/fetch/stats
+  - fundamentals.py (531 lines) - **Plan Ready**: Split sources/scoring/caching
+  - ai_analyzer.py (555 lines) - **Plan Ready**: Extract Claude CLI adapter
+  - news_quality_metrics.py (532 lines) - **Plan Ready**: Extract text utils (P2)
+  - finnhub_source.py (463 lines) - **Acceptable as-is** (well-structured)
+  - fmp_source.py (455 lines) - **Acceptable as-is** (well-structured)
+  - Note: celery_app.py DONE in Task 3.1 ✅
+- [ ] 3.9 Verification gate
   - Run: quality-report.sh --quick
   - Confirm: 0 files >500 lines (all under soft limit)
   - Confirm: All new modules <300 lines (target)
