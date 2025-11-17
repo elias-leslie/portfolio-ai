@@ -278,7 +278,9 @@ def refresh_daily_ohlcv(  # type: ignore[no-untyped-def]
     try:
         # Fetch last 5 trading days to ensure we have the latest data
         # (accounts for holidays, weekends, and delayed data feeds)
-        result: dict[str, int | str] = ingest_historical_ohlcv(self, tickers=tickers, days=5)
+        # Call the implementation function directly (not as a task) to avoid Celery's
+        # synchronous subtask prohibition. This runs within the refresh_daily_ohlcv task context.
+        result = _ingest_historical_ohlcv_impl(tickers, days=5, task_id=task_id)
         return result
 
     except Exception as e:
@@ -291,33 +293,22 @@ def refresh_daily_ohlcv(  # type: ignore[no-untyped-def]
         raise
 
 
-@celery_app.task(name="ingest_historical_ohlcv", bind=True)  # type: ignore[misc]
-def ingest_historical_ohlcv(  # type: ignore[no-untyped-def]
-    self, tickers: list[str], days: int = 252
+def _ingest_historical_ohlcv_impl(
+    tickers: list[str], days: int = 252, task_id: str | None = None
 ) -> dict[str, int | str | float]:
-    """Backfill historical OHLCV data using multi-source fetcher.
+    """Implementation of OHLCV ingestion logic (shared by task and direct calls).
 
-    Fetches historical daily bars for the specified tickers and lookback period,
-    storing results in the day_bars table with source lineage tracking.
+    This is the actual implementation that can be called both from the Celery task
+    and directly from other tasks (like refresh_daily_ohlcv).
 
     Args:
         tickers: List of ticker symbols to fetch data for
         days: Number of trading days to backfill (default: 252 = ~1 year)
+        task_id: Optional Celery task ID (for logging)
 
     Returns:
-        Dict with task results:
-        - task_id: Celery task ID
-        - ingest_run_id: Unique ID for this ingestion run
-        - tickers_count: Number of tickers processed
-        - rows_inserted: Total rows inserted into day_bars table
-        - duration_seconds: Total execution time
-        - errors: Number of tickers that failed to fetch
-
-    Example:
-        >>> ingest_historical_ohlcv.delay(["AAPL", "MSFT", "GOOGL"], days=252)
-        >>> # Backfills 252 days of OHLCV data for 3 tickers
+        Dict with ingestion results
     """
-    task_id = self.request.id
     ingest_run_id = str(uuid.uuid4())
     start_time = dt.datetime.now(dt.UTC)
 
@@ -368,7 +359,7 @@ def ingest_historical_ohlcv(  # type: ignore[no-untyped-def]
 
         # Build and return result
         return _build_ingestion_result(
-            task_id=task_id,
+            task_id=task_id or "direct",
             ingest_run_id=ingest_run_id,
             tickers=tickers,
             rows_inserted=rows_inserted,
@@ -385,3 +376,32 @@ def ingest_historical_ohlcv(  # type: ignore[no-untyped-def]
             error_type=type(e).__name__,
         )
         raise
+
+
+@celery_app.task(name="ingest_historical_ohlcv", bind=True)  # type: ignore[misc]
+def ingest_historical_ohlcv(  # type: ignore[no-untyped-def]
+    self, tickers: list[str], days: int = 252
+) -> dict[str, int | str | float]:
+    """Backfill historical OHLCV data using multi-source fetcher.
+
+    Fetches historical daily bars for the specified tickers and lookback period,
+    storing results in the day_bars table with source lineage tracking.
+
+    Args:
+        tickers: List of ticker symbols to fetch data for
+        days: Number of trading days to backfill (default: 252 = ~1 year)
+
+    Returns:
+        Dict with task results:
+        - task_id: Celery task ID
+        - ingest_run_id: Unique ID for this ingestion run
+        - tickers_count: Number of tickers processed
+        - rows_inserted: Total rows inserted into day_bars table
+        - duration_seconds: Total execution time
+        - errors: Number of tickers that failed to fetch
+
+    Example:
+        >>> ingest_historical_ohlcv.delay(["AAPL", "MSFT", "GOOGL"], days=252)
+        >>> # Backfills 252 days of OHLCV data for 3 tickers
+    """
+    return _ingest_historical_ohlcv_impl(tickers, days, self.request.id)

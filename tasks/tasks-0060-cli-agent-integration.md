@@ -281,7 +281,12 @@
   - Test complete tool execution flow
   - Verify multi-turn conversations
   - Created test_discovery_agent_cli.py with 6 E2E integration tests
-- [ ] 3.7 Update Discovery/Portfolio Analyzer (and future personas) to use provider profiles + new runtime
+- [x] 3.7 Update Discovery/Portfolio Analyzer (and future personas) to use provider profiles + new runtime ✅ **COMPLETE** (2025-11-17)
+  - Updated agent_tasks.py to instantiate DualProviderClient for both agents
+  - Zero-cost execution using Gemini CLI primary, Claude CLI fallback
+  - 7 comprehensive integration tests created (all passing)
+  - No code quality regression (41/131/168 baseline maintained)
+  - Commit: 1fee15d
 - [x] 3.2a **Refactor CapabilityAnalyzer (Task 0059)** to use DualProviderClient ✅ **ALREADY COMPLETE**
   - File: `backend/app/services/ai_analyzer.py`
   - ✅ Already using DualProviderClient(primary="gemini") as of previous session

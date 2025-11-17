@@ -20,20 +20,7 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Tailscale Remote Access Fix** ⚠️ URGENT - User on vacation (2025-11-17)
-   - File: `tasks/TAILSCALE-ACCESS-ISSUE.md`
-   - Status: Backend ✅ running | Frontend ⚠️ 500 error on Tailscale IP
-   - Issue: http://100.123.190.81:3000 returns 500 Internal Server Error
-   - Progress:
-     - [x] Backend permissions fixed (logs, files, directories)
-     - [x] Frontend dynamic API URL detection added
-     - [x] Turbopack build error fixed
-     - [x] Backend health check passing
-     - [ ] Frontend 500 error on Tailscale IP (needs debugging)
-   - Next: Check frontend binding (0.0.0.0 vs 127.0.0.1), view error logs
-   - Commits: 8472e7a, de4bd16
-
-2. **CLI Agent Integration (Task 0060 - Tasks 0-2 COMPLETE, Task 3 Testing COMPLETE)** (33% - 2/6 complete)
+1. **CLI Agent Integration (Task 0060 - Tasks 0-2 COMPLETE, Task 3 Testing COMPLETE)** (33% - 2/6 complete)
    - File: `tasks-0060-cli-agent-integration.md`
    - Started: 2025-02-14 (9 months ago)
    - Last updated: Task 3.0 ✅ **COMPLETE** (9/9 sub-tasks, 100%) - PAUSED
