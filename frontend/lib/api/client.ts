@@ -8,7 +8,14 @@
  * - Local network (192.168.8.233:3000) → Use local backend (192.168.8.233:8000)
  * - Localhost → Use localhost:8000
  */
+let cachedApiBaseUrl: string | null = null;
+
 function getApiBaseUrl(): string {
+  // Return cached value if already computed
+  if (cachedApiBaseUrl) {
+    return cachedApiBaseUrl;
+  }
+
   // Server-side rendering: use environment variable
   if (typeof window === "undefined") {
     return process.env.NEXT_PUBLIC_API_URL || "http://192.168.8.233:8000";
@@ -18,26 +25,34 @@ function getApiBaseUrl(): string {
   const hostname = window.location.hostname;
   const port = 8000; // Backend always on port 8000
 
+  let baseUrl: string;
+
   // Tailscale access
   if (hostname === "100.123.190.81") {
-    return `http://100.123.190.81:${port}`;
+    baseUrl = `http://100.123.190.81:${port}`;
   }
-
   // Local network access
-  if (hostname === "192.168.8.233") {
-    return `http://192.168.8.233:${port}`;
+  else if (hostname === "192.168.8.233") {
+    baseUrl = `http://192.168.8.233:${port}`;
   }
-
   // Localhost/127.0.0.1
-  if (hostname === "localhost" || hostname === "127.0.0.1") {
-    return `http://localhost:${port}`;
+  else if (hostname === "localhost" || hostname === "127.0.0.1") {
+    baseUrl = `http://localhost:${port}`;
+  }
+  // Fallback to environment variable or local network
+  else {
+    baseUrl = process.env.NEXT_PUBLIC_API_URL || `http://${hostname}:${port}`;
   }
 
-  // Fallback to environment variable or local network
-  return process.env.NEXT_PUBLIC_API_URL || `http://${hostname}:${port}`;
+  // Cache for subsequent calls
+  cachedApiBaseUrl = baseUrl;
+  return baseUrl;
 }
 
-export const API_BASE_URL = getApiBaseUrl();
+/**
+ * Export the API base URL (for debugging/logging purposes)
+ */
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
 /**
  * Custom API error class with status code
@@ -63,7 +78,7 @@ function sleep(ms: number): Promise<void> {
 /**
  * Unified API request function with retry logic and error handling
  *
- * @param url - Full URL or path (will be prefixed with API_BASE_URL if relative)
+ * @param url - Full URL or path (will be prefixed with detected API base URL if relative)
  * @param options - Fetch options
  * @param retries - Number of retry attempts (default: 3)
  * @returns Parsed JSON response
@@ -75,7 +90,8 @@ export async function apiRequest<T>(
   retries = 3
 ): Promise<T> {
   // Construct full URL if relative path provided
-  const fullUrl = url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
+  // Use getApiBaseUrl() to detect the correct backend based on current access method
+  const fullUrl = url.startsWith("http") ? url : `${getApiBaseUrl()}${url}`;
 
   // Merge default headers with custom headers
   const headers: HeadersInit = {
