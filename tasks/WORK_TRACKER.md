@@ -45,7 +45,7 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Comprehensive Code Quality Cleanup** (HIGH (20-30 hours total, ~5 hours remaining), 4/8 tasks (yesterday))
+1. **Comprehensive Code Quality Cleanup** (HIGH (20-30 hours total, ~10 hours remaining), 4/8 tasks (yesterday))
    - File: `tasks-0069-comprehensive-code-quality-cleanup.md`
    - Created: 2025-11-16
    - Goal: Fix ALL code quality issues from baseline report - 46 critical, 121 warning, 158 medium issues. Zero tolerance for skipping pre-existing issues. Systematic cleanup with quality gates at each phase.
