@@ -1,26 +1,19 @@
 """AI-powered capability analysis service.
 
-This module uses Claude Code CLI to analyze system capabilities and generate
-insights about data quality, missing capabilities, and broken dependencies.
+This module uses dual-provider LLM clients (Gemini + Claude CLI) to analyze
+system capabilities and generate insights about data quality, missing capabilities,
+and broken dependencies.
 
-ROLLBACK PLAN (if CLI fails):
-1. Revert to git commit before this change
-2. Set ANTHROPIC_API_KEY in .env
-3. Restart services: bash ~/portfolio-ai/scripts/restart.sh
-4. Previous version used anthropic package directly via API
+Zero API costs - uses local CLI tools with automatic failover.
 """
 
 from __future__ import annotations
 
 import json
-import os
-import shutil
-import subprocess
-import time
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
+from ..agents.llm_client import DualProviderClient
 from ..logging_config import get_logger
 from ..storage.connection import ConnectionManager
 from .config_loader import load_capabilities_config
@@ -38,13 +31,10 @@ class CapabilityAnalyzer:
     """
 
     def __init__(self, conn_mgr: ConnectionManager) -> None:
-        """Initialize analyzer with database connection and Claude CLI.
+        """Initialize analyzer with database connection and dual-provider LLM client.
 
         Args:
             conn_mgr: Database connection manager
-
-        Raises:
-            FileNotFoundError: If Claude CLI not found in system
         """
         self.conn_mgr = conn_mgr
         self.config = load_capabilities_config()
@@ -55,49 +45,13 @@ class CapabilityAnalyzer:
         self.model = ai_config.get("model", "claude-sonnet-4.5")
         self.confidence_threshold = ai_config.get("confidence_threshold", 0.70)
 
-        # Find Claude CLI executable
+        # Initialize dual-provider LLM client (Gemini primary, Claude fallback)
         try:
-            self.cli_path: str | None = self._find_claude_cli()
-            logger.info("claude_cli_found", path=self.cli_path)
-        except FileNotFoundError:
-            logger.warning("claude_cli_not_found", message="Claude CLI not available in PATH")
-            self.cli_path = None
-
-    def _find_claude_cli(self) -> str:
-        """Find Claude CLI executable path.
-
-        Checks in order:
-        1. Environment variable CLAUDE_CLI_PATH (if set)
-        2. Standard locations: /home/kasadis/.local/bin/claude, /usr/local/bin/claude, /usr/bin/claude
-        3. PATH search via shutil.which()
-
-        Returns:
-            Path to claude CLI executable
-
-        Raises:
-            FileNotFoundError: If claude CLI not found
-        """
-        # Check environment variable first
-        env_path = os.getenv("CLAUDE_CLI_PATH")
-        if env_path and Path(env_path).is_file() and os.access(env_path, os.X_OK):
-            return env_path
-
-        # Check standard locations
-        standard_paths = [
-            "/home/kasadis/.local/bin/claude",
-            "/usr/local/bin/claude",
-            "/usr/bin/claude",
-        ]
-        for path in standard_paths:
-            if Path(path).is_file() and os.access(path, os.X_OK):
-                return path
-
-        # Search PATH
-        which_result = shutil.which("claude")
-        if which_result:
-            return which_result
-
-        raise FileNotFoundError("Claude CLI not found in PATH or standard locations")
+            self.llm_client = DualProviderClient(primary="gemini")
+            logger.info("llm_client_initialized", providers=["gemini", "claude"])
+        except RuntimeError as e:
+            logger.warning("llm_client_unavailable", error=str(e))
+            self.llm_client = None
 
     def analyze(self) -> list[dict[str, Any]]:
         """Run full AI analysis pipeline.
@@ -109,8 +63,8 @@ class CapabilityAnalyzer:
             logger.info("ai_analysis_disabled")
             return []
 
-        if not self.cli_path:
-            logger.error("ai_analysis_skipped", reason="Claude CLI not found")
+        if not self.llm_client:
+            logger.error("ai_analysis_skipped", reason="LLM client not available")
             return []
 
         logger.info("ai_analysis_started")
@@ -122,8 +76,18 @@ class CapabilityAnalyzer:
             # Build prompt
             prompt = self.build_prompt(capabilities)
 
-            # Call AI API
-            ai_response = self.call_ai_api(prompt)
+            # Call LLM with dual-provider client (Gemini primary, Claude fallback)
+            logger.info("calling_llm_client", prompt_length=len(prompt))
+            response = self.llm_client.generate(prompt=prompt)
+            ai_response = response.content
+
+            logger.info(
+                "llm_response_received",
+                provider=response.provider,
+                model=response.model,
+                tokens=response.usage.get("total_tokens", 0),
+                response_length=len(ai_response),
+            )
 
             # Parse response
             insights = self.parse_ai_response(ai_response)
@@ -341,99 +305,6 @@ Return ONLY the JSON array, no additional text.
 """
 
         return prompt
-
-    def call_ai_api(self, prompt: str) -> str:
-        """Call Claude CLI with prompt.
-
-        Args:
-            prompt: Formatted prompt string
-
-        Returns:
-            AI response text
-
-        Raises:
-            subprocess.TimeoutExpired: If CLI execution times out
-            subprocess.CalledProcessError: If CLI returns non-zero exit code
-            ValueError: If CLI response is not valid JSON
-        """
-        if not self.cli_path:
-            raise ValueError("Claude CLI not initialized")
-
-        logger.info("calling_claude_cli", model=self.model, cli_path=self.cli_path)
-
-        # Map model name to CLI model flag
-        model_flag = "sonnet" if "sonnet" in self.model.lower() else "opus"
-
-        # Build CLI command
-        cmd = [
-            self.cli_path,
-            "-p",
-            prompt,
-            "--output-format",
-            "json",
-            "--model",
-            model_flag,
-            "--permission-mode",
-            "bypassPermissions",
-        ]
-
-        try:
-            # Execute CLI with timeout (5 minutes for large prompts)
-            start_time = time.time()
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=300,  # 5 minute timeout
-                check=True,
-                # Clear ANTHROPIC_API_KEY to avoid invalid placeholder
-                env={**os.environ, "ANTHROPIC_API_KEY": ""},
-            )
-            duration_ms = int((time.time() - start_time) * 1000)
-
-            # Parse JSON response
-            try:
-                response_json = json.loads(result.stdout)
-            except json.JSONDecodeError as e:
-                logger.error(
-                    "claude_cli_json_parse_failed",
-                    error=str(e),
-                    stdout_preview=result.stdout[:500],
-                )
-                raise ValueError(f"Failed to parse CLI JSON response: {e}") from e
-
-            # Extract result from JSON response
-            if response_json.get("is_error"):
-                error_msg = str(response_json.get("result", "Unknown error"))
-                logger.error("claude_cli_returned_error", error=error_msg)
-                raise ValueError(f"CLI returned error: {error_msg}")
-
-            response_text = str(response_json.get("result", ""))
-
-            logger.info(
-                "claude_cli_success",
-                model=model_flag,
-                duration_ms=duration_ms,
-                response_length=len(response_text),
-            )
-
-            return response_text
-
-        except subprocess.TimeoutExpired:
-            logger.error("claude_cli_timeout", timeout_seconds=300)
-            raise
-
-        except subprocess.CalledProcessError as e:
-            logger.error(
-                "claude_cli_failed",
-                exit_code=e.returncode,
-                stderr_preview=e.stderr[:500] if e.stderr else None,
-            )
-            raise
-
-        except Exception as e:
-            logger.error("claude_cli_unexpected_error", error=str(e))
-            raise
 
     def parse_ai_response(self, response: str) -> list[dict[str, Any]]:
         """Parse AI response into structured insights.

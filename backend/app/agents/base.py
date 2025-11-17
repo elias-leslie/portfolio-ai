@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, TypedDict, cast
 from anthropic import Anthropic
 
 from ..logging_config import get_logger
+from .llm_client import LLMClient
 from .types import ToolInputDict
 
 if TYPE_CHECKING:
@@ -51,6 +52,7 @@ class Agent(ABC):
     def __init__(
         self,
         storage: PortfolioStorage,
+        llm_client: LLMClient | None = None,
         anthropic_client: Anthropic | None = None,
         model: str = "claude-3-5-sonnet-20241022",
     ) -> None:
@@ -58,11 +60,17 @@ class Agent(ABC):
 
         Args:
             storage: PortfolioStorage instance
-            anthropic_client: Anthropic client (or create new one)
+            llm_client: LLM client (DualProviderClient for CLI providers)
+            anthropic_client: Anthropic client (deprecated, for backwards compatibility)
             model: Claude model to use
+
+        Note:
+            If llm_client is provided, it takes precedence over anthropic_client.
+            Tool calling currently requires anthropic_client (CLI tool support coming soon).
         """
         self.storage = storage
-        self.client = anthropic_client or Anthropic()
+        self.llm_client = llm_client
+        self.client = anthropic_client or Anthropic()  # Keep for tool calling support
         self.model = model
         self.agent_type = self.__class__.__name__
 
