@@ -13,7 +13,7 @@ from ..logging_config import get_logger
 if TYPE_CHECKING:
     from app.storage.facade import PortfolioStorage
 
-from .base import Agent
+from .base import Agent, AgentRunResult
 from .tools import (
     AgentTools,
     get_economic_data_tool_definition,
@@ -108,7 +108,7 @@ Generate exactly 5 ideas that are specifically tailored to this portfolio, then 
 
         raise ValueError(f"Unknown tool: {tool_name}")
 
-    def run(self, user_prompt: str = "", max_iterations: int = 10) -> dict[str, Any]:
+    def run(self, user_prompt: str = "", max_iterations: int = 10) -> AgentRunResult:
         """Run Portfolio Analyzer Agent with default prompt.
 
         Args:

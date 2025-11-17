@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from typing import Any, Literal, cast
+from typing import Literal, cast
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -209,8 +209,8 @@ async def create_paper_trade(request: CreateTradeRequest) -> CreateTradeResponse
     )
 
 
-@router.get("/transactions", response_model=list[dict[str, Any]])
-async def get_transactions(limit: int = 100) -> list[dict[str, Any]]:
+@router.get("/transactions")
+async def get_transactions(limit: int = 100) -> list[dict[str, str | int | float | None]]:
     """Get recent paper trade transactions.
 
     Returns a list of all transaction records (entries and exits) ordered by
@@ -231,8 +231,8 @@ async def get_transactions(limit: int = 100) -> list[dict[str, Any]]:
     return transactions
 
 
-@router.get("/transactions/{trade_id}", response_model=list[dict[str, Any]])
-async def get_trade_transactions(trade_id: str) -> list[dict[str, Any]]:
+@router.get("/transactions/{trade_id}")
+async def get_trade_transactions(trade_id: str) -> list[dict[str, str | int | float | None]]:
     """Get all transactions for a specific trade.
 
     Returns entry and exit transactions for a paper trade, useful for auditing

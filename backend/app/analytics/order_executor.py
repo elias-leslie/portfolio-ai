@@ -7,7 +7,7 @@ Phase B: Advanced order types (limit, stop), fill simulation with slippage.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Literal, TypedDict
 
 from app.analytics.cash_manager import CashManager
 from app.analytics.transaction_logger import TransactionLogger
@@ -18,6 +18,20 @@ if TYPE_CHECKING:
     from app.storage import PortfolioStorage
 
 logger = get_logger(__name__)
+
+
+class OrderExecutionResult(TypedDict, total=False):
+    """Result of executing a market order."""
+
+    filled: bool
+    ticker: str
+    action: str
+    shares: int
+    price: float
+    amount: float
+    cash_before: float
+    cash_after: float
+    error: str | None
 
 
 class OrderExecutor:
@@ -42,7 +56,7 @@ class OrderExecutor:
         account_id: str,
         trade_id: str | None = None,
         notes: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> OrderExecutionResult:
         """Execute a market order with instant fill at current price.
 
         Phase A: Simple instant fills, no slippage.

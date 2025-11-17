@@ -9,7 +9,7 @@ import json
 import uuid
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, TypedDict, cast
 
 from anthropic import Anthropic
 
@@ -19,6 +19,25 @@ if TYPE_CHECKING:
     from app.storage.facade import PortfolioStorage
 
 logger = get_logger(__name__)
+
+
+class ToolCallRecord(TypedDict):
+    """Record of a tool call made by the agent."""
+
+    name: str
+    input: dict[str, Any]
+    result: Any
+
+
+class AgentRunResult(TypedDict, total=False):
+    """Result of an agent run."""
+
+    status: str
+    response: str
+    tool_calls: list[ToolCallRecord]
+    iterations: int
+    error: str
+    run_id: str
 
 
 class Agent(ABC):
@@ -105,10 +124,10 @@ class Agent(ABC):
         self,
         run_id: str,
         started_at: datetime,
-        tool_calls_made: list[dict[str, Any]],
+        tool_calls_made: list[ToolCallRecord],
         iteration: int,
         final_text: str,
-    ) -> dict[str, Any]:
+    ) -> AgentRunResult:
         """Handle successful agent run completion.
 
         Args:
@@ -141,13 +160,14 @@ class Agent(ABC):
             "response": final_text,
             "tool_calls": tool_calls_made,
             "iterations": iteration + 1,
+            "run_id": run_id,
         }
 
     def _process_tool_calls(
         self,
         response: Any,
         run_id: str,
-        tool_calls_made: list[dict[str, Any]],
+        tool_calls_made: list[ToolCallRecord],
     ) -> tuple[list[Any], list[dict[str, Any]]]:
         """Process tool calls from API response.
 
@@ -191,7 +211,7 @@ class Agent(ABC):
 
         return assistant_content, tool_results
 
-    def run(self, user_prompt: str, max_iterations: int = 10) -> dict[str, Any]:
+    def run(self, user_prompt: str, max_iterations: int = 10) -> AgentRunResult:
         """Run the agent with a user prompt.
 
         Args:
@@ -216,7 +236,7 @@ class Agent(ABC):
 
         try:
             messages = [{"role": "user", "content": user_prompt}]
-            tool_calls_made: list[dict[str, Any]] = []
+            tool_calls_made: list[ToolCallRecord] = []
 
             for iteration in range(max_iterations):
                 response = self.client.messages.create(
@@ -255,6 +275,7 @@ class Agent(ABC):
                         "status": "error",
                         "error": f"Unexpected stop reason: {response.stop_reason}",
                         "tool_calls": tool_calls_made,
+                        "run_id": run_id,
                     }
 
             # Max iterations reached
@@ -265,12 +286,13 @@ class Agent(ABC):
                 "status": "max_iterations",
                 "tool_calls": tool_calls_made,
                 "iterations": max_iterations,
+                "run_id": run_id,
             }
 
         except Exception as e:
             logger.error(f"Agent run {run_id} failed: {e}")
             self._record_run_complete(run_id, datetime.now(UTC), "error", 0, str(e))
-            return {"status": "error", "error": str(e)}
+            return {"status": "error", "error": str(e), "run_id": run_id}
 
     def _record_run_start(self, run_id: str, started_at: datetime) -> None:
         """Record agent run start in database."""

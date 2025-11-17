@@ -35,7 +35,11 @@ class PostgreSQLConnectionWrapper:
     to PostgreSQL-style %s placeholders.
     """
 
-    def __init__(self, pg_conn: Any, engine: Any = None) -> None:
+    def __init__(
+        self,
+        pg_conn: Any,  # psycopg2.extensions.connection or PoolProxiedConnection
+        engine: Engine | None = None,
+    ) -> None:
         """Initialize wrapper around psycopg2 connection.
 
         Args:
@@ -78,11 +82,13 @@ class PostgreSQLConnectionWrapper:
 
     def fetchall(self) -> list[tuple[Any, ...]]:
         """Fetch all results from last query."""
-        return self._cursor.fetchall()  # type: ignore[no-any-return]
+        result: list[tuple[Any, ...]] = self._cursor.fetchall()
+        return result
 
     def fetchone(self) -> tuple[Any, ...] | None:
         """Fetch one result from last query."""
-        return self._cursor.fetchone()  # type: ignore[no-any-return]
+        result: tuple[Any, ...] | None = self._cursor.fetchone()
+        return result
 
     def pl(self) -> Any:
         """Convert query results to Polars DataFrame (compatibility).

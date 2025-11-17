@@ -113,7 +113,7 @@ def run_discovery_agent(self) -> str:  # type: ignore[no-untyped-def]
             task_id=task_id,
             run_id=run_id,
         )
-        return run_id  # type: ignore[no-any-return]
+        return run_id
 
     except Exception as e:
         logger.error(
@@ -155,7 +155,7 @@ def run_portfolio_analyzer(self) -> str:  # type: ignore[no-untyped-def]
             task_id=task_id,
             run_id=run_id,
         )
-        return run_id  # type: ignore[no-any-return]
+        return run_id
 
     except Exception as e:
         logger.error(

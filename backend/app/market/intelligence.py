@@ -157,7 +157,7 @@ def enrich_dxy_indicator(
 def enrich_putcall_indicator(
     put_call_ratio: float,
     last_updated: str,
-    context: dict[str, Any] | None = None,
+    context: dict[str, Any] | None = None,  # Can accept PutCallContext or None
 ) -> EnrichedIndicator:
     """Enrich Put/Call Ratio indicator with plain-language labels.
 

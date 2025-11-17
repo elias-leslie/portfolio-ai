@@ -9,7 +9,7 @@ Provides historical context for options metrics:
 from __future__ import annotations
 
 import datetime as dt
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Literal, TypedDict
 
 from ..logging_config import get_logger
 
@@ -19,11 +19,19 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
+class PutCallContext(TypedDict):
+    """Historical context for Put/Call ratio."""
+
+    trend: Literal["up", "down", "flat"]
+    trend_pct: float
+    percentile_rank: int
+
+
 def calculate_putcall_context(
     current_ratio: float,
     as_of_date: dt.date,
     storage: PortfolioStorage,
-) -> dict[str, Any]:
+) -> PutCallContext:
     """Calculate historical context for Put/Call ratio.
 
     Args:
@@ -71,6 +79,7 @@ def calculate_putcall_context(
         historical_ratios = [row[0] for row in result_90d]
 
     # Calculate 7-day trend
+    trend: Literal["up", "down", "flat"]
     if ratio_7d_ago and ratio_7d_ago > 0:
         trend_pct = ((current_ratio - ratio_7d_ago) / ratio_7d_ago) * 100
 

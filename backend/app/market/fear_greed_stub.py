@@ -21,10 +21,10 @@ from app.storage import get_storage
 
 # Redis connection
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
-_redis_client: Any = None  # redis.Redis with decode_responses=True
+_redis_client: redis.Redis[str] | None = None  # redis.Redis with decode_responses=True
 
 
-def _get_redis_client() -> Any:  # redis.Redis with decode_responses=True
+def _get_redis_client() -> redis.Redis[str]:
     """Get or create Redis client for caching."""
     global _redis_client  # noqa: PLW0603
     if _redis_client is None:

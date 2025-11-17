@@ -44,7 +44,7 @@ def extract_with_path(data: dict[str, Any], path: str | None) -> Any:
         return data
 
     keys = path.split(".")
-    current: Any = data
+    current: dict[str, Any] | None = data
     for key in keys:
         if isinstance(current, dict):
             current = current.get(key)

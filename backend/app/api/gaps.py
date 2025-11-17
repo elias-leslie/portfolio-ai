@@ -10,7 +10,7 @@ Endpoints:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, TypedDict
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -22,6 +22,58 @@ from ..storage.connection import ConnectionManager
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/gaps", tags=["gaps"])
+
+
+# ========================================================================
+# TypedDict Definitions for Response Data
+# ========================================================================
+
+
+class CoverageResult(TypedDict, total=False):
+    """Coverage analysis result for an analysis type."""
+
+    coverage_pct: float
+    gaps: list[dict[str, str | int | float]]  # GapInfo dicts
+    maturity_level: str
+
+
+class MVPRoadmap(TypedDict):
+    """MVP roadmap data."""
+
+    week_1_tasks: list[str]
+    week_2_tasks: list[str]
+    week_3_tasks: list[str]
+    week_4_tasks: list[str]
+    expected_edge: str
+
+
+class DataAvailability(TypedDict):
+    """Data availability status for a table."""
+
+    available: bool
+    row_count: int
+
+
+class TickerCoverageByAnalysis(TypedDict):
+    """Coverage percentage by analysis type for a ticker."""
+
+    technical: float
+    fundamental: float
+    sentiment: float
+    risk: float
+    execution: float
+    macro: float
+    ml: float
+    compliance: float
+
+
+class AggregateGap(TypedDict):
+    """Gap affecting multiple tickers."""
+
+    gap_id: str
+    description: str
+    affected_tickers: int
+    priority: str
 
 
 # ========================================================================
@@ -57,16 +109,16 @@ class GapSummaryResponse(BaseModel):
     p1_gaps: int
     p2_gaps: int
     p3_gaps: int
-    analysis_types: dict[str, Any]  # CoverageResult per analysis type
+    analysis_types: dict[str, CoverageResult]  # analysis_type → CoverageResult
     avg_coverage_pct: float
-    top_10_priorities: list[dict[str, Any]]  # GapInfo for TOP 10
-    mvp_roadmap: dict[str, Any]
+    top_10_priorities: list[dict[str, str | int | float]]  # GapInfo for TOP 10
+    mvp_roadmap: MVPRoadmap
 
 
 class GapsByAnalysisResponse(BaseModel):
     """Gaps grouped by analysis type."""
 
-    analysis_types: dict[str, Any]  # analysis_type → CoverageResult
+    analysis_types: dict[str, CoverageResult]  # analysis_type → CoverageResult
 
 
 class TickerGapsResponse(BaseModel):
@@ -77,15 +129,15 @@ class TickerGapsResponse(BaseModel):
     confidence_level: str  # LOW/MEDIUM/HIGH
     coverage_by_analysis: dict[str, float]  # analysis_type → coverage %
     missing_capabilities: list[str]  # Top 10 missing capabilities
-    data_availability: dict[str, Any]  # table → availability status
+    data_availability: dict[str, DataAvailability]  # table → availability status
 
 
 class WatchlistGapsResponse(BaseModel):
     """Gaps affecting current watchlist."""
 
     watchlist_tickers: list[str]
-    ticker_coverage: dict[str, Any]  # ticker → analysis_type → coverage %
-    aggregate_gaps: list[dict[str, Any]]  # Gaps affecting multiple tickers
+    ticker_coverage: dict[str, TickerCoverageByAnalysis]  # ticker → coverage by analysis
+    aggregate_gaps: list[AggregateGap]  # Gaps affecting multiple tickers
 
 
 class TaskListGeneratedResponse(BaseModel):
