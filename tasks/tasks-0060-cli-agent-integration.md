@@ -293,10 +293,25 @@
   - ✅ Gemini primary, Claude fallback for zero per-token costs
   - ✅ Task 0062 Task 4.0 UNBLOCKED - ai_analyzer working with CLI adapters
   - Note: Celery task `analyze_capabilities` calls this and continues working
-- [ ] 3.3 Extend `agent_runs` schema to capture provider/model/status telemetry (CLI command, model flag, session/resume token, exit code, duration stats) and expose via API
-- [ ] 3.4 Implement cancellation/timeouts + error handling for CLI processes with retries/fallback, mirroring doc best practices (e.g., wrap with `timeout 300`, capture stderr logs when `claude`/`gemini` fail)
-- [ ] 3.5 Add SSE/WebSocket streaming endpoint for run events (text chunks, tool calls, completion)
-- [ ] 3.6 Persist CLI usage metadata (Gemini `stats.models/tools`, Claude stream summaries) and multi-turn session IDs so `/agents` UI can show model usage, token counts, and support `--resume/--continue` follow-ups.
+- [x] 3.3 Extend `agent_runs` schema to capture provider/model/status telemetry ✅ **COMPLETE** (2025-11-17)
+  - Migration 046: Added 7 telemetry columns (provider, model, cli_command, exit_code, duration_ms, token_usage, session_id)
+  - Updated Agent.run() to track and persist telemetry
+  - Extended API to expose telemetry fields
+  - Commit: 9d10b32
+- [x] 3.4 Timeout/error handling ✅ **INFRASTRUCTURE COMPLETE** (2025-11-17)
+  - ✅ 300s timeout implemented in both ClaudeCLIClient and GeminiCLIClient
+  - ✅ TimeoutExpired exception handling with logging
+  - ✅ CalledProcessError handling with stderr capture
+  - ✅ Dual-provider failover provides redundancy
+  - Note: Advanced retry-with-backoff deferred (failover sufficient for MVP)
+- [ ] 3.5 SSE/WebSocket streaming endpoint ⏸️ **DEFERRED**
+  - Requires: FastAPI SSE/WebSocket setup, frontend integration, real-time UI
+  - Scope: Medium-large feature (separate task recommended)
+  - Current: Agent runs complete synchronously, results available via polling
+- [ ] 3.6 Persist CLI usage metadata ⏸️ **DEFERRED**
+  - Requires: Session management, resume/continue UI, metadata parsing
+  - Scope: Medium feature (separate task recommended)
+  - Current: Token usage tracked in agent_runs.token_usage (Task 3.3)
 - [x] 3.7 **Multi-Agent Collaboration Infrastructure** (for Tasks 0063/0064 autonomous workflows)
   - [x] 3.7.1 Create `agent_messages` table for inter-agent communication
     - Schema: `id`, `from_agent_run_id`, `to_agent_type`, `message_type` (question/answer/data/consensus), `content` (JSONB), `status` (pending/read/replied), `created_at`, `read_at`
