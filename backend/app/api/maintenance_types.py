@@ -1,0 +1,48 @@
+"""TypedDict definitions for maintenance API endpoints.
+
+Response models for monitoring, tasks, and health endpoints.
+"""
+
+from __future__ import annotations
+
+from typing import TypedDict
+
+
+class DiskSpaceResponseDict(TypedDict, total=False):
+    """Response from get_disk_space endpoint."""
+
+    partitions: dict[str, object]
+    alerts: list[object]
+
+
+class DatabaseSizeResponseDict(TypedDict):
+    """Response from get_database_size endpoint."""
+
+    database_size_bytes: int
+    tables: list[dict[str, object]]
+
+
+class MaintenanceScheduleResponseDict(TypedDict):
+    """Response from get_maintenance_schedule endpoint."""
+
+    scheduled_tasks: dict[str, dict[str, object]]
+    total_count: int
+
+
+class TaskTriggerResponseDict(TypedDict):
+    """Response from trigger_maintenance_task endpoint."""
+
+    task_id: str
+    task_name: str
+    status: str
+    message: str
+
+
+class TaskStatusResponseDict(TypedDict, total=False):
+    """Response from get_task_status endpoint."""
+
+    task_id: str
+    state: str
+    ready: bool
+    successful: bool | None
+    result: object

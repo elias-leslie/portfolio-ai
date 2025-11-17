@@ -6,7 +6,7 @@ database size, maintenance statistics, and scheduled task information.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from celery.schedules import (  # type: ignore[import-untyped]
     crontab as CrontabSchedule,  # noqa: N812 - Using CamelCase for isinstance checks
@@ -19,6 +19,11 @@ from ...services.maintenance_tracker import (
     get_all_metrics_summary,
     get_cleanup_trends,
 )
+from ..maintenance_types import (
+    DatabaseSizeResponseDict,
+    DiskSpaceResponseDict,
+    MaintenanceScheduleResponseDict,
+)
 
 logger = get_logger(__name__)
 
@@ -29,7 +34,7 @@ router = APIRouter(prefix="/api/maintenance", tags=["maintenance"])
 
 
 @router.get("/disk-space")
-async def get_disk_space() -> dict[str, Any]:
+async def get_disk_space() -> DiskSpaceResponseDict:
     """Get current disk space usage for all monitored partitions.
 
     Returns:
@@ -43,7 +48,7 @@ async def get_disk_space() -> dict[str, Any]:
         task = celery_app.send_task("check_disk_space_task")
         result: dict[str, Any] = task.get(timeout=10)  # Wait up to 10 seconds
 
-        return result
+        return cast(DiskSpaceResponseDict, result)
 
     except Exception as e:
         logger.error(
@@ -58,7 +63,7 @@ async def get_disk_space() -> dict[str, Any]:
 
 
 @router.get("/database-size")
-async def get_database_size() -> dict[str, Any]:
+async def get_database_size() -> DatabaseSizeResponseDict:
     """Get current database size and table sizes.
 
     Returns:
@@ -72,7 +77,7 @@ async def get_database_size() -> dict[str, Any]:
         task = celery_app.send_task("get_database_size_task")
         result: dict[str, Any] = task.get(timeout=10)  # Wait up to 10 seconds
 
-        return result
+        return cast(DatabaseSizeResponseDict, result)
 
     except Exception as e:
         logger.error(
@@ -134,7 +139,7 @@ async def get_maintenance_stats(
 
 
 @router.get("/schedule")
-async def get_maintenance_schedule() -> dict[str, Any]:
+async def get_maintenance_schedule() -> MaintenanceScheduleResponseDict:
     """Get schedule information for all maintenance tasks.
 
     Returns:

@@ -6,13 +6,12 @@ Celery-based maintenance tasks.
 
 from __future__ import annotations
 
-from typing import Any
-
 from celery.result import AsyncResult  # type: ignore[import-untyped]
 from fastapi import APIRouter, HTTPException
 
 from ...celery_app import celery_app
 from ...logging_config import get_logger
+from ..maintenance_types import TaskStatusResponseDict, TaskTriggerResponseDict
 
 logger = get_logger(__name__)
 
@@ -23,7 +22,7 @@ router = APIRouter(prefix="/api/maintenance", tags=["maintenance"])
 
 
 @router.post("/trigger/{task_name}")
-async def trigger_maintenance_task(task_name: str) -> dict[str, Any]:
+async def trigger_maintenance_task(task_name: str) -> TaskTriggerResponseDict:
     """Manually trigger a specific maintenance task.
 
     Args:
@@ -84,7 +83,7 @@ async def trigger_maintenance_task(task_name: str) -> dict[str, Any]:
 
 
 @router.get("/status/{task_id}")
-async def get_task_status(task_id: str) -> dict[str, Any]:
+async def get_task_status(task_id: str) -> TaskStatusResponseDict:
     """Get status of a running maintenance task.
 
     Args:
