@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from typing import Literal
 
@@ -196,6 +197,10 @@ class AgentRunStatusResponse(BaseModel):
     run_id: str | None = None
     num_ideas: int | None = None
     error: str | None = None
+    provider: str | None = None
+    model: str | None = None
+    duration_ms: int | None = None
+    token_usage: dict[str, int] | None = None
 
 
 @router.get("/runs/{task_id}/status", response_model=AgentRunStatusResponse)
@@ -223,24 +228,41 @@ async def get_agent_run_status(task_id: str) -> AgentRunStatusResponse:
         # Task completed - get run_id from result
         run_id = task_result.result
 
-        # Query agent_runs for details
+        # Query agent_runs for details including telemetry
         with storage.connection() as conn:
             result = conn.execute(
-                "SELECT num_ideas FROM agent_runs WHERE id = ?",
+                """
+                SELECT num_ideas, provider, model, duration_ms, token_usage
+                FROM agent_runs WHERE id = ?
+                """,
                 [run_id],
             ).fetchone()
 
         if result:
+            num_ideas, provider, model, duration_ms, token_usage_json = result
+
+            # Parse token_usage JSON if present
+            token_usage = None
+            if token_usage_json:
+                token_usage = json.loads(token_usage_json)
+
             logger.info(
                 "agent_run_completed",
                 task_id=task_id,
                 run_id=run_id,
-                num_ideas=result[0],
+                num_ideas=num_ideas,
+                provider=provider,
+                model=model,
+                duration_ms=duration_ms,
             )
             return AgentRunStatusResponse(
                 status="SUCCESS",
                 run_id=run_id,
-                num_ideas=result[0],
+                num_ideas=num_ideas,
+                provider=provider,
+                model=model,
+                duration_ms=duration_ms,
+                token_usage=token_usage,
             )
         return AgentRunStatusResponse(
             status="SUCCESS",

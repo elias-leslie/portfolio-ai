@@ -136,6 +136,7 @@ class Agent(ABC):
         tool_calls_made: list[ToolCallRecord],
         iteration: int,
         final_text: str,
+        token_usage: dict[str, int] | None = None,
     ) -> AgentRunResult:
         """Handle successful agent run completion.
 
@@ -145,12 +146,14 @@ class Agent(ABC):
             tool_calls_made: List of tool calls made
             iteration: Current iteration number
             final_text: Final response text
+            token_usage: Token usage stats from LLM response
 
         Returns:
             Completion result dict
         """
         completed_at = datetime.now(UTC)
         duration_s = (completed_at - started_at).total_seconds()
+        duration_ms = int(duration_s * 1000)
 
         logger.info(
             "agent_run_completed",
@@ -160,9 +163,17 @@ class Agent(ABC):
             iterations=iteration + 1,
             duration_s=round(duration_s, 2),
             status="completed",
+            token_usage=token_usage,
         )
 
-        self._record_run_complete(run_id, completed_at, "completed", len(tool_calls_made))
+        self._record_run_complete(
+            run_id,
+            completed_at,
+            "completed",
+            len(tool_calls_made),
+            duration_ms=duration_ms,
+            token_usage=token_usage,
+        )
 
         return {
             "status": "completed",
@@ -233,15 +244,25 @@ class Agent(ABC):
         run_id = str(uuid.uuid4())
         started_at = datetime.now(UTC)
 
+        # Determine provider and model
+        provider = None
+        model = self.model
+        if self.llm_client:
+            # Will be set from LLMResponse after first call
+            provider = "cli"  # Placeholder, will be updated after first response
+        else:
+            provider = "anthropic_api"
+
         logger.info(
             "agent_run_started",
             run_id=run_id,
             agent_type=self.agent_type,
-            model=self.model,
+            provider=provider,
+            model=model,
             max_iterations=max_iterations,
         )
 
-        self._record_run_start(run_id, started_at)
+        self._record_run_start(run_id, started_at, provider=provider, model=model)
 
         try:
             # Use LLM client if provided, otherwise fall back to Anthropic API
@@ -272,6 +293,13 @@ class Agent(ABC):
         current_prompt = user_prompt
         tool_calls_made: list[ToolCallRecord] = []
 
+        # Track accumulated token usage across all iterations
+        total_token_usage: dict[str, int] = {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+        }
+
         for iteration in range(max_iterations):
             # Generate with tools
             response = self.llm_client.generate_with_tools(  # type: ignore[union-attr]
@@ -283,10 +311,30 @@ class Agent(ABC):
                 temperature=1.0,
             )
 
+            # Accumulate token usage from this iteration
+            if response.usage:
+                total_token_usage["input_tokens"] += response.usage.get("prompt_tokens", 0)
+                total_token_usage["output_tokens"] += response.usage.get("completion_tokens", 0)
+                total_token_usage["total_tokens"] += response.usage.get("total_tokens", 0)
+
+            # Update provider/model in database on first response (get actual values from CLI)
+            if iteration == 0 and response.provider and response.model:
+                with self.storage.connection() as conn:
+                    conn.execute(
+                        "UPDATE agent_runs SET provider = ?, model = ? WHERE id = ?",
+                        [response.provider, response.model, run_id],
+                    )
+                    conn.commit()
+
             if response.stop_reason == "end_turn":
                 # Agent finished - provide final answer
                 return self._handle_completion(
-                    run_id, started_at, tool_calls_made, iteration, response.content
+                    run_id,
+                    started_at,
+                    tool_calls_made,
+                    iteration,
+                    response.content,
+                    total_token_usage,
                 )
 
             if response.stop_reason == "tool_use":
@@ -343,12 +391,16 @@ class Agent(ABC):
 
             else:
                 # Unexpected stop reason
+                completed_at = datetime.now(UTC)
+                duration_ms = int((completed_at - started_at).total_seconds() * 1000)
                 self._record_run_complete(
                     run_id,
-                    datetime.now(UTC),
+                    completed_at,
                     "error",
                     len(tool_calls_made),
                     f"Unexpected stop reason: {response.stop_reason}",
+                    duration_ms=duration_ms,
+                    token_usage=total_token_usage,
                 )
                 return {
                     "status": "error",
@@ -358,7 +410,16 @@ class Agent(ABC):
                 }
 
         # Max iterations reached
-        self._record_run_complete(run_id, datetime.now(UTC), "max_iterations", len(tool_calls_made))
+        completed_at = datetime.now(UTC)
+        duration_ms = int((completed_at - started_at).total_seconds() * 1000)
+        self._record_run_complete(
+            run_id,
+            completed_at,
+            "max_iterations",
+            len(tool_calls_made),
+            duration_ms=duration_ms,
+            token_usage=total_token_usage,
+        )
         return {
             "status": "max_iterations",
             "tool_calls": tool_calls_made,
@@ -458,8 +519,21 @@ class Agent(ABC):
 
         return "\n".join(parts)
 
-    def _record_run_start(self, run_id: str, started_at: datetime) -> None:
-        """Record agent run start in database."""
+    def _record_run_start(
+        self,
+        run_id: str,
+        started_at: datetime,
+        provider: str | None = None,
+        model: str | None = None,
+    ) -> None:
+        """Record agent run start in database.
+
+        Args:
+            run_id: Unique run identifier
+            started_at: Run start timestamp
+            provider: LLM provider (gemini, claude, anthropic_api)
+            model: Model identifier
+        """
         self.storage.insert_dict(
             "agent_runs",
             {
@@ -473,6 +547,13 @@ class Agent(ABC):
                 "error_message": None,
                 "metadata": None,
                 "celery_task_id": None,
+                "provider": provider,
+                "model": model or self.model,
+                "cli_command": None,
+                "exit_code": None,
+                "duration_ms": None,
+                "token_usage": None,
+                "session_id": None,
             },
         )
 
@@ -483,8 +564,22 @@ class Agent(ABC):
         status: str,
         num_ideas: int,
         error_message: str | None = None,
+        duration_ms: int | None = None,
+        token_usage: dict[str, int] | None = None,
+        exit_code: int | None = None,
     ) -> None:
-        """Record agent run completion in database."""
+        """Record agent run completion in database.
+
+        Args:
+            run_id: Unique run identifier
+            completed_at: Run completion timestamp
+            status: Final status (completed, error, max_iterations)
+            num_ideas: Number of ideas generated
+            error_message: Error message if failed
+            duration_ms: Execution duration in milliseconds
+            token_usage: Token usage stats {input_tokens, output_tokens, total_tokens}
+            exit_code: CLI process exit code (if applicable)
+        """
         with self.storage.connection() as conn:
             conn.execute(
                 """
@@ -492,10 +587,22 @@ class Agent(ABC):
                 SET completed_at = ?,
                     status = ?,
                     num_ideas = ?,
-                    error_message = ?
+                    error_message = ?,
+                    duration_ms = ?,
+                    token_usage = ?,
+                    exit_code = ?
                 WHERE id = ?
                 """,
-                [completed_at, status, num_ideas, error_message, run_id],
+                [
+                    completed_at,
+                    status,
+                    num_ideas,
+                    error_message,
+                    duration_ms,
+                    json.dumps(token_usage) if token_usage else None,
+                    exit_code or 0,
+                    run_id,
+                ],
             )
             conn.commit()  # Commit the update
 
