@@ -164,7 +164,7 @@
 ### 4.0 PHASE 4: Any Type Cleanup (P2)
 
 **Baseline**: 205 Any type usages (full baseline, adjusted from initial 174)
-**Current**: 165 Any type usages (20% reduction, 40 eliminated)
+**Current**: 149 Any type usages (27% reduction, 56 eliminated)
 
 **Strategy**: Categorize by complexity, fix in waves (trivial → moderate → complex)
 
@@ -173,7 +173,13 @@
   - [x] 4.1b: Replaced 34 `conn: Any` → `conn: DatabaseConnection`
   - [x] Enhanced DatabaseConnection Protocol with complete method signatures
   - [x] All imports organized, mypy passing, commit 7d0a8ad + 42ed191
-- [ ] 4.2 Fix moderate Any types (estimated 50-80 instances remaining)
+- [x] 4.2 ✅ Fix moderate Any types - COMPLETE (16 instances eliminated)
+  - [x] 4.2a: Fixed 2 storage: Any → PortfolioStorage in news_profiling_tasks.py
+  - [x] 4.2b: Fixed 1 Redis client singleton → redis.Redis[str] | None
+  - [x] 4.2c: Fixed 6 df: Any → pd.DataFrame in analytics/indicators.py
+  - [x] 4.2d: Fixed 14 Celery task self: Task parameters (agent, data_ingestion, watchlist, reference, indicator, market_data tasks)
+  - [x] All mypy passing, commits 321c5da + 0d38202
+- [ ] 4.3 Fix remaining moderate Any types (estimated 30-40 instances remaining)
   - Pattern: Function params/returns with inferable types
   - Pattern: Redis/Cache values with known types
   - Pattern: Dict[str, Any] with consistent structure → TypedDict
