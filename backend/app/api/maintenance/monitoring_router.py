@@ -19,6 +19,8 @@ from ...services.maintenance_tracker import (
     get_all_metrics_summary,
     get_cleanup_trends,
 )
+from ...tasks.log_cleanup_tasks import _check_disk_space_impl
+from ...tasks.maintenance_tasks import _get_database_size_impl
 from ..maintenance_types import (
     DatabaseSizeResponseDict,
     DiskSpaceResponseDict,
@@ -44,10 +46,8 @@ async def get_disk_space() -> DiskSpaceResponseDict:
         HTTPException: If disk space check fails
     """
     try:
-        # Trigger disk space check task and wait for result
-        task = celery_app.send_task("check_disk_space_task")
-        result: dict[str, Any] = task.get(timeout=10)  # Wait up to 10 seconds
-
+        # Call implementation directly (no Celery, immediate response)
+        result = _check_disk_space_impl()
         return cast(DiskSpaceResponseDict, result)
 
     except Exception as e:
@@ -73,10 +73,8 @@ async def get_database_size() -> DatabaseSizeResponseDict:
         HTTPException: If database size check fails
     """
     try:
-        # Trigger database size task and wait for result
-        task = celery_app.send_task("get_database_size_task")
-        result: dict[str, Any] = task.get(timeout=10)  # Wait up to 10 seconds
-
+        # Call implementation directly (no Celery, immediate response)
+        result = _get_database_size_impl()
         return cast(DatabaseSizeResponseDict, result)
 
     except Exception as e:

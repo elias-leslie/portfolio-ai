@@ -27,40 +27,32 @@ def fetch_putcall_ratio(  # type: ignore[no-untyped-def]
     self,
     as_of_date: str | None = None,
 ) -> dict[str, Any]:
-    """Fetch Put/Call Ratio from CBOE official data.
+    """DEPRECATED: Fetch Put/Call Ratio from CBOE official data.
 
-    Scrapes CBOE Daily Market Statistics page for official put/call ratios.
-    This is the gold standard for market-wide options sentiment.
+    DISABLED AS OF 2025-11-17: The CBOE CDN endpoint returns HTTP 403 Forbidden
+    (Access Denied by CloudFront). This cannot be fixed without CBOE cooperation.
 
-    Data source: https://www.cboe.com/us/options/market_statistics/daily/
+    The endpoint at https://cdn.cboe.com/data/us/options/market_statistics/daily/{date}_daily_options
+    was the source for this data, but CBOE blocks automated (non-browser) requests.
 
-    The Put/Call Ratio is a market sentiment indicator:
-    - Ratio > 1.0 = More puts than calls (bearish sentiment)
-    - Ratio 0.7-1.0 = Neutral sentiment
-    - Ratio < 0.7 = More calls than puts (bullish sentiment)
+    Historical behavior:
+    - Fetched official CBOE put/call ratios (market sentiment indicator)
+    - Data represented daily trading volume ratios (not open interest)
+    - Was scheduled daily at 04:30 UTC
+
+    Task kept for historical reference but removed from schedule.
+    Code removal pending alternative data source implementation.
 
     Args:
         as_of_date: Date to fetch data for (YYYY-MM-DD). If None, uses today's data.
-                    Note: CBOE updates daily, so this should match the date shown on their page.
 
     Returns:
-        Dict with task results:
-        - task_id: Celery task ID
-        - date: Date from CBOE page (YYYY-MM-DD)
-        - put_call_ratio: SPX+SPXW ratio (primary metric)
-        - total_ratio: Total market-wide ratio (all CBOE options)
-        - index_ratio: Index options ratio
-        - equity_ratio: Equity options ratio
-        - success: Boolean indicating success
+        Dict with error information (task will fail when executed)
 
-    Example:
-        >>> # Manual trigger for testing
-        >>> celery -A app.celery_app call app.tasks.market_data.fetch_putcall_ratio
-
-    Note:
-        This task should be scheduled daily at 04:30 UTC (after market close).
-        Uses Playwright to render JavaScript-heavy CBOE page.
-        Data represents daily trading volume ratios (not open interest).
+    Alternatives:
+        - Use VIX from yfinance as market sentiment proxy
+        - Implement browser-based scraper with Playwright (resource intensive)
+        - Find alternative options data API provider
     """
     task_id = self.request.id
 

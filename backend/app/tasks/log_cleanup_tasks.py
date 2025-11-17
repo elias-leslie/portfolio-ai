@@ -28,6 +28,85 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
+# Helper functions (pure logic, no Celery)
+
+
+def _check_disk_space_impl() -> dict[str, Any]:
+    """Check disk space usage and alert if >85%.
+
+    Returns:
+        Dict with partitions, alerts
+    """
+    partitions_info = []
+    alerts = []
+
+    # Check key partitions
+    paths_to_check = [
+        ("/", "root"),
+        ("/tmp", "tmp"),
+        ("/var/log", "var_log"),
+    ]
+
+    for path, name in paths_to_check:
+        if not Path(path).exists():
+            continue
+
+        try:
+            stat = shutil.disk_usage(path)
+            used_percentage = (stat.used / stat.total) * 100
+
+            partition_info = {
+                "path": path,
+                "name": name,
+                "total_bytes": stat.total,
+                "used_bytes": stat.used,
+                "free_bytes": stat.free,
+                "used_percentage": round(used_percentage, 2),
+            }
+            partitions_info.append(partition_info)
+
+            # Alert if usage > 85%
+            if used_percentage > 85:
+                alert = {
+                    "partition": path,
+                    "used_percentage": round(used_percentage, 2),
+                    "free_mb": round(stat.free / (1024 * 1024), 2),
+                }
+                alerts.append(alert)
+                logger.warning("disk_space_alert", **alert)
+
+            # Store metric in maintenance_stats
+            storage = get_connection_manager()
+            with storage.connection() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO maintenance_stats (metric_name, metric_value, metric_unit, metadata)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    [
+                        f"disk_space_used_percentage_{name}",
+                        used_percentage,
+                        "percentage",
+                        f'{{"partition": "{path}"}}',
+                    ],
+                )
+                conn.commit()
+
+        except Exception as partition_error:
+            logger.error(
+                "disk_space_check_failed",
+                partition=path,
+                error=str(partition_error),
+            )
+
+    return {
+        "partitions": partitions_info,
+        "alerts": alerts,
+        "alert_count": len(alerts),
+        "success": True,
+    }
+
+
 @celery_app.task(name="rotate_logs_task", bind=True)  # type: ignore[misc]
 def rotate_logs_task(self: Task) -> dict[str, int | str | float]:
     """Rotate logs in /tmp and /var/log/portfolio-ai directories.
@@ -317,77 +396,13 @@ def check_disk_space_task(self: Task) -> dict[str, int | str | float | list[dict
     logger.info("check_disk_space_started", task_id=task_id)
 
     try:
-        partitions_info = []
-        alerts = []
-
-        # Check key partitions
-        paths_to_check = [
-            ("/", "root"),
-            ("/tmp", "tmp"),
-            ("/var/log", "var_log"),
-        ]
-
-        for path, name in paths_to_check:
-            if not Path(path).exists():
-                continue
-
-            try:
-                stat = shutil.disk_usage(path)
-                used_percentage = (stat.used / stat.total) * 100
-
-                partition_info = {
-                    "path": path,
-                    "name": name,
-                    "total_bytes": stat.total,
-                    "used_bytes": stat.used,
-                    "free_bytes": stat.free,
-                    "used_percentage": round(used_percentage, 2),
-                }
-                partitions_info.append(partition_info)
-
-                # Alert if usage > 85%
-                if used_percentage > 85:
-                    alert = {
-                        "partition": path,
-                        "used_percentage": round(used_percentage, 2),
-                        "free_mb": round(stat.free / (1024 * 1024), 2),
-                    }
-                    alerts.append(alert)
-                    logger.warning("disk_space_alert", **alert)
-
-                # Store metric in maintenance_stats
-                storage = get_connection_manager()
-                with storage.connection() as conn:
-                    conn.execute(
-                        """
-                        INSERT INTO maintenance_stats (metric_name, metric_value, metric_unit, metadata)
-                        VALUES (%s, %s, %s, %s)
-                        """,
-                        [
-                            f"disk_space_used_percentage_{name}",
-                            used_percentage,
-                            "percentage",
-                            f'{{"partition": "{path}"}}',
-                        ],
-                    )
-                    conn.commit()
-
-            except Exception as partition_error:
-                logger.error(
-                    "disk_space_check_failed",
-                    partition=path,
-                    error=str(partition_error),
-                )
-
+        result = _check_disk_space_impl()
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
 
         result_dict: dict[str, int | str | float | list[dict[str, Any]]] = {
             "task_id": task_id,
-            "partitions": partitions_info,
-            "alerts": alerts,
-            "alert_count": len(alerts),
+            **result,
             "duration_seconds": round(duration, 2),
-            "success": True,
         }
 
         logger.info("check_disk_space_completed", **result_dict)

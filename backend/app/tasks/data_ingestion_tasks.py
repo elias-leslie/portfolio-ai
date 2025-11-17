@@ -293,6 +293,141 @@ def refresh_daily_ohlcv(  # type: ignore[no-untyped-def]
         raise
 
 
+@celery_app.task(name="refresh_watchlist_ohlcv", bind=True)  # type: ignore[misc]
+def refresh_watchlist_ohlcv(  # type: ignore[no-untyped-def]
+    self,
+) -> dict[str, int | str]:
+    """Refresh latest OHLCV data for all watchlist tickers.
+
+    Fetches the most recent 5 trading days to ensure fresh data.
+    Uses UPSERT to preserve existing historical data while updating recent bars.
+    Scheduled to run daily at 02:15 UTC (after refresh-daily-ohlcv).
+
+    Returns:
+        Dict with task results:
+        - task_id: Celery task ID
+        - ingest_run_id: Unique ID for this ingestion run
+        - tickers_count: Number of tickers processed
+        - rows_inserted: Total rows upserted into day_bars table
+        - errors: Number of tickers that failed to fetch
+
+    Example:
+        >>> refresh_watchlist_ohlcv.delay()  # Refreshes all watchlist tickers
+    """
+    task_id = self.request.id
+    ingest_run_id = str(uuid.uuid4())
+    start_time = dt.datetime.now(dt.UTC)
+
+    try:
+        # Get all watchlist tickers from database
+        storage = get_storage()
+        with storage.connection() as conn:
+            result = conn.execute(
+                "SELECT DISTINCT symbol FROM watchlist_items ORDER BY symbol"
+            ).fetchall()
+            tickers = [row[0] for row in result]
+
+        if not tickers:
+            logger.info(
+                "refresh_watchlist_ohlcv_no_tickers",
+                task_id=task_id,
+            )
+            return {
+                "task_id": task_id,
+                "ingest_run_id": ingest_run_id,
+                "tickers_count": 0,
+                "rows_inserted": 0,
+                "errors": 0,
+            }
+
+        logger.info(
+            "refresh_watchlist_ohlcv_started",
+            task_id=task_id,
+            ingest_run_id=ingest_run_id,
+            tickers=tickers,
+            tickers_count=len(tickers),
+        )
+
+        # Initialize all available sources
+        sources = _initialize_data_sources()
+
+        # Create multi-source fetcher with priority-based failover
+        fetcher = MultiSourceFetcher(sources, storage)
+
+        # Calculate date range (last 5 trading days)
+        start_date, end_date = _calculate_date_range(days=5)
+
+        # Create dataset request
+        request = DatasetRequest(
+            dataset="day",
+            profile=None,
+            tickers=tickers,
+            start=start_date,
+            end=end_date,
+            timezone="UTC",
+            ingest_run_id=ingest_run_id,
+        )
+
+        # Fetch data with multi-source failover
+        result_df, error_count, errors = _fetch_ohlcv_data(fetcher, request, ingest_run_id)
+
+        # UPSERT data into day_bars table (preserves existing historical data)
+        rows_inserted = 0
+        if result_df is not None and len(result_df) > 0:
+            # Prepare DataFrame (add ingest_run_id, vwap, etc.)
+            result_df, unique_tickers = _prepare_dataframe(result_df, ingest_run_id)
+
+            logger.info(
+                "refresh_watchlist_ohlcv_upserting",
+                ingest_run_id=ingest_run_id,
+                rows=len(result_df),
+            )
+
+            # Use UPSERT mode instead of deleting existing data
+            # This preserves historical bars while updating recent days
+            storage.insert_dataframe("day_bars", result_df, mode="upsert")
+            rows_inserted = len(result_df)
+
+            logger.info(
+                "refresh_watchlist_ohlcv_data_upserted",
+                ingest_run_id=ingest_run_id,
+                rows_upserted=rows_inserted,
+            )
+        else:
+            logger.warning(
+                "refresh_watchlist_ohlcv_no_data_fetched",
+                ingest_run_id=ingest_run_id,
+                errors=errors,
+            )
+
+        # Build and return result
+        end_time = dt.datetime.now(dt.UTC)
+        duration = (end_time - start_time).total_seconds()
+
+        result_dict: dict[str, int | str | float] = {
+            "task_id": task_id,
+            "ingest_run_id": ingest_run_id,
+            "tickers_count": len(tickers),
+            "rows_inserted": rows_inserted,
+            "duration_seconds": duration,
+            "errors": error_count,
+        }
+
+        logger.info("refresh_watchlist_ohlcv_completed", **result_dict)
+
+        return result_dict
+
+    except Exception as e:
+        logger.error(
+            "refresh_watchlist_ohlcv_failed",
+            task_id=task_id,
+            ingest_run_id=ingest_run_id,
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+        raise
+
+
 def _ingest_historical_ohlcv_impl(
     tickers: list[str], days: int = 252, task_id: str | None = None
 ) -> dict[str, int | str | float]:

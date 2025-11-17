@@ -26,6 +26,68 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
+# Helper functions (pure logic, no Celery)
+
+
+def _get_database_size_impl() -> dict[str, Any]:
+    """Get database size and table sizes for monitoring.
+
+    Returns:
+        Dict with database_size_bytes, database_size_mb, top_tables
+    """
+    storage = get_connection_manager()
+
+    with storage.connection() as conn:
+        # Get total database size
+        size_result = conn.execute(
+            """
+            SELECT pg_database_size(current_database())
+            """
+        ).fetchone()
+        database_size = int(size_result[0]) if size_result and size_result[0] is not None else 0
+
+        # Get top 10 largest tables
+        tables_result = conn.execute(
+            """
+            SELECT
+                tablename,
+                pg_total_relation_size(schemaname || '.' || tablename) as size_bytes,
+                pg_size_pretty(pg_total_relation_size(schemaname || '.' || tablename)) as size_pretty
+            FROM pg_tables
+            WHERE schemaname = 'public'
+            ORDER BY pg_total_relation_size(schemaname || '.' || tablename) DESC
+            LIMIT 10
+            """
+        ).fetchall()
+
+        top_tables = [
+            {
+                "table": str(row[0]),
+                "size_bytes": int(row[1]) if row[1] is not None else 0,
+                "size_pretty": str(row[2]),
+            }
+            for row in tables_result
+        ]
+
+    # Store metric in maintenance_stats
+    with storage.connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO maintenance_stats (metric_name, metric_value, metric_unit)
+            VALUES (%s, %s, %s)
+            """,
+            ["database_size_bytes", float(database_size), "bytes"],
+        )
+        conn.commit()
+
+    return {
+        "database_size_bytes": database_size,
+        "database_size_mb": round(database_size / (1024 * 1024), 2),
+        "top_tables": top_tables,
+        "success": True,
+    }
+
+
 @celery_app.task(name="vacuum_database_task", bind=True)  # type: ignore[misc]
 def vacuum_database_task(
     self: Task, tables: list[str] | None = None
@@ -358,60 +420,13 @@ def get_database_size_task(self: Task) -> dict[str, int | str | float | list[dic
     logger.info("get_database_size_started", task_id=task_id)
 
     try:
-        storage = get_connection_manager()
-
-        with storage.connection() as conn:
-            # Get total database size
-            result = conn.execute(
-                """
-                SELECT pg_database_size(current_database())
-                """
-            ).fetchone()
-            database_size = result[0] if result else 0
-
-            # Get top 10 largest tables
-            result = conn.execute(
-                """
-                SELECT
-                    tablename,
-                    pg_total_relation_size(schemaname || '.' || tablename) as size_bytes,
-                    pg_size_pretty(pg_total_relation_size(schemaname || '.' || tablename)) as size_pretty
-                FROM pg_tables
-                WHERE schemaname = 'public'
-                ORDER BY pg_total_relation_size(schemaname || '.' || tablename) DESC
-                LIMIT 10
-                """
-            ).fetchall()
-
-            top_tables = [
-                {
-                    "table": row[0],
-                    "size_bytes": row[1],
-                    "size_pretty": row[2],
-                }
-                for row in result
-            ]
-
-        # Store metric in maintenance_stats
-        with storage.connection() as conn:
-            conn.execute(
-                """
-                INSERT INTO maintenance_stats (metric_name, metric_value, metric_unit)
-                VALUES (%s, %s, %s)
-                """,
-                ["database_size_bytes", database_size, "bytes"],
-            )
-            conn.commit()
-
+        result = _get_database_size_impl()
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
 
         result_dict: dict[str, int | str | float | list[dict[str, Any]]] = {
             "task_id": task_id,
-            "database_size_bytes": database_size,
-            "database_size_mb": round(database_size / (1024 * 1024), 2),
-            "top_tables": top_tables,
+            **result,
             "duration_seconds": round(duration, 2),
-            "success": True,
         }
 
         logger.info("get_database_size_completed", **result_dict)

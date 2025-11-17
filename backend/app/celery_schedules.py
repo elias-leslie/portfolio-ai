@@ -32,6 +32,13 @@ Why separate polling (60s) from execution (15+ min)?
   - Task execution is expensive (DB queries, API calls)
   - Decoupling allows dynamic adjustment without Beat restart
   - Task can decide to skip execution based on runtime conditions
+
+DISABLED TASKS:
+---------------
+Some tasks are intentionally disabled and removed from the schedule:
+  - fetch-putcall-ratio-daily: CBOE CDN returns HTTP 403 (CloudFront blocks requests).
+    See backend/app/sources/cboe_source.py for details and alternatives.
+    Task code retained for future if CBOE provides API access.
 """
 
 from celery.schedules import crontab  # type: ignore[import-untyped]
@@ -136,6 +143,18 @@ def get_beat_schedule() -> dict[str, object]:
             # - Ensures SPY + market indicators + sector ETFs fresh for market intelligence
             # - Fetches last 5 days to account for holidays/weekends
         },
+        "refresh-watchlist-ohlcv": {
+            "task": "refresh_watchlist_ohlcv",
+            "schedule": crontab(hour=2, minute=15),  # Daily at 02:15 UTC (after market indicators)
+            "options": {"expires": 3600},  # Task expires after 1 hour
+            # Notes:
+            # - Runs daily at 02:15 UTC (15 min after refresh-daily-ohlcv)
+            # - Automatically fetches all symbols from watchlist_items table
+            # - Fetches last 5 days to account for holidays/weekends
+            # - Ensures watchlist OHLCV data stays fresh daily
+            # - Idempotent: Safe to run multiple times
+            # - Self-healing: Replaces stale data with fresh data
+        },
         "retrain-article-quality-model": {
             "task": "retrain_article_quality_model",
             "schedule": crontab(hour=5, minute=0),  # Daily at 05:00 UTC
@@ -225,18 +244,6 @@ def get_beat_schedule() -> dict[str, object]:
             # - Symbols: ^GSPC, ^VIX, ^TNX, DX-Y.NYB (indicators)
             # - Symbols: XLK, XLF, XLE, XLV, XLY, XLP, XLI, XLU, XLRE, XLB, XLC (sectors)
             # - NO MANUAL BACKFILLING NEEDED - task handles all data maintenance
-        },
-        "fetch-putcall-ratio-daily": {
-            "task": "fetch_putcall_ratio",
-            "schedule": crontab(hour=4, minute=30),  # Daily at 04:30 UTC
-            "args": [None],  # Fetch for today
-            "options": {"expires": 3600},  # Task expires after 1 hour
-            # Notes:
-            # - Runs daily at 04:30 UTC (after market data maintenance at 04:00)
-            # - Fetches SPX options data from yfinance
-            # - Calculates total put/call ratio (put OI / call OI)
-            # - Stores in fear_greed_inputs.put_call_ratio column
-            # - Market sentiment: >1.0 = Bearish, 0.7-1.0 = Neutral, <0.7 = Bullish
         },
         "refresh-yfinance-reference": {
             "task": "refresh_yfinance_reference_data",

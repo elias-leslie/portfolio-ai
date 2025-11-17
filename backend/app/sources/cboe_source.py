@@ -1,9 +1,22 @@
 """CBOE options data source for put/call ratios.
 
-Uses CBOE CDN JSON API for official put/call ratios.
-Data source: https://cdn.cboe.com/data/us/options/market_statistics/daily/{date}_daily_options
+DEPRECATED: This source is disabled due to CBOE CloudFront blocking automated requests.
+The endpoint https://cdn.cboe.com/data/us/options/market_statistics/daily/{date}_daily_options
+returns HTTP 403 Forbidden (Access Denied by CloudFront CDN).
 
-This is the gold standard for market-wide options sentiment data.
+This cannot be fixed without CBOE providing an API key, which they don't offer for retail users.
+
+Historical context:
+- Last verified: 2025-11-17
+- Status: Non-functional (0% success rate)
+- Reason: CloudFront access denied - CBOE blocks non-browser automated requests
+- Date removed from schedule: 2025-11-17
+
+Alternative:
+- Use VIX from yfinance as market sentiment proxy
+- Consider alternative options data providers with proper APIs
+
+Code kept for historical reference and future if CBOE provides alternative access method.
 """
 
 from __future__ import annotations

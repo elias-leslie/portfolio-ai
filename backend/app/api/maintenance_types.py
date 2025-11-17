@@ -11,15 +11,19 @@ from typing import TypedDict
 class DiskSpaceResponseDict(TypedDict, total=False):
     """Response from get_disk_space endpoint."""
 
-    partitions: dict[str, object]
+    partitions: list[dict[str, object]]
     alerts: list[object]
+    alert_count: int
+    success: bool
 
 
 class DatabaseSizeResponseDict(TypedDict):
     """Response from get_database_size endpoint."""
 
     database_size_bytes: int
-    tables: list[dict[str, object]]
+    database_size_mb: float
+    top_tables: list[dict[str, object]]
+    success: bool
 
 
 class MaintenanceScheduleResponseDict(TypedDict):
