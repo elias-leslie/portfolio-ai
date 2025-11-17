@@ -8,6 +8,7 @@ Tasks:
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import UTC, datetime
 from typing import Any
@@ -71,7 +72,7 @@ def analyze_trading_gaps() -> GapAnalysisResultDict:
                     result["p2_gaps"],
                     result["p3_gaps"],
                     avg_coverage_pct,
-                    result,  # TypedDict is already a dict
+                    json.dumps(dict(result)),  # Convert TypedDict to JSON string for JSONB
                 ],
             )
             conn.commit()
