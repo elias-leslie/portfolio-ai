@@ -20,19 +20,22 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **CLI Agent Integration (Task 0060 - Tasks 0-2 COMPLETE, Task 3 Testing COMPLETE)** (33% - 2/6 complete)
-   - File: `tasks-0060-cli-agent-integration.md`
-   - Started: 2025-02-14 (9 months ago)
-   - Last updated: Task 3.0 ✅ **COMPLETE** (9/9 sub-tasks, 100%) - PAUSED
-   - Next: Task 3.0 (remaining) - Add tool calling support to CLI clients
-   - Tasks:
-     - [x] Task 0: Scope Discovery (MANDATORY)
-     - [ ] Task 1: Design Provider-Agnostic Agent Runtime
-     - [x] Task 2: Implement CLI Client Adapters & Configuration ✅ **COMPLETE** (2025-11-17)
-     - [ ] Task 3: Refactor Backend Agent Execution - 🔄 PARTIAL (4/9 sub-tasks complete)
-     - [ ] Task 5: Frontend Agent Experiences
-     - [ ] Task 6: Testing, Docs, and Verification
+*No active tasks - all work complete or deferred. Use `/task_it` to create new tasks.*
 
+---
+
+## ✅ Recently Completed
+
+*Last 5 completed tasks*
+
+1. **CLI Agent Integration (Task 0060 - MVP COMPLETE)** (2025-11-17)
+   - File: `tasks-0060-cli-agent-integration.md`
+   - ✅ Zero-cost CLI execution via Gemini + Claude CLIs working
+   - ✅ Agent telemetry tracking (provider, model, duration, tokens)
+   - ✅ Discovery & Portfolio Analyzer agents migrated to CLI
+   - ✅ 43 unit tests passing, API endpoints functional
+   - ⏸️ Deferred: Streaming endpoints, session management UI (future work)
+   - Commits: `1fee15d`, `9d10b32`, `77053d1`, `c4b4689`
 
 ---
 
