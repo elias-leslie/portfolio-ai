@@ -84,6 +84,61 @@ class IngestionManager:
         ).fetchone()
         return result is not None and result[0] > 0
 
+    def _upsert_dataframe(
+        self,
+        conn: Any,
+        table_name: str,
+        df: pl.DataFrame,
+    ) -> None:
+        """Helper method to upsert DataFrame using PostgreSQL ON CONFLICT.
+
+        Args:
+            conn: Database connection
+            table_name: Table to upsert into
+            df: DataFrame with data to upsert
+        """
+        # Get primary key columns for this table
+        pk_query = """
+            SELECT kcu.column_name
+            FROM information_schema.table_constraints tc
+            JOIN information_schema.key_column_usage kcu
+                ON tc.constraint_name = kcu.constraint_name
+                AND tc.table_schema = kcu.table_schema
+            WHERE tc.constraint_type = 'PRIMARY KEY'
+                AND tc.table_schema = 'public'
+                AND tc.table_name = %s
+            ORDER BY kcu.ordinal_position
+        """
+        pk_result = conn.execute(pk_query, [table_name]).fetchall()
+        if not pk_result:
+            raise ValueError(f"No primary key found for table '{table_name}'")
+
+        pk_columns = [row[0] for row in pk_result]
+
+        # Get all columns from dataframe
+        all_columns = df.columns
+        non_pk_columns = [col for col in all_columns if col not in pk_columns]
+
+        # Convert Polars DataFrame to pandas for to_sql
+        pdf = df.to_pandas()
+
+        # Build ON CONFLICT DO UPDATE query
+        columns_str = ", ".join(all_columns)
+        values_placeholders = ", ".join([f"%({col})s" for col in all_columns])
+        pk_conflict = ", ".join(pk_columns)
+        update_set = ", ".join([f"{col} = EXCLUDED.{col}" for col in non_pk_columns])
+
+        # Build and execute INSERT ... ON CONFLICT statement
+        for _, row in pdf.iterrows():
+            values = {col: row[col] for col in all_columns}
+            query = f"""
+                INSERT INTO {table_name} ({columns_str})
+                VALUES ({values_placeholders})
+                ON CONFLICT ({pk_conflict})
+                DO UPDATE SET {update_set}
+            """
+            conn.execute(query, values)
+
     def insert_dataframe(
         self,
         table_name: str,
@@ -95,7 +150,7 @@ class IngestionManager:
         Args:
             table_name: Name of the table to insert into
             df: Polars DataFrame to insert
-            mode: 'append' or 'replace'
+            mode: 'append', 'replace', or 'upsert'
 
         Returns:
             Number of rows inserted
@@ -113,6 +168,17 @@ class IngestionManager:
                     f"DELETE FROM {table_name}"
                 )  # validated: table from information_schema
                 conn.commit()  # Commit the deletion before insert
+            elif mode == "upsert":
+                # Use PostgreSQL ON CONFLICT for upsert
+                self._upsert_dataframe(conn, table_name, df)
+                conn.commit()
+
+                row_count = len(df)
+                if self.metadata_mgr:
+                    self.metadata_mgr.update_table_metadata(conn, table_name)
+
+                logger.info(f"Upserted {row_count} rows into {table_name}")
+                return row_count
 
             # Use explicit DataFrame insertion instead of variable reference
             conn.insert_dataframe(table_name, df, if_exists="append")

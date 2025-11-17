@@ -81,9 +81,10 @@ class YFinanceSource(BaseSource):
             try:
                 # Fetch historical data
                 yf_ticker = yf.Ticker(ticker)
+                # NOTE: yfinance end parameter is EXCLUSIVE, so add 1 day to include end_date
                 hist = yf_ticker.history(
                     start=start_date.isoformat(),
-                    end=end_date.isoformat(),
+                    end=(end_date + dt.timedelta(days=1)).isoformat(),
                     auto_adjust=True,  # Adjust for splits/dividends
                 )
 
