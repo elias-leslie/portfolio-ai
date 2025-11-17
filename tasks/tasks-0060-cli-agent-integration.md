@@ -76,20 +76,49 @@
 
 ---
 
-<!-- PAUSED: 2025-11-17 12:20 | Context: 74% | Reason: User request | Next: Task 3.0 - Add tool calling support -->
+<!-- PAUSED: 2025-11-17 18:30 | Context: 54% | Reason: Natural checkpoint | Next: Task 3.0 continued - Testing & Integration -->
 
-**Status**: PAUSED (Tasks 0.0-2.0 COMPLETE, Task 3.0 Testing COMPLETE)
-**Session**: 2025-11-17 (Dual-provider implementation complete)
-**Next**: Task 3.0 - Refactor Backend Agent Execution (tool calling support)
+**Status**: PAUSED (Tasks 0.0-2.0 COMPLETE, Task 3.0 70% COMPLETE - Core implementation done, testing pending)
+**Session**: 2025-11-17 (Tool calling protocol implementation)
+**Next**: Task 3.0 (remaining) - Write unit tests, E2E testing with Discovery agent
 **Completed This Session**:
-- Task 0.0: Scope Discovery (47 files, 2,890 LOC) ✅
-- Task 1.0: Provider-Agnostic Agent Runtime Design ✅
-- Task 2.0: CLI Client Adapters Implementation ✅
-  - Created `llm_client.py` (540 LOC) with LLMClient, ClaudeCLIClient, GeminiCLIClient, DualProviderClient
-  - Updated `Agent` base class to support LLMClient
-  - Migrated `ai_analyzer.py` to use DualProviderClient (Gemini primary, Claude fallback)
-  - Both CLIs verified working: Gemini ✅, Claude ✅
-  - Zero API costs confirmed (subscription-based)
+- ✅ **Task 3.0a: JSON-Based Tool Calling Protocol** (NEW ARCHITECTURE)
+  - Created comprehensive design doc: `tasks/TASK-0060-TOOL-CALLING-PROTOCOL.md`
+  - **Problem**: Neither Gemini CLI nor Claude CLI support custom tool definitions (only built-in tools)
+  - **Solution**: JSON-based protocol - format tools in system prompt, parse JSON responses
+  - Tested and confirmed working with Claude CLI (Gemini → Claude failover successful)
+- ✅ **Task 3.0b: Extended LLMClient Interface**
+  - Added `generate_with_tools()` method to `LLMClient` base class
+  - Implemented `_format_system_with_tools()` - converts Anthropic tool format to readable prompt
+  - Implemented `_parse_tool_calls()` - extracts tool calls from JSON (3 parsing strategies)
+  - Added strong anti-hallucination instructions (per user requirement: "NEVER make up data")
+- ✅ **Task 3.0c: Refactored Agent.run() Method**
+  - Split into dual paths: `_run_with_llm_client()` (CLI) vs `_run_with_anthropic_api()` (legacy)
+  - New CLI path uses JSON-based tool protocol with conversation history tracking
+  - Added `_format_tool_results()` helper for multi-turn conversations
+  - Backward compatible - automatically uses CLI if `llm_client` provided, else Anthropic API
+- ✅ **Task 3.0d: Basic Protocol Testing**
+  - Verified tool call detection and parsing works
+  - Tested Claude CLI with `get_news` tool - correctly identified need to call tool
+  - Confirmed failover working (Gemini connection issue → Claude fallback successful)
+  - Ruff lint checks passing ✅
+
+**Remaining Work (Task 3.0):**
+- [ ] 3.0e: Write unit tests for `_parse_tool_calls()` (various JSON formats)
+- [ ] 3.0f: Write unit tests for `_format_system_with_tools()`
+- [ ] 3.0g: E2E test with Discovery agent (real tool execution flow)
+- [ ] 3.0h: Run full test suite and verify no regressions
+
+**Code Changes**:
+- `backend/app/agents/llm_client.py` (+250 LOC): Added tool calling protocol
+- `backend/app/agents/base.py` (+180 LOC): Refactored run() with dual execution paths
+- `tasks/TASK-0060-TOOL-CALLING-PROTOCOL.md` (NEW): Complete protocol documentation
+
+**Key Architecture Decision**:
+- **Zero-cost tool calling** via JSON protocol (vs expensive Anthropic API)
+- **Provider-agnostic** - same protocol works for Gemini and Claude CLIs
+- **Anti-hallucination safeguards** - explicit instructions to only use real tool data
+- **Backward compatible** - keeps Anthropic API path for comparison/legacy support
 
 ## Tasks
 

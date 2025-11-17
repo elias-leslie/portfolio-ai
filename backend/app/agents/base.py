@@ -244,64 +244,219 @@ class Agent(ABC):
         self._record_run_start(run_id, started_at)
 
         try:
-            messages = [{"role": "user", "content": user_prompt}]
-            tool_calls_made: list[ToolCallRecord] = []
-
-            for iteration in range(max_iterations):
-                response = self.client.messages.create(
-                    model=self.model,
-                    max_tokens=4096,
-                    system=self.get_system_prompt(),
-                    tools=self.get_tools(),  # type: ignore[arg-type]
-                    messages=messages,  # type: ignore[arg-type]
-                )
-
-                if response.stop_reason == "end_turn":
-                    final_text = self._extract_final_response(response)
-                    return self._handle_completion(
-                        run_id, started_at, tool_calls_made, iteration, final_text
-                    )
-
-                if response.stop_reason == "tool_use":
-                    assistant_content, tool_results = self._process_tool_calls(
-                        response, run_id, tool_calls_made
-                    )
-
-                    # Continue conversation with tool results
-                    messages.append({"role": "assistant", "content": assistant_content})  # type: ignore[dict-item]
-                    messages.append({"role": "user", "content": tool_results})  # type: ignore[dict-item]
-
-                else:
-                    # Unexpected stop reason
-                    self._record_run_complete(
-                        run_id,
-                        datetime.now(UTC),
-                        "error",
-                        len(tool_calls_made),
-                        f"Unexpected stop reason: {response.stop_reason}",
-                    )
-                    return {
-                        "status": "error",
-                        "error": f"Unexpected stop reason: {response.stop_reason}",
-                        "tool_calls": tool_calls_made,
-                        "run_id": run_id,
-                    }
-
-            # Max iterations reached
-            self._record_run_complete(
-                run_id, datetime.now(UTC), "max_iterations", len(tool_calls_made)
-            )
-            return {
-                "status": "max_iterations",
-                "tool_calls": tool_calls_made,
-                "iterations": max_iterations,
-                "run_id": run_id,
-            }
+            # Use LLM client if provided, otherwise fall back to Anthropic API
+            if self.llm_client:
+                return self._run_with_llm_client(run_id, started_at, user_prompt, max_iterations)
+            return self._run_with_anthropic_api(run_id, started_at, user_prompt, max_iterations)
 
         except Exception as e:
             logger.error(f"Agent run {run_id} failed: {e}")
             self._record_run_complete(run_id, datetime.now(UTC), "error", 0, str(e))
             return {"status": "error", "error": str(e), "run_id": run_id}
+
+    def _run_with_llm_client(
+        self, run_id: str, started_at: datetime, user_prompt: str, max_iterations: int
+    ) -> AgentRunResult:
+        """Run agent using LLM client with JSON-based tool calling protocol.
+
+        Args:
+            run_id: Unique run identifier
+            started_at: Run start timestamp
+            user_prompt: User's prompt/request
+            max_iterations: Maximum tool call iterations
+
+        Returns:
+            Agent run result dict
+        """
+        conversation_history: list[dict[str, object]] = []
+        current_prompt = user_prompt
+        tool_calls_made: list[ToolCallRecord] = []
+
+        for iteration in range(max_iterations):
+            # Generate with tools
+            response = self.llm_client.generate_with_tools(  # type: ignore[union-attr]
+                prompt=current_prompt,
+                tools=self.get_tools(),
+                system=self.get_system_prompt(),
+                conversation_history=conversation_history,
+                max_tokens=4096,
+                temperature=1.0,
+            )
+
+            if response.stop_reason == "end_turn":
+                # Agent finished - provide final answer
+                return self._handle_completion(
+                    run_id, started_at, tool_calls_made, iteration, response.content
+                )
+
+            if response.stop_reason == "tool_use":
+                # Agent wants to call tools
+                tool_results = []
+
+                for tool_call in response.tool_calls:
+                    tool_start = datetime.now(UTC)
+
+                    # Execute tool
+                    result = self.execute_tool(tool_call["name"], tool_call["parameters"])
+
+                    tool_end = datetime.now(UTC)
+                    duration_ms = int((tool_end - tool_start).total_seconds() * 1000)
+
+                    # Record tool call
+                    self._record_tool_call(
+                        run_id, tool_call["name"], tool_call["parameters"], result, duration_ms
+                    )
+
+                    tool_calls_made.append(
+                        {
+                            "name": tool_call["name"],
+                            "input": tool_call["parameters"],
+                            "result": result,
+                        }
+                    )
+
+                    tool_results.append(
+                        {
+                            "name": tool_call["name"],
+                            "parameters": tool_call["parameters"],
+                            "result": result,
+                        }
+                    )
+
+                # Format tool results for next turn
+                current_prompt = self._format_tool_results(tool_results)
+
+                # Update conversation history
+                conversation_history.append(
+                    {
+                        "role": "assistant",
+                        "content": response.content,
+                        "tool_calls": response.tool_calls,
+                    }
+                )
+                conversation_history.append(
+                    {
+                        "role": "user",
+                        "content": current_prompt,
+                    }
+                )
+
+            else:
+                # Unexpected stop reason
+                self._record_run_complete(
+                    run_id,
+                    datetime.now(UTC),
+                    "error",
+                    len(tool_calls_made),
+                    f"Unexpected stop reason: {response.stop_reason}",
+                )
+                return {
+                    "status": "error",
+                    "error": f"Unexpected stop reason: {response.stop_reason}",
+                    "tool_calls": tool_calls_made,
+                    "run_id": run_id,
+                }
+
+        # Max iterations reached
+        self._record_run_complete(run_id, datetime.now(UTC), "max_iterations", len(tool_calls_made))
+        return {
+            "status": "max_iterations",
+            "tool_calls": tool_calls_made,
+            "iterations": max_iterations,
+            "run_id": run_id,
+        }
+
+    def _run_with_anthropic_api(
+        self, run_id: str, started_at: datetime, user_prompt: str, max_iterations: int
+    ) -> AgentRunResult:
+        """Run agent using Anthropic API with native tool calling (legacy).
+
+        Args:
+            run_id: Unique run identifier
+            started_at: Run start timestamp
+            user_prompt: User's prompt/request
+            max_iterations: Maximum tool call iterations
+
+        Returns:
+            Agent run result dict
+        """
+        messages = [{"role": "user", "content": user_prompt}]
+        tool_calls_made: list[ToolCallRecord] = []
+
+        for iteration in range(max_iterations):
+            response = self.client.messages.create(
+                model=self.model,
+                max_tokens=4096,
+                system=self.get_system_prompt(),
+                tools=self.get_tools(),  # type: ignore[arg-type]
+                messages=messages,  # type: ignore[arg-type]
+            )
+
+            if response.stop_reason == "end_turn":
+                final_text = self._extract_final_response(response)
+                return self._handle_completion(
+                    run_id, started_at, tool_calls_made, iteration, final_text
+                )
+
+            if response.stop_reason == "tool_use":
+                assistant_content, tool_results = self._process_tool_calls(
+                    response, run_id, tool_calls_made
+                )
+
+                # Continue conversation with tool results
+                messages.append({"role": "assistant", "content": assistant_content})  # type: ignore[dict-item]
+                messages.append({"role": "user", "content": tool_results})  # type: ignore[dict-item]
+
+            else:
+                # Unexpected stop reason
+                self._record_run_complete(
+                    run_id,
+                    datetime.now(UTC),
+                    "error",
+                    len(tool_calls_made),
+                    f"Unexpected stop reason: {response.stop_reason}",
+                )
+                return {
+                    "status": "error",
+                    "error": f"Unexpected stop reason: {response.stop_reason}",
+                    "tool_calls": tool_calls_made,
+                    "run_id": run_id,
+                }
+
+        # Max iterations reached
+        self._record_run_complete(run_id, datetime.now(UTC), "max_iterations", len(tool_calls_made))
+        return {
+            "status": "max_iterations",
+            "tool_calls": tool_calls_made,
+            "iterations": max_iterations,
+            "run_id": run_id,
+        }
+
+    def _format_tool_results(self, tool_results: list[dict[str, object]]) -> str:
+        """Format tool results for next conversation turn.
+
+        Args:
+            tool_results: List of tool result dicts
+
+        Returns:
+            Formatted string with tool results
+        """
+        parts = ["TOOL RESULTS:", "=" * 60]
+
+        for tr in tool_results:
+            parts.append(f"\nTool: {tr['name']}")
+            parts.append(f"Parameters: {json.dumps(tr['parameters'])}")
+            parts.append(
+                f"Result:\n{json.dumps(tr['result'], indent=2, default=self._json_serializer)}"
+            )
+            parts.append("=" * 60)
+
+        parts.append(
+            "\nWhat would you like to do next? You can call more tools for additional data, "
+            "or provide your final answer based on the information above."
+        )
+
+        return "\n".join(parts)
 
     def _record_run_start(self, run_id: str, started_at: datetime) -> None:
         """Record agent run start in database."""
