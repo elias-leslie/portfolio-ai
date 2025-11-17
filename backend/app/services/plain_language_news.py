@@ -10,9 +10,9 @@ Zero jargon rule: No financial terms like "EPS", "guidance", "EBITDA" without ex
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any
 
 from ..logging_config import get_logger
+from .news_types import PlainLanguageTranslationDict
 
 logger = get_logger(__name__)
 
@@ -385,7 +385,7 @@ def translate_to_plain_language(
     sentiment_score: float | None = None,
     ticker: str | None = None,
     in_watchlist: bool = False,
-) -> dict[str, Any]:
+) -> PlainLanguageTranslationDict:
     """Translate financial news to plain language with insights.
 
     Args:
