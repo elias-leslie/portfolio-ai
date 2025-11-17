@@ -9,6 +9,7 @@ This module provides execution logic for collaboration tools:
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
@@ -73,10 +74,10 @@ class CollaborationTools:
                     "from_agent_run_id": agent_run_id,
                     "to_agent_type": agent_type,
                     "message_type": message_type,
-                    "content": content,
+                    "content": json.dumps(content),
                     "status": "pending",
                     "priority": priority,
-                    "created_at": datetime.now(UTC),
+                    "created_at": datetime.now(UTC).isoformat(),
                 },
             )
 

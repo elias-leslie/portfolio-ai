@@ -237,6 +237,10 @@ def _process_cache_entries() -> tuple[int, int]:
         processed_pairs: set[tuple[str, str]] = set()
 
         for ticker, source, payload_json in results:
+            # Type guard: ensure ticker and source are strings
+            if not isinstance(ticker, str) or not isinstance(source, str):
+                continue
+
             pair = (ticker, source)
 
             # Skip if we've already processed this ticker/source combo
@@ -266,7 +270,10 @@ def _process_cache_entries() -> tuple[int, int]:
             # Only count as "updated" if we found at least one metric
             if any(v is not None for v in metrics.values()):
                 entries_updated += 1
-                _update_valuation_metrics(ticker, source, payload)
+                # Ensure ticker and source are strings before passing
+                ticker_str = str(ticker) if ticker is not None else ""
+                source_str = str(source) if source is not None else ""
+                _update_valuation_metrics(ticker_str, source_str, payload)
 
     return entries_processed, entries_updated
 
@@ -363,7 +370,7 @@ def refresh_yfinance_reference_data(self: Task) -> dict[str, int | str]:
         # Get all watchlist symbols
         with storage.connection() as conn:
             result = conn.execute("SELECT DISTINCT symbol FROM watchlist_items")
-            symbols = [row[0] for row in result.fetchall()]
+            symbols = [str(row[0]) for row in result.fetchall() if row[0] is not None]
 
         if not symbols:
             logger.warning("no_watchlist_symbols_found")
@@ -463,7 +470,7 @@ def _fetch_stale_symbols() -> list[str]:
                OR rc.latest_date < CURRENT_DATE - INTERVAL '7 days'
             """
         )
-        return [row[0] for row in result.fetchall()]
+        return [str(row[0]) for row in result.fetchall()]
 
 
 def _store_alphavantage_payload(symbols: list[str]) -> int:

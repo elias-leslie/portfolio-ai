@@ -38,10 +38,10 @@ def gather_comprehensive_status() -> SystemStatusDict:
     # Combine into comprehensive status
     # Use model_dump(mode='json') to ensure datetime objects are serialized
     return {
-        "status": health_response["status"],  # type: ignore
+        "status": health_response["status"],
         "services": services,
         "timestamp": datetime.now(UTC).isoformat(),
-        "uptime_seconds": health_response["uptime_seconds"],  # type: ignore
+        "uptime_seconds": health_response["uptime_seconds"],
         "checks": {
             name: check.model_dump(mode="json") for name, check in health_response["checks"].items()
         },

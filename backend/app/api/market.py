@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import datetime as dt
-from datetime import datetime
+from datetime import date, datetime
+from typing import cast
 
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, Field
@@ -116,6 +117,11 @@ def fetch_sector_data_with_changes(
     # Using window function to get second-most-recent close for each ticker
     # This ensures we calculate change from actual market closes, not cache timestamps
     with storage.connection() as conn:
+        # Cast list[str] to expected parameter type for ANY operator compatibility
+        params: list[
+            str | int | float | bool | datetime | list[str | int | float | bool | None] | None
+        ] = [cast(list[str | int | float | bool | None], sector_symbols)]
+
         result = conn.execute(
             """
             SELECT ticker, close
@@ -126,9 +132,14 @@ def fetch_sector_data_with_changes(
             ) ranked
             WHERE rn = 2
             """,
-            (sector_symbols,),
+            params,
         )
-        prev_closes = {row[0]: float(row[1]) for row in result.fetchall()}
+        prev_closes: dict[str, float] = {}
+        for row in result.fetchall():
+            ticker_val = row[0]
+            close_val = row[1]
+            if isinstance(ticker_val, str) and isinstance(close_val, (int, float)):
+                prev_closes[ticker_val] = float(close_val)
 
     # Calculate change percentages
     for symbol in sector_symbols:
@@ -268,15 +279,19 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
 
     # Get ACTUAL data dates from day_bars (not cache timestamps)
     # This shows when the market data was created, not when we fetched it
-    actual_data_dates = {}
+    actual_data_dates: dict[str, dt.datetime] = {}
     with storage.connection() as conn:
         for symbol in symbols:
             result = conn.execute("SELECT MAX(date) FROM day_bars WHERE ticker = %s", [symbol])
             row = result.fetchone()
             if row and row[0]:
                 # Convert date to timestamp at market close (21:00 UTC = 4:00 PM ET)
-                data_timestamp = dt.datetime.combine(row[0], dt.time(21, 0, 0), tzinfo=dt.UTC)
-                actual_data_dates[symbol] = data_timestamp
+                data_date = row[0]
+                if isinstance(data_date, date):
+                    data_timestamp = dt.datetime.combine(
+                        data_date, dt.time(21, 0, 0), tzinfo=dt.UTC
+                    )
+                    actual_data_dates[symbol] = data_timestamp
 
     # Get Fear & Greed date to determine actual data freshness
     # (This represents when the market data was created, not when we cached it)
@@ -292,10 +307,17 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
             # This shows users the age of the underlying market data, not the cache
             market_data_date = row[0]
             # Set time to market close (4:00 PM ET = 21:00 UTC) for consistency
-            market_close_time = dt.datetime.combine(
-                market_data_date, dt.time(21, 0, 0), tzinfo=dt.UTC
-            )
-            current_timestamp = market_close_time.isoformat()
+            if isinstance(market_data_date, date):
+                market_close_time = dt.datetime.combine(
+                    market_data_date, dt.time(21, 0, 0), tzinfo=dt.UTC
+                )
+                current_timestamp = market_close_time.isoformat()
+            else:
+                current_timestamp = (
+                    sp500_data.cached_at.isoformat()
+                    if sp500_data
+                    else datetime.utcnow().isoformat() + "Z"
+                )
         else:
             # Fallback to cache timestamp if no Fear & Greed data
             # This is less ideal but better than nothing
@@ -395,21 +417,25 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
         )
         row = result.fetchone()
         if row and row[0]:
-            put_call_ratio = row[0]
-            putcall_date = row[1]
-            # Set time to market close (4:00 PM ET = 21:00 UTC) for consistency
-            putcall_timestamp = dt.datetime.combine(
-                putcall_date, dt.time(21, 0, 0), tzinfo=dt.UTC
-            ).isoformat()
+            put_call_ratio_val = row[0]
+            putcall_date_val = row[1]
+            # Type narrowing: ensure put_call_ratio is float and putcall_date is date
+            if isinstance(put_call_ratio_val, (int, float)) and isinstance(putcall_date_val, date):
+                put_call_ratio = float(put_call_ratio_val)
+                putcall_date = putcall_date_val
+                # Set time to market close (4:00 PM ET = 21:00 UTC) for consistency
+                putcall_timestamp = dt.datetime.combine(
+                    putcall_date, dt.time(21, 0, 0), tzinfo=dt.UTC
+                ).isoformat()
 
-            # Calculate historical context
-            from app.market.options_context import calculate_putcall_context  # noqa: PLC0415
+                # Calculate historical context
+                from app.market.options_context import calculate_putcall_context  # noqa: PLC0415
 
-            putcall_context = calculate_putcall_context(put_call_ratio, putcall_date, storage)
+                putcall_context = calculate_putcall_context(put_call_ratio, putcall_date, storage)
 
-            enriched_indicators["putcall"] = intelligence.enrich_putcall_indicator(
-                put_call_ratio, putcall_timestamp, context=putcall_context
-            )
+                enriched_indicators["putcall"] = intelligence.enrich_putcall_indicator(
+                    put_call_ratio, putcall_timestamp, context=putcall_context
+                )
 
     # Get Options Activity metrics from options_market_metrics table
     options_activity = None
@@ -424,42 +450,54 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
         )
         row = result.fetchone()
         if row:
-            near_term_pct = float(row[0])
-            concentration_pct = float(row[1])
-            sector_weights = row[2]  # JSONB
-            source_timestamp = row[3]
+            near_term_val = row[0]
+            concentration_val = row[1]
+            sector_weights_val = row[2]  # JSONB
+            source_timestamp_val = row[3]
 
-            # Calculate signals based on thresholds
-            # Near-term: >65% = High (event-driven), 45-65% = Normal, <45% = Low
-            if near_term_pct > 65:
-                near_term_signal = "High"
-            elif near_term_pct >= 45:
-                near_term_signal = "Normal"
-            else:
-                near_term_signal = "Low"
+            # Type narrowing: ensure proper types
+            if isinstance(near_term_val, (int, float)) and isinstance(
+                concentration_val, (int, float)
+            ):
+                near_term_pct = float(near_term_val)
+                concentration_pct = float(concentration_val)
 
-            # Concentration: >80% = Focused, 50-80% = Balanced, <50% = Dispersed
-            if concentration_pct > 80:
-                concentration_signal = "Focused"
-            elif concentration_pct >= 50:
-                concentration_signal = "Balanced"
-            else:
-                concentration_signal = "Dispersed"
+                # Calculate signals based on thresholds
+                # Near-term: >65% = High (event-driven), 45-65% = Normal, <45% = Low
+                if near_term_pct > 65:
+                    near_term_signal = "High"
+                elif near_term_pct >= 45:
+                    near_term_signal = "Normal"
+                else:
+                    near_term_signal = "Low"
 
-            # Get top 3 sectors by weight
-            sector_items = sorted(sector_weights.items(), key=lambda x: x[1], reverse=True)[:3]
-            top_sectors = [
-                {"sector": sector, "weight_pct": weight} for sector, weight in sector_items
-            ]
+                # Concentration: >80% = Focused, 50-80% = Balanced, <50% = Dispersed
+                if concentration_pct > 80:
+                    concentration_signal = "Focused"
+                elif concentration_pct >= 50:
+                    concentration_signal = "Balanced"
+                else:
+                    concentration_signal = "Dispersed"
 
-            options_activity = OptionsActivityMetrics(
-                near_term_pct=near_term_pct,
-                near_term_signal=near_term_signal,
-                concentration_pct=concentration_pct,
-                concentration_signal=concentration_signal,
-                top_sectors=top_sectors,
-                last_updated=source_timestamp.isoformat(),
-            )
+                # Get top 3 sectors by weight - ensure sector_weights is dict-like
+                if isinstance(sector_weights_val, dict):
+                    sector_items = sorted(
+                        sector_weights_val.items(), key=lambda x: x[1], reverse=True
+                    )[:3]
+                    top_sectors = [
+                        {"sector": sector, "weight_pct": weight} for sector, weight in sector_items
+                    ]
+
+                    # Ensure source_timestamp has isoformat method
+                    if hasattr(source_timestamp_val, "isoformat"):
+                        options_activity = OptionsActivityMetrics(
+                            near_term_pct=near_term_pct,
+                            near_term_signal=near_term_signal,
+                            concentration_pct=concentration_pct,
+                            concentration_signal=concentration_signal,
+                            top_sectors=top_sectors,
+                            last_updated=source_timestamp_val.isoformat(),
+                        )
 
     # Build response
     return MarketIntelligenceResponse(
@@ -530,8 +568,15 @@ async def get_market_trends(
     rows = list(reversed(rows))
 
     # Build response
-    dates = [row[0].isoformat() for row in rows]
-    fear_greed_scores = [float(row[1]) for row in rows]
+    dates: list[str] = []
+    fear_greed_scores_list: list[float] = []
+    for row in rows:
+        date_val = row[0]
+        score_val = row[1]
+        # Type narrowing: ensure proper types
+        if isinstance(date_val, (date, datetime)) and isinstance(score_val, (int, float)):
+            dates.append(date_val.isoformat())
+            fear_greed_scores_list.append(float(score_val))
 
     # Market Health scores not stored historically
     # Return empty array (frontend will handle gracefully)
@@ -539,6 +584,6 @@ async def get_market_trends(
 
     return MarketTrendsResponse(
         dates=dates,
-        fear_greed_scores=fear_greed_scores,
+        fear_greed_scores=fear_greed_scores_list,
         market_health_scores=market_health_scores,
     )

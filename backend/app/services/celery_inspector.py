@@ -202,7 +202,7 @@ def get_recent_completed(limit: int = 50) -> list[dict[str, Any]]:
                 "task_id": row[0],
                 "status": row[1],
                 "result": _deserialize_celery_field(row[2]),
-                "date_done": row[3].isoformat() if row[3] else None,
+                "date_done": row[3].isoformat() if isinstance(row[3], datetime) else None,
                 "traceback": _deserialize_celery_field(row[4]),
                 "name": row[5] or "unknown",  # Handle NULL names
                 "args": _deserialize_celery_field(row[6]),
@@ -250,7 +250,7 @@ def get_recent_failed(limit: int = 50) -> list[dict[str, Any]]:
                 "task_id": row[0],
                 "status": row[1],
                 "result": _deserialize_celery_field(row[2]),
-                "date_done": row[3].isoformat() if row[3] else None,
+                "date_done": row[3].isoformat() if isinstance(row[3], datetime) else None,
                 "traceback": _deserialize_celery_field(row[4]),
                 "name": row[5] or "unknown",  # Handle NULL names
                 "args": _deserialize_celery_field(row[6]),

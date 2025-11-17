@@ -332,7 +332,7 @@ class WatchlistSnapshot(BaseModel):
     earnings_date: datetime | None = None
     earnings_days_away: int | None = None
     news_sentiment_score: float | None = None
-    recent_news_headlines: RecentNewsDict | None = None
+    recent_news_headlines: dict[str, Any] | None = None
 
     # Volume & timeframe analysis fields (PRD #0022)
     volume_relative: float | None = None  # Current volume / 50-day avg (e.g., 2.3 = 2.3x)

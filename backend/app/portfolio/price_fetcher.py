@@ -332,7 +332,7 @@ class PriceDataFetcher:
               AND date >= ?
             ORDER BY date ASC
             """,
-            [symbol, self.market_benchmark, start_date],
+            [symbol, self.market_benchmark, start_date.isoformat()],
         )
 
         if df.is_empty():

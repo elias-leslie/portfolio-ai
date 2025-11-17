@@ -62,7 +62,7 @@ def _fetch_current_volume(
           AND date = ?
         LIMIT 1
     """
-    current_result = storage.query(current_volume_query, [ticker, target_date])
+    current_result = storage.query(current_volume_query, [ticker, target_date.isoformat()])
 
     if current_result is None or len(current_result) == 0:
         return None
@@ -96,7 +96,9 @@ def _fetch_average_volume(
           AND date < ?
           AND volume > 0
     """
-    avg_result = storage.query(avg_volume_query, [ticker, lookback_start, target_date])
+    avg_result = storage.query(
+        avg_volume_query, [ticker, lookback_start.isoformat(), target_date.isoformat()]
+    )
 
     if avg_result is None or len(avg_result) == 0:
         return None
@@ -195,7 +197,7 @@ def _fetch_all_tickers(storage: PortfolioStorage, target_date: dt.date) -> list[
         FROM day_bars
         WHERE date = ?
     """
-    tickers_result = storage.query(tickers_query, [target_date])
+    tickers_result = storage.query(tickers_query, [target_date.isoformat()])
 
     if tickers_result is None or len(tickers_result) == 0:
         return []

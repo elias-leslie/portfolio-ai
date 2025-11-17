@@ -65,7 +65,9 @@ def cleanup_old_news(days: int = 90, dry_run: bool = True) -> dict[str, Any]:
                 [cutoff_date],
             ).fetchone()
 
-            if not result or result[2] == 0:
+            if not result or (
+                result[2] is not None and isinstance(result[2], int) and result[2] == 0
+            ):
                 logger.info("cleanup_old_news_no_articles", cutoff_date=cutoff_date.isoformat())
                 return {
                     "deleted": 0,
@@ -104,8 +106,12 @@ def cleanup_old_news(days: int = 90, dry_run: bool = True) -> dict[str, Any]:
                 "deleted": count,
                 "dry_run": dry_run,
                 "cutoff_date": cutoff_date.isoformat(),
-                "oldest_date": oldest_date.isoformat() if oldest_date else None,
-                "newest_date": newest_date.isoformat() if newest_date else None,
+                "oldest_date": oldest_date.isoformat()
+                if isinstance(oldest_date, datetime)
+                else None,
+                "newest_date": newest_date.isoformat()
+                if isinstance(newest_date, datetime)
+                else None,
             }
 
             logger.info("cleanup_old_news_completed", summary=summary)

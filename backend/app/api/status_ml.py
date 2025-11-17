@@ -75,34 +75,108 @@ async def get_ml_model_metrics() -> MLModelStatusResponse:
 
             if len(models) >= 1:
                 row = models[0]
+                # Validate and cast database row values
+                model_name = row[0]
+                model_version = row[1]
+                trained_at = row[2]
+                training_samples = row[3]
+                test_samples = row[4]
+                accuracy = row[5]
+                precision_score = row[6]
+                recall_score = row[7]
+                f1_score = row[8]
+                useful_count = row[9]
+                not_useful_count = row[10]
+
+                # Type validation and casting
+                if not isinstance(model_name, str):
+                    raise ValueError(f"Invalid model_name type: {type(model_name)}")
+                if not isinstance(model_version, str):
+                    raise ValueError(f"Invalid model_version type: {type(model_version)}")
+                if not isinstance(trained_at, datetime):
+                    raise ValueError(f"Invalid trained_at type: {type(trained_at)}")
+                if not isinstance(training_samples, int):
+                    raise ValueError(f"Invalid training_samples type: {type(training_samples)}")
+                if not isinstance(test_samples, int):
+                    raise ValueError(f"Invalid test_samples type: {type(test_samples)}")
+                if not isinstance(accuracy, (int, float)):
+                    raise ValueError(f"Invalid accuracy type: {type(accuracy)}")
+                if not isinstance(precision_score, (int, float)):
+                    raise ValueError(f"Invalid precision_score type: {type(precision_score)}")
+                if not isinstance(recall_score, (int, float)):
+                    raise ValueError(f"Invalid recall_score type: {type(recall_score)}")
+                if not isinstance(f1_score, (int, float)):
+                    raise ValueError(f"Invalid f1_score type: {type(f1_score)}")
+                if not isinstance(useful_count, int):
+                    raise ValueError(f"Invalid useful_count type: {type(useful_count)}")
+                if not isinstance(not_useful_count, int):
+                    raise ValueError(f"Invalid not_useful_count type: {type(not_useful_count)}")
+
                 current_model = MLModelMetrics(
-                    model_name=row[0],
-                    model_version=row[1],
-                    trained_at=row[2].isoformat(),
-                    training_samples=row[3],
-                    test_samples=row[4],
-                    accuracy=row[5],
-                    precision_score=row[6],
-                    recall_score=row[7],
-                    f1_score=row[8],
-                    useful_count=row[9],
-                    not_useful_count=row[10],
+                    model_name=model_name,
+                    model_version=model_version,
+                    trained_at=trained_at.isoformat(),
+                    training_samples=training_samples,
+                    test_samples=test_samples,
+                    accuracy=float(accuracy),
+                    precision_score=float(precision_score),
+                    recall_score=float(recall_score),
+                    f1_score=float(f1_score),
+                    useful_count=useful_count,
+                    not_useful_count=not_useful_count,
                 )
 
             if len(models) >= 2:
                 row = models[1]
+                # Validate and cast database row values
+                model_name = row[0]
+                model_version = row[1]
+                trained_at = row[2]
+                training_samples = row[3]
+                test_samples = row[4]
+                accuracy = row[5]
+                precision_score = row[6]
+                recall_score = row[7]
+                f1_score = row[8]
+                useful_count = row[9]
+                not_useful_count = row[10]
+
+                # Type validation and casting
+                if not isinstance(model_name, str):
+                    raise ValueError(f"Invalid model_name type: {type(model_name)}")
+                if not isinstance(model_version, str):
+                    raise ValueError(f"Invalid model_version type: {type(model_version)}")
+                if not isinstance(trained_at, datetime):
+                    raise ValueError(f"Invalid trained_at type: {type(trained_at)}")
+                if not isinstance(training_samples, int):
+                    raise ValueError(f"Invalid training_samples type: {type(training_samples)}")
+                if not isinstance(test_samples, int):
+                    raise ValueError(f"Invalid test_samples type: {type(test_samples)}")
+                if not isinstance(accuracy, (int, float)):
+                    raise ValueError(f"Invalid accuracy type: {type(accuracy)}")
+                if not isinstance(precision_score, (int, float)):
+                    raise ValueError(f"Invalid precision_score type: {type(precision_score)}")
+                if not isinstance(recall_score, (int, float)):
+                    raise ValueError(f"Invalid recall_score type: {type(recall_score)}")
+                if not isinstance(f1_score, (int, float)):
+                    raise ValueError(f"Invalid f1_score type: {type(f1_score)}")
+                if not isinstance(useful_count, int):
+                    raise ValueError(f"Invalid useful_count type: {type(useful_count)}")
+                if not isinstance(not_useful_count, int):
+                    raise ValueError(f"Invalid not_useful_count type: {type(not_useful_count)}")
+
                 previous_model = MLModelMetrics(
-                    model_name=row[0],
-                    model_version=row[1],
-                    trained_at=row[2].isoformat(),
-                    training_samples=row[3],
-                    test_samples=row[4],
-                    accuracy=row[5],
-                    precision_score=row[6],
-                    recall_score=row[7],
-                    f1_score=row[8],
-                    useful_count=row[9],
-                    not_useful_count=row[10],
+                    model_name=model_name,
+                    model_version=model_version,
+                    trained_at=trained_at.isoformat(),
+                    training_samples=training_samples,
+                    test_samples=test_samples,
+                    accuracy=float(accuracy),
+                    precision_score=float(precision_score),
+                    recall_score=float(recall_score),
+                    f1_score=float(f1_score),
+                    useful_count=useful_count,
+                    not_useful_count=not_useful_count,
                 )
 
             # Count total models trained
@@ -111,7 +185,10 @@ async def get_ml_model_metrics() -> MLModelStatusResponse:
                 ["article_quality"],
             )
             count_row = conn.fetchone()
-            models_trained = count_row[0] if count_row else 0
+            count_value = count_row[0] if count_row else 0
+            if not isinstance(count_value, int):
+                raise ValueError(f"Invalid count type: {type(count_value)}")
+            models_trained = count_value
 
             # Total training samples (from current model)
             total_samples = (

@@ -235,7 +235,7 @@ class DataTools:
 
         # RSI analysis
         rsi = indicators.get("rsi_14")
-        if rsi is not None:
+        if isinstance(rsi, (int, float)) and rsi is not None:
             if rsi < 30:
                 analysis_parts.append(f"RSI={rsi:.1f} (oversold)")
             elif rsi > 70:
@@ -245,33 +245,38 @@ class DataTools:
 
         # MACD analysis
         macd_data = indicators.get("macd")
-        if macd_data and macd_data.get("macd") is not None:
-            macd = macd_data["macd"]
-            signal = macd_data["signal"]
-            if macd > signal:
-                analysis_parts.append("MACD bullish cross")
-            elif macd < signal:
-                analysis_parts.append("MACD bearish cross")
+        if isinstance(macd_data, dict):
+            macd_val = macd_data.get("macd")
+            signal_val = macd_data.get("signal")
+            if isinstance(macd_val, (int, float)) and isinstance(signal_val, (int, float)):
+                if macd_val > signal_val:
+                    analysis_parts.append("MACD bullish cross")
+                elif macd_val < signal_val:
+                    analysis_parts.append("MACD bearish cross")
 
         # Bollinger Bands analysis
         bbands = indicators.get("bbands")
-        if bbands and bbands.get("upper") is not None:
-            bb_upper = bbands["upper"]
-            bb_lower = bbands["lower"]
-            bb_middle = bbands["middle"]
-
-            if current_price < bb_lower:
-                analysis_parts.append("below lower Bollinger Band")
-            elif current_price > bb_upper:
-                analysis_parts.append("above upper Bollinger Band")
-            elif current_price < bb_middle:
-                analysis_parts.append("near lower Bollinger Band")
-            elif current_price > bb_middle:
-                analysis_parts.append("near upper Bollinger Band")
+        if isinstance(bbands, dict):
+            bb_upper = bbands.get("upper")
+            bb_lower = bbands.get("lower")
+            bb_middle = bbands.get("middle")
+            if (
+                isinstance(bb_upper, (int, float))
+                and isinstance(bb_lower, (int, float))
+                and isinstance(bb_middle, (int, float))
+            ):
+                if current_price < bb_lower:
+                    analysis_parts.append("below lower Bollinger Band")
+                elif current_price > bb_upper:
+                    analysis_parts.append("above upper Bollinger Band")
+                elif current_price < bb_middle:
+                    analysis_parts.append("near lower Bollinger Band")
+                elif current_price > bb_middle:
+                    analysis_parts.append("near upper Bollinger Band")
 
         # SMA 200 trend analysis
         sma_200 = indicators.get("sma_200")
-        if sma_200 is not None:
+        if isinstance(sma_200, (int, float)):
             if current_price > sma_200:
                 pct_above = ((current_price - sma_200) / sma_200) * 100
                 analysis_parts.append(f"{pct_above:.1f}% above 200-day SMA (uptrend)")
@@ -281,25 +286,33 @@ class DataTools:
 
         # Stochastic analysis
         stoch = indicators.get("stochastic")
-        if stoch and stoch.get("k") is not None:
-            stoch_k = stoch["k"]
-            if stoch_k < 20:
-                analysis_parts.append(f"Stochastic={stoch_k:.1f} (oversold)")
-            elif stoch_k > 80:
-                analysis_parts.append(f"Stochastic={stoch_k:.1f} (overbought)")
+        if isinstance(stoch, dict):
+            stoch_k = stoch.get("k")
+            if isinstance(stoch_k, (int, float)):
+                if stoch_k < 20:
+                    analysis_parts.append(f"Stochastic={stoch_k:.1f} (oversold)")
+                elif stoch_k > 80:
+                    analysis_parts.append(f"Stochastic={stoch_k:.1f} (overbought)")
 
         # Add trading signal interpretation
         signals = []
-        if rsi is not None and rsi < 30:
+        if isinstance(rsi, (int, float)) and rsi < 30:
             signals.append("potential buy signal")
-        if rsi is not None and rsi > 70:
+        if isinstance(rsi, (int, float)) and rsi > 70:
             signals.append("potential sell signal")
 
-        if macd_data and macd_data.get("macd") is not None:
-            if macd_data["macd"] > macd_data["signal"] and rsi is not None and rsi < 50:
-                signals.append("bullish momentum building")
-            elif macd_data["macd"] < macd_data["signal"] and rsi is not None and rsi > 50:
-                signals.append("bearish momentum building")
+        if isinstance(macd_data, dict):
+            macd_val = macd_data.get("macd")
+            signal_val = macd_data.get("signal")
+            if (
+                isinstance(macd_val, (int, float))
+                and isinstance(signal_val, (int, float))
+                and isinstance(rsi, (int, float))
+            ):
+                if macd_val > signal_val and rsi < 50:
+                    signals.append("bullish momentum building")
+                elif macd_val < signal_val and rsi > 50:
+                    signals.append("bearish momentum building")
 
         if signals:
             analysis_parts.append(f"- {', '.join(signals)}")

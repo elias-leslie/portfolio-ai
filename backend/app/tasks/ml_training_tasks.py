@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 import subprocess
 import tempfile
@@ -36,15 +37,20 @@ def _update_progress(
     ]
     update_values = [status, current_step, progress_percent]
 
+    # Build parameter list - add kwargs values
     for key, value in kwargs.items():
         update_fields.append(f"{key} = %s")
-        update_values.append(value)
+        # Cast value to acceptable types
+        if isinstance(value, (str, int, float, bool, dt.datetime)):
+            update_values.append(value)
+        else:
+            update_values.append(str(value) if value is not None else None)
 
     update_values.append(session_id)
 
     conn.execute(
         f"UPDATE ml_training_progress SET {', '.join(update_fields)} WHERE session_id = %s",
-        update_values,
+        update_values,  # type: ignore[arg-type]
     )
     conn.commit()
 
@@ -100,10 +106,14 @@ def _query_new_articles(
 
     new_articles = []
     for row in all_articles:
-        ticker, headline, summary = row
+        # Cast database row values to proper types
+        ticker = str(row[0]) if row[0] is not None else ""
+        headline = str(row[1]) if row[1] is not None else ""
+        summary = str(row[2]) if row[2] is not None else ""
+
         hash_key = f"{ticker}_{headline[:50]}"
         if hash_key not in labeled_hashes:
-            new_articles.append({"ticker": ticker, "headline": headline, "summary": summary or ""})
+            new_articles.append({"ticker": ticker, "headline": headline, "summary": summary})
 
     print(f"   {len(new_articles)} are NEW (not yet labeled)")
 

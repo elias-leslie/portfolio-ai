@@ -111,7 +111,8 @@ def cache_response(
         async def wrapper(*args: object, **kwargs: object) -> object:
             # Check if caching is enabled
             if not CACHE_ENABLED:
-                return await func(*args, **kwargs)
+                result = await func(*args, **kwargs)  # type: ignore[misc]
+                return result
 
             # Extract request from args/kwargs
             request: Request | None = None
@@ -120,16 +121,18 @@ def cache_response(
                     request = arg
                     break
             if request is None and "request" in kwargs:
-                request = kwargs["request"]
+                request = kwargs["request"]  # type: ignore[assignment]
 
             if request is None:
                 # No request object, skip caching
                 logger.warning(f"No request object found for {func.__name__}, skipping cache")
-                return await func(*args, **kwargs)
+                result = await func(*args, **kwargs)  # type: ignore[misc]
+                return result
 
             # Only cache GET requests
             if request.method != "GET":
-                return await func(*args, **kwargs)
+                result = await func(*args, **kwargs)  # type: ignore[misc]
+                return result
 
             # Generate cache key
             cache_key = _generate_cache_key(request, include_user=include_user)
@@ -155,7 +158,7 @@ def cache_response(
             _cache_stats["misses"] += 1
             logger.debug(f"Cache MISS: {cache_key}")
 
-            result = await func(*args, **kwargs)
+            result = await func(*args, **kwargs)  # type: ignore[misc]
 
             # Serialize result for caching
             serialized_result = result

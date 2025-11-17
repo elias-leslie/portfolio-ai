@@ -8,15 +8,15 @@ duck typing compatibility.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     import polars as pl
 
 # Type alias for database values that can be returned from queries
 DatabaseValue = str | int | float | bool | None
-# Type alias for parameters that can be sent to database
-ParameterValue = str | int | float | bool | None | datetime
+# Type alias for parameters that can be sent to database (includes lists for UNNEST/ANY operators)
+ParameterValue = str | int | float | bool | None | datetime | list[str | int | float | bool | None]
 
 
 class DatabaseConnection(Protocol):
@@ -103,5 +103,14 @@ class DatabaseConnection(Protocol):
         """Close the connection.
 
         Releases the connection back to the pool or closes it.
+        """
+        ...
+
+    @property
+    def raw_connection(self) -> Any:
+        """Get underlying raw database connection.
+
+        Returns:
+            Raw connection object for cases needing direct access.
         """
         ...

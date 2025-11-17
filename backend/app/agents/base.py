@@ -539,7 +539,7 @@ class Agent(ABC):
             {
                 "id": run_id,
                 "agent_type": self.agent_type,
-                "started_at": started_at,
+                "started_at": started_at.isoformat() if started_at else None,
                 "completed_at": None,
                 "status": "running",
                 "num_ideas": 0,
@@ -629,6 +629,6 @@ class Agent(ABC):
                 "parameters": json.dumps(parameters, default=self._json_serializer),
                 "response_summary": result_summary,
                 "duration_ms": duration_ms,
-                "called_at": datetime.now(UTC),
+                "called_at": datetime.now(UTC).isoformat(),
             },
         )

@@ -7,6 +7,7 @@ to identify sector rotation patterns and relative sector strength.
 from __future__ import annotations
 
 import datetime as dt
+from typing import cast
 
 import polars as pl
 
@@ -126,7 +127,13 @@ def _fetch_ticker_returns(
     """
     return storage.query(
         returns_query,
-        [target_date, date_5d, target_date, date_20d, target_date],
+        [
+            target_date.isoformat(),
+            date_5d.isoformat(),
+            target_date.isoformat(),
+            date_20d.isoformat(),
+            target_date.isoformat(),
+        ],
     )
 
 
@@ -310,20 +317,22 @@ def _fetch_sector_performance(
         LEFT JOIN price_20d p20 ON p.ticker = p20.ticker
         ORDER BY return_20d DESC NULLS LAST
     """
-    return storage.query(
-        performance_query,
-        [
-            target_date,
-            tickers_list,
-            date_5d,
-            target_date,
-            tickers_list,
-            date_20d,
-            target_date,
-            tickers_list,
-            sector,
-        ],
-    )
+    # Cast list[str] to expected parameter type for UNNEST compatibility
+    params: list[
+        str | int | float | bool | dt.datetime | list[str | int | float | bool | None] | None
+    ] = [
+        target_date.isoformat(),
+        cast(list[str | int | float | bool | None], tickers_list),
+        date_5d.isoformat(),
+        target_date.isoformat(),
+        cast(list[str | int | float | bool | None], tickers_list),
+        date_20d.isoformat(),
+        target_date.isoformat(),
+        cast(list[str | int | float | bool | None], tickers_list),
+        sector,
+    ]
+
+    return storage.query(performance_query, params)
 
 
 def get_sector_performance_detail(

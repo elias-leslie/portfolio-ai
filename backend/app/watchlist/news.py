@@ -150,7 +150,9 @@ def fetch_news_headlines_cached(
     if cached_row is not None:
         payload = cached_row[0]
         # Payload is a list of dicts, convert to list of NewsHeadline
-        return [NewsHeadline(**item) for item in payload]
+        if isinstance(payload, list):
+            return [NewsHeadline(**item) for item in payload]
+        return []
 
     # Cache miss or stale - fetch fresh data
     fresh_data = fetch_news_headlines(symbol, max_results)
@@ -171,7 +173,7 @@ def fetch_news_headlines_cached(
         """,
         [
             symbol,
-            date.today(),
+            date.today().isoformat(),
             json.dumps(payload_data),
             "news",
         ],

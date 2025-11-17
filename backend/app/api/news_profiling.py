@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
@@ -119,18 +121,58 @@ async def get_all_source_stats() -> list[SourceMetricsResponse]:
 
     metrics_list: list[SourceMetricsResponse] = []
     for row in result:
+        vendor_val = row[0]
+        duplicate_rate_val = row[1]
+        diversity_score_val = row[2]
+        confidence_avg_val = row[3]
+        freshness_score_val = row[4]
+        user_useful_rate_val = row[5]
+        quality_score_val = row[6]
+        article_count_val = row[7]
+        sample_period_start_val = row[8]
+        calculated_at_val = row[9]
+
+        # Type narrowing for database values
+        if not isinstance(duplicate_rate_val, (int, float)):
+            duplicate_rate_val = 0.0
+        if not isinstance(diversity_score_val, (int, float)):
+            diversity_score_val = 0.0
+        if not isinstance(confidence_avg_val, (int, float)):
+            confidence_avg_val = 0.0
+        if not isinstance(freshness_score_val, (int, float)):
+            freshness_score_val = 0.0
+        if not isinstance(quality_score_val, (int, float)):
+            quality_score_val = 0.0
+        if not isinstance(article_count_val, int):
+            article_count_val = 0
+        if not isinstance(user_useful_rate_val, (int, float)) and user_useful_rate_val is not None:
+            user_useful_rate_val = None
+
+        # Ensure datetime objects have isoformat
+        if isinstance(sample_period_start_val, datetime):
+            sample_period_start_str = sample_period_start_val.isoformat()
+        else:
+            sample_period_start_str = str(sample_period_start_val)
+
+        if isinstance(calculated_at_val, datetime):
+            calculated_at_str = calculated_at_val.isoformat()
+        else:
+            calculated_at_str = str(calculated_at_val)
+
         metrics_list.append(
             SourceMetricsResponse(
-                vendor=str(row[0]),
-                duplicate_rate=float(row[1]),
-                diversity_score=float(row[2]),
-                confidence_avg=float(row[3]),
-                freshness_score=float(row[4]),
-                user_useful_rate=float(row[5]) if row[5] is not None else None,
-                quality_score=float(row[6]),
-                article_count=int(row[7]),
-                sample_period_start=row[8].isoformat(),
-                calculated_at=row[9].isoformat(),
+                vendor=str(vendor_val),
+                duplicate_rate=float(duplicate_rate_val),
+                diversity_score=float(diversity_score_val),
+                confidence_avg=float(confidence_avg_val),
+                freshness_score=float(freshness_score_val),
+                user_useful_rate=float(user_useful_rate_val)
+                if user_useful_rate_val is not None
+                else None,
+                quality_score=float(quality_score_val),
+                article_count=int(article_count_val),
+                sample_period_start=sample_period_start_str,
+                calculated_at=calculated_at_str,
             )
         )
 
@@ -175,17 +217,56 @@ async def get_vendor_stats(vendor: str) -> SourceMetricsResponse | None:
     if not result:
         return None
 
+    # Type narrowing for database result
+    vendor_val = result[0]
+    duplicate_rate_val = result[1]
+    diversity_score_val = result[2]
+    confidence_avg_val = result[3]
+    freshness_score_val = result[4]
+    user_useful_rate_val = result[5]
+    quality_score_val = result[6]
+    article_count_val = result[7]
+    sample_period_start_val = result[8]
+    calculated_at_val = result[9]
+
+    # Ensure numeric types
+    if not isinstance(duplicate_rate_val, (int, float)):
+        duplicate_rate_val = 0.0
+    if not isinstance(diversity_score_val, (int, float)):
+        diversity_score_val = 0.0
+    if not isinstance(confidence_avg_val, (int, float)):
+        confidence_avg_val = 0.0
+    if not isinstance(freshness_score_val, (int, float)):
+        freshness_score_val = 0.0
+    if not isinstance(quality_score_val, (int, float)):
+        quality_score_val = 0.0
+    if not isinstance(article_count_val, int):
+        article_count_val = 0
+    if not isinstance(user_useful_rate_val, (int, float)) and user_useful_rate_val is not None:
+        user_useful_rate_val = None
+
+    # Ensure datetime objects have isoformat
+    if isinstance(sample_period_start_val, datetime):
+        sample_period_start_str = sample_period_start_val.isoformat()
+    else:
+        sample_period_start_str = str(sample_period_start_val)
+
+    if isinstance(calculated_at_val, datetime):
+        calculated_at_str = calculated_at_val.isoformat()
+    else:
+        calculated_at_str = str(calculated_at_val)
+
     return SourceMetricsResponse(
-        vendor=str(result[0]),
-        duplicate_rate=float(result[1]),
-        diversity_score=float(result[2]),
-        confidence_avg=float(result[3]),
-        freshness_score=float(result[4]),
-        user_useful_rate=float(result[5]) if result[5] is not None else None,
-        quality_score=float(result[6]),
-        article_count=int(result[7]),
-        sample_period_start=result[8].isoformat(),
-        calculated_at=result[9].isoformat(),
+        vendor=str(vendor_val),
+        duplicate_rate=float(duplicate_rate_val),
+        diversity_score=float(diversity_score_val),
+        confidence_avg=float(confidence_avg_val),
+        freshness_score=float(freshness_score_val),
+        user_useful_rate=float(user_useful_rate_val) if user_useful_rate_val is not None else None,
+        quality_score=float(quality_score_val),
+        article_count=int(article_count_val),
+        sample_period_start=sample_period_start_str,
+        calculated_at=calculated_at_str,
     )
 
 
@@ -288,11 +369,22 @@ async def get_article_feedback(
     if not result:
         return {"exists": False}
 
+    # Type narrowing for database result
+    vendor_val = result[0]
+    is_useful_val = result[1]
+    created_at_val = result[2]
+
+    # Ensure datetime object has isoformat
+    if isinstance(created_at_val, datetime):
+        created_at_str = created_at_val.isoformat()
+    else:
+        created_at_str = str(created_at_val)
+
     return {
         "exists": True,
-        "vendor": str(result[0]),
-        "is_useful": bool(result[1]),
-        "created_at": result[2].isoformat(),
+        "vendor": str(vendor_val),
+        "is_useful": bool(is_useful_val),
+        "created_at": created_at_str,
     }
 
 

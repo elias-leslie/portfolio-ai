@@ -91,7 +91,7 @@ def _get_database_size_impl() -> dict[str, Any]:
 @celery_app.task(name="vacuum_database_task", bind=True)  # type: ignore[misc]
 def vacuum_database_task(
     self: Task, tables: list[str] | None = None
-) -> dict[str, int | str | float]:
+) -> dict[str, int | str | float | bool]:
     """VACUUM ANALYZE database tables to reclaim space and update statistics.
 
     Args:
@@ -111,7 +111,7 @@ def vacuum_database_task(
         # Get list of tables to vacuum
         if tables is None:
             with storage.connection() as conn:
-                result = conn.execute(
+                rows = conn.execute(
                     """
                     SELECT tablename
                     FROM pg_tables
@@ -119,7 +119,7 @@ def vacuum_database_task(
                     ORDER BY tablename
                     """
                 ).fetchall()
-                tables_to_vacuum = [row[0] for row in result]
+                tables_to_vacuum: list[str] = [str(row[0]) for row in rows]
         else:
             tables_to_vacuum = tables
 
@@ -153,7 +153,7 @@ def vacuum_database_task(
 
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
 
-        result = {
+        result: dict[str, int | str | float | bool] = {
             "task_id": task_id,
             "tables_processed": tables_processed,
             "total_tables": len(tables_to_vacuum),
@@ -204,14 +204,14 @@ def cleanup_old_news_task(self: Task, days: int = 90) -> dict[str, int | str | f
 
         with storage.connection() as conn:
             # Delete old news articles
-            result = conn.execute(
+            conn.execute(
                 """
                 DELETE FROM news_cache
                 WHERE fetched_at < %s
                 """,
                 [cutoff_date],
             )
-            rows_deleted = result.rowcount
+            rows_deleted = conn._cursor.rowcount
             conn.commit()
 
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
@@ -279,24 +279,24 @@ def cleanup_old_agent_runs_task(self: Task, days: int = 30) -> dict[str, int | s
 
             if run_ids:
                 # Delete associated ideas first (FK constraint)
-                ideas_result = conn.execute(
+                conn.execute(
                     """
                     DELETE FROM agent_ideas
                     WHERE run_id = ANY(%s)
                     """,
                     [run_ids],
                 )
-                ideas_deleted = ideas_result.rowcount
+                ideas_deleted = conn._cursor.rowcount
 
                 # Delete agent runs
-                runs_result = conn.execute(
+                conn.execute(
                     """
                     DELETE FROM agent_runs
                     WHERE id = ANY(%s)
                     """,
                     [run_ids],
                 )
-                runs_deleted = runs_result.rowcount
+                runs_deleted = conn._cursor.rowcount
 
                 conn.commit()
             else:
@@ -352,16 +352,16 @@ def cleanup_orphaned_data_task(self: Task) -> dict[str, int | str | float]:
 
         with storage.connection() as conn:
             # Delete ideas with non-existent run_ids
-            result = conn.execute(
+            conn.execute(
                 """
                 DELETE FROM agent_ideas
                 WHERE run_id NOT IN (SELECT id FROM agent_runs)
                 """
             )
-            orphaned_ideas = result.rowcount
+            orphaned_ideas = conn._cursor.rowcount
 
             # Delete capabilities insights with non-existent capability_id
-            result = conn.execute(
+            conn.execute(
                 """
                 DELETE FROM capability_insights
                 WHERE capability_id NOT IN (
@@ -373,7 +373,7 @@ def cleanup_orphaned_data_task(self: Task) -> dict[str, int | str | float]:
                 )
                 """
             )
-            orphaned_insights = result.rowcount
+            orphaned_insights = conn._cursor.rowcount
 
             conn.commit()
 

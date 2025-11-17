@@ -200,7 +200,7 @@ def build_watchlist_snapshot(
     earnings_date_obj: datetime | None,
     earnings_days_away_val: int | None,
     news_sentiment_value: float | None,
-    recent_news_value: dict[str, object] | None,
+    recent_news_value: dict[str, Any] | None,
 ) -> WatchlistSnapshot:
     """Build final WatchlistSnapshot from all processed data.
 

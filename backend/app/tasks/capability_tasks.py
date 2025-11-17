@@ -7,7 +7,6 @@ generate AI-powered insights about data quality and gaps.
 from __future__ import annotations
 
 import time
-from typing import Any
 
 from ..celery_app import celery_app
 from ..logging_config import get_logger
@@ -68,14 +67,13 @@ def scan_system_capabilities() -> CapabilityResultDict:
         # Calculate duration
         duration = time.time() - start_time
 
-        result = {
+        result: CapabilityResultDict = {
             "status": "success",
             "db_tables_scanned": len(db_caps),
             "celery_tasks_scanned": len(celery_caps),
             "api_endpoints_scanned": len(api_caps),
             "total_capabilities": len(db_caps) + len(celery_caps) + len(api_caps),
             "scan_duration_seconds": round(duration, 2),
-            "error": None,
         }
 
         logger.info(
@@ -96,15 +94,15 @@ def scan_system_capabilities() -> CapabilityResultDict:
             duration_seconds=round(duration, 2),
         )
 
-        return {
-            "status": "error",
-            "db_tables_scanned": 0,
-            "celery_tasks_scanned": 0,
-            "api_endpoints_scanned": 0,
-            "total_capabilities": 0,
-            "scan_duration_seconds": round(duration, 2),
-            "error": str(e),
-        }
+        return CapabilityResultDict(
+            status="error",
+            db_tables_scanned=0,
+            celery_tasks_scanned=0,
+            api_endpoints_scanned=0,
+            total_capabilities=0,
+            scan_duration_seconds=round(duration, 2),
+            error=str(e),
+        )
 
 
 @celery_app.task(name="analyze_capabilities")  # type: ignore[misc]
@@ -144,12 +142,11 @@ def analyze_capabilities() -> CapabilityResultDict:
         # Calculate duration
         duration = time.time() - start_time
 
-        result = {
+        result: CapabilityResultDict = {
             "status": "success",
             "insights_generated": len(insights),
             "insights_saved": len(insights),
             "analysis_duration_seconds": round(duration, 2),
-            "error": None,
         }
 
         logger.info(
@@ -168,10 +165,10 @@ def analyze_capabilities() -> CapabilityResultDict:
             duration_seconds=round(duration, 2),
         )
 
-        return {
-            "status": "error",
-            "insights_generated": 0,
-            "insights_saved": 0,
-            "analysis_duration_seconds": round(duration, 2),
-            "error": str(e),
-        }
+        return CapabilityResultDict(
+            status="error",
+            insights_generated=0,
+            insights_saved=0,
+            analysis_duration_seconds=round(duration, 2),
+            error=str(e),
+        )

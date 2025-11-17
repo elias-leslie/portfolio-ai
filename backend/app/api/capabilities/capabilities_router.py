@@ -175,8 +175,10 @@ async def get_capabilities(
                     count_params = params_list[2:-2]  # Skip type params and limit/offset
 
                 # Execute count
-                result = conn.execute(count_query, count_params).fetchone()
-                total = result[0] if result else 0
+                count_result = conn.execute(count_query, count_params).fetchone()
+                total = (
+                    int(count_result[0]) if count_result and isinstance(count_result[0], int) else 0
+                )
 
                 # Execute main query
                 result = conn.execute(query, params_list)
@@ -254,9 +256,11 @@ async def get_health_summary() -> HealthSummaryDict:
             result = conn.execute(db_query)
             for row in result.fetchall():
                 health_status_val, count = row
-                summary["by_type"]["database"][health_status_val] = count
-                summary["by_status"][health_status_val] += count
-                summary["total"] += count
+                # Type narrowing: ensure we have a string health_status and int count
+                if isinstance(health_status_val, str) and isinstance(count, int):
+                    summary["by_type"]["database"][health_status_val] = count
+                    summary["by_status"][health_status_val] += count
+                    summary["total"] += count
 
             # Query celery_capabilities
             celery_query = """
@@ -268,9 +272,11 @@ async def get_health_summary() -> HealthSummaryDict:
             result = conn.execute(celery_query)
             for row in result.fetchall():
                 health_status_val, count = row
-                summary["by_type"]["celery"][health_status_val] = count
-                summary["by_status"][health_status_val] += count
-                summary["total"] += count
+                # Type narrowing: ensure we have a string health_status and int count
+                if isinstance(health_status_val, str) and isinstance(count, int):
+                    summary["by_type"]["celery"][health_status_val] = count
+                    summary["by_status"][health_status_val] += count
+                    summary["total"] += count
 
             # Query api_capabilities
             api_query = """
@@ -282,9 +288,11 @@ async def get_health_summary() -> HealthSummaryDict:
             result = conn.execute(api_query)
             for row in result.fetchall():
                 health_status_val, count = row
-                summary["by_type"]["api"][health_status_val] = count
-                summary["by_status"][health_status_val] += count
-                summary["total"] += count
+                # Type narrowing: ensure we have a string health_status and int count
+                if isinstance(health_status_val, str) and isinstance(count, int):
+                    summary["by_type"]["api"][health_status_val] = count
+                    summary["by_status"][health_status_val] += count
+                    summary["total"] += count
 
             logger.info(
                 "health_summary_retrieved",
@@ -371,10 +379,15 @@ async def get_capability_detail(
                 # No dependencies tracked for db_capabilities
                 pass
             elif capability_type == "celery":
-                dependencies["populates_tables"] = capability.get("populates_tables", [])  # type: ignore
-                dependencies["depends_on_tasks"] = capability.get("depends_on_tasks", [])  # type: ignore
+                populates_tables = capability.get("populates_tables", [])
+                depends_on_tasks = capability.get("depends_on_tasks", [])
+                if isinstance(populates_tables, list) and isinstance(depends_on_tasks, list):
+                    dependencies["populates_tables"] = populates_tables
+                    dependencies["depends_on_tasks"] = depends_on_tasks
             elif capability_type == "api":
-                dependencies["depends_on_tables"] = capability.get("depends_on_tables", [])  # type: ignore
+                depends_on_tables = capability.get("depends_on_tables", [])
+                if isinstance(depends_on_tables, list):
+                    dependencies["depends_on_tables"] = depends_on_tables
 
             logger.info(
                 "capability_detail_retrieved",

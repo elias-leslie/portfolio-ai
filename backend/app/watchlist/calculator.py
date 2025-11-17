@@ -50,7 +50,12 @@ def get_swing_low(conn: DatabaseConnection, symbol: str, days: int = 10) -> floa
     result = conn.execute(query, [symbol, days])
     row = result.fetchone()
 
-    if row is None or row[1] < days or row[0] is None:
+    if row is None or row[0] is None:
+        return None
+
+    # Type guard for row[1] (count of rows)
+    count = row[1] if isinstance(row[1], int) else 0
+    if count < days:
         return None
 
     return float(row[0])
@@ -88,7 +93,12 @@ def get_swing_high(conn: DatabaseConnection, symbol: str, days: int = 30) -> flo
     result = conn.execute(query, [symbol, days])
     row = result.fetchone()
 
-    if row is None or row[1] < days or row[0] is None:
+    if row is None or row[0] is None:
+        return None
+
+    # Type guard for row[1] (count of rows)
+    count = row[1] if isinstance(row[1], int) else 0
+    if count < days:
         return None
 
     return float(row[0])

@@ -122,7 +122,7 @@ class AgentTools:
     # Trading tools - delegate to TradingTools
     def execute_store_idea(self, agent_run_id: str, **idea_data: object) -> dict[str, object]:
         """Execute store_idea tool."""
-        return self.trading.execute_store_idea(agent_run_id, **idea_data)  # type: ignore[arg-type]
+        return self.trading.execute_store_idea(agent_run_id, **idea_data)
 
     def execute_add_ticker(
         self,

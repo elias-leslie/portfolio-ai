@@ -77,7 +77,7 @@ class WorkflowOrchestrator:
                         workflow_type,
                         "pending",
                         "initializing",
-                        agents_list,
+                        ",".join(agents_list) if agents_list else "",  # Convert list to CSV string
                         json.dumps(shared_context),
                         triggered_by,
                         priority,
@@ -160,7 +160,7 @@ class WorkflowOrchestrator:
         with self.storage.connection() as conn:
             conn.execute(
                 f"UPDATE agent_workflows SET {set_clause} WHERE id = ${len(values)}",  # validated: columns from whitelist
-                values,
+                [str(v) for v in values],
             )
 
         logger.info(f"Workflow {workflow_id} status updated to {status}")

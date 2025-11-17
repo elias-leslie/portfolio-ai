@@ -344,6 +344,6 @@ class NewsCacheManager:
                         quality_prediction = EXCLUDED.quality_prediction,
                         quality_confidence = EXCLUDED.quality_confidence
                     """,
-                    row,
+                    [row],  # type: ignore[list-item]
                 )
             conn.commit()

@@ -44,19 +44,19 @@ __all__ = [
     "capability_tasks",
     "data_ingestion_tasks",
     "indicator_tasks",
+    # Individual tasks (backward compatibility)
+    "ingest_historical_ohlcv",
     "log_cleanup_tasks",
     "maintenance_tasks",
     "ml_training_tasks",
     "news_profiling_tasks",
     "news_tasks",
     "reference_tasks",
-    "watchlist_tasks",
-    "workflow_tasks",
-    # Individual tasks (backward compatibility)
-    "ingest_historical_ohlcv",
     "refresh_watchlist_scores_task",
     "run_discovery_agent",
     "run_portfolio_analyzer",
     "update_paper_trades_task",
     "update_technical_indicators",
+    "watchlist_tasks",
+    "workflow_tasks",
 ]

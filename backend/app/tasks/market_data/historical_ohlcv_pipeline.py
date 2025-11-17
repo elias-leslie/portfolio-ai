@@ -60,14 +60,20 @@ def _check_symbol_data(ticker: str) -> tuple[bool, int]:
             [ticker],
         ).fetchone()
 
-    days_available = result[0] if result else 0
-    latest_date = result[1] if result and result[1] else None
+    days_available_raw = result[0] if result else 0
+    latest_date_raw = result[1] if result and result[1] else None
+
+    # Convert to proper types with type guards
+    days_available = days_available_raw if isinstance(days_available_raw, int) else 0
+    latest_date = latest_date_raw if isinstance(latest_date_raw, dt.date) else None
 
     # Need backfill if less than TARGET_DAYS OR data is not current
     # Data should be from today (intraday data available via yfinance)
     today = dt.date.today()
 
+    # Check staleness
     is_stale = latest_date is None or latest_date < today
+
     needs_backfill = days_available < TARGET_DAYS or is_stale
 
     return needs_backfill, days_available

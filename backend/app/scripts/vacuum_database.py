@@ -47,7 +47,9 @@ def get_table_size(conn: DatabaseConnection, table_name: str) -> float:
         [table_name],
     ).fetchone()
 
-    return round(result[0], 2) if result else 0.0
+    if result and result[0] is not None:
+        return round(float(result[0]), 2)
+    return 0.0
 
 
 def get_all_tables(conn: DatabaseConnection) -> list[str]:
@@ -68,7 +70,7 @@ def get_all_tables(conn: DatabaseConnection) -> list[str]:
         """
     ).fetchall()
 
-    return [row[0] for row in result]
+    return [str(row[0]) for row in result if row and row[0] is not None]
 
 
 def validate_table_exists(conn: DatabaseConnection, table_name: str) -> None:
@@ -151,7 +153,11 @@ def vacuum_database(tables: list[str] | None = None, dry_run: bool = False) -> d
                 after_mb = get_table_size(conn, table_name)
                 total_after_mb += after_mb
 
-                reclaimed_mb = before_mb - after_mb
+                # Safe subtraction with type checking
+                if isinstance(before_mb, (int, float)) and isinstance(after_mb, (int, float)):
+                    reclaimed_mb = before_mb - after_mb
+                else:
+                    reclaimed_mb = 0.0
 
                 results.append(
                     {
@@ -230,7 +236,7 @@ Examples:
     args = parser.parse_args()
 
     try:
-        result = vacuum_database(tables=args.tables, dry_run=args.dry_run)
+        result = vacuum_database(tables=args.tables if args.tables else None, dry_run=args.dry_run)
 
         # Print JSON summary to stdout for programmatic use
         print(json.dumps(result, indent=2))

@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 
 from app.analytics.order_executor import OrderExecutor
 from app.analytics.transaction_logger import TransactionLogger
+from app.analytics.types import TransactionDict
 from app.logging_config import get_logger
 from app.storage import get_storage
 
@@ -134,8 +135,8 @@ async def create_paper_trade(request: CreateTradeRequest) -> CreateTradeResponse
             "confidence_score": 70,  # Default confidence for manual trades
             "risk_level": "medium",  # Default risk
             "status": "pending",
-            "created_at": datetime.now(UTC),
-            "updated_at": datetime.now(UTC),
+            "created_at": datetime.now(UTC).isoformat(),
+            "updated_at": datetime.now(UTC).isoformat(),
         },
     )
 
@@ -176,7 +177,7 @@ async def create_paper_trade(request: CreateTradeRequest) -> CreateTradeResponse
             "ticker": ticker,
             "idea_type": action,
             "entry_price": entry_price,
-            "entry_date": datetime.now(UTC).date(),
+            "entry_date": datetime.now(UTC).date().isoformat(),
             "target_price": request.target_price,
             "stop_loss_price": stop_loss_price,
             "current_price": entry_price,
@@ -184,8 +185,8 @@ async def create_paper_trade(request: CreateTradeRequest) -> CreateTradeResponse
             "status": "open",
             "shares": max_shares,
             "entry_amount": order_result["amount"],
-            "created_at": datetime.now(UTC),
-            "updated_at": datetime.now(UTC),
+            "created_at": datetime.now(UTC).isoformat(),
+            "updated_at": datetime.now(UTC).isoformat(),
         },
     )
 
@@ -210,7 +211,7 @@ async def create_paper_trade(request: CreateTradeRequest) -> CreateTradeResponse
 
 
 @router.get("/transactions")
-async def get_transactions(limit: int = 100) -> list[dict[str, str | int | float | None]]:
+async def get_transactions(limit: int = 100) -> list[TransactionDict]:
     """Get recent paper trade transactions.
 
     Returns a list of all transaction records (entries and exits) ordered by
@@ -232,7 +233,7 @@ async def get_transactions(limit: int = 100) -> list[dict[str, str | int | float
 
 
 @router.get("/transactions/{trade_id}")
-async def get_trade_transactions(trade_id: str) -> list[dict[str, str | int | float | None]]:
+async def get_trade_transactions(trade_id: str) -> list[TransactionDict]:
     """Get all transactions for a specific trade.
 
     Returns entry and exit transactions for a paper trade, useful for auditing

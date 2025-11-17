@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from datetime import datetime
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from psycopg2.extras import Json, RealDictCursor
 
@@ -86,7 +86,7 @@ def get_all_profiles(conn: ConnectionProtocol, user_id: int = 1) -> list[Setting
             (user_id,),
         )
         rows = cur.fetchall()
-        return [SettingsProfile(**row) for row in rows]
+        return [SettingsProfile(**cast(dict[str, Any], row)) for row in rows]
 
 
 def get_profile_by_id(
@@ -104,7 +104,7 @@ def get_profile_by_id(
             (profile_id, user_id),
         )
         row = cur.fetchone()
-        return SettingsProfile(**row) if row else None
+        return SettingsProfile(**cast(dict[str, Any], row)) if row else None
 
 
 def get_active_profile(conn: ConnectionProtocol, user_id: int = 1) -> SettingsProfile | None:
@@ -121,7 +121,7 @@ def get_active_profile(conn: ConnectionProtocol, user_id: int = 1) -> SettingsPr
             (user_id,),
         )
         row = cur.fetchone()
-        return SettingsProfile(**row) if row else None
+        return SettingsProfile(**cast(dict[str, Any], row)) if row else None
 
 
 def create_profile(
@@ -147,7 +147,7 @@ def create_profile(
         conn.commit()
         if not row:
             raise ValueError("Failed to create profile")
-        return SettingsProfile(**row)
+        return SettingsProfile(**cast(dict[str, Any], row))
 
 
 def update_profile(
@@ -195,7 +195,7 @@ def update_profile(
         )
         row = cur.fetchone()
         conn.commit()
-        return SettingsProfile(**row) if row else None
+        return SettingsProfile(**cast(dict[str, Any], row)) if row else None
 
 
 def delete_profile(conn: ConnectionProtocol, profile_id: int, user_id: int = 1) -> bool:

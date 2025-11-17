@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from pydantic import BaseModel
 
@@ -269,7 +269,13 @@ class HealthCheckService:
         ]
 
         disk_usage_internal = get_disk_usage()
-        disk_usage_model = DiskUsageInfo(**disk_usage_internal)
+        disk_usage_model = DiskUsageInfo(
+            total_gb=disk_usage_internal["total_gb"],
+            used_gb=disk_usage_internal["used_gb"],
+            free_gb=disk_usage_internal["free_gb"],
+            percent_used=disk_usage_internal["percent_used"],
+            status=cast(Literal["ok", "warning", "critical"], disk_usage_internal["status"]),
+        )
 
         logger.info(
             "detailed_health_check_performed",

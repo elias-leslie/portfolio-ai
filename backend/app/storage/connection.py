@@ -12,7 +12,7 @@ import re
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Literal
 
 import pandas as pd
 import polars as pl
@@ -22,13 +22,13 @@ from sqlalchemy.engine import Engine
 from ..logging_config import get_logger
 
 if TYPE_CHECKING:
-    from psycopg2.extensions import connection as psycopg_connection
+    pass
 
 # Type alias for database values that can be returned from queries
 # This is necessarily broad since PostgreSQL returns various types
 DatabaseValue = str | int | float | bool | None
-# Type alias for parameters that can be sent to database
-ParameterValue = str | int | float | bool | None | datetime
+# Type alias for parameters that can be sent to database (includes lists for UNNEST/ANY operators)
+ParameterValue = str | int | float | bool | None | datetime | list[str | int | float | bool | None]
 
 logger = get_logger(__name__)
 
@@ -46,7 +46,7 @@ class PostgreSQLConnectionWrapper:
 
     def __init__(
         self,
-        pg_conn: psycopg_connection,
+        pg_conn: Any,
         engine: Engine | None = None,
     ) -> None:
         """Initialize wrapper around psycopg2 connection.
@@ -103,7 +103,7 @@ class PostgreSQLConnectionWrapper:
         result: tuple[DatabaseValue, ...] | None = self._cursor.fetchone()
         return result
 
-    def pl(self) -> pl.DataFrame:
+    def _get_polars_dataframe(self) -> "pl.DataFrame":  # noqa: UP037
         """Convert query results to Polars DataFrame (compatibility).
 
         Returns:
@@ -125,7 +125,25 @@ class PostgreSQLConnectionWrapper:
         data = {col: [row[i] for row in rows] for i, col in enumerate(columns)}
         return pl.DataFrame(data, strict=False)
 
-    def fetchdf(self) -> pl.DataFrame:
+    def pl(self) -> "pl.DataFrame":  # noqa: UP037
+        """Convert query results to Polars DataFrame (compatibility).
+
+        Returns:
+            Polars DataFrame with query results.
+        """
+        return self._get_polars_dataframe()
+
+    def pl_dataframe(self) -> "pl.DataFrame":  # type: ignore[name-defined] # noqa: UP037
+        """Fetch results as Polars DataFrame (compatibility).
+
+        Alias for .pl() method to match pl_dataframe() interface.
+
+        Returns:
+            Polars DataFrame with query results.
+        """
+        return self.pl()
+
+    def fetchdf(self) -> "pl.DataFrame":  # type: ignore[name-defined] # noqa: UP037
         """Fetch results as Polars DataFrame (compatibility).
 
         Alias for .pl() method to match fetchdf() interface.
@@ -169,7 +187,10 @@ class PostgreSQLConnectionWrapper:
         self._conn.close()
 
     def insert_dataframe(
-        self, table_name: str, df: pd.DataFrame | pl.DataFrame, if_exists: str = "append"
+        self,
+        table_name: str,
+        df: pd.DataFrame | "pl.DataFrame",  # type: ignore[name-defined] # noqa: UP037
+        if_exists: Literal["fail", "replace", "append"] = "append",
     ) -> int:
         """Insert pandas/polars DataFrame into table using efficient bulk insert.
 
@@ -209,7 +230,7 @@ class PostgreSQLConnectionWrapper:
             raise ValueError(f"Invalid table name: {table_name}")
 
         # Convert polars to pandas if needed
-        if hasattr(df, "to_pandas"):
+        if isinstance(df, pl.DataFrame):
             pdf = df.to_pandas()
         elif isinstance(df, pd.DataFrame):
             pdf = df
@@ -244,13 +265,25 @@ class PostgreSQLConnectionWrapper:
         return row_count
 
     @property
-    def description(self) -> tuple[tuple[str, ...], ...] | None:
+    def description(self) -> Any:
         """Get cursor description (column metadata).
 
         Returns:
             Tuple of column metadata tuples, or None if no cursor description available.
         """
         return self._cursor.description
+
+    @property
+    def raw_connection(self) -> Any:
+        """Get underlying psycopg2 connection.
+
+        This property exposes the raw psycopg2 connection for use cases that need
+        direct access (e.g., passing to functions expecting a ConnectionProtocol).
+
+        Returns:
+            Raw psycopg2 connection object.
+        """
+        return self._conn
 
 
 class ConnectionManager:

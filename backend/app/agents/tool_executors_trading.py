@@ -46,25 +46,26 @@ class TradingTools:
             Result dictionary with idea ID and status
         """
         idea_id = str(uuid.uuid4())
+        now = datetime.now(UTC)
 
         self.storage.insert_dict(
             "agent_ideas",
             {
                 "id": idea_id,
                 "agent_run_id": agent_run_id,
-                "idea_type": idea_data.get("idea_type"),
-                "title": idea_data.get("title"),
-                "thesis": idea_data.get("thesis"),
-                "action": idea_data.get("action"),
-                "confidence_score": idea_data.get("confidence_score"),
-                "risk_level": idea_data.get("risk_level"),
-                "reward_estimate": idea_data.get("reward_estimate"),
-                "portfolio_impact": idea_data.get("portfolio_impact"),
-                "data_needed": idea_data.get("data_needed"),
-                "risks": idea_data.get("risks"),
+                "idea_type": str(idea_data.get("idea_type")),
+                "title": str(idea_data.get("title")),
+                "thesis": str(idea_data.get("thesis")),
+                "action": str(idea_data.get("action")),
+                "confidence_score": cast(float, idea_data.get("confidence_score")),
+                "risk_level": str(idea_data.get("risk_level")),
+                "reward_estimate": cast(float, idea_data.get("reward_estimate")),
+                "portfolio_impact": cast(float, idea_data.get("portfolio_impact")),
+                "data_needed": str(idea_data.get("data_needed")),
+                "risks": str(idea_data.get("risks")),
                 "status": "pending",
-                "created_at": datetime.now(UTC),
-                "updated_at": datetime.now(UTC),
+                "created_at": now.isoformat(),
+                "updated_at": now.isoformat(),
             },
         )
 
@@ -125,6 +126,7 @@ class TradingTools:
 
         # Create watchlist item with ownership tracking
         item_id = str(uuid.uuid4())
+        now = datetime.now(UTC)
 
         metadata = {
             "reason": reason,
@@ -139,11 +141,11 @@ class TradingTools:
                 {
                     "id": item_id,
                     "symbol": ticker,
-                    "metadata": metadata,
+                    "metadata": str(metadata),
                     "added_by": agent_run_id,
-                    "added_at": datetime.now(UTC),
-                    "created_at": datetime.now(UTC),
-                    "updated_at": datetime.now(UTC),
+                    "added_at": now.isoformat(),
+                    "created_at": now.isoformat(),
+                    "updated_at": now.isoformat(),
                 },
             )
 
@@ -298,6 +300,7 @@ class TradingTools:
 
         # Create agent idea record
         idea_id = str(uuid.uuid4())
+        now = datetime.now(UTC)
 
         self.storage.insert_dict(
             "agent_ideas",
@@ -311,8 +314,8 @@ class TradingTools:
                 "confidence_score": 70,  # Default confidence
                 "risk_level": "medium",  # Default risk
                 "status": "pending",
-                "created_at": datetime.now(UTC),
-                "updated_at": datetime.now(UTC),
+                "created_at": now.isoformat(),
+                "updated_at": now.isoformat(),
             },
         )
 
@@ -349,6 +352,7 @@ class TradingTools:
             stop_loss_price = entry_price * (1 + stop_loss_pct / 100)
 
         # Create idea_outcomes record
+        now = datetime.now(UTC)
         self.storage.insert_dict(
             "idea_outcomes",
             {
@@ -357,7 +361,7 @@ class TradingTools:
                 "ticker": ticker,
                 "idea_type": action,
                 "entry_price": entry_price,
-                "entry_date": datetime.now(UTC).date(),
+                "entry_date": now.date().isoformat(),
                 "target_price": target_price,
                 "stop_loss_price": stop_loss_price,
                 "current_price": entry_price,
@@ -365,8 +369,8 @@ class TradingTools:
                 "status": "open",
                 "shares": max_shares,
                 "entry_amount": order_result["amount"],
-                "created_at": datetime.now(UTC),
-                "updated_at": datetime.now(UTC),
+                "created_at": now.isoformat(),
+                "updated_at": now.isoformat(),
             },
         )
 

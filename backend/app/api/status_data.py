@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from datetime import date as date_type
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -152,7 +153,8 @@ async def get_table_freshness() -> TableFreshnessResponse:
                         """,
                         [table_name],
                     )
-                    table_exists = table_check.fetchone()[0]
+                    row = table_check.fetchone()
+                    table_exists = row[0] if row else False
 
                     if not table_exists:
                         logger.warning(
@@ -171,7 +173,8 @@ async def get_table_freshness() -> TableFreshnessResponse:
                         """,
                         [table_name, timestamp_col],
                     )
-                    col_exists = col_check.fetchone()[0]
+                    row = col_check.fetchone()
+                    col_exists = row[0] if row else False
 
                     if not col_exists:
                         logger.warning(
@@ -198,35 +201,48 @@ async def get_table_freshness() -> TableFreshnessResponse:
                     # validated: table/column from information_schema
                     result = conn.execute(f"SELECT MAX({timestamp_col}) FROM {table_name}")
                     row = result.fetchone()
-                    last_updated = row[0] if row else None
+                    last_updated_raw = row[0] if row else None
 
                     # Get row count
                     # validated: table/column from information_schema
                     result = conn.execute(f"SELECT COUNT(*) FROM {table_name}")
                     row = result.fetchone()
                     row_count = row[0] if row else 0
+                    if not isinstance(row_count, int):
+                        row_count = int(row_count) if row_count else 0
 
                     # Calculate age and status based on expected refresh interval
                     age_hours = None
                     status = "unknown"
+                    last_updated = None
 
-                    if last_updated:
+                    if last_updated_raw:
                         # Convert date to datetime for age calculation
                         if col_type == "date":
-                            last_updated = datetime.combine(
-                                last_updated, datetime.min.time(), tzinfo=UTC
-                            )
-
-                        age_delta = now - last_updated
-                        age_hours = age_delta.total_seconds() / 3600
-
-                        # Status based on expected interval with 2x tolerance
-                        if age_hours <= expected_hours:
-                            status = "fresh"
-                        elif age_hours <= expected_hours * 2:
-                            status = "stale"
+                            if isinstance(last_updated_raw, str):
+                                parsed_date = date_type.fromisoformat(last_updated_raw)
+                                last_updated = datetime.combine(
+                                    parsed_date, datetime.min.time(), tzinfo=UTC
+                                )
+                            else:
+                                # Unexpected type for date field, mark as unknown
+                                last_updated = None
+                        elif isinstance(last_updated_raw, datetime):
+                            last_updated = last_updated_raw
                         else:
-                            status = "critical"
+                            last_updated = None
+
+                        if last_updated is not None:
+                            age_delta = now - last_updated
+                            age_hours = age_delta.total_seconds() / 3600
+
+                            # Status based on expected interval with 2x tolerance
+                            if age_hours <= expected_hours:
+                                status = "fresh"
+                            elif age_hours <= expected_hours * 2:
+                                status = "stale"
+                            else:
+                                status = "critical"
 
                     tables.append(
                         TableFreshnessStatus(

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Any, Literal, cast
 
 from celery.result import AsyncResult  # type: ignore[import-untyped]
 from fastapi import APIRouter, HTTPException
@@ -22,6 +22,26 @@ router = APIRouter(prefix="/api/ideas", tags=["ideas"])
 
 # Initialize services
 storage = get_storage()
+
+
+# Helper function to safely extract datetime from database row value
+def _to_datetime(value: str | int | float | bool | None) -> datetime:
+    """Convert database value to datetime.
+
+    Args:
+        value: Database row value (union type)
+
+    Returns:
+        Converted datetime object
+
+    Raises:
+        ValueError: If value cannot be converted to datetime
+    """
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        return datetime.fromisoformat(value)
+    raise ValueError(f"Cannot convert {type(value).__name__} to datetime")
 
 
 # Request/Response models
@@ -94,7 +114,7 @@ async def get_ideas(
 
     # Build query
     where_clauses = []
-    params: list[str | int] = []
+    params: list[str | int | float | bool | None] = []
 
     if idea_type:
         where_clauses.append("idea_type = ?")
@@ -116,27 +136,27 @@ async def get_ideas(
     params.append(limit)
 
     with storage.connection() as conn:
-        results = conn.execute(query, params).fetchall()
+        results = conn.execute(query, tuple(params)).fetchall()
 
     ideas = []
     for row in results:
         ideas.append(
             IdeaResponse(
-                id=row[0],
-                agent_run_id=row[1],
-                idea_type=row[2],
-                title=row[3],
-                thesis=row[4],
-                action=row[5],
-                confidence_score=row[6],
-                risk_level=row[7],
-                reward_estimate=row[8],
-                portfolio_impact=row[9],
-                data_needed=row[10],
-                risks=row[11],
-                status=row[12],
-                created_at=row[13].isoformat(),
-                updated_at=row[14].isoformat(),
+                id=cast(str, row[0]),
+                agent_run_id=cast(str, row[1]),
+                idea_type=cast(str, row[2]),
+                title=cast(str, row[3]),
+                thesis=cast(str, row[4]),
+                action=cast(str, row[5]),
+                confidence_score=cast(float, row[6]),
+                risk_level=cast(str, row[7]),
+                reward_estimate=cast(str | None, row[8]),
+                portfolio_impact=cast(str | None, row[9]),
+                data_needed=cast(str | None, row[10]),
+                risks=cast(str | None, row[11]),
+                status=cast(str, row[12]),
+                created_at=_to_datetime(row[13]).isoformat(),
+                updated_at=_to_datetime(row[14]).isoformat(),
             )
         )
 
@@ -242,8 +262,8 @@ async def get_agent_run_status(task_id: str) -> AgentRunStatusResponse:
             num_ideas, provider, model, duration_ms, token_usage_json = result
 
             # Parse token_usage JSON if present
-            token_usage = None
-            if token_usage_json:
+            token_usage: dict[str, int] | None = None
+            if token_usage_json and isinstance(token_usage_json, str):
                 token_usage = json.loads(token_usage_json)
 
             logger.info(
@@ -258,10 +278,10 @@ async def get_agent_run_status(task_id: str) -> AgentRunStatusResponse:
             return AgentRunStatusResponse(
                 status="SUCCESS",
                 run_id=run_id,
-                num_ideas=num_ideas,
-                provider=provider,
-                model=model,
-                duration_ms=duration_ms,
+                num_ideas=cast(int | None, num_ideas),
+                provider=cast(str | None, provider),
+                model=cast(str | None, model),
+                duration_ms=cast(int | None, duration_ms),
                 token_usage=token_usage,
             )
         return AgentRunStatusResponse(
@@ -295,21 +315,21 @@ async def get_idea_details(idea_id: str) -> IdeaResponse:
         raise HTTPException(status_code=404, detail="Idea not found")
 
     return IdeaResponse(
-        id=result[0],
-        agent_run_id=result[1],
-        idea_type=result[2],
-        title=result[3],
-        thesis=result[4],
-        action=result[5],
-        confidence_score=result[6],
-        risk_level=result[7],
-        reward_estimate=result[8],
-        portfolio_impact=result[9],
-        data_needed=result[10],
-        risks=result[11],
-        status=result[12],
-        created_at=result[13].isoformat(),
-        updated_at=result[14].isoformat(),
+        id=cast(str, result[0]),
+        agent_run_id=cast(str, result[1]),
+        idea_type=cast(str, result[2]),
+        title=cast(str, result[3]),
+        thesis=cast(str, result[4]),
+        action=cast(str, result[5]),
+        confidence_score=cast(float, result[6]),
+        risk_level=cast(str, result[7]),
+        reward_estimate=cast(str | None, result[8]),
+        portfolio_impact=cast(str | None, result[9]),
+        data_needed=cast(str | None, result[10]),
+        risks=cast(str | None, result[11]),
+        status=cast(str, result[12]),
+        created_at=_to_datetime(result[13]).isoformat(),
+        updated_at=_to_datetime(result[14]).isoformat(),
     )
 
 
@@ -339,21 +359,21 @@ async def update_idea_status(idea_id: str, request: UpdateIdeaStatusRequest) -> 
         raise HTTPException(status_code=404, detail=f"Idea {idea_id} not found")
 
     return IdeaResponse(
-        id=result[0],
-        agent_run_id=result[1],
-        idea_type=result[2],
-        title=result[3],
-        thesis=result[4],
-        action=result[5],
-        confidence_score=result[6],
-        risk_level=result[7],
-        reward_estimate=result[8],
-        portfolio_impact=result[9],
-        data_needed=result[10],
-        risks=result[11],
-        status=result[12],
-        created_at=result[13].isoformat(),
-        updated_at=result[14].isoformat(),
+        id=cast(str, result[0]),
+        agent_run_id=cast(str, result[1]),
+        idea_type=cast(str, result[2]),
+        title=cast(str, result[3]),
+        thesis=cast(str, result[4]),
+        action=cast(str, result[5]),
+        confidence_score=cast(float, result[6]),
+        risk_level=cast(str, result[7]),
+        reward_estimate=cast(str | None, result[8]),
+        portfolio_impact=cast(str | None, result[9]),
+        data_needed=cast(str | None, result[10]),
+        risks=cast(str | None, result[11]),
+        status=cast(str, result[12]),
+        created_at=_to_datetime(result[13]).isoformat(),
+        updated_at=_to_datetime(result[14]).isoformat(),
     )
 
 
@@ -458,7 +478,44 @@ async def get_agent_performance_endpoint(
         total_ideas=perf["metrics"]["total_ideas"],
     )
 
-    return AgentPerformanceResponse(**perf)
+    # Convert metrics dict to AgentPerformanceMetrics pydantic model
+    metrics_dict = perf["metrics"]
+    # Convert best_trade and worst_trade from dict to pydantic models if present
+    best_trade_data = metrics_dict.get("best_trade")
+    worst_trade_data = metrics_dict.get("worst_trade")
+
+    best_trade: BestWorstTradeModel | None = None
+    if best_trade_data and isinstance(best_trade_data, dict):
+        best_trade_dict = cast(dict[str, Any], best_trade_data)
+        best_trade = BestWorstTradeModel(**best_trade_dict)
+
+    worst_trade: BestWorstTradeModel | None = None
+    if worst_trade_data and isinstance(worst_trade_data, dict):
+        worst_trade_dict = cast(dict[str, Any], worst_trade_data)
+        worst_trade = BestWorstTradeModel(**worst_trade_dict)
+
+    win_loss_ratio_val = metrics_dict.get("win_loss_ratio")
+    win_loss_ratio: float | None = None
+    if win_loss_ratio_val is None or isinstance(win_loss_ratio_val, float):
+        win_loss_ratio = win_loss_ratio_val
+
+    metrics = AgentPerformanceMetrics(
+        win_rate=cast(float, metrics_dict.get("win_rate")),
+        average_return=cast(float, metrics_dict.get("average_return")),
+        average_winner=cast(float, metrics_dict.get("average_winner")),
+        average_loser=cast(float, metrics_dict.get("average_loser")),
+        win_loss_ratio=win_loss_ratio,
+        total_ideas=cast(int, metrics_dict.get("total_ideas")),
+        open_ideas=cast(int, metrics_dict.get("open_ideas")),
+        closed_ideas=cast(int, metrics_dict.get("closed_ideas")),
+        best_trade=best_trade,
+        worst_trade=worst_trade,
+    )
+    return AgentPerformanceResponse(
+        agent_type=perf["agent_type"],
+        period_days=perf["period_days"],
+        metrics=metrics,
+    )
 
 
 @router.get("/agents/performance/summary", response_model=AgentPerformanceSummaryResponse)
@@ -493,4 +550,45 @@ async def get_all_agents_performance(
         total_agents=summary["total_agents"],
     )
 
-    return AgentPerformanceSummaryResponse(**summary)
+    # Convert agent dicts to AgentSummaryMetrics pydantic models
+    agents: list[AgentSummaryMetrics] = []
+    for agent_dict in summary["agents"]:
+        # Convert best_trade and worst_trade from dict to pydantic models if present
+        best_trade_data = agent_dict.get("best_trade")
+        worst_trade_data = agent_dict.get("worst_trade")
+
+        best_trade_obj: BestWorstTradeModel | None = None
+        if best_trade_data and isinstance(best_trade_data, dict):
+            best_trade_dict = cast(dict[str, Any], best_trade_data)
+            best_trade_obj = BestWorstTradeModel(**best_trade_dict)
+
+        worst_trade_obj: BestWorstTradeModel | None = None
+        if worst_trade_data and isinstance(worst_trade_data, dict):
+            worst_trade_dict = cast(dict[str, Any], worst_trade_data)
+            worst_trade_obj = BestWorstTradeModel(**worst_trade_dict)
+
+        win_loss_ratio_val = agent_dict.get("win_loss_ratio")
+        win_loss_ratio: float | None = None
+        if win_loss_ratio_val is None or isinstance(win_loss_ratio_val, float):
+            win_loss_ratio = win_loss_ratio_val
+
+        agent = AgentSummaryMetrics(
+            agent_type=cast(str, agent_dict.get("agent_type")),
+            win_rate=cast(float, agent_dict.get("win_rate")),
+            average_return=cast(float, agent_dict.get("average_return")),
+            average_winner=cast(float, agent_dict.get("average_winner")),
+            average_loser=cast(float, agent_dict.get("average_loser")),
+            win_loss_ratio=win_loss_ratio,
+            total_ideas=cast(int, agent_dict.get("total_ideas")),
+            open_ideas=cast(int, agent_dict.get("open_ideas")),
+            closed_ideas=cast(int, agent_dict.get("closed_ideas")),
+            best_trade=best_trade_obj,
+            worst_trade=worst_trade_obj,
+        )
+        agents.append(agent)
+
+    return AgentPerformanceSummaryResponse(
+        agents=agents,
+        period_days=summary["period_days"],
+        total_agents=summary["total_agents"],
+    )

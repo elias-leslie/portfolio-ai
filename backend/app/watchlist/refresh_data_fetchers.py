@@ -144,10 +144,10 @@ def detect_missing_historical_data(
 
         result = conn.execute(
             query,
-            [symbols, symbols, min_days, stale_threshold_days],
+            [symbols, symbols, min_days, stale_threshold_days],  # type: ignore[list-item]
         ).fetchall()
 
-        tickers_needing_backfill = [row[0] for row in result]
+        tickers_needing_backfill = [str(row[0]) for row in result]
 
         if tickers_needing_backfill:
             logger.info(
@@ -267,8 +267,8 @@ def fetch_previous_sma5(
             WHERE ticker = %s AND DATE(calculated_at) = %s
             ORDER BY calculated_at DESC LIMIT 1
         """
-        result = conn.execute(sma_5_prev_query, (symbol, prev_date)).fetchone()
-        return result[0] if result else None
+        result = conn.execute(sma_5_prev_query, (symbol, str(prev_date))).fetchone()
+        return float(result[0]) if result and result[0] is not None else None
 
 
 def fetch_news_sentiment(

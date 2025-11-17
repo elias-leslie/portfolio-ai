@@ -12,7 +12,7 @@ import json
 from typing import Any
 
 from ...logging_config import get_logger
-from ..models import KeyEvent, NewsIntelligence
+from ..models import KeyEvent, NewsArticleDict, NewsIntelligence
 from ..watchlist_repository import WatchlistRepository
 from .formatters import _format_time_ago, _get_event_icon
 
@@ -22,7 +22,7 @@ logger = get_logger(__name__)
 def parse_news_article(
     row: tuple[Any, ...],
     key_events: list[KeyEvent],
-) -> tuple[dict[str, Any], float | None]:
+) -> tuple[NewsArticleDict, float | None]:
     """Parse news article row into article dict and extract sentiment.
 
     Args:
@@ -102,7 +102,7 @@ def parse_news_article(
             )
         )
 
-    return article, float(sentiment_score) if sentiment_score is not None else None
+    return article, float(sentiment_score) if sentiment_score is not None else None  # type: ignore[return-value]
 
 
 def generate_news_headline(
@@ -152,7 +152,7 @@ def build_news_intelligence(repo: WatchlistRepository, symbol: str) -> NewsIntel
         return None
 
     # Parse articles and extract key events
-    articles: list[dict[str, Any]] = []
+    articles: list[NewsArticleDict] = []
     sentiment_scores: list[float] = []
     key_events: list[KeyEvent] = []
 

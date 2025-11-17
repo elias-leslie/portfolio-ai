@@ -5,13 +5,15 @@ Exposes technical indicator calculations via REST API endpoints.
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from datetime import datetime
+from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, HTTPException, Path, Query
 from pydantic import BaseModel, Field
 
 from app.analytics.indicators import calculate_indicators
 from app.storage import get_storage
+from app.storage.types import ParameterValue
 
 from .types import IndicatorRowDict, IndicatorValuesDict, InterpretationValuesDict
 
@@ -26,7 +28,7 @@ def _build_indicators_query(
     start_date: str | None,
     end_date: str | None,
     limit: int,
-) -> tuple[str, list[str | int]]:
+) -> tuple[str, list[str | int | float | bool | datetime | None]]:
     """Build SQL query for fetching indicator history.
 
     Args:
@@ -62,7 +64,7 @@ def _build_indicators_query(
         FROM technical_indicators
         WHERE ticker = ?
     """
-    params: list[str | int] = [ticker.upper()]
+    params: list[str | int | float | bool | datetime | None] = [ticker.upper()]
 
     if start_date:
         query += " AND date >= ?"
@@ -93,18 +95,26 @@ def _build_indicator_values(row: IndicatorRowDict) -> IndicatorValuesDict:
         indicators_data["rsi_14"] = row["rsi_14"]
 
     if row["macd_12_26_9_macd"] is not None:
-        indicators_data["macd_12_26_9"] = {
-            "macd": row["macd_12_26_9_macd"],
-            "signal": row["macd_12_26_9_signal"],
-            "histogram": row["macd_12_26_9_histogram"],
-        }
+        macd_val = row["macd_12_26_9_macd"]
+        signal_val = row["macd_12_26_9_signal"]
+        hist_val = row["macd_12_26_9_histogram"]
+        if macd_val is not None and signal_val is not None and hist_val is not None:
+            indicators_data["macd_12_26_9"] = {
+                "macd": float(macd_val),
+                "signal": float(signal_val),
+                "histogram": float(hist_val),
+            }
 
     if row["bbands_20_2_upper"] is not None:
-        indicators_data["bbands_20_2"] = {
-            "upper": row["bbands_20_2_upper"],
-            "middle": row["bbands_20_2_middle"],
-            "lower": row["bbands_20_2_lower"],
-        }
+        upper_val = row["bbands_20_2_upper"]
+        middle_val = row["bbands_20_2_middle"]
+        lower_val = row["bbands_20_2_lower"]
+        if upper_val is not None and middle_val is not None and lower_val is not None:
+            indicators_data["bbands_20_2"] = {
+                "upper": float(upper_val),
+                "middle": float(middle_val),
+                "lower": float(lower_val),
+            }
 
     if row["sma_20"] is not None:
         indicators_data["sma_20"] = row["sma_20"]
@@ -124,10 +134,13 @@ def _build_indicator_values(row: IndicatorRowDict) -> IndicatorValuesDict:
         indicators_data["atr_14"] = row["atr_14"]
 
     if row["stoch_14_3_3_k"] is not None:
-        indicators_data["stoch_14_3_3"] = {
-            "k": row["stoch_14_3_3_k"],
-            "d": row["stoch_14_3_3_d"],
-        }
+        k_val = row["stoch_14_3_3_k"]
+        d_val = row["stoch_14_3_3_d"]
+        if k_val is not None and d_val is not None:
+            indicators_data["stoch_14_3_3"] = {
+                "k": float(k_val),
+                "d": float(d_val),
+            }
 
     return indicators_data
 
@@ -144,23 +157,26 @@ def _generate_interpretations(row: IndicatorRowDict) -> InterpretationValuesDict
     interpretations_data: InterpretationValuesDict = {}
 
     if row["rsi_14"] is not None:
-        rsi = row["rsi_14"]
-        if rsi < 30:
-            interpretations_data["rsi"] = "oversold"
-        elif rsi > 70:
-            interpretations_data["rsi"] = "overbought"
-        else:
-            interpretations_data["rsi"] = "neutral"
+        rsi_val = row["rsi_14"]
+        if rsi_val is not None:
+            rsi = float(rsi_val)
+            if rsi < 30:
+                interpretations_data["rsi"] = "oversold"
+            elif rsi > 70:
+                interpretations_data["rsi"] = "overbought"
+            else:
+                interpretations_data["rsi"] = "neutral"
 
     if row["macd_12_26_9_macd"] is not None:
         macd = row["macd_12_26_9_macd"]
         signal = row["macd_12_26_9_signal"]
-        if macd > signal:
-            interpretations_data["macd"] = "bullish_cross"
-        elif macd < signal:
-            interpretations_data["macd"] = "bearish_cross"
-        else:
-            interpretations_data["macd"] = "neutral"
+        if macd is not None and signal is not None:
+            if macd > signal:
+                interpretations_data["macd"] = "bullish_cross"
+            elif macd < signal:
+                interpretations_data["macd"] = "bearish_cross"
+            else:
+                interpretations_data["macd"] = "neutral"
 
     return interpretations_data
 
@@ -350,7 +366,7 @@ def get_indicators_history(
     try:
         # Build and execute query for indicator history
         query, params = _build_indicators_query(ticker, start_date, end_date, limit)
-        df = storage.query(query, params)
+        df = storage.query(query, cast(list[ParameterValue], params))
 
         if df.is_empty():
             raise ValueError(
@@ -362,16 +378,36 @@ def get_indicators_history(
         responses: list[IndicatorsResponse] = []
         for row in df.iter_rows(named=True):
             # Build indicator values and interpretations
-            indicators_data = _build_indicator_values(row)  # type: ignore
-            interpretations_data = _generate_interpretations(row)  # type: ignore
+            indicators_dict = _build_indicator_values(cast(IndicatorRowDict, row))
+            interpretations_dict = _generate_interpretations(cast(IndicatorRowDict, row))
+
+            # Convert dict indicators to model instances where needed
+            macd_data = indicators_dict.get("macd_12_26_9")
+            macd_obj = MACDIndicator(**macd_data) if macd_data else None
+            bbands_data = indicators_dict.get("bbands_20_2")
+            bbands_obj = BollingerBandsIndicator(**bbands_data) if bbands_data else None
+            stoch_data = indicators_dict.get("stoch_14_3_3")
+            stoch_obj = StochasticIndicator(**stoch_data) if stoch_data else None
 
             # Build response
             response = IndicatorsResponse(
                 ticker=row["ticker"],
                 date=str(row["date"]),
                 close_price=row.get("close_price"),
-                indicators=IndicatorValues(**indicators_data),  # type: ignore
-                interpretations=IndicatorInterpretations(**interpretations_data),  # type: ignore
+                indicators=IndicatorValues(
+                    rsi_14=indicators_dict.get("rsi_14"),
+                    macd_12_26_9=macd_obj,
+                    bbands_20_2=bbands_obj,
+                    sma_20=indicators_dict.get("sma_20"),
+                    sma_50=indicators_dict.get("sma_50"),
+                    sma_200=indicators_dict.get("sma_200"),
+                    ema_20=indicators_dict.get("ema_20"),
+                    ema_50=indicators_dict.get("ema_50"),
+                    ema_200=indicators_dict.get("ema_200"),
+                    atr_14=indicators_dict.get("atr_14"),
+                    stoch_14_3_3=stoch_obj,
+                ),
+                interpretations=IndicatorInterpretations(**interpretations_dict),
             )
             responses.append(response)
 

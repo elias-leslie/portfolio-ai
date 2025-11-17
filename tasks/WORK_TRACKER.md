@@ -20,22 +20,7 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-*No active tasks - all work complete or deferred. Use `/task_it` to create new tasks.*
-
----
-
-## ✅ Recently Completed
-
-*Last 5 completed tasks*
-
-1. **CLI Agent Integration (Task 0060 - MVP COMPLETE)** (2025-11-17)
-   - File: `tasks-0060-cli-agent-integration.md`
-   - ✅ Zero-cost CLI execution via Gemini + Claude CLIs working
-   - ✅ Agent telemetry tracking (provider, model, duration, tokens)
-   - ✅ Discovery & Portfolio Analyzer agents migrated to CLI
-   - ✅ 43 unit tests passing, API endpoints functional
-   - ⏸️ Deferred: Streaming endpoints, session management UI (future work)
-   - Commits: `1fee15d`, `9d10b32`, `77053d1`, `c4b4689`
+(No active tasks)
 
 ---
 
@@ -134,6 +119,20 @@
 
 
 ---
+
+## ✅ Recently Completed
+
+*Last 5 completed tasks*
+
+1. **CLI Agent Integration (Task 0060 - MVP COMPLETE)** (2025-11-17)
+   - File: `tasks-0060-cli-agent-integration.md`
+   - ✅ Zero-cost CLI execution via Gemini + Claude CLIs working
+   - ✅ Agent telemetry tracking (provider, model, duration, tokens)
+   - ✅ Discovery & Portfolio Analyzer agents migrated to CLI
+   - ✅ 43 unit tests passing, API endpoints functional
+   - ⏸️ Deferred: Streaming endpoints, session management UI (future work)
+   - Commits: `1fee15d`, `9d10b32`, `77053d1`, `c4b4689`
+
 
 ## ✅ Recently Completed
 

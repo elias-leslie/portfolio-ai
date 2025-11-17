@@ -122,12 +122,12 @@ def _should_skip_profiling(
             interval_hours=interval_hours,
             next_run_in=round(interval_hours - elapsed, 2),
         )
-        return {
-            "status": "skipped",
-            "reason": "interval_not_elapsed",
-            "elapsed_hours": round(elapsed, 2),
-            "interval_hours": interval_hours,
-        }
+        return NewsProfilingResultDict(
+            status="skipped",
+            reason="interval_not_elapsed",
+            elapsed_hours=round(elapsed, 2),
+            interval_hours=interval_hours,
+        )
 
     return None
 
@@ -291,11 +291,11 @@ def profile_news_sources_task(self: Task, user_id: str = "default") -> NewsProfi
     vendors = _get_active_vendors()
     if not vendors:
         logger.warning("no_active_vendors_found")
-        return {
-            "status": "completed",
-            "vendors_profiled": 0,
-            "duration_seconds": round(time.time() - start_time, 2),
-        }
+        return NewsProfilingResultDict(
+            status="completed",
+            vendors_profiled=0,
+            duration_seconds=round(time.time() - start_time, 2),
+        )
 
     logger.info("active_vendors_found", num_vendors=len(vendors), vendors=vendors)
     weights = load_quality_weights_from_preferences(storage, user_id)
@@ -319,7 +319,7 @@ def profile_news_sources_task(self: Task, user_id: str = "default") -> NewsProfi
     duration = round(time.time() - start_time, 2)
     num_profiled = len(metrics_results)
 
-    result = {
+    result: NewsProfilingResultDict = {
         "status": "completed",
         "vendors_profiled": num_profiled,
         "total_vendors": len(vendors),
@@ -355,12 +355,12 @@ def reset_source_metrics_task() -> NewsProfilingResultDict:
 
     with storage.connection() as conn:
         # Delete source metrics
-        result1 = conn.execute("DELETE FROM source_metrics")
-        metrics_deleted = result1.rowcount if hasattr(result1, "rowcount") else 0
+        conn.execute("DELETE FROM source_metrics")
+        metrics_deleted = conn._cursor.rowcount  # type: ignore[attr-defined]
 
         # Delete user feedback
-        result2 = conn.execute("DELETE FROM user_article_feedback")
-        feedback_deleted = result2.rowcount if hasattr(result2, "rowcount") else 0
+        conn.execute("DELETE FROM user_article_feedback")
+        feedback_deleted = conn._cursor.rowcount  # type: ignore[attr-defined]
 
         conn.commit()
 
@@ -370,8 +370,8 @@ def reset_source_metrics_task() -> NewsProfilingResultDict:
         feedback_deleted=feedback_deleted,
     )
 
-    return {
-        "status": "completed",
-        "metrics_deleted": metrics_deleted,
-        "feedback_deleted": feedback_deleted,
-    }
+    return NewsProfilingResultDict(
+        status="completed",
+        metrics_deleted=metrics_deleted,
+        feedback_deleted=feedback_deleted,
+    )

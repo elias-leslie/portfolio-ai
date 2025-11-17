@@ -75,7 +75,8 @@ class MetadataManager:
                 result = conn.execute(
                     f"SELECT COUNT(*) FROM {table_name}"
                 ).fetchone()  # validated: table from information_schema
-                row_count = result[0] if result else 0
+                count_value = result[0] if result else 0
+                row_count = int(count_value) if count_value is not None else 0
         except Exception:
             row_count = 0
 
@@ -107,13 +108,14 @@ class MetadataManager:
                 "agent_tool_calls",
                 "validation_results",
             ]
-            counts = {}
+            counts: dict[str, int] = {}
             for table in tables:  # validated: table from hardcoded list
                 try:
                     result = conn.execute(
                         f"SELECT COUNT(*) FROM {table}"
                     ).fetchone()  # validated: table from hardcoded list above
-                    counts[table] = result[0] if result else 0
+                    count_value = result[0] if result else 0
+                    counts[table] = int(count_value) if count_value is not None else 0
                 except Exception:
                     counts[table] = 0
             return counts

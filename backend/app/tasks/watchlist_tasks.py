@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import datetime as dt
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from celery import Task  # type: ignore[import-untyped]
@@ -46,7 +46,7 @@ def _get_refresh_interval(storage: PortfolioStorage, account_id: str) -> int:
         ).fetchone()
 
         if result:
-            refresh_interval_minutes = int(result[0])
+            refresh_interval_minutes = int(result[0]) if result[0] is not None else 15
             using_override = result[1]
 
             if using_override:
@@ -89,7 +89,14 @@ def _get_last_refresh_time(storage: PortfolioStorage) -> dt.datetime | None:
             """
         ).fetchone()
 
-        return last_refresh_result[0] if last_refresh_result and last_refresh_result[0] else None
+        if last_refresh_result and last_refresh_result[0]:
+            value = last_refresh_result[0]
+            if isinstance(value, dt.datetime):
+                return value
+            # Try to parse if it's a string
+            if isinstance(value, str):
+                return dt.datetime.fromisoformat(value)
+        return None
 
 
 def _trigger_auto_backfill(storage: PortfolioStorage) -> None:
@@ -109,7 +116,7 @@ def _trigger_auto_backfill(storage: PortfolioStorage) -> None:
                 FROM watchlist_items
                 """
             ).fetchall()
-            symbols = [row[0] for row in items_result]
+            symbols = [str(row[0]) for row in items_result if row[0] is not None]
 
         if symbols:
             tickers_needing_backfill = detect_missing_historical_data(
@@ -258,7 +265,17 @@ def refresh_watchlist_scores_task(self: Task, account_id: str | None = None) -> 
                 processed=result.get("processed", 0),
                 markets_open=markets_open,
             )
-            return result
+            # Cast to proper type for return
+            typed_result: WatchlistResultDict = {
+                "task_id": task_id,
+                "processed": result.get("processed", 0),
+                "skipped": result.get("skipped", 0),
+                "failed": result.get("failed", 0),
+                "markets_open": markets_open,
+                "refresh_interval_minutes": refresh_interval_minutes,
+                "duration_seconds": result.get("duration_seconds", 0.0),
+            }
+            return typed_result
 
     except Exception as exc:  # pragma: no cover - safety net
         logger.error(

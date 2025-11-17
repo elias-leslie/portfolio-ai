@@ -15,6 +15,8 @@ NO ARBITRARY CAP - All relevant indicators are returned.
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel
 
 from .models import WatchlistItemDict
@@ -169,11 +171,16 @@ def check_value_play(item: WatchlistItemDict) -> PriorityIndicator | None:
         PriorityIndicator if value opportunity, else None
     """
     score = item.get("score")
-    if not score:
+    if not score or not isinstance(score, dict):
         return None
 
-    fundamental = score.get("fundamental", {}).get("score")
-    price = score.get("price", {}).get("score")
+    fundamental_obj: Any = score.get("fundamental", {})
+    price_obj: Any = score.get("price", {})
+    if not isinstance(fundamental_obj, dict) or not isinstance(price_obj, dict):
+        return None
+
+    fundamental = fundamental_obj.get("score")
+    price = price_obj.get("score")
 
     if fundamental and price and fundamental > 70 and price < 50:
         return PriorityIndicator(
@@ -201,11 +208,16 @@ def check_momentum(item: WatchlistItemDict) -> PriorityIndicator | None:
         PriorityIndicator if momentum play, else None
     """
     score = item.get("score")
-    if not score:
+    if not score or not isinstance(score, dict):
         return None
 
-    price = score.get("price", {}).get("score")
-    technical = score.get("technical", {}).get("score")
+    price_obj: Any = score.get("price", {})
+    technical_obj: Any = score.get("technical", {})
+    if not isinstance(price_obj, dict) or not isinstance(technical_obj, dict):
+        return None
+
+    price = price_obj.get("score")
+    technical = technical_obj.get("score")
 
     if price and technical and price > 70 and technical > 70:
         return PriorityIndicator(
@@ -234,11 +246,16 @@ def check_caution(item: WatchlistItemDict) -> PriorityIndicator | None:
         PriorityIndicator if mixed signals, else None
     """
     score = item.get("score")
-    if not score:
+    if not score or not isinstance(score, dict):
         return None
 
-    price = score.get("price", {}).get("score")
-    fundamental = score.get("fundamental", {}).get("score")
+    price_obj: Any = score.get("price", {})
+    fundamental_obj: Any = score.get("fundamental", {})
+    if not isinstance(price_obj, dict) or not isinstance(fundamental_obj, dict):
+        return None
+
+    price = price_obj.get("score")
+    fundamental = fundamental_obj.get("score")
 
     if not price or not fundamental:
         return None

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -126,18 +127,18 @@ async def get_training_progress(session_id: str) -> TrainingProgressResponse:
                 raise HTTPException(status_code=404, detail="Training session not found")
 
             return TrainingProgressResponse(
-                session_id=row[0],
-                status=row[1],
-                current_step=row[2],
-                progress_percent=row[3],
-                articles_found=row[4],
-                articles_labeled=row[5],
-                articles_total=row[6],
-                model_version=row[7],
-                accuracy=row[8],
-                error_message=row[9],
-                started_at=row[10].isoformat() if row[10] else "",
-                completed_at=row[11].isoformat() if row[11] else None,
+                session_id=str(row[0]),
+                status=str(row[1]),
+                current_step=str(row[2]),
+                progress_percent=int(row[3]) if row[3] is not None else 0,
+                articles_found=int(row[4]) if row[4] is not None else 0,
+                articles_labeled=int(row[5]) if row[5] is not None else 0,
+                articles_total=int(row[6]) if row[6] is not None else 0,
+                model_version=str(row[7]) if row[7] is not None else None,
+                accuracy=float(row[8]) if row[8] is not None else None,
+                error_message=str(row[9]) if row[9] is not None else None,
+                started_at=row[10].isoformat() if isinstance(row[10], datetime) else "",
+                completed_at=row[11].isoformat() if isinstance(row[11], datetime) else None,
             )
 
     except HTTPException:

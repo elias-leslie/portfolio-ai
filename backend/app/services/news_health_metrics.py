@@ -76,7 +76,7 @@ class NewsHealthMetrics:
         total_count = int(row[1] or 0) if row else 0
         avg_latency_ms = float(row[2]) if row and row[2] is not None else None
         p95_latency_ms = float(row[3]) if row and row[3] is not None else None
-        last_fallback_at = row[4] if row else None
+        last_fallback_at = row[4] if row and isinstance(row[4], datetime) else None
         fallback_rate = (fallback_count / total_count) if total_count else 0.0
 
         return {
@@ -156,10 +156,17 @@ class NewsHealthMetrics:
 
         vendor_stats: dict[str, VendorStatsDict] = {}
         for vendor_name, article_count, last_article_at in vendor_rows:
-            key = (vendor_name or "unknown").strip()
-            last_at = last_article_at
-            if isinstance(last_at, datetime) and last_at.tzinfo is None:
-                last_at = last_at.replace(tzinfo=UTC)
+            key = vendor_name.strip() if isinstance(vendor_name, str) else "unknown"
+
+            # Ensure last_article_at is a datetime (skip if None)
+            if not isinstance(last_article_at, datetime):
+                continue
+
+            # Ensure timezone-aware
+            last_at = (
+                last_article_at if last_article_at.tzinfo else last_article_at.replace(tzinfo=UTC)
+            )
+
             vendor_stats[key] = VendorStatsDict(
                 articles_last_24h=int(article_count or 0),
                 last_article_at=last_at,

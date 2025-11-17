@@ -167,16 +167,17 @@ def fetch_earnings_date_cached(
         ORDER BY as_of_date DESC
         LIMIT 1
         """,
-        [symbol, "earnings", cache_cutoff],
+        [symbol, "earnings", cache_cutoff.isoformat()],
     ).fetchone()
 
     # Cache hit - return cached data
     if cached_row is not None:
         payload = cached_row[0]
         # Payload is a dict with earnings_date as ISO string
-        earnings_date_str = payload.get("earnings_date")
-        if earnings_date_str:
-            return datetime.fromisoformat(earnings_date_str)
+        if isinstance(payload, dict):
+            earnings_date_str = payload.get("earnings_date")
+            if earnings_date_str:
+                return datetime.fromisoformat(earnings_date_str)
         return None
 
     # Cache miss or stale - fetch fresh data
@@ -196,7 +197,7 @@ def fetch_earnings_date_cached(
         """,
         [
             symbol,
-            date.today(),
+            date.today().isoformat(),
             json.dumps(payload_data),
             "earnings",
         ],

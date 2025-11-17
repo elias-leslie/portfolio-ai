@@ -64,7 +64,7 @@ async def create_note(note: NoteCreateRequest) -> NoteCreateResponse:
                 VALUES (%s, %s, %s, %s, %s, 'human')
                 RETURNING id
             """
-            result = conn.execute(
+            insert_result = conn.execute(
                 insert_query,
                 [
                     note.capability_type,
@@ -74,7 +74,8 @@ async def create_note(note: NoteCreateRequest) -> NoteCreateResponse:
                     note.note,
                 ],
             )
-            note_id = result.fetchone()[0]
+            note_id_row = insert_result.fetchone()
+            note_id = int(note_id_row[0]) if note_id_row and note_id_row[0] else 0
             conn.commit()
 
             logger.info(
@@ -86,7 +87,7 @@ async def create_note(note: NoteCreateRequest) -> NoteCreateResponse:
                 note_type=note.note_type,
             )
 
-            return NoteCreateResponse(id=note_id, message=f"Note {note_id} created successfully")
+            return NoteCreateResponse(id=note_id, message="Note created successfully")
 
     except HTTPException:
         raise
@@ -135,9 +136,11 @@ async def get_notes(
                 ORDER BY created_at DESC
             """
 
-            result = conn.execute(query, params)
-            columns = [desc[0] for desc in result.description] if result.description else []
-            rows = result.fetchall()
+            result_rows = conn.execute(query, params)
+            columns = (
+                [desc[0] for desc in result_rows.description] if result_rows.description else []
+            )
+            rows = result_rows.fetchall()
             notes = [note_from_row(row, columns) for row in rows]
 
             logger.info(
@@ -148,7 +151,7 @@ async def get_notes(
                 count=len(notes),
             )
 
-            return NotesListResponse(notes=notes)
+            return NotesListResponse(total=len(notes), notes=notes)
 
     except Exception as e:
         logger.error("notes_list_error", error=str(e))

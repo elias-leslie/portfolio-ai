@@ -61,8 +61,8 @@ async def get_insights(
 
             # Count query
             count_query = f"SELECT COUNT(*) FROM capability_insights i{where_sql}"
-            result = conn.execute(count_query, params).fetchone()
-            total = result[0] if result else 0
+            count_result = conn.execute(count_query, params).fetchone()
+            total: int = int(count_result[0]) if count_result and count_result[0] else 0
 
             # Main query with capability info
             query = f"""
@@ -76,9 +76,11 @@ async def get_insights(
             """
             params.extend([limit, offset])
 
-            result = conn.execute(query, params)
-            columns = [desc[0] for desc in result.description] if result.description else []
-            rows = result.fetchall()
+            result_rows = conn.execute(query, params)
+            rows = result_rows.fetchall()
+            columns = (
+                [desc[0] for desc in result_rows.description] if result_rows.description else []
+            )
             insights = [insight_from_row(row, columns) for row in rows]
 
             logger.info(

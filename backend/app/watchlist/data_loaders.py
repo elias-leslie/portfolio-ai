@@ -39,7 +39,7 @@ def load_latest_technical(
         WHERE ticker IN ({placeholders})
         ORDER BY ticker, date DESC
         """,
-        symbols,
+        symbols,  # type: ignore[arg-type]
     )
 
     if df.is_empty():

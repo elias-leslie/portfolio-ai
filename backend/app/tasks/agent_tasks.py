@@ -179,7 +179,7 @@ def run_portfolio_analyzer(self: Task) -> str:
 @celery_app.task(name="update_paper_trades_task", bind=True)  # type: ignore[misc]
 def update_paper_trades_task(  # type: ignore[no-untyped-def]
     self, max_holding_days: int = 60
-) -> dict[str, int]:
+):
     """Update all open paper trades with current prices and check for exits.
 
     This task fetches current prices for all open paper trades, updates returns,

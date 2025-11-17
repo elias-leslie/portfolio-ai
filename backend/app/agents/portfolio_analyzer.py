@@ -79,7 +79,7 @@ Generate exactly 5 ideas that are specifically tailored to this portfolio, then 
             get_store_idea_tool_definition(),
         ]
 
-    def execute_tool(self, tool_name: str, tool_input: dict[str, object]) -> object:
+    def execute_tool(self, tool_name: str, tool_input: dict[str, object]) -> object:  # type: ignore[override]
         """Execute a tool call.
 
         Args:
@@ -93,13 +93,22 @@ Generate exactly 5 ideas that are specifically tailored to this portfolio, then 
             return self.tools.execute_get_portfolio_data()
 
         if tool_name == "get_news":
-            return self.tools.execute_get_news(**tool_input)
+            query = str(tool_input.get("query", ""))
+            max_results_raw = tool_input.get("max_results")
+            max_results = int(max_results_raw) if isinstance(max_results_raw, (int, str)) else None
+            return self.tools.execute_get_news(query, max_results)
 
         if tool_name == "get_economic_data":
-            return self.tools.execute_get_economic_data(**tool_input)
+            indicators_raw = tool_input.get("indicators", [])
+            indicators = (
+                [str(i) for i in indicators_raw] if isinstance(indicators_raw, list) else []
+            )
+            return self.tools.execute_get_economic_data(indicators)
 
         if tool_name == "get_price_data":
-            return self.tools.execute_get_price_data(**tool_input)
+            symbols_raw = tool_input.get("symbols", [])
+            symbols = [str(s) for s in symbols_raw] if isinstance(symbols_raw, list) else []
+            return self.tools.execute_get_price_data(symbols)
 
         if tool_name == "store_idea":
             if not self.current_run_id:

@@ -6,6 +6,7 @@ extracted from reference cache data.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Path, Query
@@ -95,16 +96,54 @@ async def get_valuation_metrics(
                     detail=f"No valuation metrics found for ticker {ticker}",
                 )
 
+            # Type narrowing for database result tuple
+            ticker_val = result[0]
+            pe_trailing = result[1]
+            pe_forward = result[2]
+            ps = result[3]
+            pb = result[4]
+            peg = result[5]
+            div_yield = result[6]
+            payout = result[7]
+            as_of = result[8]
+
+            # Validate ticker is a string
+            if not isinstance(ticker_val, str):
+                raise HTTPException(
+                    status_code=500,
+                    detail="Invalid ticker data type from database",
+                )
+
+            # Validate and convert float fields (allowing None for optional fields)
+            if pe_trailing is not None and not isinstance(pe_trailing, (int, float)):
+                raise HTTPException(status_code=500, detail="Invalid pe_ratio_trailing")
+            if pe_forward is not None and not isinstance(pe_forward, (int, float)):
+                raise HTTPException(status_code=500, detail="Invalid pe_ratio_forward")
+            if ps is not None and not isinstance(ps, (int, float)):
+                raise HTTPException(status_code=500, detail="Invalid ps_ratio")
+            if pb is not None and not isinstance(pb, (int, float)):
+                raise HTTPException(status_code=500, detail="Invalid pb_ratio")
+            if peg is not None and not isinstance(peg, (int, float)):
+                raise HTTPException(status_code=500, detail="Invalid peg_ratio")
+            if div_yield is not None and not isinstance(div_yield, (int, float)):
+                raise HTTPException(status_code=500, detail="Invalid dividend_yield")
+            if payout is not None and not isinstance(payout, (int, float)):
+                raise HTTPException(status_code=500, detail="Invalid payout_ratio")
+
+            # Validate as_of_date
+            if not isinstance(as_of, str):
+                raise HTTPException(status_code=500, detail="Invalid as_of_date")
+
             return ValuationMetrics(
-                ticker=result[0],
-                pe_ratio_trailing=result[1],
-                pe_ratio_forward=result[2],
-                ps_ratio=result[3],
-                pb_ratio=result[4],
-                peg_ratio=result[5],
-                dividend_yield=result[6],
-                payout_ratio=result[7],
-                as_of_date=str(result[8]),
+                ticker=ticker_val,
+                pe_ratio_trailing=pe_trailing if isinstance(pe_trailing, (int, float)) else None,
+                pe_ratio_forward=pe_forward if isinstance(pe_forward, (int, float)) else None,
+                ps_ratio=ps if isinstance(ps, (int, float)) else None,
+                pb_ratio=pb if isinstance(pb, (int, float)) else None,
+                peg_ratio=peg if isinstance(peg, (int, float)) else None,
+                dividend_yield=div_yield if isinstance(div_yield, (int, float)) else None,
+                payout_ratio=payout if isinstance(payout, (int, float)) else None,
+                as_of_date=as_of,
             )
 
     except HTTPException:
@@ -174,7 +213,13 @@ async def get_valuation_metrics_batch(
                 ORDER BY ticker, as_of_date DESC
             """
 
-            results = conn.execute(query, ticker_list).fetchall()
+            # Cast list[str] to expected parameter type for type checking
+            # This is safe since str is a valid ParameterValue
+            params: list[
+                str | int | float | bool | datetime | list[str | int | float | bool | None] | None
+            ] = list(ticker_list)
+
+            results = conn.execute(query, params).fetchall()
 
             if not results:
                 raise HTTPException(
@@ -188,20 +233,51 @@ async def get_valuation_metrics_batch(
             for result in results:
                 ticker_symbol = result[0]
 
+                # Type narrowing for ticker_symbol
+                if not isinstance(ticker_symbol, str):
+                    logger.warning(
+                        "Skipping result with non-string ticker",
+                        ticker_type=type(ticker_symbol),
+                    )
+                    continue
+
                 # Skip if we already have a (more recent) entry for this ticker
                 if ticker_symbol in metrics_by_ticker:
                     continue
 
+                # Type narrowing and validation for result fields
+                pe_trailing = result[1]
+                pe_forward = result[2]
+                ps = result[3]
+                pb = result[4]
+                peg = result[5]
+                div_yield = result[6]
+                payout = result[7]
+                as_of = result[8]
+
+                # Validate as_of_date
+                if not isinstance(as_of, str):
+                    logger.warning(
+                        "Skipping result with non-string as_of_date",
+                        ticker=ticker_symbol,
+                        as_of_type=type(as_of),
+                    )
+                    continue
+
+                # Helper to convert numeric values to float or None
+                def to_float_or_none(val: object) -> float | None:
+                    return val if isinstance(val, (int, float)) else None
+
                 metrics_by_ticker[ticker_symbol] = ValuationMetrics(
-                    ticker=result[0],
-                    pe_ratio_trailing=result[1],
-                    pe_ratio_forward=result[2],
-                    ps_ratio=result[3],
-                    pb_ratio=result[4],
-                    peg_ratio=result[5],
-                    dividend_yield=result[6],
-                    payout_ratio=result[7],
-                    as_of_date=str(result[8]),
+                    ticker=ticker_symbol,
+                    pe_ratio_trailing=to_float_or_none(pe_trailing),
+                    pe_ratio_forward=to_float_or_none(pe_forward),
+                    ps_ratio=to_float_or_none(ps),
+                    pb_ratio=to_float_or_none(pb),
+                    peg_ratio=to_float_or_none(peg),
+                    dividend_yield=to_float_or_none(div_yield),
+                    payout_ratio=to_float_or_none(payout),
+                    as_of_date=as_of,
                 )
 
             return ValuationMetricsListResponse(

@@ -137,7 +137,7 @@ def _upsert_indicators(storage: PortfolioStorage, indicator_data: IndicatorDataD
             """,
             [
                 indicator_data["ticker"],
-                indicator_data["date"],
+                indicator_data["date"].isoformat(),
                 indicator_data["rsi_14"],
                 indicator_data["macd"],
                 indicator_data["macd_signal"],
@@ -237,7 +237,7 @@ def update_technical_indicators(  # type: ignore[no-untyped-def]
             )
             # Continue with next ticker instead of failing entire task
 
-    result = {
+    task_result: TechnicalIndicatorResultDict = {
         "success": success_count,
         "failed": failed_count,
         "tickers_processed": len(tickers),
@@ -246,10 +246,10 @@ def update_technical_indicators(  # type: ignore[no-untyped-def]
     logger.info(
         "update_technical_indicators_completed",
         task_id=task_id,
-        **result,
+        **task_result,
     )
 
-    return result
+    return task_result
 
 
 def _get_fear_greed_inputs(
@@ -268,7 +268,7 @@ def _get_fear_greed_inputs(
         row = result.fetchone()
         if not row or row[0] is None:
             raise ValueError("No input data available")
-        as_of_date = row[0].isoformat()
+        as_of_date = row[0].isoformat() if isinstance(row[0], dt.date) else str(row[0])
 
     # Get inputs for target date
     result = conn.execute(
@@ -283,7 +283,15 @@ def _get_fear_greed_inputs(
     if not row:
         raise ValueError(f"No inputs for date {as_of_date}")
 
-    return (as_of_date, *row)
+    # Cast row values to proper types
+    vix_close = float(row[0]) if row[0] is not None else 0.0
+    spy_close = float(row[1]) if row[1] is not None else 0.0
+    spy_sma_200 = float(row[2]) if row[2] is not None else 0.0
+    rsi_14 = float(row[3]) if row[3] is not None else 0.0
+    hy_spread = float(row[4]) if row[4] is not None else 0.0
+    breadth_pct = float(row[5]) if row[5] is not None else None
+
+    return (as_of_date, vix_close, spy_close, spy_sma_200, rsi_14, hy_spread, breadth_pct)
 
 
 def _calculate_percentile_vix(
@@ -305,7 +313,10 @@ def _calculate_percentile_vix(
         """,
         (as_of_date, window, vix_close),
     )
-    return int(result.fetchone()[0] or 50)
+    row = result.fetchone()
+    if row and row[0] is not None:
+        return int(row[0])
+    return 50
 
 
 def _calculate_percentile_momentum(
@@ -328,7 +339,10 @@ def _calculate_percentile_momentum(
         """,
         (as_of_date, window, momentum),
     )
-    return int(result.fetchone()[0] or 50)
+    row = result.fetchone()
+    if row and row[0] is not None:
+        return int(row[0])
+    return 50
 
 
 def _calculate_percentile_rsi(
@@ -350,7 +364,10 @@ def _calculate_percentile_rsi(
         """,
         (as_of_date, window, rsi_14),
     )
-    return int(result.fetchone()[0] or 50)
+    row = result.fetchone()
+    if row and row[0] is not None:
+        return int(row[0])
+    return 50
 
 
 def _calculate_percentile_credit(
@@ -372,7 +389,10 @@ def _calculate_percentile_credit(
         """,
         (as_of_date, window, hy_spread),
     )
-    return int(result.fetchone()[0] or 50)
+    row = result.fetchone()
+    if row and row[0] is not None:
+        return int(row[0])
+    return 50
 
 
 def _calculate_percentile_breadth(
@@ -397,7 +417,10 @@ def _calculate_percentile_breadth(
         """,
         (as_of_date, window, breadth_pct),
     )
-    return int(result.fetchone()[0] or 50)
+    row = result.fetchone()
+    if row and row[0] is not None:
+        return int(row[0])
+    return 50
 
 
 def _store_components_and_score(
@@ -459,7 +482,10 @@ def _store_components_and_score(
         (as_of_date,),
     )
     prev_row = result.fetchone()
-    previous_score = prev_row[0] if prev_row else composite_score
+    if prev_row and prev_row[0] is not None:
+        previous_score = int(prev_row[0])
+    else:
+        previous_score = composite_score
     score_change = composite_score - previous_score
 
     # Store final score
@@ -478,7 +504,7 @@ def _store_components_and_score(
         (as_of_date, composite_score, label, previous_score, score_change, 5),
     )
 
-    return composite_score, label, score_change
+    return (composite_score, label, score_change)
 
 
 def _invalidate_redis_cache() -> None:
@@ -565,7 +591,7 @@ def calculate_fear_greed(self: Task, as_of_date: str | None = None) -> FearGreed
             # Invalidate cache
             _invalidate_redis_cache()
 
-            result_data = {
+            result_data: FearGreedCalculationDict = {
                 "success": True,
                 "date": as_of_date,
                 "score": composite_score,
@@ -594,7 +620,11 @@ def calculate_fear_greed(self: Task, as_of_date: str | None = None) -> FearGreed
             task_id=task_id,
             error=str(e),
         )
-        return {"error": str(e), "success": False}
+        error_result_value: FearGreedCalculationDict = {
+            "error": str(e),
+            "success": False,
+        }
+        return error_result_value
     except Exception as e:
         logger.error(
             "calculate_fear_greed_failed",
@@ -602,4 +632,8 @@ def calculate_fear_greed(self: Task, as_of_date: str | None = None) -> FearGreed
             error=str(e),
             error_type=type(e).__name__,
         )
-        return {"error": str(e), "success": False}
+        error_result_exception: FearGreedCalculationDict = {
+            "error": str(e),
+            "success": False,
+        }
+        return error_result_exception

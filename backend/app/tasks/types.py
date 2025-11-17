@@ -29,7 +29,7 @@ class TaskResultDict(TypedDict, total=False):
     error: str
 
 
-class GapAnalysisResultDict(TaskResultDict):
+class GapAnalysisResultDict(TaskResultDict, total=False):
     """Result from gap analysis tasks (analyze_trading_gaps, track_gap_trends, alert_critical_gaps)."""
 
     total_gaps: int
@@ -46,7 +46,7 @@ class GapAnalysisResultDict(TaskResultDict):
     alerts_created: int
 
 
-class NewsProfilingResultDict(TaskResultDict):
+class NewsProfilingResultDict(TaskResultDict, total=False):
     """Result from news source profiling task."""
 
     vendors_profiled: int
@@ -61,7 +61,7 @@ class NewsProfilingResultDict(TaskResultDict):
     feedback_deleted: int
 
 
-class FearGreedPipelineResultDict(TaskResultDict):
+class FearGreedPipelineResultDict(TaskResultDict, total=False):
     """Result from fear & greed pipeline tasks."""
 
     task_id: str
@@ -76,7 +76,7 @@ class FearGreedPipelineResultDict(TaskResultDict):
     breadth_pct: float | None
 
 
-class FearGreedCalculationDict(TaskResultDict):
+class FearGreedCalculationDict(TaskResultDict, total=False):
     """Result from calculate_fear_greed task."""
 
     success: bool
@@ -87,7 +87,7 @@ class FearGreedCalculationDict(TaskResultDict):
     components: dict[str, int]
 
 
-class TechnicalIndicatorResultDict(TaskResultDict):
+class TechnicalIndicatorResultDict(TaskResultDict, total=False):
     """Result from technical indicator calculation tasks."""
 
     success: int
@@ -95,7 +95,7 @@ class TechnicalIndicatorResultDict(TaskResultDict):
     tickers_processed: int
 
 
-class CapabilityResultDict(TaskResultDict):
+class CapabilityResultDict(TaskResultDict, total=False):
     """Result from capability scanning and analysis tasks."""
 
     db_tables_scanned: int
@@ -108,7 +108,7 @@ class CapabilityResultDict(TaskResultDict):
     analysis_duration_seconds: float
 
 
-class WatchlistResultDict(TaskResultDict):
+class WatchlistResultDict(TaskResultDict, total=False):
     """Result from watchlist refresh task."""
 
     task_id: str
@@ -119,3 +119,6 @@ class WatchlistResultDict(TaskResultDict):
     duration_seconds: float
     items_refreshed: int
     scores_updated: int
+    processed: int
+    failed: int
+    markets_open: bool

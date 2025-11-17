@@ -91,6 +91,12 @@ def analyze_trading_gaps() -> GapAnalysisResultDict:
             "p2_gaps": result["p2_gaps"],
             "p3_gaps": result["p3_gaps"],
             "avg_coverage_pct": avg_coverage_pct,
+            "current_gaps": result["total_gaps"],
+            "current_coverage_pct": avg_coverage_pct,
+            "delta_24h": {"gaps": 0, "coverage_pct": 0.0},
+            "delta_30d": {"gaps": 0, "coverage_pct": 0.0},
+            "trend": "stable",
+            "alerts_created": 0,
         }
 
     except Exception as e:
@@ -99,6 +105,18 @@ def analyze_trading_gaps() -> GapAnalysisResultDict:
             "status": "error",
             "timestamp": datetime.now(UTC).isoformat(),
             "error": str(e),
+            "total_gaps": 0,
+            "p0_gaps": 0,
+            "p1_gaps": 0,
+            "p2_gaps": 0,
+            "p3_gaps": 0,
+            "avg_coverage_pct": 0.0,
+            "current_gaps": 0,
+            "current_coverage_pct": 0.0,
+            "delta_24h": {"gaps": 0, "coverage_pct": 0.0},
+            "delta_30d": {"gaps": 0, "coverage_pct": 0.0},
+            "trend": "unknown",
+            "alerts_created": 0,
         }
 
 
@@ -137,6 +155,18 @@ def track_gap_trends() -> GapAnalysisResultDict:
             return {
                 "status": "insufficient_data",
                 "message": "Need at least 2 data points for trend analysis",
+                "total_gaps": 0,
+                "p0_gaps": 0,
+                "p1_gaps": 0,
+                "p2_gaps": 0,
+                "p3_gaps": 0,
+                "avg_coverage_pct": 0.0,
+                "current_gaps": 0,
+                "current_coverage_pct": 0.0,
+                "delta_24h": {"gaps": 0, "coverage_pct": 0.0},
+                "delta_30d": {"gaps": 0, "coverage_pct": 0.0},
+                "trend": "unknown",
+                "alerts_created": 0,
             }
 
         # Calculate trends
@@ -144,10 +174,18 @@ def track_gap_trends() -> GapAnalysisResultDict:
         previous = rows[1]
         month_ago = rows[-1]
 
-        gap_delta = latest[1] - previous[1]
-        coverage_delta = latest[2] - previous[2]
-        month_gap_delta = latest[1] - month_ago[1]
-        month_coverage_delta = latest[2] - month_ago[2]
+        # Cast tuple elements to int/float for arithmetic operations
+        latest_gaps = int(latest[1]) if latest[1] is not None else 0
+        previous_gaps = int(previous[1]) if previous[1] is not None else 0
+        latest_coverage = float(latest[2]) if latest[2] is not None else 0.0
+        previous_coverage = float(previous[2]) if previous[2] is not None else 0.0
+        month_ago_gaps = int(month_ago[1]) if month_ago[1] is not None else 0
+        month_ago_coverage = float(month_ago[2]) if month_ago[2] is not None else 0.0
+
+        gap_delta = latest_gaps - previous_gaps
+        coverage_delta = latest_coverage - previous_coverage
+        month_gap_delta = latest_gaps - month_ago_gaps
+        month_coverage_delta = latest_coverage - month_ago_coverage
 
         logger.info(
             f"Trend analysis: {gap_delta:+d} gaps (24h), "
@@ -163,17 +201,24 @@ def track_gap_trends() -> GapAnalysisResultDict:
         return {
             "status": "success",
             "timestamp": datetime.now(UTC).isoformat(),
-            "current_gaps": latest[1],
-            "current_coverage_pct": float(latest[2]),
+            "current_gaps": latest_gaps,
+            "current_coverage_pct": latest_coverage,
             "delta_24h": {
                 "gaps": gap_delta,
-                "coverage_pct": float(coverage_delta),
+                "coverage_pct": coverage_delta,
             },
             "delta_30d": {
                 "gaps": month_gap_delta,
-                "coverage_pct": float(month_coverage_delta),
+                "coverage_pct": month_coverage_delta,
             },
             "trend": trend,
+            "total_gaps": latest_gaps,
+            "p0_gaps": 0,
+            "p1_gaps": 0,
+            "p2_gaps": 0,
+            "p3_gaps": 0,
+            "avg_coverage_pct": latest_coverage,
+            "alerts_created": 0,
         }
 
     except Exception as e:
@@ -182,6 +227,18 @@ def track_gap_trends() -> GapAnalysisResultDict:
             "status": "error",
             "timestamp": datetime.now(UTC).isoformat(),
             "error": str(e),
+            "total_gaps": 0,
+            "p0_gaps": 0,
+            "p1_gaps": 0,
+            "p2_gaps": 0,
+            "p3_gaps": 0,
+            "avg_coverage_pct": 0.0,
+            "current_gaps": 0,
+            "current_coverage_pct": 0.0,
+            "delta_24h": {"gaps": 0, "coverage_pct": 0.0},
+            "delta_30d": {"gaps": 0, "coverage_pct": 0.0},
+            "trend": "unknown",
+            "alerts_created": 0,
         }
 
 
@@ -218,7 +275,7 @@ def _alert_p0_gaps(conn_mgr: ConnectionManager, p0_gaps: int, total_gaps: int) -
             """,
             [
                 f"{p0_gaps} critical gaps (P0) blocking trading strategies",
-                {"p0_gaps": p0_gaps, "total_gaps": total_gaps},
+                json.dumps({"p0_gaps": p0_gaps, "total_gaps": total_gaps}),
                 datetime.now(UTC),
             ],
         )
@@ -263,12 +320,15 @@ def _alert_low_coverage(
                     )
                     """,
                     [
-                        f"{analysis_type} coverage critically low: {coverage_result['coverage_pct']:.1f}%",
-                        {
-                            "analysis_type": analysis_type,
-                            "coverage_pct": coverage_result["coverage_pct"],
-                            "missing_capabilities": coverage_result["missing_capabilities"],
-                        },
+                        f"{analysis_type} coverage critically low: "
+                        f"{coverage_result['coverage_pct']:.1f}%",
+                        json.dumps(
+                            {
+                                "analysis_type": analysis_type,
+                                "coverage_pct": coverage_result["coverage_pct"],
+                                "missing_capabilities": coverage_result["missing_capabilities"],
+                            }
+                        ),
                         datetime.now(UTC),
                     ],
                 )
@@ -316,6 +376,15 @@ def alert_critical_gaps() -> GapAnalysisResultDict:
             "p0_gaps": result["p0_gaps"],
             "alerts_created": alerts_created,
             "avg_coverage_pct": avg_coverage_pct,
+            "total_gaps": result["total_gaps"],
+            "p1_gaps": result["p1_gaps"],
+            "p2_gaps": result["p2_gaps"],
+            "p3_gaps": result["p3_gaps"],
+            "current_gaps": result["total_gaps"],
+            "current_coverage_pct": avg_coverage_pct,
+            "delta_24h": {"gaps": 0, "coverage_pct": 0.0},
+            "delta_30d": {"gaps": 0, "coverage_pct": 0.0},
+            "trend": "stable",
         }
 
     except Exception as e:
@@ -324,4 +393,16 @@ def alert_critical_gaps() -> GapAnalysisResultDict:
             "status": "error",
             "timestamp": datetime.now(UTC).isoformat(),
             "error": str(e),
+            "total_gaps": 0,
+            "p0_gaps": 0,
+            "p1_gaps": 0,
+            "p2_gaps": 0,
+            "p3_gaps": 0,
+            "avg_coverage_pct": 0.0,
+            "current_gaps": 0,
+            "current_coverage_pct": 0.0,
+            "delta_24h": {"gaps": 0, "coverage_pct": 0.0},
+            "delta_30d": {"gaps": 0, "coverage_pct": 0.0},
+            "trend": "unknown",
+            "alerts_created": 0,
         }

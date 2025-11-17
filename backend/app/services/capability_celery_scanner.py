@@ -270,8 +270,8 @@ class CeleryScanner:
 
                 if row:
                     last_run = row[0]
-                    success_count = row[1] or 0
-                    failure_count = row[2] or 0
+                    success_count = int(row[1] or 0)
+                    failure_count = int(row[2] or 0)
 
                     # Calculate success rate
                     total = success_count + failure_count

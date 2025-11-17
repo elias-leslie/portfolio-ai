@@ -127,9 +127,17 @@ def get_fear_greed_score() -> FearGreedReading:
             row = result.fetchone()
 
             if row:
+                # Type narrowing for current_score
+                if not isinstance(row[0], (int, float)):
+                    raise ValueError(f"Invalid score type: {type(row[0])}")
                 current_score = int(row[0])
+
+                # Type narrowing for as_of_date
+                if not isinstance(row[4], dt.date):
+                    raise ValueError(f"Invalid as_of_date type: {type(row[4])}")
+                as_of_date = row[4]
+
                 # Calculate age in days
-                as_of_date = row[4]  # as_of_date column
                 today = dt.date.today()
                 age_days = (today - as_of_date).days
 
@@ -166,6 +174,10 @@ def get_fear_greed_score() -> FearGreedReading:
                 except Exception:
                     # If trend calculation fails, just skip it
                     pass
+
+                # Type narrowing for label
+                if not isinstance(row[1], str):
+                    raise ValueError(f"Invalid label type: {type(row[1])}")
 
                 reading = FearGreedReading(
                     score=current_score,

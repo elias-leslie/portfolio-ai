@@ -16,7 +16,7 @@ Architecture:
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TypedDict
+from typing import Any, TypedDict
 
 from ..logging_config import get_logger
 from ..portfolio.models import PriceData
@@ -148,7 +148,7 @@ def process_ticker_snapshot(
     )
 
     # Build recent news payload if we have a news bundle
-    recent_news_value = None
+    recent_news_value: dict[str, Any] | None = None
     if news_bundle_result:
         recent_news_value = build_recent_news_payload(news_bundle_result)
 

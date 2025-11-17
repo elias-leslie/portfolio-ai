@@ -57,7 +57,7 @@ class IngestionManager:
             """,
             [table_name],
         ).fetchone()
-        return result is not None and result[0] > 0
+        return result is not None and isinstance(result[0], int) and result[0] > 0
 
     def _validate_column_exists(
         self, conn: DatabaseConnection, table_name: str, column_name: str
@@ -82,7 +82,7 @@ class IngestionManager:
             """,
             [table_name, column_name],
         ).fetchone()
-        return result is not None and result[0] > 0
+        return result is not None and isinstance(result[0], int) and result[0] > 0
 
     def _upsert_dataframe(
         self,

@@ -58,7 +58,10 @@ def calculate_putcall_context(
             [(as_of_date - dt.timedelta(days=7)).isoformat()],
         ).fetchone()
 
-        ratio_7d_ago = result_7d[0] if result_7d else None
+        # Type narrowing for ratio_7d_ago
+        ratio_7d_ago: float | None = None
+        if result_7d and isinstance(result_7d[0], (int, float)):
+            ratio_7d_ago = float(result_7d[0])
 
         # Get 90-day historical ratios for percentile calculation
         result_90d = conn.execute(
@@ -76,11 +79,15 @@ def calculate_putcall_context(
             ],
         ).fetchall()
 
-        historical_ratios = [row[0] for row in result_90d]
+        # Type narrowing for historical ratios
+        historical_ratios: list[float] = []
+        for row in result_90d:
+            if isinstance(row[0], (int, float)):
+                historical_ratios.append(float(row[0]))
 
     # Calculate 7-day trend
     trend: Literal["up", "down", "flat"]
-    if ratio_7d_ago and ratio_7d_ago > 0:
+    if ratio_7d_ago is not None and ratio_7d_ago > 0:
         trend_pct = ((current_ratio - ratio_7d_ago) / ratio_7d_ago) * 100
 
         if abs(trend_pct) < 2.0:  # Less than 2% change is "flat"

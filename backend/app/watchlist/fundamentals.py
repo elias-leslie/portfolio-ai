@@ -497,13 +497,15 @@ def fetch_fundamentals_cached(
         ORDER BY as_of_date DESC
         LIMIT 1
         """,
-        [symbol, "fundamentals", cache_cutoff],
+        [symbol, "fundamentals", cache_cutoff.isoformat()],
     ).fetchone()
 
     # Cache hit - return cached data
     if cached_row is not None:
         payload = cached_row[0]
-        return FundamentalData(**payload)
+        if isinstance(payload, dict):
+            return FundamentalData(**payload)
+        return None
 
     # Cache miss or stale - fetch fresh data
     fresh_data = fetch_fundamentals(symbol)
@@ -521,7 +523,7 @@ def fetch_fundamentals_cached(
         """,
         [
             symbol,
-            date.today(),
+            date.today().isoformat(),
             json.dumps(fresh_data.model_dump()),
             "fundamentals",
         ],

@@ -36,7 +36,7 @@ class CapabilityChecker:
 
         logger.info("fetching_current_capabilities")
 
-        capabilities = {}
+        capabilities: dict[str, Any] = {}
 
         with self.conn_mgr.connection() as conn:
             # Fetch database capabilities
@@ -73,17 +73,19 @@ class CapabilityChecker:
                     freshness_status,
                 ) = row
 
-                capabilities[table_name] = {
-                    "category": category,
-                    "row_count": row_count,
-                    "total_columns": total_columns,
-                    "columns": columns,
-                    "completeness_pct": completeness_pct,
-                    "date_range_start": date_range_start,
-                    "date_range_end": date_range_end,
-                    "days_since_update": days_since_update,
-                    "freshness_status": freshness_status,
-                }
+                # Type guard: ensure table_name is a string
+                if isinstance(table_name, str):
+                    capabilities[table_name] = {
+                        "category": category,
+                        "row_count": row_count,
+                        "total_columns": total_columns,
+                        "columns": columns,
+                        "completeness_pct": completeness_pct,
+                        "date_range_start": date_range_start,
+                        "date_range_end": date_range_end,
+                        "days_since_update": days_since_update,
+                        "freshness_status": freshness_status,
+                    }
 
         self._capabilities_cache = capabilities
 
@@ -196,8 +198,10 @@ class CapabilityChecker:
         for table_name, query, params in tables_to_check:
             try:
                 with self.conn_mgr.connection() as conn:
-                    result = conn.execute(query, params).fetchone()
-                    row_count = result[0] if result else 0
+                    result = conn.execute(query, tuple(params)).fetchone()
+                    row_count_raw = result[0] if result else 0
+                    # Type guard: ensure row_count is an int
+                    row_count = row_count_raw if isinstance(row_count_raw, int) else 0
                     availability[table_name] = {
                         "exists": True,
                         "has_data": row_count > 0,

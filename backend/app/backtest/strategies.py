@@ -73,7 +73,7 @@ class SignalStrategy:
         # Build input dict for classify_signal (expects single dict with all values)
         # For backtesting, we don't have news sentiment or company health
         # Use technical indicators only (6 of 8 signal confirmations)
-        signal_inputs = {
+        signal_inputs: dict[str, object] = {
             "price": float(ohlcv["close"]),
             "ema_20": indicators.get("ema_20", 0.0),
             "sma_5": indicators.get("sma_5", 0.0),
@@ -88,7 +88,7 @@ class SignalStrategy:
         }
 
         # Classify signal using existing logic
-        signal = classify_signal(signal_inputs)
+        signal = classify_signal(signal_inputs)  # type: ignore[arg-type]
 
         # Entry criteria: BUY signal with sufficient strength
         if (
@@ -163,7 +163,7 @@ class SignalStrategy:
             "earnings_days_away": None,
         }
 
-        signal = classify_signal(signal_inputs)
+        signal = classify_signal(signal_inputs)  # type: ignore[arg-type]
 
         if signal.signal_type == SignalType.AVOID:
             logger.debug(

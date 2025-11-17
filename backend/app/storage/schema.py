@@ -75,7 +75,8 @@ class SchemaManager:
                 )
             """).fetchone()
 
-            core_table_count = result[0] if result else 0
+            core_table_count_raw = result[0] if result else 0
+            core_table_count = core_table_count_raw if isinstance(core_table_count_raw, int) else 0
 
             if core_table_count < 9:
                 raise RuntimeError(

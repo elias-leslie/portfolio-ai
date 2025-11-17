@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import datetime as dt
 import uuid
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     pass
@@ -23,6 +23,7 @@ from app.sources.polygon_source import PolygonSource
 from app.sources.twelvedata_source import TwelveDataSource
 from app.sources.yfinance_source import YFinanceSource
 from app.storage import PortfolioStorage, get_storage
+from app.storage.types import ParameterValue
 
 logger = get_logger(__name__)
 
@@ -129,9 +130,11 @@ def _delete_existing_data(storage: PortfolioStorage, tickers: list[str]) -> None
     """
     with storage.connection() as conn:
         placeholders = ", ".join(["%s"] * len(tickers))
+        # Cast tickers to proper types for execute()
+        params = cast(list[ParameterValue], tickers)
         conn.execute(
             f"DELETE FROM day_bars WHERE ticker IN ({placeholders})",
-            tickers,
+            params,
         )
         conn.commit()
 
@@ -243,7 +246,7 @@ def _build_ingestion_result(
 @celery_app.task(name="refresh_daily_ohlcv", bind=True)  # type: ignore[misc]
 def refresh_daily_ohlcv(  # type: ignore[no-untyped-def]
     self, tickers: list[str] | None = None
-) -> dict[str, int | str]:
+) -> dict[str, int | str | float]:
     """Refresh latest OHLCV data for critical tickers (SPY by default).
 
     Fetches the most recent 5 trading days to ensure fresh data,
@@ -296,7 +299,7 @@ def refresh_daily_ohlcv(  # type: ignore[no-untyped-def]
 @celery_app.task(name="refresh_watchlist_ohlcv", bind=True)  # type: ignore[misc]
 def refresh_watchlist_ohlcv(  # type: ignore[no-untyped-def]
     self,
-) -> dict[str, int | str]:
+) -> dict[str, int | str | float]:
     """Refresh latest OHLCV data for all watchlist tickers.
 
     Fetches the most recent 5 trading days to ensure fresh data.
@@ -325,7 +328,7 @@ def refresh_watchlist_ohlcv(  # type: ignore[no-untyped-def]
             result = conn.execute(
                 "SELECT DISTINCT symbol FROM watchlist_items ORDER BY symbol"
             ).fetchall()
-            tickers = [row[0] for row in result]
+            tickers = [str(row[0]) for row in result if row[0] is not None]
 
         if not tickers:
             logger.info(
@@ -375,7 +378,7 @@ def refresh_watchlist_ohlcv(  # type: ignore[no-untyped-def]
         rows_inserted = 0
         if result_df is not None and len(result_df) > 0:
             # Prepare DataFrame (add ingest_run_id, vwap, etc.)
-            result_df, unique_tickers = _prepare_dataframe(result_df, ingest_run_id)
+            result_df, _unique_tickers = _prepare_dataframe(result_df, ingest_run_id)
 
             logger.info(
                 "refresh_watchlist_ohlcv_upserting",

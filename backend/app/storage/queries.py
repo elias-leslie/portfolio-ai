@@ -50,7 +50,7 @@ class QueryManager:
             else:
                 result = conn.execute(sql).fetchdf()
             # fetchdf() already returns polars DataFrame
-            return result
+            return result  # type: ignore[no-any-return]
 
     def get_watchlist_items_by_account(self, account_id: str) -> pl.DataFrame:
         """Return all watchlist items ordered by symbol.

@@ -174,23 +174,30 @@ class PreferencesUpdate(BaseModel):
         return v
 
 
-def _get_or_create_preferences() -> dict[str, object]:
+def _get_or_create_preferences() -> dict[str, str | int | float | bool | datetime | None]:
     """Get existing preferences or create default ones."""
     user_id = "default"  # Use specific user ID, not "most recent"
 
-    row: dict[str, object] | None = None
+    row: dict[str, str | int | float | bool | datetime | None] | None = None
 
     with storage.connection() as conn:
-        result_df = conn.execute("SELECT * FROM user_preferences WHERE id = %s", [user_id]).df()
-        if not result_df.empty:
-            row = result_df.iloc[0].to_dict()
+        result_df = conn.execute(
+            "SELECT * FROM user_preferences WHERE id = %s", [user_id]
+        ).fetchdf()
+        if not result_df.is_empty():
+            row = cast(
+                dict[str, str | int | float | bool | datetime | None], result_df.row(0, named=True)
+            )
         else:
             # Legacy fallback: use most recent preferences regardless of ID
             legacy_df = conn.execute(
                 "SELECT * FROM user_preferences ORDER BY updated_at DESC LIMIT 1"
-            ).df()
-            if not legacy_df.empty:
-                row = legacy_df.iloc[0].to_dict()
+            ).fetchdf()
+            if not legacy_df.is_empty():
+                row = cast(
+                    dict[str, str | int | float | bool | datetime | None],
+                    legacy_df.row(0, named=True),
+                )
 
     if row is not None:
         if "watchlist_show_news" not in row:

@@ -120,7 +120,10 @@ class DatabaseScanner:
             f"SELECT COUNT(*) FROM {table_name}"
         )  # validated: table from SQLAlchemy inspector
         row = result.fetchone()
-        row_count = row[0] if row else 0
+        row_count_value = row[0] if row else 0
+        row_count: int = (
+            int(row_count_value) if isinstance(row_count_value, (int, float, str)) else 0
+        )
 
         # Get columns
         columns = inspector.get_columns(table_name)
@@ -133,6 +136,8 @@ class DatabaseScanner:
 
         if self.db_config["track_field_completeness"] and row_count > 0:
             null_threshold = self.db_config["null_threshold_pct"]
+            if not isinstance(null_threshold, (int, float)):
+                null_threshold = 50
 
             for col_name in column_names:
                 try:
@@ -142,13 +147,19 @@ class DatabaseScanner:
                         f"SELECT COUNT({col_name}) as cnt FROM {table_name}"
                     )  # validated: table/column from SQLAlchemy inspector
                     row = result.fetchone()
-                    non_null_count = row[0] if row else 0
+                    non_null_value = row[0] if row else 0
+                    non_null_count: int = (
+                        int(non_null_value) if isinstance(non_null_value, (int, float, str)) else 0
+                    )
 
                     if non_null_count > 0:
                         columns_with_data.append(col_name)
 
                     # Calculate NULL percentage
-                    null_pct = ((row_count - non_null_count) / row_count) * 100
+                    if row_count > 0:
+                        null_pct = ((row_count - non_null_count) / row_count) * 100
+                    else:
+                        null_pct = 0
 
                     if null_pct > null_threshold:
                         columns_mostly_null.append(col_name)
@@ -238,9 +249,13 @@ class DatabaseScanner:
                     result = conn.execute(
                         f"SELECT MIN({col_name}), MAX({col_name}) FROM {table_name} WHERE {col_name} IS NOT NULL"
                     )
-                    min_date, max_date = result.first()
+                    row = result.fetchone()
+                    if row is None:
+                        continue
 
-                    if min_date and max_date:
+                    min_date, max_date = row
+
+                    if min_date is not None and max_date is not None:
                         # Convert to date if timestamp
                         if hasattr(min_date, "date"):
                             min_date = min_date.date()

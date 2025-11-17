@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
@@ -69,8 +71,8 @@ async def list_profiles(user_id: int = Query(default=1)) -> list[ProfileDict]:
     """Get all settings profiles for the user."""
     try:
         with storage.connection() as conn:
-            profiles = get_all_profiles(conn._conn, user_id)
-            return [p.to_dict() for p in profiles]  # type: ignore[misc]
+            profiles = get_all_profiles(conn.raw_connection, user_id)
+            return [cast(ProfileDict, p.to_dict()) for p in profiles]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -80,10 +82,10 @@ async def get_active(user_id: int = Query(default=1)) -> ProfileDict:
     """Get the currently active profile."""
     try:
         with storage.connection() as conn:
-            profile = get_active_profile(conn._conn, user_id)
+            profile = get_active_profile(conn.raw_connection, user_id)
             if not profile:
                 raise HTTPException(status_code=404, detail="No active profile")
-            return profile.to_dict()  # type: ignore[misc]
+            return cast(ProfileDict, profile.to_dict())
     except HTTPException:
         raise
     except Exception as e:
@@ -95,10 +97,10 @@ async def get_profile(profile_id: int, user_id: int = Query(default=1)) -> Profi
     """Get a specific profile."""
     try:
         with storage.connection() as conn:
-            profile = get_profile_by_id(conn._conn, profile_id, user_id)
+            profile = get_profile_by_id(conn.raw_connection, profile_id, user_id)
             if not profile:
                 raise HTTPException(status_code=404, detail="Profile not found")
-            return profile.to_dict()  # type: ignore[misc]
+            return cast(ProfileDict, profile.to_dict())
     except HTTPException:
         raise
     except Exception as e:
@@ -111,14 +113,14 @@ async def create(data: ProfileCreate) -> ProfileDict:
     try:
         with storage.connection() as conn:
             profile = create_profile(
-                conn._conn,
+                conn.raw_connection,
                 user_id=data.user_id,
                 name=data.name,
                 profile_data=data.profile_data,
                 description=data.description,
                 is_active=data.is_active,
             )
-            return profile.to_dict()  # type: ignore[misc]
+            return cast(ProfileDict, profile.to_dict())
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -129,7 +131,7 @@ async def update(profile_id: int, data: ProfileUpdate) -> ProfileDict:
     try:
         with storage.connection() as conn:
             profile = update_profile(
-                conn._conn,
+                conn.raw_connection,
                 profile_id=profile_id,
                 user_id=data.user_id,
                 name=data.name,
@@ -139,7 +141,7 @@ async def update(profile_id: int, data: ProfileUpdate) -> ProfileDict:
             )
             if not profile:
                 raise HTTPException(status_code=404, detail="Profile not found")
-            return profile.to_dict()  # type: ignore[misc]
+            return cast(ProfileDict, profile.to_dict())
     except HTTPException:
         raise
     except Exception as e:
@@ -151,10 +153,10 @@ async def delete(profile_id: int, user_id: int = Query(default=1)) -> MessageRes
     """Delete a profile."""
     try:
         with storage.connection() as conn:
-            deleted = delete_profile(conn._conn, profile_id, user_id)
+            deleted = delete_profile(conn.raw_connection, profile_id, user_id)
             if not deleted:
                 raise HTTPException(status_code=404, detail="Profile not found")
-            return {"message": "Profile deleted successfully"}  # type: ignore[misc]
+            return cast(MessageResponseDict, {"message": "Profile deleted successfully"})
     except HTTPException:
         raise
     except Exception as e:
@@ -166,10 +168,10 @@ async def activate(profile_id: int, user_id: int = Query(default=1)) -> ProfileD
     """Activate a profile."""
     try:
         with storage.connection() as conn:
-            profile = activate_profile(conn._conn, profile_id, user_id)
+            profile = activate_profile(conn.raw_connection, profile_id, user_id)
             if not profile:
                 raise HTTPException(status_code=404, detail="Profile not found")
-            return profile.to_dict()  # type: ignore[misc]
+            return cast(ProfileDict, profile.to_dict())
     except HTTPException:
         raise
     except Exception as e:
@@ -181,10 +183,10 @@ async def duplicate(profile_id: int, data: ProfileDuplicate) -> ProfileDict:
     """Duplicate a profile."""
     try:
         with storage.connection() as conn:
-            profile = duplicate_profile(conn._conn, profile_id, data.name, data.user_id)
+            profile = duplicate_profile(conn.raw_connection, profile_id, data.name, data.user_id)
             if not profile:
                 raise HTTPException(status_code=404, detail="Original profile not found")
-            return profile.to_dict()  # type: ignore[misc]
+            return cast(ProfileDict, profile.to_dict())
     except HTTPException:
         raise
     except Exception as e:
@@ -196,7 +198,7 @@ async def export_profile(profile_id: int, user_id: int = Query(default=1)) -> Pr
     """Export a profile as JSON for sharing/backup."""
     try:
         with storage.connection() as conn:
-            profile = get_profile_by_id(conn._conn, profile_id, user_id)
+            profile = get_profile_by_id(conn.raw_connection, profile_id, user_id)
             if not profile:
                 raise HTTPException(status_code=404, detail="Profile not found")
 
@@ -221,13 +223,13 @@ async def import_profile(data: ProfileImport) -> ProfileDict:
     try:
         with storage.connection() as conn:
             profile = create_profile(
-                conn._conn,
+                conn.raw_connection,
                 user_id=data.user_id,
                 name=data.name,
                 profile_data=data.profile_data,
                 description=data.description,
                 is_active=False,
             )
-            return profile.to_dict()  # type: ignore[misc]
+            return cast(ProfileDict, profile.to_dict())
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e

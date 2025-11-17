@@ -52,7 +52,7 @@ def check_orphaned_watchlist_snapshots(conn: DatabaseConnection) -> dict[str, An
         """
     ).fetchone()
 
-    orphaned_count = result[0] if result else 0
+    orphaned_count: int = result[0] if result and isinstance(result[0], int) else 0
 
     if orphaned_count > 0:
         logger.warning(
@@ -91,7 +91,7 @@ def check_orphaned_price_cache(conn: DatabaseConnection) -> dict[str, Any]:
         """
     ).fetchone()
 
-    orphaned_count = result[0] if result else 0
+    orphaned_count: int = result[0] if result and isinstance(result[0], int) else 0
 
     if orphaned_count > 0:
         logger.warning(
@@ -128,7 +128,7 @@ def check_missing_reference_cache(conn: DatabaseConnection) -> dict[str, Any]:
         """
     ).fetchone()
 
-    missing_count = result[0] if result else 0
+    missing_count: int = result[0] if result and isinstance(result[0], int) else 0
 
     if missing_count > 0:
         logger.warning(
@@ -154,7 +154,7 @@ def check_null_timestamps(conn: DatabaseConnection) -> dict[str, Any]:
     Returns:
         Dict with check results
     """
-    issues = []
+    issues: list[dict[str, str | int]] = []
 
     # Check watchlist_snapshots.last_updated_at
     result = conn.execute(
@@ -164,7 +164,7 @@ def check_null_timestamps(conn: DatabaseConnection) -> dict[str, Any]:
         """
     ).fetchone()
 
-    if result and result[0] > 0:
+    if result and isinstance(result[0], int) and result[0] > 0:
         issues.append(
             {
                 "table": "watchlist_snapshots",
@@ -181,7 +181,7 @@ def check_null_timestamps(conn: DatabaseConnection) -> dict[str, Any]:
         """
     ).fetchone()
 
-    if result and result[0] > 0:
+    if result and isinstance(result[0], int) and result[0] > 0:
         issues.append(
             {
                 "table": "news_headlines",
@@ -190,7 +190,9 @@ def check_null_timestamps(conn: DatabaseConnection) -> dict[str, Any]:
             }
         )
 
-    total_issues = sum(issue["null_count"] for issue in issues)
+    total_issues: int = sum(
+        issue["null_count"] for issue in issues if isinstance(issue["null_count"], int)
+    )
 
     if total_issues > 0:
         logger.warning("null_timestamp_issues", issues=issues)

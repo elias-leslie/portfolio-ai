@@ -47,7 +47,10 @@ def record_maintenance_start(task_name: str, dry_run: bool = False) -> int:
         if not result:
             raise RuntimeError("Failed to create maintenance_log entry")
 
-        log_id: int = result[0]
+        log_id_value = result[0]
+        if not isinstance(log_id_value, int):
+            raise RuntimeError(f"Invalid log_id type: {type(log_id_value)}")
+        log_id: int = log_id_value
         logger.info(
             "maintenance_start_recorded",
             task_name=task_name,
@@ -164,7 +167,9 @@ def get_last_run_time(task_name: str) -> dt.datetime | None:
             [task_name],
         ).fetchone()
 
-        return result[0] if result else None
+        if result and isinstance(result[0], dt.datetime):
+            return result[0]
+        return None
 
 
 def get_last_run_summary(task_name: str) -> dict[str, Any] | None:
@@ -193,8 +198,10 @@ def get_last_run_summary(task_name: str) -> dict[str, Any] | None:
         ).fetchone()
 
         if result and result[0]:
-            parsed: dict[str, Any] = json.loads(result[0])
-            return parsed
+            summary_value = result[0]
+            if isinstance(summary_value, str):
+                parsed: dict[str, Any] = json.loads(summary_value)
+                return parsed
         return None
 
 
@@ -239,19 +246,35 @@ def get_maintenance_history(
                 [limit],
             ).fetchall()
 
-        return [
-            {
-                "id": row[0],
-                "task_name": row[1],
-                "started_at": row[2].isoformat() if row[2] else None,
-                "completed_at": row[3].isoformat() if row[3] else None,
-                "status": row[4],
-                "dry_run": row[5],
-                "summary": json.loads(row[6]) if row[6] else None,
-                "error_message": row[7],
-            }
-            for row in result
-        ]
+        history: list[dict[str, Any]] = []
+        for row in result:
+            started_at_value = row[2]
+            completed_at_value = row[3]
+            summary_value = row[6]
+
+            started_at_str = (
+                started_at_value.isoformat() if isinstance(started_at_value, dt.datetime) else None
+            )
+            completed_at_str = (
+                completed_at_value.isoformat()
+                if isinstance(completed_at_value, dt.datetime)
+                else None
+            )
+            summary_dict = json.loads(summary_value) if isinstance(summary_value, str) else None
+
+            history.append(
+                {
+                    "id": row[0],
+                    "task_name": row[1],
+                    "started_at": started_at_str,
+                    "completed_at": completed_at_str,
+                    "status": row[4],
+                    "dry_run": row[5],
+                    "summary": summary_dict,
+                    "error_message": row[7],
+                }
+            )
+        return history
 
 
 def get_cleanup_trends(
@@ -282,15 +305,31 @@ def get_cleanup_trends(
             [metric_name, cutoff_date],
         ).fetchall()
 
-        return [
-            {
-                "recorded_at": row[0].isoformat() if row[0] else None,
-                "value": float(row[1]),
-                "unit": row[2],
-                "metadata": json.loads(row[3]) if row[3] else None,
-            }
-            for row in result
-        ]
+        trends: list[dict[str, Any]] = []
+        for row in result:
+            recorded_at_value = row[0]
+            metric_value = row[1]
+            metadata_value = row[3]
+
+            recorded_at_str = (
+                recorded_at_value.isoformat()
+                if isinstance(recorded_at_value, dt.datetime)
+                else None
+            )
+            metric_float: float | None = None
+            if isinstance(metric_value, (int, float)):
+                metric_float = float(metric_value)
+            metadata_dict = json.loads(metadata_value) if isinstance(metadata_value, str) else None
+
+            trends.append(
+                {
+                    "recorded_at": recorded_at_str,
+                    "value": metric_float,
+                    "unit": row[2],
+                    "metadata": metadata_dict,
+                }
+            )
+        return trends
 
 
 def get_all_metrics_summary() -> dict[str, Any]:
@@ -315,13 +354,27 @@ def get_all_metrics_summary() -> dict[str, Any]:
             """
         ).fetchall()
 
-        metrics = {}
+        metrics: dict[str, Any] = {}
         for row in result:
-            metric_name = row[0]
-            metrics[metric_name] = {
-                "value": float(row[1]),
-                "unit": row[2],
-                "recorded_at": row[3].isoformat() if row[3] else None,
-            }
+            metric_name_value = row[0]
+            metric_value = row[1]
+            recorded_at_value = row[3]
+
+            if isinstance(metric_name_value, str):
+                metric_float: float | None = None
+                if isinstance(metric_value, (int, float)):
+                    metric_float = float(metric_value)
+
+                recorded_at_str = (
+                    recorded_at_value.isoformat()
+                    if isinstance(recorded_at_value, dt.datetime)
+                    else None
+                )
+
+                metrics[metric_name_value] = {
+                    "value": metric_float,
+                    "unit": row[2],
+                    "recorded_at": recorded_at_str,
+                }
 
         return metrics

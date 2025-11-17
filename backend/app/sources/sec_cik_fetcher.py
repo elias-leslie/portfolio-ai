@@ -276,7 +276,8 @@ def load_from_database(storage: PortfolioStorage) -> dict[str, str]:
     with storage.connection() as conn:
         rows = conn.execute("SELECT ticker, cik FROM sec_cik_cache").fetchall()
 
-    mapping = {row[0]: row[1] for row in rows}
+    # Cast row values to strings (they are returned as Union types from database)
+    mapping = {str(row[0]): str(row[1]) for row in rows}
 
     logger.info("cik_db_load_complete", total_loaded=len(mapping))
 
@@ -301,7 +302,8 @@ def get_cik(ticker: str, storage: PortfolioStorage | None = None) -> str | None:
                 row = conn.execute(
                     "SELECT cik FROM sec_cik_cache WHERE ticker = ?", (ticker,)
                 ).fetchone()
-                return row[0] if row else None
+                # Cast to string (database returns Union type)
+                return str(row[0]) if row else None
         except Exception as exc:
             logger.warning("cik_lookup_error", ticker=ticker, error=str(exc))
             return None

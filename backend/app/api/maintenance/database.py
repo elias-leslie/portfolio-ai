@@ -47,7 +47,8 @@ def create_maintenance_log_entry(task_name: str, dry_run: bool) -> int:
         if not result:
             raise RuntimeError("Failed to create maintenance log entry")
 
-        return int(result[0])
+        task_id = result[0]
+        return int(task_id) if task_id is not None else 0
 
 
 def update_maintenance_log_entry(
@@ -155,7 +156,7 @@ def get_history_from_db(
             """
             params = [limit]
 
-        return conn.execute(query, params).fetchall()
+        return conn.execute(query, [str(p) if p is not None else None for p in params]).fetchall()
 
 
 def row_to_maintenance_result(row: tuple[Any, ...]) -> MaintenanceResult:

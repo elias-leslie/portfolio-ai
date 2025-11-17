@@ -34,7 +34,7 @@ class CapabilityDetailResponse(BaseModel):
     capability: CapabilityDict
     insights: list[InsightDict] = Field(default_factory=list)
     notes: list[NoteDict] = Field(default_factory=list)
-    dependencies: DependenciesDict = Field(default_factory=dict)
+    dependencies: DependenciesDict = Field(default_factory=dict)  # type: ignore[assignment]
 
 
 # Insights Router Models
@@ -44,7 +44,8 @@ class InsightReviewRequest(BaseModel):
     """Request for reviewing an insight."""
 
     status: str = Field(description="New review status: confirmed, dismissed, pending")
-    annotation: str | None = Field(default=None, description="Optional review annotation")
+    status_reason: str | None = Field(default=None, description="Reason for status change")
+    reviewed_by: str = Field(default="human", description="Reviewer identifier")
 
 
 class InsightsListResponse(BaseModel):
@@ -61,9 +62,12 @@ class NoteCreateRequest(BaseModel):
     """Request for creating a capability note."""
 
     capability_type: str = Field(description="Capability type: db, celery, api")
-    capability_id: str = Field(description="Capability identifier")
-    content: str = Field(description="Note content")
-    category: str | None = Field(default=None, description="Note category")
+    capability_id: int | None = Field(default=None, description="Capability ID (optional)")
+    insight_id: int | None = Field(default=None, description="Related insight ID (optional)")
+    note_type: str = Field(
+        description="Note type: observation, recommendation, question, decision, reference"
+    )
+    note: str = Field(description="Note content")
 
 
 class NotesListResponse(BaseModel):
@@ -76,5 +80,5 @@ class NotesListResponse(BaseModel):
 class NoteCreateResponse(BaseModel):
     """Response for note creation."""
 
-    note_id: int
+    id: int
     message: str

@@ -103,11 +103,11 @@ def calculate_duplicate_rate(
             [vendor, window_start, window_end],
         ).fetchone()
 
-    if not result or result[0] == 0:
+    if not result or result[0] is None or result[0] == 0:
         return 0.0  # No articles = no duplicates
 
-    total = int(result[0])
-    unique = int(result[1])
+    total = int(result[0]) if result[0] is not None else 0
+    unique = int(result[1]) if result[1] is not None else 0
 
     # Duplicate rate = (total - unique) / total
     # Example: 10 total, 8 unique = 2 duplicates = 0.20 duplicate rate
@@ -355,11 +355,11 @@ def calculate_user_useful_rate(
             [vendor, user_id],
         ).fetchone()
 
-    if not result or result[1] == 0:
+    if not result or result[1] is None or result[1] == 0:
         return None  # No feedback yet
 
-    useful = int(result[0] or 0)
-    total = int(result[1])
+    useful = int(result[0] or 0) if result[0] is not None else 0
+    total = int(result[1]) if result[1] is not None else 0
 
     if total == 0:
         return None
@@ -467,7 +467,7 @@ def calculate_all_metrics(
             [vendor, window_start, window_end],
         ).fetchone()
 
-    article_count = int(result[0]) if result else 0
+    article_count = int(result[0]) if result and result[0] is not None else 0
 
     # Create preliminary metrics object
     metrics = SourceMetrics(
@@ -524,9 +524,9 @@ def load_quality_weights_from_preferences(
         return QualityWeights()
 
     return QualityWeights(
-        duplicate_penalty=float(result[0]),
-        diversity=float(result[1]),
-        confidence=float(result[2]),
-        freshness=float(result[3]),
-        user_feedback=float(result[4]),
+        duplicate_penalty=float(result[0]) if result[0] is not None else 0.3,
+        diversity=float(result[1]) if result[1] is not None else 0.25,
+        confidence=float(result[2]) if result[2] is not None else 0.2,
+        freshness=float(result[3]) if result[3] is not None else 0.15,
+        user_feedback=float(result[4]) if result[4] is not None else 0.1,
     )

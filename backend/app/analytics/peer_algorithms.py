@@ -9,6 +9,7 @@ This module contains the core algorithms for peer analysis:
 from __future__ import annotations
 
 import datetime as dt
+from typing import cast
 
 import polars as pl
 
@@ -87,20 +88,21 @@ def fetch_peer_returns(
         LEFT JOIN price_5d p5 ON p.ticker = p5.ticker
         LEFT JOIN price_20d p20 ON p.ticker = p20.ticker
     """
+    # Cast list[str] to expected parameter type for UNNEST compatibility
+    params: list[
+        str | int | float | bool | dt.datetime | list[str | int | float | bool | None] | None
+    ] = [
+        target_date.isoformat(),
+        cast(list[str | int | float | bool | None], peer_tickers),
+        date_5d.isoformat(),
+        target_date.isoformat(),
+        cast(list[str | int | float | bool | None], peer_tickers),
+        date_20d.isoformat(),
+        target_date.isoformat(),
+        cast(list[str | int | float | bool | None], peer_tickers),
+    ]
 
-    returns_data = storage.query(
-        returns_query,
-        [
-            target_date,
-            peer_tickers,
-            date_5d,
-            target_date,
-            peer_tickers,
-            date_20d,
-            target_date,
-            peer_tickers,
-        ],
-    )
+    returns_data = storage.query(returns_query, params)
 
     if returns_data is None or len(returns_data) == 0:
         return None

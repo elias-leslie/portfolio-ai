@@ -47,7 +47,7 @@ class CapabilityAnalyzer:
 
         # Initialize dual-provider LLM client (Gemini primary, Claude fallback)
         try:
-            self.llm_client = DualProviderClient(primary="gemini")
+            self.llm_client: DualProviderClient | None = DualProviderClient(primary="gemini")
             logger.info("llm_client_initialized", providers=["gemini", "claude"])
         except RuntimeError as e:
             logger.warning("llm_client_unavailable", error=str(e))
@@ -144,12 +144,18 @@ class CapabilityAnalyzer:
                     "columns_with_data": row[6],
                     "columns_mostly_null": row[7],
                     "completeness_pct": row[8],
-                    "date_range_start": row[9].isoformat() if row[9] else None,
-                    "date_range_end": row[10].isoformat() if row[10] else None,
+                    "date_range_start": row[9].isoformat()
+                    if isinstance(row[9], datetime)
+                    else None,
+                    "date_range_end": row[10].isoformat()
+                    if isinstance(row[10], datetime)
+                    else None,
                     "expected_freshness": row[11],
                     "days_since_update": row[12],
                     "freshness_status": row[13],
-                    "last_scanned_at": row[14].isoformat() if row[14] else None,
+                    "last_scanned_at": row[14].isoformat()
+                    if isinstance(row[14], datetime)
+                    else None,
                 }
                 for row in result.fetchall()
             ]
@@ -175,8 +181,8 @@ class CapabilityAnalyzer:
                     "schedule_description": row[5],
                     "schedule_crontab": row[6],
                     "schedule_interval_seconds": row[7],
-                    "last_run_at": row[8].isoformat() if row[8] else None,
-                    "next_run_at": row[9].isoformat() if row[9] else None,
+                    "last_run_at": row[8].isoformat() if isinstance(row[8], datetime) else None,
+                    "next_run_at": row[9].isoformat() if isinstance(row[9], datetime) else None,
                     "success_count_7d": row[10],
                     "failure_count_7d": row[11],
                     "success_rate_pct": row[12],
@@ -184,7 +190,9 @@ class CapabilityAnalyzer:
                     "max_duration_ms": row[14],
                     "populates_tables": row[15],
                     "depends_on_tasks": row[16],
-                    "last_scanned_at": row[17].isoformat() if row[17] else None,
+                    "last_scanned_at": row[17].isoformat()
+                    if isinstance(row[17], datetime)
+                    else None,
                 }
                 for row in result.fetchall()
             ]
@@ -213,7 +221,9 @@ class CapabilityAnalyzer:
                     "p99_response_time_ms": row[9],
                     "error_rate_pct": float(row[10]) if row[10] else None,
                     "last_7d_request_count": row[11],
-                    "last_scanned_at": row[12].isoformat() if row[12] else None,
+                    "last_scanned_at": row[12].isoformat()
+                    if isinstance(row[12], datetime)
+                    else None,
                 }
                 for row in result.fetchall()
             ]

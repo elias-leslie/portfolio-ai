@@ -240,7 +240,7 @@ def _fetch_ohlcv_data(
             ORDER BY date DESC
             LIMIT ?
         """
-        params = [ticker, lookback_days]
+        params: list[object] = [ticker, lookback_days]
     else:
         # Convert string to date if needed
         if isinstance(as_of_date, str):
@@ -253,12 +253,12 @@ def _fetch_ohlcv_data(
             ORDER BY date DESC
             LIMIT ?
         """
-        params = [ticker, as_of_date, lookback_days]
+        params = [ticker, str(as_of_date), lookback_days]
 
     # Execute query
-    result_df = storage.query(query, params)
+    result_df = storage.query(query, params)  # type: ignore[arg-type]
 
-    if result_df.is_empty():
+    if hasattr(result_df, "is_empty") and result_df.is_empty():
         logger.warning(f"No OHLCV data found for ticker {ticker}")
         return pd.DataFrame()
 

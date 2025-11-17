@@ -10,7 +10,7 @@ Populates fear_greed_inputs table with market data for Fear & Greed Index calcul
 from __future__ import annotations
 
 import datetime as dt
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from app.celery_app import celery_app
 from app.logging_config import get_logger
@@ -50,11 +50,18 @@ def _fetch_spy_data(
               AND date <= %s
             ORDER BY date ASC
             """,
-            (start_date, end_date),
+            [str(start_date), str(end_date)],
         )
         spy_data = result.fetchall()
 
-    return {row[0]: row[1] for row in spy_data}
+    spy_dict: dict[dt.date, float] = {}
+    for row in spy_data:
+        date_value = row[0]
+        close_value = row[1]
+        if isinstance(date_value, dt.date) and close_value is not None:
+            spy_dict[date_value] = float(close_value)
+
+    return spy_dict
 
 
 def _fetch_market_indicators(
@@ -82,10 +89,11 @@ def _fetch_market_indicators(
             """
         )
         latest = result.fetchone()
-        vix_estimate = latest[0] if latest and latest[0] else 19.5
-        hy_spread_fallback = latest[1] if latest and latest[1] else 3.13
+        vix_estimate = float(latest[0]) if latest and latest[0] is not None else 19.5
+        hy_spread_fallback = float(latest[1]) if latest and latest[1] is not None else 3.13
 
     # Fetch VIX data from database if available
+    vix_dict: dict[dt.date, float] = {}
     with storage.connection() as conn:
         result = conn.execute(
             """
@@ -96,9 +104,13 @@ def _fetch_market_indicators(
               AND date <= %s
             ORDER BY date ASC
             """,
-            (start_date, end_date),
+            [str(start_date), str(end_date)],
         )
-        vix_dict = {row[0]: row[1] for row in result.fetchall()}
+        for row in result.fetchall():
+            date_value = row[0]
+            close_value = row[1]
+            if isinstance(date_value, dt.date) and close_value is not None:
+                vix_dict[date_value] = float(close_value)
 
     # Fetch HY spread data from FRED
     fred_source = FREDSource()
@@ -192,6 +204,13 @@ def _calculate_market_breadth(storage: PortfolioStorage, target_date: dt.date) -
     with storage.connection() as conn:
         # Use subquery with window function to get current and previous close
         # We need to filter for the target_date specifically after computing LAG
+        # Note: sector_tickers is a list[str], so we pass it directly as first param
+        params: list[str | int | float | bool | list[str] | None] = [
+            sector_tickers,
+            str(target_date),
+            str(target_date),
+            str(target_date),
+        ]
         result = conn.execute(
             """
             WITH price_data AS (
@@ -209,7 +228,7 @@ def _calculate_market_breadth(storage: PortfolioStorage, target_date: dt.date) -
             FROM price_data
             WHERE date = %s
             """,
-            (sector_tickers, target_date, target_date, target_date),
+            params,  # type: ignore[arg-type]
         )
         rows = result.fetchall()
 
@@ -222,7 +241,10 @@ def _calculate_market_breadth(storage: PortfolioStorage, target_date: dt.date) -
 
     # Collect data for each ticker
     ticker_data: dict[str, tuple[float, float | None]] = {}
-    for ticker, current_close, prev_close in rows:
+    for row in rows:
+        ticker = str(row[0]) if row[0] is not None else ""
+        current_close = float(row[1]) if row[1] is not None else 0.0
+        prev_close = float(row[2]) if row[2] is not None else None
         ticker_data[ticker] = (current_close, prev_close)
 
     # Count sectors with valid data (both current and previous close)
@@ -312,7 +334,7 @@ def _upsert_inputs_record(
                 hy_spread = EXCLUDED.hy_spread,
                 breadth_pct = EXCLUDED.breadth_pct
             """,
-            (date, spy_close, sma_200, rsi_14, vix_close, hy_spread, breadth_pct),
+            [str(date), spy_close, sma_200, rsi_14, vix_close, hy_spread, breadth_pct],
         )
         conn.commit()
 

@@ -142,10 +142,17 @@ def get_system_resources() -> ResourcesResponse:
         with mgr.connection() as conn:
             db_pool = get_db_pool_stats(conn)  # type: ignore[arg-type]
 
+        # Ensure cores is not None (default to 1 if psutil.cpu_count() returns None)
+        cpu_cores = cpu["cores"] if cpu["cores"] is not None else 1
+
         return ResourcesResponse(
             disk=DiskUsageResponse(**disk),
             memory=MemoryUsageResponse(**memory),
-            cpu=CpuUsageResponse(**cpu),
+            cpu=CpuUsageResponse(
+                percent_used=cpu["percent_used"],
+                cores=cpu_cores,
+                status=cpu["status"],
+            ),
             database_pool=DatabasePoolResponse(**db_pool),
         )
 
