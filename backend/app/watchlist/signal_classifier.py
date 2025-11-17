@@ -6,9 +6,14 @@ based on technical indicators, company fundamentals, and market conditions.
 
 from __future__ import annotations
 
-from typing import Any
-
-from .models import SignalClassification, SignalStrength, SignalType
+from .models import (
+    NormalizedSignalInputsDict,
+    SignalClassification,
+    SignalInputsDict,
+    SignalStrength,
+    SignalType,
+    TradingStyleDict,
+)
 
 # Common index ETFs (used for trading style classification)
 INDEX_ETFS = {"SPY", "VOO", "VTI", "QQQ", "IWM", "DIA", "AGG", "BND"}
@@ -20,7 +25,7 @@ def classify_trading_style(
     signal_type: str,
     rsi_14: float,
     earnings_days_away: int | None,
-) -> dict[str, Any]:
+) -> TradingStyleDict:
     """Classify recommended trading style using simplified heuristics.
 
     Classification hierarchy (checked in order):
@@ -89,7 +94,7 @@ def classify_trading_style(
     }
 
 
-def _extract_signal_inputs(inputs: dict[str, Any]) -> dict[str, Any]:
+def _extract_signal_inputs(inputs: SignalInputsDict) -> NormalizedSignalInputsDict:
     """Extract and normalize signal classification inputs.
 
     Args:
@@ -113,7 +118,7 @@ def _extract_signal_inputs(inputs: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _check_avoid_signals(data: dict[str, Any]) -> tuple[int, list[str]]:
+def _check_avoid_signals(data: NormalizedSignalInputsDict) -> tuple[int, list[str]]:
     """Check for AVOID signals and count negative indicators.
 
     Args:
@@ -154,7 +159,7 @@ def _check_avoid_signals(data: dict[str, Any]) -> tuple[int, list[str]]:
     return avoid_flags, reasons
 
 
-def _check_buy_signals(data: dict[str, Any]) -> tuple[int, list[str]]:
+def _check_buy_signals(data: NormalizedSignalInputsDict) -> tuple[int, list[str]]:
     """Check for BUY signals and count positive indicators.
 
     Args:
@@ -228,7 +233,7 @@ def _calculate_signal_strength(confirmations: int) -> int:
     return min(confirmations, 5)
 
 
-def classify_signal(inputs: dict[str, Any]) -> SignalClassification:
+def classify_signal(inputs: SignalInputsDict) -> SignalClassification:
     """Classify watchlist signal as BUY, HOLD, or AVOID based on multiple indicators.
 
     Args:

@@ -15,9 +15,9 @@ NO ARBITRARY CAP - All relevant indicators are returned.
 
 from __future__ import annotations
 
-from typing import Any
-
 from pydantic import BaseModel
+
+from .models import WatchlistItemDict
 
 
 class PriorityIndicator(BaseModel):
@@ -43,7 +43,7 @@ PRIORITY_ORDER = {
 }
 
 
-def check_hot_opportunity(item: dict[str, Any], rank: int) -> PriorityIndicator | None:
+def check_hot_opportunity(item: WatchlistItemDict, rank: int) -> PriorityIndicator | None:
     """Check if item is a top 3 BUY signal by overall score.
 
     Args:
@@ -57,14 +57,17 @@ def check_hot_opportunity(item: dict[str, Any], rank: int) -> PriorityIndicator 
         return PriorityIndicator(
             icon="🔥",
             label="Hot Opportunity",
-            tooltip=f"Top #{rank} highest-scoring BUY signal. Strong technical and fundamental alignment.",
+            tooltip=(
+                f"Top #{rank} highest-scoring BUY signal. "
+                "Strong technical and fundamental alignment."
+            ),
             priority=PRIORITY_ORDER["hot_opportunity"],
             category="opportunity",
         )
     return None
 
 
-def check_earnings_alert(item: dict[str, Any]) -> PriorityIndicator | None:
+def check_earnings_alert(item: WatchlistItemDict) -> PriorityIndicator | None:
     """Check if earnings are within 7 days.
 
     Args:
@@ -85,7 +88,7 @@ def check_earnings_alert(item: dict[str, Any]) -> PriorityIndicator | None:
     return None
 
 
-def check_breaking_news(item: dict[str, Any]) -> PriorityIndicator | None:
+def check_breaking_news(item: WatchlistItemDict) -> PriorityIndicator | None:
     """Check if 10+ articles published in last 24h.
 
     Args:
@@ -107,7 +110,7 @@ def check_breaking_news(item: dict[str, Any]) -> PriorityIndicator | None:
     return None
 
 
-def check_insider_buying(item: dict[str, Any]) -> PriorityIndicator | None:
+def check_insider_buying(item: WatchlistItemDict) -> PriorityIndicator | None:
     """Check for insider trading activity from news key_events.
 
     Args:
@@ -133,7 +136,7 @@ def check_insider_buying(item: dict[str, Any]) -> PriorityIndicator | None:
     return None
 
 
-def check_negative_catalyst(item: dict[str, Any]) -> PriorityIndicator | None:
+def check_negative_catalyst(item: WatchlistItemDict) -> PriorityIndicator | None:
     """Check if news sentiment is very negative (<-0.3).
 
     Args:
@@ -154,7 +157,7 @@ def check_negative_catalyst(item: dict[str, Any]) -> PriorityIndicator | None:
     return None
 
 
-def check_value_play(item: dict[str, Any]) -> PriorityIndicator | None:
+def check_value_play(item: WatchlistItemDict) -> PriorityIndicator | None:
     """Check if strong fundamentals but weak price action.
 
     Criteria: fundamental_score > 70 AND price_score < 50
@@ -176,14 +179,17 @@ def check_value_play(item: dict[str, Any]) -> PriorityIndicator | None:
         return PriorityIndicator(
             icon="💎",
             label="Value Play",
-            tooltip=f"Strong fundamentals ({fundamental:.0f}) but low price momentum ({price:.0f}). Contrarian opportunity.",
+            tooltip=(
+                f"Strong fundamentals ({fundamental:.0f}) but low price momentum "
+                f"({price:.0f}). Contrarian opportunity."
+            ),
             priority=PRIORITY_ORDER["value_play"],
             category="opportunity",
         )
     return None
 
 
-def check_momentum(item: dict[str, Any]) -> PriorityIndicator | None:
+def check_momentum(item: WatchlistItemDict) -> PriorityIndicator | None:
     """Check if strong price AND technical momentum.
 
     Criteria: price_score > 70 AND technical_score > 70
@@ -205,14 +211,16 @@ def check_momentum(item: dict[str, Any]) -> PriorityIndicator | None:
         return PriorityIndicator(
             icon="⚡",
             label="Momentum",
-            tooltip=f"Strong price ({price:.0f}) and technical ({technical:.0f}) momentum. Trend play.",
+            tooltip=(
+                f"Strong price ({price:.0f}) and technical ({technical:.0f}) momentum. Trend play."
+            ),
             priority=PRIORITY_ORDER["momentum"],
             category="opportunity",
         )
     return None
 
 
-def check_caution(item: dict[str, Any]) -> PriorityIndicator | None:
+def check_caution(item: WatchlistItemDict) -> PriorityIndicator | None:
     """Check for score misalignment between price and fundamentals.
 
     Criteria:
@@ -239,7 +247,10 @@ def check_caution(item: dict[str, Any]) -> PriorityIndicator | None:
         return PriorityIndicator(
             icon="⚠️",
             label="Caution",
-            tooltip=f"Score mismatch (price: {price:.0f}, fundamental: {fundamental:.0f}). Mixed signals - wait for confirmation.",
+            tooltip=(
+                f"Score mismatch (price: {price:.0f}, fundamental: {fundamental:.0f}). "
+                "Mixed signals - wait for confirmation."
+            ),
             priority=PRIORITY_ORDER["caution"],
             category="caution",
         )
@@ -247,8 +258,8 @@ def check_caution(item: dict[str, Any]) -> PriorityIndicator | None:
 
 
 def calculate_priority_indicators(
-    all_items: list[dict[str, Any]],
-    current_item: dict[str, Any],
+    all_items: list[WatchlistItemDict],
+    current_item: WatchlistItemDict,
 ) -> list[PriorityIndicator]:
     """Calculate priority indicators for a watchlist item.
 

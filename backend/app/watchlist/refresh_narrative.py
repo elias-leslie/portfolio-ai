@@ -25,7 +25,7 @@ from .calculator import (
     calculate_stop_loss,
 )
 from .fundamentals import FundamentalData
-from .models import SignalType, TechnicalSnapshot
+from .models import SignalInputsDict, SignalType, TechnicalSnapshot, TradingStyleDict
 from .narrative import (
     classify_signal,
     classify_trading_style,
@@ -37,15 +37,6 @@ from .narrative import (
 )
 
 logger = get_logger(__name__)
-
-
-class TradingStyleDict(TypedDict):
-    """Trading style classification result."""
-
-    style: str
-    confidence: int
-    holding_period: str
-    risk_level: str
 
 
 class NarrativeResultDict(TypedDict):
@@ -74,7 +65,7 @@ def build_signal_inputs(
     company_health_str: str | None,
     news_sentiment_value: float | None,
     earnings_days_away_val: int | None,
-) -> dict[str, Any]:
+) -> SignalInputsDict:
     """Build signal inputs for classification."""
     return {
         "price": price_data.price,
@@ -228,7 +219,7 @@ def generate_narrative_texts(
 
 def classify_signal_and_style(
     symbol: str,
-    signal_inputs: dict[str, Any],
+    signal_inputs: SignalInputsDict,
     rsi_14: float | None,
     earnings_days_away: int | None,
 ) -> tuple[str, int, str, TradingStyleDict]:
@@ -242,15 +233,12 @@ def classify_signal_and_style(
     signal_strength_val = classification.strength.value
     headline = generate_headline(classification)
 
-    style_result = cast(
-        TradingStyleDict,
-        classify_trading_style(
-            symbol=symbol,
-            signal_strength=signal_strength_val,
-            signal_type=signal_type_str,
-            rsi_14=rsi_14 or 50.0,
-            earnings_days_away=earnings_days_away,
-        ),
+    style_result = classify_trading_style(
+        symbol=symbol,
+        signal_strength=signal_strength_val,
+        signal_type=signal_type_str,
+        rsi_14=rsi_14 or 50.0,
+        earnings_days_away=earnings_days_away,
     )
 
     return signal_type_str, signal_strength_val, headline, style_result

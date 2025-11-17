@@ -9,7 +9,7 @@ This module provides:
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, cast
 
 from ...storage import PortfolioStorage
 
@@ -61,7 +61,7 @@ def _calculate_price_change(
     return (None, False)
 
 
-def parse_json_field(value: Any) -> dict[str, Any] | None:
+def parse_json_field(value: str | dict[str, Any] | None) -> dict[str, Any] | None:
     """Parse JSON field if it's a string, otherwise return as-is.
 
     Args:
@@ -79,10 +79,10 @@ def parse_json_field(value: Any) -> dict[str, Any] | None:
     return value if isinstance(value, dict) else None
 
 
-def format_timestamp(ts: Any) -> Any:
+def format_timestamp(ts: object) -> str | object:
     """Format timestamp to ISO string if it has isoformat method."""
     if hasattr(ts, "isoformat"):
-        return ts.isoformat()
+        return str(cast(Any, ts).isoformat())
     return ts
 
 

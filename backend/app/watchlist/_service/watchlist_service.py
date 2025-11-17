@@ -9,7 +9,7 @@ This module provides:
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 # Import from scoring.py (file, not scoring/ package)
 from app.watchlist.scoring import calculate_watchlist_scores
@@ -25,7 +25,12 @@ from ..data_loaders import (
     load_latest_technical,
     load_stale_ttl_minutes,
 )
-from ..models import TechnicalSnapshot, WatchlistScoreInputs, WatchlistSnapshot
+from ..models import (
+    TechnicalSnapshot,
+    WatchlistItemDict,
+    WatchlistScoreInputs,
+    WatchlistSnapshot,
+)
 from ..priority import calculate_priority_indicators
 from ..watchlist_repository import WatchlistRepository
 from .builders import build_base_item_data, build_snapshot_data
@@ -82,7 +87,10 @@ class WatchlistService:
 
         # Calculate priority indicators
         for item in results:
-            indicators = calculate_priority_indicators(results, item)
+            # Cast to WatchlistItemDict - structure matches from builders
+            indicators = calculate_priority_indicators(
+                cast(list[WatchlistItemDict], results), cast(WatchlistItemDict, item)
+            )
             item["priority_indicators"] = [ind.model_dump() for ind in indicators]
 
         return results

@@ -4,11 +4,66 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from enum import Enum
-from typing import Any
+from typing import Any, TypedDict
 
 from pydantic import BaseModel, Field, field_validator
 
 from ..portfolio.models import PriceData
+
+# TypedDict models for structured dictionaries
+
+
+class WatchlistItemDict(TypedDict, total=False):
+    """Watchlist item dictionary structure (used in priority/signal processing)."""
+
+    symbol: str
+    signal_type: str  # "BUY", "HOLD", "AVOID"
+    score: dict[str, Any]  # Contains "overall", "price", "technical", "fundamental"
+    earnings_days_away: int | None
+    news_intelligence: dict[str, Any]  # Contains "article_count_24h", "key_events"
+    news_sentiment_score: float | None
+
+
+class SignalInputsDict(TypedDict, total=False):
+    """Signal classification input dictionary structure (raw, before normalization)."""
+
+    price: float | None
+    ema_20: float | None
+    sma_5: float | None
+    sma_5_prev: float | None
+    rsi_14: float | None
+    macd: float | None
+    volume: float | None
+    volume_avg_20: float | None
+    volume_avg_20d: float | None  # Alias for volume_avg_20
+    company_health: str | None  # "EXCELLENT", "GOOD", "WEAK"
+    news_sentiment: float | None
+    earnings_days_away: int | None
+
+
+class NormalizedSignalInputsDict(TypedDict):
+    """Normalized signal inputs with non-null defaults (after _extract_signal_inputs)."""
+
+    price: float
+    ema_20: float
+    sma_5: float
+    sma_5_prev: float
+    rsi_14: float
+    macd: float
+    volume: float
+    volume_avg_20: float
+    company_health: str
+    news_sentiment: float
+    earnings_days_away: int | None  # Only field that can remain None
+
+
+class TradingStyleDict(TypedDict):
+    """Trading style classification result dictionary."""
+
+    style: str  # "Index", "Trend", "Value", "Swing", "Event"
+    confidence: int  # 0-10
+    holding_period: str  # "Hold indefinitely", "Days to weeks", etc.
+    risk_level: str  # "Low", "Medium-Low", "Medium", "High"
 
 
 class KeyEvent(BaseModel):

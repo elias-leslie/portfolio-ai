@@ -7,7 +7,7 @@ and market sentiment metrics like Fear & Greed Index.
 from __future__ import annotations
 
 import datetime as dt
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypedDict
 
 if TYPE_CHECKING:
     from celery import Task  # type: ignore[import-untyped]
@@ -24,7 +24,34 @@ from app.storage.types import DatabaseConnection
 logger = get_logger(__name__)
 
 
-def _build_indicator_data(ticker: str, indicators: dict[str, Any], date: dt.date) -> dict[str, Any]:
+class IndicatorDataDict(TypedDict, total=False):
+    """Technical indicator data dictionary for database insertion."""
+
+    ticker: str
+    date: dt.date
+    rsi_14: float | None
+    macd: float | None
+    macd_signal: float | None
+    macd_histogram: float | None
+    bb_upper: float | None
+    bb_middle: float | None
+    bb_lower: float | None
+    sma_5: float | None
+    sma_20: float | None
+    sma_50: float | None
+    sma_200: float | None
+    ema_20: float | None
+    ema_50: float | None
+    ema_200: float | None
+    atr_14: float | None
+    stoch_k: float | None
+    stoch_d: float | None
+    calculated_at: dt.datetime
+
+
+def _build_indicator_data(
+    ticker: str, indicators: dict[str, Any], date: dt.date
+) -> IndicatorDataDict:
     """Build indicator data dictionary for database insertion.
 
     Args:
@@ -59,7 +86,7 @@ def _build_indicator_data(ticker: str, indicators: dict[str, Any], date: dt.date
     }
 
 
-def _upsert_indicators(storage: PortfolioStorage, indicator_data: dict[str, Any]) -> None:
+def _upsert_indicators(storage: PortfolioStorage, indicator_data: IndicatorDataDict) -> None:
     """Insert or update technical indicators in database.
 
     Uses PostgreSQL UPSERT (ON CONFLICT) to update existing records

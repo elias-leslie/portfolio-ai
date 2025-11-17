@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypedDict
 
 if TYPE_CHECKING:
     from celery import Task  # type: ignore[import-untyped]
@@ -23,7 +23,19 @@ from app.storage import get_storage
 logger = get_logger(__name__)
 
 
-def _extract_valuation_metrics(payload: dict[str, Any]) -> dict[str, float | None]:
+class ValuationMetricsDict(TypedDict, total=False):
+    """Valuation metrics extracted from reference data payloads."""
+
+    pe_ratio_trailing: float | None
+    pe_ratio_forward: float | None
+    ps_ratio: float | None
+    pb_ratio: float | None
+    peg_ratio: float | None
+    dividend_yield: float | None
+    payout_ratio: float | None
+
+
+def _extract_valuation_metrics(payload: dict[str, Any]) -> ValuationMetricsDict:
     """Extract valuation metrics from JSON payload.
 
     Supports both yfinance and Alpha Vantage payloads.
