@@ -12,7 +12,7 @@ Architecture:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from app.portfolio.analytics import PortfolioAnalytics
@@ -120,9 +120,9 @@ class AgentTools:
         return self.data.execute_get_price_data(symbols)
 
     # Trading tools - delegate to TradingTools
-    def execute_store_idea(self, agent_run_id: str, **idea_data: Any) -> dict[str, object]:
+    def execute_store_idea(self, agent_run_id: str, **idea_data: object) -> dict[str, object]:
         """Execute store_idea tool."""
-        return self.trading.execute_store_idea(agent_run_id, **idea_data)
+        return self.trading.execute_store_idea(agent_run_id, **idea_data)  # type: ignore[arg-type]
 
     def execute_add_ticker(
         self,
@@ -164,7 +164,7 @@ class AgentTools:
         agent_type: str,
         message_type: str,
         message: str,
-        data: dict[str, Any] | None = None,
+        data: dict[str, object] | None = None,
         priority: int = 5,
     ) -> dict[str, object]:
         """Execute send_message_to_agent tool."""

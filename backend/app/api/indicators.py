@@ -13,6 +13,8 @@ from pydantic import BaseModel, Field
 from app.analytics.indicators import calculate_indicators
 from app.storage import get_storage
 
+from .types import IndicatorRowDict, IndicatorValuesDict, InterpretationValuesDict
+
 router = APIRouter(prefix="/api/indicators", tags=["indicators"])
 
 # Initialize storage
@@ -76,7 +78,7 @@ def _build_indicators_query(
     return query, params
 
 
-def _build_indicator_values(row: dict[str, Any]) -> dict[str, Any]:
+def _build_indicator_values(row: IndicatorRowDict) -> IndicatorValuesDict:
     """Build indicator values dict from database row.
 
     Args:
@@ -85,7 +87,7 @@ def _build_indicator_values(row: dict[str, Any]) -> dict[str, Any]:
     Returns:
         Dict of indicator values
     """
-    indicators_data: dict[str, Any] = {}
+    indicators_data: IndicatorValuesDict = {}
 
     if row["rsi_14"] is not None:
         indicators_data["rsi_14"] = row["rsi_14"]
@@ -130,7 +132,7 @@ def _build_indicator_values(row: dict[str, Any]) -> dict[str, Any]:
     return indicators_data
 
 
-def _generate_interpretations(row: dict[str, Any]) -> dict[str, str]:
+def _generate_interpretations(row: IndicatorRowDict) -> InterpretationValuesDict:
     """Generate indicator interpretations from values.
 
     Args:
@@ -139,7 +141,7 @@ def _generate_interpretations(row: dict[str, Any]) -> dict[str, str]:
     Returns:
         Dict of interpretations
     """
-    interpretations_data: dict[str, str] = {}
+    interpretations_data: InterpretationValuesDict = {}
 
     if row["rsi_14"] is not None:
         rsi = row["rsi_14"]
@@ -360,16 +362,16 @@ def get_indicators_history(
         responses: list[IndicatorsResponse] = []
         for row in df.iter_rows(named=True):
             # Build indicator values and interpretations
-            indicators_data = _build_indicator_values(row)
-            interpretations_data = _generate_interpretations(row)
+            indicators_data = _build_indicator_values(row)  # type: ignore
+            interpretations_data = _generate_interpretations(row)  # type: ignore
 
             # Build response
             response = IndicatorsResponse(
                 ticker=row["ticker"],
                 date=str(row["date"]),
                 close_price=row.get("close_price"),
-                indicators=IndicatorValues(**indicators_data),
-                interpretations=IndicatorInterpretations(**interpretations_data),
+                indicators=IndicatorValues(**indicators_data),  # type: ignore
+                interpretations=IndicatorInterpretations(**interpretations_data),  # type: ignore
             )
             responses.append(response)
 

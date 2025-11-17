@@ -8,17 +8,19 @@ from __future__ import annotations
 
 import datetime as dt
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 from app.analytics.trade_calculations import check_exit_conditions
+from app.analytics.types import PaperTradeDict, PaperTradeStatsDict
 from app.logging_config import get_logger
+from app.portfolio.models import PriceData
 from app.portfolio.price_fetcher import PriceDataFetcher
 from app.storage import PortfolioStorage
 
 logger = get_logger(__name__)
 
 
-def fetch_open_trades(storage: PortfolioStorage) -> list[dict[str, Any]]:
+def fetch_open_trades(storage: PortfolioStorage) -> list[PaperTradeDict]:
     """Fetch all open paper trades from database.
 
     Args:
@@ -50,7 +52,7 @@ def fetch_open_trades(storage: PortfolioStorage) -> list[dict[str, Any]]:
     if open_trades.is_empty():
         return []
 
-    return open_trades.to_dicts()
+    return cast(list[PaperTradeDict], open_trades.to_dicts())
 
 
 def calculate_trade_return(entry_price: float, current_price: float, idea_type: str) -> float:
@@ -73,7 +75,7 @@ def calculate_trade_return(entry_price: float, current_price: float, idea_type: 
 
 
 def update_trade_excursions(
-    trade: dict[str, Any], current_return_pct: float
+    trade: PaperTradeDict, current_return_pct: float
 ) -> tuple[float, float]:
     """Update max favorable and adverse excursions.
 
@@ -91,7 +93,7 @@ def update_trade_excursions(
 
 def update_open_trade(
     storage: PortfolioStorage,
-    trade: dict[str, Any],
+    trade: PaperTradeDict,
     current_price: float,
     current_return_pct: float,
     max_favorable_pct: float,
@@ -136,7 +138,7 @@ def update_open_trade(
 
 def close_trade(
     storage: PortfolioStorage,
-    trade: dict[str, Any],
+    trade: PaperTradeDict,
     current_price: float,
     current_return_pct: float,
     max_favorable_pct: float,
@@ -184,7 +186,7 @@ def close_trade(
             holding_days,
             status,
             current_price,  # exit_price
-            dt.date.today(),  # exit_date
+            str(dt.date.today()),  # exit_date
             exit_reason,
             current_return_pct,  # realized_return_pct
             datetime.now(UTC),
@@ -206,11 +208,11 @@ def close_trade(
 
 def process_single_trade(
     storage: PortfolioStorage,
-    trade: dict[str, Any],
+    trade: PaperTradeDict,
     price_data: dict[str, Any],
     today: dt.date,
     max_holding_days: int,
-    stats: dict[str, Any],
+    stats: PaperTradeStatsDict,
 ) -> None:
     """Process a single trade update.
 
@@ -235,16 +237,21 @@ def process_single_trade(
         return
 
     # Calculate returns and metrics
-    current_price = price_data[ticker].price
+    price_obj: PriceData = price_data[ticker]
+    current_price = price_obj.price
     current_return_pct = calculate_trade_return(
         trade["entry_price"], current_price, trade["idea_type"]
     )
     max_favorable_pct, max_adverse_pct = update_trade_excursions(trade, current_return_pct)
-    holding_days = (today - trade["entry_date"]).days
+    entry_date = trade["entry_date"]
+    # Convert to date if it's a datetime
+    if isinstance(entry_date, dt.datetime):
+        entry_date = entry_date.date()
+    holding_days = (today - entry_date).days
 
     # Check if trade should close
     should_close, exit_reason, status = check_exit_conditions(
-        trade, current_price, holding_days, max_holding_days
+        cast(dict[str, object], trade), current_price, holding_days, max_holding_days
     )
 
     # Update or close trade
@@ -285,7 +292,7 @@ def process_single_trade(
 
 def update_all_paper_trades(
     storage: PortfolioStorage, max_holding_days: int = 60
-) -> dict[str, Any]:
+) -> PaperTradeStatsDict:
     """Update all open paper trades with current prices and check for exits.
 
     Fetches current prices for all open trades, updates returns, and closes
@@ -324,10 +331,10 @@ def update_all_paper_trades(
     # Fetch current prices for all tickers
     tickers = list({trade["ticker"] for trade in trades_list})
     price_fetcher = PriceDataFetcher(storage)
-    price_data = price_fetcher.fetch_price_data(tickers)
+    price_data: dict[str, Any] = price_fetcher.fetch_price_data(tickers)
 
     # Initialize statistics
-    stats = {
+    stats: PaperTradeStatsDict = {
         "trades_updated": 0,
         "trades_closed": 0,
         "target_hits": 0,

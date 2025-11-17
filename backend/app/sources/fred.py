@@ -7,11 +7,12 @@ from __future__ import annotations
 
 import os
 from datetime import date, datetime
-from typing import Any, ClassVar
+from typing import ClassVar
 
 import httpx
 
 from ..logging_config import get_logger
+from .types import FREDDataDict
 
 logger = get_logger(__name__)
 
@@ -45,7 +46,7 @@ class FREDSource:
         """Check if FRED API key is available."""
         return bool(self.api_key)
 
-    def fetch_latest(self, indicator: str) -> dict[str, Any] | None:
+    def fetch_latest(self, indicator: str) -> FREDDataDict | None:
         """Fetch latest value for an indicator.
 
         Args:
@@ -95,7 +96,7 @@ class FREDSource:
             logger.error(f"Failed to fetch {indicator} from FRED: {e}")
             return None
 
-    def fetch_multiple(self, indicators: list[str]) -> dict[str, dict[str, Any]]:
+    def fetch_multiple(self, indicators: list[str]) -> dict[str, FREDDataDict]:
         """Fetch latest values for multiple indicators.
 
         Args:

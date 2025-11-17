@@ -76,7 +76,7 @@ class FMPClient(BaseHTTPClient):
             params: Query parameters
 
         Returns:
-            Parsed JSON response
+            Parsed JSON response (dict or list)
         """
         return self.request(path, params, method="GET")
 

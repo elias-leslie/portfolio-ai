@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 from ...logging_config import get_logger
 from ...storage.connection import get_connection_manager
+from ..types import InsightDict
 
 logger = get_logger(__name__)
 
@@ -33,13 +34,16 @@ class InsightsListResponse(BaseModel):
     """Response for paginated insights list."""
 
     total: int
-    insights: list[dict[str, Any]]
+    insights: list[InsightDict]
 
 
 # Helper functions
-def _dict_from_row(row: tuple[Any, ...], columns: list[str]) -> dict[str, Any]:
+def _dict_from_row(row: tuple[Any, ...], columns: list[str]) -> InsightDict:
     """Convert database row tuple to dict."""
-    return dict(zip(columns, row, strict=True))
+    result: InsightDict = {}
+    for key, value in zip(columns, row, strict=True):
+        result[key] = value  # type: ignore
+    return result
 
 
 # Endpoints
@@ -122,7 +126,7 @@ async def get_insights(
 async def review_insight(
     insight_id: int,
     review: InsightReviewRequest,
-) -> dict[str, Any]:
+) -> dict[str, str | int]:
     """Update the review status of an insight.
 
     Path params:

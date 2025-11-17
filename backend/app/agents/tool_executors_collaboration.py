@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from app.storage.facade import PortfolioStorage
@@ -38,7 +38,7 @@ class CollaborationTools:
         agent_type: str,
         message_type: str,
         message: str,
-        data: dict[str, Any] | None = None,
+        data: dict[str, object] | None = None,
         priority: int = 5,
     ) -> dict[str, object]:
         """Execute send_message_to_agent tool for inter-agent communication.
@@ -58,7 +58,7 @@ class CollaborationTools:
             message_id = str(uuid.uuid4())
 
             # Build content JSONB
-            content: dict[str, Any] = {
+            content: dict[str, object] = {
                 "message": message,
                 "timestamp": datetime.now(UTC).isoformat(),
             }

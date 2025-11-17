@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 from ...logging_config import get_logger
 from ...storage.connection import get_connection_manager
 from ...tasks.capability_tasks import scan_system_capabilities
+from ..types import CapabilityDict, DependenciesDict, HealthSummaryDict, InsightDict, NoteDict
 
 logger = get_logger(__name__)
 
@@ -36,25 +37,28 @@ class CapabilitiesListResponse(BaseModel):
     """Response for paginated capabilities list."""
 
     total: int
-    capabilities: list[dict[str, Any]]
+    capabilities: list[CapabilityDict]
 
 
 class CapabilityDetailResponse(BaseModel):
     """Response for single capability with related data."""
 
-    capability: dict[str, Any]
-    insights: list[dict[str, Any]] = Field(default_factory=list)
-    notes: list[dict[str, Any]] = Field(default_factory=list)
-    dependencies: dict[str, Any] = Field(default_factory=dict)
+    capability: CapabilityDict
+    insights: list[InsightDict] = Field(default_factory=list)
+    notes: list[NoteDict] = Field(default_factory=list)
+    dependencies: DependenciesDict = Field(default_factory=dict)
 
 
 # Helper functions
-def _dict_from_row(row: tuple[Any, ...], columns: list[str]) -> dict[str, Any]:
+def _dict_from_row(row: tuple[Any, ...], columns: list[str]) -> CapabilityDict:
     """Convert database row tuple to dict."""
-    return dict(zip(columns, row, strict=True))
+    result: CapabilityDict = {}
+    for key, value in zip(columns, row, strict=True):
+        result[key] = value  # type: ignore
+    return result
 
 
-def _transform_db_capability(cap: dict[str, Any]) -> dict[str, Any]:
+def _transform_db_capability(cap: CapabilityDict) -> CapabilityDict:
     """Transform db_capability to add computed fields expected by frontend.
 
     Adds age_hours field by converting days_since_update to hours.
@@ -261,7 +265,7 @@ async def get_capabilities(
 
 
 @router.get("/health/summary")
-async def get_health_summary() -> dict[str, Any]:
+async def get_health_summary() -> HealthSummaryDict:
     """Get health status summary across all capability types.
 
     Returns counts of capabilities grouped by type and health status.
@@ -287,7 +291,7 @@ async def get_health_summary() -> dict[str, Any]:
     try:
         with conn_mgr.connection() as conn:
             # Query health counts from all three tables
-            summary: dict[str, Any] = {
+            summary: HealthSummaryDict = {
                 "total": 0,
                 "by_type": {
                     "database": {"active": 0, "orphaned": 0, "legacy": 0, "suspect": 0},
@@ -419,15 +423,15 @@ async def get_capability_detail(
             notes = [_dict_from_row(row, note_columns) for row in note_rows]
 
             # Extract dependencies from JSONB fields
-            dependencies: dict[str, Any] = {}
+            dependencies: DependenciesDict = {}
             if capability_type == "db":
                 # No dependencies tracked for db_capabilities
                 pass
             elif capability_type == "celery":
-                dependencies["populates_tables"] = capability.get("populates_tables", [])
-                dependencies["depends_on_tasks"] = capability.get("depends_on_tasks", [])
+                dependencies["populates_tables"] = capability.get("populates_tables", [])  # type: ignore
+                dependencies["depends_on_tasks"] = capability.get("depends_on_tasks", [])  # type: ignore
             elif capability_type == "api":
-                dependencies["depends_on_tables"] = capability.get("depends_on_tables", [])
+                dependencies["depends_on_tables"] = capability.get("depends_on_tables", [])  # type: ignore
 
             logger.info(
                 "capability_detail_retrieved",

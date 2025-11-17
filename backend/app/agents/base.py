@@ -9,11 +9,12 @@ import json
 import uuid
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, TypedDict, cast
+from typing import TYPE_CHECKING, TypedDict, cast
 
 from anthropic import Anthropic
 
 from ..logging_config import get_logger
+from .types import ToolInputDict
 
 if TYPE_CHECKING:
     from app.storage.facade import PortfolioStorage
@@ -25,8 +26,8 @@ class ToolCallRecord(TypedDict):
     """Record of a tool call made by the agent."""
 
     name: str
-    input: dict[str, Any]
-    result: Any
+    input: ToolInputDict
+    result: object
 
 
 class AgentRunResult(TypedDict, total=False):
@@ -66,7 +67,7 @@ class Agent(ABC):
         self.agent_type = self.__class__.__name__
 
     @staticmethod
-    def _json_serializer(value: Any) -> Any:
+    def _json_serializer(value: object) -> object:
         """Serialize non-JSON-compatible values (e.g., datetime) to strings."""
         if isinstance(value, datetime):
             if value.tzinfo is None:
@@ -84,7 +85,7 @@ class Agent(ABC):
         pass
 
     @abstractmethod
-    def get_tools(self) -> list[dict[str, Any]]:
+    def get_tools(self) -> list[dict[str, object]]:
         """Get tool definitions for this agent.
 
         Returns:
@@ -93,7 +94,7 @@ class Agent(ABC):
         pass
 
     @abstractmethod
-    def execute_tool(self, tool_name: str, tool_input: dict[str, Any]) -> Any:
+    def execute_tool(self, tool_name: str, tool_input: ToolInputDict) -> object:
         """Execute a tool call.
 
         Args:
@@ -105,7 +106,7 @@ class Agent(ABC):
         """
         pass
 
-    def _extract_final_response(self, response: Any) -> str:
+    def _extract_final_response(self, response: object) -> str:
         """Extract final text response from API response.
 
         Args:
@@ -115,7 +116,7 @@ class Agent(ABC):
             Extracted text content
         """
         final_text = ""
-        for block in response.content:
+        for block in response.content:  # type: ignore[attr-defined]
             if block.type == "text":
                 final_text += block.text
         return final_text
@@ -165,10 +166,10 @@ class Agent(ABC):
 
     def _process_tool_calls(
         self,
-        response: Any,
+        response: object,
         run_id: str,
         tool_calls_made: list[ToolCallRecord],
-    ) -> tuple[list[Any], list[dict[str, Any]]]:
+    ) -> tuple[list[object], list[dict[str, object]]]:
         """Process tool calls from API response.
 
         Args:
@@ -182,12 +183,12 @@ class Agent(ABC):
         assistant_content = []
         tool_results = []
 
-        for block in response.content:
+        for block in response.content:  # type: ignore[attr-defined]
             assistant_content.append(block)
 
             if block.type == "tool_use":
                 tool_start = datetime.now(UTC)
-                tool_input = cast(dict[str, Any], block.input)
+                tool_input = cast(ToolInputDict, block.input)
 
                 # Execute tool
                 result = self.execute_tool(block.name, tool_input)
@@ -339,8 +340,8 @@ class Agent(ABC):
         self,
         run_id: str,
         tool_name: str,
-        parameters: dict[str, Any],
-        result: Any,
+        parameters: ToolInputDict,
+        result: object,
         duration_ms: int,
     ) -> None:
         """Record tool call in database."""

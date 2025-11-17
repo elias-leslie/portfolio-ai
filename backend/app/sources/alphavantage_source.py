@@ -125,7 +125,7 @@ class AlphaVantageClient(BaseHTTPClient):
             "function": "OVERVIEW",
             "symbol": ticker,
         }
-        result: dict[str, Any] = self.get(params)
+        result: dict[str, object] = self.get(params)
         return result
 
 

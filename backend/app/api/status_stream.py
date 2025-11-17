@@ -6,7 +6,6 @@ import asyncio
 import json
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
-from typing import Any
 
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
@@ -14,13 +13,14 @@ from fastapi.responses import StreamingResponse
 from ..api.health import health_service
 from ..logging_config import get_logger
 from ..services.service_monitor import get_all_service_statuses
+from .types import SystemStatusDict
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/status", tags=["status"])
 
 
-def gather_comprehensive_status() -> dict[str, Any]:
+def gather_comprehensive_status() -> SystemStatusDict:
     """Gather comprehensive system status from health check and service monitor.
 
     Returns:
@@ -31,15 +31,17 @@ def gather_comprehensive_status() -> dict[str, Any]:
 
     # Get service statuses (skip slow Celery inspect for streaming performance)
     service_statuses = get_all_service_statuses(skip_slow_checks=True)
-    services = {name: status.model_dump() for name, status in service_statuses.items()}
+    services: dict[str, object] = {
+        name: status.model_dump() for name, status in service_statuses.items()
+    }
 
     # Combine into comprehensive status
     # Use model_dump(mode='json') to ensure datetime objects are serialized
     return {
-        "status": health_response["status"],
+        "status": health_response["status"],  # type: ignore
         "services": services,
         "timestamp": datetime.now(UTC).isoformat(),
-        "uptime_seconds": health_response["uptime_seconds"],
+        "uptime_seconds": health_response["uptime_seconds"],  # type: ignore
         "checks": {
             name: check.model_dump(mode="json") for name, check in health_response["checks"].items()
         },

@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 from ...logging_config import get_logger
 from ...storage.connection import get_connection_manager
+from ..types import NoteDict
 
 logger = get_logger(__name__)
 
@@ -34,7 +35,7 @@ class NoteCreateRequest(BaseModel):
 class NotesListResponse(BaseModel):
     """Response for notes list."""
 
-    notes: list[dict[str, Any]]
+    notes: list[NoteDict]
 
 
 class NoteCreateResponse(BaseModel):
@@ -45,9 +46,12 @@ class NoteCreateResponse(BaseModel):
 
 
 # Helper functions
-def _dict_from_row(row: tuple[Any, ...], columns: list[str]) -> dict[str, Any]:
+def _dict_from_row(row: tuple[Any, ...], columns: list[str]) -> NoteDict:
     """Convert database row tuple to dict."""
-    return dict(zip(columns, row, strict=True))
+    result: NoteDict = {}
+    for key, value in zip(columns, row, strict=True):
+        result[key] = value  # type: ignore
+    return result
 
 
 def _get_table_name(capability_type: str) -> str:

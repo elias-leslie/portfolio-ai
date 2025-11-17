@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Literal, cast
 
 if TYPE_CHECKING:
     from app.storage.facade import PortfolioStorage
@@ -35,7 +35,7 @@ class TradingTools:
         self.storage = storage
         self.order_executor = OrderExecutor(storage)
 
-    def execute_store_idea(self, agent_run_id: str, **idea_data: Any) -> dict[str, object]:
+    def execute_store_idea(self, agent_run_id: str, **idea_data: object) -> dict[str, object]:
         """Execute store_idea tool and automatically create a paper trade.
 
         Args:

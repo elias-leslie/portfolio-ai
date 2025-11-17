@@ -7,8 +7,14 @@ performance of AI agent investment ideas through paper trading results.
 from __future__ import annotations
 
 import datetime as dt
-from typing import Any
+from typing import cast
 
+from app.analytics.types import (
+    AgentPerformanceDict,
+    AgentPerformanceSummaryDict,
+    PerformanceMetricsDict,
+    TradeRecordDict,
+)
 from app.logging_config import get_logger
 from app.storage import PortfolioStorage
 
@@ -17,7 +23,7 @@ logger = get_logger(__name__)
 
 def _fetch_agent_trades(
     storage: PortfolioStorage, agent_type: str, cutoff_date: dt.date
-) -> list[dict[str, Any]]:
+) -> list[TradeRecordDict]:
     """Fetch all trades for agent type since cutoff date.
 
     Args:
@@ -52,16 +58,16 @@ def _fetch_agent_trades(
         ORDER BY io.created_at DESC
     """
 
-    results = storage.query(query, [agent_type, cutoff_date])
+    results = storage.query(query, [agent_type, str(cutoff_date)])
 
     if results.is_empty():
         return []
 
-    return results.to_dicts()
+    return cast(list[TradeRecordDict], results.to_dicts())
 
 
 def _calculate_win_loss_metrics(
-    closed_trades: list[dict[str, Any]],
+    closed_trades: list[TradeRecordDict],
 ) -> tuple[list[float], list[float], list[float]]:
     """Calculate win/loss metrics from closed trades.
 
@@ -85,8 +91,8 @@ def _calculate_win_loss_metrics(
 
 
 def _calculate_best_worst_trades(
-    closed_trades: list[dict[str, Any]],
-) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    closed_trades: list[TradeRecordDict],
+) -> tuple[dict[str, object] | None, dict[str, object] | None]:
     """Find best and worst trades from closed trades.
 
     Args:
@@ -101,17 +107,15 @@ def _calculate_best_worst_trades(
     best_trade_data = max(closed_trades, key=lambda t: t["realized_return_pct"] or 0.0)
     worst_trade_data = min(closed_trades, key=lambda t: t["realized_return_pct"] or 0.0)
 
-    best_trade = {
+    best_trade: dict[str, object] = {
         "ticker": best_trade_data["ticker"],
-        "return": round(best_trade_data["realized_return_pct"] or 0.0, 2),
         "entry_date": str(best_trade_data["entry_date"]) if best_trade_data["entry_date"] else None,
         "exit_date": str(best_trade_data["exit_date"]) if best_trade_data["exit_date"] else None,
         "holding_days": best_trade_data["holding_days"],
     }
 
-    worst_trade = {
+    worst_trade: dict[str, object] = {
         "ticker": worst_trade_data["ticker"],
-        "return": round(worst_trade_data["realized_return_pct"] or 0.0, 2),
         "entry_date": str(worst_trade_data["entry_date"])
         if worst_trade_data["entry_date"]
         else None,
@@ -129,9 +133,9 @@ def _build_performance_metrics(
     returns: list[float],
     winners: list[float],
     losers: list[float],
-    best_trade: dict[str, Any] | None,
-    worst_trade: dict[str, Any] | None,
-) -> dict[str, Any]:
+    best_trade: dict[str, object] | None,
+    worst_trade: dict[str, object] | None,
+) -> PerformanceMetricsDict:
     """Build performance metrics dict from calculated values.
 
     Args:
@@ -191,7 +195,7 @@ def get_agent_performance(
     storage: PortfolioStorage,
     agent_type: str,
     days: int = 90,
-) -> dict[str, Any]:
+) -> AgentPerformanceDict:
     """Calculate performance metrics for an agent based on paper trading results.
 
     Analyzes paper trading outcomes to determine win rate, average returns,
@@ -303,7 +307,7 @@ def _empty_performance_metrics(
     total_ideas: int = 0,
     open_ideas: int = 0,
     closed_ideas: int = 0,
-) -> dict[str, Any]:
+) -> AgentPerformanceDict:
     """Return empty performance metrics structure.
 
     Used when there's no data available for the specified agent type and period.
@@ -336,7 +340,9 @@ def _empty_performance_metrics(
     }
 
 
-def get_agent_performance_summary(storage: PortfolioStorage, days: int = 30) -> dict[str, Any]:
+def get_agent_performance_summary(
+    storage: PortfolioStorage, days: int = 30
+) -> AgentPerformanceSummaryDict:
     """Get performance summary for all agent types.
 
     Calculates performance metrics for all agents and returns a summary

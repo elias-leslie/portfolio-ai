@@ -6,8 +6,9 @@ to the paper_trade_transactions table for complete audit trail.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, cast
 
+from app.analytics.types import TransactionDict
 from app.logging_config import get_logger
 
 if TYPE_CHECKING:
@@ -173,7 +174,7 @@ class TransactionLogger:
         account_id: str | None = None,
         trade_id: str | None = None,
         limit: int = 100,
-    ) -> list[dict[str, Any]]:
+    ) -> list[TransactionDict]:
         """Get recent transactions.
 
         Args:
@@ -233,13 +234,13 @@ class TransactionLogger:
             return []
 
         # Convert to list of dicts
-        transactions = []
+        transactions: list[TransactionDict] = []
         for row in result.iter_rows(named=True):
-            transactions.append(dict(row))
+            transactions.append(cast(TransactionDict, dict(row)))
 
         return transactions
 
-    def get_transactions_by_ticker(self, ticker: str, limit: int = 50) -> list[dict[str, Any]]:
+    def get_transactions_by_ticker(self, ticker: str, limit: int = 50) -> list[TransactionDict]:
         """Get recent transactions for a specific ticker.
 
         Args:
@@ -273,8 +274,8 @@ class TransactionLogger:
         if result.is_empty():
             return []
 
-        transactions = []
+        transactions: list[TransactionDict] = []
         for row in result.iter_rows(named=True):
-            transactions.append(dict(row))
+            transactions.append(cast(TransactionDict, dict(row)))
 
         return transactions

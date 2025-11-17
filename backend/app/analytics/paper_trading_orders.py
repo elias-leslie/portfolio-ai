@@ -8,13 +8,14 @@ from __future__ import annotations
 
 import datetime as dt
 from datetime import UTC, datetime
-from typing import Any
+from typing import cast
 
 from app.analytics.trade_calculations import (
     calculate_stop_loss,
     extract_target_price_from_thesis,
     extract_ticker_from_title,
 )
+from app.analytics.types import IdeaDetailsDict, PaperTradeDict
 from app.logging_config import get_logger
 from app.portfolio.price_fetcher import PriceDataFetcher
 from app.storage import PortfolioStorage
@@ -22,7 +23,7 @@ from app.storage import PortfolioStorage
 logger = get_logger(__name__)
 
 
-def fetch_idea_details(storage: PortfolioStorage, idea_id: str) -> dict[str, Any] | None:
+def fetch_idea_details(storage: PortfolioStorage, idea_id: str) -> IdeaDetailsDict | None:
     """Fetch agent idea details from database.
 
     Args:
@@ -51,7 +52,7 @@ def fetch_idea_details(storage: PortfolioStorage, idea_id: str) -> dict[str, Any
         logger.warning("paper_trade_create_failed", reason="idea_not_found", idea_id=idea_id)
         return None
 
-    return idea_result.to_dicts()[0]
+    return cast(IdeaDetailsDict, idea_result.to_dicts()[0])
 
 
 def fetch_entry_price(storage: PortfolioStorage, ticker: str, idea_id: str) -> float | None:
@@ -78,12 +79,12 @@ def fetch_entry_price(storage: PortfolioStorage, ticker: str, idea_id: str) -> f
 
 
 def build_paper_trade_record(
-    idea: dict[str, Any],
+    idea: IdeaDetailsDict,
     ticker: str,
     entry_price: float,
     stop_loss_price: float | None,
     target_price: float | None,
-) -> dict[str, Any]:
+) -> PaperTradeDict:
     """Build complete paper trade record for insertion.
 
     Args:
@@ -103,31 +104,34 @@ def build_paper_trade_record(
     entry_date = dt.date.today()
     now = datetime.now(UTC)
 
-    return {
-        "idea_id": idea["id"],
-        "agent_run_id": idea["agent_run_id"],
-        "ticker": ticker,
-        "idea_type": idea_type,
-        "entry_price": entry_price,
-        "entry_date": entry_date,
-        "target_price": target_price,
-        "stop_loss_price": stop_loss_price,
-        "current_price": entry_price,
-        "current_return_pct": 0.0,
-        "status": "open",
-        "exit_price": None,
-        "exit_date": None,
-        "exit_reason": None,
-        "realized_return_pct": None,
-        "holding_days": 0,
-        "max_favorable_pct": 0.0,
-        "max_adverse_pct": 0.0,
-        "created_at": now,
-        "updated_at": now,
-    }
+    return cast(
+        PaperTradeDict,
+        {
+            "idea_id": idea["id"],
+            "agent_run_id": idea["agent_run_id"],
+            "ticker": ticker,
+            "idea_type": idea_type,
+            "entry_price": entry_price,
+            "entry_date": entry_date,
+            "target_price": target_price,
+            "stop_loss_price": stop_loss_price,
+            "current_price": entry_price,
+            "current_return_pct": 0.0,
+            "status": "open",
+            "exit_price": None,
+            "exit_date": None,
+            "exit_reason": None,
+            "realized_return_pct": None,
+            "holding_days": 0,
+            "max_favorable_pct": 0.0,
+            "max_adverse_pct": 0.0,
+            "created_at": now,
+            "updated_at": now,
+        },
+    )
 
 
-def create_paper_trade_from_idea(storage: PortfolioStorage, idea_id: str) -> dict[str, Any] | None:
+def create_paper_trade_from_idea(storage: PortfolioStorage, idea_id: str) -> PaperTradeDict | None:
     """Create a paper trade entry for an agent idea.
 
     Extracts idea details from agent_ideas table, fetches current price,
@@ -180,7 +184,8 @@ def create_paper_trade_from_idea(storage: PortfolioStorage, idea_id: str) -> dic
 
     # Insert into database
     try:
-        storage.insert_dict("idea_outcomes", insert_data)
+        # Convert PaperTradeDict to dict for storage (date/datetime will be handled by insert_dict)
+        storage.insert_dict("idea_outcomes", dict(insert_data))  # type: ignore[arg-type]
         logger.info(
             "paper_trade_created",
             idea_id=idea_id,

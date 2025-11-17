@@ -88,7 +88,7 @@ def cache_response(
     ttl: int = CACHE_DEFAULT_TTL,
     include_user: bool = True,
     key_prefix: str | None = None,
-) -> Callable[..., Any]:
+) -> Callable[[Callable[..., object]], Callable[..., object]]:
     """Decorator to cache FastAPI endpoint responses.
 
     Args:
@@ -106,9 +106,9 @@ def cache_response(
             return {"data": "expensive computation"}
     """
 
-    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+    def decorator(func: Callable[..., object]) -> Callable[..., object]:
         @wraps(func)
-        async def wrapper(*args: Any, **kwargs: Any) -> Any:
+        async def wrapper(*args: object, **kwargs: object) -> object:
             # Check if caching is enabled
             if not CACHE_ENABLED:
                 return await func(*args, **kwargs)

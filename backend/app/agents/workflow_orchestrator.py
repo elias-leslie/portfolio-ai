@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
     from app.storage.facade import PortfolioStorage
@@ -29,7 +29,7 @@ class WorkflowOrchestrator:
     def start_workflow(
         self,
         workflow_type: str,
-        config: dict[str, Any] | None = None,
+        config: dict[str, object] | None = None,
         agents_involved: list[str] | None = None,
         triggered_by: str | None = None,
         priority: int = 5,
@@ -52,7 +52,7 @@ class WorkflowOrchestrator:
             workflow_id = str(uuid.uuid4())
 
             # Build shared context
-            shared_context: dict[str, Any] = {
+            shared_context: dict[str, object] = {
                 "config": config or {},
                 "started_at": datetime.now(UTC).isoformat(),
                 "agents": {},  # Will store agent-specific state
@@ -121,7 +121,7 @@ class WorkflowOrchestrator:
             current_step: Optional current step description
             error: Optional error message (required if status='failed')
         """
-        updates: dict[str, Any] = {
+        updates: dict[str, object] = {
             "status": status,
             "last_updated_at": datetime.now(UTC),
         }
@@ -170,7 +170,7 @@ class WorkflowOrchestrator:
         workflow_id: str,
         agent_type: str,
         task: str,
-        context: dict[str, Any] | None = None,
+        context: dict[str, object] | None = None,
     ) -> dict[str, object]:
         """Assign a task to a specific agent in a workflow.
 
@@ -241,7 +241,7 @@ class WorkflowOrchestrator:
         self,
         workflow_id: str,
         agent_type: str,
-        output: dict[str, Any],
+        output: dict[str, object],
         confidence: float = 1.0,
     ) -> None:
         """Record output from an agent in a workflow.
@@ -294,7 +294,7 @@ class WorkflowOrchestrator:
         except Exception as e:
             logger.error(f"Failed to record agent output: {e}")
 
-    def collect_agent_outputs(self, workflow_id: str) -> dict[str, Any]:
+    def collect_agent_outputs(self, workflow_id: str) -> dict[str, object]:
         """Collect all agent outputs from a workflow.
 
         Args:
@@ -316,7 +316,7 @@ class WorkflowOrchestrator:
             agents_data = shared_context.get("agents", {})
 
             # Extract outputs from each agent
-            collected: dict[str, Any] = {}
+            collected: dict[str, object] = {}
             for agent_type, agent_state in agents_data.items():
                 collected[agent_type] = agent_state.get("outputs", [])
 
@@ -329,7 +329,7 @@ class WorkflowOrchestrator:
     def resolve_conflicts(  # noqa: PLR0911
         self,
         workflow_id: str,
-        conflicting_outputs: dict[str, Any],
+        conflicting_outputs: dict[str, object],
         method: Literal["voting", "majority", "confidence", "first"] = "confidence",
     ) -> dict[str, object]:
         """Resolve conflicts between agent outputs using specified method.
@@ -431,7 +431,7 @@ class WorkflowOrchestrator:
             elif method == "majority":
                 # Simple majority - count identical outputs
                 output_counts: dict[str, int] = {}
-                output_map: dict[str, Any] = {}
+                output_map: dict[str, object] = {}
 
                 for _agent_type, output in conflicting_outputs.items():
                     output_str = str(output)  # Simple comparison
@@ -526,7 +526,7 @@ class WorkflowOrchestrator:
             logger.error(f"Failed to get workflow status: {e}")
             return None
 
-    def complete_workflow(self, workflow_id: str, result: dict[str, Any]) -> dict[str, object]:
+    def complete_workflow(self, workflow_id: str, result: dict[str, object]) -> dict[str, object]:
         """Mark a workflow as complete with final result.
 
         Args:

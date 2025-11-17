@@ -76,7 +76,7 @@ class FinnhubClient(BaseHTTPClient):
             params: Query parameters
 
         Returns:
-            Parsed JSON response
+            Parsed JSON response (dict or list)
         """
         return self.request(path, params, method="GET")
 
@@ -128,7 +128,7 @@ class FinnhubClient(BaseHTTPClient):
             {"name": "Apple Inc", "ticker": "AAPL", "country": "US", ...}
         """
         params = {"symbol": ticker}
-        result: dict[str, Any] = self.get("/stock/profile2", params)
+        result: dict[str, object] = self.get("/stock/profile2", params)
         return result
 
 

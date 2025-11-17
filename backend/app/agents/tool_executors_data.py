@@ -9,7 +9,7 @@ This module provides execution logic for data-fetching tools:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from app.portfolio.analytics import PortfolioAnalytics
@@ -158,7 +158,7 @@ class DataTools:
             "count": len(price_data),
         }
 
-    def _fetch_indicators(self, ticker: str) -> dict[str, Any] | None:
+    def _fetch_indicators(self, ticker: str) -> dict[str, object] | None:
         """Fetch latest technical indicators for a ticker.
 
         Args:
@@ -219,7 +219,7 @@ class DataTools:
             return None
 
     def _format_indicator_analysis(
-        self, ticker: str, current_price: float, indicators: dict[str, Any]
+        self, ticker: str, current_price: float, indicators: dict[str, object]
     ) -> str:
         """Format technical indicators into human-readable analysis text.
 

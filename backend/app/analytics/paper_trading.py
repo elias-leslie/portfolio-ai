@@ -10,14 +10,13 @@ The implementation is split across focused modules:
 
 from __future__ import annotations
 
-from typing import Any
-
 from app.analytics.paper_trading_orders import create_paper_trade_from_idea
 from app.analytics.paper_trading_portfolio import update_all_paper_trades
+from app.analytics.types import PaperTradeDict, PaperTradeStatsDict
 from app.storage import PortfolioStorage
 
 
-def create_paper_trade(storage: PortfolioStorage, idea_id: str) -> dict[str, Any] | None:
+def create_paper_trade(storage: PortfolioStorage, idea_id: str) -> PaperTradeDict | None:
     """Create a paper trade entry for an agent idea.
 
     Extracts idea details from agent_ideas table, fetches current price,
@@ -43,7 +42,9 @@ def create_paper_trade(storage: PortfolioStorage, idea_id: str) -> dict[str, Any
     return create_paper_trade_from_idea(storage, idea_id)
 
 
-def update_paper_trades(storage: PortfolioStorage, max_holding_days: int = 60) -> dict[str, Any]:
+def update_paper_trades(
+    storage: PortfolioStorage, max_holding_days: int = 60
+) -> PaperTradeStatsDict:
     """Update all open paper trades with current prices and check for exits.
 
     Fetches current prices for all open trades, updates returns, and closes

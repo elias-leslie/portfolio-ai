@@ -6,7 +6,7 @@ Scans market news and economic data to generate general investment ideas.
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from ..logging_config import get_logger
 
@@ -31,7 +31,7 @@ class DiscoveryAgent(Agent):
     broad market opportunities without reference to user's portfolio.
     """
 
-    def __init__(self, storage: PortfolioStorage, tools: AgentTools, **kwargs: Any) -> None:
+    def __init__(self, storage: PortfolioStorage, tools: AgentTools, **kwargs: object) -> None:
         """Initialize Discovery Agent.
 
         Args:
@@ -39,7 +39,7 @@ class DiscoveryAgent(Agent):
             tools: AgentTools instance
             **kwargs: Additional arguments for base Agent
         """
-        super().__init__(storage, **kwargs)
+        super().__init__(storage, **kwargs)  # type: ignore[arg-type]
         self.tools = tools
         self.current_run_id: str | None = None
 
@@ -65,7 +65,7 @@ Process:
 
 Generate exactly 5 ideas, then stop."""
 
-    def get_tools(self) -> list[dict[str, Any]]:
+    def get_tools(self) -> list[dict[str, object]]:
         """Get tool definitions for Discovery Agent."""
         return [
             get_news_tool_definition(),
@@ -73,7 +73,7 @@ Generate exactly 5 ideas, then stop."""
             get_store_idea_tool_definition(),
         ]
 
-    def execute_tool(self, tool_name: str, tool_input: dict[str, Any]) -> Any:
+    def execute_tool(self, tool_name: str, tool_input: dict[str, object]) -> object:
         """Execute a tool call.
 
         Args:

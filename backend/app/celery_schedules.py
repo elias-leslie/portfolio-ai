@@ -34,12 +34,10 @@ Why separate polling (60s) from execution (15+ min)?
   - Task can decide to skip execution based on runtime conditions
 """
 
-from typing import Any
-
 from celery.schedules import crontab  # type: ignore[import-untyped]
 
 
-def get_beat_schedule() -> dict[str, Any]:
+def get_beat_schedule() -> dict[str, object]:
     """Get Celery Beat schedule configuration.
 
     Returns:

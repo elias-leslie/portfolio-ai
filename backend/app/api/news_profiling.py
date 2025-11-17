@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from app.storage import get_storage
 from app.tasks.news_profiling_tasks import profile_news_sources_task, reset_source_metrics_task
+
+from .types import ResetSourceMetricsDict
 
 router = APIRouter(prefix="/api/news", tags=["news-profiling"])
 
@@ -265,7 +265,7 @@ async def submit_article_feedback(
 async def get_article_feedback(
     article_hash: str,
     user_id: str = "default",
-) -> dict[str, Any]:
+) -> dict[str, bool | str]:
     """Get user's feedback for a specific article.
 
     Args:
@@ -297,7 +297,7 @@ async def get_article_feedback(
 
 
 @router.post("/reset-source-metrics")
-async def reset_source_metrics() -> dict[str, Any]:
+async def reset_source_metrics() -> ResetSourceMetricsDict:
     """Reset all source metrics and user feedback.
 
     WARNING: This deletes all profiling data and user feedback.

@@ -6,7 +6,7 @@ Analyzes user's portfolio to generate personalized investment ideas.
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from ..logging_config import get_logger
 
@@ -33,7 +33,7 @@ class PortfolioAnalyzerAgent(Agent):
     tailored to their holdings, risk profile, and market conditions.
     """
 
-    def __init__(self, storage: PortfolioStorage, tools: AgentTools, **kwargs: Any) -> None:
+    def __init__(self, storage: PortfolioStorage, tools: AgentTools, **kwargs: object) -> None:
         """Initialize Portfolio Analyzer Agent.
 
         Args:
@@ -41,7 +41,7 @@ class PortfolioAnalyzerAgent(Agent):
             tools: AgentTools instance
             **kwargs: Additional arguments for base Agent
         """
-        super().__init__(storage, **kwargs)
+        super().__init__(storage, **kwargs)  # type: ignore[arg-type]
         self.tools = tools
         self.current_run_id: str | None = None
 
@@ -69,7 +69,7 @@ Process:
 
 Generate exactly 5 ideas that are specifically tailored to this portfolio, then stop."""
 
-    def get_tools(self) -> list[dict[str, Any]]:
+    def get_tools(self) -> list[dict[str, object]]:
         """Get tool definitions for Portfolio Analyzer Agent."""
         return [
             get_portfolio_data_tool_definition(),
@@ -79,7 +79,7 @@ Generate exactly 5 ideas that are specifically tailored to this portfolio, then 
             get_store_idea_tool_definition(),
         ]
 
-    def execute_tool(self, tool_name: str, tool_input: dict[str, Any]) -> Any:
+    def execute_tool(self, tool_name: str, tool_input: dict[str, object]) -> object:
         """Execute a tool call.
 
         Args:
