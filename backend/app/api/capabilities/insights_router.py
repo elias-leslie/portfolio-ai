@@ -7,43 +7,18 @@ This module provides REST API endpoints for capability insights:
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
 
 from ...logging_config import get_logger
 from ...storage.connection import get_connection_manager
-from ..types import InsightDict
+from .database import insight_from_row
+from .models import InsightReviewRequest, InsightsListResponse
 
 logger = get_logger(__name__)
 
 router = APIRouter()
-
-
-# Request/Response Models
-class InsightReviewRequest(BaseModel):
-    """Request to review/update an insight status."""
-
-    status: Literal["confirmed", "dismissed", "in_progress", "fixed"]
-    status_reason: str = ""
-    reviewed_by: str = "human"
-
-
-class InsightsListResponse(BaseModel):
-    """Response for paginated insights list."""
-
-    total: int
-    insights: list[InsightDict]
-
-
-# Helper functions
-def _dict_from_row(row: tuple[Any, ...], columns: list[str]) -> InsightDict:
-    """Convert database row tuple to dict."""
-    result: InsightDict = {}
-    for key, value in zip(columns, row, strict=True):
-        result[key] = value  # type: ignore
-    return result
 
 
 # Endpoints
@@ -104,7 +79,7 @@ async def get_insights(
             result = conn.execute(query, params)
             columns = [desc[0] for desc in result.description] if result.description else []
             rows = result.fetchall()
-            insights = [_dict_from_row(row, columns) for row in rows]
+            insights = [insight_from_row(row, columns) for row in rows]
 
             logger.info(
                 "insights_list_retrieved",

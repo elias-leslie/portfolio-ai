@@ -7,63 +7,18 @@ This module provides REST API endpoints for capability notes:
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
 
 from ...logging_config import get_logger
 from ...storage.connection import get_connection_manager
-from ..types import NoteDict
+from .database import get_table_name, note_from_row
+from .models import NoteCreateRequest, NoteCreateResponse, NotesListResponse
 
 logger = get_logger(__name__)
 
 router = APIRouter()
-
-
-# Request/Response Models
-class NoteCreateRequest(BaseModel):
-    """Request to create a new capability note."""
-
-    capability_type: Literal["db", "celery", "api"]
-    capability_id: int | None = None
-    insight_id: int | None = None
-    note_type: Literal["observation", "recommendation", "question", "decision", "reference"]
-    note: str
-
-
-class NotesListResponse(BaseModel):
-    """Response for notes list."""
-
-    notes: list[NoteDict]
-
-
-class NoteCreateResponse(BaseModel):
-    """Response for note creation."""
-
-    id: int
-    message: str
-
-
-# Helper functions
-def _dict_from_row(row: tuple[Any, ...], columns: list[str]) -> NoteDict:
-    """Convert database row tuple to dict."""
-    result: NoteDict = {}
-    for key, value in zip(columns, row, strict=True):
-        result[key] = value  # type: ignore
-    return result
-
-
-def _get_table_name(capability_type: str) -> str:
-    """Get database table name for capability type."""
-    mapping = {
-        "db": "db_capabilities",
-        "celery": "celery_capabilities",
-        "api": "api_capabilities",
-    }
-    if capability_type not in mapping:
-        raise ValueError(f"Invalid capability type: {capability_type}")
-    return mapping[capability_type]
 
 
 # Endpoints
@@ -84,7 +39,7 @@ async def create_note(note: NoteCreateRequest) -> NoteCreateResponse:
         with conn_mgr.connection() as conn:
             # Validate capability exists if capability_id provided
             if note.capability_id:
-                table = _get_table_name(note.capability_type)
+                table = get_table_name(note.capability_type)
                 check_query = f"SELECT id FROM {table} WHERE id = %s"
                 result = conn.execute(check_query, [note.capability_id]).fetchone()
                 if not result:
@@ -183,7 +138,7 @@ async def get_notes(
             result = conn.execute(query, params)
             columns = [desc[0] for desc in result.description] if result.description else []
             rows = result.fetchall()
-            notes = [_dict_from_row(row, columns) for row in rows]
+            notes = [note_from_row(row, columns) for row in rows]
 
             logger.info(
                 "notes_retrieved",

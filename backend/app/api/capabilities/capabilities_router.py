@@ -12,80 +12,23 @@ from __future__ import annotations
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel, Field
 
 from ...logging_config import get_logger
 from ...storage.connection import get_connection_manager
 from ...tasks.capability_tasks import scan_system_capabilities
-from ..types import CapabilityDict, DependenciesDict, HealthSummaryDict, InsightDict, NoteDict
+from ..types import DependenciesDict, HealthSummaryDict
+from .database import (
+    capability_from_row,
+    get_table_name,
+    insight_from_row,
+    note_from_row,
+    transform_db_capability,
+)
+from .models import CapabilitiesListResponse, CapabilityDetailResponse, ScanTriggerResponse
 
 logger = get_logger(__name__)
 
 router = APIRouter()
-
-
-# Request/Response Models
-class ScanTriggerResponse(BaseModel):
-    """Response for manual scan trigger."""
-
-    task_id: str
-    status: str = "queued"
-    message: str
-
-
-class CapabilitiesListResponse(BaseModel):
-    """Response for paginated capabilities list."""
-
-    total: int
-    capabilities: list[CapabilityDict]
-
-
-class CapabilityDetailResponse(BaseModel):
-    """Response for single capability with related data."""
-
-    capability: CapabilityDict
-    insights: list[InsightDict] = Field(default_factory=list)
-    notes: list[NoteDict] = Field(default_factory=list)
-    dependencies: DependenciesDict = Field(default_factory=dict)
-
-
-# Helper functions
-def _dict_from_row(row: tuple[Any, ...], columns: list[str]) -> CapabilityDict:
-    """Convert database row tuple to dict."""
-    result: CapabilityDict = {}
-    for key, value in zip(columns, row, strict=True):
-        result[key] = value  # type: ignore
-    return result
-
-
-def _transform_db_capability(cap: CapabilityDict) -> CapabilityDict:
-    """Transform db_capability to add computed fields expected by frontend.
-
-    Adds age_hours field by converting days_since_update to hours.
-    Frontend expects age_hours (number | null) but DB stores days_since_update (integer | null).
-    """
-    if cap.get("capability_type") == "db":
-        # Convert days_since_update to age_hours for frontend compatibility
-        days = cap.get("days_since_update")
-        cap["age_hours"] = days * 24 if days is not None else None
-
-        # Add missing fields with defaults if needed
-        cap.setdefault("source", None)
-        cap.setdefault("description", "")
-
-    return cap
-
-
-def _get_table_name(capability_type: str) -> str:
-    """Get database table name for capability type."""
-    mapping = {
-        "db": "db_capabilities",
-        "celery": "celery_capabilities",
-        "api": "api_capabilities",
-    }
-    if capability_type not in mapping:
-        raise ValueError(f"Invalid capability type: {capability_type}")
-    return mapping[capability_type]
 
 
 # Endpoints
@@ -124,7 +67,7 @@ async def get_capabilities(
                 total = 0
 
                 for cap_type in ["db", "celery", "api"]:
-                    table = _get_table_name(cap_type)
+                    table = get_table_name(cap_type)
                     query_params: list[Any] = [cap_type, cap_type]
 
                     query = f"""
@@ -167,9 +110,9 @@ async def get_capabilities(
                     rows = result.fetchall()
 
                     # Convert to dicts and add to combined list
-                    capabilities = [_dict_from_row(row, columns) for row in rows]
+                    capabilities = [capability_from_row(row, columns) for row in rows]
                     # Transform db_capabilities to add age_hours field
-                    capabilities = [_transform_db_capability(cap) for cap in capabilities]
+                    capabilities = [transform_db_capability(cap) for cap in capabilities]
                     all_capabilities.extend(capabilities)
                     total += len(capabilities)
 
@@ -183,7 +126,7 @@ async def get_capabilities(
                 if type not in ["db", "celery", "api"]:
                     raise HTTPException(status_code=400, detail=f"Invalid type: {type}")
 
-                table = _get_table_name(type)
+                table = get_table_name(type)
                 params_list: list[Any] = [type, type]
 
                 query = f"""
@@ -241,9 +184,9 @@ async def get_capabilities(
                 rows = result.fetchall()
 
                 # Convert rows to dicts
-                capabilities = [_dict_from_row(row, columns) for row in rows]
+                capabilities = [capability_from_row(row, columns) for row in rows]
                 # Transform db_capabilities to add age_hours field
-                capabilities = [_transform_db_capability(cap) for cap in capabilities]
+                capabilities = [transform_db_capability(cap) for cap in capabilities]
 
             logger.info(
                 "capabilities_list_retrieved",
@@ -381,7 +324,7 @@ async def get_capability_detail(
     conn_mgr = get_connection_manager()
 
     try:
-        table = _get_table_name(capability_type)
+        table = get_table_name(capability_type)
 
         with conn_mgr.connection() as conn:
             # Get main capability record
@@ -396,9 +339,9 @@ async def get_capability_detail(
                     detail=f"Capability not found: {capability_type}/{capability_id}",
                 )
 
-            capability = _dict_from_row(row, columns)
+            capability = capability_from_row(row, columns)
             # Transform db_capability to add age_hours field
-            capability = _transform_db_capability(capability)
+            capability = transform_db_capability(capability)
 
             # Get related insights
             insights_query = """
@@ -409,7 +352,7 @@ async def get_capability_detail(
             result = conn.execute(insights_query, [capability_type, capability_id])
             insight_columns = [desc[0] for desc in result.description] if result.description else []
             insight_rows = result.fetchall()
-            insights = [_dict_from_row(row, insight_columns) for row in insight_rows]
+            insights = [insight_from_row(row, insight_columns) for row in insight_rows]
 
             # Get related notes
             notes_query = """
@@ -420,7 +363,7 @@ async def get_capability_detail(
             result = conn.execute(notes_query, [capability_type, capability_id])
             note_columns = [desc[0] for desc in result.description] if result.description else []
             note_rows = result.fetchall()
-            notes = [_dict_from_row(row, note_columns) for row in note_rows]
+            notes = [note_from_row(row, note_columns) for row in note_rows]
 
             # Extract dependencies from JSONB fields
             dependencies: DependenciesDict = {}
