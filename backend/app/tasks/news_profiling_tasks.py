@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import time
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from app.celery_app import celery_app
 from app.logging_config import get_logger
@@ -20,6 +20,9 @@ from app.services.news_quality_metrics import (
     load_quality_weights_from_preferences,
 )
 from app.storage import get_storage
+
+if TYPE_CHECKING:
+    from celery import Task  # type: ignore[import-untyped]
 
 logger = get_logger(__name__)
 
@@ -260,7 +263,7 @@ def _store_metrics(metrics: list[tuple[str, dict[str, Any]]]) -> None:
 
 
 @celery_app.task(name="profile_news_sources", bind=True)  # type: ignore[misc]
-def profile_news_sources_task(self: Any, user_id: str = "default") -> dict[str, Any]:
+def profile_news_sources_task(self: Task, user_id: str = "default") -> dict[str, Any]:
     """Profile all active news sources and calculate quality metrics.
 
     Args:

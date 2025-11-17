@@ -14,18 +14,21 @@ All tasks are designed to be:
 from __future__ import annotations
 
 import datetime as dt
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.storage.connection import get_connection_manager
+
+if TYPE_CHECKING:
+    from celery import Task  # type: ignore[import-untyped]
 
 logger = get_logger(__name__)
 
 
 @celery_app.task(name="vacuum_database_task", bind=True)  # type: ignore[misc]
 def vacuum_database_task(
-    self: Any, tables: list[str] | None = None
+    self: Task, tables: list[str] | None = None
 ) -> dict[str, int | str | float]:
     """VACUUM ANALYZE database tables to reclaim space and update statistics.
 
@@ -117,7 +120,7 @@ def vacuum_database_task(
 
 
 @celery_app.task(name="cleanup_old_news_task", bind=True)  # type: ignore[misc]
-def cleanup_old_news_task(self: Any, days: int = 90) -> dict[str, int | str | float]:
+def cleanup_old_news_task(self: Task, days: int = 90) -> dict[str, int | str | float]:
     """Delete news articles older than specified days.
 
     Args:
@@ -181,7 +184,7 @@ def cleanup_old_news_task(self: Any, days: int = 90) -> dict[str, int | str | fl
 
 
 @celery_app.task(name="cleanup_old_agent_runs_task", bind=True)  # type: ignore[misc]
-def cleanup_old_agent_runs_task(self: Any, days: int = 30) -> dict[str, int | str | float]:
+def cleanup_old_agent_runs_task(self: Task, days: int = 30) -> dict[str, int | str | float]:
     """Delete agent run history older than specified days.
 
     Args:
@@ -271,7 +274,7 @@ def cleanup_old_agent_runs_task(self: Any, days: int = 30) -> dict[str, int | st
 
 
 @celery_app.task(name="cleanup_orphaned_data_task", bind=True)  # type: ignore[misc]
-def cleanup_orphaned_data_task(self: Any) -> dict[str, int | str | float]:
+def cleanup_orphaned_data_task(self: Task) -> dict[str, int | str | float]:
     """Remove orphaned records (ideas without runs, etc.).
 
     Returns:
@@ -343,7 +346,7 @@ def cleanup_orphaned_data_task(self: Any) -> dict[str, int | str | float]:
 
 
 @celery_app.task(name="get_database_size_task", bind=True)  # type: ignore[misc]
-def get_database_size_task(self: Any) -> dict[str, int | str | float | list[dict[str, Any]]]:
+def get_database_size_task(self: Task) -> dict[str, int | str | float | list[dict[str, Any]]]:
     """Get database size and table sizes for monitoring.
 
     Returns:

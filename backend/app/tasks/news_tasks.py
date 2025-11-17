@@ -6,7 +6,7 @@ import json
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from app.celery_app import celery_app
 from app.logging_config import get_logger
@@ -14,6 +14,9 @@ from app.services import NewsBundle, NewsService, NewsSummary
 from app.storage import PortfolioStorage, get_storage
 from app.storage.credential_loader import load_credentials_from_database
 from app.watchlist.watchlist_service import WatchlistService
+
+if TYPE_CHECKING:
+    from celery import Task  # type: ignore[import-untyped]
 
 logger = get_logger(__name__)
 
@@ -92,7 +95,7 @@ def _record_summary(
 
 
 def _refresh_news_sentiment_task(
-    self: Any, account_id: str = "default"
+    self: Task, account_id: str = "default"
 ) -> dict[str, int | str | float]:
     """Refresh market and watchlist news sentiment caches."""
     start_time = time.time()  # Track task duration

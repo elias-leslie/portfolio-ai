@@ -16,17 +16,20 @@ from __future__ import annotations
 import datetime as dt
 import shutil
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.storage.connection import get_connection_manager
 
+if TYPE_CHECKING:
+    from celery import Task  # type: ignore[import-untyped]
+
 logger = get_logger(__name__)
 
 
 @celery_app.task(name="rotate_logs_task", bind=True)  # type: ignore[misc]
-def rotate_logs_task(self: Any) -> dict[str, int | str | float]:
+def rotate_logs_task(self: Task) -> dict[str, int | str | float]:
     """Rotate logs in /tmp and /var/log/portfolio-ai directories.
 
     Returns:
@@ -103,7 +106,7 @@ def rotate_logs_task(self: Any) -> dict[str, int | str | float]:
 
 
 @celery_app.task(name="cleanup_old_logs_task", bind=True)  # type: ignore[misc]
-def cleanup_old_logs_task(self: Any, days: int = 7) -> dict[str, int | str | float]:
+def cleanup_old_logs_task(self: Task, days: int = 7) -> dict[str, int | str | float]:
     """Delete log files older than specified days.
 
     Args:
@@ -203,7 +206,7 @@ def cleanup_old_logs_task(self: Any, days: int = 7) -> dict[str, int | str | flo
 
 
 @celery_app.task(name="cleanup_temp_files_task", bind=True)  # type: ignore[misc]
-def cleanup_temp_files_task(self: Any, hours: int = 24) -> dict[str, int | str | float]:
+def cleanup_temp_files_task(self: Task, hours: int = 24) -> dict[str, int | str | float]:
     """Delete temporary files older than specified hours.
 
     Args:
@@ -302,7 +305,7 @@ def cleanup_temp_files_task(self: Any, hours: int = 24) -> dict[str, int | str |
 
 
 @celery_app.task(name="check_disk_space_task", bind=True)  # type: ignore[misc]
-def check_disk_space_task(self: Any) -> dict[str, int | str | float | list[dict[str, Any]]]:
+def check_disk_space_task(self: Task) -> dict[str, int | str | float | list[dict[str, Any]]]:
     """Check disk space usage and alert if >85%.
 
     Returns:
