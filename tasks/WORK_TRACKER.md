@@ -28,30 +28,14 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Fix All Mypy --Strict Errors** (HIGH, 0/10 tasks (today))
-   - File: `tasks-0070-fix-all-mypy-errors.md`
-   - Created: 2025-11-17
-   - Goal: Achieve full mypy --strict compliance across entire backend codebase to unblock pre-commit hook
-   - Tasks:
-     - [ ] Task 0: Scope Discovery & Categorization (MANDATORY)
-     - [ ] Task 1: Fix union-attr Errors (Parallel Group A)
-     - [ ] Task 2: Fix arg-type Errors (Parallel Group B)
-     - [ ] Task 3: Fix return-value Errors (Parallel Group C)
-     - [ ] Task 4: Fix list-item & operator Errors (Parallel Group D)
-     - [ ] Task 5: Fix index & assignment Errors (Parallel Group E)
-     - [ ] Task 6: Fix TypedDict & Misc Errors (Parallel Group F)
-     - [ ] Task 7: Add Missing Type Hints (Bonus - Parallel)
-     - [ ] Task 8: Reduce Any Types (Bonus - Parallel)
-     - [ ] Task 9: Final Verification & Cleanup
-
-2. **UI Standardization & UX Fixes** (MEDIUM-HIGH (4-6 hours, 12-15 files), 0/0 tasks (5 days ago))
+1. **UI Standardization & UX Fixes** (MEDIUM-HIGH (4-6 hours, 12-15 files), 0/0 tasks (5 days ago))
    - File: `tasks-0055-ui-standardization-and-ux-fixes.md`
    - Created: 2025-11-12
    - Goal: Bring the Portfolio AI web UI up to a consistent design baseline by aligning headers, loading states, and critical interactions so that every surface communicates status clearly and meets accessibility expectations.
    - Tasks:
      - (No tasks defined yet)
 
-3. **Development Process Optimization** (MEDIUM (4-6 hours), 5/7 tasks (5 days ago))
+2. **Development Process Optimization** (MEDIUM (4-6 hours), 5/7 tasks (5 days ago))
    - File: `tasks-0054-dev-process-optimization.md`
    - Created: 2025-11-12
    - Goal: Reduce development cycle time from 15-20 min to 5-7 min (3x faster) by fixing test performance and workflow bottlenecks.
@@ -64,7 +48,7 @@
      - [x] Task 6: Medium: Add Smoke Test Markers ✅ **COMPLETE**
      - [ ] Task 7: Medium: Reduce Large Service Files ⏸️ **DEFERRED**
 
-4. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (6 days ago))
+3. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (6 days ago))
    - File: `tasks-0042-customizable-dashboard-layouts.md`
    - Created: 2025-11-11
    - Goal: Enable users to customize dashboard layouts by dragging/resizing cards, with persistence to PostgreSQL backend
@@ -80,7 +64,7 @@
      - [ ] Task 9: Polish and Edge Cases
      - [ ] Task 10: Testing and Documentation
 
-5. **Trading Intelligence Roadmap** (High, 4/8 tasks)
+4. **Trading Intelligence Roadmap** (High, 4/8 tasks)
    - File: `tasks-trading-intelligence-roadmap.md`
    - Created: Unknown
    - Tasks:
@@ -93,7 +77,7 @@
      - [ ] Task 7: Frontend & UX
      - [ ] Task 8: Governance & documentation
 
-6. **Response Caching Middleware** (TBD, 0/8 tasks (6 days ago))
+5. **Response Caching Middleware** (TBD, 0/8 tasks (6 days ago))
    - File: `tasks-0047-response-caching-middleware.md`
    - Created: 2025-11-11
    - Tasks:
@@ -106,7 +90,7 @@
      - [ ] Task 7: Cache Management Endpoints
      - [ ] Task 8: Integration and Configuration
 
-7. **Settings & Status Standardization** (HIGH, 3/5 tasks (4 days ago))
+6. **Settings & Status Standardization** (HIGH, 3/5 tasks (4 days ago))
    - File: `tasks-0058-settings-and-status-standardization.md`
    - Created: 2025-11-13
    - Goal: Fully align the Status and Settings pages with the new UI system (PageHeader, SectionCard, ExpandableCard) while eliminating redundant data and ensuring DRY logic for collapsible cards, summaries, and defaults.
@@ -124,7 +108,32 @@
 
 *Last 5 completed tasks*
 
-1. **CLI Agent Integration (Task 0060 - MVP COMPLETE)** (2025-11-17)
+1. **Fix All Mypy --Strict Errors (Task 0070)** ✅ COMPLETE (2025-11-17)
+   - File: `tasks-0070-fix-all-mypy-errors.md`
+   - Completed: 2025-11-17 (via /do_it with --max parallelization)
+   - Duration: ~8-10 hours (3 phases: discovery, parallel fixes, cleanup)
+   - Summary: Achieved 100% mypy --strict compliance, unblocked pre-commit hook
+   - Key achievements:
+     - ✅ Fixed all 811 errors (3.1x more than initially estimated 260)
+     - ✅ Phase 1: Top 15 files (473 errors fixed, 58% reduction) via 15 parallel subagents
+     - ✅ Phase 2: Remaining 64 files (336 errors fixed, 42% reduction) via 10 category subagents
+     - ✅ Phase 3: Final cleanup (2 errors + 4 ruff issues fixed)
+     - ✅ Pre-commit hook now works without SKIP=mypy workaround
+   - Implementation:
+     - Union type narrowing: isinstance() checks for 157 union-attr errors
+     - Argument validation: Type guards for 211 arg-type errors
+     - Operator safety: None checks for 158 operator errors
+     - Type conversions: Proper handling for 104 list-item/dict-item errors
+     - Return annotations: Fixed 35 return-value mismatches
+   - Code Quality:
+     - Mypy: ✅ 0 errors in 245 source files (was 811)
+     - Ruff: ✅ All checks passing
+     - Type safety: 100% mypy --strict compliance
+   - Files Modified: 91 files (85 with type fixes, 6 infrastructure)
+   - Commits: 93478d7
+   - Impact: Pre-commit hook fully functional, better IDE support, reduced runtime type errors
+
+2. **CLI Agent Integration (Task 0060 - MVP COMPLETE)** (2025-11-17)
    - File: `tasks-0060-cli-agent-integration.md`
    - ✅ Zero-cost CLI execution via Gemini + Claude CLIs working
    - ✅ Agent telemetry tracking (provider, model, duration, tokens)
