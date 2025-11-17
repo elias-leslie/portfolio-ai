@@ -10,7 +10,7 @@ Endpoints:
 
 from __future__ import annotations
 
-from typing import Any, TypedDict
+from typing import Any, TypedDict, cast
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -74,6 +74,53 @@ class AggregateGap(TypedDict):
     description: str
     affected_tickers: int
     priority: str
+
+
+class GapSummaryDict(TypedDict):
+    """Gap summary response data."""
+
+    total_gaps: int
+    p0_gaps: int
+    p1_gaps: int
+    p2_gaps: int
+    p3_gaps: int
+    analysis_types: dict[str, CoverageResult]
+    avg_coverage_pct: float
+    top_10_priorities: list[dict[str, Any]]
+    mvp_roadmap: MVPRoadmap
+
+
+class GapsByAnalysisDict(TypedDict):
+    """Gaps by analysis type response."""
+
+    analysis_types: dict[str, CoverageResult]
+
+
+class TickerGapsDict(TypedDict):
+    """Per-ticker gap analysis response."""
+
+    ticker: str
+    readiness_score: float
+    confidence_level: str
+    coverage_by_analysis: TickerCoverageByAnalysis
+    missing_capabilities: list[str]
+    data_availability: dict[str, DataAvailability]
+
+
+class WatchlistGapsDict(TypedDict):
+    """Watchlist gap analysis response."""
+
+    watchlist_tickers: list[str]
+    ticker_coverage: dict[str, TickerGapsDict]
+    aggregate_gaps: list[AggregateGap]
+
+
+class TaskListGeneratedDict(TypedDict):
+    """Task list generation response."""
+
+    gap_ids: list[str]
+    task_file: str
+    message: str
 
 
 # ========================================================================
@@ -154,7 +201,7 @@ class TaskListGeneratedResponse(BaseModel):
 
 
 @router.get("/summary", response_model=GapSummaryResponse)
-async def get_gap_summary() -> dict[str, Any]:
+async def get_gap_summary() -> GapSummaryDict:
     """Get system-wide gap summary with coverage % per analysis type.
 
     Returns complete gap analysis including:
@@ -190,7 +237,7 @@ async def get_gap_summary() -> dict[str, Any]:
             avg_coverage=round(avg_coverage, 1),
         )
 
-        return response
+        return cast(GapSummaryDict, response)
 
     except Exception as e:
         logger.error("gap_summary_failed", error=str(e))
@@ -201,7 +248,7 @@ async def get_gap_summary() -> dict[str, Any]:
 
 
 @router.get("/by-analysis", response_model=GapsByAnalysisResponse)
-async def get_gaps_by_analysis() -> dict[str, Any]:
+async def get_gaps_by_analysis() -> GapsByAnalysisDict:
     """Get gaps grouped by analysis type.
 
     Returns detailed breakdown per analysis type:
@@ -234,7 +281,7 @@ async def get_gaps_by_analysis() -> dict[str, Any]:
             analysis_types=len(result["analysis_types"]),
         )
 
-        return response
+        return cast(GapsByAnalysisDict, response)
 
     except Exception as e:
         logger.error("gaps_by_analysis_failed", error=str(e))
@@ -245,7 +292,7 @@ async def get_gaps_by_analysis() -> dict[str, Any]:
 
 
 @router.get("/by-ticker/{ticker}", response_model=TickerGapsResponse)
-async def get_ticker_gaps(ticker: str) -> dict[str, Any]:
+async def get_ticker_gaps(ticker: str) -> TickerGapsDict:
     """Get per-ticker gap analysis.
 
     Analyzes data availability for a specific ticker across all analysis types.
@@ -273,7 +320,7 @@ async def get_ticker_gaps(ticker: str) -> dict[str, Any]:
             ticker=ticker,
         )
 
-        return result
+        return cast(TickerGapsDict, result)
 
     except Exception as e:
         logger.error("ticker_gaps_failed", ticker=ticker, error=str(e))
@@ -284,7 +331,7 @@ async def get_ticker_gaps(ticker: str) -> dict[str, Any]:
 
 
 @router.get("/watchlist", response_model=WatchlistGapsResponse)
-async def get_watchlist_gaps() -> dict[str, Any]:
+async def get_watchlist_gaps() -> WatchlistGapsDict:
     """Get gaps affecting current watchlist.
 
     Analyzes data coverage for all tickers in the active watchlist.
@@ -308,7 +355,7 @@ async def get_watchlist_gaps() -> dict[str, Any]:
 
         logger.info("watchlist_gaps_returned")
 
-        return result
+        return cast(WatchlistGapsDict, result)
 
     except Exception as e:
         logger.error("watchlist_gaps_failed", error=str(e))
@@ -319,7 +366,7 @@ async def get_watchlist_gaps() -> dict[str, Any]:
 
 
 @router.post("/generate-task-list", response_model=TaskListGeneratedResponse)
-async def generate_task_list(request: GenerateTaskListRequest) -> dict[str, Any]:
+async def generate_task_list(request: GenerateTaskListRequest) -> TaskListGeneratedDict:
     """Generate task list to fill specific gaps.
 
     Creates a detailed task file (tasks-XXXX-fill-gaps.md) with:
@@ -366,7 +413,7 @@ async def generate_task_list(request: GenerateTaskListRequest) -> dict[str, Any]
             gap_ids=request.gap_ids,
         )
 
-        return result
+        return cast(TaskListGeneratedDict, result)
 
     except Exception as e:
         logger.error("task_list_generation_failed", error=str(e))
