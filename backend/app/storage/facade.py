@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, Any
 
 import polars as pl
 
+from app.storage.types import DatabaseConnection
+
 from ..logging_config import get_logger
 
 # Type hint only - actual connection is PostgreSQL via PostgreSQLConnectionWrapper
@@ -93,7 +95,7 @@ class PortfolioStorage:
         return self.ingestion_mgr.bulk_insert(table_name, rows)
 
     # Metadata methods (delegate to MetadataManager)
-    def _update_table_metadata(self, conn: Any, table_name: str) -> None:
+    def _update_table_metadata(self, conn: DatabaseConnection, table_name: str) -> None:
         """Update table_registry metadata after data write."""
         return self.metadata_mgr.update_table_metadata(conn, table_name)
 

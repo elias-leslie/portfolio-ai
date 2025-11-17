@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING, Any
 
 import polars as pl
 
+from app.storage.types import DatabaseConnection
+
 from ..logging_config import get_logger
 
 if TYPE_CHECKING:
@@ -36,7 +38,7 @@ class IngestionManager:
         self.connection_mgr = connection_mgr
         self.metadata_mgr = metadata_mgr
 
-    def _validate_table_exists(self, conn: Any, table_name: str) -> bool:
+    def _validate_table_exists(self, conn: DatabaseConnection, table_name: str) -> bool:
         """Validate table exists in public schema (SQL injection prevention).
 
         Args:
@@ -57,7 +59,9 @@ class IngestionManager:
         ).fetchone()
         return result is not None and result[0] > 0
 
-    def _validate_column_exists(self, conn: Any, table_name: str, column_name: str) -> bool:
+    def _validate_column_exists(
+        self, conn: DatabaseConnection, table_name: str, column_name: str
+    ) -> bool:
         """Validate column exists in table (SQL injection prevention).
 
         Args:

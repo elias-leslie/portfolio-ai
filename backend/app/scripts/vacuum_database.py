@@ -18,6 +18,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from app.storage.types import DatabaseConnection
+
 # Add parent directory to path for imports when run as script
 if __name__ == "__main__":
     sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -28,7 +30,7 @@ from app.storage.connection import get_connection_manager
 logger = get_logger(__name__)
 
 
-def get_table_size(conn: Any, table_name: str) -> float:
+def get_table_size(conn: DatabaseConnection, table_name: str) -> float:
     """Get table size in MB.
 
     Args:
@@ -48,7 +50,7 @@ def get_table_size(conn: Any, table_name: str) -> float:
     return round(result[0], 2) if result else 0.0
 
 
-def get_all_tables(conn: Any) -> list[str]:
+def get_all_tables(conn: DatabaseConnection) -> list[str]:
     """Get list of all user tables in public schema.
 
     Args:
@@ -69,7 +71,7 @@ def get_all_tables(conn: Any) -> list[str]:
     return [row[0] for row in result]
 
 
-def validate_table_exists(conn: Any, table_name: str) -> None:
+def validate_table_exists(conn: DatabaseConnection, table_name: str) -> None:
     """Validate that a table exists in pg_tables before vacuum.
 
     This prevents SQL injection by ensuring the table_name parameter

@@ -16,21 +16,41 @@ class DatabaseConnection(Protocol):
     compatibility with different connection implementations (psycopg3, PostgreSQL, etc.).
 
     Methods:
-        execute: Execute a SQL query with optional parameters
+        execute: Execute a SQL query with optional parameters (accepts list or tuple)
+        fetchall: Fetch all results from last query
+        fetchone: Fetch one result from last query
         fetchdf: Fetch query results as a DataFrame
         pl: Return a Polars-compatible interface
         commit: Commit the current transaction
+        rollback: Rollback the current transaction
+        close: Close the connection
     """
 
-    def execute(self, query: str, params: list[Any] | None = None) -> Any:
+    def execute(self, query: str, parameters: list[Any] | tuple[Any, ...] | None = None) -> Any:
         """Execute a SQL query with optional parameters.
 
         Args:
             query: SQL query string
-            params: Optional list of query parameters
+            parameters: Optional list or tuple of query parameters
 
         Returns:
             Query execution result (implementation-specific)
+        """
+        ...
+
+    def fetchall(self) -> list[tuple[Any, ...]]:
+        """Fetch all results from last query.
+
+        Returns:
+            List of result rows as tuples
+        """
+        ...
+
+    def fetchone(self) -> tuple[Any, ...] | None:
+        """Fetch one result from last query.
+
+        Returns:
+            Single result row as tuple, or None if no results
         """
         ...
 
@@ -54,5 +74,19 @@ class DatabaseConnection(Protocol):
         """Commit the current transaction.
 
         Persists all changes made since the last commit or rollback.
+        """
+        ...
+
+    def rollback(self) -> None:
+        """Rollback the current transaction.
+
+        Undoes all changes made since the last commit.
+        """
+        ...
+
+    def close(self) -> None:
+        """Close the connection.
+
+        Releases the connection back to the pool or closes it.
         """
         ...

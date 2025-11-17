@@ -20,6 +20,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from app.storage.types import DatabaseConnection
+
 # Add parent directory to path for imports when run as script
 if __name__ == "__main__":
     sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -30,7 +32,7 @@ from app.storage.connection import get_connection_manager
 logger = get_logger(__name__)
 
 
-def check_orphaned_watchlist_snapshots(conn: Any) -> dict[str, Any]:
+def check_orphaned_watchlist_snapshots(conn: DatabaseConnection) -> dict[str, Any]:
     """Check for watchlist snapshots without corresponding watchlist items.
 
     Args:
@@ -67,7 +69,7 @@ def check_orphaned_watchlist_snapshots(conn: Any) -> dict[str, Any]:
     }
 
 
-def check_orphaned_price_cache(conn: Any) -> dict[str, Any]:
+def check_orphaned_price_cache(conn: DatabaseConnection) -> dict[str, Any]:
     """Check for price cache entries without corresponding positions or watchlist items.
 
     Args:
@@ -106,7 +108,7 @@ def check_orphaned_price_cache(conn: Any) -> dict[str, Any]:
     }
 
 
-def check_missing_reference_cache(conn: Any) -> dict[str, Any]:
+def check_missing_reference_cache(conn: DatabaseConnection) -> dict[str, Any]:
     """Check for watchlist items without reference cache entries.
 
     Args:
@@ -143,7 +145,7 @@ def check_missing_reference_cache(conn: Any) -> dict[str, Any]:
     }
 
 
-def check_null_timestamps(conn: Any) -> dict[str, Any]:
+def check_null_timestamps(conn: DatabaseConnection) -> dict[str, Any]:
     """Check for records with NULL timestamps that should have values.
 
     Args:
@@ -202,7 +204,7 @@ def check_null_timestamps(conn: Any) -> dict[str, Any]:
     }
 
 
-def check_duplicate_watchlist_items(conn: Any) -> dict[str, Any]:
+def check_duplicate_watchlist_items(conn: DatabaseConnection) -> dict[str, Any]:
     """Check for duplicate watchlist entries (same symbol).
 
     Args:

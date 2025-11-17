@@ -13,10 +13,11 @@ from typing import Any
 from app.celery_app import celery_app as celery
 from app.ml.article_quality_classifier import ArticleQualityClassifier
 from app.storage import get_storage
+from app.storage.types import DatabaseConnection
 
 
 def _update_progress(
-    conn: Any,
+    conn: DatabaseConnection,
     session_id: str | None,
     status: str,
     current_step: str,
@@ -80,7 +81,7 @@ def _load_training_data(training_data_path: Path) -> tuple[list[dict[str, Any]],
 
 
 def _query_new_articles(
-    conn: Any, labeled_hashes: set[str], limit: int = 100
+    conn: DatabaseConnection, labeled_hashes: set[str], limit: int = 100
 ) -> list[dict[str, Any]]:
     """Query and filter new articles from database (Step 2)."""
     print("\n🔍 Querying new articles from database...")
@@ -221,7 +222,7 @@ def _train_and_save_model(
 
 
 def _save_model_metrics(
-    conn: Any,
+    conn: DatabaseConnection,
     model_version: str,
     metrics: dict[str, Any],
     newly_labeled_count: int,

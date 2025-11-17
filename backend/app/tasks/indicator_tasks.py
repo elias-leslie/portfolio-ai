@@ -16,6 +16,7 @@ from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.storage import get_storage
 from app.storage.facade import PortfolioStorage
+from app.storage.types import DatabaseConnection
 
 logger = get_logger(__name__)
 
@@ -221,7 +222,7 @@ def update_technical_indicators(  # type: ignore[no-untyped-def]
 
 
 def _get_fear_greed_inputs(
-    conn: Any, as_of_date: str | None
+    conn: DatabaseConnection, as_of_date: str | None
 ) -> tuple[str, float, float, float, float, float, float | None]:
     """Get inputs for target date (or latest if None).
 
@@ -254,7 +255,9 @@ def _get_fear_greed_inputs(
     return (as_of_date, *row)
 
 
-def _calculate_percentile_vix(conn: Any, as_of_date: str, vix_close: float, window: int) -> int:
+def _calculate_percentile_vix(
+    conn: DatabaseConnection, as_of_date: str, vix_close: float, window: int
+) -> int:
     """Calculate VIX percentile (inverted: lower VIX = higher score)."""
     result = conn.execute(
         """
@@ -275,7 +278,7 @@ def _calculate_percentile_vix(conn: Any, as_of_date: str, vix_close: float, wind
 
 
 def _calculate_percentile_momentum(
-    conn: Any, as_of_date: str, spy_close: float, spy_sma_200: float, window: int
+    conn: DatabaseConnection, as_of_date: str, spy_close: float, spy_sma_200: float, window: int
 ) -> int:
     """Calculate momentum percentile (SPY vs SMA_200)."""
     momentum = ((spy_close / spy_sma_200) - 1) * 100 if spy_sma_200 else 0
@@ -297,7 +300,9 @@ def _calculate_percentile_momentum(
     return int(result.fetchone()[0] or 50)
 
 
-def _calculate_percentile_rsi(conn: Any, as_of_date: str, rsi_14: float, window: int) -> int:
+def _calculate_percentile_rsi(
+    conn: DatabaseConnection, as_of_date: str, rsi_14: float, window: int
+) -> int:
     """Calculate RSI percentile."""
     result = conn.execute(
         """
@@ -317,7 +322,9 @@ def _calculate_percentile_rsi(conn: Any, as_of_date: str, rsi_14: float, window:
     return int(result.fetchone()[0] or 50)
 
 
-def _calculate_percentile_credit(conn: Any, as_of_date: str, hy_spread: float, window: int) -> int:
+def _calculate_percentile_credit(
+    conn: DatabaseConnection, as_of_date: str, hy_spread: float, window: int
+) -> int:
     """Calculate credit spread percentile (inverted: lower spread = higher score)."""
     result = conn.execute(
         """
@@ -338,7 +345,7 @@ def _calculate_percentile_credit(conn: Any, as_of_date: str, hy_spread: float, w
 
 
 def _calculate_percentile_breadth(
-    conn: Any, as_of_date: str, breadth_pct: float | None, window: int
+    conn: DatabaseConnection, as_of_date: str, breadth_pct: float | None, window: int
 ) -> int:
     """Calculate market breadth percentile."""
     if breadth_pct is None:
@@ -363,7 +370,7 @@ def _calculate_percentile_breadth(
 
 
 def _store_components_and_score(
-    conn: Any,
+    conn: DatabaseConnection,
     as_of_date: str,
     vix_pct: int,
     momentum_pct: int,

@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import create_engine, inspect
 
+from app.storage.types import DatabaseConnection
+
 from ..constants import DATABASE_URL
 from ..logging_config import get_logger
 from .capability_utils import _to_json_string
@@ -99,7 +101,7 @@ class DatabaseScanner:
     def _scan_single_table(
         self,
         table_name: str,
-        conn: Any,
+        conn: DatabaseConnection,
         inspector: Any,
     ) -> dict[str, Any]:
         """Scan a single table for metadata.
@@ -213,7 +215,7 @@ class DatabaseScanner:
     def _detect_date_range(
         self,
         table_name: str,
-        conn: Any,
+        conn: DatabaseConnection,
         column_names: list[str],
     ) -> tuple[Any | None, Any | None]:
         """Detect date range for a table by finding MIN/MAX of timestamp columns.

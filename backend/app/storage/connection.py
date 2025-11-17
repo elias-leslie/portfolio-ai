@@ -50,7 +50,7 @@ class PostgreSQLConnectionWrapper:
         self._cursor = pg_conn.cursor()
         self._engine = engine
 
-    def execute(self, query: str, parameters: list[Any] | None = None) -> Any:
+    def execute(self, query: str, parameters: list[Any] | tuple[Any, ...] | None = None) -> Any:
         """Execute SQL query with PostgreSQL interface.
 
         Args:

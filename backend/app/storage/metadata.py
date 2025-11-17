@@ -8,13 +8,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from app.storage.types import DatabaseConnection
+
 from ..logging_config import get_logger
 
 # Type hint only - actual connection is PostgreSQL via PostgreSQLConnectionWrapper
 # See connection.py for wrapper implementation
 if TYPE_CHECKING:
-    from typing import Any
-
     from .connection import ConnectionManager
 
 logger = get_logger(__name__)
@@ -34,7 +34,7 @@ class MetadataManager:
         """
         self.connection_mgr = connection_mgr
 
-    def update_table_metadata(self, conn: Any, table_name: str) -> None:
+    def update_table_metadata(self, conn: DatabaseConnection, table_name: str) -> None:
         """Update table_registry metadata after data write.
 
         Updates last_written timestamp and row_count for the specified table.
