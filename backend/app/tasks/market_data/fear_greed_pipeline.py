@@ -17,6 +17,7 @@ from app.logging_config import get_logger
 from app.sources.fred import FREDSource
 from app.storage import get_storage
 from app.tasks.indicator_tasks import calculate_fear_greed
+from app.tasks.types import FearGreedPipelineResultDict
 
 if TYPE_CHECKING:
     from celery import Task  # type: ignore[import-untyped]
@@ -422,7 +423,7 @@ def _process_and_return_results(
     hy_spread_dict: dict[dt.date, float],
     vix_estimate: float,
     hy_spread_fallback: float,
-) -> dict[str, Any]:
+) -> FearGreedPipelineResultDict:
     """Process market data and return task results."""
     logger.info(
         "populated_market_indicators",
@@ -459,7 +460,7 @@ def _process_and_return_results(
 
 
 @celery_app.task(name="populate_fear_greed_inputs", bind=True)  # type: ignore[misc]
-def populate_fear_greed_inputs(self: Task, days: int = 7) -> dict[str, Any]:
+def populate_fear_greed_inputs(self: Task, days: int = 7) -> FearGreedPipelineResultDict:
     """Populate fear_greed_inputs table with latest market data.
 
     This task replaces the manual script update_fear_greed_inputs.py.
@@ -477,7 +478,7 @@ def populate_fear_greed_inputs(self: Task, days: int = 7) -> dict[str, Any]:
         days: Number of days to update (default 7)
 
     Returns:
-        dict: Task result with update count and status
+        FearGreedPipelineResultDict: Task result with update count and status
     """
     task_id = self.request.id
     logger.info("populate_fear_greed_inputs_started", task_id=task_id, days=days)

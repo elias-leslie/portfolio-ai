@@ -2,9 +2,10 @@
 
 Note: This is legacy Flask code. Use app/api/settings_profiles.py (FastAPI) instead.
 """
-# mypy: ignore-errors
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from flask import Blueprint, jsonify, request
 
@@ -20,11 +21,14 @@ from app.models.settings_profile import (
     update_profile,
 )
 
+if TYPE_CHECKING:
+    from flask.wrappers import Response
+
 settings_profiles_bp = Blueprint("settings_profiles", __name__)
 
 
 @settings_profiles_bp.route("/api/settings/profiles", methods=["GET"])
-def list_profiles() -> tuple[Any, int]:
+def list_profiles() -> Response:
     """Get all settings profiles for the user."""
     user_id = request.args.get("user_id", 1, type=int)
 
@@ -39,7 +43,7 @@ def list_profiles() -> tuple[Any, int]:
 
 
 @settings_profiles_bp.route("/api/settings/profiles/<int:profile_id>", methods=["GET"])
-def get_profile(profile_id: int) -> tuple[Any, int]:
+def get_profile(profile_id: int) -> Response:
     """Get a specific profile."""
     user_id = request.args.get("user_id", 1, type=int)
 
@@ -57,7 +61,7 @@ def get_profile(profile_id: int) -> tuple[Any, int]:
 
 
 @settings_profiles_bp.route("/api/settings/profiles/active", methods=["GET"])
-def get_active() -> tuple[Any, int]:
+def get_active() -> Response:
     """Get the currently active profile."""
     user_id = request.args.get("user_id", 1, type=int)
 
@@ -75,7 +79,7 @@ def get_active() -> tuple[Any, int]:
 
 
 @settings_profiles_bp.route("/api/settings/profiles", methods=["POST"])
-def create() -> tuple[Any, int]:
+def create() -> Response:
     """Create a new settings profile."""
     data = request.get_json()
     user_id = data.get("user_id", 1)
@@ -103,7 +107,7 @@ def create() -> tuple[Any, int]:
 
 
 @settings_profiles_bp.route("/api/settings/profiles/<int:profile_id>", methods=["PUT"])
-def update(profile_id: int) -> tuple[Any, int]:
+def update(profile_id: int) -> Response:
     """Update an existing profile."""
     data = request.get_json()
     user_id = data.get("user_id", 1)
@@ -130,7 +134,7 @@ def update(profile_id: int) -> tuple[Any, int]:
 
 
 @settings_profiles_bp.route("/api/settings/profiles/<int:profile_id>", methods=["DELETE"])
-def delete(profile_id: int) -> tuple[Any, int]:
+def delete(profile_id: int) -> Response:
     """Delete a profile."""
     user_id = request.args.get("user_id", 1, type=int)
 
@@ -148,7 +152,7 @@ def delete(profile_id: int) -> tuple[Any, int]:
 
 
 @settings_profiles_bp.route("/api/settings/profiles/<int:profile_id>/activate", methods=["POST"])
-def activate(profile_id: int) -> tuple[Any, int]:
+def activate(profile_id: int) -> Response:
     """Activate a profile."""
     user_id = request.args.get("user_id", 1, type=int)
 
@@ -166,7 +170,7 @@ def activate(profile_id: int) -> tuple[Any, int]:
 
 
 @settings_profiles_bp.route("/api/settings/profiles/<int:profile_id>/duplicate", methods=["POST"])
-def duplicate(profile_id: int) -> tuple[Any, int]:
+def duplicate(profile_id: int) -> Response:
     """Duplicate a profile."""
     data = request.get_json()
     user_id = data.get("user_id", 1)
@@ -189,7 +193,7 @@ def duplicate(profile_id: int) -> tuple[Any, int]:
 
 
 @settings_profiles_bp.route("/api/settings/profiles/<int:profile_id>/export", methods=["GET"])
-def export_profile(profile_id: int) -> tuple[Any, int]:
+def export_profile(profile_id: int) -> Response:
     """Export a profile as JSON for sharing/backup."""
     user_id = request.args.get("user_id", 1, type=int)
 
@@ -216,7 +220,7 @@ def export_profile(profile_id: int) -> tuple[Any, int]:
 
 
 @settings_profiles_bp.route("/api/settings/profiles/import", methods=["POST"])
-def import_profile() -> tuple[Any, int]:
+def import_profile() -> Response:
     """Import a profile from exported JSON."""
     data = request.get_json()
     user_id = data.get("user_id", 1)

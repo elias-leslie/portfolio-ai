@@ -20,6 +20,7 @@ from app.logging_config import get_logger
 from app.storage import get_storage
 from app.storage.facade import PortfolioStorage
 from app.storage.types import DatabaseConnection
+from app.tasks.types import FearGreedCalculationDict, TechnicalIndicatorResultDict
 
 logger = get_logger(__name__)
 
@@ -163,7 +164,7 @@ def _upsert_indicators(storage: PortfolioStorage, indicator_data: IndicatorDataD
 @celery_app.task(name="update_technical_indicators", bind=True)  # type: ignore[misc]
 def update_technical_indicators(  # type: ignore[no-untyped-def]
     self, tickers: list[str]
-) -> dict[str, int]:
+) -> TechnicalIndicatorResultDict:
     """Calculate and cache technical indicators for given tickers.
 
     This task calculates RSI, MACD, Bollinger Bands, moving averages (SMA/EMA),
@@ -174,7 +175,7 @@ def update_technical_indicators(  # type: ignore[no-untyped-def]
         tickers: List of ticker symbols to calculate indicators for
 
     Returns:
-        Dict with counts: {"success": int, "failed": int, "tickers_processed": int}
+        TechnicalIndicatorResultDict with counts: {"success": int, "failed": int, "tickers_processed": int}
 
     Example:
         >>> # Run immediately
@@ -498,7 +499,7 @@ def _invalidate_redis_cache() -> None:
 
 
 @celery_app.task(name="calculate_fear_greed", bind=True)  # type: ignore[misc]
-def calculate_fear_greed(self: Task, as_of_date: str | None = None) -> dict[str, Any]:
+def calculate_fear_greed(self: Task, as_of_date: str | None = None) -> FearGreedCalculationDict:
     """Calculate Fear & Greed Index from inputs table.
 
     This task calculates percentile rankings for each component (VIX, Momentum,
@@ -509,7 +510,7 @@ def calculate_fear_greed(self: Task, as_of_date: str | None = None) -> dict[str,
         as_of_date: Date to calculate for (YYYY-MM-DD). If None, uses latest available.
 
     Returns:
-        Dict with calculation results and metadata
+        FearGreedCalculationDict with calculation results and metadata
 
     Example:
         >>> # Calculate for latest date

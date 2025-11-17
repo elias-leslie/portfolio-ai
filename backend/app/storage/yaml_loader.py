@@ -27,6 +27,10 @@ def load_source_config(yaml_path: str) -> dict[str, Any]:
 
     Returns:
         Dictionary with source metadata, definition, and field mappings.
+
+    Note:
+        Returns dict[str, Any] because YAML configuration can contain
+        nested structures of arbitrary complexity that are JSON-serializable.
     """
     yaml_file = Path(yaml_path)
     with yaml_file.open() as f:

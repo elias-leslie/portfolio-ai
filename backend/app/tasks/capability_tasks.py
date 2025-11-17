@@ -14,19 +14,20 @@ from ..logging_config import get_logger
 from ..services.ai_analyzer import CapabilityAnalyzer
 from ..services.capability_scanner import APIScanner, CeleryScanner, DatabaseScanner
 from ..storage.connection import get_connection_manager
+from .types import CapabilityResultDict
 
 logger = get_logger(__name__)
 
 
 @celery_app.task(name="scan_system_capabilities")  # type: ignore[misc]
-def scan_system_capabilities() -> dict[str, Any]:
+def scan_system_capabilities() -> CapabilityResultDict:
     """Scan system capabilities (database tables, Celery tasks, API endpoints).
 
     Runs automatically on schedule (daily at 03:00 UTC) to discover and update
     capability metadata for monitoring and AI analysis.
 
     Returns:
-        Dict with scan results:
+        CapabilityResultDict with scan results:
             - status: "success" or "error"
             - db_tables_scanned: int
             - celery_tasks_scanned: int
@@ -107,7 +108,7 @@ def scan_system_capabilities() -> dict[str, Any]:
 
 
 @celery_app.task(name="analyze_capabilities")  # type: ignore[misc]
-def analyze_capabilities() -> dict[str, Any]:
+def analyze_capabilities() -> CapabilityResultDict:
     """Run AI analysis on system capabilities to identify issues and gaps.
 
     Runs automatically on schedule (daily at 03:15 UTC, 15 min after scan)
@@ -119,7 +120,7 @@ def analyze_capabilities() -> dict[str, Any]:
     Typical execution time: 2-5 minutes (CLI subprocess overhead ~200ms + analysis time)
 
     Returns:
-        Dict with analysis results:
+        CapabilityResultDict with analysis results:
             - status: "success" or "error"
             - insights_generated: int
             - insights_saved: int

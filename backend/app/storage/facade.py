@@ -9,18 +9,18 @@ from __future__ import annotations
 
 from contextlib import AbstractContextManager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import polars as pl
 
-from app.storage.types import DatabaseConnection
+from app.storage.types import DatabaseConnection, DatabaseValue, ParameterValue
 
 from ..logging_config import get_logger
 
 # Type hint only - actual connection is PostgreSQL via PostgreSQLConnectionWrapper
 # See connection.py for wrapper implementation
 if TYPE_CHECKING:
-    pass  # Type hints use Any for cross-compatibility
+    pass  # Type hints for database connections
 
 from .connection import get_connection_manager
 from .ingestion import IngestionManager
@@ -64,7 +64,7 @@ class PortfolioStorage:
         logger.info("PortfolioStorage initialized with modular managers")
 
     # Expose connection manager's connection method
-    def connection(self) -> AbstractContextManager[Any]:
+    def connection(self) -> AbstractContextManager[DatabaseConnection]:
         """Context manager for PostgreSQL connections.
 
         Yields:
@@ -86,11 +86,11 @@ class PortfolioStorage:
         """Upsert data by primary key (delete + insert)."""
         return self.ingestion_mgr.upsert_by_id(table_name, df, id_column)
 
-    def insert_dict(self, table_name: str, data: dict[str, Any]) -> None:
+    def insert_dict(self, table_name: str, data: dict[str, DatabaseValue]) -> None:
         """Insert a single dictionary as a row."""
         return self.ingestion_mgr.insert_dict(table_name, data)
 
-    def bulk_insert(self, table_name: str, rows: list[dict[str, Any]]) -> int:
+    def bulk_insert(self, table_name: str, rows: list[dict[str, DatabaseValue]]) -> int:
         """Insert multiple rows from list of dictionaries."""
         return self.ingestion_mgr.bulk_insert(table_name, rows)
 
@@ -108,7 +108,7 @@ class PortfolioStorage:
         return self.metadata_mgr.print_status(prefix)
 
     # Query methods (delegate to QueryManager)
-    def query(self, sql: str, params: list[Any] | None = None) -> pl.DataFrame:
+    def query(self, sql: str, params: list[ParameterValue] | None = None) -> pl.DataFrame:
         """Execute a SQL query and return results as a Polars DataFrame."""
         return self.query_mgr.query(sql, params)
 

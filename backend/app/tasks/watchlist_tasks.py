@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.storage import PortfolioStorage, get_storage
+from app.tasks.types import WatchlistResultDict
 from app.utils.market_hours import is_market_hours
 from app.utils.task_logging import log_task_skip, task_logger
 from app.watchlist.service import refresh_watchlist_scores as refresh_watchlist_scores_service
@@ -148,7 +149,7 @@ def _build_skip_result(
     minutes_since_refresh: float,
     refresh_interval_minutes: int,
     start_time: float,
-) -> dict[str, Any]:
+) -> WatchlistResultDict:
     """Build result dictionary for skipped refresh.
 
     Args:
@@ -158,7 +159,7 @@ def _build_skip_result(
         start_time: Task start time
 
     Returns:
-        Dict with skip result
+        WatchlistResultDict with skip result
     """
     return {
         "task_id": task_id,
@@ -171,7 +172,7 @@ def _build_skip_result(
 
 
 @celery_app.task(name="refresh_watchlist_scores", bind=True)  # type: ignore[misc]
-def refresh_watchlist_scores_task(self: Task, account_id: str | None = None) -> dict[str, Any]:
+def refresh_watchlist_scores_task(self: Task, account_id: str | None = None) -> WatchlistResultDict:
     """Refresh watchlist scores for all items or a specific account.
 
     This task runs every 1 minute via Celery Beat, but respects the user's

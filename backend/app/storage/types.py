@@ -5,7 +5,18 @@ interfaces, enabling proper type checking and IDE autocomplete while maintaining
 duck typing compatibility.
 """
 
-from typing import Any, Protocol
+from __future__ import annotations
+
+from datetime import datetime
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    import polars as pl
+
+# Type alias for database values that can be returned from queries
+DatabaseValue = str | int | float | bool | None
+# Type alias for parameters that can be sent to database
+ParameterValue = str | int | float | bool | None | datetime
 
 
 class DatabaseConnection(Protocol):
@@ -26,7 +37,11 @@ class DatabaseConnection(Protocol):
         close: Close the connection
     """
 
-    def execute(self, query: str, parameters: list[Any] | tuple[Any, ...] | None = None) -> Any:
+    def execute(
+        self,
+        query: str,
+        parameters: list[ParameterValue] | tuple[ParameterValue, ...] | None = None,
+    ) -> DatabaseConnection:
         """Execute a SQL query with optional parameters.
 
         Args:
@@ -34,11 +49,11 @@ class DatabaseConnection(Protocol):
             parameters: Optional list or tuple of query parameters
 
         Returns:
-            Query execution result (implementation-specific)
+            Self for method chaining
         """
         ...
 
-    def fetchall(self) -> list[tuple[Any, ...]]:
+    def fetchall(self) -> list[tuple[DatabaseValue, ...]]:
         """Fetch all results from last query.
 
         Returns:
@@ -46,7 +61,7 @@ class DatabaseConnection(Protocol):
         """
         ...
 
-    def fetchone(self) -> tuple[Any, ...] | None:
+    def fetchone(self) -> tuple[DatabaseValue, ...] | None:
         """Fetch one result from last query.
 
         Returns:
@@ -54,19 +69,19 @@ class DatabaseConnection(Protocol):
         """
         ...
 
-    def fetchdf(self) -> Any:
-        """Fetch query results as a DataFrame.
+    def fetchdf(self) -> pl.DataFrame:
+        """Fetch query results as a Polars DataFrame.
 
         Returns:
-            DataFrame containing query results (pandas or similar)
+            Polars DataFrame containing query results
         """
         ...
 
-    def pl(self) -> Any:
-        """Return a Polars-compatible interface.
+    def pl(self) -> pl.DataFrame:
+        """Return results as a Polars DataFrame.
 
         Returns:
-            Polars DataFrame or lazy frame interface
+            Polars DataFrame interface
         """
         ...
 

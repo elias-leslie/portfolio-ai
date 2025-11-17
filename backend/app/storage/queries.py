@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 
 from ..logging_config import get_logger
+from .types import ParameterValue
 
 if TYPE_CHECKING:
     from .connection import ConnectionManager
@@ -33,7 +34,7 @@ class QueryManager:
         """
         self.connection_mgr = connection_mgr
 
-    def query(self, sql: str, params: list[Any] | None = None) -> pl.DataFrame:
+    def query(self, sql: str, params: list[ParameterValue] | None = None) -> pl.DataFrame:
         """Execute a SQL query and return results as a Polars DataFrame.
 
         Args:
@@ -48,8 +49,8 @@ class QueryManager:
                 result = conn.execute(sql, params).fetchdf()
             else:
                 result = conn.execute(sql).fetchdf()
-            # fetchdf() already returns polars DataFrame, no conversion needed
-            return result  # type: ignore[no-any-return]
+            # fetchdf() already returns polars DataFrame
+            return result
 
     def get_watchlist_items_by_account(self, account_id: str) -> pl.DataFrame:
         """Return all watchlist items ordered by symbol.
@@ -98,7 +99,7 @@ class QueryManager:
             FROM watchlist_snapshots
             WHERE item_id = ?
         """
-        params: list[Any] = [item_id]
+        params: list[ParameterValue] = [item_id]
 
         if start_at is not None:
             sql += " AND fetched_at >= ?"
@@ -249,7 +250,7 @@ class QueryManager:
         timeframe_short_aligned: bool,
         timeframe_long_aligned: bool,
         percentile_rank_30d: float | None,
-    ) -> list[Any]:
+    ) -> list[ParameterValue]:
         """Prepare parameter list for snapshot upsert query.
 
         Args:

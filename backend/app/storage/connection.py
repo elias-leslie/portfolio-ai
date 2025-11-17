@@ -11,15 +11,24 @@ import os
 import re
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any
+from datetime import datetime
+from typing import TYPE_CHECKING
 
+import pandas as pd
+import polars as pl
 from sqlalchemy import create_engine, pool
 from sqlalchemy.engine import Engine
 
 from ..logging_config import get_logger
 
 if TYPE_CHECKING:
-    pass
+    from psycopg2.extensions import connection as psycopg_connection
+
+# Type alias for database values that can be returned from queries
+# This is necessarily broad since PostgreSQL returns various types
+DatabaseValue = str | int | float | bool | None
+# Type alias for parameters that can be sent to database
+ParameterValue = str | int | float | bool | None | datetime
 
 logger = get_logger(__name__)
 
@@ -37,7 +46,7 @@ class PostgreSQLConnectionWrapper:
 
     def __init__(
         self,
-        pg_conn: Any,  # psycopg2.extensions.connection or PoolProxiedConnection
+        pg_conn: psycopg_connection,
         engine: Engine | None = None,
     ) -> None:
         """Initialize wrapper around psycopg2 connection.
@@ -50,7 +59,11 @@ class PostgreSQLConnectionWrapper:
         self._cursor = pg_conn.cursor()
         self._engine = engine
 
-    def execute(self, query: str, parameters: list[Any] | tuple[Any, ...] | None = None) -> Any:
+    def execute(
+        self,
+        query: str,
+        parameters: list[ParameterValue] | tuple[ParameterValue, ...] | None = None,
+    ) -> PostgreSQLConnectionWrapper:
         """Execute SQL query with PostgreSQL interface.
 
         Args:
@@ -80,44 +93,39 @@ class PostgreSQLConnectionWrapper:
 
         return self
 
-    def fetchall(self) -> list[tuple[Any, ...]]:
+    def fetchall(self) -> list[tuple[DatabaseValue, ...]]:
         """Fetch all results from last query."""
-        result: list[tuple[Any, ...]] = self._cursor.fetchall()
+        result: list[tuple[DatabaseValue, ...]] = self._cursor.fetchall()
         return result
 
-    def fetchone(self) -> tuple[Any, ...] | None:
+    def fetchone(self) -> tuple[DatabaseValue, ...] | None:
         """Fetch one result from last query."""
-        result: tuple[Any, ...] | None = self._cursor.fetchone()
+        result: tuple[DatabaseValue, ...] | None = self._cursor.fetchone()
         return result
 
-    def pl(self) -> Any:
+    def pl(self) -> pl.DataFrame:
         """Convert query results to Polars DataFrame (compatibility).
 
         Returns:
             Polars DataFrame with query results.
         """
-        try:
-            import polars as pl  # noqa: PLC0415
+        # Get column names from cursor description
+        if self._cursor.description is None:
+            # No results to convert
+            return pl.DataFrame()
 
-            # Get column names from cursor description
-            if self._cursor.description is None:
-                # No results to convert
-                return pl.DataFrame()
+        columns = [desc[0] for desc in self._cursor.description]
+        rows = self._cursor.fetchall()
 
-            columns = [desc[0] for desc in self._cursor.description]
-            rows = self._cursor.fetchall()
+        # Create Polars DataFrame
+        if not rows:
+            return pl.DataFrame({col: [] for col in columns})
 
-            # Create Polars DataFrame
-            if not rows:
-                return pl.DataFrame({col: [] for col in columns})
+        # Convert to dict format for Polars
+        data = {col: [row[i] for row in rows] for i, col in enumerate(columns)}
+        return pl.DataFrame(data, strict=False)
 
-            # Convert to dict format for Polars
-            data = {col: [row[i] for row in rows] for i, col in enumerate(columns)}
-            return pl.DataFrame(data, strict=False)
-        except ImportError as e:
-            raise ImportError("Polars is required for .pl() method") from e
-
-    def fetchdf(self) -> Any:
+    def fetchdf(self) -> pl.DataFrame:
         """Fetch results as Polars DataFrame (compatibility).
 
         Alias for .pl() method to match fetchdf() interface.
@@ -127,30 +135,25 @@ class PostgreSQLConnectionWrapper:
         """
         return self.pl()
 
-    def df(self) -> Any:
+    def df(self) -> pd.DataFrame:
         """Fetch results as pandas DataFrame (compatibility).
 
         Returns:
             pandas DataFrame with query results.
         """
-        try:
-            import pandas as pd  # noqa: PLC0415  # type: ignore[import-untyped]
+        # Get column names from cursor description
+        if self._cursor.description is None:
+            # No results to convert
+            return pd.DataFrame()
 
-            # Get column names from cursor description
-            if self._cursor.description is None:
-                # No results to convert
-                return pd.DataFrame()
+        columns = [desc[0] for desc in self._cursor.description]
+        rows = self._cursor.fetchall()
 
-            columns = [desc[0] for desc in self._cursor.description]
-            rows = self._cursor.fetchall()
+        # Create pandas DataFrame
+        if not rows:
+            return pd.DataFrame(columns=columns)
 
-            # Create pandas DataFrame
-            if not rows:
-                return pd.DataFrame(columns=columns)
-
-            return pd.DataFrame(rows, columns=columns)
-        except ImportError as e:
-            raise ImportError("pandas is required for .df() method") from e
+        return pd.DataFrame(rows, columns=columns)
 
     def commit(self) -> None:
         """Commit current transaction."""
@@ -165,7 +168,9 @@ class PostgreSQLConnectionWrapper:
         self._cursor.close()
         self._conn.close()
 
-    def insert_dataframe(self, table_name: str, df: Any, if_exists: str = "append") -> int:
+    def insert_dataframe(
+        self, table_name: str, df: pd.DataFrame | pl.DataFrame, if_exists: str = "append"
+    ) -> int:
         """Insert pandas/polars DataFrame into table using efficient bulk insert.
 
         This method provides a clean alternative to variable reference
@@ -239,8 +244,12 @@ class PostgreSQLConnectionWrapper:
         return row_count
 
     @property
-    def description(self) -> Any:
-        """Get cursor description (column metadata)."""
+    def description(self) -> tuple[tuple[str, ...], ...] | None:
+        """Get cursor description (column metadata).
+
+        Returns:
+            Tuple of column metadata tuples, or None if no cursor description available.
+        """
         return self._cursor.description
 
 

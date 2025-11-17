@@ -6,6 +6,8 @@ Tasks:
 - alert_critical_gaps: Alert on new critical gaps
 """
 
+from __future__ import annotations
+
 import logging
 from datetime import UTC, datetime
 from typing import Any
@@ -13,19 +15,20 @@ from typing import Any
 from app.celery_app import celery_app
 from app.services.gap_detection import GapDetector
 from app.storage.connection import ConnectionManager
+from app.tasks.types import GapAnalysisResultDict
 
 logger = logging.getLogger(__name__)
 
 
 @celery_app.task(name="analyze_trading_gaps")  # type: ignore[misc]
-def analyze_trading_gaps() -> dict[str, Any]:
+def analyze_trading_gaps() -> GapAnalysisResultDict:
     """Analyze trading intelligence gaps.
 
     Runs daily after capabilities scan (03:30 UTC).
     Analyzes new gaps, resolved gaps, coverage trends.
 
     Returns:
-        dict: Analysis results with gap counts and coverage metrics
+        GapAnalysisResultDict: Analysis results with gap counts and coverage metrics
     """
     logger.info("Starting trading gaps analysis...")
 
@@ -99,7 +102,7 @@ def analyze_trading_gaps() -> dict[str, Any]:
 
 
 @celery_app.task(name="track_gap_trends")  # type: ignore[misc]
-def track_gap_trends() -> dict[str, Any]:
+def track_gap_trends() -> GapAnalysisResultDict:
     """Track gap coverage trends over time.
 
     Analyzes historical gap_analysis_history table to identify:
@@ -108,7 +111,7 @@ def track_gap_trends() -> dict[str, Any]:
     - Long-term trends
 
     Returns:
-        dict: Trend analysis with coverage deltas
+        GapAnalysisResultDict: Trend analysis with coverage deltas
     """
     logger.info("Analyzing gap coverage trends...")
 
@@ -275,7 +278,7 @@ def _alert_low_coverage(
 
 
 @celery_app.task(name="alert_critical_gaps")  # type: ignore[misc]
-def alert_critical_gaps() -> dict[str, Any]:
+def alert_critical_gaps() -> GapAnalysisResultDict:
     """Alert on critical gaps (P0 priority).
 
     Creates status log entries when:
@@ -283,7 +286,7 @@ def alert_critical_gaps() -> dict[str, Any]:
     - Coverage drops below threshold (e.g., <50% for any analysis type)
 
     Returns:
-        dict: Alert status with critical gap count
+        GapAnalysisResultDict: Alert status with critical gap count
     """
     logger.info("Checking for critical gaps...")
 

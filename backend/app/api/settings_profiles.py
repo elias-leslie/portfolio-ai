@@ -1,10 +1,15 @@
 """Settings Profiles API routes (FastAPI)."""
 
-from typing import Any
+from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from app.api.settings_profiles_types import (
+    MessageResponseDict,
+    ProfileDict,
+    ProfileExportDict,
+)
 from app.models.settings_profile import (
     activate_profile,
     create_profile,
@@ -28,7 +33,7 @@ class ProfileCreate(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=255)
     description: str | None = None
-    profile_data: dict[str, Any]
+    profile_data: dict[str, object]
     is_active: bool = False
     user_id: int = 1
 
@@ -38,7 +43,7 @@ class ProfileUpdate(BaseModel):
 
     name: str | None = Field(None, min_length=1, max_length=255)
     description: str | None = None
-    profile_data: dict[str, Any] | None = None
+    profile_data: dict[str, object] | None = None
     is_active: bool | None = None
     user_id: int = 1
 
@@ -55,30 +60,30 @@ class ProfileImport(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=255)
     description: str | None = "Imported profile"
-    profile_data: dict[str, Any]
+    profile_data: dict[str, object]
     user_id: int = 1
 
 
 @router.get("")
-async def list_profiles(user_id: int = Query(default=1)) -> list[dict[str, Any]]:
+async def list_profiles(user_id: int = Query(default=1)) -> list[ProfileDict]:
     """Get all settings profiles for the user."""
     try:
         with storage.connection() as conn:
             profiles = get_all_profiles(conn._conn, user_id)
-            return [p.to_dict() for p in profiles]
+            return [p.to_dict() for p in profiles]  # type: ignore[misc]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/active")
-async def get_active(user_id: int = Query(default=1)) -> dict[str, Any]:
+async def get_active(user_id: int = Query(default=1)) -> ProfileDict:
     """Get the currently active profile."""
     try:
         with storage.connection() as conn:
             profile = get_active_profile(conn._conn, user_id)
             if not profile:
                 raise HTTPException(status_code=404, detail="No active profile")
-            return profile.to_dict()
+            return profile.to_dict()  # type: ignore[misc]
     except HTTPException:
         raise
     except Exception as e:
@@ -86,14 +91,14 @@ async def get_active(user_id: int = Query(default=1)) -> dict[str, Any]:
 
 
 @router.get("/{profile_id}")
-async def get_profile(profile_id: int, user_id: int = Query(default=1)) -> dict[str, Any]:
+async def get_profile(profile_id: int, user_id: int = Query(default=1)) -> ProfileDict:
     """Get a specific profile."""
     try:
         with storage.connection() as conn:
             profile = get_profile_by_id(conn._conn, profile_id, user_id)
             if not profile:
                 raise HTTPException(status_code=404, detail="Profile not found")
-            return profile.to_dict()
+            return profile.to_dict()  # type: ignore[misc]
     except HTTPException:
         raise
     except Exception as e:
@@ -101,7 +106,7 @@ async def get_profile(profile_id: int, user_id: int = Query(default=1)) -> dict[
 
 
 @router.post("")
-async def create(data: ProfileCreate) -> dict[str, Any]:
+async def create(data: ProfileCreate) -> ProfileDict:
     """Create a new settings profile."""
     try:
         with storage.connection() as conn:
@@ -113,13 +118,13 @@ async def create(data: ProfileCreate) -> dict[str, Any]:
                 description=data.description,
                 is_active=data.is_active,
             )
-            return profile.to_dict()
+            return profile.to_dict()  # type: ignore[misc]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.put("/{profile_id}")
-async def update(profile_id: int, data: ProfileUpdate) -> dict[str, Any]:
+async def update(profile_id: int, data: ProfileUpdate) -> ProfileDict:
     """Update an existing profile."""
     try:
         with storage.connection() as conn:
@@ -134,7 +139,7 @@ async def update(profile_id: int, data: ProfileUpdate) -> dict[str, Any]:
             )
             if not profile:
                 raise HTTPException(status_code=404, detail="Profile not found")
-            return profile.to_dict()
+            return profile.to_dict()  # type: ignore[misc]
     except HTTPException:
         raise
     except Exception as e:
@@ -142,14 +147,14 @@ async def update(profile_id: int, data: ProfileUpdate) -> dict[str, Any]:
 
 
 @router.delete("/{profile_id}")
-async def delete(profile_id: int, user_id: int = Query(default=1)) -> dict[str, str]:
+async def delete(profile_id: int, user_id: int = Query(default=1)) -> MessageResponseDict:
     """Delete a profile."""
     try:
         with storage.connection() as conn:
             deleted = delete_profile(conn._conn, profile_id, user_id)
             if not deleted:
                 raise HTTPException(status_code=404, detail="Profile not found")
-            return {"message": "Profile deleted successfully"}
+            return {"message": "Profile deleted successfully"}  # type: ignore[misc]
     except HTTPException:
         raise
     except Exception as e:
@@ -157,14 +162,14 @@ async def delete(profile_id: int, user_id: int = Query(default=1)) -> dict[str, 
 
 
 @router.post("/{profile_id}/activate")
-async def activate(profile_id: int, user_id: int = Query(default=1)) -> dict[str, Any]:
+async def activate(profile_id: int, user_id: int = Query(default=1)) -> ProfileDict:
     """Activate a profile."""
     try:
         with storage.connection() as conn:
             profile = activate_profile(conn._conn, profile_id, user_id)
             if not profile:
                 raise HTTPException(status_code=404, detail="Profile not found")
-            return profile.to_dict()
+            return profile.to_dict()  # type: ignore[misc]
     except HTTPException:
         raise
     except Exception as e:
@@ -172,14 +177,14 @@ async def activate(profile_id: int, user_id: int = Query(default=1)) -> dict[str
 
 
 @router.post("/{profile_id}/duplicate")
-async def duplicate(profile_id: int, data: ProfileDuplicate) -> dict[str, Any]:
+async def duplicate(profile_id: int, data: ProfileDuplicate) -> ProfileDict:
     """Duplicate a profile."""
     try:
         with storage.connection() as conn:
             profile = duplicate_profile(conn._conn, profile_id, data.name, data.user_id)
             if not profile:
                 raise HTTPException(status_code=404, detail="Original profile not found")
-            return profile.to_dict()
+            return profile.to_dict()  # type: ignore[misc]
     except HTTPException:
         raise
     except Exception as e:
@@ -187,7 +192,7 @@ async def duplicate(profile_id: int, data: ProfileDuplicate) -> dict[str, Any]:
 
 
 @router.get("/{profile_id}/export")
-async def export_profile(profile_id: int, user_id: int = Query(default=1)) -> dict[str, Any]:
+async def export_profile(profile_id: int, user_id: int = Query(default=1)) -> ProfileExportDict:
     """Export a profile as JSON for sharing/backup."""
     try:
         with storage.connection() as conn:
@@ -196,7 +201,7 @@ async def export_profile(profile_id: int, user_id: int = Query(default=1)) -> di
                 raise HTTPException(status_code=404, detail="Profile not found")
 
             # Export format includes metadata
-            export_data = {
+            export_data: ProfileExportDict = {
                 "name": profile.name,
                 "description": profile.description,
                 "profile_data": profile.profile_data,
@@ -211,7 +216,7 @@ async def export_profile(profile_id: int, user_id: int = Query(default=1)) -> di
 
 
 @router.post("/import")
-async def import_profile(data: ProfileImport) -> dict[str, Any]:
+async def import_profile(data: ProfileImport) -> ProfileDict:
     """Import a profile from exported JSON."""
     try:
         with storage.connection() as conn:
@@ -223,6 +228,6 @@ async def import_profile(data: ProfileImport) -> dict[str, Any]:
                 description=data.description,
                 is_active=False,
             )
-            return profile.to_dict()
+            return profile.to_dict()  # type: ignore[misc]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e

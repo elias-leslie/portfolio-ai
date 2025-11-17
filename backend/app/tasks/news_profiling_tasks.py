@@ -21,6 +21,7 @@ from app.services.news_quality_metrics import (
 )
 from app.storage import get_storage
 from app.storage.facade import PortfolioStorage
+from app.tasks.types import NewsProfilingResultDict
 
 if TYPE_CHECKING:
     from celery import Task  # type: ignore[import-untyped]
@@ -99,7 +100,7 @@ def _get_active_vendors() -> list[str]:
 
 def _should_skip_profiling(
     interval_hours: int, last_profiling: datetime | None
-) -> dict[str, Any] | None:
+) -> NewsProfilingResultDict | None:
     """Check if profiling should be skipped due to interval.
 
     Args:
@@ -107,7 +108,7 @@ def _should_skip_profiling(
         last_profiling: Timestamp of last profiling, or None
 
     Returns:
-        None if should proceed, or dict with skip reason if should skip
+        None if should proceed, or NewsProfilingResultDict with skip reason if should skip
     """
     if not last_profiling:
         return None
@@ -264,14 +265,14 @@ def _store_metrics(metrics: list[tuple[str, dict[str, Any]]]) -> None:
 
 
 @celery_app.task(name="profile_news_sources", bind=True)  # type: ignore[misc]
-def profile_news_sources_task(self: Task, user_id: str = "default") -> dict[str, Any]:
+def profile_news_sources_task(self: Task, user_id: str = "default") -> NewsProfilingResultDict:
     """Profile all active news sources and calculate quality metrics.
 
     Args:
         user_id: User identifier (default: "default")
 
     Returns:
-        dict: Task results with profiling summary
+        NewsProfilingResultDict: Task results with profiling summary
     """
     start_time = time.time()
     storage = get_storage()
@@ -339,7 +340,7 @@ def profile_news_sources_task(self: Task, user_id: str = "default") -> dict[str,
 
 
 @celery_app.task(name="reset_source_metrics")  # type: ignore[misc]
-def reset_source_metrics_task() -> dict[str, Any]:
+def reset_source_metrics_task() -> NewsProfilingResultDict:
     """Reset all source metrics and user feedback.
 
     This task:
@@ -348,7 +349,7 @@ def reset_source_metrics_task() -> dict[str, Any]:
     3. Allows fresh profiling start
 
     Returns:
-        dict: Task results with deletion counts
+        NewsProfilingResultDict: Task results with deletion counts
     """
     storage = get_storage()
 
