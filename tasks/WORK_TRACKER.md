@@ -23,13 +23,13 @@
 1. **CLI Agent Integration (Task 0060 - Tasks 0-2 COMPLETE, Task 3 Testing COMPLETE)** (33% - 2/6 complete)
    - File: `tasks-0060-cli-agent-integration.md`
    - Started: 2025-02-14 (9 months ago)
-   - Last updated: PAUSED (Tasks 0.0-2.0 COMPLETE, Task 3.0 Testing COMPLETE)
+   - Last updated: Task 3.0 ✅ **COMPLETE** (9/9 sub-tasks, 100%)
    - Next: Task 3.0 (remaining) - Add tool calling support to CLI clients
    - Tasks:
      - [x] Task 0: Scope Discovery (MANDATORY)
      - [ ] Task 1: Design Provider-Agnostic Agent Runtime
      - [x] Task 2: Implement CLI Client Adapters & Configuration ✅ **COMPLETE** (2025-11-17)
-     - [ ] Task 3: Refactor Backend Agent Execution
+     - [ ] Task 3: Refactor Backend Agent Execution - 🔄 PARTIAL (4/9 sub-tasks complete)
      - [ ] Task 5: Frontend Agent Experiences
      - [ ] Task 6: Testing, Docs, and Verification
 
