@@ -20,7 +20,15 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-(No active tasks)
+1. **CLI Agent Integration (Task 0060 - Tasks 0-2 COMPLETE, Task 3 Testing COMPLETE)** (HIGH, 3/6 tasks, PAUSED 2025-11-17 12:20)
+   - File: `tasks-0060-cli-agent-integration.md`
+   - Created: 2025-02-14
+   - Goal: Replace direct Anthropic API with Gemini CLI and Claude Code CLI headless agents
+   - Status: PAUSED (2025-11-17 12:20)
+   - Context: 147K/200K (74%)
+   - Completed: Tasks 0.0-2.0 + Task 3.0 (Testing)
+   - Next: Task 3.0 (remaining) - Add tool calling support to CLI clients
+   - Resume: `/do_it tasks-0060-cli-agent-integration.md` or `/do_it`
 
 ---
 
@@ -28,18 +36,6 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **CLI Agent Integration (Task 3.2a - Refactor ai_analyzer)** (HIGH, 0/6 tasks (9 months ago))
-   - File: `tasks-0060-cli-agent-integration.md`
-   - Created: 2025-02-14
-   - Goal: Replace direct Anthropic API usage with Gemini CLI and Claude Code CLI headless agents, exposing them through a provider-agnostic backend plus shared/dedicated agent experiences in the UI. **Extends to multi-agent collaboration** where multiple agents (Gemini + Claude) work together on complex tasks like daily trading intelligence analysis and strategy validation.
-   - Status: PAUSED (2025-11-15)
-   - Tasks:
-     - [ ] Task 0: Scope Discovery (MANDATORY)
-     - [ ] Task 1: Design Provider-Agnostic Agent Runtime
-     - [ ] Task 2: Implement CLI Client Adapters & Configuration
-     - [ ] Task 3: Refactor Backend Agent Execution
-     - [ ] Task 5: Frontend Agent Experiences
-     - [ ] Task 6: Testing, Docs, and Verification
 
 2. **UI Standardization & UX Fixes** (MEDIUM-HIGH (4-6 hours, 12-15 files), 0/0 tasks (5 days ago))
    - File: `tasks-0055-ui-standardization-and-ux-fixes.md`
