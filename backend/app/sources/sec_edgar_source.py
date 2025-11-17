@@ -9,6 +9,7 @@ Free tier, no API key required. Uses edgartools library for compliance and perfo
 from __future__ import annotations
 
 import datetime as dt
+import os
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -33,6 +34,13 @@ def _get_edgar() -> Any:
     global _edgar, _set_identity_called  # noqa: PLW0603
 
     if _edgar is None:
+        # Ensure HOME environment variable is set to a writable directory
+        # This prevents edgartools and other libraries from trying to create
+        # cache files in non-existent /home/portfolio-ai directory
+        if not os.environ.get("HOME"):
+            os.environ["HOME"] = "/var/cache/portfolio-ai"
+            logger.info("home_env_set", home_dir="/var/cache/portfolio-ai")
+
         import edgar as edgar_module  # noqa: PLC0415
 
         _edgar = edgar_module

@@ -9,10 +9,17 @@ from __future__ import annotations
 import contextlib
 import datetime as dt
 import json
+import os
 from collections.abc import Iterable
 from typing import Any
 
 import polars as pl
+
+# Ensure HOME environment variable is set before importing yfinance
+# This prevents yfinance from trying to create cache files in non-existent directories
+if not os.environ.get("HOME"):
+    os.environ["HOME"] = "/var/cache/portfolio-ai"
+
 import yfinance as yf  # type: ignore[import-untyped]  # yfinance doesn't ship type stubs
 
 from ..logging_config import get_logger
