@@ -137,29 +137,7 @@
   - Confirmed failover working (Gemini connection issue → Claude fallback successful)
   - Ruff lint checks passing ✅
 
-**Remaining Work (Task 3.0):**
-- [x] 3.0e: Write unit tests for `_parse_tool_calls()` (various JSON formats) ✅ **COMPLETE** (2025-11-17)
-  - Created test_llm_client_tool_protocol.py with 29 comprehensive unit tests
-  - 13 tests for _parse_tool_calls() covering various JSON formats
-  - 11 tests for _format_system_with_tools() covering tool formatting
-  - 3 tests for DualProviderClient integration
-  - 2 tests for edge cases (Unicode, escaped quotes, null values)
-  - All 29 tests passing ✅
-- [x] 3.0f: Write unit tests for `_format_system_with_tools()` ✅ **COMPLETE** (2025-11-17)
-  - Included in test_llm_client_tool_protocol.py (11 tests)
-- [x] 3.0g: Run full test suite and verify no regressions ✅ **COMPLETE** (2025-11-17)
-  - 193 tests passing (excluding pre-existing failures in capability_scanner/ai_analyzer)
-  - New tool protocol tests: 29/29 passing
-  - Integration tests: All JSON/CSV/large dataset tests passing
-  - Gemini CLI successfully handling 50KB JSON data
-- [x] 3.0h: E2E test with Discovery agent (real tool execution flow) ✅ **COMPLETE** (2025-11-17)
-  - Created test_discovery_agent_cli.py with 6 E2E integration tests (273 LOC)
-  - Tests complete workflow: tool formatting → JSON parsing → tool execution → multi-turn conversation
-  - Test scenarios: full E2E flow, error handling, max iterations, CLI vs Anthropic path selection
-  - All tests use mocks (no API keys required)
-  - Ruff checks passing ✅
-
-**Task 3.0 Status**: ✅ **100% COMPLETE** (9/9 sub-tasks done)
+**Task 3.0 Status**: ✅ **100% COMPLETE** (9/9 sub-tasks done, checkboxes updated 2025-11-17)
 
 **Code Changes**:
 - `backend/app/agents/llm_client.py` (+250 LOC): Added tool calling protocol
@@ -295,12 +273,14 @@
   - Verified tool call parsing works
   - Tested with get_news tool
   - Confirmed Gemini → Claude failover
-- [ ] 3.5 Write unit tests for tool parsing
+- [x] 3.5 Write unit tests for tool parsing ✅ **COMPLETE** (2025-11-17)
   - Test _parse_tool_calls() with various JSON formats
   - Test _format_system_with_tools()
-- [ ] 3.6 E2E testing with Discovery agent
+  - Created test_llm_client_tool_protocol.py with 29 comprehensive tests
+- [x] 3.6 E2E testing with Discovery agent ✅ **COMPLETE** (2025-11-17)
   - Test complete tool execution flow
   - Verify multi-turn conversations
+  - Created test_discovery_agent_cli.py with 6 E2E integration tests
 - [ ] 3.7 Update Discovery/Portfolio Analyzer (and future personas) to use provider profiles + new runtime
 - [x] 3.2a **Refactor CapabilityAnalyzer (Task 0059)** to use DualProviderClient ✅ **ALREADY COMPLETE**
   - File: `backend/app/services/ai_analyzer.py`

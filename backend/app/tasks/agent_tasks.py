@@ -15,6 +15,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from app.agents.discovery import DiscoveryAgent
+from app.agents.llm_client import DualProviderClient
 from app.agents.portfolio_analyzer import PortfolioAnalyzerAgent
 from app.agents.tools import AgentTools
 from app.analytics.paper_trading import update_paper_trades
@@ -104,7 +105,10 @@ def run_discovery_agent(self: Task) -> str:
         # Initialize agent tools
         agent_tools = _setup_agent_tools(storage)
 
-        agent = DiscoveryAgent(storage=storage, tools=agent_tools)
+        # Initialize LLM client (Gemini primary, Claude fallback)
+        llm_client = DualProviderClient(primary="gemini")
+
+        agent = DiscoveryAgent(storage=storage, tools=agent_tools, llm_client=llm_client)
         result = agent.run()
         run_id = result["run_id"]
 
@@ -146,7 +150,10 @@ def run_portfolio_analyzer(self: Task) -> str:
         # Initialize agent tools
         agent_tools = _setup_agent_tools(storage)
 
-        agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools)
+        # Initialize LLM client (Gemini primary, Claude fallback)
+        llm_client = DualProviderClient(primary="gemini")
+
+        agent = PortfolioAnalyzerAgent(storage=storage, tools=agent_tools, llm_client=llm_client)
         result = agent.run()
         run_id = result["run_id"]
 

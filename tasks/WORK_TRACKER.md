@@ -23,7 +23,7 @@
 1. **CLI Agent Integration (Task 0060 - Tasks 0-2 COMPLETE, Task 3 Testing COMPLETE)** (33% - 2/6 complete)
    - File: `tasks-0060-cli-agent-integration.md`
    - Started: 2025-02-14 (9 months ago)
-   - Last updated: Task 3.0 ✅ **COMPLETE** (9/9 sub-tasks, 100%)
+   - Last updated: Task 3.0 ✅ **COMPLETE** (9/9 sub-tasks, 100%) - PAUSED
    - Next: Task 3.0 (remaining) - Add tool calling support to CLI clients
    - Tasks:
      - [x] Task 0: Scope Discovery (MANDATORY)
