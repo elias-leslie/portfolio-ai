@@ -12,7 +12,7 @@ import datetime as dt
 import json
 import time
 import urllib.request
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypedDict
 
 from ..logging_config import get_logger
 from .source_metrics_manager import SourceMetricsManager
@@ -21,6 +21,26 @@ if TYPE_CHECKING:
     from ..storage import PortfolioStorage
 
 logger = get_logger(__name__)
+
+
+class PutCallRatiosDict(TypedDict):
+    """Put/call ratio data from CBOE."""
+
+    date: str
+    total: float
+    index: float
+    equity: float
+    spx: float
+    timestamp: str
+
+
+class HealthStatusDict(TypedDict):
+    """CBOE health status."""
+
+    status: str
+    last_fetch: str | None
+    age_hours: float | None
+    message: str
 
 
 class CBOESource:
@@ -46,13 +66,13 @@ class CBOESource:
             storage: Optional PortfolioStorage for metrics persistence
         """
         self.last_fetch_time: dt.datetime | None = None
-        self.last_fetch_data: dict[str, Any] | None = None
+        self.last_fetch_data: PutCallRatiosDict | None = None
 
         # Initialize metrics tracking
         self.metrics_manager = SourceMetricsManager(storage)
         self.metrics_manager.initialize_metric(self.SOURCE_NAME)
 
-    def fetch_put_call_ratios(self, target_date: dt.date | None = None) -> dict[str, Any]:
+    def fetch_put_call_ratios(self, target_date: dt.date | None = None) -> PutCallRatiosDict:
         """Fetch put/call ratios from CBOE JSON API.
 
         Args:
@@ -131,7 +151,7 @@ class CBOESource:
             )
             raise RuntimeError(f"CBOE fetch failed: {e}") from e
 
-    def _parse_ratios(self, json_data: dict[str, Any], target_date: dt.date) -> dict[str, Any]:
+    def _parse_ratios(self, json_data: dict[str, Any], target_date: dt.date) -> PutCallRatiosDict:
         """Parse put/call ratios from JSON response.
 
         Args:
@@ -159,6 +179,8 @@ class CBOESource:
         index_ratio = ratios_dict.get("INDEX PUT/CALL RATIO")
         equity_ratio = ratios_dict.get("EQUITY PUT/CALL RATIO")
         spx_ratio = ratios_dict.get("SPX + SPXW PUT/CALL RATIO")
+        if index_ratio is None or equity_ratio is None or spx_ratio is None:
+            raise ValueError("Required ratios (INDEX/EQUITY/SPX) not found in response")
 
         # Set timestamp to market close (4:00 PM ET = 21:00 UTC)
         timestamp = dt.datetime.combine(target_date, dt.time(21, 0, 0), tzinfo=dt.UTC).isoformat()
@@ -172,7 +194,7 @@ class CBOESource:
             "timestamp": timestamp,
         }
 
-    def get_health_status(self) -> dict[str, Any]:
+    def get_health_status(self) -> HealthStatusDict:
         """Get health status for monitoring.
 
         Returns:

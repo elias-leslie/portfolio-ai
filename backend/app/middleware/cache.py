@@ -10,7 +10,7 @@ import os
 import re
 from collections.abc import Callable
 from functools import wraps
-from typing import Any
+from typing import Any, TypedDict
 
 from cachetools import TTLCache  # type: ignore[import-untyped]
 from fastapi import Request, Response
@@ -18,6 +18,20 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
+
+
+class CacheStatsDict(TypedDict):
+    """Cache statistics dictionary."""
+
+    enabled: bool
+    size: int
+    max_size: int
+    ttl_default: int
+    hits: int
+    misses: int
+    hit_rate: float
+    invalidations: int
+
 
 # Environment configuration
 CACHE_ENABLED = os.getenv("CACHE_ENABLED", "true").lower() == "true"
@@ -240,7 +254,7 @@ def clear_cache() -> int:
     return count
 
 
-def get_cache_stats() -> dict[str, Any]:
+def get_cache_stats() -> CacheStatsDict:
     """Get cache statistics.
 
     Returns:

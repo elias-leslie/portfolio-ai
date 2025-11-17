@@ -174,12 +174,16 @@
   - [x] Enhanced DatabaseConnection Protocol with complete method signatures
   - [x] All imports organized, mypy passing, commit 7d0a8ad + 42ed191
 - [x] 4.2 ✅ Fix moderate Any types - COMPLETE (16 instances eliminated)
-  - [x] 4.2a: Fixed 2 storage: Any → PortfolioStorage in news_profiling_tasks.py
-  - [x] 4.2b: Fixed 1 Redis client singleton → redis.Redis[str] | None
-  - [x] 4.2c: Fixed 6 df: Any → pd.DataFrame in analytics/indicators.py
-  - [x] 4.2d: Fixed 14 Celery task self: Task parameters (agent, data_ingestion, watchlist, reference, indicator, market_data tasks)
+  - [x] 4.2a: Fixed 2 storage: Any → PortfolioStorage
+  - [x] 4.2b: Fixed 1 Redis singleton → redis.Redis[str] | None
+  - [x] 4.2c: Fixed 6 df: Any → pd.DataFrame
+  - [x] 4.2d: Fixed 14 Celery task self: Task parameters
   - [x] All mypy passing, commits 321c5da + 0d38202
-- [ ] 4.3 Fix remaining moderate Any types (estimated 30-40 instances remaining)
+- [x] 4.3 ✅ Add TypedDict models - COMPLETE (13 instances eliminated)
+  - [x] Created 7 TypedDict classes (Cache, ResourceMonitor x4, CBOE x2)
+  - [x] Applied to 13 functions across 3 files
+  - [x] All mypy passing, commit (pending)
+- [ ] 4.4 Continue TypedDict conversion (100+ dict[str, Any] remaining)
   - Pattern: Function params/returns with inferable types
   - Pattern: Redis/Cache values with known types
   - Pattern: Dict[str, Any] with consistent structure → TypedDict

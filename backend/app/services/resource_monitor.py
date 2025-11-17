@@ -8,13 +8,51 @@ Provides functions to monitor:
 """
 
 import shutil
-from typing import Any
+from typing import TypedDict
 
 import psutil
 from sqlalchemy.engine import Connection
 
 
-def get_disk_usage() -> dict[str, Any]:
+class DiskUsageDict(TypedDict):
+    """Disk usage statistics."""
+
+    total_gb: float
+    used_gb: float
+    free_gb: float
+    percent_used: float
+    status: str
+
+
+class MemoryUsageDict(TypedDict):
+    """Memory usage statistics."""
+
+    total_gb: float
+    used_gb: float
+    available_gb: float
+    percent_used: float
+    status: str
+
+
+class CPUUsageDict(TypedDict):
+    """CPU usage statistics."""
+
+    percent_used: float
+    cores: int | None
+    status: str
+
+
+class PoolStatsDict(TypedDict):
+    """Database connection pool statistics."""
+
+    pool_size: int
+    checked_out: int
+    overflow: int
+    percent_used: float
+    status: str
+
+
+def get_disk_usage() -> DiskUsageDict:
     """Get disk usage statistics for root filesystem.
 
     Returns:
@@ -50,7 +88,7 @@ def get_disk_usage() -> dict[str, Any]:
     }
 
 
-def get_memory_usage() -> dict[str, Any]:
+def get_memory_usage() -> MemoryUsageDict:
     """Get memory usage statistics.
 
     Returns:
@@ -86,7 +124,7 @@ def get_memory_usage() -> dict[str, Any]:
     }
 
 
-def get_cpu_usage() -> dict[str, Any]:
+def get_cpu_usage() -> CPUUsageDict:
     """Get CPU usage statistics.
 
     Returns:
@@ -114,7 +152,7 @@ def get_cpu_usage() -> dict[str, Any]:
     }
 
 
-def get_db_pool_stats(conn: Connection) -> dict[str, Any]:
+def get_db_pool_stats(conn: Connection) -> PoolStatsDict:
     """Get database connection pool statistics.
 
     Args:
