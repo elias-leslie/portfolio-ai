@@ -4,9 +4,15 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, cast
 
 from ..logging_config import get_logger
+from .news_types import (
+    ArticleMixMetricsDict,
+    FallbackMetricsDict,
+    VendorHealthStatusDict,
+    VendorStatsDict,
+)
 
 if TYPE_CHECKING:
     from ..storage import PortfolioStorage
@@ -35,7 +41,7 @@ class NewsHealthMetrics:
             return None
         return dt.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
-    def get_fallback_metrics(self, window_start: datetime) -> dict[str, Any]:
+    def get_fallback_metrics(self, window_start: datetime) -> FallbackMetricsDict:
         """Get sentiment fallback metrics for health check.
 
         Args:
@@ -82,7 +88,7 @@ class NewsHealthMetrics:
             "last_fallback_at": last_fallback_at,
         }
 
-    def get_article_mix_metrics(self, now: datetime) -> dict[str, Any]:
+    def get_article_mix_metrics(self, now: datetime) -> ArticleMixMetricsDict:
         """Get article mix metrics from vendor manager.
 
         Args:
@@ -125,7 +131,7 @@ class NewsHealthMetrics:
             "last_timestamp": last_mix_timestamp,
         }
 
-    def get_vendor_stats(self, window_start: datetime) -> dict[str, dict[str, Any]]:
+    def get_vendor_stats(self, window_start: datetime) -> dict[str, VendorStatsDict]:
         """Get per-vendor article stats from database.
 
         Args:
@@ -148,24 +154,24 @@ class NewsHealthMetrics:
                 [window_start],
             ).fetchall()
 
-        vendor_stats: dict[str, dict[str, Any]] = {}
+        vendor_stats: dict[str, VendorStatsDict] = {}
         for vendor_name, article_count, last_article_at in vendor_rows:
             key = (vendor_name or "unknown").strip()
             last_at = last_article_at
             if isinstance(last_at, datetime) and last_at.tzinfo is None:
                 last_at = last_at.replace(tzinfo=UTC)
-            vendor_stats[key] = {
-                "articles_last_24h": int(article_count or 0),
-                "last_article_at": last_at,
-            }
+            vendor_stats[key] = VendorStatsDict(
+                articles_last_24h=int(article_count or 0),
+                last_article_at=last_at,
+            )
 
         return vendor_stats
 
     def build_vendor_health(
         self,
-        vendor_stats: dict[str, dict[str, Any]],
+        vendor_stats: dict[str, VendorStatsDict],
         now: datetime,
-    ) -> dict[str, Any]:
+    ) -> dict[str, VendorHealthStatusDict]:
         """Build vendor health status from config, runtime, and stats.
 
         Args:
@@ -177,7 +183,7 @@ class NewsHealthMetrics:
         """
         vendor_config = self.vendor_manager.get_vendor_config()
         vendor_runtime = self.vendor_manager.get_vendor_runtime()
-        vendor_health: dict[str, Any] = {}
+        vendor_health: dict[str, VendorHealthStatusDict] = {}
 
         for vendor_name, config in vendor_config.items():
             runtime = vendor_runtime.get(
@@ -190,26 +196,29 @@ class NewsHealthMetrics:
                     "articles_last_fetch": 0,
                 },
             )
-            stats = vendor_stats.get(vendor_name, {})
+            stats: VendorStatsDict | dict[str, object] = vendor_stats.get(vendor_name, {})
             last_article_at_dt = stats.get("last_article_at")
+            articles_last_24h = stats.get("articles_last_24h", 0)
             active = False
             if config.get("enabled") and isinstance(last_article_at_dt, datetime):
                 active = (now - last_article_at_dt) <= (self.ttl * 2)
 
-            vendor_health[vendor_name] = {
-                "configured": bool(config.get("configured")),
-                "enabled": bool(config.get("enabled")),
-                "active": active,
-                "last_attempt_at": self.to_iso(runtime.get("last_attempt_at")),
-                "last_success_at": self.to_iso(runtime.get("last_success_at")),
-                "last_error_at": self.to_iso(runtime.get("last_error_at")),
-                "last_error": runtime.get("last_error"),
-                "articles_last_fetch": int(runtime.get("articles_last_fetch", 0)),
-                "articles_last_fetch_post_dedupe": int(runtime.get("articles_last_fetch_post", 0)),
-                "articles_last_24h": int(stats.get("articles_last_24h", 0)),
-                "last_article_at": self.to_iso(last_article_at_dt),
-                "notes": config.get("notes"),
-                "reason": config.get("reason"),
-            }
+            vendor_health[vendor_name] = VendorHealthStatusDict(
+                configured=bool(config.get("configured")),
+                enabled=bool(config.get("enabled")),
+                active=active,
+                last_attempt_at=self.to_iso(cast(datetime | None, runtime.get("last_attempt_at"))),
+                last_success_at=self.to_iso(cast(datetime | None, runtime.get("last_success_at"))),
+                last_error_at=self.to_iso(cast(datetime | None, runtime.get("last_error_at"))),
+                last_error=runtime.get("last_error"),
+                articles_last_fetch=int(runtime.get("articles_last_fetch", 0)),
+                articles_last_fetch_post_dedupe=int(runtime.get("articles_last_fetch_post", 0)),
+                articles_last_24h=(
+                    int(articles_last_24h) if isinstance(articles_last_24h, int) else 0
+                ),
+                last_article_at=self.to_iso(cast(datetime | None, last_article_at_dt)),
+                notes=config.get("notes"),
+                reason=config.get("reason"),
+            )
 
         return vendor_health

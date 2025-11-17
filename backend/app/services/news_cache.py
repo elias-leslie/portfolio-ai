@@ -12,6 +12,7 @@ from typing import Any
 from ..logging_config import get_logger
 from ..storage import PortfolioStorage
 from .news_models import NewsArticle, SentimentScore
+from .news_types import ArticleDbRowDict
 
 logger = get_logger(__name__)
 
@@ -214,7 +215,7 @@ class NewsCacheManager:
             else None,
         )
 
-    def article_to_db_row(self, article: NewsArticle) -> dict[str, Any]:
+    def article_to_db_row(self, article: NewsArticle) -> ArticleDbRowDict:
         """Convert NewsArticle to database row format."""
         payload = article.raw
         if "sentiment_probabilities" not in payload:
