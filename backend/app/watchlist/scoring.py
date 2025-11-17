@@ -191,7 +191,7 @@ def _compute_fundamental_component(
         "sentiment": fundamental_data.sentiment_score or 0.0,
     }
 
-    metadata = {
+    metadata: dict[str, str | int | float | bool | None] = {
         "profit_margin": fundamental_data.profit_margin,
         "revenue_growth": fundamental_data.revenue_growth,
         "debt_to_equity": fundamental_data.debt_to_equity,
@@ -237,12 +237,13 @@ def calculate_watchlist_scores(inputs: WatchlistScoreInputs) -> ScoreBreakdown:
     )
 
     # Extract technical sub-scores from metadata
+    rsi_val = technical_component.metadata.get("rsi_14", 0.0)
+    trend_val = technical_component.metadata.get("trend_score", 0.0)
+    macd_val = technical_component.metadata.get("macd", 0.0)
     technical_component.sub_scores = {
-        "rsi_14": technical_component.metadata.get("rsi_14", 0.0),
-        "trend": technical_component.metadata.get("trend_score", 0.0),
-        "macd": technical_component.metadata.get("macd", 0.0)
-        if technical_component.metadata.get("macd")
-        else 0.0,
+        "rsi_14": float(rsi_val) if isinstance(rsi_val, (int, float)) else 0.0,
+        "trend": float(trend_val) if isinstance(trend_val, (int, float)) else 0.0,
+        "macd": float(macd_val) if isinstance(macd_val, (int, float)) and macd_val else 0.0,
     }
 
     # Fundamental component (if available)

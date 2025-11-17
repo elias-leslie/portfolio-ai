@@ -13,14 +13,62 @@ from ..portfolio.models import PriceData
 # TypedDict models for structured dictionaries
 
 
+class ScoreDict(TypedDict, total=False):
+    """Score breakdown dictionary structure (overall + pillar scores)."""
+
+    overall: float
+    price: float
+    technical: float
+    fundamental: float
+
+
+class NewsIntelligenceDict(TypedDict, total=False):
+    """News intelligence summary dictionary (used before NewsIntelligence BaseModel)."""
+
+    article_count_24h: int
+    key_events: list[dict[str, Any]]  # KeyEvent as dict form
+    sentiment_score: float
+    sentiment_label: str
+    headline: str
+
+
+class NarrativeBulletsDict(TypedDict):
+    """Narrative bullets structure (company health, technical, why bullets)."""
+
+    bullets: list[str]
+
+
+class RawMetricsDict(TypedDict, total=False):
+    """Raw technical metrics dictionary (indicators and calculations)."""
+
+    rsi_14: float
+    macd: float
+    sma_5: float
+    sma_20: float
+    sma_50: float
+    sma_200: float
+    ema_20: float
+    price: float
+    volume: float
+    volume_avg_20: float
+
+
+class RecentNewsDict(TypedDict, total=False):
+    """Recent news headlines dictionary structure."""
+
+    headlines: list[str]
+    sentiment_avg: float
+    article_count: int
+
+
 class WatchlistItemDict(TypedDict, total=False):
     """Watchlist item dictionary structure (used in priority/signal processing)."""
 
     symbol: str
     signal_type: str  # "BUY", "HOLD", "AVOID"
-    score: dict[str, Any]  # Contains "overall", "price", "technical", "fundamental"
+    score: ScoreDict  # Typed score structure
     earnings_days_away: int | None
-    news_intelligence: dict[str, Any]  # Contains "article_count_24h", "key_events"
+    news_intelligence: NewsIntelligenceDict  # Typed news intelligence
     news_sentiment_score: float | None
 
 
@@ -77,6 +125,16 @@ class KeyEvent(BaseModel):
     published_at: datetime | None = None
 
 
+class NewsArticleDict(TypedDict, total=False):
+    """News article dictionary structure (recent articles in news intelligence)."""
+
+    headline: str
+    published_at: str  # ISO datetime string
+    source: str
+    sentiment: float
+    url: str
+
+
 class NewsIntelligence(BaseModel):
     """News intelligence summary for watchlist items."""
 
@@ -85,7 +143,7 @@ class NewsIntelligence(BaseModel):
     sentiment_label: str  # "Positive"
     article_count_24h: int  # 12
     key_events: list[KeyEvent] = Field(default_factory=list)  # Top 3 events
-    recent_articles: list[dict[str, Any]] = Field(default_factory=list)  # Top 5 articles
+    recent_articles: list[NewsArticleDict] = Field(default_factory=list)  # Top 5 articles
 
 
 class SignalType(str, Enum):
@@ -148,7 +206,7 @@ class ScoreComponent(BaseModel):
     weight: float = 0.0
     stale: bool = False
     updated_at: datetime | None = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, str | int | float | bool | None] = Field(default_factory=dict)
     sub_scores: dict[str, float] = Field(
         default_factory=dict,
         description="Sub-metric scores (e.g., rsi_14, trend, macd for technical)",
@@ -220,7 +278,7 @@ class WatchlistItem(BaseModel):
     id: str
     account_id: str
     symbol: str
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, str | int | float | bool | None] = Field(default_factory=dict)
     note: str | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
@@ -244,15 +302,15 @@ class WatchlistSnapshot(BaseModel):
     competitor_score: float | None = None
     overall_score: float | None = None
     is_stale: bool = False
-    raw_metrics: dict[str, Any] = Field(default_factory=dict)
+    raw_metrics: RawMetricsDict | dict[str, Any] = Field(default_factory=dict)
 
     # Narrative intelligence fields
     signal_type: str | None = None
     signal_strength: int | None = None
     narrative_headline: str | None = None
-    narrative_why_bullets: dict[str, Any] | None = None
-    narrative_company_health: dict[str, Any] | None = None
-    narrative_technical: dict[str, Any] | None = None
+    narrative_why_bullets: NarrativeBulletsDict | None = None
+    narrative_company_health: NarrativeBulletsDict | None = None
+    narrative_technical: NarrativeBulletsDict | None = None
     narrative_action_plan: str | None = None
     narrative_position_sizing: str | None = None
     narrative_special_notes: str | None = None
@@ -274,7 +332,7 @@ class WatchlistSnapshot(BaseModel):
     earnings_date: datetime | None = None
     earnings_days_away: int | None = None
     news_sentiment_score: float | None = None
-    recent_news_headlines: dict[str, Any] | None = None
+    recent_news_headlines: RecentNewsDict | None = None
 
     # Volume & timeframe analysis fields (PRD #0022)
     volume_relative: float | None = None  # Current volume / 50-day avg (e.g., 2.3 = 2.3x)

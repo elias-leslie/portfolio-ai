@@ -12,6 +12,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from .models import NarrativeBulletsDict, NewsIntelligenceDict, RecentNewsDict
+
 
 # Request models
 class WatchlistItemCreate(BaseModel):
@@ -43,7 +45,7 @@ class ScoreComponentResponse(BaseModel):
     weight: float
     stale: bool
     updated_at: str | None = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, str | int | float | bool | None] = Field(default_factory=dict)
     sub_scores: dict[str, float] | None = None
 
 
@@ -86,7 +88,7 @@ class WatchlistItemResponse(BaseModel):
     # Narrative text fields
     narrative_action_plan: str | None = None
     narrative_position_sizing: str | None = None
-    narrative_company_health: dict[str, Any] | None = None
+    narrative_company_health: NarrativeBulletsDict | None = None
     narrative_special_notes: str | None = None
 
     # Fundamental/earnings fields
@@ -95,11 +97,11 @@ class WatchlistItemResponse(BaseModel):
     earnings_days_away: int | None = None
     # News & sentiment fields
     news_sentiment_score: float | None = None
-    recent_news: dict[str, Any] | None = None
-    news_intelligence: dict[str, Any] | None = None  # NewsIntelligence summary
+    recent_news: RecentNewsDict | None = None
+    news_intelligence: NewsIntelligenceDict | None = None  # NewsIntelligence summary
 
     # Priority indicators (NO cap - show all relevant)
-    priority_indicators: list[dict[str, Any]] = Field(
+    priority_indicators: list[dict[str, str | int | float | bool]] = Field(
         default_factory=list,
         description="Priority indicators (🔥 hot, 📋 earnings, 📰 news, etc.)",
     )

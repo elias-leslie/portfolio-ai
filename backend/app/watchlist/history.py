@@ -6,6 +6,7 @@ from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Any, cast
 
 from .models import WatchlistSnapshot
 
@@ -53,11 +54,19 @@ def build_score_timeline(
         overall_avg = _average(snap.overall_score for snap in bucket) or 0.0
 
         price_scores = (
-            snap.raw_metrics.get("price", {}).get("score") if snap.raw_metrics else None
+            (
+                cast(dict[str, Any], snap.raw_metrics).get("price", {}).get("score")
+                if snap.raw_metrics and isinstance(snap.raw_metrics, dict)
+                else None
+            )
             for snap in bucket
         )
         technical_scores = (
-            snap.raw_metrics.get("technical", {}).get("score") if snap.raw_metrics else None
+            (
+                cast(dict[str, Any], snap.raw_metrics).get("technical", {}).get("score")
+                if snap.raw_metrics and isinstance(snap.raw_metrics, dict)
+                else None
+            )
             for snap in bucket
         )
 
