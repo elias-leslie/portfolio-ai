@@ -28,7 +28,24 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **UI Standardization & UX Fixes** (MEDIUM-HIGH (4-6 hours, 12-15 files), 0/0 tasks (5 days ago))
+1. **CLI Agent Integration (Task 3.2a - Refactor ai_analyzer)** (HIGH (2-3 hours), PAUSED 2 days ago)
+   - File: `tasks-0060-cli-agent-integration.md`
+   - Created: 2025-11-14
+   - Goal: **PRIORITY**: Refactor ai_analyzer.py to use headless Claude CLI instead of broken Anthropic() client. This unblocks Task 0062 Phase 3 (AI-powered gap analysis).
+   - Status: PAUSED (2025-11-15) - Task 3.7 complete, need Task 3.2a
+   - **Blocker for**: Task 0062 Phase 3 (Gap Detection AI features)
+   - Next: Task 3.2a - Refactor backend/app/services/ai_analyzer.py
+   - Tasks:
+     - [ ] Task 0: Scope Discovery (MANDATORY)
+     - [ ] Task 1: Backend - LLM Client Abstraction Layer
+     - [ ] Task 2: Backend - CLI Adapters (Gemini + Claude)
+     - [ ] Task 3.2a: **PRIORITY** - Refactor ai_analyzer.py to use CLI (unblocks Task 0062)
+     - [ ] Task 4: Agent Runtime & Execution
+     - [ ] Task 5: Agent Storage & Telemetry
+     - [ ] Task 6: Frontend - UI Components
+     - [x] Task 3.7: Multi-Agent Collaboration ✅ COMPLETE
+
+2. **UI Standardization & UX Fixes** (MEDIUM-HIGH (4-6 hours, 12-15 files), 0/0 tasks (5 days ago))
    - File: `tasks-0055-ui-standardization-and-ux-fixes.md`
    - Created: 2025-11-12
    - Goal: Bring the Portfolio AI web UI up to a consistent design baseline by aligning headers, loading states, and critical interactions so that every surface communicates status clearly and meets accessibility expectations.
