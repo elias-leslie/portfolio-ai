@@ -179,11 +179,17 @@
   - [x] 4.2c: Fixed 6 df: Any → pd.DataFrame
   - [x] 4.2d: Fixed 14 Celery task self: Task parameters
   - [x] All mypy passing, commits 321c5da + 0d38202
-- [x] 4.3 ✅ Add TypedDict models - COMPLETE (13 instances eliminated)
+- [x] 4.3 ✅ Add TypedDict models - COMPLETE (2 instances eliminated)
   - [x] Created 7 TypedDict classes (Cache, ResourceMonitor x4, CBOE x2)
   - [x] Applied to 13 functions across 3 files
-  - [x] All mypy passing, commit (pending)
-- [ ] 4.4 Continue TypedDict conversion (100+ dict[str, Any] remaining)
+  - [x] All mypy passing, commit b815f2b
+- [x] 4.4 ✅ Add TypedDict models batch 2 - COMPLETE (5 instances eliminated)
+  - [x] Created 5 TypedDict classes for gaps.py API
+  - [x] Applied to 5 async API endpoint functions
+  - [x] All mypy passing, commit 6794ee5
+- [ ] 4.5 Continue TypedDict conversion (90+ dict[str, Any] remaining)
+  - Remaining patterns: JSON responses, external APIs, complex nested dicts
+  - Estimated: 50-80 more instances could be TypedDict with moderate effort
   - Pattern: Function params/returns with inferable types
   - Pattern: Redis/Cache values with known types
   - Pattern: Dict[str, Any] with consistent structure → TypedDict
