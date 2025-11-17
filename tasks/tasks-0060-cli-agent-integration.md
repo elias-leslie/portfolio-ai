@@ -76,9 +76,9 @@
 
 ---
 
-<!-- PAUSED: 2025-11-17 18:30 | Context: 54% | Reason: Natural checkpoint | Next: Task 3.0 continued - Testing & Integration -->
+<!-- PAUSED: 2025-11-17 19:00 | Context: 65% | Reason: User request | Next: Task 3.5 - Write unit tests for tool parsing -->
 
-**Status**: PAUSED (Tasks 0.0-2.0 COMPLETE, Task 3.0 70% COMPLETE - Core implementation done, testing pending)
+**Status**: PAUSED (Tasks 0.0-2.0 COMPLETE, Task 3.0 44% COMPLETE - 4/9 sub-tasks done)
 **Session**: 2025-11-17 (Tool calling protocol implementation)
 **Next**: Task 3.0 (remaining) - Write unit tests, E2E testing with Discovery agent
 **Completed This Session**:
@@ -225,10 +225,31 @@
   - TASK-0060-WORKING-SOLUTION.md with code examples
   - Type hints with mypy --strict compliance
 
-### 3.0 Refactor Backend Agent Execution
+### 3.0 Refactor Backend Agent Execution - 🔄 PARTIAL (4/9 sub-tasks complete)
 
-- [ ] 3.1 Inject `LLMClient` into `Agent` base class, removing direct `Anthropic` import/usage
-- [ ] 3.2 Update Discovery/Portfolio Analyzer (and future personas) to use provider profiles + new runtime
+- [x] 3.1 Design JSON-based tool calling protocol ✅ **COMPLETE** (2025-11-17)
+  - Created comprehensive design doc: tasks/TASK-0060-TOOL-CALLING-PROTOCOL.md
+  - Problem: CLIs don't support custom tool definitions
+  - Solution: Format tools in system prompt, parse JSON responses
+- [x] 3.2 Implement generate_with_tools() in LLMClient ✅ **COMPLETE** (2025-11-17)
+  - Added _format_system_with_tools() helper
+  - Added _parse_tool_calls() with 3 parsing strategies
+  - Added anti-hallucination safeguards
+- [x] 3.3 Refactor Agent.run() with dual paths ✅ **COMPLETE** (2025-11-17)
+  - _run_with_llm_client() (new CLI path)
+  - _run_with_anthropic_api() (legacy path)
+  - Added _format_tool_results() helper
+- [x] 3.4 Basic protocol testing ✅ **COMPLETE** (2025-11-17)
+  - Verified tool call parsing works
+  - Tested with get_news tool
+  - Confirmed Gemini → Claude failover
+- [ ] 3.5 Write unit tests for tool parsing
+  - Test _parse_tool_calls() with various JSON formats
+  - Test _format_system_with_tools()
+- [ ] 3.6 E2E testing with Discovery agent
+  - Test complete tool execution flow
+  - Verify multi-turn conversations
+- [ ] 3.7 Update Discovery/Portfolio Analyzer (and future personas) to use provider profiles + new runtime
 - [ ] 3.2a **Refactor CapabilityAnalyzer (Task 0059)** to use CLI adapter **[HIGH PRIORITY - UNBLOCKS TASK 0062]**
   - File: `backend/app/services/ai_analyzer.py`
   - Current: Uses `Anthropic()` client directly with model "claude-sonnet-4.5-20250929" **[BROKEN - no API key configured]**
