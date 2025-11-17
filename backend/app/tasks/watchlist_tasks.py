@@ -7,7 +7,10 @@ from __future__ import annotations
 
 import datetime as dt
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from celery import Task  # type: ignore[import-untyped]
 
 from app.celery_app import celery_app
 from app.logging_config import get_logger
@@ -168,7 +171,7 @@ def _build_skip_result(
 
 
 @celery_app.task(name="refresh_watchlist_scores", bind=True)  # type: ignore[misc]
-def refresh_watchlist_scores_task(self, account_id: str | None = None) -> dict[str, Any]:  # type: ignore[no-untyped-def]
+def refresh_watchlist_scores_task(self: Task, account_id: str | None = None) -> dict[str, Any]:
     """Refresh watchlist scores for all items or a specific account.
 
     This task runs every 1 minute via Celery Beat, but respects the user's

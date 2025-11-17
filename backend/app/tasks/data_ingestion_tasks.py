@@ -7,7 +7,10 @@ from __future__ import annotations
 
 import datetime as dt
 import uuid
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    pass
 
 from app.celery_app import celery_app
 from app.logging_config import get_logger

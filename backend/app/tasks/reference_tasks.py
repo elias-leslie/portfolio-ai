@@ -9,7 +9,10 @@ from __future__ import annotations
 
 import datetime as dt
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from celery import Task  # type: ignore[import-untyped]
 
 from app.celery_app import celery_app
 from app.logging_config import get_logger
@@ -257,7 +260,7 @@ def _process_cache_entries() -> tuple[int, int]:
 
 
 @celery_app.task(name="parse_valuation_metrics", bind=True)  # type: ignore[misc]
-def parse_valuation_metrics(self) -> dict[str, int | str]:  # type: ignore[no-untyped-def]
+def parse_valuation_metrics(self: Task) -> dict[str, int | str]:
     """Parse valuation metrics from cached JSON payloads.
 
     This task extracts valuation metrics (P/E, P/B, P/S, etc.) from JSON payloads
@@ -325,7 +328,7 @@ def parse_valuation_metrics(self) -> dict[str, int | str]:  # type: ignore[no-un
 
 
 @celery_app.task(name="refresh_yfinance_reference_data", bind=True)  # type: ignore[misc]
-def refresh_yfinance_reference_data(self) -> dict[str, int | str]:  # type: ignore[no-untyped-def]
+def refresh_yfinance_reference_data(self: Task) -> dict[str, int | str]:
     """Fetch reference data (including valuation metrics) from yfinance for watchlist symbols.
 
     Runs daily at 04:00 UTC to refresh fundamental and valuation data.
@@ -492,7 +495,7 @@ def _store_alphavantage_payload(symbols: list[str]) -> int:
 
 
 @celery_app.task(name="refresh_alphavantage_reference_backup", bind=True)  # type: ignore[misc]
-def refresh_alphavantage_reference_backup(self) -> dict[str, int | str]:  # type: ignore[no-untyped-def]
+def refresh_alphavantage_reference_backup(self: Task) -> dict[str, int | str]:
     """Fetch Alpha Vantage reference data for symbols with missing/stale yfinance data.
 
     Runs daily at 04:45 UTC, after yfinance refresh.

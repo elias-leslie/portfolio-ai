@@ -7,7 +7,10 @@ and market sentiment metrics like Fear & Greed Index.
 from __future__ import annotations
 
 import datetime as dt
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from celery import Task  # type: ignore[import-untyped]
 
 import redis
 
@@ -468,7 +471,7 @@ def _invalidate_redis_cache() -> None:
 
 
 @celery_app.task(name="calculate_fear_greed", bind=True)  # type: ignore[misc]
-def calculate_fear_greed(self, as_of_date: str | None = None) -> dict[str, Any]:  # type: ignore[no-untyped-def]
+def calculate_fear_greed(self: Task, as_of_date: str | None = None) -> dict[str, Any]:
     """Calculate Fear & Greed Index from inputs table.
 
     This task calculates percentile rankings for each component (VIX, Momentum,

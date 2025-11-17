@@ -26,6 +26,9 @@ from app.portfolio.price_fetcher import PriceDataFetcher
 from app.services import NewsService
 from app.sources.fred import FREDSource
 from app.storage import get_storage
+
+if TYPE_CHECKING:
+    from celery import Task  # type: ignore[import-untyped]
 from app.storage.credential_loader import load_credentials_from_database
 
 if TYPE_CHECKING:
@@ -83,7 +86,7 @@ def _update_celery_task_id(storage: PortfolioStorage, task_id: str, run_id: str)
 
 
 @celery_app.task(name="run_discovery_agent", bind=True)  # type: ignore[misc]
-def run_discovery_agent(self) -> str:  # type: ignore[no-untyped-def]
+def run_discovery_agent(self: Task) -> str:
     """Run discovery agent as a background task.
 
     Returns:
@@ -125,7 +128,7 @@ def run_discovery_agent(self) -> str:  # type: ignore[no-untyped-def]
 
 
 @celery_app.task(name="run_portfolio_analyzer", bind=True)  # type: ignore[misc]
-def run_portfolio_analyzer(self) -> str:  # type: ignore[no-untyped-def]
+def run_portfolio_analyzer(self: Task) -> str:
     """Run portfolio analyzer agent as a background task.
 
     Returns:
