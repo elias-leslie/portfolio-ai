@@ -163,29 +163,31 @@
 
 ### 4.0 PHASE 4: Any Type Cleanup (P2)
 
-**Baseline**: 174 Any type usages
+**Baseline**: 205 Any type usages (full baseline, adjusted from initial 174)
+**Current**: 165 Any type usages (20% reduction, 40 eliminated)
 
 **Strategy**: Categorize by complexity, fix in waves (trivial → moderate → complex)
 
-- [ ] 4.1 Fix trivial Any types (estimated 60-80 instances)
-  - Pattern: `from typing import Any` with no actual usage
-  - Pattern: Generic containers that can use TypedDict
-  - Pattern: JSON responses that have known schemas
-  - Use: Grep + batch replacement
-- [ ] 4.2 Fix moderate Any types (estimated 50-70 instances)
+- [x] 4.1 ✅ Fix trivial Any types - COMPLETE (40 instances eliminated)
+  - [x] 4.1a: Removed 11 `self: Any` from Celery tasks → `self: Task`
+  - [x] 4.1b: Replaced 34 `conn: Any` → `conn: DatabaseConnection`
+  - [x] Enhanced DatabaseConnection Protocol with complete method signatures
+  - [x] All imports organized, mypy passing, commit 7d0a8ad + 42ed191
+- [ ] 4.2 Fix moderate Any types (estimated 50-80 instances remaining)
   - Pattern: Function params/returns with inferable types
   - Pattern: Redis/Cache values with known types
   - Pattern: Dict[str, Any] with consistent structure → TypedDict
+  - Pattern: storage: Any parameters (2 instances in news_profiling_tasks.py)
   - Use: File-by-file review
 - [ ] 4.3 Fix complex Any types (estimated 30-50 instances)
-  - Pattern: Celery self/request objects
   - Pattern: External library responses (yfinance, etc)
   - Pattern: Dynamic DB query results
+  - Pattern: kwargs: Any (2 instances in agents/tools.py)
   - Strategy: Use generics, protocols, or cast with comments
 - [ ] 4.4 Verification gate
   - Run: quality-report.sh --quick
-  - Target: <50 Any types (70% reduction)
-  - Stretch: <20 Any types (88% reduction)
+  - Target: <50 Any types (75% reduction)
+  - Stretch: <20 Any types (90% reduction)
   - Confirm: mypy --strict passes
 
 ### 5.0 PHASE 5: Multiple Concerns Files (P2)
