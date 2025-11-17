@@ -12,7 +12,6 @@ from __future__ import annotations
 import json
 import os
 from datetime import UTC, datetime
-from typing import Any
 
 import redis
 
@@ -22,10 +21,10 @@ logger = get_logger(__name__)
 
 # Redis client for tracking refresh progress
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
-_redis_client: Any = None
+_redis_client: redis.Redis[str] | None = None
 
 
-def get_redis_client() -> Any:  # redis.Redis with decode_responses=True
+def get_redis_client() -> redis.Redis[str]:  # redis.Redis with decode_responses=True
     """Get or create Redis client for progress tracking."""
     global _redis_client  # noqa: PLW0603
     if _redis_client is None:

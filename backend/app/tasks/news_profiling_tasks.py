@@ -20,6 +20,7 @@ from app.services.news_quality_metrics import (
     load_quality_weights_from_preferences,
 )
 from app.storage import get_storage
+from app.storage.facade import PortfolioStorage
 
 if TYPE_CHECKING:
     from celery import Task  # type: ignore[import-untyped]
@@ -131,7 +132,7 @@ def _should_skip_profiling(
 
 
 def _calculate_vendor_metrics(
-    storage: Any,
+    storage: PortfolioStorage,
     vendor: str,
     window_start: datetime,
     window_end: datetime,
@@ -174,7 +175,7 @@ def _calculate_vendor_metrics(
 
 
 def _process_all_vendors(
-    storage: Any,
+    storage: PortfolioStorage,
     vendors: list[str],
     window_start: datetime,
     window_end: datetime,

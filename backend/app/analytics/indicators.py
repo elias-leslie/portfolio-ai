@@ -8,10 +8,13 @@ from __future__ import annotations
 
 import datetime as dt
 from importlib import import_module
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from app.logging_config import get_logger
 from app.storage import PortfolioStorage
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 pd = cast(Any, import_module("pandas"))
 ta = cast(Any, import_module("pandas_ta"))
@@ -34,7 +37,9 @@ DEFAULT_INDICATORS = [
 ]
 
 
-def _calculate_rsi(df: Any, indicators: list[str], indicator_values: dict[str, Any]) -> None:
+def _calculate_rsi(
+    df: pd.DataFrame, indicators: list[str], indicator_values: dict[str, Any]
+) -> None:
     """Calculate RSI indicator and add to indicator_values dict.
 
     Args:
@@ -47,7 +52,9 @@ def _calculate_rsi(df: Any, indicators: list[str], indicator_values: dict[str, A
         indicator_values["rsi_14"] = float(rsi.iloc[-1]) if not rsi.empty else None
 
 
-def _calculate_macd(df: Any, indicators: list[str], indicator_values: dict[str, Any]) -> None:
+def _calculate_macd(
+    df: pd.DataFrame, indicators: list[str], indicator_values: dict[str, Any]
+) -> None:
     """Calculate MACD indicator and add to indicator_values dict.
 
     Args:
@@ -65,7 +72,9 @@ def _calculate_macd(df: Any, indicators: list[str], indicator_values: dict[str, 
             }
 
 
-def _calculate_bbands(df: Any, indicators: list[str], indicator_values: dict[str, Any]) -> None:
+def _calculate_bbands(
+    df: pd.DataFrame, indicators: list[str], indicator_values: dict[str, Any]
+) -> None:
     """Calculate Bollinger Bands and add to indicator_values dict.
 
     Args:
@@ -84,7 +93,7 @@ def _calculate_bbands(df: Any, indicators: list[str], indicator_values: dict[str
 
 
 def _calculate_moving_averages(
-    df: Any, indicators: list[str], indicator_values: dict[str, Any]
+    df: pd.DataFrame, indicators: list[str], indicator_values: dict[str, Any]
 ) -> None:
     """Calculate all moving averages (SMA and EMA) and add to indicator_values dict.
 
@@ -108,7 +117,9 @@ def _calculate_moving_averages(
             indicator_values[key] = float(ema.iloc[-1]) if not ema.empty else None
 
 
-def _calculate_atr(df: Any, indicators: list[str], indicator_values: dict[str, Any]) -> None:
+def _calculate_atr(
+    df: pd.DataFrame, indicators: list[str], indicator_values: dict[str, Any]
+) -> None:
     """Calculate ATR indicator and add to indicator_values dict.
 
     Args:
@@ -121,7 +132,9 @@ def _calculate_atr(df: Any, indicators: list[str], indicator_values: dict[str, A
         indicator_values["atr_14"] = float(atr.iloc[-1]) if not atr.empty else None
 
 
-def _calculate_stochastic(df: Any, indicators: list[str], indicator_values: dict[str, Any]) -> None:
+def _calculate_stochastic(
+    df: pd.DataFrame, indicators: list[str], indicator_values: dict[str, Any]
+) -> None:
     """Calculate Stochastic oscillator and add to indicator_values dict.
 
     Args:
