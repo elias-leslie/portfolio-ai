@@ -320,18 +320,53 @@ def get_beat_schedule() -> dict[str, object]:
             # - Critical for proactive monitoring before AI agents break things
         },
         # ============================================================================
+        # TRADING INTELLIGENCE GAP DETECTION
+        # ============================================================================
+        # These tasks monitor and alert on data gaps that limit trading edge
+        # ============================================================================
+        "analyze-trading-gaps-daily": {
+            "task": "analyze_trading_gaps",
+            "schedule": crontab(hour=3, minute=25),  # Daily at 03:25 UTC (after capabilities)
+            "options": {"expires": 900},  # Task expires after 15 minutes
+            # Notes:
+            # - Runs daily at 03:25 UTC (after capability analysis at 03:15)
+            # - Identifies missing data capabilities needed for trading strategies
+            # - Calculates coverage % per analysis type (technical, fundamental, etc.)
+            # - Stores results in gap_analysis_history table for trending
+            # - Critical for understanding what data limits trading edge
+        },
+        "track-gap-trends": {
+            "task": "track_gap_trends",
+            "schedule": crontab(hour=3, minute=28),  # Daily at 03:28 UTC (after gap analysis)
+            "options": {"expires": 300},  # Task expires after 5 minutes
+            # Notes:
+            # - Runs daily at 03:28 UTC (3 minutes after gap analysis)
+            # - Analyzes 30-day trends: coverage improvements, regressions
+            # - Tracks: "Fundamental coverage improved 40% → 65% this month"
+            # - Helps prioritize gap-filling efforts
+        },
+        "alert-critical-gaps": {
+            "task": "alert_critical_gaps",
+            "schedule": crontab(hour=3, minute=29),  # Daily at 03:29 UTC (before workflow)
+            "options": {"expires": 300},  # Task expires after 5 minutes
+            # Notes:
+            # - Runs daily at 03:29 UTC (just before workflow at 03:30)
+            # - Creates status log entries for:
+            #   * P0 (critical) gaps blocking trading strategies
+            #   * Analysis types with coverage <50%
+            # - Alerts visible in system health dashboard
+        },
+        # ============================================================================
         # MULTI-AGENT WORKFLOW TASKS
         # ============================================================================
         # These tasks orchestrate collaboration between multiple AI agents
         # ============================================================================
         "daily-gap-analysis-workflow": {
             "task": "app.tasks.workflow_tasks.daily_gap_analysis_workflow",
-            "schedule": crontab(
-                hour=3, minute=30
-            ),  # Daily at 03:30 UTC (after capability analysis)
+            "schedule": crontab(hour=3, minute=30),  # Daily at 03:30 UTC (after gap alerts)
             "options": {"expires": 1800},  # Task expires after 30 minutes
             # Notes:
-            # - Runs daily at 03:30 UTC (after capability analysis at 03:15)
+            # - Runs daily at 03:30 UTC (after gap alerts at 03:29)
             # - Multi-agent workflow:
             #   1. Gemini agent analyzes current market gaps
             #   2. Claude agent validates and enhances analysis
