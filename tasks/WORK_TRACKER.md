@@ -20,7 +20,7 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-(No active tasks)
+(No active tasks - ready for next work item)
 
 ---
 
@@ -28,24 +28,7 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Trading Intelligence Gap Detection (Phase 2 Completion + Phase 3)** (HIGH (15-20 hours), 4/10 tasks (4 days ago))
-   - File: `tasks-0062-trading-intelligence-gap-detection.md`
-   - Created: 2025-11-13
-   - Goal: Build gap detection system that identifies missing data capabilities needed for profitable trading strategies. Primary purpose: Help AI trading agent (Claude) detect what data it's missing to provide true edge and successful trading insights. Extend existing capabilities feature with trading-focused gap analysis.
-   - Status: PAUSED (2025-11-15)
-   - Tasks:
-     - [x] Task 0: Scope Discovery (MANDATORY)
-     - [x] Task 1: Define Trading Analysis Requirements Framework
-     - [x] Task 2: Backend - Gap Detection Engine ✅ COMPLETE
-     - [x] Task 3: Frontend - Gap Detection UI (Extend Capabilities) - ✅ COMPLETE (6/6 complete)
-     - [ ] Task 4: AI-Powered Gap Analysis & Recommendations **[DEFERRED TO PHASE 3]**
-     - [ ] Task 5: Integration with Trading Workflows - 🔄 PARTIAL (3/4 complete)
-     - [ ] Task 6: Scheduled Gap Analysis & Monitoring
-     - [ ] Task 7: Documentation & Examples
-     - [ ] Task 8: Testing & Verification
-     - [ ] Task 9: Baseline & Production Deployment
-
-2. **UI Standardization & UX Fixes** (MEDIUM-HIGH (4-6 hours, 12-15 files), 0/0 tasks (5 days ago))
+1. **UI Standardization & UX Fixes** (MEDIUM-HIGH (4-6 hours, 12-15 files), 0/0 tasks (5 days ago))
    - File: `tasks-0055-ui-standardization-and-ux-fixes.md`
    - Created: 2025-11-12
    - Goal: Bring the Portfolio AI web UI up to a consistent design baseline by aligning headers, loading states, and critical interactions so that every surface communicates status clearly and meets accessibility expectations.
@@ -125,7 +108,31 @@
 
 *Last 5 completions - older items auto-archive to tasks/archive/YYYY-MM.md*
 
-1. **Comprehensive Code Quality Cleanup (Phases 1-5)** ✅ COMPLETE (2025-11-17)
+1. **Trading Intelligence Gap Detection (Phase 2)** ✅ COMPLETE (2025-11-17)
+   - File: `tasks-0062-trading-intelligence-gap-detection.md`
+   - Completed: 2025-11-17 (via /do_it --max)
+   - Duration: ~12 hours (Phase 2 only, ~3 hours today)
+   - Summary: Completed scheduled monitoring, documentation, testing, and baseline deployment
+   - Key achievements:
+     - ✅ Task 6: Added 3 scheduled gap tasks to Celery beat (03:25-03:29 UTC)
+     - ✅ Task 7: Created comprehensive 300+ line user guide
+     - ✅ Task 8: Fixed TypedDict serialization bug, verified all tasks work
+     - ✅ Task 9: Generated baseline (37 gaps, 25.9% coverage), enabled monitoring
+     - ⏸️  Task 5.4: DEFERRED (complex scheduler refactor, low value)
+   - Baseline findings:
+     - 37 total gaps (12 P0 critical, 23 P1 high, 2 P2 medium)
+     - Adequate: Technical (76.9%), Sentiment (75.0%)
+     - Critical gaps: Fundamental (0%), Risk (0%), ML Infrastructure (0%)
+     - TOP 10 gaps prioritized by impact × ease
+   - Code quality:
+     - Ruff: ✅ passing
+     - Fixed: maintenance_log migration + psycopg2 TypedDict bug
+   - Commits: 40a7730, c11a695, ebb90ad
+   - Documentation: 2 comprehensive reference docs created
+   - Impact: Automated daily gap monitoring now operational, baseline established
+   - Phase 3: Blocked on Task 0060 (AI-powered features require working ai_analyzer)
+
+2. **Comprehensive Code Quality Cleanup (Phases 1-5)** ✅ COMPLETE (2025-11-17)
    - File: `tasks-0069-comprehensive-code-quality-cleanup.md`
    - Completed: 2025-11-17 (2 sessions: yesterday + today)
    - Duration: ~15 hours total
