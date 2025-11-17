@@ -2,7 +2,42 @@
  * Unified API client with retry logic and error handling
  */
 
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
+/**
+ * Get the correct API base URL based on how the user is accessing the site.
+ * - Tailscale (100.123.190.81:3000) → Use Tailscale backend (100.123.190.81:8000)
+ * - Local network (192.168.8.233:3000) → Use local backend (192.168.8.233:8000)
+ * - Localhost → Use localhost:8000
+ */
+function getApiBaseUrl(): string {
+  // Server-side rendering: use environment variable
+  if (typeof window === "undefined") {
+    return process.env.NEXT_PUBLIC_API_URL || "http://192.168.8.233:8000";
+  }
+
+  // Client-side: detect based on current hostname
+  const hostname = window.location.hostname;
+  const port = 8000; // Backend always on port 8000
+
+  // Tailscale access
+  if (hostname === "100.123.190.81") {
+    return `http://100.123.190.81:${port}`;
+  }
+
+  // Local network access
+  if (hostname === "192.168.8.233") {
+    return `http://192.168.8.233:${port}`;
+  }
+
+  // Localhost/127.0.0.1
+  if (hostname === "localhost" || hostname === "127.0.0.1") {
+    return `http://localhost:${port}`;
+  }
+
+  // Fallback to environment variable or local network
+  return process.env.NEXT_PUBLIC_API_URL || `http://${hostname}:${port}`;
+}
+
+export const API_BASE_URL = getApiBaseUrl();
 
 /**
  * Custom API error class with status code
