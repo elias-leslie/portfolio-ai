@@ -20,7 +20,20 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **CLI Agent Integration (Task 0060 - Tasks 0-2 COMPLETE, Task 3 Testing COMPLETE)** (33% - 2/6 complete)
+1. **Tailscale Remote Access Fix** ⚠️ URGENT - User on vacation (2025-11-17)
+   - File: `tasks/TAILSCALE-ACCESS-ISSUE.md`
+   - Status: Backend ✅ running | Frontend ⚠️ 500 error on Tailscale IP
+   - Issue: http://100.123.190.81:3000 returns 500 Internal Server Error
+   - Progress:
+     - [x] Backend permissions fixed (logs, files, directories)
+     - [x] Frontend dynamic API URL detection added
+     - [x] Turbopack build error fixed
+     - [x] Backend health check passing
+     - [ ] Frontend 500 error on Tailscale IP (needs debugging)
+   - Next: Check frontend binding (0.0.0.0 vs 127.0.0.1), view error logs
+   - Commits: 8472e7a, de4bd16
+
+2. **CLI Agent Integration (Task 0060 - Tasks 0-2 COMPLETE, Task 3 Testing COMPLETE)** (33% - 2/6 complete)
    - File: `tasks-0060-cli-agent-integration.md`
    - Started: 2025-02-14 (9 months ago)
    - Last updated: Task 3.0 ✅ **COMPLETE** (9/9 sub-tasks, 100%) - PAUSED
@@ -40,14 +53,30 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **UI Standardization & UX Fixes** (MEDIUM-HIGH (4-6 hours, 12-15 files), 0/0 tasks (5 days ago))
+1. **Fix All Mypy --Strict Errors** (HIGH, 0/10 tasks (today))
+   - File: `tasks-0070-fix-all-mypy-errors.md`
+   - Created: 2025-11-17
+   - Goal: Achieve full mypy --strict compliance across entire backend codebase to unblock pre-commit hook
+   - Tasks:
+     - [ ] Task 0: Scope Discovery & Categorization (MANDATORY)
+     - [ ] Task 1: Fix union-attr Errors (Parallel Group A)
+     - [ ] Task 2: Fix arg-type Errors (Parallel Group B)
+     - [ ] Task 3: Fix return-value Errors (Parallel Group C)
+     - [ ] Task 4: Fix list-item & operator Errors (Parallel Group D)
+     - [ ] Task 5: Fix index & assignment Errors (Parallel Group E)
+     - [ ] Task 6: Fix TypedDict & Misc Errors (Parallel Group F)
+     - [ ] Task 7: Add Missing Type Hints (Bonus - Parallel)
+     - [ ] Task 8: Reduce Any Types (Bonus - Parallel)
+     - [ ] Task 9: Final Verification & Cleanup
+
+2. **UI Standardization & UX Fixes** (MEDIUM-HIGH (4-6 hours, 12-15 files), 0/0 tasks (5 days ago))
    - File: `tasks-0055-ui-standardization-and-ux-fixes.md`
    - Created: 2025-11-12
    - Goal: Bring the Portfolio AI web UI up to a consistent design baseline by aligning headers, loading states, and critical interactions so that every surface communicates status clearly and meets accessibility expectations.
    - Tasks:
      - (No tasks defined yet)
 
-2. **Development Process Optimization** (MEDIUM (4-6 hours), 5/7 tasks (5 days ago))
+3. **Development Process Optimization** (MEDIUM (4-6 hours), 5/7 tasks (5 days ago))
    - File: `tasks-0054-dev-process-optimization.md`
    - Created: 2025-11-12
    - Goal: Reduce development cycle time from 15-20 min to 5-7 min (3x faster) by fixing test performance and workflow bottlenecks.
@@ -60,7 +89,7 @@
      - [x] Task 6: Medium: Add Smoke Test Markers ✅ **COMPLETE**
      - [ ] Task 7: Medium: Reduce Large Service Files ⏸️ **DEFERRED**
 
-3. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (6 days ago))
+4. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (6 days ago))
    - File: `tasks-0042-customizable-dashboard-layouts.md`
    - Created: 2025-11-11
    - Goal: Enable users to customize dashboard layouts by dragging/resizing cards, with persistence to PostgreSQL backend
@@ -76,7 +105,7 @@
      - [ ] Task 9: Polish and Edge Cases
      - [ ] Task 10: Testing and Documentation
 
-4. **Trading Intelligence Roadmap** (High, 4/8 tasks)
+5. **Trading Intelligence Roadmap** (High, 4/8 tasks)
    - File: `tasks-trading-intelligence-roadmap.md`
    - Created: Unknown
    - Tasks:
@@ -89,7 +118,7 @@
      - [ ] Task 7: Frontend & UX
      - [ ] Task 8: Governance & documentation
 
-5. **Response Caching Middleware** (TBD, 0/8 tasks (6 days ago))
+6. **Response Caching Middleware** (TBD, 0/8 tasks (6 days ago))
    - File: `tasks-0047-response-caching-middleware.md`
    - Created: 2025-11-11
    - Tasks:
@@ -102,7 +131,7 @@
      - [ ] Task 7: Cache Management Endpoints
      - [ ] Task 8: Integration and Configuration
 
-6. **Settings & Status Standardization** (HIGH, 3/5 tasks (4 days ago))
+7. **Settings & Status Standardization** (HIGH, 3/5 tasks (4 days ago))
    - File: `tasks-0058-settings-and-status-standardization.md`
    - Created: 2025-11-13
    - Goal: Fully align the Status and Settings pages with the new UI system (PageHeader, SectionCard, ExpandableCard) while eliminating redundant data and ensuring DRY logic for collapsible cards, summaries, and defaults.
