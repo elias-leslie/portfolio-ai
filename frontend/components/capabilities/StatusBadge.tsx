@@ -7,7 +7,7 @@ import type { InsightSeverity } from "@/lib/api/capabilities";
 
 interface StatusBadgeProps {
   type: "severity" | "freshness" | "status" | "category" | "health";
-  value: string;
+  value: string | null | undefined;
   className?: string;
 }
 
@@ -52,7 +52,15 @@ function getSeverityStyle(severity: InsightSeverity) {
 /**
  * Get badge variant and icon for freshness status
  */
-function getFreshnessStyle(status: string) {
+function getFreshnessStyle(status: string | null | undefined) {
+  if (!status) {
+    return {
+      variant: "secondary" as const,
+      icon: "❓",
+      className: "bg-muted text-muted-foreground",
+    };
+  }
+
   switch (status) {
     case "fresh":
       return {
@@ -90,7 +98,15 @@ function getFreshnessStyle(status: string) {
 /**
  * Get badge variant for insight/note status
  */
-function getStatusStyle(status: string) {
+function getStatusStyle(status: string | null | undefined) {
+  if (!status) {
+    return {
+      variant: "secondary" as const,
+      icon: "❓",
+      className: "bg-muted text-muted-foreground",
+    };
+  }
+
   switch (status) {
     case "confirmed":
       return {
@@ -186,7 +202,15 @@ function getCategoryStyle(category: string | null | undefined) {
 /**
  * Get badge variant for health status
  */
-function getHealthStyle(health: string) {
+function getHealthStyle(health: string | null | undefined) {
+  if (!health) {
+    return {
+      variant: "secondary" as const,
+      icon: "❓",
+      className: "bg-muted text-muted-foreground",
+    };
+  }
+
   switch (health.toLowerCase()) {
     case "active":
       return {
@@ -225,6 +249,16 @@ function getHealthStyle(health: string) {
  * StatusBadge component
  */
 export function StatusBadge({ type, value, className = "" }: StatusBadgeProps) {
+  // Handle null/undefined value
+  if (!value) {
+    return (
+      <Badge variant="secondary" className={`bg-muted text-muted-foreground ${className}`.trim()}>
+        <span className="mr-1">❓</span>
+        Unknown
+      </Badge>
+    );
+  }
+
   let style;
   let displayValue = value;
 
