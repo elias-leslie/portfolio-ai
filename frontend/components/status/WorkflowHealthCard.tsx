@@ -6,10 +6,28 @@ import { WorkflowHealthInfo } from "@/lib/api/status";
 import { ExpandableCard } from "@/components/status/ExpandableCard";
 
 interface WorkflowHealthCardProps {
-  workflowHealth: WorkflowHealthInfo;
+  workflowHealth: WorkflowHealthInfo | undefined;
 }
 
 export function WorkflowHealthCard({ workflowHealth }: WorkflowHealthCardProps) {
+  if (!workflowHealth) {
+    return (
+      <ExpandableCard
+        title={
+          <div className="flex items-center gap-2">
+            <Activity className="h-5 w-5" />
+            <span>Workflow Health</span>
+          </div>
+        }
+        description="Autonomous trading workflow execution status (24h)."
+        summary="No workflow data available"
+        defaultCollapsed
+      >
+        <p className="text-sm text-muted-foreground">No workflow health data available.</p>
+      </ExpandableCard>
+    );
+  }
+
   const summary = `${workflowHealth.total_workflows_24h} workflows • ${workflowHealth.successful_workflows} complete • ${workflowHealth.success_rate.toFixed(1)}% success`;
 
   return (

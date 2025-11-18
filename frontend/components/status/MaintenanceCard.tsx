@@ -335,15 +335,13 @@ export function MaintenanceCard() {
     setIsLoading(true);
     try {
       const result = await validateIntegrity(dryRun);
-      const summary = result.summary;
-      const totalIssues =
-        (summary?.total_errors || 0) +
-        (summary?.total_warnings || 0) +
-        (summary?.total_info || 0);
+      const summary = result.summary as Record<string, unknown> | null;
+      const totalErrors = typeof summary?.total_errors === 'number' ? summary.total_errors : 0;
+      const totalWarnings = typeof summary?.total_warnings === 'number' ? summary.total_warnings : 0;
+      const totalInfo = typeof summary?.total_info === 'number' ? summary.total_info : 0;
+      const totalIssues = totalErrors + totalWarnings + totalInfo;
       toast.success(
-        `Validation ${result.status}: ${totalIssues} issues found (${
-          summary?.total_errors || 0
-        } errors, ${summary?.total_warnings || 0} warnings)`,
+        `Validation ${result.status}: ${totalIssues} issues found (${totalErrors} errors, ${totalWarnings} warnings)`,
       );
       await fetchLastRunData();
     } catch (error) {

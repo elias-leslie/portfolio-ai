@@ -340,8 +340,7 @@ export function GapsList({ gaps, onSelectionChange }: GapsListProps) {
       <div className="grid grid-cols-[auto_60px_150px_200px_80px_120px_80px_auto] gap-3 border-b border-border bg-surface-muted px-4 py-3 text-xs font-medium text-muted-foreground">
         <div className="flex items-center gap-2">
           <Checkbox
-            checked={allSelected}
-            indeterminate={someSelected}
+            checked={allSelected || someSelected}
             onCheckedChange={toggleSelectAll}
           />
         </div>
