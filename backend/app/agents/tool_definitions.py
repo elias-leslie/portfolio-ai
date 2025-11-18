@@ -342,6 +342,58 @@ def get_wait_response_tool_definition() -> dict[str, object]:
     }
 
 
+def get_run_backtest_tool_definition() -> dict[str, object]:
+    """Get run_backtest tool definition for strategy validation."""
+    return {
+        "name": "run_backtest",
+        "description": "Execute a backtest to validate a trading strategy using historical data. "
+        "Returns performance metrics including Sharpe ratio, win rate, max drawdown, and total return.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ticker": {
+                    "type": "string",
+                    "description": "Stock ticker symbol (e.g., 'AAPL', 'NVDA')",
+                },
+                "start_date": {
+                    "type": "string",
+                    "description": "Backtest start date (ISO format: YYYY-MM-DD)",
+                },
+                "end_date": {
+                    "type": "string",
+                    "description": "Backtest end date (ISO format: YYYY-MM-DD)",
+                },
+                "strategy": {
+                    "type": "string",
+                    "description": "Strategy name (default: 'signal_classifier')",
+                    "default": "signal_classifier",
+                },
+                "min_signal_strength": {
+                    "type": "integer",
+                    "description": "Minimum signal strength for entry (1-10, default: 7)",
+                    "default": 7,
+                },
+                "max_holding_days": {
+                    "type": "integer",
+                    "description": "Maximum holding period in days (default: 60)",
+                    "default": 60,
+                },
+                "position_sizing_method": {
+                    "type": "string",
+                    "description": "Position sizing method: 'fixed_dollars' or 'fixed_shares' (default: 'fixed_dollars')",
+                    "default": "fixed_dollars",
+                },
+                "position_size_value": {
+                    "type": "number",
+                    "description": "Position size in dollars or shares (default: 10000.00)",
+                    "default": 10000.00,
+                },
+            },
+            "required": ["ticker", "start_date", "end_date"],
+        },
+    }
+
+
 __all__ = [
     "get_add_ticker_tool_definition",
     "get_create_paper_trade_tool_definition",
@@ -351,6 +403,7 @@ __all__ = [
     "get_price_data_tool_definition",
     "get_query_memory_tool_definition",
     "get_remove_ticker_tool_definition",
+    "get_run_backtest_tool_definition",
     "get_send_message_tool_definition",
     "get_store_idea_tool_definition",
     "get_vote_decision_tool_definition",

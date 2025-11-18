@@ -22,6 +22,7 @@ from .health_checks import (
     get_day_bars_freshness,
     get_watchlist_stats,
 )
+from .health_workflows import get_workflow_health, get_workflow_metrics
 
 logger = get_logger(__name__)
 
@@ -122,6 +123,22 @@ class DiskUsageInfo(BaseModel):
     status: Literal["ok", "warning", "critical"]
 
 
+class WorkflowHealthInfo(BaseModel):
+    """Workflow health status information."""
+
+    status: Literal["healthy", "warning", "critical"]
+    total_workflows_24h: int
+    successful_workflows: int
+    failed_workflows: int
+    blocked_workflows: int
+    success_rate: float
+    avg_duration_s: int | None = None
+    last_successful_workflow: datetime | None = None
+    last_successful_type: str | None = None
+    failures_by_type: dict[str, int]
+    blocked_by_type: dict[str, int]
+
+
 class HealthCheckService:
     """Service for performing health checks."""
 
@@ -195,6 +212,21 @@ class HealthCheckService:
             avg_cost_usd=agent_stats_internal.avg_cost_usd,
         )
 
+        workflow_health_internal = get_workflow_health(self.storage)
+        workflow_health_model = WorkflowHealthInfo(
+            status=workflow_health_internal.status,
+            total_workflows_24h=workflow_health_internal.total_workflows_24h,
+            successful_workflows=workflow_health_internal.successful_workflows,
+            failed_workflows=workflow_health_internal.failed_workflows,
+            blocked_workflows=workflow_health_internal.blocked_workflows,
+            success_rate=workflow_health_internal.success_rate,
+            avg_duration_s=workflow_health_internal.avg_duration_s,
+            last_successful_workflow=workflow_health_internal.last_successful_workflow,
+            last_successful_type=workflow_health_internal.last_successful_type,
+            failures_by_type=workflow_health_internal.failures_by_type,
+            blocked_by_type=workflow_health_internal.blocked_by_type,
+        )
+
         watchlist_stats_internal = get_watchlist_stats(self.storage)
         watchlist_stats_model = WatchlistStats(
             total_items=watchlist_stats_internal.total_items,
@@ -228,6 +260,7 @@ class HealthCheckService:
             "agent_stats": agent_stats_model,
             "watchlist_stats": watchlist_stats_model,
             "api_quotas": api_quotas_model,
+            "workflow_health": workflow_health_model,
         }
 
     def perform_detailed_health_check(self) -> dict[str, Any]:
@@ -277,6 +310,8 @@ class HealthCheckService:
             status=cast(Literal["ok", "warning", "critical"], disk_usage_internal["status"]),
         )
 
+        workflow_metrics = get_workflow_metrics(self.storage)
+
         logger.info(
             "detailed_health_check_performed",
             status=base_health["status"],
@@ -294,4 +329,5 @@ class HealthCheckService:
             "celery_worker": celery_worker_model,
             "api_keys": api_keys_model,
             "disk_usage": disk_usage_model,
+            "workflow_metrics": workflow_metrics,
         }

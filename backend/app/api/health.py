@@ -27,6 +27,7 @@ from ..utils.health_service import (
     HealthCheckService,
     SourceHealthCheck,
     WatchlistStats,
+    WorkflowHealthInfo,
 )
 
 logger = get_logger(__name__)
@@ -52,10 +53,7 @@ class HealthCheckResponse(BaseModel):
     agent_stats: AgentStats | None = None
     watchlist_stats: WatchlistStats | None = None
     api_quotas: list[APIQuotaInfo] = Field(default_factory=list)
-    workflow_health: dict[str, Any] = Field(
-        default_factory=dict,
-        description="Workflow health status and metrics",
-    )
+    workflow_health: WorkflowHealthInfo | None = None
 
 
 class DetailedHealthCheckResponse(HealthCheckResponse):
