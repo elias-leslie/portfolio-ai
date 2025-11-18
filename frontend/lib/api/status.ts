@@ -31,6 +31,7 @@ export interface HealthResponse {
   agent_stats?: AgentStats;
   watchlist_stats?: WatchlistStats;
   api_quotas?: APIQuotaInfo[];
+  workflow_health?: WorkflowHealthInfo;
 }
 
 export interface CheckResult {
@@ -123,6 +124,33 @@ export interface DiskUsageInfo {
   status: "ok" | "warning" | "critical";
 }
 
+export interface WorkflowHealthInfo {
+  status: "healthy" | "warning" | "critical";
+  total_workflows_24h: number;
+  successful_workflows: number;
+  failed_workflows: number;
+  blocked_workflows: number;
+  success_rate: number;
+  avg_duration_s?: number;
+  last_successful_workflow?: string;
+  last_successful_type?: string;
+  failures_by_type: Record<string, number>;
+  blocked_by_type: Record<string, number>;
+}
+
+export interface WorkflowMetrics {
+  recent_workflows: Array<{
+    id: number;
+    type: string;
+    status: string;
+    created_at: string | null;
+  }>;
+  summary_by_type: Record<string, Record<string, number>>;
+  total_by_status: Record<string, number>;
+  total_workflows_7d: number;
+  success_rate: number;
+}
+
 /**
  * Detailed health check response with additional system information
  */
@@ -131,6 +159,7 @@ export interface DetailedHealthResponse extends HealthResponse {
   celery_worker?: CeleryWorkerStatus;
   api_keys?: APIKeyStatusInfo[];
   disk_usage?: DiskUsageInfo;
+  workflow_metrics?: WorkflowMetrics;
 }
 
 /**

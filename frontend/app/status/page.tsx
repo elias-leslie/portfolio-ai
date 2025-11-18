@@ -41,6 +41,9 @@ import { MaintenanceStatusCard } from "@/components/status/MaintenanceStatusCard
 import { TableFreshnessCard } from "@/components/status/TableFreshnessCard";
 import { APIKeysCard } from "@/components/status/APIKeysCard";
 import { ExpandableCard } from "@/components/status/ExpandableCard";
+import { WorkflowHealthCard } from "@/components/status/WorkflowHealthCard";
+import { AgentStatsCard } from "@/components/status/AgentStatsCard";
+import { WorkflowMetricsCard } from "@/components/status/WorkflowMetricsCard";
 import {
     clearCache,
     refreshWatchlist,
@@ -600,6 +603,20 @@ export default function StatusPage() {
                     {renderNewsHealthCard()}
                     <SourceQualityCard />
                     <MLModelCard />
+                </div>
+            </SectionCard>
+
+            <SectionCard
+                variant="surface"
+                title="Multi-Agent Workflows"
+                description="Autonomous trading workflows with AI agent collaboration and execution tracking."
+            >
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <WorkflowHealthCard workflowHealth={detailedHealth?.workflow_health} />
+                    <AgentStatsCard stats={health?.agent_stats} />
+                    <div className="md:col-span-2 lg:col-span-3">
+                        <WorkflowMetricsCard metrics={detailedHealth?.workflow_metrics} />
+                    </div>
                 </div>
             </SectionCard>
 
