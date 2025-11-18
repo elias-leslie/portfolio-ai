@@ -196,10 +196,10 @@ function CapabilitiesPageContent() {
       filtered = filtered.filter((cap) => {
         const name =
           cap.capability_type === "db"
-        ? (cap.table_name || "")
+            ? (cap.table_name || "")
             : cap.capability_type === "celery"
-          ? (cap.task_name || "")
-          : (cap.endpoint_path || "");;
+            ? (cap.task_name || "")
+            : (cap.endpoint_path || "");
         return (
           name.toLowerCase().includes(query) ||
           cap.category?.toLowerCase().includes(query) ||
@@ -231,8 +231,18 @@ function CapabilitiesPageContent() {
       }
 
       // Secondary sort by name for same health status
-      const nameA = a.capability_type === "db" ? (a.table_name || "") : a.capability_type === "celery" ? (a.task_name || "") : (a.endpoint_path || "");
-      const nameB = b.capability_type === "db" ? (b.table_name || "") : b.capability_type === "celery" ? (b.task_name || "") : (b.endpoint_path || "");
+      const nameA =
+        a.capability_type === "db"
+          ? (a.table_name || "")
+          : a.capability_type === "celery"
+          ? (a.task_name || "")
+          : (a.endpoint_path || "");
+      const nameB =
+        b.capability_type === "db"
+          ? (b.table_name || "")
+          : b.capability_type === "celery"
+          ? (b.task_name || "")
+          : (b.endpoint_path || "");
       return nameA.localeCompare(nameB);
     });
 
