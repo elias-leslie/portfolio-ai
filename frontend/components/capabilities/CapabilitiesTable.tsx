@@ -112,7 +112,8 @@ function formatSchedule(capability: CeleryCapability): string {
 /**
  * Truncate text with ellipsis
  */
-function truncate(text: string, maxLength: number): string {
+function truncate(text: string | null | undefined, maxLength: number): string {
+  if (!text) return "";
   if (text.length <= maxLength) return text;
   return text.substring(0, maxLength - 1) + "…";
 }
