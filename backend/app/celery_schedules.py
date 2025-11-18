@@ -473,4 +473,40 @@ def get_beat_schedule() -> dict[str, object]:
             # - Tracks database growth trends in maintenance_stats table
             # - Helps identify which tables are growing fastest
         },
+        # ============================================================================
+        # WORKFLOW MONITORING & ALERTING
+        # ============================================================================
+        # These tasks monitor autonomous workflow health and alert on failures
+        # ============================================================================
+        "check-workflow-failures-every-6h": {
+            "task": "app.tasks.workflow_tasks.check_workflow_failures",
+            "schedule": crontab(hour="*/6"),  # Every 6 hours (00:00, 06:00, 12:00, 18:00 UTC)
+            "options": {"expires": 600},
+            # Notes:
+            # - Runs every 6 hours to detect failed workflows
+            # - Monitors failed workflows (status='failed')
+            # - Monitors blocked workflows stuck >30 minutes
+            # - Monitors timeouts (exceeding max_duration_seconds)
+            # - Creates maintenance_log entries for each alert
+            # - Critical for vacation-mode monitoring
+        },
+        "monitor-api-rate-limits-every-6h": {
+            "task": "app.tasks.workflow_tasks.monitor_api_rate_limits",
+            "schedule": crontab(hour="*/6"),  # Every 6 hours
+            "options": {"expires": 600},
+            # Notes:
+            # - Runs every 6 hours to check API call usage
+            # - Tracks Gemini and Claude API calls per day
+            # - Alerts if usage > 80% of daily limit
+            # - Prevents workflow failures due to rate limiting
+        },
+        "monitor-workflow-timeouts-every-6h": {
+            "task": "app.tasks.workflow_tasks.monitor_workflow_timeouts",
+            "schedule": crontab(hour="*/6"),  # Every 6 hours
+            "options": {"expires": 600},
+            # Notes:
+            # - Runs every 6 hours to detect frequent timeouts
+            # - Alerts if >3 timeouts per workflow type per day
+            # - Helps identify timeout patterns and duration issues
+        },
     }

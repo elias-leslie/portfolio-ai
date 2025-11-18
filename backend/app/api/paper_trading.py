@@ -140,7 +140,31 @@ async def create_paper_trade(request: CreateTradeRequest) -> CreateTradeResponse
         },
     )
 
-    # Execute market order
+    # Create placeholder idea_outcomes record BEFORE order execution
+    # This is required for foreign key constraint in paper_trade_transactions
+    # We'll update it with actual execution details after order fills
+    storage.insert_dict(
+        "idea_outcomes",
+        {
+            "idea_id": idea_id,
+            "agent_run_id": "manual",
+            "ticker": ticker,
+            "idea_type": action,
+            "entry_price": 0.0,  # Placeholder, will update after execution
+            "entry_date": datetime.now(UTC).date().isoformat(),
+            "target_price": request.target_price,
+            "stop_loss_price": None,  # Will calculate after execution
+            "current_price": 0.0,  # Placeholder
+            "current_return_pct": 0.0,
+            "status": "open",
+            "shares": max_shares,
+            "entry_amount": 0.0,  # Placeholder
+            "created_at": datetime.now(UTC).isoformat(),
+            "updated_at": datetime.now(UTC).isoformat(),
+        },
+    )
+
+    # Execute market order (now transaction logger can insert with valid FK)
     # Cast action to Literal type for type safety
     action_typed = cast(Literal["buy", "sell"], action)
 
@@ -168,27 +192,27 @@ async def create_paper_trade(request: CreateTradeRequest) -> CreateTradeResponse
         else:  # sell (short)
             stop_loss_price = entry_price * (1 + request.stop_loss_pct / 100)
 
-    # Create idea_outcomes record
-    storage.insert_dict(
-        "idea_outcomes",
-        {
-            "idea_id": idea_id,
-            "agent_run_id": "manual",
-            "ticker": ticker,
-            "idea_type": action,
-            "entry_price": entry_price,
-            "entry_date": datetime.now(UTC).date().isoformat(),
-            "target_price": request.target_price,
-            "stop_loss_price": stop_loss_price,
-            "current_price": entry_price,
-            "current_return_pct": 0.0,
-            "status": "open",
-            "shares": max_shares,
-            "entry_amount": order_result["amount"],
-            "created_at": datetime.now(UTC).isoformat(),
-            "updated_at": datetime.now(UTC).isoformat(),
-        },
-    )
+    # Update idea_outcomes record with actual execution details
+    with storage.connection() as conn:
+        conn.execute(
+            """
+            UPDATE idea_outcomes
+            SET entry_price = $1,
+                entry_amount = $2,
+                current_price = $3,
+                stop_loss_price = $4,
+                updated_at = NOW()
+            WHERE idea_id = $5
+            """,
+            [
+                entry_price,
+                order_result["amount"],
+                entry_price,
+                stop_loss_price,
+                idea_id,
+            ],
+        )
+        conn.commit()  # Commit UPDATE to database
 
     logger.info(
         f"Manual paper trade created: {action.upper()} {max_shares} {ticker} "

@@ -113,6 +113,7 @@ class CashManager:
         try:
             with self.storage.connection() as conn:
                 conn.execute(update_query, [amount, account_id])
+                conn.commit()  # Commit UPDATE to database
             cash_after = self.get_cash_balance(account_id)
 
             logger.info(
@@ -161,6 +162,7 @@ class CashManager:
         try:
             with self.storage.connection() as conn:
                 conn.execute(update_query, [amount, account_id])
+                conn.commit()  # Commit UPDATE to database
             cash_after = self.get_cash_balance(account_id)
 
             logger.info(
@@ -195,6 +197,7 @@ class CashManager:
         try:
             with self.storage.connection() as conn:
                 conn.execute(reset_query, [account_id])
+                conn.commit()  # Commit UPDATE to database
 
             balance = self.get_cash_balance(account_id)
             logger.info(f"Reset {account_id} cash balance to ${balance:.2f}")

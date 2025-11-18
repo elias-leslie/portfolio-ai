@@ -84,6 +84,7 @@ class TransactionLogger:
                         notes or f"Entry: {ticker} {shares} shares @ ${price:.2f}",
                     ],
                 )
+                conn.commit()  # Commit INSERT to database
 
             logger.info(
                 f"Logged ENTRY transaction: {trade_id} - {ticker} "
@@ -158,6 +159,7 @@ class TransactionLogger:
                         notes,
                     ],
                 )
+                conn.commit()  # Commit INSERT to database
 
             logger.info(
                 f"Logged EXIT transaction: {trade_id} - {ticker} "

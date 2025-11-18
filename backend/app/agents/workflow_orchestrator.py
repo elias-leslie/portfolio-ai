@@ -77,7 +77,9 @@ class WorkflowOrchestrator:
                         workflow_type,
                         "pending",
                         "initializing",
-                        ",".join(agents_list) if agents_list else "",  # Convert list to CSV string
+                        "{" + ",".join(agents_list) + "}"
+                        if agents_list
+                        else "{}",  # PostgreSQL array literal format
                         json.dumps(shared_context),
                         triggered_by,
                         priority,
@@ -86,6 +88,7 @@ class WorkflowOrchestrator:
                         datetime.now(UTC),
                     ],
                 )
+                conn.commit()  # Explicitly commit the transaction
 
             logger.info(
                 f"Started workflow {workflow_id} ({workflow_type}) "
@@ -145,7 +148,14 @@ class WorkflowOrchestrator:
 
         # Build SET clause
         # Validate column names against whitelist to prevent SQL injection
-        allowed_columns = {"status", "current_step", "started_at", "completed_at", "error"}
+        allowed_columns = {
+            "status",
+            "current_step",
+            "started_at",
+            "completed_at",
+            "error",
+            "last_updated_at",
+        }
         set_parts = []
         values = []
         for i, (key, value) in enumerate(updates.items(), start=1):
@@ -162,6 +172,7 @@ class WorkflowOrchestrator:
                 f"UPDATE agent_workflows SET {set_clause} WHERE id = ${len(values)}",  # validated: columns from whitelist
                 [str(v) for v in values],
             )
+            conn.commit()
 
         logger.info(f"Workflow {workflow_id} status updated to {status}")
 
@@ -220,6 +231,7 @@ class WorkflowOrchestrator:
                     "UPDATE agent_workflows SET shared_context = $1::JSONB, last_updated_at = $2 WHERE id = $3",
                     [json.dumps(shared_context), datetime.now(UTC), workflow_id],
                 )
+                conn.commit()
 
             logger.info(f"Assigned task to {agent_type} in workflow {workflow_id}: {task[:100]}")
 
@@ -288,6 +300,7 @@ class WorkflowOrchestrator:
                     "UPDATE agent_workflows SET shared_context = $1::JSONB, last_updated_at = $2 WHERE id = $3",
                     [json.dumps(shared_context), datetime.now(UTC), workflow_id],
                 )
+                conn.commit()
 
             logger.info(f"Recorded output from {agent_type} in workflow {workflow_id}")
 
@@ -596,6 +609,7 @@ class WorkflowOrchestrator:
                                 """,
                                 [error, datetime.now(UTC), workflow_id],
                             )
+                            conn.commit()
 
                         logger.info(
                             f"Workflow {workflow_id} queued for retry ({retry_count + 1}/{max_retries})"

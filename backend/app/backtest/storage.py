@@ -48,7 +48,7 @@ def create_backtest_run(
             id, strategy_name, symbol, start_date, end_date,
             initial_capital, status, created_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id
     """
 
@@ -63,7 +63,9 @@ def create_backtest_run(
         datetime.now(),
     )
 
-    storage.execute_write_query(query, params)  # type: ignore[attr-defined]
+    with storage.connection() as conn:
+        conn.execute(query, params)
+        conn.commit()
 
     logger.info(f"Created backtest run: {run_id} | {symbol} | {start_date} to {end_date}")
 
@@ -86,14 +88,16 @@ def update_backtest_status(
     """
     query = """
         UPDATE backtest_runs
-        SET status = $1,
-            error_message = $2,
-            completed_at = CASE WHEN $1 IN ('completed', 'failed') THEN $3 ELSE completed_at END
-        WHERE id = $4
+        SET status = %s,
+            error_message = %s,
+            completed_at = CASE WHEN %s IN ('completed', 'failed') THEN %s ELSE completed_at END
+        WHERE id = %s
     """
 
-    params = (status, error_message, datetime.now(), run_id)
-    storage.execute_write_query(query, params)  # type: ignore[attr-defined]
+    params = (status, error_message, status, datetime.now(), run_id)
+    with storage.connection() as conn:
+        conn.execute(query, params)
+        conn.commit()
 
     logger.debug(f"Updated backtest {run_id} status: {status}")
 
@@ -124,16 +128,16 @@ def update_backtest_result(
     """
     query = """
         UPDATE backtest_runs
-        SET final_equity = $1,
-            total_return_pct = $2,
-            sharpe_ratio = $3,
-            max_drawdown_pct = $4,
-            win_rate = $5,
-            num_trades = $6,
-            profit_factor = $7,
-            status = $8,
-            completed_at = $9
-        WHERE id = $10
+        SET final_equity = %s,
+            total_return_pct = %s,
+            sharpe_ratio = %s,
+            max_drawdown_pct = %s,
+            win_rate = %s,
+            num_trades = %s,
+            profit_factor = %s,
+            status = %s,
+            completed_at = %s
+        WHERE id = %s
     """
 
     params = (
@@ -149,7 +153,9 @@ def update_backtest_result(
         run_id,
     )
 
-    storage.execute_write_query(query, params)  # type: ignore[attr-defined]
+    with storage.connection() as conn:
+        conn.execute(query, params)
+        conn.commit()
 
     logger.info(
         f"Backtest {run_id} complete: Return: {total_return_pct:.2f}% | "
@@ -178,7 +184,7 @@ def save_backtest_trade(
             exit_date, exit_price, shares, pnl, pnl_pct,
             exit_reason, max_favorable_pct, max_adverse_pct, created_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id
     """
 
@@ -199,7 +205,9 @@ def save_backtest_trade(
         datetime.now(),
     )
 
-    storage.execute_write_query(query, params)  # type: ignore[attr-defined]
+    with storage.connection() as conn:
+        conn.execute(query, params)
+        conn.commit()
 
     return trade_id
 
@@ -223,7 +231,7 @@ def save_equity_snapshot(
         INSERT INTO backtest_equity (
             id, run_id, date, equity, cash, position_value, drawdown_pct, created_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (run_id, date) DO UPDATE SET
             equity = EXCLUDED.equity,
             cash = EXCLUDED.cash,
@@ -243,7 +251,9 @@ def save_equity_snapshot(
         datetime.now(),
     )
 
-    storage.execute_write_query(query, params)  # type: ignore[attr-defined]
+    with storage.connection() as conn:
+        conn.execute(query, params)
+        conn.commit()
 
     return snapshot_id
 
@@ -261,16 +271,21 @@ def get_backtest_run(storage: ConnectionManager, run_id: str) -> BacktestRun | N
     query = """
         SELECT *
         FROM backtest_runs
-        WHERE id = $1
+        WHERE id = %s
     """
 
-    result = storage.execute_read_query(query, (run_id,))  # type: ignore[attr-defined]
+    with storage.connection() as conn:
+        df = conn.execute(query, (run_id,)).pl()
 
-    if not result:
+    if df.is_empty():
         return None
 
-    row = result[0]
-    return BacktestRun(**row)
+    # Convert Polars DataFrame row to dict and create model
+    row_dict = df.to_dicts()[0]
+    # Convert UUID objects to strings
+    if "id" in row_dict and hasattr(row_dict["id"], "hex"):
+        row_dict["id"] = str(row_dict["id"])
+    return BacktestRun(**row_dict)
 
 
 def get_backtest_trades(storage: ConnectionManager, run_id: str) -> list[BacktestTrade]:
@@ -286,13 +301,22 @@ def get_backtest_trades(storage: ConnectionManager, run_id: str) -> list[Backtes
     query = """
         SELECT *
         FROM backtest_trades
-        WHERE run_id = $1
+        WHERE run_id = %s
         ORDER BY entry_date ASC
     """
 
-    result = storage.execute_read_query(query, (run_id,))  # type: ignore[attr-defined]
+    with storage.connection() as conn:
+        df = conn.execute(query, (run_id,)).pl()
 
-    return [BacktestTrade(**row) for row in result]
+    trades = []
+    for row in df.to_dicts():
+        # Convert UUID objects to strings
+        if "id" in row and hasattr(row["id"], "hex"):
+            row["id"] = str(row["id"])
+        if "run_id" in row and hasattr(row["run_id"], "hex"):
+            row["run_id"] = str(row["run_id"])
+        trades.append(BacktestTrade(**row))
+    return trades
 
 
 def get_backtest_equity_curve(storage: ConnectionManager, run_id: str) -> list[BacktestEquity]:
@@ -308,13 +332,22 @@ def get_backtest_equity_curve(storage: ConnectionManager, run_id: str) -> list[B
     query = """
         SELECT *
         FROM backtest_equity
-        WHERE run_id = $1
+        WHERE run_id = %s
         ORDER BY date ASC
     """
 
-    result = storage.execute_read_query(query, (run_id,))  # type: ignore[attr-defined]
+    with storage.connection() as conn:
+        df = conn.execute(query, (run_id,)).pl()
 
-    return [BacktestEquity(**row) for row in result]
+    equities = []
+    for row in df.to_dicts():
+        # Convert UUID objects to strings
+        if "id" in row and hasattr(row["id"], "hex"):
+            row["id"] = str(row["id"])
+        if "run_id" in row and hasattr(row["run_id"], "hex"):
+            row["run_id"] = str(row["run_id"])
+        equities.append(BacktestEquity(**row))
+    return equities
 
 
 def list_backtest_runs(
@@ -338,17 +371,14 @@ def list_backtest_runs(
     """
     where_clauses = []
     params: list[str | int] = []
-    param_idx = 1
 
     if symbol:
-        where_clauses.append(f"symbol = ${param_idx}")
+        where_clauses.append("symbol = %s")
         params.append(symbol)
-        param_idx += 1
 
     if status:
-        where_clauses.append(f"status = ${param_idx}")
+        where_clauses.append("status = %s")
         params.append(status)
-        param_idx += 1
 
     where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
 
@@ -357,14 +387,21 @@ def list_backtest_runs(
         FROM backtest_runs
         {where_sql}
         ORDER BY created_at DESC
-        LIMIT ${param_idx} OFFSET ${param_idx + 1}
+        LIMIT %s OFFSET %s
     """
 
     params.extend([limit, offset])
 
-    result = storage.execute_read_query(query, tuple(params))  # type: ignore[attr-defined]
+    with storage.connection() as conn:
+        df = conn.execute(query, tuple(params)).pl()
 
-    return [BacktestRun(**row) for row in result]
+    runs = []
+    for row in df.to_dicts():
+        # Convert UUID objects to strings
+        if "id" in row and hasattr(row["id"], "hex"):
+            row["id"] = str(row["id"])
+        runs.append(BacktestRun(**row))
+    return runs
 
 
 def delete_backtest_run(storage: ConnectionManager, run_id: str) -> bool:
@@ -380,13 +417,15 @@ def delete_backtest_run(storage: ConnectionManager, run_id: str) -> bool:
     # Cascade delete handles trades and equity snapshots automatically
     query = """
         DELETE FROM backtest_runs
-        WHERE id = $1
+        WHERE id = %s
         RETURNING id
     """
 
-    result = storage.execute_write_query(query, (run_id,))  # type: ignore[attr-defined]
+    with storage.connection() as conn:
+        df = conn.execute(query, (run_id,)).pl()
+        conn.commit()
 
-    if result and len(result) > 0:
+    if not df.is_empty():
         logger.info(f"Deleted backtest run: {run_id}")
         return True
 

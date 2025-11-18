@@ -52,6 +52,10 @@ class HealthCheckResponse(BaseModel):
     agent_stats: AgentStats | None = None
     watchlist_stats: WatchlistStats | None = None
     api_quotas: list[APIQuotaInfo] = Field(default_factory=list)
+    workflow_health: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Workflow health status and metrics",
+    )
 
 
 class DetailedHealthCheckResponse(HealthCheckResponse):
@@ -61,6 +65,10 @@ class DetailedHealthCheckResponse(HealthCheckResponse):
     celery_worker: CeleryWorkerStatus | None = None
     api_keys: list[APIKeyStatusInfo] = Field(default_factory=list)
     disk_usage: DiskUsageInfo | None = None
+    workflow_metrics: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Workflow metrics for last 7 days",
+    )
 
 
 class DeletionRate(BaseModel):
