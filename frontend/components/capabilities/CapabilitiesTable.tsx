@@ -169,7 +169,7 @@ function getCapabilityStatus(capability: Capability): React.ReactNode {
       return (
         <div className="flex items-center gap-2">
           <StatusBadge type="freshness" value={db.freshness_status} />
-          {db.age_hours !== null && (
+          {db.age_hours != null && (
             <span className="text-xs text-muted-foreground">{formatAge(db.age_hours)}</span>
           )}
         </div>
@@ -177,7 +177,7 @@ function getCapabilityStatus(capability: Capability): React.ReactNode {
     }
     case "celery": {
       const celery = capability as CeleryCapability;
-      const hasRun = celery.last_run_at !== null;
+      const hasRun = celery.last_run_at != null;
       return (
         <div className="flex items-center gap-2">
           {hasRun ? (
@@ -254,7 +254,7 @@ function DbOverview({ db }: { db: DbCapability }) {
         <p className="text-xs uppercase tracking-wide text-muted-foreground">Age</p>
         <p className="text-sm font-medium">
           <Clock className="inline h-3 w-3" />{" "}
-          {db.age_hours !== null ? `${db.age_hours.toFixed(1)} hours` : "—"}
+          {db.age_hours != null ? `${db.age_hours.toFixed(1)} hours` : "—"}
         </p>
       </div>
       <div>
@@ -566,9 +566,9 @@ function CeleryTaskRow({
 }) {
   const successRate = capability.success_rate_pct;
   const successRateColor =
-    successRate !== null && successRate >= 95
+    successRate != null && successRate >= 95
       ? "text-gain"
-      : successRate !== null && successRate >= 80
+      : successRate != null && successRate >= 80
       ? "text-accent"
       : "text-loss";
 
@@ -620,7 +620,7 @@ function CeleryTaskRow({
       {/* Success Rate */}
       <div className="flex items-center">
         <span className={`text-xs font-medium ${successRateColor}`}>
-          {successRate !== null ? `${successRate.toFixed(0)}%` : "—"}
+          {successRate != null ? `${successRate.toFixed(0)}%` : "—"}
         </span>
       </div>
 
