@@ -586,10 +586,10 @@ class GeminiCLIClient(LLMClient):
         if system:
             full_prompt = f"{system}\n\n{prompt}"
 
-        # Build command
+        # Build command (Gemini CLI reads prompt from stdin with -p flag)
         cmd = [
             self.cli_path,
-            "-p",
+            "-p",  # Read from stdin
             "--output-format",
             "json",
             "-m",
@@ -604,7 +604,7 @@ class GeminiCLIClient(LLMClient):
         )
 
         try:
-            # Execute CLI
+            # Execute CLI (prompt is read from stdin)
             result = subprocess.run(
                 cmd,
                 input=full_prompt.encode(),
