@@ -134,7 +134,15 @@ function getStatusStyle(status: string) {
 /**
  * Get badge variant for category
  */
-function getCategoryStyle(category: string) {
+function getCategoryStyle(category: string | null | undefined) {
+  if (!category) {
+    return {
+      variant: "secondary" as const,
+      icon: "📦",
+      className: "",
+    };
+  }
+
   switch (category.toLowerCase()) {
     case "market_data":
       return {
