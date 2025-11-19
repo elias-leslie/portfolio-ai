@@ -123,22 +123,6 @@ class DiskUsageInfo(BaseModel):
     status: Literal["ok", "warning", "critical"]
 
 
-class WorkflowHealthInfo(BaseModel):
-    """Workflow health status information."""
-
-    status: Literal["healthy", "warning", "critical"]
-    total_workflows_24h: int
-    successful_workflows: int
-    failed_workflows: int
-    blocked_workflows: int
-    success_rate: float
-    avg_duration_s: int | None = None
-    last_successful_workflow: datetime | None = None
-    last_successful_type: str | None = None
-    failures_by_type: dict[str, int]
-    blocked_by_type: dict[str, int]
-
-
 class HealthCheckService:
     """Service for performing health checks."""
 
@@ -212,20 +196,8 @@ class HealthCheckService:
             avg_cost_usd=agent_stats_internal.avg_cost_usd,
         )
 
-        workflow_health_internal = get_workflow_health(self.storage)
-        workflow_health_model = WorkflowHealthInfo(
-            status=workflow_health_internal.status,
-            total_workflows_24h=workflow_health_internal.total_workflows_24h,
-            successful_workflows=workflow_health_internal.successful_workflows,
-            failed_workflows=workflow_health_internal.failed_workflows,
-            blocked_workflows=workflow_health_internal.blocked_workflows,
-            success_rate=workflow_health_internal.success_rate,
-            avg_duration_s=workflow_health_internal.avg_duration_s,
-            last_successful_workflow=workflow_health_internal.last_successful_workflow,
-            last_successful_type=workflow_health_internal.last_successful_type,
-            failures_by_type=workflow_health_internal.failures_by_type,
-            blocked_by_type=workflow_health_internal.blocked_by_type,
-        )
+        # Get workflow health (already returns Pydantic model)
+        workflow_health_model = get_workflow_health(self.storage)
 
         watchlist_stats_internal = get_watchlist_stats(self.storage)
         watchlist_stats_model = WatchlistStats(

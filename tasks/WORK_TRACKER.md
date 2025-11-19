@@ -20,7 +20,21 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-(No active tasks - pick from Planned below or run `/task_it` to create new work)
+1. **Complete Autonomous Trading MVP - Fix All Validation Gaps (Task 0071)** ⏳ IN PROGRESS (50% - 3.5/7 tasks)
+   - File: `tasks-0071-autonomous-trading-completion.md`
+   - Started: 2025-11-18
+   - Updated: 2025-11-19
+   - Effort: HIGH (20-30 hours total across all systems)
+   - Progress:
+     - ✅ Task 0: Scope Discovery (4 parallel Explore agents, 91 files identified)
+     - ✅ Task 1: Database Persistence Bug (10 bugs fixed, all tests passing)
+     - ⏸️ Task 2: UI Agent Status Display (0/7 subtasks) - NEXT
+     - ⏸️ Task 3: Real Backtest Validation (0/8 subtasks)
+     - ⏸️ Task 4: Dynamic Strategy Generation (0/11 subtasks)
+     - ⏸️ Task 5: Scheduled Autonomous Execution (0/6 subtasks)
+     - ⏸️ Task 6: LLM Execution Verification (0/7 subtasks)
+     - ⏸️ Task 7: Integration Testing (0/10 subtasks)
+   - Next: Task 2.0 - Wire workflow_health to API and create 3 UI cards
 
 ---
 
@@ -97,7 +111,38 @@
 
 *Last 5 completed tasks*
 
-1. **Settings & Status Standardization (Task 0058)** ✅ COMPLETE (2025-11-17)
+1. **Paper Trading & Backtesting Visualization (Task 0072)** ✅ COMPLETE (2025-11-19)
+   - File: `tasks-0072-paper-trading-backtesting-visualization.md`
+   - Completed: 2025-11-19 03:53 (via /do_it --max)
+   - Duration: ~12-16 hours total across all phases
+   - Summary: Complete visualization system for autonomous trading with dedicated pages, real-time data, charts, and AI agent decision tracking
+   - Key achievements:
+     - ✅ Task 0: Scope Discovery (identified existing patterns, chart libraries, 91 files total)
+     - ✅ Task 1: Backend API endpoints + data fixes (paper trades, backtest APIs, fixed stuck backtests, price staleness)
+     - ✅ Task 2: Paper Trading page (/trading) with expandable rows, AI reasoning, summary cards
+     - ✅ Task 3: Backtesting page (/backtest) with equity curves, comparison mode, run details
+     - ✅ Task 4: Dashboard integration (summary cards with links)
+     - ✅ Task 5: Watchlist integration (action buttons for Run Backtest, Generate AI Idea)
+     - ✅ Task 6: Testing, polish, documentation (E2E tests, error handling, accessibility)
+   - Implementation:
+     - Frontend: 2 new pages (/trading, /backtest), 3 dashboard cards, watchlist actions
+     - Backend: 12+ new API endpoints (paper trades, backtest runs, equity curves, comparison)
+     - Charts: Recharts library for equity curves with tooltips and responsive design
+     - UI patterns: Reused ExpandableCard, SectionCard, Table patterns for consistency
+   - Code Quality:
+     - All mypy type checks passing
+     - Frontend linting clean
+     - Mobile responsive on all pages
+   - Verification:
+     - Backtests complete successfully (fixed stuck "running" status bug)
+     - Paper trade prices update daily
+     - Equity curves render correctly with proper scaling
+     - Can compare multiple backtests
+     - Dashboard integration seamless
+   - Commits: Multiple (full visualization system)
+   - Impact: Complete end-to-end autonomous trading experience with full transparency into AI decision-making
+
+2. **Settings & Status Standardization (Task 0058)** ✅ COMPLETE (2025-11-17)
    - File: `tasks-0058-settings-and-status-standardization.md`
    - Completed: 2025-11-17 (via /do_it --max parallelization)
    - Duration: ~2-3 hours (Task 4 verification only, Tasks 0-3 completed previously)

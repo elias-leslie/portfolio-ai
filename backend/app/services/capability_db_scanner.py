@@ -245,6 +245,7 @@ class DatabaseScanner:
         for col_name in date_columns:
             if col_name in column_names:
                 try:
+                    # validated: table_name from inspector.get_table_names(), col_name from schema column list
                     # Note: col_name validated from column_names list, not user input
                     result = conn.execute(
                         f"SELECT MIN({col_name}), MAX({col_name}) FROM {table_name} WHERE {col_name} IS NOT NULL"

@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Literal
+
+from pydantic import BaseModel
 
 from app.logging_config import get_logger
 
@@ -14,8 +15,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-@dataclass
-class WorkflowHealthInfo:
+class WorkflowHealthInfo(BaseModel):
     """Workflow health status information."""
 
     status: Literal["healthy", "warning", "critical"]
@@ -24,9 +24,9 @@ class WorkflowHealthInfo:
     failed_workflows: int
     blocked_workflows: int
     success_rate: float
-    avg_duration_s: int | None
-    last_successful_workflow: datetime | None
-    last_successful_type: str | None
+    avg_duration_s: int | None = None
+    last_successful_workflow: datetime | None = None
+    last_successful_type: str | None = None
     failures_by_type: dict[str, int]
     blocked_by_type: dict[str, int]
 
