@@ -158,55 +158,51 @@
 
 ---
 
-### 2.0 Implement Complete UI Agent Status Display
+### 2.0 Implement Complete UI Agent Status Display ✅ **COMPLETE**
 
 **Priority**: HIGH (user visibility critical)
-**Effort**: MEDIUM-HIGH (6-8 hours)
+**Effort**: Actual 3 hours (estimate 6-8 hours)
 
-- [ ] 2.1 Wire workflow_health to API response
-  - File: /backend/app/utils/health_service.py (lines 189-196)
-  - Add: `workflow_health = get_workflow_health(storage)` call
-  - Populate: `workflow_health` field in return dict (not empty {})
-  - Test: GET /api/health returns populated workflow_health
-- [ ] 2.2 Wire workflow_metrics to detailed API response
-  - File: /backend/app/utils/health_service.py (lines 233-297)
-  - Add: `workflow_metrics = get_workflow_metrics(storage)` call
-  - Populate: `workflow_metrics` field in return dict
-  - Test: GET /api/health/detailed returns 7-day workflow summary
-- [ ] 2.3 Create frontend types for workflow data
-  - File: /frontend/lib/api/status.ts
-  - Add: `WorkflowHealthInfo` interface matching backend dataclass
-  - Add: `WorkflowMetrics` interface for 7-day summary
-  - Add fields to HealthResponse and DetailedHealthResponse
-- [ ] 2.4 Create WorkflowHealthCard component
-  - File: /frontend/components/status/WorkflowHealthCard.tsx
-  - Display: status, total workflows 24h, success rate
-  - Display: failures by type, blocked by type
-  - Display: last successful workflow timestamp
-  - Color coding: green (healthy), yellow (warning), red (critical)
-- [ ] 2.5 Create AgentStatsCard component
-  - File: /frontend/components/status/AgentStatsCard.tsx
-  - Display: agent_stats from API (already populated)
-  - Show: total runs, completed, failed, avg duration, avg cost
-  - Show: success rate percentage with visual indicator
-- [ ] 2.6 Create WorkflowMetricsCard component (detailed view)
-  - File: /frontend/components/status/WorkflowMetricsCard.tsx
-  - Display: 7-day workflow trend
-  - Show: recent workflows (last 10-20)
-  - Show: summary by workflow type
-  - Chart: Success rate over time
-- [ ] 2.7 Integrate cards into Status page
-  - File: /frontend/app/status/page.tsx
-  - Add WorkflowHealthCard to main status grid
-  - Add AgentStatsCard below WorkflowHealthCard
-  - Add WorkflowMetricsCard to detailed/expanded section
-  - Ensure data fetching hooks call correct endpoints
+- [x] 2.1 Wire workflow_health to API response ✅
+  - Fixed: WorkflowHealthInfo dataclass→Pydantic model conversion
+  - Simplified: Removed manual field copying, function already returns Pydantic model
+  - Test: GET /health returns populated workflow_health with correct data structure
+- [x] 2.2 Wire workflow_metrics to detailed API response ✅
+  - Already wired: get_workflow_metrics() called and returned in detailed health check
+  - Test: GET /health/detailed returns 7-day workflow summary correctly
+- [x] 2.3 Create frontend types for workflow data ✅
+  - Already existed: WorkflowHealthInfo and WorkflowMetrics interfaces in status.ts
+  - Already integrated: Both types in HealthResponse and DetailedHealthResponse
+- [x] 2.4 Create WorkflowHealthCard component ✅
+  - Created: /frontend/components/status/WorkflowHealthCard.tsx (186 lines)
+  - Displays: status badge, total workflows 24h, success rate, successful/failed/blocked counts
+  - Displays: last successful workflow with type and timestamp
+  - Displays: failures by type and blocked by type (conditional rendering)
+  - Color coding: green (healthy), yellow (warning), red (critical) with icons
+- [x] 2.5 Create AgentStatsCard component ✅
+  - Already existed: /frontend/components/status/AgentStatsCard.tsx (fully functional)
+  - Displays: total runs, completed, failed, avg duration, avg cost, success rate
+- [x] 2.6 Create WorkflowMetricsCard component ✅
+  - Created: /frontend/components/status/WorkflowMetricsCard.tsx (194 lines)
+  - Displays: 7-day total by status (complete/failed/blocked) with icons
+  - Displays: Success rate with visual progress bar
+  - Displays: Workflows by type with breakdown
+  - Displays: Recent workflows (last 10-20) with scrollable list
+- [x] 2.7 Integrate cards into Status page ✅
+  - Already integrated: All 3 cards imported and rendered in /status page
+  - Layout: 3-column grid with WorkflowMetricsCard spanning full width
+  - Data fetching: Using existing useStatusStream and fetchDetailedHealth hooks
 
 **Verification:**
-- ✅ /api/health returns populated workflow_health (not {})
-- ✅ /api/health/detailed returns populated workflow_metrics
-- ✅ Status page renders 3 new cards with real data
+- ✅ /health returns populated workflow_health (status: warning, 4 workflows in 24h)
+- ✅ /health/detailed returns populated workflow_metrics (4 workflows in 7 days)
+- ✅ Status page renders 3 cards (WorkflowHealthCard, AgentStatsCard, WorkflowMetricsCard)
 - ✅ All TypeScript types compile without errors
+- ✅ Frontend service running without build errors
+
+**Commits:**
+- 2c98afa: Backend fixes (Pydantic model conversion, validation markers)
+- c85b509: Frontend components (WorkflowHealthCard, WorkflowMetricsCard)
 - ✅ Component tests passing (npm test)
 
 ---
