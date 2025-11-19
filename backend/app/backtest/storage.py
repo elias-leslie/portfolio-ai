@@ -13,6 +13,7 @@ import logging
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Any
 
 from app.backtest.models import BacktestEquity, BacktestRun, BacktestTrade
 from app.storage.connection import ConnectionManager
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_backtest_run(
-    storage: ConnectionManager,
+    storage: ConnectionManager | Any,  # Accept PortfolioStorage or ConnectionManager
     strategy_name: str,
     symbol: str,
     start_date: date,
@@ -56,9 +57,9 @@ def create_backtest_run(
         run_id,
         strategy_name,
         symbol,
-        start_date,
-        end_date,
-        initial_capital,
+        start_date.isoformat() if hasattr(start_date, "isoformat") else str(start_date),
+        end_date.isoformat() if hasattr(end_date, "isoformat") else str(end_date),
+        float(initial_capital),
         "pending",
         datetime.now(),
     )
@@ -73,7 +74,7 @@ def create_backtest_run(
 
 
 def update_backtest_status(
-    storage: ConnectionManager,
+    storage: ConnectionManager | Any,  # Accept PortfolioStorage or ConnectionManager
     run_id: str,
     status: str,
     error_message: str | None = None,
@@ -141,13 +142,13 @@ def update_backtest_result(
     """
 
     params = (
-        final_equity,
-        total_return_pct,
-        sharpe_ratio,
-        max_drawdown_pct,
-        win_rate,
+        float(final_equity),
+        float(total_return_pct),
+        float(sharpe_ratio),
+        float(max_drawdown_pct),
+        float(win_rate),
         num_trades,
-        profit_factor,
+        float(profit_factor),
         "completed",
         datetime.now(),
         run_id,
@@ -192,16 +193,20 @@ def save_backtest_trade(
         trade_id,
         trade.run_id,
         trade.symbol,
-        trade.entry_date,
-        trade.entry_price,
-        trade.exit_date,
-        trade.exit_price,
+        trade.entry_date.isoformat()
+        if hasattr(trade.entry_date, "isoformat")
+        else str(trade.entry_date),
+        float(trade.entry_price),
+        trade.exit_date.isoformat()
+        if trade.exit_date and hasattr(trade.exit_date, "isoformat")
+        else (str(trade.exit_date) if trade.exit_date else None),
+        float(trade.exit_price) if trade.exit_price is not None else None,
         trade.shares,
-        trade.pnl,
-        trade.pnl_pct,
+        float(trade.pnl) if trade.pnl is not None else None,
+        float(trade.pnl_pct) if trade.pnl_pct is not None else None,
         trade.exit_reason,
-        trade.max_favorable_pct,
-        trade.max_adverse_pct,
+        float(trade.max_favorable_pct) if trade.max_favorable_pct is not None else None,
+        float(trade.max_adverse_pct) if trade.max_adverse_pct is not None else None,
         datetime.now(),
     )
 
@@ -243,11 +248,11 @@ def save_equity_snapshot(
     params = (
         snapshot_id,
         snapshot.run_id,
-        snapshot.date,
-        snapshot.equity,
-        snapshot.cash,
-        snapshot.position_value,
-        snapshot.drawdown_pct,
+        snapshot.date.isoformat() if hasattr(snapshot.date, "isoformat") else str(snapshot.date),
+        float(snapshot.equity),
+        float(snapshot.cash),
+        float(snapshot.position_value),
+        float(snapshot.drawdown_pct),
         datetime.now(),
     )
 
@@ -258,7 +263,9 @@ def save_equity_snapshot(
     return snapshot_id
 
 
-def get_backtest_run(storage: ConnectionManager, run_id: str) -> BacktestRun | None:
+def get_backtest_run(
+    storage: ConnectionManager | Any, run_id: str
+) -> BacktestRun | None:  # Accept PortfolioStorage
     """Fetch backtest run by ID.
 
     Args:

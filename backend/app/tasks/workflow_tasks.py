@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from app.agents.llm_client import DualProviderClient
+from app.agents.tools import AgentTools
 from app.agents.workflow_orchestrator import WorkflowOrchestrator
 from app.celery_app import celery_app
 from app.logging_config import get_logger
+from app.portfolio.analytics import PortfolioAnalytics
+from app.portfolio.manager import PortfolioManager
+from app.portfolio.price_fetcher import PriceDataFetcher
+from app.services import NewsService
+from app.sources.fred import FREDSource
 from app.storage.facade import PortfolioStorage
 from app.utils.git_automation import commit_workflow_results
 
@@ -211,8 +217,6 @@ def paper_trade_validation_workflow(
         # Calculate 1-year backtest date range
         today = datetime.now(UTC).date()
         # Use 365 days ago for 1-year backtest
-        from datetime import timedelta
-
         start_date = (today - timedelta(days=365)).isoformat()
         end_date = today.isoformat()
 
@@ -331,20 +335,14 @@ Respond with JSON: {{"decision": "REJECT", "reasoning": "..."}}"""
         # Execute paper trade if approved
         trade_id = None
         if approved:
-            from app.agents.tools import AgentTools
-            from app.portfolio.analytics import PortfolioAnalytics
-            from app.portfolio.manager import PortfolioManager
-            from app.portfolio.price_fetcher import PriceDataFetcher
-            from app.services import NewsService
-            from app.sources.fred import FREDSource
-
+            portfolio_mgr = PortfolioManager(storage)
             tools = AgentTools(
                 storage=storage,
                 news_service=NewsService(storage),
-                fred_source=FREDSource(storage),
+                fred_source=FREDSource(api_key=None),  # FREDSource takes api_key, not storage
                 price_fetcher=PriceDataFetcher(storage),
-                portfolio_mgr=PortfolioManager(storage),
-                analytics=PortfolioAnalytics(storage, PortfolioManager(storage)),
+                portfolio_mgr=portfolio_mgr,
+                analytics=PortfolioAnalytics(),  # No-arg constructor
             )
 
             trade_result = tools.execute_create_paper_trade(

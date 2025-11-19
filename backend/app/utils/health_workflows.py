@@ -106,12 +106,12 @@ def get_workflow_health(storage: PortfolioStorage) -> WorkflowHealthInfo:
         else:
             health_status = "healthy"
 
-        last_successful_time = None
-        last_successful_type = None
+        last_successful_time: datetime | None = None
+        last_successful_type: str | None = None
         if not last_success.is_empty():
-            row = last_success.row(0)
-            last_successful_time = row[2]
-            last_successful_type = row[1]
+            success_row = last_success.row(0)  # Returns tuple
+            last_successful_time = success_row[2]
+            last_successful_type = success_row[1]
 
         return WorkflowHealthInfo(
             status=health_status,
