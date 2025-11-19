@@ -221,9 +221,38 @@ def paper_trade_validation_workflow(
         end_date = today.isoformat()
 
         # Execute REAL backtest using AgentTools
+        # Check for custom strategy (NEW: Task 4.7)
+        from app.strategies.storage import get_strategy_storage  # noqa: PLC0415
+
         backtest_result: dict[str, object] | None = None
         backtest_metrics: dict[str, object] | None = None
         try:
+            strategy_storage = get_strategy_storage()
+            custom_strategy = strategy_storage.get_active_strategy(ticker)
+
+            # Determine backtest parameters (custom or default)
+            if custom_strategy:
+                # Use dynamic strategy parameters
+                params = custom_strategy.parameters
+                strategy_name = f"{custom_strategy.name}_v{custom_strategy.version}"
+                min_signal_strength = params.get("min_confirmations", 7)
+                max_holding_days = params.get("max_holding_days", 60)
+                position_sizing_method = params.get("position_sizing_method", "fixed_dollars")
+                position_size_value = float(params.get("position_size_value", 10000.0))
+                logger.info(
+                    f"Using custom strategy: {strategy_name}",
+                    strategy_id=custom_strategy.id,
+                    strategy_type=custom_strategy.strategy_type,
+                )
+            else:
+                # Fall back to default SignalStrategy parameters
+                strategy_name = "signal_classifier"
+                min_signal_strength = 7
+                max_holding_days = 60
+                position_sizing_method = "fixed_dollars"
+                position_size_value = 10000.0
+                logger.info(f"Using default SignalStrategy (no custom strategy found for {ticker})")
+
             # Initialize tools to execute backtest
             portfolio_mgr = PortfolioManager(storage)
             tools = AgentTools(
@@ -243,11 +272,11 @@ def paper_trade_validation_workflow(
                 ticker=ticker,
                 start_date=start_date,
                 end_date=end_date,
-                strategy="signal_classifier",
-                min_signal_strength=7,
-                max_holding_days=60,
-                position_sizing_method="fixed_dollars",
-                position_size_value=10000.0,
+                strategy=strategy_name,
+                min_signal_strength=min_signal_strength,
+                max_holding_days=max_holding_days,
+                position_sizing_method=position_sizing_method,
+                position_size_value=position_size_value,
             )
 
             if backtest_result.get("status") == "success":

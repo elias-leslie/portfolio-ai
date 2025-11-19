@@ -509,4 +509,27 @@ def get_beat_schedule() -> dict[str, object]:
             # - Alerts if >3 timeouts per workflow type per day
             # - Helps identify timeout patterns and duration issues
         },
+        # ============================================================================
+        # STRATEGY MONITORING & GENERATION (Task 4.8)
+        # ============================================================================
+        "evaluate-strategy-performance": {
+            "task": "app.tasks.strategy_monitoring_tasks.evaluate_strategy_performance",
+            "schedule": crontab(hour=4, minute=0),  # Daily at 04:00 UTC
+            "options": {"expires": 3600},
+            # Notes:
+            # - Evaluates all active strategies daily
+            # - Calculates 30-day rolling metrics (Sharpe, win rate, drawdown)
+            # - Archives strategies with <70% expected performance for >30 days
+            # - Updates strategy_performance table with daily metrics
+        },
+        "generate-weekly-strategies": {
+            "task": "app.tasks.strategy_monitoring_tasks.weekly_strategy_generation",
+            "schedule": crontab(hour=5, minute=0, day_of_week=0),  # Sunday 05:00 UTC
+            "options": {"expires": 7200},
+            # Notes:
+            # - Generates new strategies for top 20 watchlist symbols
+            # - Skips symbols that already have active strategies
+            # - Runs strategy_research_workflow for each symbol
+            # - Commits generated strategies to git with research context
+        },
     }
