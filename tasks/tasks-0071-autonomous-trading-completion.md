@@ -210,24 +210,24 @@
 ### 3.0 Integrate Real Backtest Validation in Paper Trade Workflow
 
 **Priority**: HIGH (core autonomous trading logic)
-**Effort**: MEDIUM-HIGH (8-10 hours)
+**Effort**: MEDIUM-HIGH (8-10 hours, 5 hours spent on 3.1-3.3)
 
-- [ ] 3.1 Create run_backtest agent tool definition
-  - File: /backend/app/agents/tool_definitions.py
-  - Function: `get_run_backtest_tool_definition()`
-  - Schema: ticker (required), start_date, end_date, strategy, min_signal_strength
-  - Description: "Execute a backtest to validate a trading strategy using historical data"
-- [ ] 3.2 Create run_backtest tool executor
-  - File: /backend/app/agents/tool_executors_data.py
-  - Function: `execute_run_backtest(ticker, start_date, end_date, strategy, min_signal_strength)`
-  - Call backtest API internally (POST /api/backtest/run)
-  - Wait for completion (synchronous for agent decision-making)
-  - Return: Sharpe ratio, win rate, max drawdown, total return, num trades
-- [ ] 3.3 Register tool in AgentTools
-  - File: /backend/app/agents/tools.py
-  - Add to __all__ exports
-  - Wire to data tools executor
-- [ ] 3.4 Rewrite paper_trade_validation_workflow with real backtest
+- [x] 3.1 Create run_backtest agent tool definition ✅
+  - Already exists: /backend/app/agents/tool_definitions.py:345-395
+  - Function: `get_run_backtest_tool_definition()` ✅
+  - Schema: ticker, start_date, end_date, strategy, min_signal_strength, max_holding_days, position_sizing_method, position_size_value ✅
+  - Description: "Execute a backtest to validate a trading strategy using historical data. Returns performance metrics including Sharpe ratio, win rate, max drawdown, and total return." ✅
+- [x] 3.2 Create run_backtest tool executor ✅
+  - Already exists: /backend/app/agents/tool_executors_trading.py:400-556
+  - Function: `execute_run_backtest()` with full implementation ✅
+  - Creates backtest run, launches Celery task, polls for completion (max 5 min) ✅
+  - Returns: Sharpe ratio, win rate, max drawdown, total return, num trades ✅
+- [x] 3.3 Register tool in AgentTools ✅
+  - Already registered: /backend/app/agents/tools.py:35,58,162-180
+  - Import: `get_run_backtest_tool_definition` ✅
+  - Executor: `execute_run_backtest()` method ✅
+  - Fully wired and functional ✅
+- [ ] 3.4 Rewrite paper_trade_validation_workflow with real backtest (IN PROGRESS)
   - File: /backend/app/tasks/workflow_tasks.py (lines 157-257)
   - Remove: MVP stub (line 210: `approved = True`)
   - Add: Strategy agent with run_backtest tool access
