@@ -33,6 +33,7 @@ from app.api import (
     settings_profiles,
     status,
     status_stream,
+    strategies,
     valuation,
     watchlist,
 )
@@ -156,6 +157,7 @@ app.include_router(gaps.router)
 app.include_router(backtest.router)
 app.include_router(paper_trades.router)
 app.include_router(paper_trading.router)
+app.include_router(strategies.router)  # Task 4.9: Strategy management API
 
 
 @app.get("/")
