@@ -20,20 +20,7 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Paper Trading & Backtesting Visualization** (0% - 0/7 complete)
-   - File: `tasks-0072-paper-trading-backtesting-visualization.md`
-   - Started: 2025-11-18 (yesterday)
-   - Last updated: Unknown
-   - Next: Task 0 - Scope Discovery (MANDATORY)
-   - Tasks:
-     - [ ] Task 0: Scope Discovery (MANDATORY)
-     - [ ] Task 1: Backend: API Endpoints & Data Fixes
-     - [ ] Task 2: Frontend: Paper Trading Page (/trading)
-     - [ ] Task 3: Frontend: Backtesting Page (/backtest)
-     - [ ] Task 4: Dashboard Integration
-     - [ ] Task 5: Watchlist Integration
-     - [ ] Task 6: Testing, Polish, and Documentation
-
+(No active tasks - pick from Planned below or run `/task_it` to create new work)
 
 ---
 
