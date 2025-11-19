@@ -443,11 +443,14 @@ Respond with JSON: {{"decision": "APPROVE|REJECT", "reasoning": "..."}}"""
                     "thesis": thesis,
                     "approved": approved,
                     "trade_id": str(trade_id) if trade_id else None,
+                    "backtest_run_id": str(backtest_result.get("backtest_run_id"))
+                    if backtest_result
+                    else None,
+                    "backtest_metrics": backtest_metrics,
                     "strategy_decision": "APPROVE" if strategy_approved else "REJECT",
                     "strategy_reasoning": strategy_reasoning,
                     "risk_decision": "APPROVE" if risk_approved else "REJECT",
                     "risk_reasoning": risk_reasoning,
-                    "backtest_metrics": backtest_metrics,
                 },
             )
             if commit_success:
