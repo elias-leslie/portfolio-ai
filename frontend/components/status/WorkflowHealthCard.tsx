@@ -1,9 +1,9 @@
 "use client";
 
-import { Activity, CheckCircle2, AlertCircle, XCircle } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { WorkflowHealthInfo } from "@/lib/api/status";
-import { ExpandableCard } from "@/components/status/ExpandableCard";
+import { GitBranch, CheckCircle2, XCircle, AlertCircle, Clock } from "lucide-react";
+import type { WorkflowHealthInfo } from "@/lib/api/status";
 
 interface WorkflowHealthCardProps {
   workflowHealth: WorkflowHealthInfo | undefined;
@@ -12,192 +12,178 @@ interface WorkflowHealthCardProps {
 export function WorkflowHealthCard({ workflowHealth }: WorkflowHealthCardProps) {
   if (!workflowHealth) {
     return (
-      <ExpandableCard
-        title={
-          <div className="flex items-center gap-2">
-            <Activity className="h-5 w-5" />
-            <span>Workflow Health</span>
-          </div>
-        }
-        description="Autonomous trading workflow execution status (24h)."
-        summary="No workflow data available"
-        defaultCollapsed
-      >
-        <p className="text-sm text-muted-foreground">No workflow health data available.</p>
-      </ExpandableCard>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <GitBranch className="h-5 w-5" />
+            Workflow Health
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">No workflow health data available</p>
+        </CardContent>
+      </Card>
     );
   }
 
-  const summary = `${workflowHealth.total_workflows_24h} workflows • ${workflowHealth.successful_workflows} complete • ${workflowHealth.success_rate.toFixed(1)}% success`;
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "healthy":
+        return "bg-green-600";
+      case "warning":
+        return "bg-yellow-600";
+      case "critical":
+        return "bg-red-600";
+      default:
+        return "bg-gray-500";
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "healthy":
+        return <CheckCircle2 className="h-4 w-4 text-green-600" />;
+      case "warning":
+        return <AlertCircle className="h-4 w-4 text-yellow-600" />;
+      case "critical":
+        return <XCircle className="h-4 w-4 text-red-600" />;
+      default:
+        return <AlertCircle className="h-4 w-4 text-gray-500" />;
+    }
+  };
+
+  const getSuccessRateColor = (rate: number) => {
+    if (rate >= 80) return "text-green-600";
+    if (rate >= 50) return "text-yellow-600";
+    return "text-red-600";
+  };
 
   return (
-    <ExpandableCard
-      title={
-        <div className="flex items-center gap-2">
-          <Activity className="h-5 w-5" />
-          <span>Workflow Health</span>
-        </div>
-      }
-      description="Autonomous trading workflow execution status (24h)."
-      summary={summary}
-      defaultCollapsed
-      actions={<Badge variant={getStatusVariant(workflowHealth.status)}>{getStatusLabel(workflowHealth.status)}</Badge>}
-    >
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard
-            label="Total Workflows"
-            value={workflowHealth.total_workflows_24h}
-            sublabel="Last 24 hours"
-          />
-          <StatCard
-            label="Success Rate"
-            value={`${workflowHealth.success_rate.toFixed(1)}%`}
-            sublabel={`${workflowHealth.successful_workflows}/${workflowHealth.total_workflows_24h - workflowHealth.blocked_workflows} completed`}
-            valueClassName={workflowHealth.success_rate >= 75 ? "text-green-600" : workflowHealth.success_rate >= 50 ? "text-yellow-600" : "text-red-600"}
-          />
-          <StatCard
-            label="Failed"
-            value={workflowHealth.failed_workflows}
-            sublabel={workflowHealth.failed_workflows > 0 ? "Needs attention" : "No failures"}
-            valueClassName={workflowHealth.failed_workflows > 0 ? "text-red-600" : "text-green-600"}
-          />
-          <StatCard
-            label="Blocked"
-            value={workflowHealth.blocked_workflows}
-            sublabel={workflowHealth.blocked_workflows > 0 ? "Requires action" : "All clear"}
-            valueClassName={workflowHealth.blocked_workflows > 0 ? "text-yellow-600" : "text-green-600"}
-          />
-        </div>
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <GitBranch className="h-5 w-5" />
+          Workflow Health
+          <Badge className={getStatusColor(workflowHealth.status)}>
+            {workflowHealth.status.toUpperCase()}
+          </Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 gap-4">
+          {/* Total Workflows 24h */}
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <GitBranch className="h-4 w-4 text-muted-foreground" />
+              <p className="text-sm font-medium">Total (24h)</p>
+            </div>
+            <p className="text-2xl font-bold">{workflowHealth.total_workflows_24h}</p>
+          </div>
 
-        {workflowHealth.last_successful_workflow && (
-          <div className="rounded-lg border p-3">
-            <div className="flex items-center gap-2 text-sm">
-              <CheckCircle2 className="h-4 w-4 text-green-500" />
-              <span className="font-medium">Last successful workflow:</span>
-              <span className="text-muted-foreground">{workflowHealth.last_successful_type}</span>
-              <span className="text-xs text-muted-foreground">({formatTimestamp(workflowHealth.last_successful_workflow)})</span>
+          {/* Success Rate */}
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              {getStatusIcon(workflowHealth.status)}
+              <p className="text-sm font-medium">Success Rate</p>
+            </div>
+            <p className={`text-2xl font-bold ${getSuccessRateColor(workflowHealth.success_rate)}`}>
+              {workflowHealth.success_rate}%
+            </p>
+          </div>
+
+          {/* Successful Workflows */}
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              <p className="text-sm font-medium">Successful</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <p className="text-xl font-semibold">{workflowHealth.successful_workflows}</p>
+              <Badge variant="success" className="text-xs">
+                Complete
+              </Badge>
             </div>
           </div>
-        )}
 
-        {Object.keys(workflowHealth.failures_by_type).length > 0 && (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <Badge variant="destructive">{Object.keys(workflowHealth.failures_by_type).length}</Badge>
-              <span>Workflow Types with Failures</span>
+          {/* Failed Workflows */}
+          {workflowHealth.failed_workflows > 0 && (
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <XCircle className="h-4 w-4 text-red-600" />
+                <p className="text-sm font-medium">Failed</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <p className="text-xl font-semibold">{workflowHealth.failed_workflows}</p>
+                <Badge variant="destructive" className="text-xs">
+                  Failed
+                </Badge>
+              </div>
             </div>
-            <div className="space-y-2">
-              {Object.entries(workflowHealth.failures_by_type)
-                .sort(([, aCount], [, bCount]) => bCount - aCount)
-                .map(([workflowType, count]) => (
-                  <div
-                    key={workflowType}
-                    className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50"
-                  >
-                    <div className="flex items-center gap-3">
-                      <XCircle className="h-4 w-4 text-red-500" />
-                      <span className="font-medium capitalize">{workflowType.replace(/_/g, " ")}</span>
-                    </div>
-                    <Badge variant="destructive">{count} failed</Badge>
-                  </div>
+          )}
+
+          {/* Blocked Workflows */}
+          {workflowHealth.blocked_workflows > 0 && (
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-yellow-600" />
+                <p className="text-sm font-medium">Blocked</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <p className="text-xl font-semibold">{workflowHealth.blocked_workflows}</p>
+                <Badge variant="warning" className="text-xs">
+                  Blocked
+                </Badge>
+              </div>
+            </div>
+          )}
+
+          {/* Last Successful Workflow */}
+          {workflowHealth.last_successful_workflow && (
+            <div className="space-y-1 col-span-2">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <p className="text-sm font-medium">Last Successful</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">
+                  {workflowHealth.last_successful_type || "Unknown Type"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {new Date(workflowHealth.last_successful_workflow).toLocaleString()}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Failures by Type */}
+          {Object.keys(workflowHealth.failures_by_type).length > 0 && (
+            <div className="space-y-1 col-span-2 border-t pt-3">
+              <p className="text-sm font-medium text-red-600">Failures by Type:</p>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(workflowHealth.failures_by_type).map(([type, count]) => (
+                  <Badge key={type} variant="destructive" className="text-xs">
+                    {type}: {count}
+                  </Badge>
                 ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {Object.keys(workflowHealth.blocked_by_type).length > 0 && (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <Badge className="bg-yellow-500 text-white">{Object.keys(workflowHealth.blocked_by_type).length}</Badge>
-              <span>Workflow Types Blocked</span>
-            </div>
-            <div className="space-y-2">
-              {Object.entries(workflowHealth.blocked_by_type)
-                .sort(([, aCount], [, bCount]) => bCount - aCount)
-                .map(([workflowType, count]) => (
-                  <div
-                    key={workflowType}
-                    className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50"
-                  >
-                    <div className="flex items-center gap-3">
-                      <AlertCircle className="h-4 w-4 text-yellow-500" />
-                      <span className="font-medium capitalize">{workflowType.replace(/_/g, " ")}</span>
-                    </div>
-                    <Badge className="bg-yellow-500 text-white">{count} blocked</Badge>
-                  </div>
+          {/* Blocked by Type */}
+          {Object.keys(workflowHealth.blocked_by_type).length > 0 && (
+            <div className="space-y-1 col-span-2 border-t pt-3">
+              <p className="text-sm font-medium text-yellow-600">Blocked by Type:</p>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(workflowHealth.blocked_by_type).map(([type, count]) => (
+                  <Badge key={type} variant="warning" className="text-xs">
+                    {type}: {count}
+                  </Badge>
                 ))}
+              </div>
             </div>
-          </div>
-        )}
-      </div>
-    </ExpandableCard>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
-}
-
-function StatCard({
-  label,
-  value,
-  sublabel,
-  valueClassName = "",
-}: {
-  label: string;
-  value: string | number;
-  sublabel?: string;
-  valueClassName?: string;
-}) {
-  return (
-    <div className="rounded-lg border p-3">
-      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className={`text-2xl font-bold ${valueClassName}`}>{value}</p>
-      {sublabel && <p className="text-xs text-muted-foreground mt-1">{sublabel}</p>}
-    </div>
-  );
-}
-
-function getStatusVariant(status: string): "default" | "destructive" | "secondary" {
-  switch (status) {
-    case "healthy":
-      return "default";
-    case "warning":
-      return "secondary";
-    case "critical":
-      return "destructive";
-    default:
-      return "secondary";
-  }
-}
-
-function getStatusLabel(status: string): string {
-  switch (status) {
-    case "healthy":
-      return "Healthy";
-    case "warning":
-      return "Warning";
-    case "critical":
-      return "Critical";
-    default:
-      return status;
-  }
-}
-
-function formatTimestamp(timestamp: string | null | undefined) {
-  if (!timestamp) return "Never";
-  try {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-
-    if (diffMins < 1) return "Just now";
-    if (diffMins < 60) return `${diffMins}m ago`;
-
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
-
-    const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays}d ago`;
-  } catch {
-    return "Unknown";
-  }
 }
