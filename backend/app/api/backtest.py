@@ -348,3 +348,56 @@ async def delete_backtest(run_id: str) -> dict[str, str]:
     except Exception as e:
         logger.error(f"Failed to delete backtest: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to delete backtest: {e!s}") from e
+
+
+@router.post("/compare", response_model=dict[str, list[BacktestEquity]])
+async def compare_backtests(
+    run_ids: list[str] = Query(..., description="List of run IDs to compare (2-5 runs)"),
+) -> dict[str, list[BacktestEquity]]:
+    """Compare equity curves of multiple backtest runs.
+
+    Query Parameters:
+        run_ids: List of 2-5 backtest run IDs to compare
+
+    Returns:
+        Dictionary mapping run_id to equity curve data (normalized for comparison)
+
+    Raises:
+        HTTPException 400: Invalid number of run_ids (must be 2-5)
+        HTTPException 404: One or more runs not found
+        HTTPException 500: Database error
+    """
+    try:
+        if len(run_ids) < 2:
+            raise HTTPException(
+                status_code=400, detail="Must provide at least 2 run IDs to compare"
+            )
+
+        if len(run_ids) > 5:
+            raise HTTPException(status_code=400, detail="Cannot compare more than 5 runs at once")
+
+        storage_mgr = get_connection_manager()
+
+        # Fetch equity curves for all runs
+        result: dict[str, list[BacktestEquity]] = {}
+
+        for run_id in run_ids:
+            equity_data = get_backtest_equity_curve(storage_mgr, run_id)
+
+            if not equity_data:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Backtest {run_id} not found or has no equity data",
+                )
+
+            result[run_id] = equity_data
+
+        logger.info(f"Compared {len(run_ids)} backtest runs")
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to compare backtests: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to compare backtests: {e!s}") from e

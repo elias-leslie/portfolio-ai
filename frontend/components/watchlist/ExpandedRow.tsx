@@ -13,10 +13,14 @@
  * Refactored from 1,142-line monolithic component into focused subcomponents.
  */
 
+import { useState } from "react";
 import { usePreferences } from "@/lib/hooks/usePreferences";
 import { useNewsIntelligence } from "@/lib/hooks/useNews";
 import type { WatchlistItem, RefreshStatus } from "@/lib/api/watchlist";
 import { UnifiedNewsIntelligenceCard } from "@/components/shared/UnifiedNewsIntelligenceCard";
+import { Button } from "@/components/ui/button";
+import { BarChart3, Sparkles } from "lucide-react";
+import { toast } from "sonner";
 import { ExpandedRowRefreshStatus } from "./ExpandedRowRefreshStatus";
 import { ExpandedRowNarrative } from "./ExpandedRowNarrative";
 import { ExpandedRowScoreBreakdown } from "./ExpandedRowScoreBreakdown";
@@ -30,9 +34,20 @@ interface ExpandedRowProps {
 export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
     const { data: preferences } = usePreferences();
     const { data: fullNewsData } = useNewsIntelligence(item.symbol, { limit: 50 });
+    const [isBacktestLoading, setIsBacktestLoading] = useState(false);
 
     const userTimezone = preferences?.display_timezone ?? "America/New_York";
     const newsHidden = preferences?.watchlist_show_news === false;
+
+    const handleRunBacktest = () => {
+        setIsBacktestLoading(true);
+        // Navigate to backtest page with ticker pre-filled
+        window.location.href = `/backtest?ticker=${item.symbol}`;
+    };
+
+    const handleGenerateIdea = () => {
+        toast.info("AI Idea Generation coming soon! This will trigger autonomous agent analysis.");
+    };
 
     return (
         <div className="space-y-4">
@@ -46,6 +61,27 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
 
             {/* Narrative Intelligence */}
             <ExpandedRowNarrative item={item} />
+
+            {/* Quick Actions */}
+            <div className="flex flex-wrap gap-2">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRunBacktest}
+                    disabled={isBacktestLoading}
+                >
+                    <BarChart3 className="mr-2 h-4 w-4" />
+                    Run Backtest
+                </Button>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleGenerateIdea}
+                >
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Generate AI Idea
+                </Button>
+            </div>
 
             {/* News Intelligence */}
             <UnifiedNewsIntelligenceCard

@@ -9,6 +9,8 @@ import {
   Eye,
   Activity,
   Database,
+  TrendingUp,
+  BarChart3,
 } from "lucide-react";
 
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -29,6 +31,16 @@ const links = [
     href: "/watchlist",
     label: "Watchlist",
     icon: Eye,
+  },
+  {
+    href: "/trading",
+    label: "Trading",
+    icon: TrendingUp,
+  },
+  {
+    href: "/backtest",
+    label: "Backtest",
+    icon: BarChart3,
   },
   {
     href: "/capabilities",

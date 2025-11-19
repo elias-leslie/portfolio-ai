@@ -1,0 +1,486 @@
+"""Paper Trading API endpoints.
+
+This module provides REST API endpoints for paper trading operations:
+- List all paper trades (open + closed)
+- Get single trade details with AI reasoning
+- Close positions manually
+- Get summary statistics
+"""
+
+from __future__ import annotations
+
+from datetime import date
+from typing import TYPE_CHECKING, Literal
+
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field
+
+from app.logging_config import get_logger
+from app.storage import get_storage
+
+if TYPE_CHECKING:
+    pass
+
+logger = get_logger(__name__)
+
+router = APIRouter(prefix="/api/paper-trades", tags=["paper-trades"])
+
+storage = get_storage()
+
+# ============================================================================
+# Request/Response Models
+# ============================================================================
+
+
+class PaperTradeResponse(BaseModel):
+    """Response model for a single paper trade."""
+
+    idea_id: str
+    agent_run_id: str
+    ticker: str
+    idea_type: Literal["buy", "sell"]
+    entry_price: float | None = None
+    entry_date: str | None = None
+    target_price: float | None = None
+    stop_loss_price: float | None = None
+    current_price: float | None = None
+    current_return_pct: float | None = None
+    status: str
+    exit_price: float | None = None
+    exit_date: str | None = None
+    exit_reason: str | None = None
+    realized_return_pct: float | None = None
+    holding_days: int | None = None
+    max_favorable_pct: float | None = None
+    max_adverse_pct: float | None = None
+    # AI reasoning fields
+    thesis: str | None = None
+    confidence_score: float | None = None
+    risk_level: str | None = None
+    # Agent approval details
+    workflow_id: str | None = None
+    strategy_agent_approved: bool | None = None
+    risk_agent_approved: bool | None = None
+    backtest_sharpe: float | None = None
+    backtest_win_rate: float | None = None
+    backtest_max_drawdown: float | None = None
+
+
+class PaperTradesListResponse(BaseModel):
+    """Response model for list of paper trades."""
+
+    trades: list[PaperTradeResponse]
+    total_count: int
+
+
+class PaperTradeSummaryResponse(BaseModel):
+    """Response model for paper trading summary statistics."""
+
+    total_open: int
+    total_closed: int
+    win_rate: float
+    avg_return_pct: float
+    total_pnl_pct: float
+    best_trade_pct: float | None = None
+    worst_trade_pct: float | None = None
+
+
+class CloseTradeRequest(BaseModel):
+    """Request model for manually closing a paper trade."""
+
+    exit_price: float | None = Field(
+        None, description="Optional exit price (uses current if not provided)"
+    )
+    exit_reason: str = Field(default="manual", description="Reason for closing (default: manual)")
+
+
+class CloseTradeResponse(BaseModel):
+    """Response model for close trade operation."""
+
+    status: str
+    trade_id: str
+    ticker: str
+    exit_price: float
+    exit_date: str
+    realized_return_pct: float
+    message: str
+
+
+# ============================================================================
+# Endpoints
+# ============================================================================
+
+
+@router.get("", response_model=PaperTradesListResponse)
+async def list_paper_trades(
+    status: Literal["open", "closed", "all"] = Query("all", description="Filter by trade status"),
+    limit: int = Query(100, ge=1, le=500, description="Maximum number of trades to return"),
+    offset: int = Query(0, ge=0, description="Number of trades to skip"),
+) -> PaperTradesListResponse:
+    """List all paper trades with optional status filter.
+
+    Query Parameters:
+        status: Filter by 'open', 'closed', or 'all' (default: all)
+        limit: Maximum number of trades to return (default: 100, max: 500)
+        offset: Number of trades to skip for pagination (default: 0)
+
+    Returns:
+        List of paper trades with full details including AI reasoning
+    """
+    try:
+        # Build query with status filter
+        status_filter = ""
+        params: list[int] = [limit, offset]
+
+        if status == "open":
+            status_filter = "WHERE io.status = 'open'"
+        elif status == "closed":
+            status_filter = "WHERE io.status IN ('closed', 'target_hit', 'stop_hit', 'expired')"
+
+        query = f"""
+            SELECT
+                io.idea_id,
+                io.agent_run_id,
+                io.ticker,
+                io.idea_type,
+                io.entry_price,
+                io.entry_date,
+                io.target_price,
+                io.stop_loss_price,
+                io.current_price,
+                io.current_return_pct,
+                io.status,
+                io.exit_price,
+                io.exit_date,
+                io.exit_reason,
+                io.realized_return_pct,
+                io.holding_days,
+                io.max_favorable_pct,
+                io.max_adverse_pct,
+                ai.thesis,
+                ai.confidence_score,
+                ai.risk_level
+            FROM idea_outcomes io
+            LEFT JOIN agent_ideas ai ON io.idea_id = ai.id
+            {status_filter}
+            ORDER BY
+                CASE WHEN io.status = 'open' THEN 0 ELSE 1 END,
+                io.entry_date DESC
+            LIMIT ? OFFSET ?
+        """
+
+        with storage.connection() as conn:
+            rows = conn.execute(query, tuple(params) if params else None).fetchall()
+
+            # Get total count
+            count_query = f"""
+                SELECT COUNT(*) FROM idea_outcomes io
+                {status_filter}
+            """
+            total_count = conn.execute(count_query).fetchone()[0]  # type: ignore[index]
+
+        # Convert to response models
+        trades = [
+            PaperTradeResponse(
+                idea_id=str(row[0]) if row[0] else "",
+                agent_run_id=str(row[1]) if row[1] else "",
+                ticker=str(row[2]) if row[2] else "",
+                idea_type=str(row[3]) if row[3] in ["buy", "sell"] else "buy",  # type: ignore[arg-type]
+                entry_price=float(row[4]) if row[4] is not None else None,
+                entry_date=str(row[5]) if row[5] else None,
+                target_price=float(row[6]) if row[6] is not None else None,
+                stop_loss_price=float(row[7]) if row[7] is not None else None,
+                current_price=float(row[8]) if row[8] is not None else None,
+                current_return_pct=float(row[9]) if row[9] is not None else None,
+                status=str(row[10]) if row[10] else "",
+                exit_price=float(row[11]) if row[11] is not None else None,
+                exit_date=str(row[12]) if row[12] else None,
+                exit_reason=str(row[13]) if row[13] else None,
+                realized_return_pct=float(row[14]) if row[14] is not None else None,
+                holding_days=int(row[15]) if row[15] is not None else None,
+                max_favorable_pct=float(row[16]) if row[16] is not None else None,
+                max_adverse_pct=float(row[17]) if row[17] is not None else None,
+                thesis=str(row[18]) if row[18] else None,
+                confidence_score=float(row[19]) if row[19] is not None else None,
+                risk_level=str(row[20]) if row[20] else None,
+            )
+            for row in rows
+        ]
+
+        logger.info(
+            "paper_trades_listed",
+            status_filter=status,
+            count=len(trades),
+            total=total_count,
+        )
+
+        return PaperTradesListResponse(
+            trades=trades, total_count=int(total_count) if total_count else 0
+        )
+
+    except Exception as e:
+        logger.error("failed_to_list_paper_trades", error=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch paper trades: {e}",
+        ) from e
+
+
+@router.get("/summary", response_model=PaperTradeSummaryResponse)
+async def get_paper_trade_summary() -> PaperTradeSummaryResponse:
+    """Get summary statistics for paper trading performance.
+
+    Returns:
+        Summary with win rate, average return, total P&L, etc.
+    """
+    try:
+        with storage.connection() as conn:
+            # Get counts
+            open_count = conn.execute(
+                "SELECT COUNT(*) FROM idea_outcomes WHERE status = 'open'"
+            ).fetchone()[0]  # type: ignore[index]
+
+            closed_count = conn.execute(
+                "SELECT COUNT(*) FROM idea_outcomes WHERE status IN ('closed', 'target_hit', 'stop_hit', 'expired')"
+            ).fetchone()[0]  # type: ignore[index]
+
+            # Get closed trade stats
+            stats = conn.execute(
+                """
+                SELECT
+                    COUNT(*) as total,
+                    COUNT(CASE WHEN realized_return_pct > 0 THEN 1 END) as wins,
+                    AVG(realized_return_pct) as avg_return,
+                    SUM(realized_return_pct) as total_return,
+                    MAX(realized_return_pct) as best_trade,
+                    MIN(realized_return_pct) as worst_trade
+                FROM idea_outcomes
+                WHERE status IN ('closed', 'target_hit', 'stop_hit', 'expired')
+                    AND realized_return_pct IS NOT NULL
+                """
+            ).fetchone()
+
+            total_closed_with_returns = int(stats[0]) if stats[0] else 0  # type: ignore[index]
+            wins = int(stats[1]) if stats[1] else 0  # type: ignore[index]
+            avg_return = float(stats[2]) if stats[2] else 0.0  # type: ignore[index]
+            total_return = float(stats[3]) if stats[3] else 0.0  # type: ignore[index]
+            best_trade = float(stats[4]) if stats[4] is not None else None  # type: ignore[index]
+            worst_trade = float(stats[5]) if stats[5] is not None else None  # type: ignore[index]
+
+            win_rate = (
+                (float(wins) / float(total_closed_with_returns) * 100.0)
+                if total_closed_with_returns > 0
+                else 0.0
+            )
+
+        logger.info(
+            "paper_trade_summary_retrieved",
+            open=open_count,
+            closed=closed_count,
+            win_rate=win_rate,
+        )
+
+        return PaperTradeSummaryResponse(
+            total_open=int(open_count) if open_count else 0,
+            total_closed=int(closed_count) if closed_count else 0,
+            win_rate=float(win_rate) if win_rate else 0.0,
+            avg_return_pct=float(avg_return) if avg_return else 0.0,
+            total_pnl_pct=float(total_return) if total_return else 0.0,
+            best_trade_pct=float(best_trade) if best_trade is not None else None,
+            worst_trade_pct=float(worst_trade) if worst_trade is not None else None,
+        )
+
+    except Exception as e:
+        logger.error("failed_to_get_summary", error=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch summary: {e}",
+        ) from e
+
+
+@router.get("/{trade_id}", response_model=PaperTradeResponse)
+async def get_paper_trade(trade_id: str) -> PaperTradeResponse:
+    """Get detailed information for a single paper trade.
+
+    Path Parameters:
+        trade_id: The idea_id of the paper trade
+
+    Returns:
+        Complete trade details including AI reasoning and backtest metrics
+    """
+    try:
+        query = """
+            SELECT
+                io.idea_id,
+                io.agent_run_id,
+                io.ticker,
+                io.idea_type,
+                io.entry_price,
+                io.entry_date,
+                io.target_price,
+                io.stop_loss_price,
+                io.current_price,
+                io.current_return_pct,
+                io.status,
+                io.exit_price,
+                io.exit_date,
+                io.exit_reason,
+                io.realized_return_pct,
+                io.holding_days,
+                io.max_favorable_pct,
+                io.max_adverse_pct,
+                ai.thesis,
+                ai.confidence_score,
+                ai.risk_level
+            FROM idea_outcomes io
+            LEFT JOIN agent_ideas ai ON io.idea_id = ai.id
+            WHERE io.idea_id = ?
+        """
+
+        with storage.connection() as conn:
+            row = conn.execute(query, [trade_id]).fetchone()
+
+        if not row:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Paper trade {trade_id} not found",
+            )
+
+        trade = PaperTradeResponse(
+            idea_id=str(row[0]) if row[0] else "",
+            agent_run_id=str(row[1]) if row[1] else "",
+            ticker=str(row[2]) if row[2] else "",
+            idea_type=str(row[3]) if row[3] in ["buy", "sell"] else "buy",  # type: ignore[arg-type]
+            entry_price=float(row[4]) if row[4] is not None else None,
+            entry_date=str(row[5]) if row[5] else None,
+            target_price=float(row[6]) if row[6] is not None else None,
+            stop_loss_price=float(row[7]) if row[7] is not None else None,
+            current_price=float(row[8]) if row[8] is not None else None,
+            current_return_pct=float(row[9]) if row[9] is not None else None,
+            status=str(row[10]) if row[10] else "",
+            exit_price=float(row[11]) if row[11] is not None else None,
+            exit_date=str(row[12]) if row[12] else None,
+            exit_reason=str(row[13]) if row[13] else None,
+            realized_return_pct=float(row[14]) if row[14] is not None else None,
+            holding_days=int(row[15]) if row[15] is not None else None,
+            max_favorable_pct=float(row[16]) if row[16] is not None else None,
+            max_adverse_pct=float(row[17]) if row[17] is not None else None,
+            thesis=str(row[18]) if row[18] else None,
+            confidence_score=float(row[19]) if row[19] is not None else None,
+            risk_level=str(row[20]) if row[20] else None,
+        )
+
+        logger.info("paper_trade_retrieved", trade_id=trade_id, ticker=trade.ticker)
+
+        return trade
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("failed_to_get_paper_trade", trade_id=trade_id, error=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch paper trade: {e}",
+        ) from e
+
+
+@router.post("/{trade_id}/close", response_model=CloseTradeResponse)
+async def close_paper_trade(
+    trade_id: str,
+    request: CloseTradeRequest,
+) -> CloseTradeResponse:
+    """Manually close an open paper trade.
+
+    Path Parameters:
+        trade_id: The idea_id of the paper trade to close
+
+    Request Body:
+        exit_price: Optional exit price (uses current_price if not provided)
+        exit_reason: Reason for closing (default: "manual")
+
+    Returns:
+        Result of close operation with realized P&L
+    """
+    try:
+        with storage.connection() as conn:
+            # Get trade info
+            trade_row = conn.execute(
+                """
+                SELECT ticker, entry_price, current_price, status
+                FROM idea_outcomes
+                WHERE idea_id = ?
+                """,
+                [trade_id],
+            ).fetchone()
+
+            if not trade_row:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Paper trade {trade_id} not found",
+                )
+
+            ticker, entry_price, current_price, status = trade_row
+
+            if status != "open":
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Trade is already {status}, cannot close",
+                )
+
+            # Determine exit price
+            exit_price = request.exit_price if request.exit_price is not None else current_price
+
+            if exit_price is None or entry_price is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Cannot close trade: missing price data",
+                )
+
+            # Calculate realized return
+            realized_return_pct = (
+                (float(exit_price) - float(entry_price)) / float(entry_price)
+            ) * 100
+
+            # Update trade
+            exit_date = date.today().isoformat()
+            conn.execute(
+                """
+                UPDATE idea_outcomes
+                SET
+                    status = 'closed',
+                    exit_price = ?,
+                    exit_date = ?,
+                    exit_reason = ?,
+                    realized_return_pct = ?
+                WHERE idea_id = ?
+                """,
+                [exit_price, exit_date, request.exit_reason, realized_return_pct, trade_id],
+            )
+            conn.commit()
+
+        logger.info(
+            "paper_trade_closed",
+            trade_id=trade_id,
+            ticker=ticker,
+            exit_price=exit_price,
+            realized_return_pct=realized_return_pct,
+        )
+
+        return CloseTradeResponse(
+            status="closed",
+            trade_id=trade_id,
+            ticker=str(ticker),
+            exit_price=float(exit_price),
+            exit_date=str(exit_date),
+            realized_return_pct=float(realized_return_pct),
+            message=f"Successfully closed {ticker} trade with {realized_return_pct:+.2f}% return",
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("failed_to_close_trade", trade_id=trade_id, error=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to close trade: {e}",
+        ) from e

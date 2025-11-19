@@ -20,7 +20,20 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-(No active tasks)
+1. **Paper Trading & Backtesting Visualization** (0% - 0/7 complete)
+   - File: `tasks-0072-paper-trading-backtesting-visualization.md`
+   - Started: 2025-11-18 (yesterday)
+   - Last updated: Unknown
+   - Next: Task 0 - Scope Discovery (MANDATORY)
+   - Tasks:
+     - [ ] Task 0: Scope Discovery (MANDATORY)
+     - [ ] Task 1: Backend: API Endpoints & Data Fixes
+     - [ ] Task 2: Frontend: Paper Trading Page (/trading)
+     - [ ] Task 3: Frontend: Backtesting Page (/backtest)
+     - [ ] Task 4: Dashboard Integration
+     - [ ] Task 5: Watchlist Integration
+     - [ ] Task 6: Testing, Polish, and Documentation
+
 
 ---
 
@@ -28,14 +41,14 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **UI Standardization & UX Fixes** (MEDIUM-HIGH (4-6 hours, 12-15 files), 0/0 tasks (6 days ago))
+1. **UI Standardization & UX Fixes** (MEDIUM-HIGH (4-6 hours, 12-15 files), 0/0 tasks (1 weeks ago))
    - File: `tasks-0055-ui-standardization-and-ux-fixes.md`
    - Created: 2025-11-12
    - Goal: Bring the Portfolio AI web UI up to a consistent design baseline by aligning headers, loading states, and critical interactions so that every surface communicates status clearly and meets accessibility expectations.
    - Tasks:
      - (No tasks defined yet)
 
-2. **Development Process Optimization** (MEDIUM (4-6 hours), 5/7 tasks (6 days ago))
+2. **Development Process Optimization** (MEDIUM (4-6 hours), 5/7 tasks (1 weeks ago))
    - File: `tasks-0054-dev-process-optimization.md`
    - Created: 2025-11-12
    - Goal: Reduce development cycle time from 15-20 min to 5-7 min (3x faster) by fixing test performance and workflow bottlenecks.

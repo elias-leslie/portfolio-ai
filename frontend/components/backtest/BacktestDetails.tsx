@@ -1,0 +1,687 @@
+"use client";
+
+import { useState } from "react";
+import {
+  LineChart,
+  Line,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Legend,
+} from "recharts";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  flexRender,
+  ColumnDef,
+  SortingState,
+} from "@tanstack/react-table";
+import { format } from "date-fns";
+import { ArrowUpIcon, ArrowDownIcon, TrendingUp } from "lucide-react";
+
+import { SectionCard } from "@/components/shared/SectionCard";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+
+import {
+  useBacktestRun,
+  useBacktestEquity,
+  useCompareBacktests,
+} from "@/lib/hooks/useBacktestUI";
+import type { BacktestEquity, BacktestTrade } from "@/lib/api/backtest-ui";
+
+// ============================================================================
+// Types
+// ============================================================================
+
+interface BacktestDetailsProps {
+  runId: string | null;
+  comparisonMode: boolean;
+  comparisonRunIds: string[];
+}
+
+interface ChartDataPoint {
+  date: string;
+  [key: string]: string | number;
+}
+
+interface TooltipPayload {
+  payload: ChartDataPoint;
+  name?: string;
+  value?: string | number;
+  color?: string;
+}
+
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: TooltipPayload[];
+}
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+const LINE_COLORS = [
+  "var(--color-gain)",
+  "var(--color-chart-2)",
+  "var(--color-chart-3)",
+  "var(--color-chart-4)",
+  "var(--color-chart-5)",
+];
+
+// ============================================================================
+// Custom Tooltip
+// ============================================================================
+
+function CustomTooltip({ active, payload }: CustomTooltipProps) {
+  if (!active || !payload || !payload.length) return null;
+
+  const data = payload[0].payload;
+  const dateObj = new Date(data.date);
+
+  return (
+    <div className="bg-surface border border-border rounded-lg p-3 shadow-lg">
+      <p className="text-xs text-text-muted mb-2">
+        {format(dateObj, "MMM d, yyyy")}
+      </p>
+      <div className="space-y-1">
+        {payload.map((entry, index) => (
+          <div key={index} className="flex items-center gap-2">
+            <div
+              className="w-3 h-3 rounded-full"
+              style={{ backgroundColor: entry.color || LINE_COLORS[index] }}
+            />
+            <span className="text-xs font-medium text-text">
+              {entry.name}: {typeof entry.value === "number" ? entry.value.toFixed(2) : entry.value}%
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Metric Card Component
+// ============================================================================
+
+interface MetricCardProps {
+  label: string;
+  value: number | null;
+  format?: "percent" | "currency" | "number";
+  isPositive?: boolean;
+}
+
+function MetricCard({ label, value, format: formatType = "number", isPositive }: MetricCardProps) {
+  if (value === null || value === undefined) {
+    return (
+      <Card className="p-4">
+        <div className="text-xs font-medium text-text-muted mb-2">{label}</div>
+        <div className="text-text-muted">—</div>
+      </Card>
+    );
+  }
+
+  let formattedValue = "";
+  if (formatType === "percent") {
+    formattedValue = `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+  } else if (formatType === "currency") {
+    formattedValue = new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
+  } else {
+    formattedValue = value.toFixed(2);
+  }
+
+  const shouldDetermineColor = isPositive === undefined;
+  const isGain = shouldDetermineColor ? value >= 0 : isPositive;
+  const colorClass = isGain ? "text-gain" : "text-loss";
+  const iconClass = "h-4 w-4";
+
+  return (
+    <Card className="p-4">
+      <div className="text-xs font-medium text-text-muted mb-2">{label}</div>
+      <div className="flex items-center gap-2">
+        <div className={`${colorClass} text-lg font-bold`}>{formattedValue}</div>
+        {shouldDetermineColor && (
+          <div className={colorClass}>
+            {isGain ? (
+              <ArrowUpIcon className={iconClass} />
+            ) : (
+              <ArrowDownIcon className={iconClass} />
+            )}
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+// ============================================================================
+// Main Component
+// ============================================================================
+
+export function BacktestDetails({
+  runId,
+  comparisonMode,
+  comparisonRunIds,
+}: BacktestDetailsProps) {
+  const [tradeSorting, setTradeSorting] = useState<SortingState>([]);
+
+  // Fetch single run data
+  const { data: runData, isLoading: runLoading } = useBacktestRun(
+    runId || "",
+    { enabled: !!runId && !comparisonMode }
+  );
+
+  // Fetch equity curve for single run
+  const { data: equityData, isLoading: equityLoading } = useBacktestEquity(
+    runId || "",
+    { enabled: !!runId && !comparisonMode }
+  );
+
+  // Fetch comparison data
+  const { data: comparisonData, isLoading: comparisonLoading } = useCompareBacktests(
+    comparisonRunIds,
+    { enabled: comparisonMode && comparisonRunIds.length >= 2 }
+  );
+
+  // Determine loading state
+  const isLoading = comparisonMode ? comparisonLoading : runLoading || equityLoading;
+
+  // Handle no selection
+  if (!runId && !comparisonMode) {
+    return (
+      <SectionCard variant="surface" padding="lg">
+        <div className="flex flex-col items-center justify-center py-12">
+          <TrendingUp className="h-12 w-12 text-text-muted/50 mb-4" />
+          <p className="text-center text-text-muted">
+            Select a backtest run to view details and analysis
+          </p>
+        </div>
+      </SectionCard>
+    );
+  }
+
+  // Handle comparison mode without selections
+  if (comparisonMode && comparisonRunIds.length < 2) {
+    return (
+      <SectionCard variant="surface" padding="lg">
+        <div className="flex flex-col items-center justify-center py-12">
+          <TrendingUp className="h-12 w-12 text-text-muted/50 mb-4" />
+          <p className="text-center text-text-muted">
+            Select 2-5 backtest runs to compare equity curves
+          </p>
+        </div>
+      </SectionCard>
+    );
+  }
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <SectionCard variant="surface">
+          <div className="h-80 bg-surface-muted/60 rounded-lg animate-pulse" />
+        </SectionCard>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="h-24 bg-surface-muted/60 rounded-lg animate-pulse" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Comparison mode rendering
+  if (comparisonMode && comparisonData) {
+    return (
+      <div className="space-y-6">
+        {/* Equity Curve Comparison Chart */}
+        <SectionCard
+          variant="surface"
+          title="Equity Curve Comparison"
+          description="Overlay of selected backtest runs"
+        >
+          <ResponsiveContainer width="100%" height={400}>
+            <LineChart
+              data={transformComparisonData(comparisonData)}
+              margin={{ top: 5, right: 30, bottom: 5, left: 0 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 12, fill: "var(--color-text-muted)" }}
+              />
+              <YAxis
+                tick={{ fontSize: 12, fill: "var(--color-text-muted)" }}
+                label={{ value: "Return %", angle: -90, position: "insideLeft" }}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend />
+              {comparisonRunIds.map((runId, index) => (
+                <Line
+                  key={runId}
+                  type="monotone"
+                  dataKey={`return_${runId}`}
+                  stroke={LINE_COLORS[index % LINE_COLORS.length]}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 6 }}
+                  name={`Run ${index + 1}`}
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </SectionCard>
+
+        <div className="rounded-lg border border-border bg-surface/40 p-4 text-sm text-text-muted">
+          <p>Comparing {comparisonRunIds.length} backtest runs</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Single run rendering
+  if (!runData) {
+    return (
+      <SectionCard variant="surface" padding="lg">
+        <div className="flex flex-col items-center justify-center py-12">
+          <p className="text-center text-text-muted">
+            Backtest not found or still loading
+          </p>
+        </div>
+      </SectionCard>
+    );
+  }
+
+  const run = runData.run;
+  const trades = runData.trades || [];
+  const equity = equityData || [];
+
+  // Transform equity data for chart
+  const chartData = equity.map((point) => ({
+    date: point.date,
+    return: parseFloat(point.cumulative_return_pct.toString()),
+  }));
+
+  // Format metrics - convert string to number if needed
+  const formatPercent = (value: string | number | null): number | null => {
+    if (value === null) return null;
+    return typeof value === "string" ? parseFloat(value) : value;
+  };
+
+  const formatCurrency = (value: string | number | null): number | null => {
+    if (value === null) return null;
+    return typeof value === "string" ? parseFloat(value) : value;
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Run Header */}
+      <SectionCard variant="surface" padding="md">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <h2 className="text-2xl font-bold text-text">{run.symbol}</h2>
+            <p className="text-sm text-text-muted mt-1">
+              {format(new Date(run.start_date), "MMM d, yyyy")} →{" "}
+              {format(new Date(run.end_date), "MMM d, yyyy")}
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Badge
+              variant={
+                run.status === "completed"
+                  ? "secondary"
+                  : run.status === "failed"
+                  ? "destructive"
+                  : "default"
+              }
+            >
+              {run.status}
+            </Badge>
+            {run.total_return_pct !== null && (
+              <div className="text-right">
+                <div
+                  className={cn(
+                    "text-2xl font-bold",
+                    parseFloat(String(run.total_return_pct)) >= 0 ? "text-gain" : "text-loss"
+                  )}
+                >
+                  {parseFloat(String(run.total_return_pct)) >= 0 ? "+" : ""}
+                  {parseFloat(String(run.total_return_pct)).toFixed(2)}%
+                </div>
+                <p className="text-xs text-text-muted">Total Return</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </SectionCard>
+
+      {/* Equity Curve Chart */}
+      {chartData.length > 0 && (
+        <SectionCard
+          variant="surface"
+          title="Equity Curve"
+          description="Portfolio value over time"
+        >
+          <ResponsiveContainer width="100%" height={400}>
+            <LineChart
+              data={chartData}
+              margin={{ top: 5, right: 30, bottom: 5, left: 0 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 12, fill: "var(--color-text-muted)" }}
+              />
+              <YAxis
+                tick={{ fontSize: 12, fill: "var(--color-text-muted)" }}
+                label={{ value: "Return %", angle: -90, position: "insideLeft" }}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <Line
+                type="monotone"
+                dataKey="return"
+                stroke="var(--color-gain)"
+                strokeWidth={2}
+                dot={false}
+                activeDot={{ r: 6 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </SectionCard>
+      )}
+
+      {/* Metrics Cards */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+        <MetricCard
+          label="Total Return"
+          value={formatPercent(run.total_return_pct)}
+          format="percent"
+        />
+        <MetricCard
+          label="Sharpe Ratio"
+          value={run.sharpe_ratio ? parseFloat(run.sharpe_ratio.toString()) : null}
+          format="number"
+        />
+        <MetricCard
+          label="Win Rate"
+          value={formatPercent(run.win_rate)}
+          format="percent"
+          isPositive
+        />
+        <MetricCard
+          label="Max Drawdown"
+          value={
+            run.max_drawdown_pct
+              ? -parseFloat(run.max_drawdown_pct.toString())
+              : null
+          }
+          format="percent"
+          isPositive={false}
+        />
+        <MetricCard
+          label="Profit Factor"
+          value={run.profit_factor ? parseFloat(run.profit_factor.toString()) : null}
+          format="number"
+        />
+      </div>
+
+      {/* Additional Stats */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <Card className="p-4">
+          <div className="text-xs font-medium text-text-muted mb-2">Num Trades</div>
+          <div className="text-2xl font-bold text-text">{run.num_trades || 0}</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-xs font-medium text-text-muted mb-2">Initial Capital</div>
+          <div className="text-sm font-bold text-text">
+            {new Intl.NumberFormat("en-US", {
+              style: "currency",
+              currency: "USD",
+              minimumFractionDigits: 0,
+            }).format(parseFloat(run.initial_capital.toString()))}
+          </div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-xs font-medium text-text-muted mb-2">Final Equity</div>
+          <div className="text-sm font-bold text-text">
+            {run.final_equity
+              ? new Intl.NumberFormat("en-US", {
+                  style: "currency",
+                  currency: "USD",
+                  minimumFractionDigits: 0,
+                }).format(parseFloat(run.final_equity.toString()))
+              : "—"}
+          </div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-xs font-medium text-text-muted mb-2">Strategy</div>
+          <div className="text-sm font-bold text-text capitalize">{run.strategy_name}</div>
+        </Card>
+      </div>
+
+      {/* Trades Table */}
+      {trades.length > 0 && (
+        <SectionCard
+          variant="surface"
+          title="Trade History"
+          description={`${trades.length} trades executed`}
+        >
+          <TradesTable trades={trades} sorting={tradeSorting} onSortingChange={setTradeSorting} />
+        </SectionCard>
+      )}
+
+      {/* No trades state */}
+      {trades.length === 0 && (
+        <SectionCard
+          variant="surface"
+          title="Trade History"
+          description="No trades executed"
+        >
+          <div className="py-8 text-center text-text-muted">
+            <p>No trades were executed during this backtest period.</p>
+          </div>
+        </SectionCard>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// Trades Table Component
+// ============================================================================
+
+interface TradesTableProps {
+  trades: BacktestTrade[];
+  sorting: SortingState;
+  onSortingChange: (sorting: SortingState) => void;
+}
+
+function TradesTable({ trades, sorting, onSortingChange }: TradesTableProps) {
+  const formatDate = (dateStr: string | undefined) => {
+    if (!dateStr) return "—";
+    return format(new Date(dateStr), "MMM d, yyyy");
+  };
+
+  const formatCurrency = (value: number | undefined) => {
+    if (value === undefined || value === null) return "—";
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
+  };
+
+  const formatPercent = (value: number | undefined) => {
+    if (value === undefined || value === null) return "—";
+    return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+  };
+
+  const columns: ColumnDef<BacktestTrade>[] = [
+    {
+      accessorKey: "entry_date",
+      header: "Entry Date",
+      cell: ({ row }) => formatDate(row.original.entry_date as any),
+    },
+    {
+      accessorKey: "entry_price",
+      header: "Entry Price",
+      cell: ({ row }) => formatCurrency(parseFloat(row.original.entry_price.toString())),
+    },
+    {
+      accessorKey: "exit_date",
+      header: "Exit Date",
+      cell: ({ row }) => formatDate(row.original.exit_date as any),
+    },
+    {
+      accessorKey: "exit_price",
+      header: "Exit Price",
+      cell: ({ row }) =>
+        row.original.exit_price
+          ? formatCurrency(parseFloat(row.original.exit_price.toString()))
+          : "—",
+    },
+    {
+      accessorKey: "shares",
+      header: "Shares",
+      cell: ({ row }) => row.getValue("shares"),
+    },
+    {
+      accessorKey: "pnl_pct",
+      header: "P&L %",
+      cell: ({ row }) => {
+        const pnl = row.original.pnl_pct
+          ? parseFloat(row.original.pnl_pct.toString())
+          : null;
+        return pnl !== null ? (
+          <span className={pnl >= 0 ? "text-gain font-medium" : "text-loss font-medium"}>
+            {formatPercent(pnl)}
+          </span>
+        ) : (
+          "—"
+        );
+      },
+    },
+    {
+      accessorKey: "exit_reason",
+      header: "Exit Reason",
+      cell: ({ row }) => {
+        const reason = row.getValue("exit_reason") as string | null;
+        if (!reason) return "—";
+        return (
+          <Badge variant="outline" className="text-xs">
+            {reason}
+          </Badge>
+        );
+      },
+    },
+  ];
+
+  const table = useReactTable({
+    data: trades,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    onSortingChange: (updater) => {
+      if (typeof updater === "function") {
+        onSortingChange(updater(sorting));
+      } else {
+        onSortingChange(updater);
+      }
+    },
+    state: {
+      sorting,
+    },
+  });
+
+  return (
+    <div className="rounded-md border border-border bg-surface/40 overflow-x-auto">
+      <Table>
+        <TableHeader>
+          {table.getHeaderGroups().map((headerGroup) => (
+            <TableRow key={headerGroup.id}>
+              {headerGroup.headers.map((header) => (
+                <TableHead key={header.id}>
+                  {header.isPlaceholder
+                    ? null
+                    : flexRender(header.column.columnDef.header, header.getContext())}
+                </TableHead>
+              ))}
+            </TableRow>
+          ))}
+        </TableHeader>
+        <TableBody>
+          {table.getRowModel().rows.map((row) => {
+            const pnl = row.original.pnl_pct
+              ? parseFloat(row.original.pnl_pct.toString())
+              : 0;
+            const bgClass =
+              pnl >= 0
+                ? "bg-green-50/30 dark:bg-green-950/10 hover:bg-green-50/50 dark:hover:bg-green-950/20"
+                : "bg-red-50/30 dark:bg-red-950/10 hover:bg-red-50/50 dark:hover:bg-red-950/20";
+
+            return (
+              <TableRow key={row.id} className={bgClass}>
+                {row.getVisibleCells().map((cell) => (
+                  <TableCell key={cell.id}>
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </TableCell>
+                ))}
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * Transform comparison data from API format to chart format
+ * Converts multiple runs' equity curves into a single chart dataset
+ */
+function transformComparisonData(
+  comparisonData: Record<string, BacktestEquity[]>
+): ChartDataPoint[] {
+  const dateMap = new Map<string, ChartDataPoint>();
+
+  // Iterate through each run
+  Object.entries(comparisonData).forEach(([runId, equityPoints]) => {
+    equityPoints.forEach((point) => {
+      const dateStr = point.date;
+      if (!dateMap.has(dateStr)) {
+        dateMap.set(dateStr, { date: dateStr });
+      }
+
+      const chartPoint = dateMap.get(dateStr)!;
+      chartPoint[`return_${runId}`] = parseFloat(point.cumulative_return_pct.toString());
+    });
+  });
+
+  // Convert map to sorted array
+  return Array.from(dateMap.values()).sort(
+    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
+}
