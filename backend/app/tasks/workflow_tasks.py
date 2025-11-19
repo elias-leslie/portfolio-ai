@@ -220,65 +220,115 @@ def paper_trade_validation_workflow(
         start_date = (today - timedelta(days=365)).isoformat()
         end_date = today.isoformat()
 
-        # Strategy Agent: Run backtest and analyze results
-        strategy_prompt = f"""Validate {ticker} {action.upper()} trade using 1-year backtest analysis.
+        # Execute REAL backtest using AgentTools
+        backtest_result: dict[str, object] | None = None
+        backtest_metrics: dict[str, object] | None = None
+        try:
+            # Initialize tools to execute backtest
+            portfolio_mgr = PortfolioManager(storage)
+            tools = AgentTools(
+                storage=storage,
+                news_service=NewsService(storage),
+                fred_source=FREDSource(api_key=None),
+                price_fetcher=PriceDataFetcher(storage),
+                portfolio_mgr=portfolio_mgr,
+                analytics=PortfolioAnalytics(),
+            )
+
+            logger.info(f"Executing 1-year backtest for {ticker} ({start_date} to {end_date})")
+
+            # Execute backtest tool directly
+            backtest_result = tools.execute_run_backtest(
+                agent_run_id=workflow_id,
+                ticker=ticker,
+                start_date=start_date,
+                end_date=end_date,
+                strategy="signal_classifier",
+                min_signal_strength=7,
+                max_holding_days=60,
+                position_sizing_method="fixed_dollars",
+                position_size_value=10000.0,
+            )
+
+            if backtest_result.get("status") == "success":
+                metrics_obj = backtest_result.get("metrics", {})
+                backtest_metrics = metrics_obj if isinstance(metrics_obj, dict) else {}
+                logger.info(f"Backtest complete: {backtest_metrics}")
+            else:
+                error_msg_obj = backtest_result.get("error", "Unknown backtest error")
+                error_msg = str(error_msg_obj)
+                logger.error(f"Backtest failed: {error_msg}")
+                orchestrator.update_workflow_status(
+                    workflow_id, status="failed", current_step="backtest_failed", error=error_msg
+                )
+                return {
+                    "status": "failed",
+                    "workflow_id": workflow_id,
+                    "error": f"Backtest execution failed: {error_msg}",
+                }
+
+        except Exception as e:
+            logger.error(f"Backtest execution error: {e}")
+            orchestrator.update_workflow_status(
+                workflow_id, status="failed", current_step="backtest_error", error=str(e)
+            )
+            return {
+                "status": "failed",
+                "workflow_id": workflow_id,
+                "error": f"Backtest execution exception: {e}",
+            }
+
+        # Strategy Agent: Analyze REAL backtest results
+        strategy_prompt = f"""Validate {ticker} {action.upper()} trade using 1-year backtest results.
 
 Thesis: {thesis}
 
+Backtest Results ({start_date} to {end_date}):
+{json.dumps(backtest_metrics, indent=2)}
+
 Task:
-1. Run backtest for {ticker} from {start_date} to {end_date}
-2. Analyze Sharpe ratio, win rate, max drawdown, total return
-3. Make APPROVE/REJECT decision based on:
+1. Analyze the backtest metrics above
+2. Make APPROVE/REJECT decision based on:
    - Sharpe ratio > 1.0 (good risk-adjusted returns)
    - Win rate > 50% (more wins than losses)
    - Max drawdown < 20% (reasonable risk)
-4. Explain reasoning
+3. Explain reasoning based on ACTUAL metrics (not hypothetical)
 
-Respond with JSON: {{"decision": "APPROVE|REJECT", "reasoning": "...", "metrics": {{...}}}}"""
+Respond with JSON: {{"decision": "APPROVE|REJECT", "reasoning": "..."}}"""
 
         strategy_output = None
-        backtest_metrics = None
         try:
-            # For now, direct prompt (tool calling will be integrated in next iteration)
             strategy_response = client.generate(
                 prompt=strategy_prompt,
-                system="You are a quantitative strategy analyst validating trades with backtests.",
+                system="You are a quantitative strategy analyst validating trades using real backtest data.",
             )
             strategy_output = strategy_response.content
             logger.info(f"Strategy agent analysis: {len(strategy_output)} chars")
 
-            # Parse metrics from response
-            try:
-                analysis = json.loads(strategy_output)
-                backtest_metrics = analysis.get("metrics", {})
-            except Exception:
-                pass
-
         except Exception as e:
             logger.error(f"Strategy agent failed: {e}")
 
-        # Risk Agent: Evaluate backtest metrics
-        if strategy_output:
-            risk_prompt = f"""Review backtest validation for {ticker} {action.upper()} trade:
+        # Risk Agent: Independent evaluation of REAL backtest metrics
+        risk_prompt = f"""Independent risk evaluation for {ticker} {action.upper()} trade.
 
+Thesis: {thesis}
+
+Backtest Results ({start_date} to {end_date}):
+{json.dumps(backtest_metrics, indent=2)}
+
+Strategy Agent Decision:
 {strategy_output}
 
 Task:
-1. Validate metrics meet risk thresholds:
-   - Sharpe ratio > 1.0
-   - Win rate > 50%
-   - Max drawdown < 20%
-2. Consider market conditions and thesis alignment
-3. Make independent APPROVE/REJECT decision
+1. Make INDEPENDENT risk assessment (don't just agree with strategy agent)
+2. Validate metrics meet risk thresholds:
+   - Sharpe ratio > 1.0 (risk-adjusted returns acceptable)
+   - Win rate > 50% (more wins than losses)
+   - Max drawdown < 20% (risk level acceptable)
+3. Consider if thesis is supported by backtest performance
+4. Make your own APPROVE/REJECT decision
 
 Respond with JSON: {{"decision": "APPROVE|REJECT", "reasoning": "..."}}"""
-        else:
-            # Backtest failed, risk agent must reject
-            risk_prompt = f"""Backtest validation failed for {ticker} {action.upper()}.
-
-Task: Explain why trade must be REJECTED without backtest validation.
-
-Respond with JSON: {{"decision": "REJECT", "reasoning": "..."}}"""
 
         risk_output = None
         try:
