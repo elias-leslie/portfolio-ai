@@ -12,7 +12,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Literal
 
-from app.storage.connection import ConnectionManager
+from app.storage.connection import ConnectionManager, get_connection_manager
 
 from .models import (
     StrategyDefinition,
@@ -26,7 +26,7 @@ class StrategyStorage:
 
     def __init__(self) -> None:
         """Initialize strategy storage."""
-        self.conn = ConnectionManager.get_connection()
+        self.conn = get_connection_manager()
 
     def store_strategy(
         self,
@@ -102,11 +102,7 @@ class StrategyStorage:
         )
 
         logger.info(
-            "Strategy stored",
-            strategy_id=strategy_id,
-            symbol=symbol,
-            strategy_type=strategy_type,
-            version=version,
+            f"Strategy stored: {symbol} {strategy_type} v{version} (id={strategy_id})"
         )
 
         return strategy_id
@@ -223,7 +219,7 @@ class StrategyStorage:
             (strategy_id,),
         )
 
-        logger.info("Strategy activated", strategy_id=strategy_id)
+        logger.info(f"Strategy activated: {strategy_id}")
 
     def archive_strategy(self, strategy_id: str, reason: str) -> None:
         """Archive strategy (sets status to 'archived').
@@ -243,7 +239,7 @@ class StrategyStorage:
             (reason, strategy_id),
         )
 
-        logger.info("Strategy archived", strategy_id=strategy_id, reason=reason)
+        logger.info(f"Strategy archived: {strategy_id} (reason: {reason})")
 
     def update_live_performance(
         self,

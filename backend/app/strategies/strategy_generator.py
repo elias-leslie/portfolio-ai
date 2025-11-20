@@ -10,8 +10,7 @@ import json
 import logging
 from typing import Any
 
-from app.agents.llm_client import LLMResponse
-from app.agents.llm_provider_dual import DualProviderClient
+from app.agents.llm_client import DualProviderClient, LLMResponse
 
 from .models import (
     ExpectedCharacteristics,
@@ -105,8 +104,7 @@ class StrategyGeneratorAgent:
     def __init__(self) -> None:
         """Initialize strategy generator agent."""
         self.llm_client = DualProviderClient(
-            primary_model="gemini",  # Fast and cheap
-            fallback_model="claude",  # More accurate fallback
+            primary="gemini",  # Fast and cheap
         )
 
     async def generate_strategy(self, research: ResearchInsights) -> StrategyGenerationResult:
@@ -131,10 +129,8 @@ Based on this research, generate a trading strategy configuration as valid JSON.
 """
 
         logger.info(
-            "Generating strategy for symbol",
-            symbol=research.symbol,
-            overall_confidence=research.overall_confidence,
-            research_quality=research.research_quality,
+            f"Generating strategy for {research.symbol} "
+            f"(confidence={research.overall_confidence:.2f}, quality={research.research_quality})"
         )
 
         # Call LLM
@@ -147,10 +143,8 @@ Based on this research, generate a trading strategy configuration as valid JSON.
             )
 
             logger.info(
-                "LLM response received",
-                provider=response.provider,
-                model=response.model,
-                usage=response.usage,
+                f"LLM response received from {response.provider} ({response.model}), "
+                f"tokens: {response.usage}"
             )
 
             # Parse JSON response
@@ -160,16 +154,14 @@ Based on this research, generate a trading strategy configuration as valid JSON.
             result = self._construct_strategy_result(strategy_data)
 
             logger.info(
-                "Strategy generated successfully",
-                symbol=research.symbol,
-                strategy_type=result.strategy_type,
-                confidence=result.confidence,
+                f"Strategy generated successfully: {research.symbol} -> {result.strategy_type} "
+                f"(confidence={result.confidence:.2f})"
             )
 
             return result
 
         except Exception as e:
-            logger.exception("Strategy generation failed", error=str(e))
+            logger.exception(f"Strategy generation failed: {e}")
             raise ValueError(f"Strategy generation failed: {e}") from e
 
     def _format_research_prompt(self, research: ResearchInsights) -> str:
@@ -259,7 +251,7 @@ Based on this research, generate a trading strategy configuration as valid JSON.
         try:
             strategy_data = json.loads(content)
         except json.JSONDecodeError as e:
-            logger.error("Failed to parse strategy JSON", error=str(e), content=content[:500])
+            logger.error(f"Failed to parse strategy JSON: {e} (content: {content[:100]}...)")
             raise ValueError(f"Invalid JSON response: {e}") from e
 
         # Validate required fields
@@ -309,7 +301,7 @@ Based on this research, generate a trading strategy configuration as valid JSON.
             return result
 
         except Exception as e:
-            logger.error("Strategy validation failed", error=str(e))
+            logger.error(f"Strategy validation failed: {e}")
             raise ValueError(f"Invalid strategy configuration: {e}") from e
 
 

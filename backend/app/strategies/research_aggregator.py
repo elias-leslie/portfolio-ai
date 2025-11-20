@@ -18,11 +18,11 @@ from typing import Any
 
 from app.analytics.indicators import calculate_indicators_for_symbol
 from app.storage import PortfolioStorage
-from app.storage.connection import ConnectionManager
+from app.storage.connection import get_connection_manager
 from app.watchlist.fundamentals import (
     FundamentalData,
     classify_company_health,
-    fetch_fundamentals_with_failover,
+    fetch_fundamentals,
 )
 
 from .models import ResearchInsights
@@ -36,7 +36,7 @@ class ResearchAggregationService:
     def __init__(self) -> None:
         """Initialize research aggregation service."""
         self.storage = PortfolioStorage()
-        self.conn = ConnectionManager.get_connection()
+        self.conn = get_connection_manager()
 
     async def aggregate_research(self, symbol: str, lookback_days: int = 30) -> ResearchInsights:
         """Aggregate market research for a symbol.
@@ -238,7 +238,7 @@ class ResearchAggregationService:
             Dict with fundamental analysis fields
         """
         # Fetch fundamentals using existing multi-source failover
-        fund_data: FundamentalData | None = fetch_fundamentals_with_failover(symbol)
+        fund_data: FundamentalData | None = fetch_fundamentals(symbol)
 
         if not fund_data:
             # No fundamental data available

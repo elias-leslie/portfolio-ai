@@ -357,3 +357,26 @@ def _interpret_indicators(indicators: dict[str, Any], current_price: float) -> d
             interpretations["stoch"] = "neutral"
 
     return interpretations
+
+
+def calculate_indicators_for_symbol(
+    symbol: str, indicators: list[str] | None = None, as_of_date: dt.date | str | None = None
+) -> dict[str, Any]:
+    """Calculate technical indicators for a symbol (wrapper function).
+
+    This is a convenience wrapper that creates a PortfolioStorage instance
+    and calls calculate_indicators.
+
+    Args:
+        symbol: Stock ticker symbol (e.g., "AAPL")
+        indicators: List of indicator names to calculate. If None, uses DEFAULT_INDICATORS.
+        as_of_date: Calculate indicators as of this date (default: latest available)
+
+    Returns:
+        Dict with ticker, date, indicators dict, and interpretations dict.
+
+    Raises:
+        ValueError: If ticker not found or insufficient data
+    """
+    storage = PortfolioStorage()  # noqa: PLC0415 - Lazy import to avoid circular dependency
+    return calculate_indicators(storage, symbol, indicators, as_of_date)

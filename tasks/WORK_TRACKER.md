@@ -20,11 +20,10 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Complete Autonomous Trading MVP - Fix All Validation Gaps (Task 0071)** (82% - 9/11 Task 4 subtasks complete)
+1. **Complete Autonomous Trading MVP - Fix All Validation Gaps (Task 0071)** (25% - 2/8 complete)
    - File: `tasks-0071-autonomous-trading-completion.md`
-   - Started: 2025-11-18
-   - Last updated: 2025-11-20 04:30 UTC
-   - Status: PAUSED (context 78%, API complete, tests remaining)
+   - Started: 2025-11-18 (2 days ago)
+   - Last updated: IN PROGRESS (82% complete - 9/11 tasks done)
    - Next: Task 4.10 - Create unit tests for strategy generation
    - Progress:
      - ✅ Task 0: Scope Discovery (4 parallel Explore agents, 91 files identified)
@@ -36,16 +35,6 @@
        - ✅ 4.2: Research aggregation service (news, fundamentals, technical, macro, sector)
        - ✅ 4.3: Strategy generation agent (LLM-powered with Gemini/Claude)
        - ✅ 4.4: Parameter optimization (walk-forward validation, 50 combinations max)
-       - ✅ 4.5: Storage & versioning (migration 047, CRUD operations)
-       - ✅ 4.6: Workflow integration (strategy_research_workflow orchestration)
-       - ✅ 4.7: Paper trade workflow updates (dynamic strategy lookup + fallback)
-       - ✅ 4.8: Performance tracking (daily evaluation + weekly generation tasks)
-       - ✅ 4.9: API endpoints (5 REST routes for strategy management)
-       - ⏸️ 4.10: Unit tests - NEXT
-       - ⏸️ 4.11: Integration tests
-     - ⏸️ Task 5: Scheduled Autonomous Execution (0/6 subtasks)
-     - ⏸️ Task 6: LLM Execution Verification (0/7 subtasks)
-     - ⏸️ Task 7: Integration Testing (0/10 subtasks)
    - Tasks:
      - [ ] Task 0: Scope Discovery (MANDATORY)
      - [x] Task 1: Fix Critical Database Persistence Bug ✅ **COMPLETE**
