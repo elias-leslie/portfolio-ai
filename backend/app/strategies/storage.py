@@ -12,7 +12,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Literal
 
-from app.storage.connection import ConnectionManager, get_connection_manager
+from app.storage.connection import get_connection_manager
 
 from .models import (
     StrategyDefinition,
@@ -101,9 +101,7 @@ class StrategyStorage:
             ),
         )
 
-        logger.info(
-            f"Strategy stored: {symbol} {strategy_type} v{version} (id={strategy_id})"
-        )
+        logger.info(f"Strategy stored: {symbol} {strategy_type} v{version} (id={strategy_id})")
 
         return strategy_id
 

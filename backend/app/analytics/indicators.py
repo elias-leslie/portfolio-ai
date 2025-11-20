@@ -378,5 +378,5 @@ def calculate_indicators_for_symbol(
     Raises:
         ValueError: If ticker not found or insufficient data
     """
-    storage = PortfolioStorage()  # noqa: PLC0415 - Lazy import to avoid circular dependency
+    storage = PortfolioStorage()
     return calculate_indicators(storage, symbol, indicators, as_of_date)
