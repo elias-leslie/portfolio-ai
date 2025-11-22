@@ -20,10 +20,10 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Complete Autonomous Trading MVP - Fix All Validation Gaps (Task 0071)** (50% - 4/8 complete)
+1. **Complete Autonomous Trading MVP - Fix All Validation Gaps (Task 0071)** (25% - 2/8 complete)
    - File: `tasks-0071-autonomous-trading-completion.md`
    - Started: 2025-11-18 (4 days ago)
-   - Last updated: PAUSED (Task 4 complete via fadfec2, Task 6 in progress, frontend needs manual restart)
+   - Last updated: PAUSED (Task 4 complete, Task 6 in progress)
    - Next: Task 6.4 - Complete workflow monitoring and verification
    - Progress:
      - ✅ Task 0: Scope Discovery (4 parallel Explore agents, 91 files identified)
@@ -36,11 +36,11 @@
        - ✅ 4.11: Integration tests (4 tests)
      - ✅ Task 5: Scheduled Execution (3/6 subtasks - verified existing config)
    - Tasks:
-     - [x] Task 0: Scope Discovery ✅ **COMPLETE**
+     - [ ] Task 0: Scope Discovery (MANDATORY)
      - [x] Task 1: Fix Critical Database Persistence Bug ✅ **COMPLETE**
      - [x] Task 2: Implement Complete UI Agent Status Display ✅ **COMPLETE**
-     - [x] Task 3: Integrate Real Backtest Validation in Paper Trade Workflow ✅ **COMPLETE**
-     - [x] Task 4: Implement Dynamic Strategy Generation from Research ✅ **COMPLETE**
+     - [ ] Task 3: Integrate Real Backtest Validation in Paper Trade Workflow ✅ **COMPLETE**
+     - [ ] Task 4: Implement Dynamic Strategy Generation from Research
      - [ ] Task 5: Configure and Test Scheduled Autonomous Execution
      - [ ] Task 6: Verify LLM Execution and Fix Any Issues
      - [ ] Task 7: Integration Testing and Final Validation

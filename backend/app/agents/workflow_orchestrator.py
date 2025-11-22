@@ -70,7 +70,7 @@ class WorkflowOrchestrator:
                         id, workflow_type, status, current_step, agents_involved,
                         shared_context, triggered_by, priority, max_duration_seconds,
                         created_at, last_updated_at
-                    ) VALUES ($1, $2, $3, $4, $5::TEXT[], $6::JSONB, $7, $8, $9, $10, $11)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     [
                         workflow_id,
@@ -228,7 +228,7 @@ class WorkflowOrchestrator:
             # Update workflow (JSON-serialize shared_context)
             with self.storage.connection() as conn:
                 conn.execute(
-                    "UPDATE agent_workflows SET shared_context = $1::JSONB, last_updated_at = $2 WHERE id = $3",
+                    "UPDATE agent_workflows SET shared_context = %s, last_updated_at = %s WHERE id = %s",
                     [json.dumps(shared_context), datetime.now(UTC), workflow_id],
                 )
                 conn.commit()
@@ -297,7 +297,7 @@ class WorkflowOrchestrator:
             # Update workflow (JSON-serialize shared_context)
             with self.storage.connection() as conn:
                 conn.execute(
-                    "UPDATE agent_workflows SET shared_context = $1::JSONB, last_updated_at = $2 WHERE id = $3",
+                    "UPDATE agent_workflows SET shared_context = %s, last_updated_at = %s WHERE id = %s",
                     [json.dumps(shared_context), datetime.now(UTC), workflow_id],
                 )
                 conn.commit()
@@ -554,10 +554,10 @@ class WorkflowOrchestrator:
                 conn.execute(
                     """
                     UPDATE agent_workflows
-                    SET status = 'complete', result = $1::JSONB, completed_at = $2, last_updated_at = $2
-                    WHERE id = $3
+                    SET status = 'complete', result = %s, completed_at = %s, last_updated_at = %s
+                    WHERE id = %s
                     """,
-                    [json.dumps(result), datetime.now(UTC), workflow_id],
+                    [json.dumps(result), datetime.now(UTC), datetime.now(UTC), workflow_id],
                 )
                 conn.commit()
 
