@@ -63,6 +63,7 @@ celery_app.conf.beat_schedule = get_beat_schedule()
 from app.tasks import (  # noqa: E402, F401
     agent_tasks,
     capability_tasks,
+    data_freshness_tasks,
     data_ingestion_tasks,
     indicator_tasks,
     log_cleanup_tasks,

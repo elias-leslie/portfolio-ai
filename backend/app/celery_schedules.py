@@ -403,6 +403,11 @@ def get_beat_schedule() -> dict[str, object]:
         # ============================================================================
         # These tasks maintain system health through automated cleanup and monitoring
         # ============================================================================
+        "maintain-data-freshness": {
+            "task": "maintain_data_freshness",
+            "schedule": crontab(hour="*/2"),  # Every 2 hours
+            "options": {"expires": 3600},  # 1-hour expiry
+        },
         "cleanup-old-logs-daily": {
             "task": "cleanup_old_logs_task",
             "schedule": crontab(hour=2, minute=0),  # Daily at 02:00 UTC

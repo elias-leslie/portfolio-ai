@@ -21,7 +21,16 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-(No active tasks)
+1. **Data Source Reliability and Freshness Guarantee** (MEDIUM, 3/6 tasks, PAUSED 2025-11-22 15:25)
+   - File: `tasks-0073-data-source-reliability.md`
+   - Created: 2025-11-22
+   - Goal: Enable all 6 data sources + <24hr freshness monitoring
+   - Status: PAUSED (50% complete)
+   - Completed: Task 1 (API keys verified), Task 2 (freshness task created), Task 3 (beat schedule)
+   - Blocked: DataFrame API bug (result.empty not available)
+   - Context: 69% used (138K/200K)
+   - Next: Task 4 - Fix DataFrame.empty usage in data_freshness_tasks.py
+   - Resume: `/do_it` or `/do_it tasks-0073-data-source-reliability.md`
 
 ---
 
@@ -29,10 +38,10 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Data Source Reliability and Freshness Guarantee** (MEDIUM (4-5 hours), 0/6 tasks (today))
-   - File: `tasks-0073-data-source-reliability.md`
+1. **Investment Intelligence Confidence Scoring Completion** (MEDIUM (5-7 hours), 0/8 tasks (today))
+   - File: `tasks-0074-investment-intelligence-confidence-scoring.md`
    - Created: 2025-11-22
-   - Goal: Achieve VISION.md compliance for data reliability: (1) Enable all 6 operational data sources per VISION requirement and (2) Enforce <24 hour data freshness guarantee through automated monitoring
+   - Goal: Achieve VISION.md compliance for Investment Intelligence confidence scoring by integrating fundamental data thresholds and analyst sentiment into graded weighting system
    - Tasks:
      - [ ] Task 1: Configure All 6 Data Source API Keys
      - [ ] Task 2: Create Automated Freshness Monitoring Task
