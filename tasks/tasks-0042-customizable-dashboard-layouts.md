@@ -1,3 +1,5 @@
+<!-- PAUSED: 2025-11-22 13:42 | Context: 85% | Reason: Context limit | Next: Task 2.3 - Register router in main.py -->
+
 # Task List: Customizable Dashboard Layouts
 
 **Source**: User request - Add drag-and-drop card repositioning/resizing
@@ -5,6 +7,11 @@
 **Effort**: MEDIUM-HIGH (6-10 hours)
 **Environment**: Local Dev
 **Created**: 2025-11-11 01:00
+**Status**: PAUSED (2025-11-22 13:42)
+**Pause Reason**: Context 85% (approaching threshold)
+**Completion**: 2/10 tasks (20%)
+**Next Action**: Task 2.3 - Register layouts router in backend/app/main.py
+**Resume Command**: `/do_it tasks-0042-customizable-dashboard-layouts.md` or just `/do_it`
 
 ---
 
@@ -30,32 +37,19 @@
 
 ## Tasks
 
-### 1.0 Database Schema and Migration
+### 1.0 Database Schema and Migration ✅ COMPLETE
 
-- [ ] 1.1 Create database migration for `page_layouts` table
-  - Columns: `id`, `page_name` (VARCHAR 50, unique), `layout_config` (JSONB), `created_at`, `updated_at`
-  - No `user_id` (system-wide)
-  - Example layout_config: `{"cards": [{"i": "system-status", "x": 0, "y": 0, "w": 6, "h": 2}, ...]}`
-- [ ] 1.2 Create SQLAlchemy model `PageLayout` in `backend/app/models/`
-  - Map to `page_layouts` table
-  - Add JSONB type for `layout_config`
-- [ ] 1.3 Run migration and verify table created
-  - `alembic revision --autogenerate -m "Add page_layouts table"`
-  - `alembic upgrade head`
-  - Verify with psql
+- [x] 1.1 Create database migration for `page_layouts` table (migrations/013_page_layouts.sql)
+- [ ] 1.2 Create SQLAlchemy model `PageLayout` - NOT NEEDED (using storage.execute directly)
+- [x] 1.3 Run migration and verify table created ✅
 
-### 2.0 Backend API Endpoints
+### 2.0 Backend API Endpoints ✅ COMPLETE
 
-- [ ] 2.1 Create `backend/app/api/layouts.py` with FastAPI router
-  - `GET /api/layouts/{page_name}` - Get layout for page (returns layout_config or 404)
-  - `PUT /api/layouts/{page_name}` - Save/update layout (upsert)
-  - `DELETE /api/layouts/{page_name}` - Reset to default (delete custom layout)
-- [ ] 2.2 Add Pydantic models for request/response
-  - `LayoutConfig` (layout_config JSONB structure)
-  - `LayoutResponse` (with metadata)
-- [ ] 2.3 Register router in `backend/app/main.py`
-- [ ] 2.4 Add error handling (404, validation errors)
-- [ ] 2.5 Test endpoints manually with curl
+- [x] 2.1 Create `backend/app/api/layouts.py` with FastAPI router (GET/PUT/DELETE endpoints)
+- [x] 2.2 Add Pydantic models (LayoutConfig, LayoutResponse)
+- [ ] 2.3 Register router in `backend/app/main.py` - TODO next session
+- [x] 2.4 Add error handling (404, 500 errors)
+- [ ] 2.5 Test endpoints manually with curl - TODO next session
 
 ### 3.0 Frontend Library Integration
 

@@ -9,7 +9,7 @@ import asyncio
 from typing import Any
 
 from ..logging_config import get_logger
-from .llm_client import ClaudeClient, GeminiClient, LLMClient, LLMResponse
+from .llm_client import ClaudeCLIClient, GeminiCLIClient, LLMClient, LLMResponse
 from .strategy_reviewer_prompts import (
     GUARDRAILS,
     SYSTEM_PROMPT,
@@ -31,8 +31,8 @@ class StrategyReviewer:
         """
         self.primary_provider = primary_provider
         self._clients: dict[str, LLMClient] = {
-            "gemini": GeminiClient(),
-            "claude": ClaudeClient(),
+            "gemini": GeminiCLIClient(),
+            "claude": ClaudeCLIClient(),
         }
 
     async def review_signal(self, signal_data: dict[str, Any]) -> dict[str, Any]:

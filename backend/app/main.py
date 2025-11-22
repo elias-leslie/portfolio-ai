@@ -21,6 +21,7 @@ from app.api import (
     health,
     ideas,
     indicators,
+    layouts,
     maintenance,
     market,
     ml,
@@ -158,6 +159,7 @@ app.include_router(backtest.router)
 app.include_router(paper_trades.router)
 app.include_router(paper_trading.router)
 app.include_router(strategies.router)  # Task 4.9: Strategy management API
+app.include_router(layouts.router)  # Task 0042: Customizable dashboard layouts
 
 
 @app.get("/")
