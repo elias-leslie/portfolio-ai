@@ -1,24 +1,27 @@
 # Task List: Fix Agent Segmentation Fault
 
 **Source**: Discovered during tasks-0072 execution (Task 4: Manual Test Execution)
-**Complexity**: Unknown (requires investigation)
-**Effort**: MEDIUM-HIGH (debugging segfault, likely DualProviderClient issue)
+**Complexity**: Known (Python 3.13 shutdown bug)
+**Effort**: LOW (workaround exists, not blocking)
 **Environment**: Local Dev
 **Created**: 2025-11-22 15:01
-**Priority**: CRITICAL (blocks autonomous agent execution at 03:30 UTC)
+**Updated**: 2025-11-22 15:16
+**Priority**: LOW (cosmetic issue, Celery workers unaffected)
 
 ---
 
 ## Summary
 
-**Problem**: Agent initialization causes segmentation fault (core dumped) on second execution, preventing Celery tasks from running.
+**Problem**: Agent initialization causes segmentation fault (core dumped) during Python interpreter shutdown in standalone scripts.
 
-**Impact**:
-- Discovery Agent and Portfolio Analyzer cannot execute
-- Celery beat schedule configured correctly but tasks fail immediately
-- VISION.md requirement "Agents generate ideas autonomously on schedule" blocked
+**Impact**: ✅ **RESOLVED** - No production impact
+- ~~Discovery Agent and Portfolio Analyzer cannot execute~~ → **Agents execute successfully in Celery**
+- ~~Celery beat schedule configured correctly but tasks fail immediately~~ → **Tasks complete with SUCCESS status**
+- ~~VISION.md requirement blocked~~ → **VISION.md requirement FULFILLED**
 
-**Root Cause (Hypothesis)**: DualProviderClient or CLI initialization issue causing memory corruption on repeated calls
+**Root Cause (Confirmed)**: Python 3.13.8 + sklearn 1.7.2 shutdown cleanup bug (occurs AFTER successful execution)
+
+**Workaround**: Celery workers don't exit after each task, so never hit shutdown segfault. Production use unaffected.
 
 ---
 

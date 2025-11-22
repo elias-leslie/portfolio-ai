@@ -29,18 +29,7 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Autonomous AI Agent Scheduling at 03:30 UTC** (LOW (30 minutes), 0/5 tasks (today))
-   - File: `tasks-0072-autonomous-agent-scheduling.md`
-   - Created: 2025-11-22
-   - Goal: Enable autonomous daily execution of Discovery Agent and Portfolio Analyzer Agent at 03:30 UTC to fulfill VISION.md requirement: "Agents generate ideas autonomously on schedule (daily at 03:30 UTC)"
-   - Tasks:
-     - [ ] Task 1: Add Discovery Agent to Celery Beat Schedule
-     - [ ] Task 2: Add Portfolio Analyzer to Celery Beat Schedule
-     - [ ] Task 3: Restart Services and Verify Schedule
-     - [ ] Task 4: Manual Test Execution (Validate Before Waiting for 03:30)
-     - [ ] Task 5: Documentation and Verification
-
-2. **Data Source Reliability and Freshness Guarantee** (MEDIUM (4-5 hours), 0/6 tasks (today))
+1. **Data Source Reliability and Freshness Guarantee** (MEDIUM (4-5 hours), 0/6 tasks (today))
    - File: `tasks-0073-data-source-reliability.md`
    - Created: 2025-11-22
    - Goal: Achieve VISION.md compliance for data reliability: (1) Enable all 6 operational data sources per VISION requirement and (2) Enforce <24 hour data freshness guarantee through automated monitoring
@@ -110,7 +99,21 @@
 
 *Last 5 completed tasks*
 
-1. **Trading Intelligence Roadmap** ✅ COMPLETE (2025-11-22)
+1. **Autonomous AI Agent Scheduling at 03:30 UTC** ✅ COMPLETE (2025-11-22)
+   - File: `tasks-0072-autonomous-agent-scheduling.md`
+   - Completed: 2025-11-22 15:16
+   - Duration: 70 minutes (includes segfault investigation)
+   - Summary: Autonomous daily agent execution at 03:30 UTC enabled
+   - Key achievements:
+     - ✅ Discovery Agent scheduled in Celery beat (03:30 UTC)
+     - ✅ Portfolio Analyzer scheduled in Celery beat (03:30 UTC)
+     - ✅ Manual execution verified (run d9022792: completed)
+     - ✅ Segfault resolved (Python 3.13 shutdown bug, Celery unaffected)
+     - ✅ OPERATIONS.md updated with AI agent tasks
+   - Evidence: Task SUCCESS, database status="completed"
+   - VISION.md: "Agents generate ideas autonomously on schedule" ✅ FULFILLED
+
+2. **Trading Intelligence Roadmap** ✅ COMPLETE (2025-11-22)
    - File: `tasks-trading-intelligence-roadmap.md`
    - Completed: Tasks 2-8 (95% complete, Task 7.3 deferred)
    - Duration: ~6 months (2025-05 to 2025-11)
