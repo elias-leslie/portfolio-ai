@@ -38,6 +38,7 @@ from app.watchlist.service import (
 )
 from app.watchlist.validators import validate_symbol
 from app.watchlist.watchlist_service import WatchlistService
+from app.agents.strategy_reviewer import StrategyReviewer
 
 logger = get_logger(__name__)
 
@@ -46,6 +47,7 @@ router = APIRouter(prefix="/api/watchlist", tags=["watchlist"])
 # Initialize services
 storage = get_storage()
 watchlist_service = WatchlistService(storage)
+strategy_reviewer = StrategyReviewer(primary_provider="gemini")
 
 
 # Endpoints
@@ -518,3 +520,106 @@ async def refresh_watchlist_scores(data: RefreshRequest) -> RefreshResponse:
     except Exception as e:
         logger.error("Failed to refresh watchlist scores", error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to refresh scores: {e}") from e
+
+
+@router.post("/{item_id}/review")
+async def review_strategy_signal(item_id: str) -> dict:
+    """Get LLM review of trading signal for a watchlist item.
+
+    Args:
+        item_id: Watchlist item ID
+
+    Returns:
+        {
+            "symbol": str,
+            "review": str,
+            "is_valid": bool,
+            "provider": str,
+            "disagreement": bool,
+            "usage": dict
+        }
+    """
+    try:
+        # Fetch watchlist item
+        items_df = storage.query(
+            """
+            SELECT * FROM watchlist_items WHERE id = ?
+            """,
+            [item_id],
+        )
+
+        if items_df.is_empty():
+            raise HTTPException(status_code=404, detail=f"Watchlist item {item_id} not found")
+
+        # Get latest snapshot
+        snapshots_df = storage.query(
+            """
+            SELECT * FROM watchlist_snapshots
+            WHERE watchlist_item_id = ?
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            [item_id],
+        )
+
+        if snapshots_df.is_empty():
+            raise HTTPException(
+                status_code=404,
+                detail=f"No snapshot found for item {item_id}. Run refresh first."
+            )
+
+        # Parse snapshot JSON
+        snapshot_row = snapshots_df.to_dicts()[0]
+        signal_data = {
+            "symbol": items_df.to_dicts()[0]["symbol"],
+            "signal_type": snapshot_row.get("signal_type"),
+            "signal_strength": snapshot_row.get("signal_strength"),
+            "recommended_style": snapshot_row.get("recommended_style"),
+            "risk_level": snapshot_row.get("risk_level"),
+            "rationale": snapshot_row.get("rationale"),
+            "current_score": json.loads(snapshot_row.get("current_score", "{}")),
+            "news_sentiment_score": snapshot_row.get("news_sentiment_score"),
+        }
+
+        # Get LLM review
+        review_result = await strategy_reviewer.review_signal(signal_data)
+
+        # Log review to database
+        review_id = str(uuid.uuid4())
+        storage.execute(
+            """
+            INSERT INTO strategy_reviews (
+                id, watchlist_item_id, snapshot_id, symbol, review_text,
+                provider, is_valid, disagreement, token_usage, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                review_id,
+                item_id,
+                snapshot_row.get("id"),
+                review_result["symbol"],
+                review_result["review"],
+                review_result["provider"],
+                review_result["is_valid"],
+                review_result["disagreement"],
+                json.dumps(review_result["usage"]),
+                datetime.now(UTC),
+            ],
+        )
+
+        logger.info(
+            f"Strategy review logged for {review_result['symbol']}",
+            extra={
+                "symbol": review_result["symbol"],
+                "provider": review_result["provider"],
+                "disagreement": review_result["disagreement"],
+            },
+        )
+
+        return review_result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to review signal for {item_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Review failed: {e}") from e
