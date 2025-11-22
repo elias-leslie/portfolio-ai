@@ -1,28 +1,28 @@
 # Task List: Integrated Trading Intelligence Roadmap
 
 **PRD**: (Strategic roadmap outline)
-**Status**: Partially Complete (Major Components Exist)
-**Completion**: 50%
+**Status**: Partially Complete (Core Trading Intelligence Built)
+**Completion**: 65% (Tasks 2-5 complete, Tasks 6-8 partial)
 **Effort**: High
-**Updated**: 2025-02-14
+**Updated**: 2025-11-22
 
 ---
 
 ## Summary
 
-**✅ COMPLETE:** Tasks 2.0 (Fundamentals), 3.0 (Technical), 4.0 (Strategy - basic), 5.0 (Paper trading - partial)
-**🔄 IN PROGRESS:** None
-**⚠️ NEXT:** Task 1.0 (refresh discovery with actual components), Task 6.0 (LLM reviewer), Task 5.2 (backtest harness)
+**✅ COMPLETE:** Tasks 2-5 (Fundamentals, Technical, Strategy, Paper Trading - all integrated)
+**🔄 PARTIAL:** Tasks 6-8 (LLM integration exists but not as reviewer, Frontend basic, Docs incomplete)
+**⚠️ NEXT:** Task 6.0 (LLM reviewer integration), Task 7.0 (Advanced frontend viz), Task 8.0 (Governance framework)
 
-**VERIFIED STATUS 2025-11-09:**
-- ✅ Fundamentals service exists: `watchlist/fundamentals.py` (531 lines, 4-pillar scoring)
-- ✅ Technical service exists: `analytics/indicators.py` (RSI, MACD, Bollinger, etc.)
-- ✅ Strategy engine exists: `watchlist/signal_classifier.py` (224 lines, BUY/HOLD/AVOID classification)
-- ✅ Paper trading exists: `analytics/paper_trading.py` (357 lines, trade tracking)
-- ⚠️ Scoring pipeline exists: `watchlist/scoring.py`, `calculator.py`, `refresh_processor.py` (1,980 lines total)
-- ❌ LLM reviewer: Not implemented
-- ❌ Comprehensive backtest harness: Not implemented
-- ⚠️ Frontend: Partial (narrative insights exist, strategy cards may need enhancement)
+**VERIFIED STATUS 2025-11-22:**
+- ✅ Fundamentals: `watchlist/fundamentals.py` (533 lines, 4-pillar scoring, multi-source) - 100% COMPLETE
+- ✅ Technical: `analytics/indicators.py` (382 lines, 6 indicators, trend/momentum/volatility) - 100% COMPLETE
+- ✅ Strategy: `watchlist/signal_classifier.py` (286 lines, BUY/HOLD/AVOID + style classification) - 100% COMPLETE
+- ✅ Paper Trading: `paper_trading.py` + orders/portfolio modules (17KB total, trade tracking) - 100% COMPLETE
+- ✅ Backtest: `backtest/` module exists (added Nov 2025, equity curves, Sharpe ratio)
+- ⚠️ LLM reviewer: `agents/llm_client.py` exists but not integrated as strategy reviewer - 30% COMPLETE
+- ⚠️ Frontend: Signal/style display exists, advanced viz missing - 50% COMPLETE
+- ⚠️ Governance: Core docs exist, metrics dashboard/rollout plan missing - 40% COMPLETE
 
 ---
 
@@ -69,27 +69,27 @@ Leverage combined signals from news (FinBERT + aggregates), fundamentals, and te
   - [x] 3.2 Implement standardized technical factor scoring (trend, momentum, volatility) (analytics/indicators.py)
   - [x] 3.3 Store factor history for evaluation/backtesting (integrated in watchlist snapshots)
 
-- [x] 4.0 Strategy engine ⚠️ BASIC IMPLEMENTATION COMPLETE
-  - [x] 4.1 Design deterministic rule framework combining news/fundamental/technical features (signal_classifier.py)
-  - [ ] 4.2 Implement initial strategy set (e.g., trend-following, event-driven) - Only basic BUY/HOLD/AVOID classification exists
-  - [x] 4.3 Output recommendation metadata (entry, exit, confidence) for downstream services (confidence 0-10, style classification)
+- [x] 4.0 Strategy engine ✅ COMPLETE
+  - [x] 4.1 Design deterministic rule framework combining news/fundamental/technical features (signal_classifier.py, 286 lines)
+  - [x] 4.2 Implement initial strategy set (BUY/HOLD/AVOID signals + 5 trading styles: Index/Trend/Value/Swing/Event)
+  - [x] 4.3 Output recommendation metadata (signal_strength 0-10, style classification, rationale text)
 
-- [x] 5.0 Paper trading & evaluation ⚠️ PARTIAL
-  - [x] 5.1 Extend paper trading module to ingest strategy outputs (paper_trading.py, 357 lines, idea_outcomes table)
-  - [ ] 5.2 Build backtest harness replaying historical features + recommendations - NOT IMPLEMENTED
-  - [x] 5.3 Store performance metrics, attribution, and drift indicators (basic tracking in idea_outcomes)
+- [x] 5.0 Paper trading & evaluation ✅ COMPLETE
+  - [x] 5.1 Extend paper trading module to ingest strategy outputs (paper_trading.py + orders/portfolio, 17KB total)
+  - [x] 5.2 Build backtest harness replaying historical features + recommendations (backtest/ module with equity curves)
+  - [x] 5.3 Store performance metrics, attribution, and drift indicators (idea_outcomes table + backtest_runs/trades/equity)
 
-- [ ] 6.0 LLM reviewer integration
-  - [ ] 6.1 Define reviewer prompts and guardrails (LLM as analyst)
-  - [ ] 6.2 Integrate LLM feedback into strategy pipeline (post-analysis only)
-  - [ ] 6.3 Log reviewer insights and disagreements for human oversight
+- [ ] 6.0 LLM reviewer integration (30% COMPLETE)
+  - [ ] 6.1 Define reviewer prompts and guardrails (LLM as analyst) - agents/llm_client.py exists
+  - [ ] 6.2 Integrate LLM feedback into strategy pipeline (post-analysis only) - NOT IMPLEMENTED
+  - [ ] 6.3 Log reviewer insights and disagreements for human oversight - capabilities/insights_router.py partial
 
-- [ ] 7.0 Frontend & UX
-  - [ ] 7.1 Surface combined strategy recommendation cards with rationale and sentiment context
-  - [ ] 7.2 Visualize paper-trade performance and feature contributions
-  - [ ] 7.3 Provide manual override & feedback capture for human users
+- [ ] 7.0 Frontend & UX (50% COMPLETE)
+  - [x] 7.1 Surface combined strategy recommendation cards with rationale and sentiment context - BASIC (signals shown)
+  - [ ] 7.2 Visualize paper-trade performance and feature contributions - NOT IMPLEMENTED
+  - [ ] 7.3 Provide manual override & feedback capture for human users - NOT IMPLEMENTED
 
-- [ ] 8.0 Governance & documentation
-  - [ ] 8.1 Update documentation (architecture, roadmap, model governance)
-  - [ ] 8.2 Establish evaluation metrics dashboard (drift, accuracy, return)
-  - [ ] 8.3 Plan staged rollout (internal users → beta → production)
+- [ ] 8.0 Governance & documentation (40% COMPLETE)
+  - [x] 8.1 Update documentation (architecture, roadmap, model governance) - REFRESH_ARCHITECTURE.md + ROADMAP.md exist
+  - [ ] 8.2 Establish evaluation metrics dashboard (drift, accuracy, return) - NOT IMPLEMENTED
+  - [ ] 8.3 Plan staged rollout (internal users → beta → production) - NOT IMPLEMENTED
