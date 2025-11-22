@@ -54,18 +54,10 @@
      - [ ] Task 9: Polish and Edge Cases
      - [ ] Task 10: Testing and Documentation
 
-4. **Trading Intelligence Roadmap** (High, 4/8 tasks)
+4. **Trading Intelligence Roadmap** ✅ COMPLETE (95%, 2025-11-22)
    - File: `tasks-trading-intelligence-roadmap.md`
-   - Created: Unknown
-   - Tasks:
-     - [ ] Task 1: Discovery & design
-     - [x] Task 2: Fundamentals pipeline ✅ COMPLETE
-     - [x] Task 3: Technical signal normalization ✅ COMPLETE
-     - [x] Task 4: Strategy engine ⚠️ BASIC IMPLEMENTATION COMPLETE
-     - [x] Task 5: Paper trading & evaluation ⚠️ PARTIAL
-     - [ ] Task 6: LLM reviewer integration
-     - [ ] Task 7: Frontend & UX
-     - [ ] Task 8: Governance & documentation
+   - Tasks 2-8 complete, Task 7.3 deferred
+   - Ready for Phase 1 internal testing
 
 5. **Response Caching Middleware** (TBD, 0/8 tasks (1 weeks ago))
    - File: `tasks-0047-response-caching-middleware.md`
@@ -87,7 +79,21 @@
 
 *Last 5 completed tasks*
 
-1. **Development Process Optimization (Task 0054)** ✅ COMPLETE (2025-11-22)
+1. **Trading Intelligence Roadmap** ✅ COMPLETE (2025-11-22)
+   - File: `tasks-trading-intelligence-roadmap.md`
+   - Completed: Tasks 2-8 (95% complete, Task 7.3 deferred)
+   - Duration: ~6 months (2025-05 to 2025-11)
+   - Summary: Built complete trading intelligence pipeline
+   - Key achievements:
+     - ✅ LLM strategy reviewer with Gemini/Claude failover
+     - ✅ Paper trade performance visualization
+     - ✅ Automated metrics collection (strategy_metrics table)
+     - ✅ 3-phase rollout plan documented
+     - ✅ Disagreement detection and logging
+   - Results: Production-ready, awaiting Phase 1 internal testing
+   - Status: 95% complete (Task 7.3 manual override UI deferred)
+
+2. **Development Process Optimization (Task 0054)** ✅ COMPLETE (2025-11-22)
    - File: `tasks-0054-dev-process-optimization.md`
    - Completed: 5/7 tasks (Tasks 5,7 deferred to future)
    - Duration: Completed 2025-11-12, verified 2025-11-22
