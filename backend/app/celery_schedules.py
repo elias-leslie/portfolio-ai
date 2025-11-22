@@ -383,6 +383,22 @@ def get_beat_schedule() -> dict[str, object]:
             # - Part of Phase 3 autonomous trading intelligence
         },
         # ============================================================================
+        # AUTONOMOUS AI AGENT TASKS
+        # ============================================================================
+        # Discovery Agent and Portfolio Analyzer generate investment ideas daily
+        # at 03:30 UTC to fulfill VISION.md requirement for autonomous scheduling
+        # ============================================================================
+        "run-discovery-agent-daily": {
+            "task": "run_discovery_agent",
+            "schedule": crontab(hour=3, minute=30),  # Daily at 03:30 UTC
+            "options": {"expires": 1800},  # 30-minute expiry
+        },
+        "run-portfolio-analyzer-daily": {
+            "task": "run_portfolio_analyzer",
+            "schedule": crontab(hour=3, minute=30),  # Daily at 03:30 UTC
+            "options": {"expires": 1800},  # 30-minute expiry
+        },
+        # ============================================================================
         # AUTOMATED MAINTENANCE TASKS
         # ============================================================================
         # These tasks maintain system health through automated cleanup and monitoring

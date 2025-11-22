@@ -22,8 +22,8 @@
 
 ### 1.0 Add Discovery Agent to Celery Beat Schedule
 
-- [ ] 1.1 Open `backend/app/celery_schedules.py`
-- [ ] 1.2 Add Discovery Agent schedule entry after line 383:
+- [x] 1.1 Open `backend/app/celery_schedules.py`
+- [x] 1.2 Add Discovery Agent schedule entry after line 383:
   ```python
   "run-discovery-agent-daily": {
       "task": "run_discovery_agent",
@@ -31,11 +31,11 @@
       "options": {"expires": 1800},  # 30-minute expiry
   },
   ```
-- [ ] 1.3 Verify task name matches `backend/app/tasks/agent_tasks.py` definition
+- [x] 1.3 Verify task name matches `backend/app/tasks/agent_tasks.py` definition
 
 ### 2.0 Add Portfolio Analyzer to Celery Beat Schedule
 
-- [ ] 2.1 Add Portfolio Analyzer schedule entry after Discovery Agent:
+- [x] 2.1 Add Portfolio Analyzer schedule entry after Discovery Agent:
   ```python
   "run-portfolio-analyzer-daily": {
       "task": "run_portfolio_analyzer",
@@ -43,61 +43,78 @@
       "options": {"expires": 1800},  # 30-minute expiry
   },
   ```
-- [ ] 2.2 Verify task name matches `backend/app/tasks/agent_tasks.py` definition
+- [x] 2.2 Verify task name matches `backend/app/tasks/agent_tasks.py` definition
 
 ### 3.0 Restart Services and Verify Schedule
 
-- [ ] 3.1 Restart Celery beat service:
+- [x] 3.1 Restart Celery beat service:
   ```bash
   bash ~/portfolio-ai/scripts/restart.sh
   ```
-- [ ] 3.2 Verify beat schedule includes new tasks:
+- [x] 3.2 Verify beat schedule includes new tasks:
   ```bash
   cd ~/portfolio-ai/backend && source .venv/bin/activate && celery -A app.celery_app inspect scheduled
   ```
-- [ ] 3.3 Check Celery logs for schedule registration:
+- [x] 3.3 Check Celery logs for schedule registration:
   ```bash
   tail -50 /var/log/portfolio-ai/celery-beat.log
   ```
 
+**Status**: ✅ Both tasks registered and scheduled
+
 ### 4.0 Manual Test Execution (Validate Before Waiting for 03:30)
 
-- [ ] 4.1 Manually trigger Discovery Agent:
+- [x] 4.1 Manually trigger Discovery Agent:
   ```bash
-  cd ~/portfolio-ai/backend && source .venv/bin/activate && celery -A app.celery_app call app.tasks.agent_tasks.run_discovery_agent
+  cd ~/portfolio-ai/backend && source .venv/bin/activate && celery -A app.celery_app call run_discovery_agent
   ```
-- [ ] 4.2 Verify agent execution in database:
-  ```bash
-  cd ~/portfolio-ai/backend && source .venv/bin/activate && python -c "from app.storage import get_storage; storage = get_storage(); df = storage.query('SELECT * FROM agent_runs ORDER BY created_at DESC LIMIT 5'); print(df)"
-  ```
-- [ ] 4.3 Manually trigger Portfolio Analyzer:
-  ```bash
-  cd ~/portfolio-ai/backend && source .venv/bin/activate && celery -A app.celery_app call app.tasks.agent_tasks.run_portfolio_analyzer
-  ```
-- [ ] 4.4 Verify both agents created ideas in `agent_ideas` table
-- [ ] 4.5 Check agent run status (should be "complete" not "failed")
+  **Result**: Task 542b4df4-723a-41f3-8fb4-8fd2085bd119 created but PENDING
+- [ ] 4.2 Verify agent execution in database: ❌ **BLOCKED BY SEGFAULT**
+- [ ] 4.3 Manually trigger Portfolio Analyzer: ❌ **BLOCKED BY SEGFAULT**
+- [ ] 4.4 Verify both agents created ideas in `agent_ideas` table: ❌ **BLOCKED**
+- [ ] 4.5 Check agent run status (should be "complete" not "failed"): ❌ **BLOCKED**
+
+**Status**: ⛔ **BLOCKED** - Agent initialization causes segmentation fault (Exit code 139)
+
+**Evidence**:
+```bash
+# First run: SUCCESS
+python -c "from app.agents.discovery import DiscoveryAgent; ..."
+# Output: "Agent initialized successfully"
+
+# Second run: SEGFAULT
+python -c "from app.agents.discovery import DiscoveryAgent; ..."
+# Output: "Segmentation fault (core dumped)"
+```
+
+**Root Cause**: DualProviderClient or CLI subprocess management causes memory corruption on repeated initialization
+
+**Blocker Created**: tasks-0075-fix-agent-segfault.md (CRITICAL priority)
 
 ### 5.0 Documentation and Verification
 
-- [ ] 5.1 Update `docs/core/OPERATIONS.md` with new scheduled tasks
-  - Add to "Scheduled Tasks" section
-  - Document: "Discovery Agent and Portfolio Analyzer run daily at 03:30 UTC"
-- [ ] 5.2 Verify VISION.md compliance:
-  - ✅ "Agents generate ideas autonomously on schedule (daily at 03:30 UTC)" - NOW TRUE
-- [ ] 5.3 Wait for next 03:30 UTC execution (or manually trigger for immediate validation)
-- [ ] 5.4 Confirm ideas appear in `/api/ideas` endpoint
+- [x] 5.1 Update `docs/core/OPERATIONS.md` with new scheduled tasks
+  - Added to "Scheduled Tasks" section
+  - Documented: "Discovery Agent and Portfolio Analyzer run daily at 03:30 UTC"
+- [ ] 5.2 Verify VISION.md compliance: ⏸️ **PARTIAL**
+  - Scheduled: ✅ Tasks configured at 03:30 UTC
+  - Execution: ❌ Blocked by segfault (tasks-0075)
+- [ ] 5.3 Wait for next 03:30 UTC execution: ⏸️ **DEFERRED** (will fail until tasks-0075 complete)
+- [ ] 5.4 Confirm ideas appear in `/api/ideas` endpoint: ⏸️ **DEFERRED**
 
 ---
 
 ## Verification
 
-- [ ] Functional: Both agents scheduled in Celery beat
-- [ ] Execution: Manual test runs complete successfully
-- [ ] Database: agent_runs and agent_ideas tables populated
-- [ ] Schedule: Celery inspect shows 03:30 UTC cron entries
-- [ ] Services: Celery beat restarted and running
-- [ ] Docs: OPERATIONS.md updated with new schedules
-- [ ] VISION: "Autonomous on schedule" requirement fulfilled
+- [x] Functional: Both agents scheduled in Celery beat ✅
+- [ ] Execution: Manual test runs complete successfully ❌ **BLOCKED BY SEGFAULT**
+- [ ] Database: agent_runs and agent_ideas tables populated ❌ **BLOCKED**
+- [x] Schedule: Celery inspect shows 03:30 UTC cron entries ✅
+- [x] Services: Celery beat restarted and running ✅
+- [x] Docs: OPERATIONS.md updated with new schedules ✅
+- [ ] VISION: "Autonomous on schedule" requirement fulfilled ⏸️ **PARTIAL** (scheduled but can't execute)
+
+**Status**: 60% complete (3/5 tasks done) - Blocked by tasks-0075 segfault bug
 
 ---
 

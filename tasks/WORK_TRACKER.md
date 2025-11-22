@@ -21,7 +21,7 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-**NONE** - Ready to execute VISION Priority #1
+(No active tasks)
 
 ---
 
@@ -66,33 +66,7 @@
      - [ ] Task 7: Integration Testing and Validation
      - [ ] Task 8: Documentation and VISION Compliance
 
-4. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 2/10 tasks, PAUSED 2025-11-22)
-   - File: `tasks-0042-customizable-dashboard-layouts.md`
-   - Created: 2025-11-11
-   - Goal: Enable users to customize dashboard layouts by dragging/resizing cards, with persistence to PostgreSQL backend
-   - Status: PAUSED at Task 2.3 (needs backend import fix first)
-   - Progress: Tasks 1-2 complete (DB + API), Tasks 3-10 pending (Frontend integration)
-   - Note: Lower priority - deferred until after VISION.md priorities complete
-
-5. **UI Standardization & UX Fixes** ✅ COMPLETE (2025-11-22)
-   - File: `tasks-0055-ui-standardization-and-ux-fixes.md`
-   - All 5 tasks were already implemented - verified during session
-   - No code changes needed
-
-6. **Development Process Optimization** ✅ COMPLETE (5/7 tasks, 2025-11-22)
-   - File: `tasks-0054-dev-process-optimization.md`
-   - Created: 2025-11-12
-   - Goal: Reduce development cycle time from 15-20 min to 5-7 min (3x faster) by fixing test performance and workflow bottlenecks.
-   - Tasks:
-     - [x] Task 1: Quick Win: Enable Parallel Test Execution ✅ **COMPLETE**
-     - [x] Task 2: Quick Win: Fix Database Cleanup Scope ✅ **COMPLETE**
-     - [x] Task 3: Quick Win: Fix Pre-commit Hook Failures ✅ **COMPLETE**
-     - [x] Task 4: High Impact: Fix Unit Tests Using Real Database ✅ **COMPLETE**
-     - [ ] Task 5: High Impact: Split Large Test File ⏸️ **DEFERRED**
-     - [x] Task 6: Medium: Add Smoke Test Markers ✅ **COMPLETE**
-     - [ ] Task 7: Medium: Reduce Large Service Files ⏸️ **DEFERRED**
-
-6. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (1 weeks ago))
+4. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (1 weeks ago))
    - File: `tasks-0042-customizable-dashboard-layouts.md`
    - Created: 2025-11-11
    - Goal: Enable users to customize dashboard layouts by dragging/resizing cards, with persistence to PostgreSQL backend
@@ -109,20 +83,14 @@
      - [ ] Task 9: Polish and Edge Cases
      - [ ] Task 10: Testing and Documentation
 
-7. **Trading Intelligence Roadmap** (High, 7/8 tasks)
-   - File: `tasks-trading-intelligence-roadmap.md`
-   - Created: Unknown
+5. **UI Standardization & UX Fixes** (MEDIUM-HIGH (4-6 hours, 12-15 files), 0/0 tasks (1 weeks ago))
+   - File: `tasks-0055-ui-standardization-and-ux-fixes.md`
+   - Created: 2025-11-12
+   - Goal: Bring the Portfolio AI web UI up to a consistent design baseline by aligning headers, loading states, and critical interactions so that every surface communicates status clearly and meets accessibility expectations.
    - Tasks:
-     - [ ] Task 1: Discovery & design
-     - [x] Task 2: Fundamentals pipeline ✅ COMPLETE
-     - [x] Task 3: Technical signal normalization ✅ COMPLETE
-     - [x] Task 4: Strategy engine ✅ COMPLETE
-     - [x] Task 5: Paper trading & evaluation ✅ COMPLETE
-     - [x] Task 6: LLM reviewer integration ✅ COMPLETE
-     - [x] Task 7: Frontend & UX ✅ PARTIAL (70% COMPLETE)
-     - [x] Task 8: Governance & documentation ✅ COMPLETE
+     - (No tasks defined yet)
 
-8. **Response Caching Middleware** (TBD, 0/8 tasks (1 weeks ago))
+6. **Response Caching Middleware** (TBD, 0/8 tasks (1 weeks ago))
    - File: `tasks-0047-response-caching-middleware.md`
    - Created: 2025-11-11
    - Tasks:
