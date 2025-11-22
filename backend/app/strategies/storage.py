@@ -73,33 +73,34 @@ class StrategyStorage:
         research_summary_json = json.dumps(research_summary)
         backtest_metrics_json = json.dumps(backtest_metrics)
 
-        self.conn.execute_query(
-            """
-            INSERT INTO strategy_definitions (
-                id, name, symbol, strategy_type,
-                parameters, research_summary, generation_reasoning,
-                backtest_metrics, expected_sharpe, expected_win_rate, expected_max_drawdown,
-                created_by, version, status
+        with self.conn.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO strategy_definitions (
+                    id, name, symbol, strategy_type,
+                    parameters, research_summary, generation_reasoning,
+                    backtest_metrics, expected_sharpe, expected_win_rate, expected_max_drawdown,
+                    created_by, version, status
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    strategy_id,
+                    name,
+                    symbol,
+                    strategy_type,
+                    parameters_json,
+                    research_summary_json,
+                    generation_reasoning,
+                    backtest_metrics_json,
+                    expected_sharpe,
+                    expected_win_rate,
+                    expected_max_drawdown,
+                    created_by,
+                    version,
+                    status,
+                ),
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """,
-            (
-                strategy_id,
-                name,
-                symbol,
-                strategy_type,
-                parameters_json,
-                research_summary_json,
-                generation_reasoning,
-                backtest_metrics_json,
-                expected_sharpe,
-                expected_win_rate,
-                expected_max_drawdown,
-                created_by,
-                version,
-                status,
-            ),
-        )
 
         logger.info(f"Strategy stored: {symbol} {strategy_type} v{version} (id={strategy_id})")
 
@@ -114,19 +115,20 @@ class StrategyStorage:
         Returns:
             StrategyDefinition or None if not found
         """
-        rows = self.conn.execute_query(
-            """
-            SELECT *
-            FROM strategy_definitions
-            WHERE id = %s
-            """,
-            (strategy_id,),
-        )
+        with self.conn.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM strategy_definitions
+                WHERE id = %s
+                """,
+                (strategy_id,),
+            ).fetchall()
 
         if not rows:
             return None
 
-        return self._row_to_strategy_definition(rows[0])
+        return self._row_to_strategy_definition(self._convert_row(rows[0]))
 
     def get_active_strategy(self, symbol: str) -> StrategyDefinition | None:
         """Get active strategy for symbol.
@@ -137,21 +139,22 @@ class StrategyStorage:
         Returns:
             Active StrategyDefinition or None if no active strategy
         """
-        rows = self.conn.execute_query(
-            """
-            SELECT *
-            FROM strategy_definitions
-            WHERE symbol = %s AND status = 'active'
-            ORDER BY version DESC
-            LIMIT 1
-            """,
-            (symbol,),
-        )
+        with self.conn.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM strategy_definitions
+                WHERE symbol = %s AND status = 'active'
+                ORDER BY version DESC
+                LIMIT 1
+                """,
+                (symbol,),
+            ).fetchall()
 
         if not rows:
             return None
 
-        return self._row_to_strategy_definition(rows[0])
+        return self._row_to_strategy_definition(self._convert_row(rows[0]))
 
     def list_strategies(
         self,
@@ -188,18 +191,19 @@ class StrategyStorage:
 
         params.append(limit)
 
-        rows = self.conn.execute_query(
-            f"""
-            SELECT *
-            FROM strategy_definitions
-            {where_clause}
-            ORDER BY created_at DESC
-            LIMIT %s
-            """,
-            tuple(params),
-        )
+        with self.conn.connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT *
+                FROM strategy_definitions
+                {where_clause}
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                tuple(params),
+            ).fetchall()
 
-        return [self._row_to_strategy_definition(row) for row in rows]
+        return [self._row_to_strategy_definition(self._convert_row(row)) for row in rows]
 
     def activate_strategy(self, strategy_id: str) -> None:
         """Activate strategy (sets status to 'active').
@@ -207,15 +211,16 @@ class StrategyStorage:
         Args:
             strategy_id: Strategy UUID
         """
-        self.conn.execute_query(
-            """
-            UPDATE strategy_definitions
-            SET status = 'active',
-                activation_date = NOW()
-            WHERE id = %s
-            """,
-            (strategy_id,),
-        )
+        with self.conn.connection() as conn:
+            conn.execute(
+                """
+                UPDATE strategy_definitions
+                SET status = 'active',
+                    activation_date = NOW()
+                WHERE id = %s
+                """,
+                (strategy_id,),
+            )
 
         logger.info(f"Strategy activated: {strategy_id}")
 
@@ -226,16 +231,17 @@ class StrategyStorage:
             strategy_id: Strategy UUID
             reason: Reason for archiving
         """
-        self.conn.execute_query(
-            """
-            UPDATE strategy_definitions
-            SET status = 'archived',
-                archive_date = NOW(),
-                archive_reason = %s
-            WHERE id = %s
-            """,
-            (reason, strategy_id),
-        )
+        with self.conn.connection() as conn:
+            conn.execute(
+                """
+                UPDATE strategy_definitions
+                SET status = 'archived',
+                    archive_date = NOW(),
+                    archive_reason = %s
+                WHERE id = %s
+                """,
+                (reason, strategy_id),
+            )
 
         logger.info(f"Strategy archived: {strategy_id} (reason: {reason})")
 
@@ -254,17 +260,18 @@ class StrategyStorage:
             win_rate: Current win rate (0-1)
             sharpe_ratio: Current Sharpe ratio
         """
-        self.conn.execute_query(
-            """
-            UPDATE strategy_definitions
-            SET live_trades_count = %s,
-                live_win_rate = %s,
-                live_sharpe_ratio = %s,
-                last_used_at = NOW()
-            WHERE id = %s
-            """,
-            (trades_count, win_rate, sharpe_ratio, strategy_id),
-        )
+        with self.conn.connection() as conn:
+            conn.execute(
+                """
+                UPDATE strategy_definitions
+                SET live_trades_count = %s,
+                    live_win_rate = %s,
+                    live_sharpe_ratio = %s,
+                    last_used_at = NOW()
+                WHERE id = %s
+                """,
+                (trades_count, win_rate, sharpe_ratio, strategy_id),
+            )
 
     def record_daily_performance(
         self,
@@ -297,42 +304,80 @@ class StrategyStorage:
             status: Performance status (default: active)
             notes: Optional notes
         """
-        self.conn.execute_query(
-            """
-            INSERT INTO strategy_performance (
-                strategy_id, date,
-                trades_today, wins_today, losses_today, pnl_today,
-                trades_30d, win_rate_30d, sharpe_ratio_30d, max_drawdown_30d,
-                status, notes
+        with self.conn.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO strategy_performance (
+                    strategy_id, date,
+                    trades_today, wins_today, losses_today, pnl_today,
+                    trades_30d, win_rate_30d, sharpe_ratio_30d, max_drawdown_30d,
+                    status, notes
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (strategy_id, date) DO UPDATE SET
+                    trades_today = EXCLUDED.trades_today,
+                    wins_today = EXCLUDED.wins_today,
+                    losses_today = EXCLUDED.losses_today,
+                    pnl_today = EXCLUDED.pnl_today,
+                    trades_30d = EXCLUDED.trades_30d,
+                    win_rate_30d = EXCLUDED.win_rate_30d,
+                    sharpe_ratio_30d = EXCLUDED.sharpe_ratio_30d,
+                    max_drawdown_30d = EXCLUDED.max_drawdown_30d,
+                    status = EXCLUDED.status,
+                    notes = EXCLUDED.notes
+                """,
+                (
+                    strategy_id,
+                    str(date),
+                    trades_today,
+                    wins_today,
+                    losses_today,
+                    float(pnl_today),
+                    trades_30d,
+                    win_rate_30d,
+                    sharpe_ratio_30d,
+                    max_drawdown_30d,
+                    status,
+                    notes,
+                ),
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (strategy_id, date) DO UPDATE SET
-                trades_today = EXCLUDED.trades_today,
-                wins_today = EXCLUDED.wins_today,
-                losses_today = EXCLUDED.losses_today,
-                pnl_today = EXCLUDED.pnl_today,
-                trades_30d = EXCLUDED.trades_30d,
-                win_rate_30d = EXCLUDED.win_rate_30d,
-                sharpe_ratio_30d = EXCLUDED.sharpe_ratio_30d,
-                max_drawdown_30d = EXCLUDED.max_drawdown_30d,
-                status = EXCLUDED.status,
-                notes = EXCLUDED.notes
-            """,
-            (
-                strategy_id,
-                date,
-                trades_today,
-                wins_today,
-                losses_today,
-                pnl_today,
-                trades_30d,
-                win_rate_30d,
-                sharpe_ratio_30d,
-                max_drawdown_30d,
-                status,
-                notes,
-            ),
-        )
+
+    def _convert_row(self, row: tuple[Any, ...]) -> dict[str, Any]:
+        """Convert database row tuple to dictionary.
+
+        Args:
+            row: Database row tuple from fetchall()
+
+        Returns:
+            Dictionary with column names as keys
+        """
+        # Get column names from the cursor (requires recent connection)
+        # For now, we'll handle the specific columns we know about
+        column_names = [
+            "id",
+            "name",
+            "symbol",
+            "strategy_type",
+            "parameters",
+            "research_summary",
+            "generation_reasoning",
+            "backtest_metrics",
+            "expected_sharpe",
+            "expected_win_rate",
+            "expected_max_drawdown",
+            "created_by",
+            "version",
+            "status",
+            "created_at",
+            "activation_date",
+            "archive_date",
+            "archive_reason",
+            "live_trades_count",
+            "live_win_rate",
+            "live_sharpe_ratio",
+            "last_used_at",
+        ]
+        return dict(zip(column_names, row))
 
     def _generate_strategy_name(self, symbol: str, strategy_type: str) -> str:
         """Generate strategy name.
@@ -359,19 +404,20 @@ class StrategyStorage:
         Returns:
             Next version number (1 if no existing versions)
         """
-        rows = self.conn.execute_query(
-            """
-            SELECT MAX(version) as max_version
-            FROM strategy_definitions
-            WHERE symbol = %s AND name = %s
-            """,
-            (symbol, name),
-        )
+        with self.conn.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT MAX(version) as max_version
+                FROM strategy_definitions
+                WHERE symbol = %s AND name = %s
+                """,
+                (symbol, name),
+            ).fetchall()
 
-        if not rows or rows[0]["max_version"] is None:
+        if not rows or rows[0][0] is None:
             return 1
 
-        return int(rows[0]["max_version"]) + 1
+        return int(rows[0][0]) + 1
 
     def _row_to_strategy_definition(self, row: dict[str, Any]) -> StrategyDefinition:
         """Convert database row to StrategyDefinition.

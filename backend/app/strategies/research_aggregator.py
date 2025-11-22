@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date, datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 
 from app.analytics.indicators import calculate_indicators_for_symbol
 from app.storage import PortfolioStorage
@@ -28,6 +28,23 @@ from app.watchlist.fundamentals import (
 from .models import ResearchInsights
 
 logger = logging.getLogger(__name__)
+
+
+def _rows_to_dicts(rows: list[tuple[Any, ...]], conn_wrapper: Any) -> list[dict[str, Any]]:
+    """Convert database cursor rows (tuples) to dictionaries using cursor column names.
+
+    Args:
+        rows: List of tuple rows from cursor.fetchall()
+        conn_wrapper: PostgreSQLConnectionWrapper object with description property
+
+    Returns:
+        List of dictionaries with column names as keys
+    """
+    if not rows or conn_wrapper.description is None:
+        return []
+
+    columns = [desc[0] for desc in conn_wrapper.description]
+    return [dict(zip(columns, row)) for row in rows]
 
 
 class ResearchAggregationService:
@@ -71,6 +88,7 @@ class ResearchAggregationService:
         )
 
         # Classify research quality
+        research_quality: Literal["high", "medium", "low"]
         if overall_confidence >= 0.8:
             research_quality = "high"
         elif overall_confidence >= 0.5:
@@ -136,21 +154,24 @@ class ResearchAggregationService:
             Dict with news intelligence fields
         """
         # Query news table for 30-day sentiment
-        news_rows = self.conn.execute_query(
-            """
-            SELECT
-                sentiment_score,
-                published_at,
-                is_material_event,
-                headline
-            FROM news
-            WHERE ticker = %s
-              AND published_at >= %s
-              AND published_at <= %s
-            ORDER BY published_at DESC
-            """,
-            (symbol, start_date, end_date),
-        )
+        with self.conn.connection() as conn:
+            result_wrapper = conn.execute(
+                """
+                SELECT
+                    sentiment_score,
+                    published_at,
+                    is_material_event,
+                    headline
+                FROM news
+                WHERE ticker = %s
+                  AND published_at >= %s
+                  AND published_at <= %s
+                ORDER BY published_at DESC
+                """,
+                [symbol, str(start_date), str(end_date)],
+            )
+            rows = result_wrapper.fetchall()
+            news_rows = _rows_to_dicts(rows, conn)
 
         if not news_rows or len(news_rows) == 0:
             # No news data available
@@ -347,16 +368,19 @@ class ResearchAggregationService:
             }
 
         # Get current price
-        price_rows = self.conn.execute_query(
-            """
-            SELECT close
-            FROM day_bars
-            WHERE symbol = %s
-            ORDER BY date DESC
-            LIMIT 1
-            """,
-            (symbol,),
-        )
+        with self.conn.connection() as conn:
+            result_wrapper = conn.execute(
+                """
+                SELECT close
+                FROM day_bars
+                WHERE symbol = %s
+                ORDER BY date DESC
+                LIMIT 1
+                """,
+                [symbol],
+            )
+            rows = result_wrapper.fetchall()
+            price_rows = _rows_to_dicts(rows, conn)
         current_price = float(price_rows[0]["close"]) if price_rows else 100.0
 
         # Extract indicators
@@ -380,16 +404,19 @@ class ResearchAggregationService:
             trend_strength = "neutral"
 
         # Calculate trend duration (days above/below key moving average)
-        trend_rows = self.conn.execute_query(
-            """
-            SELECT date, close
-            FROM day_bars
-            WHERE symbol = %s
-            ORDER BY date DESC
-            LIMIT 60
-            """,
-            (symbol,),
-        )
+        with self.conn.connection() as conn:
+            result_wrapper = conn.execute(
+                """
+                SELECT date, close
+                FROM day_bars
+                WHERE symbol = %s
+                ORDER BY date DESC
+                LIMIT 60
+                """,
+                [symbol],
+            )
+            rows = result_wrapper.fetchall()
+            trend_rows = _rows_to_dicts(rows, conn)
         trend_duration_days = 0
         if trend_rows:
             for i, row in enumerate(trend_rows):
@@ -417,16 +444,19 @@ class ResearchAggregationService:
             momentum_rating = "steady"
 
         # Volume profile (requires recent volume data)
-        volume_rows = self.conn.execute_query(
-            """
-            SELECT volume
-            FROM day_bars
-            WHERE symbol = %s
-            ORDER BY date DESC
-            LIMIT 20
-            """,
-            (symbol,),
-        )
+        with self.conn.connection() as conn:
+            result_wrapper = conn.execute(
+                """
+                SELECT volume
+                FROM day_bars
+                WHERE symbol = %s
+                ORDER BY date DESC
+                LIMIT 20
+                """,
+                [symbol],
+            )
+            rows = result_wrapper.fetchall()
+            volume_rows = _rows_to_dicts(rows, conn)
         if volume_rows and len(volume_rows) >= 20:
             recent_5d_avg = sum(row["volume"] for row in volume_rows[:5]) / 5
             recent_20d_avg = sum(row["volume"] for row in volume_rows) / 20
@@ -455,9 +485,12 @@ class ResearchAggregationService:
         }
 
         # Confidence (1.0 if we have 252 days of data)
-        bar_count = self.conn.execute_query(
-            "SELECT COUNT(*) as count FROM day_bars WHERE symbol = %s", (symbol,)
-        )
+        with self.conn.connection() as conn:
+            result_wrapper = conn.execute(
+                "SELECT COUNT(*) as count FROM day_bars WHERE symbol = %s", [symbol]
+            )
+            rows = result_wrapper.fetchall()
+            bar_count = _rows_to_dicts(rows, conn)
         bar_count_val = bar_count[0]["count"] if bar_count else 0
         confidence = 1.0 if bar_count_val >= 252 else (bar_count_val / 252.0)
 
@@ -481,14 +514,17 @@ class ResearchAggregationService:
             Dict with macro context fields
         """
         # Query Fear & Greed from database
-        fg_rows = self.conn.execute_query(
-            """
-            SELECT score, signal_count
-            FROM fear_greed_daily
-            ORDER BY date DESC
-            LIMIT 1
-            """
-        )
+        with self.conn.connection() as conn:
+            result_wrapper = conn.execute(
+                """
+                SELECT score, signal_count
+                FROM fear_greed_daily
+                ORDER BY date DESC
+                LIMIT 1
+                """
+            )
+            rows = result_wrapper.fetchall()
+            fg_rows = _rows_to_dicts(rows, conn)
 
         if fg_rows and fg_rows[0]["score"] is not None:
             fear_greed_score = int(fg_rows[0]["score"])
@@ -510,24 +546,30 @@ class ResearchAggregationService:
         # Determine market regime (simplified logic)
         # Query SPY trend and VIX
         spy_indicators = calculate_indicators_for_symbol("SPY", indicators=["sma_200"])
-        spy_price_rows = self.conn.execute_query(
-            """
-            SELECT close
-            FROM day_bars
-            WHERE symbol = 'SPY'
-            ORDER BY date DESC
-            LIMIT 1
-            """
-        )
-        vix_rows = self.conn.execute_query(
-            """
-            SELECT close as vix_close
-            FROM day_bars
-            WHERE symbol = '^VIX'
-            ORDER BY date DESC
-            LIMIT 1
-            """
-        )
+        with self.conn.connection() as conn:
+            result_wrapper = conn.execute(
+                """
+                SELECT close
+                FROM day_bars
+                WHERE symbol = 'SPY'
+                ORDER BY date DESC
+                LIMIT 1
+                """
+            )
+            rows = result_wrapper.fetchall()
+            spy_price_rows = _rows_to_dicts(rows, conn)
+
+            result_wrapper = conn.execute(
+                """
+                SELECT close as vix_close
+                FROM day_bars
+                WHERE symbol = '^VIX'
+                ORDER BY date DESC
+                LIMIT 1
+                """
+            )
+            rows = result_wrapper.fetchall()
+            vix_rows = _rows_to_dicts(rows, conn)
 
         spy_price = float(spy_price_rows[0]["close"]) if spy_price_rows else 450.0
         spy_sma_200 = spy_indicators.get("sma_200", spy_price)
@@ -571,15 +613,18 @@ class ResearchAggregationService:
             Dict with sector strength fields
         """
         # Query sector from existing watchlist data
-        sector_rows = self.conn.execute_query(
-            """
-            SELECT sector
-            FROM watchlist_items
-            WHERE symbol = %s
-            LIMIT 1
-            """,
-            (symbol,),
-        )
+        with self.conn.connection() as conn:
+            result_wrapper = conn.execute(
+                """
+                SELECT sector
+                FROM watchlist_items
+                WHERE symbol = %s
+                LIMIT 1
+                """,
+                [symbol],
+            )
+            rows = result_wrapper.fetchall()
+            sector_rows = _rows_to_dicts(rows, conn)
 
         sector = (
             sector_rows[0]["sector"] if sector_rows and sector_rows[0].get("sector") else "Unknown"
@@ -634,16 +679,19 @@ class ResearchAggregationService:
         Returns:
             30-day return percentage
         """
-        rows = self.conn.execute_query(
-            """
-            SELECT close
-            FROM day_bars
-            WHERE symbol = %s
-            ORDER BY date DESC
-            LIMIT 31
-            """,
-            (symbol,),
-        )
+        with self.conn.connection() as conn:
+            result_wrapper = conn.execute(
+                """
+                SELECT close
+                FROM day_bars
+                WHERE symbol = %s
+                ORDER BY date DESC
+                LIMIT 31
+                """,
+                [symbol],
+            )
+            rows_tuple = result_wrapper.fetchall()
+            rows = _rows_to_dicts(rows_tuple, conn)
 
         if not rows or len(rows) < 2:
             return 0.0

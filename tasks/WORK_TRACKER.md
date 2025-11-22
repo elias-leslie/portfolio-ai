@@ -20,16 +20,11 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Complete Autonomous Trading MVP - Fix All Validation Gaps (Task 0071)** (63% - 5/8 complete, PAUSED 2025-11-20 08:15)
+1. **Complete Autonomous Trading MVP - Fix All Validation Gaps (Task 0071)** (25% - 2/8 complete)
    - File: `tasks-0071-autonomous-trading-completion.md`
-   - Started: 2025-11-18 (2 days ago)
-   - Status: PAUSED (2025-11-20 08:15)
-   - Context: 70% used (140K/200K)
-   - Next: Task 6.1 - Manual LLM execution test
-   - Completed This Session:
-     - ✅ Task 4.10: Unit tests (35 tests across 4 files)
-     - ✅ Task 4.11: Integration tests (4 E2E tests)
-     - ✅ Task 5: Scheduled execution verified (3 Celery tasks confirmed)
+   - Started: 2025-11-18 (4 days ago)
+   - Last updated: PAUSED (Task 6 in progress - 3 workflow bugs fixed, blocked on Task 4 mypy errors)
+   - Next: Task 6.4-6.7 - Monitor workflow completion, document LLM setup
    - Progress:
      - ✅ Task 0: Scope Discovery (4 parallel Explore agents, 91 files identified)
      - ✅ Task 1: Database Persistence Bug (10 bugs fixed, all tests passing)
@@ -40,18 +35,15 @@
        - ✅ 4.10: Unit tests (35 tests)
        - ✅ 4.11: Integration tests (4 tests)
      - ✅ Task 5: Scheduled Execution (3/6 subtasks - verified existing config)
-     - ⏸️ Task 6: LLM Execution Verification (0/7 subtasks - NEXT)
-     - ⏸️ Task 7: Final Integration Testing (0/10 subtasks - pending)
    - Tasks:
-     - [x] Task 0: Scope Discovery (MANDATORY) ✅
-     - [x] Task 1: Fix Critical Database Persistence Bug ✅
-     - [x] Task 2: Implement Complete UI Agent Status Display ✅
-     - [x] Task 3: Integrate Real Backtest Validation ✅
-     - [x] Task 4: Implement Dynamic Strategy Generation ✅
-     - [x] Task 5: Configure and Test Scheduled Execution ✅
-     - [ ] Task 6: Verify LLM Execution and Fix Any Issues (NEXT)
+     - [ ] Task 0: Scope Discovery (MANDATORY)
+     - [x] Task 1: Fix Critical Database Persistence Bug ✅ **COMPLETE**
+     - [x] Task 2: Implement Complete UI Agent Status Display ✅ **COMPLETE**
+     - [ ] Task 3: Integrate Real Backtest Validation in Paper Trade Workflow ✅ **COMPLETE**
+     - [ ] Task 4: Implement Dynamic Strategy Generation from Research
+     - [ ] Task 5: Configure and Test Scheduled Autonomous Execution
+     - [ ] Task 6: Verify LLM Execution and Fix Any Issues
      - [ ] Task 7: Integration Testing and Final Validation
-   - Resume: `/do_it` or `/do_it tasks-0071-autonomous-trading-completion.md`
 
 
 ---

@@ -81,6 +81,6 @@ CREATE INDEX IF NOT EXISTS idx_performance_status ON strategy_performance(status
 CREATE INDEX IF NOT EXISTS idx_performance_strategy ON strategy_performance(strategy_id, date DESC);
 
 -- Migration tracking
-INSERT INTO schema_migrations (version, description)
-VALUES (47, 'Create strategy_definitions and strategy_performance tables')
+INSERT INTO schema_migrations (version, description, applied_at, checksum)
+VALUES (47, 'Create strategy_definitions and strategy_performance tables', NOW(), 'manual')
 ON CONFLICT (version) DO NOTHING;

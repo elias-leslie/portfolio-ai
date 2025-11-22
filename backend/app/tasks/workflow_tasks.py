@@ -74,6 +74,7 @@ Identify trading intelligence gaps in current data coverage:
 Respond with structured JSON."""
 
         gemini_output = None
+        gemini_error = None
         try:
             gemini_response = client.generate(
                 prompt=gemini_prompt,
@@ -82,7 +83,8 @@ Respond with structured JSON."""
             gemini_output = gemini_response.content
             logger.info(f"Gemini analysis: {len(gemini_output)} chars")
         except Exception as e:
-            logger.error(f"Gemini agent failed: {e}")
+            gemini_error = f"{type(e).__name__}: {e!s}"
+            logger.error(f"Gemini agent failed: {gemini_error}", exc_info=True)
 
         # Execute Claude agent for validation
         if gemini_output:
@@ -95,6 +97,7 @@ Validate gaps, add missed insights, refine priorities, provide final recommendat
             claude_prompt = gemini_prompt
 
         claude_output = None
+        claude_error = None
         try:
             claude_response = client.generate(
                 prompt=claude_prompt,
@@ -103,20 +106,40 @@ Validate gaps, add missed insights, refine priorities, provide final recommendat
             claude_output = claude_response.content
             logger.info(f"Claude analysis: {len(claude_output)} chars")
         except Exception as e:
-            logger.error(f"Claude agent failed: {e}")
+            claude_error = f"{type(e).__name__}: {e!s}"
+            logger.error(f"Claude agent failed: {claude_error}", exc_info=True)
 
         # Generate final analysis
         if not gemini_output and not claude_output:
-            orchestrator.update_workflow_status(
-                workflow_id, status="failed", current_step="both_agents_failed"
+            error_details = (
+                f"Gemini: {gemini_error or 'unknown'}, Claude: {claude_error or 'unknown'}"
             )
-            return {"status": "failed", "workflow_id": workflow_id, "error": "Both agents failed"}
+            orchestrator.update_workflow_status(
+                workflow_id,
+                status="failed",
+                current_step="both_agents_failed",
+                error=f"Both agents failed - {error_details}",
+            )
+            return {
+                "status": "failed",
+                "workflow_id": workflow_id,
+                "error": error_details,
+            }
 
         final_analysis = claude_output if claude_output else gemini_output
 
-        # Complete workflow
-        orchestrator.update_workflow_status(
-            workflow_id, status="complete", current_step="consensus_generated"
+        # Complete workflow with result
+        orchestrator.complete_workflow(
+            workflow_id,
+            result={
+                "analysis": final_analysis,
+                "gemini_output": gemini_output,
+                "claude_output": claude_output,
+                "agents_used": [
+                    "gemini" if gemini_output else None,
+                    "claude" if claude_output else None,
+                ],
+            },
         )
 
         logger.info(f"Daily gap analysis workflow {workflow_id} completed")

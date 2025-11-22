@@ -1,4 +1,4 @@
-<!-- PAUSED: 2025-11-20 08:15 UTC | Context: 70% | Reason: Tasks 4-5 complete, user requested pause | Next: Task 6.1 - Manual LLM execution test -->
+<!-- PAUSED: 2025-11-22 00:15 UTC | Context: 63% | Reason: Blocked on Task 4 mypy errors | Next: Task 6.5 - Fix ConnectionManager API -->
 
 # Task List: Complete Autonomous Trading MVP - Fix All Validation Gaps
 
@@ -7,12 +7,17 @@
 **Effort**: HIGH (20-30 hours total, 12 hours spent so far)
 **Environment**: Local Dev (vacation mode - thorough approach)
 **Created**: 2025-11-18 20:30
-**Status**: PAUSED (63% complete - Tasks 0-5 done, Tasks 6-7 remaining)
-**Last Updated**: 2025-11-20 08:15 UTC
-**Pause Reason**: User requested pause (context 70%, good stopping point)
-**Context Used**: 140K/200K (70%)
-**Completed This Session**: Task 4.10-4.11 (39 tests), Task 5 (verified schedules)
-**Next Action**: Task 6.1 - Manual LLM execution test (verify strategy generation end-to-end)
+**Status**: PAUSED (Task 6 in progress - 3 workflow bugs fixed, blocked on Task 4 mypy errors)
+**Last Updated**: 2025-11-22 00:15 UTC
+**Pause Reason**: Blocked on Task 4 pre-existing bugs (23 mypy errors from commit 524fd38)
+**Context Used**: 126K/200K (63%)
+**Completed This Session**:
+  - ✅ Task 6.4 complete: Monitored workflow, found 3 bugs
+  - ✅ Fixed: DB constraint (use complete_workflow with result dict)
+  - ✅ Fixed: Missing conn.commit() in workflow_orchestrator.py:562
+  - ✅ Fixed: Permission denied (/backend/app/strategies now 775)
+  - ⚠️ Blocked: Task 4 has 23 mypy errors (ConnectionManager API usage)
+**Next Action**: Task 6.5 - Fix Task 4 ConnectionManager execute_query→query bugs
 **Resume Command**: `/do_it` (auto-resumes from WORK_TRACKER.md)
 
 ---
@@ -390,17 +395,17 @@
 **Priority**: HIGH (risk mitigation)
 **Effort**: MEDIUM (4-6 hours)
 
-- [ ] 6.1 Test Gemini CLI execution end-to-end
+- [x] 6.1 Test Gemini CLI execution end-to-end ✅
   - Manually call: `gemini -p "Analyze SPY stock" --output-format json`
   - Verify JSON output is valid
   - Check for auth errors, timeouts, or format issues
   - Document any required environment variables or config
-- [ ] 6.2 Test Claude CLI execution end-to-end
+- [x] 6.2 Test Claude CLI execution end-to-end ✅
   - Manually call: `claude -p "Analyze SPY stock" --output-format json`
   - Verify JSON output is valid
   - Check for auth errors, timeouts, or format issues
   - Document any required environment variables or config
-- [ ] 6.3 Test DualProviderClient with real LLM calls
+- [x] 6.3 Test DualProviderClient with real LLM calls ✅
   - Create test script: /backend/tests/manual/test_llm_execution.py
   - Execute: `client.generate(prompt="Test prompt", system="Test system")`
   - Verify Gemini primary execution works

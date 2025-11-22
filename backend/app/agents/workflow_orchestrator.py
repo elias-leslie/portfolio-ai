@@ -559,6 +559,7 @@ class WorkflowOrchestrator:
                     """,
                     [json.dumps(result), datetime.now(UTC), workflow_id],
                 )
+                conn.commit()
 
             logger.info(f"Workflow {workflow_id} completed successfully")
 

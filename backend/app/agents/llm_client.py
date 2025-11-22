@@ -660,8 +660,18 @@ class GeminiCLIClient(LLMClient):
             raise RuntimeError(f"Gemini CLI failed: {e.stderr}")  # noqa: B904
 
         except json.JSONDecodeError as e:
-            logger.error("gemini_cli_json_error", error=str(e))
-            raise RuntimeError(f"Failed to parse Gemini CLI JSON: {e}")  # noqa: B904
+            stdout_preview = result.stdout.decode()[:1000] if result.stdout else "(empty)"
+            stderr_preview = result.stderr.decode()[:1000] if result.stderr else "(empty)"
+            logger.error(
+                "gemini_cli_json_error",
+                error=str(e),
+                stdout_preview=stdout_preview,
+                stderr_preview=stderr_preview,
+            )
+            raise RuntimeError(
+                f"Failed to parse Gemini CLI JSON: {e}. "
+                f"Stdout: {stdout_preview[:200]}, Stderr: {stderr_preview[:200]}"
+            ) from None
 
 
 class DualProviderClient(LLMClient):

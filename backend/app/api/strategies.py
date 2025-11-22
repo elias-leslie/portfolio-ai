@@ -10,6 +10,7 @@ Provides REST API for:
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query
@@ -166,33 +167,48 @@ async def get_strategy(strategy_id: str) -> StrategyDetail:
             raise HTTPException(status_code=404, detail=f"Strategy {strategy_id} not found")
 
         # Get performance history (last 30 days)
-        conn = storage.conn
-        perf_rows = conn.execute_query(
-            """
-            SELECT date, trades_30d, win_rate_30d, sharpe_ratio_30d, max_drawdown_30d, status
-            FROM strategy_performance
-            WHERE strategy_id = %s
-            ORDER BY date DESC
-            LIMIT 30
-            """,
-            (strategy_id,),
-        )
+        conn_mgr = storage.conn
+        with conn_mgr.connection() as conn:
+            perf_rows = conn.execute(
+                """
+                SELECT date, trades_30d, win_rate_30d, sharpe_ratio_30d, max_drawdown_30d, status
+                FROM strategy_performance
+                WHERE strategy_id = %s
+                ORDER BY date DESC
+                LIMIT 30
+                """,
+                (strategy_id,),
+            ).fetchall()
 
-        performance_history = [
-            {
-                "date": row["date"].isoformat(),
-                "trades_30d": row["trades_30d"],
-                "win_rate_30d": float(row["win_rate_30d"]) if row["win_rate_30d"] else None,
-                "sharpe_ratio_30d": float(row["sharpe_ratio_30d"])
-                if row["sharpe_ratio_30d"]
-                else None,
-                "max_drawdown_30d": float(row["max_drawdown_30d"])
-                if row["max_drawdown_30d"]
-                else None,
-                "status": row["status"],
-            }
-            for row in perf_rows
-        ]
+        # Convert tuples to dicts for easy access
+        # Database returns tuples, map them to column names
+        performance_history = []
+        for row in perf_rows:
+            # row is a tuple: (date, trades_30d, win_rate_30d, sharpe_ratio_30d, max_drawdown_30d, status)
+            date_val = row[0]
+            if isinstance(date_val, datetime):
+                date_iso = date_val.isoformat()
+            else:
+                date_iso = str(date_val)
+
+            performance_history.append(
+                {
+                    "date": date_iso,
+                    "trades_30d": row[1],
+                    "win_rate_30d": float(row[2]) if row[2] is not None else None,
+                    "sharpe_ratio_30d": float(row[3]) if row[3] is not None else None,
+                    "max_drawdown_30d": float(row[4]) if row[4] is not None else None,
+                    "status": row[5],
+                }
+            )
+
+        # Ensure backtest_metrics is a list (stored as JSON, might be dict)
+        backtest_metrics: dict[str, Any] | list[dict[str, Any]] = strategy.backtest_metrics
+        if isinstance(backtest_metrics, dict):
+            # If stored as dict, convert to list for API response
+            backtest_metrics_list: list[dict[str, Any]] = [backtest_metrics]
+        else:
+            backtest_metrics_list = backtest_metrics
 
         return StrategyDetail(
             id=strategy.id,
@@ -202,7 +218,7 @@ async def get_strategy(strategy_id: str) -> StrategyDetail:
             parameters=strategy.parameters,
             research_summary=strategy.research_summary,
             generation_reasoning=strategy.generation_reasoning,
-            backtest_metrics=strategy.backtest_metrics,
+            backtest_metrics=backtest_metrics_list,
             expected_sharpe=float(strategy.expected_sharpe) if strategy.expected_sharpe else None,
             expected_win_rate=float(strategy.expected_win_rate)
             if strategy.expected_win_rate

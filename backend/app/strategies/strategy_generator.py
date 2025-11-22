@@ -266,7 +266,9 @@ Based on this research, generate a trading strategy configuration as valid JSON.
             if field not in strategy_data:
                 raise ValueError(f"Missing required field: {field}")
 
-        return strategy_data
+        # Cast to dict[str, Any] for explicit return type
+        result: dict[str, Any] = strategy_data
+        return result
 
     def _construct_strategy_result(self, strategy_data: dict[str, Any]) -> StrategyGenerationResult:
         """Construct validated StrategyGenerationResult from parsed data.

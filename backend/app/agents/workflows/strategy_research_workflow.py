@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import asdict
+from datetime import datetime
 from typing import Any
 
 from app.logging_config import get_logger
@@ -19,7 +20,7 @@ from app.strategies.optimizer import get_strategy_optimizer
 from app.strategies.research_aggregator import get_research_aggregator
 from app.strategies.storage import get_strategy_storage
 from app.strategies.strategy_generator import get_strategy_generator
-from app.utils.git_automation import commit_workflow_result
+from app.utils.git_automation import commit_workflow_results
 
 logger = get_logger(__name__)
 
@@ -162,24 +163,27 @@ async def strategy_research_workflow(
             "expected_max_drawdown": optimized.max_drawdown,
         }
 
-        commit_result = commit_workflow_result(
+        result_summary = f"Generated {agent_result.strategy_type} strategy for {symbol} (confidence={optimized.confidence:.2f}, Sharpe={optimized.avg_sharpe:.2f})"
+        commit_result = commit_workflow_results(
             workflow_type="strategy_research",
+            date=datetime.now(),
+            result_summary=result_summary,
             snapshot_data=snapshot,
-            summary=f"Generated {agent_result.strategy_type} strategy for {symbol} (confidence={optimized.confidence:.2f}, Sharpe={optimized.avg_sharpe:.2f})",
         )
 
+        commit_sha = commit_result.get("commit_sha", "") if isinstance(commit_result, dict) else ""
         logger.info(
             "Strategy research workflow complete",
             workflow_id=workflow_id,
             strategy_id=strategy_id,
-            commit_sha=commit_result["commit_sha"],
+            commit_sha=commit_sha,
         )
 
         return {
             "workflow_id": workflow_id,
             "status": "completed",
             "strategy_id": strategy_id,
-            "commit_sha": commit_result["commit_sha"],
+            "commit_sha": commit_sha,
             "message": f"Strategy generated successfully (Sharpe={optimized.avg_sharpe:.2f})",
         }
 

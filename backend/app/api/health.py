@@ -27,8 +27,8 @@ from ..utils.health_service import (
     HealthCheckService,
     SourceHealthCheck,
     WatchlistStats,
-    WorkflowHealthInfo,
 )
+from ..utils.health_workflows import WorkflowHealthInfo
 
 logger = get_logger(__name__)
 

@@ -29,11 +29,15 @@ def mock_connection():
 @pytest.fixture
 def service(mock_storage, mock_connection):
     """Create ResearchAggregationService with mocks."""
+    mock_conn_manager = Mock()
+    mock_conn_manager.connection.return_value.__enter__ = Mock(return_value=mock_connection)
+    mock_conn_manager.connection.return_value.__exit__ = Mock(return_value=None)
+
     with (
         patch("app.strategies.research_aggregator.PortfolioStorage", return_value=mock_storage),
         patch(
-            "app.strategies.research_aggregator.ConnectionManager.get_connection",
-            return_value=mock_connection,
+            "app.strategies.research_aggregator.get_connection_manager",
+            return_value=mock_conn_manager,
         ),
     ):
         return ResearchAggregationService()
@@ -364,10 +368,54 @@ class TestResearchAggregationService:
 
         with (
             patch.object(service, "_aggregate_news_intelligence") as mock_news,
-            patch.object(service, "_aggregate_fundamental_analysis"),
-            patch.object(service, "_aggregate_technical_analysis"),
-            patch.object(service, "_aggregate_macro_context"),
-            patch.object(service, "_aggregate_sector_strength"),
+            patch.object(
+                service,
+                "_aggregate_fundamental_analysis",
+                return_value={
+                    "company_health": "GOOD",
+                    "fundamental_score": 70,
+                    "valuation_tier": "fair",
+                    "growth_tier": "stable",
+                    "profitability_tier": "good",
+                    "debt_tier": "moderate",
+                    "analyst_consensus": 2.5,
+                    "confidence": 0.8,
+                },
+            ),
+            patch.object(
+                service,
+                "_aggregate_technical_analysis",
+                return_value={
+                    "trend_strength": "neutral",
+                    "trend_duration_days": 20,
+                    "momentum_rating": "steady",
+                    "volume_profile": "stable",
+                    "rsi_zone": "healthy",
+                    "price_vs_ma": {"20d": 1.0, "50d": 1.0, "200d": 1.0},
+                    "confidence": 1.0,
+                },
+            ),
+            patch.object(
+                service,
+                "_aggregate_macro_context",
+                return_value={
+                    "market_regime": "range",
+                    "fear_greed_score": 50,
+                    "fear_greed_classification": "neutral",
+                    "sector_rotation_phase": "mid_cycle",
+                },
+            ),
+            patch.object(
+                service,
+                "_aggregate_sector_strength",
+                return_value={
+                    "sector": "Technology",
+                    "sector_momentum": "in_line",
+                    "sector_vs_spy_30d": 0.0,
+                    "sector_rotation_signal": "hold",
+                    "confidence": 1.0,
+                },
+            ),
         ):
             # Set up mock returns
             mock_news.return_value = {

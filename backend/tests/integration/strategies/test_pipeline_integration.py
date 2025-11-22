@@ -75,7 +75,10 @@ class TestStrategyGenerationPipeline:
         if strategy_result.strategy_type != "no_strategy":
             optimizer = StrategyOptimizer()
             optimized_config = await optimizer.optimize_strategy_parameters(
-                symbol=symbol, strategy_template=strategy_result, lookback_days=180, max_combinations=5
+                symbol=symbol,
+                strategy_template=strategy_result,
+                lookback_days=180,
+                max_combinations=5,
             )
 
             # Verify optimization results

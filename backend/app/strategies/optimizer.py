@@ -338,8 +338,9 @@ class StrategyOptimizer:
             # - Calculate metrics from BacktestState (sharpe, win_rate, etc.)
             # For now, using placeholder logic
             run_id = "optimizer-" + str(uuid.uuid4())[:8]
-            backtest_result = replay_backtest(  # type: ignore[call-arg]
-                storage=self.storage.conn,  # type: ignore[arg-type]
+            # TODO: Fix replay_backtest integration - requires ConnectionManager + proper arg types
+            backtest_result = replay_backtest(
+                storage=self.storage.connection_mgr,
                 run_id=run_id,
                 symbol=symbol,
                 start_date=window.val_start,
@@ -350,7 +351,7 @@ class StrategyOptimizer:
 
             # Extract metrics from backtest state
             # TODO: Implement proper performance metric calculation
-            metrics = self._calculate_metrics_from_state(backtest_result)  # type: ignore[arg-type]
+            metrics = self._calculate_metrics_from_state(backtest_result)
 
             results.append(metrics)
 
