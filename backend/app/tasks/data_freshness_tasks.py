@@ -41,7 +41,7 @@ def _check_data_freshness_impl() -> dict[str, Any]:
             """
         ).fetchdf()
 
-    if result.empty:
+    if len(result) == 0:
         return {
             "tickers_checked": 0,
             "stale_found": 0,
@@ -49,14 +49,15 @@ def _check_data_freshness_impl() -> dict[str, Any]:
         }
 
     # Calculate staleness
-    result["age_hours"] = (
-        (now - result["last_fetched"]).dt.total_seconds() / 3600
-        if "last_fetched" in result
-        else 999
-    )
-    result["is_stale"] = result["age_hours"] > 24
-
-    stale_tickers = result[result["is_stale"]]["symbol"].tolist() if "is_stale" in result else []
+    if "last_fetched" in result.columns:
+        result["age_hours"] = (now - result["last_fetched"]).dt.total_seconds() / 3600
+        result["is_stale"] = result["age_hours"] > 24
+        stale_tickers = result[result["is_stale"]]["symbol"].tolist()
+    else:
+        # No snapshot data yet - all tickers are stale
+        result["age_hours"] = 999
+        result["is_stale"] = True
+        stale_tickers = result["symbol"].tolist()
 
     return {
         "tickers_checked": len(result),
