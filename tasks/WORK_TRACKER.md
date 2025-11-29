@@ -41,6 +41,16 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
+1. **Vision Gap Analysis & Remediation** (HIGH, 4 critical gaps)
+   - File: `tasks-0075-vision-gap-analysis.md`
+   - Created: 2025-11-29
+   - Goal: Fix critical reliability issues (12 down sources), test collection errors, and code quality violations to align with VISION.md.
+   - Tasks:
+     - [ ] Task 1: Fix Data Source Reliability (Task 0073)
+     - [ ] Task 2: Fix Test Suite Collection Errors
+     - [ ] Task 3: Enforce Code Quality Limits (llm_client.py)
+     - [ ] Task 4: Enhance Plain Language Insights
+
 1. **Investment Intelligence Confidence Scoring Completion** (MEDIUM (5-7 hours), 0/8 tasks (today))
    - File: `tasks-0074-investment-intelligence-confidence-scoring.md`
    - Created: 2025-11-22

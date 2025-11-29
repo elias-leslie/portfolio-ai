@@ -39,7 +39,7 @@ def _check_data_freshness_impl() -> dict[str, Any]:
             LEFT JOIN watchlist_snapshots ws ON wi.id = ws.item_id
             GROUP BY wi.symbol
             """
-        ).fetchdf()
+        ).df()
 
     if len(result) == 0:
         return {
