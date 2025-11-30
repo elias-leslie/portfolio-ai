@@ -21,7 +21,7 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-(None - ready to pick up next planned task)
+(No active tasks)
 
 ---
 
@@ -73,7 +73,19 @@
 
 *Last 5 completed tasks*
 
-1. **Investment Intelligence Confidence Scoring** ✅ COMPLETE (2025-11-30)
+1. **Dashboard News Performance Optimization** ✅ COMPLETE (2025-11-30)
+   - File: `tasks-0080-dashboard-news-performance.md`
+   - Completed: 2025-11-30 21:45
+   - Duration: ~30 minutes
+   - Summary: Fixed perceived slow news loading by adding rootMargin to IntersectionObserver
+   - Key findings:
+     - Backend API was already fast (24-30ms)
+     - Issue was IntersectionObserver not triggering (news below fold)
+     - Fix: Added `rootMargin: '300px'` to prefetch before visible
+   - Result: News loads in <1s (was perceived as 10+ seconds)
+   - Commit: 1545d1b
+
+2. **Investment Intelligence Confidence Scoring** ✅ COMPLETE (2025-11-30)
    - File: `tasks-0074-investment-intelligence-confidence-scoring.md`
    - Completed: 2025-11-30 20:15
    - Duration: ~2 hours
