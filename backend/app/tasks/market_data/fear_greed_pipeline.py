@@ -221,12 +221,12 @@ def _calculate_market_breadth(storage: PortfolioStorage, target_date: dt.date) -
                     LAG(close) OVER (PARTITION BY ticker ORDER BY date) as prev_close
                 FROM day_bars
                 WHERE ticker = ANY(%s)
-                  AND date <= %s
-                  AND date >= %s - INTERVAL '10 days'
+                  AND date <= %s::date
+                  AND date >= %s::date - INTERVAL '10 days'
             )
             SELECT ticker, current_close, prev_close
             FROM price_data
-            WHERE date = %s
+            WHERE date = %s::date
             """,
             params,  # type: ignore[arg-type]
         )
