@@ -49,7 +49,10 @@ def _calculate_rsi(
     """
     if "rsi" in indicators:
         rsi = ta.rsi(df["close"], length=14)
-        indicator_values["rsi_14"] = float(rsi.iloc[-1]) if not rsi.empty else None
+        if rsi is not None and not rsi.empty:
+            indicator_values["rsi_14"] = float(rsi.iloc[-1])
+        else:
+            indicator_values["rsi_14"] = None
 
 
 def _calculate_macd(
@@ -107,14 +110,20 @@ def _calculate_moving_averages(
         key = f"sma_{length}"
         if key in indicators:
             sma = ta.sma(df["close"], length=length)
-            indicator_values[key] = float(sma.iloc[-1]) if not sma.empty else None
+            if sma is not None and not sma.empty:
+                indicator_values[key] = float(sma.iloc[-1])
+            else:
+                indicator_values[key] = None
 
     # Exponential Moving Averages
     for length in [20, 50, 200]:
         key = f"ema_{length}"
         if key in indicators:
             ema = ta.ema(df["close"], length=length)
-            indicator_values[key] = float(ema.iloc[-1]) if not ema.empty else None
+            if ema is not None and not ema.empty:
+                indicator_values[key] = float(ema.iloc[-1])
+            else:
+                indicator_values[key] = None
 
 
 def _calculate_atr(
@@ -129,7 +138,10 @@ def _calculate_atr(
     """
     if "atr" in indicators:
         atr = ta.atr(df["high"], df["low"], df["close"], length=14)
-        indicator_values["atr_14"] = float(atr.iloc[-1]) if not atr.empty else None
+        if atr is not None and not atr.empty:
+            indicator_values["atr_14"] = float(atr.iloc[-1])
+        else:
+            indicator_values["atr_14"] = None
 
 
 def _calculate_stochastic(
@@ -253,14 +265,14 @@ def _fetch_ohlcv_data(
         pandas DataFrame with columns [open, high, low, close, volume]
         indexed by date, sorted chronologically
     """
-    # Build query
+    # Build query (PostgreSQL uses $1, $2 style placeholders)
     if as_of_date is None:
         query = """
             SELECT date, open, high, low, close, volume
             FROM day_bars
-            WHERE ticker = ?
+            WHERE ticker = $1
             ORDER BY date DESC
-            LIMIT ?
+            LIMIT $2
         """
         params: list[object] = [ticker, lookback_days]
     else:
@@ -271,20 +283,20 @@ def _fetch_ohlcv_data(
         query = """
             SELECT date, open, high, low, close, volume
             FROM day_bars
-            WHERE ticker = ? AND date <= ?
+            WHERE ticker = $1 AND date <= $2
             ORDER BY date DESC
-            LIMIT ?
+            LIMIT $3
         """
         params = [ticker, str(as_of_date), lookback_days]
 
-    # Execute query
+    # Execute query - PortfolioStorage.query() returns Polars DataFrame
     result_df = storage.query(query, params)  # type: ignore[arg-type]
 
-    if hasattr(result_df, "is_empty") and result_df.is_empty():
+    if result_df.is_empty():
         logger.warning(f"No OHLCV data found for ticker {ticker}")
         return pd.DataFrame()
 
-    # Convert to pandas and set date index
+    # Convert Polars to pandas and set date index
     pandas_df = result_df.to_pandas()
     pandas_df["date"] = pd.to_datetime(pandas_df["date"])
     pandas_df = pandas_df.set_index("date")

@@ -62,6 +62,7 @@ celery_app.conf.beat_schedule = get_beat_schedule()
 # This must come after celery_app is defined
 from app.tasks import (  # noqa: E402, F401
     agent_tasks,
+    backtest_tasks,
     capability_tasks,
     data_freshness_tasks,
     data_ingestion_tasks,

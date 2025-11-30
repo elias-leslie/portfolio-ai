@@ -10,7 +10,7 @@ Phase B: Multi-symbol portfolio backtests with realistic fill simulation.
 
 import logging
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING, Protocol
 
@@ -20,8 +20,8 @@ else:
     import pandas as pd
 
 from app.analytics.indicators import _fetch_ohlcv_data, calculate_indicators_from_df
-from app.backtest.models import BacktestTrade, BacktestEquity
-from app.storage.connection import ConnectionManager
+from app.backtest.models import BacktestEquity, BacktestTrade
+from app.storage.facade import PortfolioStorage
 
 logger = logging.getLogger(__name__)
 
@@ -146,7 +146,7 @@ class Strategy(Protocol):
 
 
 def get_trading_days(
-    storage: ConnectionManager, symbol: str, start_date: date, end_date: date
+    storage: PortfolioStorage, symbol: str, start_date: date, end_date: date
 ) -> list[date]:
     """Query day_bars for chronological list of trading days.
 
@@ -171,15 +171,16 @@ def get_trading_days(
         ORDER BY date ASC
     """
 
-    result = storage.execute_read_query(query, (symbol, start_date, end_date))  # type: ignore[attr-defined]
+    # Use PortfolioStorage.query() which returns Polars DataFrame
+    result_df = storage.query(query, [symbol, str(start_date), str(end_date)])
 
-    if not result:
+    if result_df.is_empty():
         raise ValueError(f"No trading data found for {symbol} between {start_date} and {end_date}")
 
-    return [row["date"] for row in result]
+    return [row["date"] for row in result_df.to_dicts()]
 
 
-def get_ohlcv(storage: ConnectionManager, symbol: str, backtest_date: date) -> dict | None:  # type: ignore[type-arg]
+def get_ohlcv(storage: PortfolioStorage, symbol: str, backtest_date: date) -> dict | None:  # type: ignore[type-arg]
     """Fetch OHLCV data for symbol on specific date.
 
     Args:
@@ -198,12 +199,13 @@ def get_ohlcv(storage: ConnectionManager, symbol: str, backtest_date: date) -> d
         LIMIT 1
     """
 
-    result = storage.execute_read_query(query, (symbol, backtest_date))  # type: ignore[attr-defined]
+    # Use PortfolioStorage.query() which returns Polars DataFrame
+    result_df = storage.query(query, [symbol, str(backtest_date)])
 
-    if not result:
+    if result_df.is_empty():
         return None
 
-    row = result[0]
+    row = result_df.to_dicts()[0]
     return {
         "open": Decimal(str(row["open"])),
         "high": Decimal(str(row["high"])),
@@ -342,7 +344,7 @@ def exit_trade(
 
 
 def replay_backtest(
-    storage: ConnectionManager,
+    storage: PortfolioStorage,
     run_id: str,
     symbol: str,
     start_date: date,
@@ -382,37 +384,37 @@ def replay_backtest(
     # We need data from (start_date - lookback) to end_date
     # 365 days lookback ensures we have enough for 200-day MA even with weekends/holidays
     lookback_days = 365
-    data_start_date = start_date - datetime.timedelta(days=lookback_days)
-    
+    data_start_date = start_date - timedelta(days=lookback_days)
+
     logger.info(f"Fetching bulk OHLCV data for {symbol} from {data_start_date} to {end_date}")
-    
+
     # Use the internal fetcher from indicators module or direct query
     # We'll use a direct query here for efficiency to get a DataFrame
-    
+
     # Fetch all data in one go
     full_df = _fetch_ohlcv_data(
-        storage, 
-        symbol, 
+        storage,
+        symbol,
         lookback_days=10000,  # Large number to get everything in range
         as_of_date=end_date
     )
-    
+
     if full_df.empty:
         logger.error(f"No data found for {symbol}")
         raise ValueError(f"No trading data found for {symbol}")
-        
+
     # Filter for our specific range if needed, though _fetch_ohlcv_data does some limiting
     # Ensure we have data up to end_date
-    
+
     # Get trading days within the backtest period
     # Filter df where date >= start_date and date <= end_date
     mask = (full_df.index >= pd.Timestamp(start_date)) & (full_df.index <= pd.Timestamp(end_date))
     trading_days_df = full_df.loc[mask]
-    
+
     if trading_days_df.empty:
         logger.error(f"No trading days found between {start_date} and {end_date}")
         raise ValueError(f"No trading data found for {symbol} in requested period")
-        
+
     trading_days = [d.date() for d in trading_days_df.index]
     logger.info(f"Running backtest over {len(trading_days)} trading days")
 
@@ -422,15 +424,15 @@ def replay_backtest(
         # We need enough history for indicators (e.g. 250 rows)
         # Using .loc[:backtest_date] gets everything up to and including that date
         current_data_slice = full_df.loc[:pd.Timestamp(backtest_date)]
-        
+
         # We only need the last N rows for indicators to save memory/processing
         # 300 is safe for 200 SMA
         if len(current_data_slice) > 300:
             current_data_slice = current_data_slice.iloc[-300:]
-            
+
         if current_data_slice.empty:
             continue
-            
+
         # Get current day's OHLCV (last row)
         current_bar = current_data_slice.iloc[-1]
         ohlcv = {
@@ -444,7 +446,7 @@ def replay_backtest(
         # Calculate indicators using the slice
         # This avoids a DB call
         indicators_result = calculate_indicators_from_df(
-            current_data_slice, 
+            current_data_slice,
             symbol
         )
         indicators = indicators_result["indicators"]

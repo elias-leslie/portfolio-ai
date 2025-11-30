@@ -14,7 +14,7 @@ from typing import Any
 
 from app.backtest import metrics, replay, storage, strategies
 from app.celery_app import celery_app
-from app.storage.connection import get_connection_manager
+from app.storage.facade import get_storage
 
 logger = logging.getLogger(__name__)
 
@@ -157,7 +157,7 @@ def run_backtest_task(  # type: ignore[no-untyped-def]
     """
     logger.info(f"Starting backtest task: {run_id} | {symbol} | {start_date} to {end_date}")
 
-    storage_mgr = get_connection_manager()
+    storage_mgr = get_storage()
 
     try:
         # Parse dates

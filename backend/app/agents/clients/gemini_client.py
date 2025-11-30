@@ -100,14 +100,16 @@ class GeminiCLIClient(LLMClient):
         if system:
             full_prompt = f"{system}\n\n{prompt}"
 
-        # Build command (Gemini CLI reads prompt from stdin with -p flag)
+        # Build command (Gemini CLI uses positional argument for prompt)
+        # Note: -p/--prompt flag is deprecated, use positional prompt instead
         cmd = [
             self.cli_path,
-            "-p",  # Read from stdin
             "--output-format",
             "json",
             "-m",
             self.model,
+            "--",  # End of options, prompt follows as positional
+            full_prompt,
         ]
 
         logger.info(
@@ -118,10 +120,9 @@ class GeminiCLIClient(LLMClient):
         )
 
         try:
-            # Execute CLI (prompt is read from stdin)
+            # Execute CLI (prompt is passed as positional argument)
             result = subprocess.run(
                 cmd,
-                input=full_prompt.encode(),
                 capture_output=True,
                 timeout=300,  # 5 min
                 check=True,
