@@ -61,7 +61,7 @@ function MarketNewsSection() {
           observer.disconnect();
         }
       },
-      { threshold: 0.15 }
+      { threshold: 0.1, rootMargin: '300px' }  // Prefetch 300px before visible
     );
 
     const current = sectionRef.current;
