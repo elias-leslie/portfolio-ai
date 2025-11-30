@@ -21,7 +21,24 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Data Source Reliability and Freshness Guarantee** (17% - 1/6 complete)
+1. **Fix Multi-Agent Workflow and Trading** (HIGH, 4/6 tasks ✅ PAUSED)
+   - File: `tasks-0076-fix-multi-agent-workflow-and-trading.md`
+   - Created: 2025-11-30
+   - Status: PAUSED (2025-11-30 10:42)
+   - Context: 75% used
+   - Goal: Fix critical failures in backtesting, paper trading, and multi-agent workflows
+   - Next: Task 5.0 - End-to-End Verification
+   - Resume: `/do_it tasks-0076-fix-multi-agent-workflow-and-trading.md`
+   - Tasks:
+     - [x] Task 0: Scope Discovery ✅
+     - [x] Task 1: Fix Backtesting Functionality ✅ (1.1-1.6 complete)
+     - [x] Task 1.7: Fix Celery Queue Bottleneck and News Refresh ✅
+     - [ ] Task 2: Fix Paper Trading Functionality (DEFERRED)
+     - [x] Task 3: Fix Multi-Agent Workflow (Gemini CLI) ✅
+     - [ ] Task 4: Fix News and Data Source Freshness (MOSTLY FIXED via 1.7)
+     - [ ] Task 5: End-to-End Verification
+
+2. **Data Source Reliability and Freshness Guarantee** (17% - 1/6 complete)
    - File: `tasks-0073-data-source-reliability.md`
    - Started: 2025-11-22 (1 weeks ago)
    - Last updated: PAUSED (50% complete - 3/6 tasks)
@@ -41,20 +58,7 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Fix Multi-Agent Workflow and Trading** (HIGH, 2/6 tasks ✅ IN PROGRESS)
-   - File: `tasks-0076-fix-multi-agent-workflow-and-trading.md`
-   - Created: 2025-11-30
-   - Goal: Fix critical failures in backtesting, paper trading, and multi-agent workflows
-   - **PROGRESS**: Backtest + Gemini CLI FIXED, frontend equity chart FIXED
-   - Tasks:
-     - [x] Task 0: Scope Discovery ✅
-     - [x] Task 1: Fix Backtesting Functionality ✅
-     - [ ] Task 2: Fix Paper Trading Functionality
-     - [x] Task 3: Fix Multi-Agent Workflow (Gemini CLI) ✅
-     - [ ] Task 4: Fix News and Data Source Freshness
-     - [ ] Task 5: End-to-End Verification
-
-2. **DuckDB Legacy Code Cleanup** (HIGH, 0/2 tasks - BLOCKING)
+1. **DuckDB Legacy Code Cleanup** (HIGH, 0/2 tasks - BLOCKING)
    - File: `tasks-0078-duckdb-legacy-cleanup.md`
    - Created: 2025-11-30
    - Goal: Complete DuckDB→PostgreSQL migration discovered during Task 0076

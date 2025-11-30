@@ -1,3 +1,5 @@
+<!-- PAUSED: 2025-11-30 10:42 | Context: 75% | Reason: User request | Next: Task 5.0 - End-to-End Verification -->
+
 # Task List: Fix Multi-Agent Workflow and Trading
 
 **Source**: User request via /task_it (revised by Claude after Gemini handoff)
@@ -6,6 +8,13 @@
 **Environment**: Local Dev (auto-detected)
 **Created**: 2025-11-30 08:45
 **Revised**: 2025-11-30 (added VISION.md alignment items)
+**Status**: PAUSED
+**Last Updated**: 2025-11-30 10:42
+**Pause Reason**: User request (commit and clear context)
+**Context Used**: 150K/200K (75%)
+**Completed This Session**: Task 1.6 (Signal Classifier), Task 1.7 (Celery/News)
+**Next Action**: Task 5.0 - End-to-End Verification
+**Resume Command**: `/do_it tasks-0076-fix-multi-agent-workflow-and-trading.md`
 
 ---
 
