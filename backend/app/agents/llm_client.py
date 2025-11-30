@@ -15,6 +15,14 @@ from .clients.base_client import LLMClient, LLMResponse
 from .clients.claude_client import ClaudeCLIClient
 from .clients.gemini_client import GeminiCLIClient
 
+__all__ = [
+    "ClaudeCLIClient",
+    "DualProviderClient",
+    "GeminiCLIClient",
+    "LLMClient",
+    "LLMResponse",
+]
+
 logger = get_logger(__name__)
 
 

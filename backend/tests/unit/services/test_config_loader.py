@@ -50,7 +50,7 @@ class TestLoadCapabilitiesConfig:
         mock_yaml_content = yaml.dump(mock_config_data)
 
         with (
-            patch("builtins.open", mock_open(read_data=mock_yaml_content)),
+            patch.object(Path, "open", mock_open(read_data=mock_yaml_content)),
             patch.object(Path, "exists", return_value=True),
             patch.object(Path, "stat") as mock_stat,
         ):
@@ -87,7 +87,7 @@ class TestLoadCapabilitiesConfig:
         mock_yaml_content = yaml.dump(invalid_config)
 
         with (
-            patch("builtins.open", mock_open(read_data=mock_yaml_content)),
+            patch.object(Path, "open", mock_open(read_data=mock_yaml_content)),
             patch.object(Path, "exists", return_value=True),
             patch.object(Path, "stat") as mock_stat,
         ):
@@ -106,9 +106,10 @@ class TestLoadCapabilitiesConfig:
     def test_load_config_uses_cache(self, mock_config_data: dict) -> None:
         """Test that config is cached and reused."""
         mock_yaml_content = yaml.dump(mock_config_data)
+        mock_file = mock_open(read_data=mock_yaml_content)
 
         with (
-            patch("builtins.open", mock_open(read_data=mock_yaml_content)) as mock_file,
+            patch.object(Path, "open", mock_file),
             patch.object(Path, "exists", return_value=True),
             patch.object(Path, "stat") as mock_stat,
         ):
@@ -130,9 +131,10 @@ class TestLoadCapabilitiesConfig:
     def test_load_config_reloads_on_file_change(self, mock_config_data: dict) -> None:
         """Test that config reloads when file timestamp changes."""
         mock_yaml_content = yaml.dump(mock_config_data)
+        mock_file = mock_open(read_data=mock_yaml_content)
 
         with (
-            patch("builtins.open", mock_open(read_data=mock_yaml_content)) as mock_file,
+            patch.object(Path, "open", mock_file),
             patch.object(Path, "exists", return_value=True),
             patch.object(Path, "stat") as mock_stat,
         ):
@@ -378,7 +380,7 @@ class TestReloadConfig:
         mock_yaml_content = yaml.dump(mock_config)
 
         with (
-            patch("builtins.open", mock_open(read_data=mock_yaml_content)),
+            patch.object(Path, "open", mock_open(read_data=mock_yaml_content)),
             patch.object(Path, "exists", return_value=True),
             patch.object(Path, "stat") as mock_stat,
         ):

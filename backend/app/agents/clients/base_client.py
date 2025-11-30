@@ -198,7 +198,7 @@ class LLMClient(ABC):
 
         tools_section = "\n\n".join(tool_descriptions)
 
-        return f"""{system or "You are a helpful AI assistant."} 
+        return f"""{system or "You are a helpful AI assistant."}
 
 You have access to these tools:
 

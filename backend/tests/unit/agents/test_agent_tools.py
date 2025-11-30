@@ -439,7 +439,8 @@ def test_execute_store_idea(agent_tools: AgentTools, mock_storage: Mock) -> None
     assert stored_data["thesis"] == idea_data["thesis"]
     assert stored_data["action"] == idea_data["action"]
     assert stored_data["idea_type"] == idea_data["idea_type"]
-    assert stored_data["confidence_score"] == idea_data["confidence_score"]
+    # confidence_score is normalized: values > 1.0 are divided by 100 (percentage -> decimal)
+    assert stored_data["confidence_score"] == 0.75
     assert stored_data["risk_level"] == idea_data["risk_level"]
     assert stored_data["status"] == "pending"
     assert "id" in stored_data

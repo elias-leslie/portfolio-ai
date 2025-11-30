@@ -377,7 +377,7 @@ class StrategyStorage:
             "live_sharpe_ratio",
             "last_used_at",
         ]
-        return dict(zip(column_names, row))
+        return dict(zip(column_names, row, strict=False))
 
     def _generate_strategy_name(self, symbol: str, strategy_type: str) -> str:
         """Generate strategy name.

@@ -410,35 +410,35 @@ def generate_special_notes(
     # WHY THIS WORKS explanation
     if signal_type == "BUY":
         why_text = "💡 WHY THIS WORKS:\n"
-        
+
         # Use specific data points if available
         reasons = []
-        
+
         # Technical reasons
         if technicals:
             price = technicals.get("price", 0.0)
             ema_20 = technicals.get("ema_20", 0.0)
             rsi = technicals.get("rsi_14", 50.0)
-            
+
             if price > ema_20:
                 reasons.append("• Price above 20-day trend (Bullish)")
             if 40 <= rsi <= 60:
                 reasons.append("• RSI in healthy zone (Not overbought)")
             elif rsi < 30:
                 reasons.append("• RSI oversold (Potential bounce)")
-                
+
         # Fundamental reasons
         if fundamentals:
             rev_growth = fundamentals.get("revenue_growth")
             profit_margin = fundamentals.get("profit_margin")
             analyst_buy = fundamentals.get("analyst_buy_pct")
-            
+
             if rev_growth and rev_growth > 0.15:
-                reasons.append(f"• High growth (+{rev_growth*100:.0f}% revenue)")
+                reasons.append(f"• High growth (+{rev_growth * 100:.0f}% revenue)")
             if profit_margin and profit_margin > 0.15:
-                reasons.append(f"• Highly profitable ({profit_margin*100:.0f}% margin)")
+                reasons.append(f"• Highly profitable ({profit_margin * 100:.0f}% margin)")
             if analyst_buy and analyst_buy > 0.65:
-                reasons.append(f"• Analysts bullish ({analyst_buy*100:.0f}% buy ratings)")
+                reasons.append(f"• Analysts bullish ({analyst_buy * 100:.0f}% buy ratings)")
 
         # Fallback to generic templates if specific data is missing
         if not reasons:
@@ -452,7 +452,7 @@ def generate_special_notes(
                 reasons.append("• Decent technical setup with quality company")
                 reasons.append("• Fundamentals support the technical picture")
                 reasons.append("• Reasonable entry point for long-term holders")
-        
+
         why_text += "\n".join(reasons)
         sections.append(why_text.rstrip())
 

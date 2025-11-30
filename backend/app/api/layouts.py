@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -20,7 +22,7 @@ storage = get_storage()
 class LayoutConfig(BaseModel):
     """Layout configuration (react-grid-layout format)."""
 
-    cards: list[dict]  # [{i: "card-id", x: 0, y: 0, w: 6, h: 2}, ...]
+    cards: list[dict[str, Any]]  # [{i: "card-id", x: 0, y: 0, w: 6, h: 2}, ...]
 
 
 class LayoutResponse(BaseModel):
@@ -57,15 +59,12 @@ async def get_layout(page_name: str) -> LayoutResponse:
 
 
 @router.put("/{page_name}")
-async def save_layout(page_name: str, layout: LayoutConfig) -> dict:
+async def save_layout(page_name: str, layout: LayoutConfig) -> dict[str, str]:
     """Save/update layout for a page (upsert)."""
     try:
-        import json
-
         layout_id = str(uuid.uuid4())
         now = datetime.now(UTC)
 
-        # Upsert: insert or update
         with storage.connection() as conn:
             conn.execute(
                 """
@@ -87,7 +86,7 @@ async def save_layout(page_name: str, layout: LayoutConfig) -> dict:
 
 
 @router.delete("/{page_name}")
-async def reset_layout(page_name: str) -> dict:
+async def reset_layout(page_name: str) -> dict[str, str]:
     """Reset layout to default (delete custom layout)."""
     try:
         with storage.connection() as conn:

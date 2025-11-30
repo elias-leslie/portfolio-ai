@@ -15,8 +15,8 @@ from ..storage import get_storage
 logger = get_logger(__name__)
 
 
-@celery_app.task(name="strategy_metrics.daily_collection")
-def collect_daily_strategy_metrics() -> dict:
+@celery_app.task(name="strategy_metrics.daily_collection")  # type: ignore[misc]
+def collect_daily_strategy_metrics() -> dict[str, object]:
     """Collect strategy performance metrics for the previous day.
 
     Aggregates:
@@ -49,7 +49,7 @@ def collect_daily_strategy_metrics() -> dict:
             WHERE DATE(created_at) = ?
             GROUP BY signal_type
             """,
-            [yesterday],
+            [str(yesterday)],
         )
 
         signal_counts = {"BUY": 0, "HOLD": 0, "AVOID": 0}
@@ -79,7 +79,7 @@ def collect_daily_strategy_metrics() -> dict:
             WHERE DATE(exit_date) = ?
             AND status IN ('closed_win', 'closed_loss', 'stopped_out')
             """,
-            [yesterday],
+            [str(yesterday)],
         )
 
         trades_stats = {"total": 0, "wins": 0, "losses": 0, "avg_return": 0, "best": 0, "worst": 0}
@@ -95,9 +95,7 @@ def collect_daily_strategy_metrics() -> dict:
             }
 
         win_rate = (
-            (trades_stats["wins"] / trades_stats["total"]) * 100
-            if trades_stats["total"] > 0
-            else 0
+            (trades_stats["wins"] / trades_stats["total"]) * 100 if trades_stats["total"] > 0 else 0
         )
 
         # 3. LLM reviewer disagreement rate
@@ -109,7 +107,7 @@ def collect_daily_strategy_metrics() -> dict:
             FROM strategy_reviews
             WHERE DATE(created_at) = ?
             """,
-            [yesterday],
+            [str(yesterday)],
         )
 
         reviews_stats = {"total": 0, "disagreements": 0}
@@ -134,7 +132,7 @@ def collect_daily_strategy_metrics() -> dict:
             WHERE status IN ('closed_win', 'closed_loss', 'stopped_out')
             AND exit_date <= ?
             """,
-            [yesterday],
+            [str(yesterday)],
         )
 
         cumulative_return = 0
@@ -158,7 +156,7 @@ def collect_daily_strategy_metrics() -> dict:
                 """,
                 [
                     metric_id,
-                    yesterday,
+                    str(yesterday),
                     "daily",
                     sum(signal_counts.values()),
                     signal_counts["BUY"],

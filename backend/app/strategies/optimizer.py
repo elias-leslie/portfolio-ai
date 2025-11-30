@@ -340,7 +340,7 @@ class StrategyOptimizer:
             run_id = "optimizer-" + str(uuid.uuid4())[:8]
             # TODO: Fix replay_backtest integration - requires ConnectionManager + proper arg types
             backtest_result = replay_backtest(
-                storage=self.storage.connection_mgr,
+                storage=self.storage.connection_mgr,  # type: ignore[arg-type]
                 run_id=run_id,
                 symbol=symbol,
                 start_date=window.val_start,

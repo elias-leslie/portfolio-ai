@@ -96,9 +96,7 @@ class StrategyReviewer:
                 "usage": {},
             }
 
-    async def _generate_with_failover(
-        self, prompt: str
-    ) -> tuple[str, str, dict[str, int]]:
+    async def _generate_with_failover(self, prompt: str) -> tuple[str, str, dict[str, int]]:
         """Generate with automatic failover to backup provider.
 
         Args:

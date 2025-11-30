@@ -399,7 +399,7 @@ def replay_backtest(
         storage,
         symbol,
         lookback_days=10000,  # Large number to get everything in range
-        as_of_date=end_date
+        as_of_date=end_date,
     )
 
     if full_df.empty:
@@ -426,7 +426,7 @@ def replay_backtest(
         # Slice the dataframe to get data up to this date
         # We need enough history for indicators (e.g. 250 rows)
         # Using .loc[:backtest_date] gets everything up to and including that date
-        current_data_slice = full_df.loc[:pd.Timestamp(backtest_date)]
+        current_data_slice = full_df.loc[: pd.Timestamp(backtest_date)]
 
         # We only need the last N rows for indicators to save memory/processing
         # 300 is safe for 200 SMA
@@ -448,14 +448,11 @@ def replay_backtest(
 
         # Calculate indicators using the slice
         # This avoids a DB call
-        indicators_result = calculate_indicators_from_df(
-            current_data_slice,
-            symbol
-        )
+        indicators_result = calculate_indicators_from_df(current_data_slice, symbol)
         indicators = indicators_result["indicators"]
 
         # Update excursions for open positions
-        current_price = Decimal(str(ohlcv["close"])) # Convert float to Decimal
+        current_price = Decimal(str(ohlcv["close"]))  # Convert float to Decimal
         for pos in state.positions.values():
             pos.update_excursions(current_price)
 

@@ -315,9 +315,12 @@ def paper_trade_validation_workflow(  # noqa: PLR0911
                 logger.info(f"Backtest complete: {backtest_metrics}")
 
                 # B3: Hard gating - reject if metrics fail thresholds (VISION.md compliance)
-                sharpe = backtest_metrics["sharpe_ratio"]
-                win_rate = backtest_metrics["win_rate"]
-                max_dd = backtest_metrics["max_drawdown_pct"]
+                sharpe_val = backtest_metrics["sharpe_ratio"]
+                win_rate_val = backtest_metrics["win_rate"]
+                max_dd_val = backtest_metrics["max_drawdown_pct"]
+                sharpe = float(str(sharpe_val)) if sharpe_val is not None else 0.0
+                win_rate = float(str(win_rate_val)) if win_rate_val is not None else 0.0
+                max_dd = float(str(max_dd_val)) if max_dd_val is not None else 0.0
 
                 gating_failures = []
                 if sharpe < 1.0:
@@ -579,9 +582,11 @@ Respond with JSON: {{"decision": "APPROVE|REJECT", "confidence": <0-100>, "reaso
             trade_summary = f"{ticker} {action} {decision}"
 
             if backtest_metrics:
-                sharpe = backtest_metrics.get("sharpe_ratio", 0)
-                win_rate = backtest_metrics.get("win_rate", 0)
-                trade_summary += f" (Sharpe {sharpe:.1f}, win rate {win_rate:.0f}%)"
+                sharpe_raw = backtest_metrics.get("sharpe_ratio", 0)
+                win_rate_raw = backtest_metrics.get("win_rate", 0)
+                sharpe_f = float(str(sharpe_raw)) if sharpe_raw is not None else 0.0
+                win_rate_f = float(str(win_rate_raw)) if win_rate_raw is not None else 0.0
+                trade_summary += f" (Sharpe {sharpe_f:.1f}, win rate {win_rate_f:.0f}%)"
 
             if trade_id:
                 trade_summary += f" (trade_id: {str(trade_id)[:8]})"

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from celery import chain
+from celery import chain  # type: ignore[import-untyped]
 from fastapi import APIRouter, HTTPException, Query
 
 from ...logging_config import get_logger

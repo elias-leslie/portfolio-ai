@@ -6,6 +6,19 @@ Acts as second opinion on strategy recommendations, NOT primary decision maker.
 
 from __future__ import annotations
 
+import re
+from typing import Any, TypedDict
+
+
+class GuardrailsDict(TypedDict):
+    """Type definition for guardrails configuration."""
+
+    max_tokens: int
+    temperature: float
+    forbidden_patterns: list[str]
+    required_patterns: list[str]
+
+
 SYSTEM_PROMPT = """You are a critical analyst reviewing trading strategy recommendations.
 
 Your role:
@@ -44,7 +57,7 @@ Question: Does this signal have obvious blind spots or unusual risks the rules m
 
 Answer in 2-3 sentences. Focus on what rules CANNOT see (e.g., sector rotation, pending events, unusual correlations)."""
 
-GUARDRAILS = {
+GUARDRAILS: GuardrailsDict = {
     "max_tokens": 200,  # Force brevity (2-3 sentences)
     "temperature": 0.3,  # Lower temp = more conservative/factual
     "forbidden_patterns": [
@@ -59,7 +72,7 @@ GUARDRAILS = {
 }
 
 
-def build_review_prompt(signal_data: dict) -> str:
+def build_review_prompt(signal_data: dict[str, Any]) -> str:
     """Build review prompt from signal data.
 
     Args:
@@ -77,11 +90,22 @@ def build_review_prompt(signal_data: dict) -> str:
         rationale=signal_data.get("rationale", "No rationale provided"),
         overall_score=signal_data.get("current_score", {}).get("overall", 0),
         price_score=signal_data.get("current_score", {}).get("price", {}).get("score", 0),
-        price_change_pct=signal_data.get("current_score", {}).get("price", {}).get("metadata", {}).get("raw_change_pct", 0),
+        price_change_pct=signal_data.get("current_score", {})
+        .get("price", {})
+        .get("metadata", {})
+        .get("raw_change_pct", 0),
         technical_score=signal_data.get("current_score", {}).get("technical", {}).get("score", 0),
-        rsi=signal_data.get("current_score", {}).get("technical", {}).get("metadata", {}).get("rsi_14", 50),
-        trend=signal_data.get("current_score", {}).get("technical", {}).get("metadata", {}).get("trend", "neutral"),
-        fundamental_score=signal_data.get("current_score", {}).get("fundamental", {}).get("score", 0),
+        rsi=signal_data.get("current_score", {})
+        .get("technical", {})
+        .get("metadata", {})
+        .get("rsi_14", 50),
+        trend=signal_data.get("current_score", {})
+        .get("technical", {})
+        .get("metadata", {})
+        .get("trend", "neutral"),
+        fundamental_score=signal_data.get("current_score", {})
+        .get("fundamental", {})
+        .get("score", 0),
         news_sentiment=signal_data.get("news_sentiment_score", 0),
     )
 
@@ -95,8 +119,6 @@ def validate_review(review_text: str) -> tuple[bool, str]:
     Returns:
         (is_valid, reason)
     """
-    import re
-
     # Check forbidden patterns (no direct trading advice)
     for pattern in GUARDRAILS["forbidden_patterns"]:
         if re.search(pattern, review_text, re.IGNORECASE):

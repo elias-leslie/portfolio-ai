@@ -96,8 +96,8 @@ class TestCapabilityAnalyzer:
             ],
         }
 
-    def test_init_with_api_key(self, mock_conn_mgr: MagicMock, mock_config: dict) -> None:
-        """Test initialization with valid CLI path."""
+    def test_init_with_llm_client(self, mock_conn_mgr: MagicMock, mock_config: dict) -> None:
+        """Test initialization with LLM client available."""
         with (
             patch("shutil.which", return_value="/usr/local/bin/claude"),
             patch(
@@ -111,10 +111,10 @@ class TestCapabilityAnalyzer:
             assert analyzer.enabled is True
             assert analyzer.model == "claude-sonnet-4.5"
             assert analyzer.confidence_threshold == 0.70
-            assert analyzer.cli_path is not None
+            assert analyzer.llm_client is not None
 
-    def test_init_without_api_key(self, mock_conn_mgr: MagicMock, mock_config: dict) -> None:
-        """Test initialization without CLI."""
+    def test_init_without_llm_client(self, mock_conn_mgr: MagicMock, mock_config: dict) -> None:
+        """Test initialization without LLM client."""
         with (
             patch.dict("os.environ", {}, clear=True),
             patch("shutil.which", return_value=None),
@@ -126,7 +126,7 @@ class TestCapabilityAnalyzer:
         ):
             analyzer = CapabilityAnalyzer(mock_conn_mgr)
 
-            assert analyzer.cli_path is None
+            assert analyzer.llm_client is None
 
     def test_analyze_disabled(self, mock_conn_mgr: MagicMock, mock_config: dict) -> None:
         """Test analyze returns empty list when disabled."""
@@ -141,8 +141,8 @@ class TestCapabilityAnalyzer:
 
             assert result == []
 
-    def test_analyze_no_api_key(self, mock_conn_mgr: MagicMock, mock_config: dict) -> None:
-        """Test analyze returns empty list when no CLI."""
+    def test_analyze_no_llm_client(self, mock_conn_mgr: MagicMock, mock_config: dict) -> None:
+        """Test analyze returns empty list when no LLM client."""
         with (
             patch.dict("os.environ", {}, clear=True),
             patch("shutil.which", return_value=None),
@@ -267,53 +267,40 @@ class TestCapabilityAnalyzer:
             assert "/api/news" in prompt
             assert "Return a JSON array" in prompt
 
-    def test_call_ai_api_success(self, mock_conn_mgr: MagicMock, mock_config: dict) -> None:
-        """Test successful CLI call."""
-        import json
+    def test_llm_client_integration(self, mock_conn_mgr: MagicMock, mock_config: dict) -> None:
+        """Test LLM client integration in analyze method."""
+        from app.agents.llm_client import LLMResponse
 
-        # Mock CLI response
-        mock_cli_response = {
-            "type": "result",
-            "subtype": "success",
-            "is_error": False,
-            "result": '{"test": "response"}',
-        }
+        mock_response = LLMResponse(
+            content='[{"capability_type": "db", "ai_confidence": 0.85}]',
+            provider="gemini",
+            model="gemini-2.5-pro",
+            usage={"total_tokens": 100},
+        )
 
-        mock_result = MagicMock()
-        mock_result.stdout = json.dumps(mock_cli_response)
-        mock_result.returncode = 0
-
-        with (
-            patch("subprocess.run", return_value=mock_result),
-            patch("shutil.which", return_value="/usr/local/bin/claude"),
-            patch(
-                "app.services.ai_analyzer.load_capabilities_config",
-                return_value=mock_config,
-            ),
+        with patch(
+            "app.services.ai_analyzer.load_capabilities_config",
+            return_value=mock_config,
         ):
             analyzer = CapabilityAnalyzer(mock_conn_mgr)
 
-            response = analyzer.call_ai_api("test prompt")
+            # Mock methods with proper structure
+            analyzer.load_capabilities = MagicMock(
+                return_value={
+                    "db_capabilities": [],
+                    "celery_capabilities": [],
+                    "api_capabilities": [],
+                }
+            )
+            analyzer.llm_client.generate = MagicMock(return_value=mock_response)
+            analyzer.save_insights = MagicMock(return_value=1)
 
-            assert response == '{"test": "response"}'
+            result = analyzer.analyze()
 
-    def test_call_ai_api_no_client(self, mock_conn_mgr: MagicMock, mock_config: dict) -> None:
-        """Test CLI call fails without CLI."""
-        with (
-            patch("shutil.which", return_value=None),
-            patch("os.path.isfile", return_value=False),
-            patch(
-                "app.services.ai_analyzer.load_capabilities_config",
-                return_value=mock_config,
-            ),
-        ):
-            analyzer = CapabilityAnalyzer(mock_conn_mgr)
-            analyzer.cli_path = None
-
-            with pytest.raises(ValueError) as exc_info:
-                analyzer.call_ai_api("test prompt")
-
-            assert "not initialized" in str(exc_info.value).lower()
+            # Verify LLM client was called
+            analyzer.llm_client.generate.assert_called_once()
+            assert len(result) == 1
+            assert result[0]["capability_type"] == "db"
 
     def test_parse_ai_response_valid_json(
         self, mock_conn_mgr: MagicMock, mock_config: dict
@@ -446,6 +433,8 @@ class TestCapabilityAnalyzer:
         self, mock_conn_mgr: MagicMock, mock_config: dict
     ) -> None:
         """Test that analyze filters insights by confidence threshold."""
+        from app.agents.llm_client import LLMResponse
+
         mock_config["scan_config"]["ai_analysis"]["confidence_threshold"] = 0.80
 
         mock_insights = [
@@ -454,19 +443,23 @@ class TestCapabilityAnalyzer:
             {"ai_confidence": 0.85, "table_name": "acceptable"},  # Keep
         ]
 
-        with (
-            patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}),
-            patch(
-                "app.services.ai_analyzer.load_capabilities_config",
-                return_value=mock_config,
-            ),
+        mock_response = LLMResponse(
+            content="[]",
+            provider="gemini",
+            model="gemini-2.5-pro",
+            usage={"total_tokens": 100},
+        )
+
+        with patch(
+            "app.services.ai_analyzer.load_capabilities_config",
+            return_value=mock_config,
         ):
             analyzer = CapabilityAnalyzer(mock_conn_mgr)
 
             # Mock the methods
             analyzer.load_capabilities = MagicMock(return_value={})
             analyzer.build_prompt = MagicMock(return_value="test prompt")
-            analyzer.call_ai_api = MagicMock(return_value="[]")
+            analyzer.llm_client.generate = MagicMock(return_value=mock_response)
             analyzer.parse_ai_response = MagicMock(return_value=mock_insights)
             analyzer.save_insights = MagicMock(return_value=2)
 

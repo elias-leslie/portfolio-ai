@@ -146,7 +146,7 @@ async def list_strategies(
 
     except Exception as e:
         logger.exception("Failed to list strategies", error=str(e))
-        raise HTTPException(status_code=500, detail=f"Failed to list strategies: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Failed to list strategies: {e!s}") from e
 
 
 @router.get("/{strategy_id}", response_model=StrategyDetail)
@@ -246,7 +246,7 @@ async def get_strategy(strategy_id: str) -> StrategyDetail:
         raise
     except Exception as e:
         logger.exception("Failed to get strategy", strategy_id=strategy_id, error=str(e))
-        raise HTTPException(status_code=500, detail=f"Failed to get strategy: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Failed to get strategy: {e!s}") from e
 
 
 @router.post("/generate", response_model=dict[str, Any])
@@ -280,7 +280,7 @@ async def generate_strategy(request: GenerateStrategyRequest) -> dict[str, Any]:
             symbol=request.symbol,
             error=str(e),
         )
-        raise HTTPException(status_code=500, detail=f"Strategy generation failed: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Strategy generation failed: {e!s}") from e
 
 
 @router.patch("/{strategy_id}", response_model=dict[str, Any])
@@ -334,7 +334,9 @@ async def update_strategy_status(
         raise
     except Exception as e:
         logger.exception("Failed to update strategy status", strategy_id=strategy_id, error=str(e))
-        raise HTTPException(status_code=500, detail=f"Failed to update strategy status: {e!s}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to update strategy status: {e!s}"
+        ) from e
 
 
 @router.get("/{strategy_id}/performance", response_model=dict[str, Any])
@@ -394,4 +396,6 @@ async def get_strategy_performance(strategy_id: str) -> dict[str, Any]:
         logger.exception(
             "Failed to get strategy performance", strategy_id=strategy_id, error=str(e)
         )
-        raise HTTPException(status_code=500, detail=f"Failed to get strategy performance: {e!s}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get strategy performance: {e!s}"
+        ) from e

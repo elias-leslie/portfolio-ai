@@ -168,11 +168,11 @@ class UnifiedLogsResponse(BaseModel):
 
 def parse_journal_output(output: str, service_units: dict[str, str]) -> list[UnifiedLogEntry]:
     """Parse JSON output from journalctl into UnifiedLogEntry objects.
-    
+
     Args:
         output: Raw stdout from journalctl -o json
         service_units: Mapping of service names to unit names
-        
+
     Returns:
         List of parsed log entries
     """
@@ -189,10 +189,10 @@ def parse_journal_output(output: str, service_units: dict[str, str]) -> list[Uni
             timestamp = datetime.fromtimestamp(timestamp_us / 1000000, tz=UTC)
 
             # Extract service name from systemd unit
-            # System services use _SYSTEMD_UNIT, user services might use _SYSTEMD_USER_UNIT? 
+            # System services use _SYSTEMD_UNIT, user services might use _SYSTEMD_USER_UNIT?
             # Actually journalctl -o json output keys are standard.
             unit = entry.get("_SYSTEMD_UNIT", "") or entry.get("UNIT", "")
-            
+
             # Map unit name back to service name
             service_name = "unknown"
             for svc, unit_name in service_units.items():
@@ -200,7 +200,7 @@ def parse_journal_output(output: str, service_units: dict[str, str]) -> list[Uni
                 if unit_name in unit:
                     service_name = svc
                     break
-            
+
             # If unknown, try to guess from SYSLOG_IDENTIFIER
             if service_name == "unknown":
                 identifier = entry.get("SYSLOG_IDENTIFIER", "")
@@ -217,9 +217,7 @@ def parse_journal_output(output: str, service_units: dict[str, str]) -> list[Uni
             if isinstance(message_raw, list):
                 # Binary message - convert bytes to string
                 try:
-                    message = "".join(
-                        chr(b) if isinstance(b, int) else str(b) for b in message_raw
-                    )
+                    message = "".join(chr(b) if isinstance(b, int) else str(b) for b in message_raw)
                 except (ValueError, TypeError):
                     continue  # Skip if we can't decode
             else:
@@ -266,7 +264,7 @@ def parse_journal_output(output: str, service_units: dict[str, str]) -> list[Uni
 
         except (json.JSONDecodeError, KeyError, ValueError):
             continue
-            
+
     return logs
 
 
@@ -325,16 +323,16 @@ async def get_unified_logs(
         # Build journalctl command for system units
         # Fetch more logs than requested to ensure fair representation across all services
         fetch_limit = 10000  # Fetch up to 10k logs from journald
-        
+
         system_units = []
         user_units = []
-        
+
         for svc, unit in service_units.items():
             if svc in ["celery_worker", "celery_beat"]:
                 user_units.append(unit)
             else:
                 system_units.append(unit)
-        
+
         # Filter if specific service requested
         if service:
             if service in ["celery_worker", "celery_beat"]:
@@ -348,12 +346,23 @@ async def get_unified_logs(
 
         # 1. Fetch System Logs
         if system_units:
-            cmd_system = ["journalctl", "--no-pager", "-o", "json", "--since", since, "-n", str(fetch_limit)]
+            cmd_system = [
+                "journalctl",
+                "--no-pager",
+                "-o",
+                "json",
+                "--since",
+                since,
+                "-n",
+                str(fetch_limit),
+            ]
             for unit in system_units:
                 cmd_system.extend(["-u", unit])
-            
+
             try:
-                result_system = subprocess.run(cmd_system, capture_output=True, text=True, timeout=15, check=False)
+                result_system = subprocess.run(
+                    cmd_system, capture_output=True, text=True, timeout=15, check=False
+                )
                 if result_system.returncode == 0:
                     logs.extend(parse_journal_output(result_system.stdout, service_units))
             except Exception as e:
@@ -361,12 +370,24 @@ async def get_unified_logs(
 
         # 2. Fetch User Logs
         if user_units:
-            cmd_user = ["journalctl", "--user", "--no-pager", "-o", "json", "--since", since, "-n", str(fetch_limit)]
+            cmd_user = [
+                "journalctl",
+                "--user",
+                "--no-pager",
+                "-o",
+                "json",
+                "--since",
+                since,
+                "-n",
+                str(fetch_limit),
+            ]
             for unit in user_units:
                 cmd_user.extend(["-u", unit])
-            
+
             try:
-                result_user = subprocess.run(cmd_user, capture_output=True, text=True, timeout=15, check=False)
+                result_user = subprocess.run(
+                    cmd_user, capture_output=True, text=True, timeout=15, check=False
+                )
                 if result_user.returncode == 0:
                     logs.extend(parse_journal_output(result_user.stdout, service_units))
             except Exception as e:

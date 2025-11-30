@@ -61,7 +61,6 @@ class TradingTools:
                 "title": str(idea_data.get("title")),
                 "thesis": str(idea_data.get("thesis")),
                 "action": str(idea_data.get("action")),
-                "action": str(idea_data.get("action")),
                 "confidence_score": (
                     cast(float, idea_data.get("confidence_score")) / 100.0
                     if cast(float, idea_data.get("confidence_score")) > 1.0
@@ -320,7 +319,6 @@ class TradingTools:
                 "idea_type": action,  # "buy" or "sell"
                 "title": f"{action.capitalize()} {ticker}",
                 "thesis": thesis,
-                "action": f"{action.capitalize()} {max_shares} shares of {ticker}",
                 "action": f"{action.capitalize()} {max_shares} shares of {ticker}",
                 "confidence_score": (
                     confidence_score / 100.0 if confidence_score > 1.0 else confidence_score

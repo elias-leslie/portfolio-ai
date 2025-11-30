@@ -25,12 +25,11 @@ def _check_data_freshness_impl() -> dict[str, Any]:
         Dict with tickers_checked, stale_found, details list
     """
     storage = get_storage()
-    freshness_threshold = dt.timedelta(hours=24)
     now = dt.datetime.now(dt.UTC)
 
     with storage.connection() as conn:
         # Get all watchlist items with last snapshot timestamp
-        result = conn.execute(
+        rows = conn.execute(
             """
             SELECT
                 wi.symbol,
@@ -39,28 +38,38 @@ def _check_data_freshness_impl() -> dict[str, Any]:
             LEFT JOIN watchlist_snapshots ws ON wi.id = ws.item_id
             GROUP BY wi.symbol
             """
-        ).df()
+        ).fetchall()
 
-    if len(result) == 0:
+    if len(rows) == 0:
         return {
             "tickers_checked": 0,
             "stale_found": 0,
             "stale_tickers": [],
         }
 
-    # Calculate staleness
-    if "last_fetched" in result.columns:
-        result["age_hours"] = (now - result["last_fetched"]).dt.total_seconds() / 3600
-        result["is_stale"] = result["age_hours"] > 24
-        stale_tickers = result[result["is_stale"]]["symbol"].tolist()
-    else:
-        # No snapshot data yet - all tickers are stale
-        result["age_hours"] = 999
-        result["is_stale"] = True
-        stale_tickers = result["symbol"].tolist()
+    # Calculate staleness from raw rows (symbol, last_fetched)
+    stale_tickers: list[str] = []
+    for row in rows:
+        symbol = str(row[0]) if row[0] is not None else ""
+        last_fetched = row[1]
+
+        if not symbol:
+            continue
+
+        if last_fetched is None:
+            # No snapshot data yet - ticker is stale
+            stale_tickers.append(symbol)
+        elif isinstance(last_fetched, dt.datetime):
+            # Check if older than 24 hours
+            age = now - last_fetched
+            if age.total_seconds() > 24 * 3600:
+                stale_tickers.append(symbol)
+        else:
+            # Unknown type - consider stale
+            stale_tickers.append(symbol)
 
     return {
-        "tickers_checked": len(result),
+        "tickers_checked": len(rows),
         "stale_found": len(stale_tickers),
         "stale_tickers": stale_tickers,
     }

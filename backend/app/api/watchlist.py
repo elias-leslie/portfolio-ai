@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
+from app.agents.strategy_reviewer import StrategyReviewer
 from app.logging_config import get_logger
 from app.middleware.cache import cache_response, invalidate_endpoint_cache
 from app.storage import get_storage
@@ -38,7 +39,6 @@ from app.watchlist.service import (
 )
 from app.watchlist.validators import validate_symbol
 from app.watchlist.watchlist_service import WatchlistService
-from app.agents.strategy_reviewer import StrategyReviewer
 
 logger = get_logger(__name__)
 
@@ -523,7 +523,7 @@ async def refresh_watchlist_scores(data: RefreshRequest) -> RefreshResponse:
 
 
 @router.post("/{item_id}/review")
-async def review_strategy_signal(item_id: str) -> dict:
+async def review_strategy_signal(item_id: str) -> dict[str, object]:
     """Get LLM review of trading signal for a watchlist item.
 
     Args:
@@ -564,8 +564,7 @@ async def review_strategy_signal(item_id: str) -> dict:
 
         if snapshots_df.is_empty():
             raise HTTPException(
-                status_code=404,
-                detail=f"No snapshot found for item {item_id}. Run refresh first."
+                status_code=404, detail=f"No snapshot found for item {item_id}. Run refresh first."
             )
 
         # Parse snapshot JSON

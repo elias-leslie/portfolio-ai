@@ -44,7 +44,7 @@ def _rows_to_dicts(rows: list[tuple[Any, ...]], conn_wrapper: Any) -> list[dict[
         return []
 
     columns = [desc[0] for desc in conn_wrapper.description]
-    return [dict(zip(columns, row)) for row in rows]
+    return [dict(zip(columns, row, strict=False)) for row in rows]
 
 
 class ResearchAggregationService:

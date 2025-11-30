@@ -211,7 +211,9 @@ def generate_narrative_texts(
             technicals_dict: dict[str, Any] | None = None
             if technical_snapshot:
                 technicals_dict = {
-                    "price": technical_snapshot.price if hasattr(technical_snapshot, "price") else 0.0,
+                    "price": technical_snapshot.price
+                    if hasattr(technical_snapshot, "price")
+                    else 0.0,
                     "ema_20": technical_snapshot.ema_20,
                     "rsi_14": technical_snapshot.rsi_14,
                 }
