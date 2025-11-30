@@ -314,10 +314,11 @@ export function BacktestDetails({
   const trades = runData.trades || [];
   const equity = equityData || [];
 
-  // Transform equity data for chart
+  // Transform equity data for chart - calculate cumulative return from equity
+  const initialEquity = equity.length > 0 ? parseFloat(equity[0].equity) : 100000;
   const chartData = equity.map((point) => ({
     date: point.date,
-    return: parseFloat(point.cumulative_return_pct.toString()),
+    return: ((parseFloat(point.equity) - initialEquity) / initialEquity) * 100,
   }));
 
   // Format metrics - convert string to number if needed
