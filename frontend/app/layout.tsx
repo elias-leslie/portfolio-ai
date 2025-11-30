@@ -65,6 +65,7 @@ export default function RootLayout({
           geistMono.variable,
           "bg-bg text-text antialiased"
         )}
+        suppressHydrationWarning
       >
         <script
           suppressHydrationWarning

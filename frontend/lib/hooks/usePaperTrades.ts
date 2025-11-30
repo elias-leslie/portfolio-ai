@@ -9,11 +9,14 @@ import {
   fetchPaperTrade,
   fetchPaperTradeSummary,
   closePaperTrade,
+  createPaperTrade,
   type PaperTrade,
   type PaperTradesListResponse,
   type PaperTradeSummary,
   type CloseTradeRequest,
   type CloseTradeResponse,
+  type CreateTradeRequest,
+  type CreateTradeResponse,
 } from "@/lib/api/paper-trades";
 
 // ============================================================================
@@ -138,6 +141,45 @@ export function useClosePaperTrade() {
 
       // Show error toast
       toast.error(`Failed to close trade: ${error instanceof Error ? error.message : "Unknown error"}`);
+    },
+  });
+}
+
+/**
+ * Hook to create a manual paper trade
+ */
+export function useCreatePaperTrade() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (request: CreateTradeRequest) => createPaperTrade(request),
+    onMutate: async () => {
+      // Show loading toast
+      toast.loading("Creating trade...");
+    },
+    onSuccess: (data) => {
+      // Dismiss loading toast
+      toast.dismiss();
+
+      // Show success toast
+      toast.success(data.message);
+
+      // Invalidate all paper trade queries to force refetch
+      queryClient.invalidateQueries({
+        queryKey: paperTradeKeys.lists(),
+        refetchType: "active",
+      });
+      queryClient.invalidateQueries({
+        queryKey: paperTradeKeys.summary(),
+        refetchType: "active",
+      });
+    },
+    onError: (error) => {
+      // Dismiss loading toast
+      toast.dismiss();
+
+      // Show error toast
+      toast.error(`Failed to create trade: ${error instanceof Error ? error.message : "Unknown error"}`);
     },
   });
 }

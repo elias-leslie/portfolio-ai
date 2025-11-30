@@ -1,16 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { TrendingUp, TrendingDown, DollarSign, Target } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, Target, Plus } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { SectionCard } from "@/components/shared/SectionCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { usePaperTrades, usePaperTradeSummary } from "@/lib/hooks/usePaperTrades";
 import { PaperTradesTable } from "@/components/trading/PaperTradesTable";
+import { NewOrderDialog } from "@/components/trading/NewOrderDialog";
 
 export default function TradingPage() {
   const [activeTab, setActiveTab] = useState<"open" | "closed">("open");
+  const [isNewOrderOpen, setIsNewOrderOpen] = useState(false);
 
   // Fetch data with real-time updates
   const { data: openTrades, isLoading: openLoading } = usePaperTrades({
@@ -45,7 +48,16 @@ export default function TradingPage() {
           title="Paper Trading"
           description="AI-driven paper trades with real-time performance tracking"
           size="md"
+          actions={
+            <Button onClick={() => setIsNewOrderOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              New Order
+            </Button>
+          }
         />
+
+        {/* New Order Dialog */}
+        <NewOrderDialog open={isNewOrderOpen} onOpenChange={setIsNewOrderOpen} />
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">

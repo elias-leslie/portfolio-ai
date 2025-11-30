@@ -70,9 +70,44 @@ export interface CloseTradeResponse {
   message: string;
 }
 
+export interface CreateTradeRequest {
+  ticker: string;
+  action: "buy" | "sell";
+  thesis: string;
+  target_price?: number;
+  stop_loss_pct?: number;
+}
+
+export interface CreateTradeResponse {
+  status: string;
+  trade_id?: string;
+  ticker?: string;
+  action?: string;
+  shares?: number;
+  entry_price?: number;
+  entry_amount?: number;
+  target_price?: number;
+  stop_loss_price?: number;
+  cash_remaining?: number;
+  message: string;
+  error?: string;
+}
+
 // ============================================================================
 // API Functions
 // ============================================================================
+
+/**
+ * Create a manual paper trade
+ */
+export async function createPaperTrade(
+  request: CreateTradeRequest
+): Promise<CreateTradeResponse> {
+  return apiRequest<CreateTradeResponse>("/api/paper-trading/trades", {
+    method: "POST",
+    body: JSON.stringify(request),
+  });
+}
 
 /**
  * Fetch all paper trades with optional status filter

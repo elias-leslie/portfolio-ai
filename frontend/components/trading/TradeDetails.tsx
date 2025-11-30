@@ -102,13 +102,13 @@ export function TradeDetails({ trade }: TradeDetailsProps) {
       )}
 
       {/* Backtest Metrics Section */}
-      {(trade.backtest_sharpe !== undefined ||
-        trade.backtest_win_rate !== undefined ||
-        trade.backtest_max_drawdown !== undefined) && (
+      {(trade.backtest_sharpe != null ||
+        trade.backtest_win_rate != null ||
+        trade.backtest_max_drawdown != null) && (
         <div>
           <h4 className="mb-2 text-sm font-semibold">Backtest Validation Metrics</h4>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {trade.backtest_sharpe !== undefined && (
+            {trade.backtest_sharpe != null && (
               <div className="rounded-lg border border-border bg-surface p-3">
                 <p className="text-xs text-text-muted">Sharpe Ratio</p>
                 <p className="mt-1 text-lg font-semibold">
@@ -120,7 +120,7 @@ export function TradeDetails({ trade }: TradeDetailsProps) {
               </div>
             )}
 
-            {trade.backtest_win_rate !== undefined && (
+            {trade.backtest_win_rate != null && (
               <div className="rounded-lg border border-border bg-surface p-3">
                 <p className="text-xs text-text-muted">Win Rate</p>
                 <p className="mt-1 text-lg font-semibold">
@@ -132,7 +132,7 @@ export function TradeDetails({ trade }: TradeDetailsProps) {
               </div>
             )}
 
-            {trade.backtest_max_drawdown !== undefined && (
+            {trade.backtest_max_drawdown != null && (
               <div className="rounded-lg border border-border bg-surface p-3">
                 <p className="text-xs text-text-muted">Max Drawdown</p>
                 <p className="mt-1 text-lg font-semibold text-loss">

@@ -53,8 +53,8 @@ class TestDatabaseScanner:
         assert scanner.config == mock_config
         assert scanner.db_config == mock_config["scan_config"]["targets"]["database"]
 
-    @patch("app.services.capability_scanner.create_engine")
-    @patch("app.services.capability_scanner.inspect")
+    @patch("app.services.capability_db_scanner.create_engine")
+    @patch("app.services.capability_db_scanner.inspect")
     def test_scan_disabled(
         self,
         mock_inspect: MagicMock,
@@ -73,10 +73,10 @@ class TestDatabaseScanner:
         mock_create_engine.assert_not_called()
         mock_inspect.assert_not_called()
 
-    @patch("app.services.capability_scanner.create_engine")
-    @patch("app.services.capability_scanner.inspect")
-    @patch("app.services.capability_scanner.get_expected_freshness")
-    @patch("app.services.capability_scanner.categorize_by_name")
+    @patch("app.services.capability_db_scanner.create_engine")
+    @patch("app.services.capability_db_scanner.inspect")
+    @patch("app.services.capability_db_scanner.get_expected_freshness")
+    @patch("app.services.capability_db_scanner.categorize_by_name")
     def test_scan_single_table(
         self,
         mock_categorize: MagicMock,
@@ -92,6 +92,8 @@ class TestDatabaseScanner:
         mock_create_engine.return_value = mock_engine
         mock_conn = MagicMock()
         mock_engine.connect.return_value.__enter__.return_value = mock_conn
+        # Also attach to connection manager which is used for queries
+        mock_conn_mgr.connection.return_value.__enter__.return_value = mock_conn
 
         mock_inspector = MagicMock()
         mock_inspect.return_value = mock_inspector
@@ -99,6 +101,9 @@ class TestDatabaseScanner:
 
         # Mock row count query
         mock_result = MagicMock()
+        # Configure fetchone to return [100] for row count and column counts
+        mock_result.fetchone.return_value = [100]
+        # Also scalar just in case (though code uses fetchone)
         mock_result.scalar.return_value = 100
         mock_conn.execute.return_value = mock_result
 
@@ -130,7 +135,7 @@ class TestDatabaseScanner:
         scanner = DatabaseScanner(mock_conn_mgr, config=mock_config)
 
         # Mock thresholds
-        with patch("app.services.capability_scanner.get_freshness_thresholds") as mock_thresholds:
+        with patch("app.services.config_loader.get_freshness_thresholds") as mock_thresholds:
             mock_thresholds.return_value = {
                 "current": 1,
                 "acceptable": 2,
@@ -147,7 +152,7 @@ class TestDatabaseScanner:
         """Test freshness status calculation - stale."""
         scanner = DatabaseScanner(mock_conn_mgr, config=mock_config)
 
-        with patch("app.services.capability_scanner.get_freshness_thresholds") as mock_thresholds:
+        with patch("app.services.config_loader.get_freshness_thresholds") as mock_thresholds:
             mock_thresholds.return_value = {
                 "current": 1,
                 "acceptable": 2,
@@ -164,7 +169,7 @@ class TestDatabaseScanner:
         """Test freshness status calculation - critical."""
         scanner = DatabaseScanner(mock_conn_mgr, config=mock_config)
 
-        with patch("app.services.capability_scanner.get_freshness_thresholds") as mock_thresholds:
+        with patch("app.services.config_loader.get_freshness_thresholds") as mock_thresholds:
             mock_thresholds.return_value = {
                 "current": 1,
                 "acceptable": 2,
@@ -197,6 +202,7 @@ class TestDatabaseScanner:
                 "expected_freshness": "daily",
                 "days_since_update": 1,
                 "freshness_status": "current",
+                "health_status": "active",  # Added missing field
             }
         ]
 
@@ -261,7 +267,7 @@ class TestCeleryScanner:
 
         assert result == []
 
-    @patch("app.services.capability_scanner.categorize_by_name")
+    @patch("app.services.capability_celery_scanner.categorize_by_name")
     def test_scan_with_tasks(
         self,
         mock_categorize: MagicMock,
@@ -271,7 +277,7 @@ class TestCeleryScanner:
         """Test scanning Celery tasks."""
         mock_categorize.return_value = "market_data"
 
-        # Mock celery_app - need to patch where it's imported (in CeleryScanner.scan)
+        # Mock celery_app - patch the global app since it's imported locally
         with patch("app.celery_app.celery_app") as mock_celery:
             mock_celery.conf.beat_schedule = {
                 "fetch-prices": {
@@ -394,7 +400,7 @@ class TestAPIScanner:
 
         assert result == []
 
-    @patch("app.services.capability_scanner.categorize_by_name")
+    @patch("app.services.capability_api_scanner.categorize_by_name")
     def test_scan_route_file(
         self,
         mock_categorize: MagicMock,

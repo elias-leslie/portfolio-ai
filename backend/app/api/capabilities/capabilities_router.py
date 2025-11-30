@@ -11,11 +11,12 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
+from celery import chain
 from fastapi import APIRouter, HTTPException, Query
 
 from ...logging_config import get_logger
 from ...storage.connection import get_connection_manager
-from ...tasks.capability_tasks import scan_system_capabilities
+from ...tasks.capability_tasks import analyze_capabilities, scan_system_capabilities
 from ..types import DependenciesDict, HealthSummaryDict
 from .database import (
     capability_from_row,
@@ -418,21 +419,23 @@ async def get_capability_detail(
 
 @router.post("/scan", response_model=ScanTriggerResponse)
 async def trigger_scan() -> ScanTriggerResponse:
-    """Trigger a manual system capabilities scan.
+    """Trigger a manual system capabilities scan and AI analysis.
 
-    Enqueues the scan_system_capabilities Celery task and returns the task ID.
-    The scan will run asynchronously in the background.
+    Enqueues the scan_system_capabilities task followed by analyze_capabilities.
+    The scan and analysis will run asynchronously in the background.
     """
     try:
-        # Trigger async task
-        task = scan_system_capabilities.delay()
+        # Trigger async tasks chain (scan -> analyze)
+        # use .si() (immutable) for analyze so it doesn't receive scan result as arg
+        workflow = chain(scan_system_capabilities.s(), analyze_capabilities.si())
+        task = workflow.delay()
 
         logger.info("capabilities_scan_triggered", task_id=task.id)
 
         return ScanTriggerResponse(
             task_id=task.id,
             status="queued",
-            message=f"Capabilities scan queued with task ID: {task.id}",
+            message=f"Capabilities scan & analysis queued with task ID: {task.id}",
         )
 
     except Exception as e:
