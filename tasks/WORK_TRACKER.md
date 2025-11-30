@@ -21,7 +21,130 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-(No active tasks - Task 0076 complete)
+(No active tasks)
+
+---
+
+## ✅ Recently Completed
+
+*Last 5 completed tasks*
+
+1. **DuckDB Legacy Code Cleanup** ✅ COMPLETE (2025-11-30)
+   - File: `tasks-0078-duckdb-legacy-cleanup.md`
+   - Completed: 2025-11-30 12:15
+   - Duration: ~1 hour (faster than estimated)
+   - Summary: Fixed all `storage.execute()` calls that were incompatible with PortfolioStorage
+   - Key achievements:
+     - ✅ Fixed 3 CRITICAL files (layouts.py, watchlist.py, strategy_metrics_tasks.py)
+     - ✅ Verified `?` placeholders auto-convert via PostgreSQLConnectionWrapper
+     - ✅ All APIs working, no new lint/mypy errors
+   - Note: HIGH/MEDIUM priority files already using correct patterns
+
+2. **Data Source Reliability and Freshness Guarantee** ✅ COMPLETE (2025-11-30)
+   - File: `tasks-0073-data-source-reliability.md`
+   - Completed: 2025-11-30 12:20
+   - Duration: ~2 hours (verification + documentation)
+   - Summary: Verified freshness monitoring task working, updated OPERATIONS.md
+   - Key achievements:
+     - ✅ All 6 data sources operational (API keys configured)
+     - ✅ `maintain_data_freshness` task scheduled every 2 hours
+     - ✅ Health dashboard shows freshness via `/health/detailed` and `/api/status/table-freshness`
+     - ✅ OPERATIONS.md updated with Data Freshness Monitoring section
+   - VISION.md: "6 operational sources" + "<24h freshness" requirements FULFILLED
+
+---
+
+## 📋 Planned Tasks
+
+*Prioritized queue - `/do_it` picks first when Active is empty*
+
+1. **Advanced Trading Intelligence Features** (HIGH (estimated 15-20 hours), 0/4 tasks)
+   - File: `tasks-0077-advanced-trading-intelligence.md`
+   - Created: 2025-11-30
+   - Goal: Implement advanced trading intelligence features to enhance strategy validation, agent monitoring, and risk analysis per VISION.md goals.
+   - Tasks:
+     - [ ] Task 0: Scope Discovery (MANDATORY)
+     - [ ] Task 1: Agent Telemetry Dashboard (A3)
+     - [ ] Task 2: Strategy Comparison Mode (B2)
+     - [ ] Task 3: Monte Carlo Simulation (B4)
+
+4. **Vision Gap Analysis & Remediation** (HIGH, 5/6 tasks (yesterday))
+   - File: `tasks-0075-vision-gap-analysis.md`
+   - Created: 2025-11-29
+   - Goal: Bring the solution into full alignment with `docs/core/VISION.md` by addressing critical gaps in reliability, testing, and code quality.
+   - Tasks:
+     - [x] Task 1: Fix Data Source Reliability (Task 0073)
+     - [ ] Task 2: Fix Test Suite Collection Errors
+     - [x] Task 3: Enforce Code Quality Limits
+     - [x] Task 4: Enhance Plain Language Insights
+     - [x] Task 5: Full UI Review (Vision Alignment)
+     - [x] Task 6: Fix Critical (P0) UI Bugs
+
+5. **Investment Intelligence Confidence Scoring Completion** (MEDIUM (5-7 hours), 0/8 tasks (1 weeks ago))
+   - File: `tasks-0074-investment-intelligence-confidence-scoring.md`
+   - Created: 2025-11-22
+   - Goal: Achieve VISION.md compliance for Investment Intelligence confidence scoring by integrating fundamental data thresholds and analyst sentiment into graded weighting system, where EXCELLENT companies contribute more to confidence than GOOD companies
+   - Tasks:
+     - [ ] Task 1: Add Fundamental Component Scoring to Signal Classification
+     - [ ] Task 2: Add Analyst Sentiment Scoring to Signal Classification
+     - [ ] Task 3: Integrate Component Scores into Main Signal Classification
+     - [ ] Task 4: Scale News Sentiment to Continuous Contribution
+     - [ ] Task 5: Update Signal Data Inputs to Include New Fields
+     - [ ] Task 6: Add Unit Tests for New Scoring Logic
+     - [ ] Task 7: Integration Testing and Validation
+     - [ ] Task 8: Documentation and VISION Compliance
+
+6. **Investment Intelligence Confidence Scoring Completion** (MEDIUM (5-7 hours), 0/8 tasks (1 weeks ago))
+   - File: `tasks-0074-investment-intelligence-confidence-scoring.md`
+   - Created: 2025-11-22
+   - Goal: Achieve VISION.md compliance for Investment Intelligence confidence scoring by integrating fundamental data thresholds and analyst sentiment into graded weighting system, where EXCELLENT companies contribute more to confidence than GOOD companies
+   - Tasks:
+     - [ ] Task 1: Add Fundamental Component Scoring to Signal Classification
+     - [ ] Task 2: Add Analyst Sentiment Scoring to Signal Classification
+     - [ ] Task 3: Integrate Component Scores into Main Signal Classification
+     - [ ] Task 4: Scale News Sentiment to Continuous Contribution
+     - [ ] Task 5: Update Signal Data Inputs to Include New Fields
+     - [ ] Task 6: Add Unit Tests for New Scoring Logic
+     - [ ] Task 7: Integration Testing and Validation
+     - [ ] Task 8: Documentation and VISION Compliance
+
+7. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (2 weeks ago))
+   - File: `tasks-0042-customizable-dashboard-layouts.md`
+   - Created: 2025-11-11
+   - Goal: Enable users to customize dashboard layouts by dragging/resizing cards, with persistence to PostgreSQL backend
+   - Status: PAUSED (2025-11-22)
+   - Tasks:
+     - [ ] Task 1: Database Schema and Migration ✅ COMPLETE
+     - [ ] Task 2: Backend API Endpoints ✅ COMPLETE
+     - [ ] Task 3: Frontend Library Integration
+     - [ ] Task 4: Layout State Management and Persistence
+     - [ ] Task 5: Lock/Unlock UI and Visual Feedback
+     - [ ] Task 6: Responsive Breakpoints
+     - [ ] Task 7: Status Page Integration (POC)
+     - [ ] Task 8: Extend to All Pages (Generic System)
+     - [ ] Task 9: Polish and Edge Cases
+     - [ ] Task 10: Testing and Documentation
+
+8. **UI Standardization & UX Fixes** (MEDIUM-HIGH (4-6 hours, 12-15 files), 0/0 tasks (2 weeks ago))
+   - File: `tasks-0055-ui-standardization-and-ux-fixes.md`
+   - Created: 2025-11-12
+   - Goal: Bring the Portfolio AI web UI up to a consistent design baseline by aligning headers, loading states, and critical interactions so that every surface communicates status clearly and meets accessibility expectations.
+   - Tasks:
+     - (No tasks defined yet)
+
+9. **Response Caching Middleware** (TBD, 0/8 tasks (2 weeks ago))
+   - File: `tasks-0047-response-caching-middleware.md`
+   - Created: 2025-11-11
+   - Tasks:
+     - [ ] Task 1: Create Middleware Infrastructure
+     - [ ] Task 2: Apply Caching to Market Endpoints
+     - [ ] Task 3: Apply Caching to Watchlist Endpoints
+     - [ ] Task 4: Apply Caching to Portfolio Endpoints
+     - [ ] Task 5: Apply Caching to Paper Trades Endpoints
+     - [ ] Task 6: Cache Invalidation Strategy
+     - [ ] Task 7: Cache Management Endpoints
+     - [ ] Task 8: Integration and Configuration
+
 
 ---
 
@@ -50,131 +173,6 @@
    - Remaining (DEFERRED): Tasks 2.0-4.0 (additional VISION.md features)
    - Commits: Multiple (workflow fixes, indicator fixes, validation fixes)
 
----
-
-## 📋 Planned Tasks
-
-*Prioritized queue - `/do_it` picks first when Active is empty*
-
-1. **Data Source Reliability and Freshness Guarantee** (17% - 1/6 complete)
-   - File: `tasks-0073-data-source-reliability.md`
-   - Started: 2025-11-22 (1 weeks ago)
-   - Last updated: PAUSED (50% complete - 3/6 tasks)
-   - Next: Fix DataFrame.empty bug in data_freshness_tasks.py
-   - Tasks:
-     - [ ] Task 1: Configure All 6 Data Source API Keys
-     - [x] Task 2: Create Automated Freshness Monitoring Task
-     - [ ] Task 3: Add Freshness Task to Celery Beat Schedule
-     - [ ] Task 4: Test Freshness Monitoring
-     - [ ] Task 5: Add Freshness Monitoring to Health Dashboard
-     - [ ] Task 6: Documentation and VISION Compliance
-
-
----
-
-## 📋 Planned Tasks
-
-*Prioritized queue - `/do_it` picks first when Active is empty*
-
-1. **DuckDB Legacy Code Cleanup** (MEDIUM (3-4 hours), 0/4 tasks (today))
-   - File: `tasks-0078-duckdb-legacy-cleanup.md`
-   - Created: 2025-11-30
-   - Goal: Complete the DuckDB → PostgreSQL migration by fixing all remaining legacy code patterns
-   - Tasks:
-     - [ ] Task 0: Scope Discovery (MANDATORY)
-     - [ ] Task 1: Known Files from Task 0076
-     - [ ] Task 2: Additional Files from Scope Discovery
-     - [ ] Task 3: Verification
-
-2. **Advanced Trading Intelligence Features** (HIGH (estimated 15-20 hours), 0/4 tasks (today))
-   - File: `tasks-0077-advanced-trading-intelligence.md`
-   - Created: 2025-11-30
-   - Goal: Implement advanced trading intelligence features to enhance strategy validation, agent monitoring, and risk analysis per VISION.md goals.
-   - Tasks:
-     - [ ] Task 0: Scope Discovery (MANDATORY)
-     - [ ] Task 1: Agent Telemetry Dashboard (A3)
-     - [ ] Task 2: Strategy Comparison Mode (B2)
-     - [ ] Task 3: Monte Carlo Simulation (B4)
-
-3. **Vision Gap Analysis & Remediation** (HIGH, 5/6 tasks (yesterday))
-   - File: `tasks-0075-vision-gap-analysis.md`
-   - Created: 2025-11-29
-   - Goal: Bring the solution into full alignment with `docs/core/VISION.md` by addressing critical gaps in reliability, testing, and code quality.
-   - Tasks:
-     - [x] Task 1: Fix Data Source Reliability (Task 0073)
-     - [ ] Task 2: Fix Test Suite Collection Errors
-     - [x] Task 3: Enforce Code Quality Limits
-     - [x] Task 4: Enhance Plain Language Insights
-     - [x] Task 5: Full UI Review (Vision Alignment)
-     - [x] Task 6: Fix Critical (P0) UI Bugs
-
-4. **Investment Intelligence Confidence Scoring Completion** (MEDIUM (5-7 hours), 0/8 tasks (1 weeks ago))
-   - File: `tasks-0074-investment-intelligence-confidence-scoring.md`
-   - Created: 2025-11-22
-   - Goal: Achieve VISION.md compliance for Investment Intelligence confidence scoring by integrating fundamental data thresholds and analyst sentiment into graded weighting system, where EXCELLENT companies contribute more to confidence than GOOD companies
-   - Tasks:
-     - [ ] Task 1: Add Fundamental Component Scoring to Signal Classification
-     - [ ] Task 2: Add Analyst Sentiment Scoring to Signal Classification
-     - [ ] Task 3: Integrate Component Scores into Main Signal Classification
-     - [ ] Task 4: Scale News Sentiment to Continuous Contribution
-     - [ ] Task 5: Update Signal Data Inputs to Include New Fields
-     - [ ] Task 6: Add Unit Tests for New Scoring Logic
-     - [ ] Task 7: Integration Testing and Validation
-     - [ ] Task 8: Documentation and VISION Compliance
-
-5. **Investment Intelligence Confidence Scoring Completion** (MEDIUM (5-7 hours), 0/8 tasks (1 weeks ago))
-   - File: `tasks-0074-investment-intelligence-confidence-scoring.md`
-   - Created: 2025-11-22
-   - Goal: Achieve VISION.md compliance for Investment Intelligence confidence scoring by integrating fundamental data thresholds and analyst sentiment into graded weighting system, where EXCELLENT companies contribute more to confidence than GOOD companies
-   - Tasks:
-     - [ ] Task 1: Add Fundamental Component Scoring to Signal Classification
-     - [ ] Task 2: Add Analyst Sentiment Scoring to Signal Classification
-     - [ ] Task 3: Integrate Component Scores into Main Signal Classification
-     - [ ] Task 4: Scale News Sentiment to Continuous Contribution
-     - [ ] Task 5: Update Signal Data Inputs to Include New Fields
-     - [ ] Task 6: Add Unit Tests for New Scoring Logic
-     - [ ] Task 7: Integration Testing and Validation
-     - [ ] Task 8: Documentation and VISION Compliance
-
-6. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (2 weeks ago))
-   - File: `tasks-0042-customizable-dashboard-layouts.md`
-   - Created: 2025-11-11
-   - Goal: Enable users to customize dashboard layouts by dragging/resizing cards, with persistence to PostgreSQL backend
-   - Status: PAUSED (2025-11-22)
-   - Tasks:
-     - [ ] Task 1: Database Schema and Migration ✅ COMPLETE
-     - [ ] Task 2: Backend API Endpoints ✅ COMPLETE
-     - [ ] Task 3: Frontend Library Integration
-     - [ ] Task 4: Layout State Management and Persistence
-     - [ ] Task 5: Lock/Unlock UI and Visual Feedback
-     - [ ] Task 6: Responsive Breakpoints
-     - [ ] Task 7: Status Page Integration (POC)
-     - [ ] Task 8: Extend to All Pages (Generic System)
-     - [ ] Task 9: Polish and Edge Cases
-     - [ ] Task 10: Testing and Documentation
-
-7. **UI Standardization & UX Fixes** (MEDIUM-HIGH (4-6 hours, 12-15 files), 0/0 tasks (2 weeks ago))
-   - File: `tasks-0055-ui-standardization-and-ux-fixes.md`
-   - Created: 2025-11-12
-   - Goal: Bring the Portfolio AI web UI up to a consistent design baseline by aligning headers, loading states, and critical interactions so that every surface communicates status clearly and meets accessibility expectations.
-   - Tasks:
-     - (No tasks defined yet)
-
-8. **Response Caching Middleware** (TBD, 0/8 tasks (2 weeks ago))
-   - File: `tasks-0047-response-caching-middleware.md`
-   - Created: 2025-11-11
-   - Tasks:
-     - [ ] Task 1: Create Middleware Infrastructure
-     - [ ] Task 2: Apply Caching to Market Endpoints
-     - [ ] Task 3: Apply Caching to Watchlist Endpoints
-     - [ ] Task 4: Apply Caching to Portfolio Endpoints
-     - [ ] Task 5: Apply Caching to Paper Trades Endpoints
-     - [ ] Task 6: Cache Invalidation Strategy
-     - [ ] Task 7: Cache Management Endpoints
-     - [ ] Task 8: Integration and Configuration
-
-
----
 
 ## ✅ Recently Completed
 

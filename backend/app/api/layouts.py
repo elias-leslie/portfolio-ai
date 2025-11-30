@@ -66,16 +66,18 @@ async def save_layout(page_name: str, layout: LayoutConfig) -> dict:
         now = datetime.now(UTC)
 
         # Upsert: insert or update
-        storage.execute(
-            """
-            INSERT INTO page_layouts (id, page_name, layout_config, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT (page_name) DO UPDATE SET
-                layout_config = EXCLUDED.layout_config,
-                updated_at = EXCLUDED.updated_at
-            """,
-            [layout_id, page_name, json.dumps(layout.model_dump()), now, now],
-        )
+        with storage.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO page_layouts (id, page_name, layout_config, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT (page_name) DO UPDATE SET
+                    layout_config = EXCLUDED.layout_config,
+                    updated_at = EXCLUDED.updated_at
+                """,
+                [layout_id, page_name, json.dumps(layout.model_dump()), now, now],
+            )
+            conn.commit()
 
         logger.info(f"Saved layout for {page_name}")
         return {"status": "success", "page_name": page_name}
@@ -88,10 +90,12 @@ async def save_layout(page_name: str, layout: LayoutConfig) -> dict:
 async def reset_layout(page_name: str) -> dict:
     """Reset layout to default (delete custom layout)."""
     try:
-        storage.execute(
-            "DELETE FROM page_layouts WHERE page_name = ?",
-            [page_name],
-        )
+        with storage.connection() as conn:
+            conn.execute(
+                "DELETE FROM page_layouts WHERE page_name = ?",
+                [page_name],
+            )
+            conn.commit()
 
         logger.info(f"Reset layout for {page_name}")
         return {"status": "success", "page_name": page_name, "action": "reset"}

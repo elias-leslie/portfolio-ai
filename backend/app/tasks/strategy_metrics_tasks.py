@@ -143,44 +143,46 @@ def collect_daily_strategy_metrics() -> dict:
 
         # 5. Insert metrics record
         metric_id = str(uuid.uuid4())
-        storage.execute(
-            """
-            INSERT INTO strategy_metrics (
-                id, metric_date, metric_type,
-                total_signals, buy_signals, hold_signals, avoid_signals,
-                signals_traded, winning_trades, losing_trades, win_rate_pct,
-                avg_return_pct, best_return_pct, worst_return_pct, cumulative_return_pct,
-                avg_overall_score, avg_technical_score, avg_fundamental_score, score_stdev,
-                reviews_count, disagreements_count, disagreement_rate_pct,
-                created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            [
-                metric_id,
-                yesterday,
-                "daily",
-                sum(signal_counts.values()),
-                signal_counts["BUY"],
-                signal_counts["HOLD"],
-                signal_counts["AVOID"],
-                trades_stats["total"],
-                trades_stats["wins"],
-                trades_stats["losses"],
-                win_rate,
-                trades_stats["avg_return"],
-                trades_stats["best"],
-                trades_stats["worst"],
-                cumulative_return,
-                avg_scores["overall"],
-                avg_scores["technical"],
-                avg_scores["fundamental"],
-                score_stdev,
-                reviews_stats["total"],
-                reviews_stats["disagreements"],
-                disagreement_rate,
-                datetime.now(UTC),
-            ],
-        )
+        with storage.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO strategy_metrics (
+                    id, metric_date, metric_type,
+                    total_signals, buy_signals, hold_signals, avoid_signals,
+                    signals_traded, winning_trades, losing_trades, win_rate_pct,
+                    avg_return_pct, best_return_pct, worst_return_pct, cumulative_return_pct,
+                    avg_overall_score, avg_technical_score, avg_fundamental_score, score_stdev,
+                    reviews_count, disagreements_count, disagreement_rate_pct,
+                    created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    metric_id,
+                    yesterday,
+                    "daily",
+                    sum(signal_counts.values()),
+                    signal_counts["BUY"],
+                    signal_counts["HOLD"],
+                    signal_counts["AVOID"],
+                    trades_stats["total"],
+                    trades_stats["wins"],
+                    trades_stats["losses"],
+                    win_rate,
+                    trades_stats["avg_return"],
+                    trades_stats["best"],
+                    trades_stats["worst"],
+                    cumulative_return,
+                    avg_scores["overall"],
+                    avg_scores["technical"],
+                    avg_scores["fundamental"],
+                    score_stdev,
+                    reviews_stats["total"],
+                    reviews_stats["disagreements"],
+                    disagreement_rate,
+                    datetime.now(UTC),
+                ],
+            )
+            conn.commit()
 
         logger.info(
             f"Strategy metrics collected for {yesterday}",

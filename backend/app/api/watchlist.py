@@ -586,26 +586,28 @@ async def review_strategy_signal(item_id: str) -> dict:
 
         # Log review to database
         review_id = str(uuid.uuid4())
-        storage.execute(
-            """
-            INSERT INTO strategy_reviews (
-                id, watchlist_item_id, snapshot_id, symbol, review_text,
-                provider, is_valid, disagreement, token_usage, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            [
-                review_id,
-                item_id,
-                snapshot_row.get("id"),
-                review_result["symbol"],
-                review_result["review"],
-                review_result["provider"],
-                review_result["is_valid"],
-                review_result["disagreement"],
-                json.dumps(review_result["usage"]),
-                datetime.now(UTC),
-            ],
-        )
+        with storage.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO strategy_reviews (
+                    id, watchlist_item_id, snapshot_id, symbol, review_text,
+                    provider, is_valid, disagreement, token_usage, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    review_id,
+                    item_id,
+                    snapshot_row.get("id"),
+                    review_result["symbol"],
+                    review_result["review"],
+                    review_result["provider"],
+                    review_result["is_valid"],
+                    review_result["disagreement"],
+                    json.dumps(review_result["usage"]),
+                    datetime.now(UTC),
+                ],
+            )
+            conn.commit()
 
         logger.info(
             f"Strategy review logged for {review_result['symbol']}",
