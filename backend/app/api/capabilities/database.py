@@ -81,7 +81,10 @@ def insight_from_row(row: tuple[Any, ...], columns: list[str]) -> InsightDict:
     """
     result: InsightDict = {}
     for key, value in zip(columns, row, strict=True):
-        result[key] = value  # type: ignore
+        if hasattr(value, "isoformat"):
+            result[key] = value.isoformat()  # type: ignore
+        else:
+            result[key] = value  # type: ignore
     return result
 
 
@@ -97,7 +100,10 @@ def note_from_row(row: tuple[Any, ...], columns: list[str]) -> NoteDict:
     """
     result: NoteDict = {}
     for key, value in zip(columns, row, strict=True):
-        result[key] = value  # type: ignore
+        if hasattr(value, "isoformat"):
+            result[key] = value.isoformat()  # type: ignore
+        else:
+            result[key] = value  # type: ignore
     return result
 
 

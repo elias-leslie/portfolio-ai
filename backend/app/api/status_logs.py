@@ -166,6 +166,110 @@ class UnifiedLogsResponse(BaseModel):
     )
 
 
+def parse_journal_output(output: str, service_units: dict[str, str]) -> list[UnifiedLogEntry]:
+    """Parse JSON output from journalctl into UnifiedLogEntry objects.
+    
+    Args:
+        output: Raw stdout from journalctl -o json
+        service_units: Mapping of service names to unit names
+        
+    Returns:
+        List of parsed log entries
+    """
+    logs: list[UnifiedLogEntry] = []
+    for line in output.strip().split("\n"):
+        if not line:
+            continue
+
+        try:
+            entry = json.loads(line)
+
+            # Extract timestamp (microsecond precision from journald)
+            timestamp_us = int(entry.get("__REALTIME_TIMESTAMP", 0))
+            timestamp = datetime.fromtimestamp(timestamp_us / 1000000, tz=UTC)
+
+            # Extract service name from systemd unit
+            # System services use _SYSTEMD_UNIT, user services might use _SYSTEMD_USER_UNIT? 
+            # Actually journalctl -o json output keys are standard.
+            unit = entry.get("_SYSTEMD_UNIT", "") or entry.get("UNIT", "")
+            
+            # Map unit name back to service name
+            service_name = "unknown"
+            for svc, unit_name in service_units.items():
+                # Check if unit name matches (relaxed matching for templated units like postgresql@)
+                if unit_name in unit:
+                    service_name = svc
+                    break
+            
+            # If unknown, try to guess from SYSLOG_IDENTIFIER
+            if service_name == "unknown":
+                identifier = entry.get("SYSLOG_IDENTIFIER", "")
+                if "portfolio" in identifier or "celery" in identifier:
+                    # Keep it but mark as unknown service
+                    pass
+                else:
+                    # Might be noise if we didn't filter by unit
+                    pass
+
+            # Extract log message (keep newlines for multi-line messages)
+            # MESSAGE can be a string or list (for binary data)
+            message_raw = entry.get("MESSAGE", "")
+            if isinstance(message_raw, list):
+                # Binary message - convert bytes to string
+                try:
+                    message = "".join(
+                        chr(b) if isinstance(b, int) else str(b) for b in message_raw
+                    )
+                except (ValueError, TypeError):
+                    continue  # Skip if we can't decode
+            else:
+                message = str(message_raw)
+
+            # Skip empty messages
+            if not message.strip():
+                continue
+
+            # Skip systemd control messages (service start/stop notifications)
+            if (
+                message.startswith("Starting ")
+                or message.startswith("Started ")
+                or message.startswith("Stopping ")
+                or message.startswith("Stopped ")
+            ):
+                continue
+
+            # Use journald's native PRIORITY field (syslog levels)
+            priority = int(entry.get("PRIORITY", 6))  # Default to info (6)
+
+            if priority <= 2:  # Emergency, Alert, Critical
+                log_level = "CRITICAL"
+            elif priority == 3:  # Error
+                log_level = "ERROR"
+            elif priority == 4:  # Warning
+                log_level = "WARN"
+            elif priority in {5, 6}:  # Notice, Informational
+                log_level = "INFO"
+            elif priority == 7:  # Debug
+                log_level = "DEBUG"
+            else:
+                log_level = "UNKNOWN"
+
+            # Collect log
+            logs.append(
+                UnifiedLogEntry(
+                    timestamp=timestamp,
+                    service=service_name,
+                    level=log_level,
+                    message=message,
+                )
+            )
+
+        except (json.JSONDecodeError, KeyError, ValueError):
+            continue
+            
+    return logs
+
+
 @router.get("/unified-logs", response_model=UnifiedLogsResponse)
 async def get_unified_logs(
     lines: int = 500,
@@ -218,104 +322,55 @@ async def get_unified_logs(
             "postgresql": "postgresql@16-main",
         }
 
-        # Build journalctl command
+        # Build journalctl command for system units
         # Fetch more logs than requested to ensure fair representation across all services
-        # (e.g., if backend has 10k logs but celery has 100, we want to see both)
         fetch_limit = 10000  # Fetch up to 10k logs from journald
-        cmd = ["journalctl", "--no-pager", "-o", "json", "--since", since, "-n", str(fetch_limit)]
-
-        # Add service filter if specified
+        
+        system_units = []
+        user_units = []
+        
+        for svc, unit in service_units.items():
+            if svc in ["celery_worker", "celery_beat"]:
+                user_units.append(unit)
+            else:
+                system_units.append(unit)
+        
+        # Filter if specific service requested
         if service:
-            cmd.extend(["-u", service_units[service]])
-        else:
-            # Include all portfolio services
-            for unit in service_units.values():
-                cmd.extend(["-u", unit])
+            if service in ["celery_worker", "celery_beat"]:
+                system_units = []
+                user_units = [service_units[service]]
+            else:
+                user_units = []
+                system_units = [service_units[service]]
 
-        # Execute journalctl
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, check=True)
-
-        # Parse journald JSON output
         logs: list[UnifiedLogEntry] = []
-        for line in result.stdout.strip().split("\n"):
-            if not line:
-                continue
 
+        # 1. Fetch System Logs
+        if system_units:
+            cmd_system = ["journalctl", "--no-pager", "-o", "json", "--since", since, "-n", str(fetch_limit)]
+            for unit in system_units:
+                cmd_system.extend(["-u", unit])
+            
             try:
-                entry = json.loads(line)
+                result_system = subprocess.run(cmd_system, capture_output=True, text=True, timeout=15, check=False)
+                if result_system.returncode == 0:
+                    logs.extend(parse_journal_output(result_system.stdout, service_units))
+            except Exception as e:
+                logger.warning("system_journal_fetch_failed", error=str(e))
 
-                # Extract timestamp (microsecond precision from journald)
-                timestamp_us = int(entry.get("__REALTIME_TIMESTAMP", 0))
-                timestamp = datetime.fromtimestamp(timestamp_us / 1000000, tz=UTC)
-
-                # Extract service name from systemd unit
-                unit = entry.get("_SYSTEMD_UNIT", "")
-                service_name = "unknown"
-                for svc, unit_name in service_units.items():
-                    if unit_name in unit:
-                        service_name = svc
-                        break
-
-                # Extract log message (keep newlines for multi-line messages)
-                # MESSAGE can be a string or list (for binary data)
-                message_raw = entry.get("MESSAGE", "")
-                if isinstance(message_raw, list):
-                    # Binary message - convert bytes to string
-                    try:
-                        message = "".join(
-                            chr(b) if isinstance(b, int) else str(b) for b in message_raw
-                        )
-                    except (ValueError, TypeError):
-                        continue  # Skip if we can't decode
-                else:
-                    message = str(message_raw)
-
-                # Skip empty messages
-                if not message.strip():
-                    continue
-
-                # Skip systemd control messages (service start/stop notifications)
-                if (
-                    service_name == "unknown"
-                    or message.startswith("Starting ")
-                    or message.startswith("Started ")
-                    or message.startswith("Stopping ")
-                    or message.startswith("Stopped ")
-                ):
-                    continue
-
-                # Use journald's native PRIORITY field (syslog levels)
-                # With SyslogPrefixFormatter, Python logs now have correct priority prefixes
-                # that systemd parses into the PRIORITY field
-                # 0=emerg, 1=alert, 2=crit, 3=err, 4=warning, 5=notice, 6=info, 7=debug
-                priority = int(entry.get("PRIORITY", 6))  # Default to info (6)
-
-                if priority <= 2:  # Emergency, Alert, Critical
-                    log_level = "CRITICAL"
-                elif priority == 3:  # Error
-                    log_level = "ERROR"
-                elif priority == 4:  # Warning
-                    log_level = "WARN"
-                elif priority in {5, 6}:  # Notice, Informational
-                    log_level = "INFO"
-                elif priority == 7:  # Debug
-                    log_level = "DEBUG"
-                else:
-                    log_level = "UNKNOWN"
-
-                # Collect all logs (don't filter yet - we need counts of all levels)
-                logs.append(
-                    UnifiedLogEntry(
-                        timestamp=timestamp,
-                        service=service_name,
-                        level=log_level,
-                        message=message,
-                    )
-                )
-
-            except (json.JSONDecodeError, KeyError, ValueError) as e:
-                logger.warning("unified_logs_parse_error", error=str(e), line=line[:100])
-                continue
+        # 2. Fetch User Logs
+        if user_units:
+            cmd_user = ["journalctl", "--user", "--no-pager", "-o", "json", "--since", since, "-n", str(fetch_limit)]
+            for unit in user_units:
+                cmd_user.extend(["-u", unit])
+            
+            try:
+                result_user = subprocess.run(cmd_user, capture_output=True, text=True, timeout=15, check=False)
+                if result_user.returncode == 0:
+                    logs.extend(parse_journal_output(result_user.stdout, service_units))
+            except Exception as e:
+                logger.warning("user_journal_fetch_failed", error=str(e))
 
         # Sort by timestamp (chronological order)
         logs.sort(key=lambda x: x.timestamp)

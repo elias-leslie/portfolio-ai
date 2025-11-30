@@ -224,6 +224,11 @@ async def get_table_freshness() -> TableFreshnessResponse:
                                 last_updated = datetime.combine(
                                     parsed_date, datetime.min.time(), tzinfo=UTC
                                 )
+                            elif isinstance(last_updated_raw, date_type):
+                                # Already a date object (psycopg2 returns date)
+                                last_updated = datetime.combine(
+                                    last_updated_raw, datetime.min.time(), tzinfo=UTC
+                                )
                             else:
                                 # Unexpected type for date field, mark as unknown
                                 last_updated = None
