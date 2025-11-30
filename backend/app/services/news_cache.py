@@ -167,13 +167,22 @@ class NewsCacheManager:
             fetched_at.astimezone(UTC) if isinstance(fetched_at, datetime) else datetime.now(UTC)
         )
 
-        raw_dict = {}
+        raw_dict: dict[str, Any] = {}
         if raw_payload:
             if isinstance(raw_payload, dict):
                 raw_dict = raw_payload
             else:
                 with suppress(Exception):
-                    raw_dict = json.loads(raw_payload)
+                    parsed = json.loads(raw_payload)
+                    # Ensure we always have a dict (JSON might be an array)
+                    if isinstance(parsed, dict):
+                        raw_dict = parsed
+                    else:
+                        logger.warning(
+                            "raw_payload_not_dict",
+                            content_hash=content_hash,
+                            parsed_type=type(parsed).__name__,
+                        )
 
         vendor = raw_dict.get("vendor")
         if vendor is None:
@@ -218,6 +227,15 @@ class NewsCacheManager:
     def article_to_db_row(self, article: NewsArticle) -> ArticleDbRowDict:
         """Convert NewsArticle to database row format."""
         payload = article.raw
+        # Defensive check: ensure payload is a dict (fix for list indices error)
+        if not isinstance(payload, dict):
+            logger.warning(
+                "article_raw_not_dict",
+                ticker=article.ticker,
+                headline=article.headline[:50] if article.headline else "",
+                raw_type=type(payload).__name__,
+            )
+            payload = {}
         if "sentiment_probabilities" not in payload:
             payload["sentiment_probabilities"] = article.sentiment.probabilities
         payload.setdefault("sentiment_model", article.sentiment.model)
@@ -344,6 +362,6 @@ class NewsCacheManager:
                         quality_prediction = EXCLUDED.quality_prediction,
                         quality_confidence = EXCLUDED.quality_confidence
                     """,
-                    [row],  # type: ignore[list-item]
+                    row,  # Dict for named placeholders %(name)s
                 )
             conn.commit()

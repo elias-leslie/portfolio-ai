@@ -3,8 +3,7 @@ from unittest.mock import MagicMock, patch
 from datetime import date, timedelta
 from decimal import Decimal
 import pandas as pd
-from app.backtest.replay import replay_backtest
-from app.backtest.models import BacktestState
+from app.backtest.replay import replay_backtest, BacktestState
 
 @pytest.fixture
 def mock_storage():
@@ -55,8 +54,9 @@ def test_replay_backtest_bulk_fetch(mock_calc_indicators, mock_fetch_data, mock_
     
     # Verify fetch was called once with large lookback
     mock_fetch_data.assert_called_once()
-    call_kwargs = mock_fetch_data.call_args[1]
-    assert call_kwargs["symbol"] == "AAPL"
+    call_args = mock_fetch_data.call_args[0]  # Positional args
+    call_kwargs = mock_fetch_data.call_args[1]  # Keyword args
+    assert call_args[1] == "AAPL"  # symbol is second positional arg
     assert call_kwargs["lookback_days"] == 10000
     
     # Verify indicators were calculated for each trading day (5 days)

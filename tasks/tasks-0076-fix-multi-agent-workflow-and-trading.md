@@ -69,7 +69,82 @@
 - [x] 1.5 Verify backtest results are realistic
   - Manual check: Ran NVDA backtest (2024-11-18 to 2024-11-28) - COMPLETED
   - Manual check: Ran AAPL backtest (2024-11-04 to 2025-11-26) - COMPLETED
-  - Result: 0 trades (expected - signal classifier needs signals in DB)
+  - Result: 0 trades (ROOT CAUSE: signal classifier bug - see 1.6)
+
+### 1.6 Fix Signal Classifier for Backtesting ✅
+
+**Root Cause**: Backtests show "0 trades" because BUY signals are mathematically impossible.
+- BUY requires >= 6 confirmations
+- Max achievable = 5 (due to missing indicators and hardcoded zeros)
+
+**Fixes Applied**:
+
+- [x] 1.6.1 Add missing indicators to `backend/app/analytics/indicators.py`
+  - Added `sma_5` to DEFAULT_INDICATORS
+  - Added `volume_avg_20` calculation (20-day rolling average of volume)
+  - Added `sma_5_prev` calculation (previous day's SMA-5 for trend detection)
+  - Added convenience key `macd` extracting float from `macd_12_26_9` dict
+
+- [x] 1.6.2 Fix MACD extraction in indicators.py (not strategies.py)
+  - Added `indicator_values["macd"] = indicator_values["macd_12_26_9"]["macd"]`
+  - strategies.py now receives float directly
+
+- [x] 1.6.3 Track previous SMA-5 for trend detection
+  - Added `_calculate_sma_prev()` function to indicators.py
+  - Calculates `sma_5_prev` from dataframe slice
+
+- [x] 1.6.4 Verify signal confirmations can reach 6+
+  - Ran NVDA backtest (2024-11-01 to 2025-11-28)
+  - Result: 1 trade generated (entry 2025-01-03 → exit 2025-01-14, stop loss)
+  - Final equity: $9,123.20 (from $10,000)
+
+- [x] 1.6.5 Additional fixes found during testing
+  - Fixed Decimal type errors in `replay.py`: sum() with Decimal start value
+  - Fixed initial_capital Decimal conversion in BacktestState initialization
+  - Fixed test file import (BacktestState from replay, not models)
+
+**Files Modified**:
+- `backend/app/analytics/indicators.py` - Added sma_5, volume_avg_20, sma_5_prev, macd convenience key
+- `backend/app/backtest/replay.py` - Fixed Decimal type handling
+- `backend/tests/unit/backtest/test_replay_bulk.py` - Fixed import and test assertions
+
+**Verification** ✅:
+- Backtest on NVDA generates trades (1 trade, not 0)
+- All unit tests pass
+- mypy type check passes
+
+---
+
+### 1.7 Fix Celery Queue Bottleneck and News Refresh ✅
+
+**Root Causes Found**:
+1. Zombie celery workers (orphan processes from restarts)
+2. News refresh SQL bug: `[row]` instead of `row` for named placeholders
+3. Low worker concurrency (2) causing queue backlog
+
+**Fixes Applied**:
+
+- [x] 1.7.1 Increase celery worker concurrency from 2 to 4
+  - Modified: `~/.config/systemd/user/portfolio-celery.service`
+
+- [x] 1.7.2 Fix news refresh SQL parameter bug
+  - File: `backend/app/services/news_cache.py:365`
+  - Changed: `[row]` → `row` for named placeholders
+  - Error was: `'list indices must be integers or slices, not str'`
+
+- [x] 1.7.3 Add defensive checks for corrupted article.raw
+  - File: `backend/app/services/news_cache.py:220-229`
+  - Ensure `article.raw` is always dict (not list)
+  - File: `backend/app/services/news_cache.py:170-185`
+  - Ensure `json.loads(raw_payload)` returns dict
+
+**Verification** ✅:
+- News refresh completing successfully (45+ articles cached)
+- `force_refresh=False` when interval not met (interval check working)
+- Backtests completing in ~2.5s (not blocked by queue)
+- Single celery worker with 4 children (no orphans)
+
+---
 
 ### 2.0 Fix Paper Trading Functionality
 

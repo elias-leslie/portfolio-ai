@@ -26,6 +26,7 @@ DEFAULT_INDICATORS = [
     "rsi",
     "macd",
     "bbands",
+    "sma_5",  # Added for signal classifier (trend detection)
     "sma_20",
     "sma_50",
     "sma_200",
@@ -34,6 +35,7 @@ DEFAULT_INDICATORS = [
     "ema_200",
     "atr",
     "stoch",
+    "volume_avg_20",  # Added for signal classifier (volume strength)
 ]
 
 
@@ -163,6 +165,48 @@ def _calculate_stochastic(
             }
 
 
+def _calculate_volume_avg(
+    df: pd.DataFrame, indicators: list[str], indicator_values: dict[str, Any]
+) -> None:
+    """Calculate volume moving averages and add to indicator_values dict.
+
+    Args:
+        df: pandas DataFrame with OHLCV data
+        indicators: List of requested indicators
+        indicator_values: Dict to update with volume average values
+    """
+    if "volume_avg_20" in indicators and "volume" in df.columns:
+        volume_sma = ta.sma(df["volume"], length=20)
+        if volume_sma is not None and not volume_sma.empty:
+            indicator_values["volume_avg_20"] = float(volume_sma.iloc[-1])
+        else:
+            indicator_values["volume_avg_20"] = None
+
+
+def _calculate_sma_prev(
+    df: pd.DataFrame, indicators: list[str], indicator_values: dict[str, Any]
+) -> None:
+    """Calculate previous day's SMA values for trend detection.
+
+    Required for signal classifier to detect declining trends (sma_5 vs sma_5_prev).
+
+    Args:
+        df: pandas DataFrame with OHLCV data
+        indicators: List of requested indicators
+        indicator_values: Dict to update with previous SMA values
+    """
+    # sma_5_prev: Previous day's SMA-5 (for trend detection)
+    if "sma_5" in indicators and len(df) >= 6:  # Need at least 6 days for prev SMA-5
+        sma_5_series = ta.sma(df["close"], length=5)
+        if sma_5_series is not None and len(sma_5_series) >= 2:
+            # Get second-to-last value (previous day's SMA-5)
+            indicator_values["sma_5_prev"] = float(sma_5_series.iloc[-2])
+        else:
+            indicator_values["sma_5_prev"] = None
+    else:
+        indicator_values["sma_5_prev"] = None
+
+
 def calculate_indicators(
     storage: PortfolioStorage,
     ticker: str,
@@ -235,6 +279,13 @@ def calculate_indicators_from_df(
     _calculate_moving_averages(df, indicators, indicator_values)
     _calculate_atr(df, indicators, indicator_values)
     _calculate_stochastic(df, indicators, indicator_values)
+    _calculate_volume_avg(df, indicators, indicator_values)
+    _calculate_sma_prev(df, indicators, indicator_values)
+
+    # Add convenience keys for signal classifier compatibility
+    # MACD: Extract float from dict (signal classifier expects float, not dict)
+    if "macd_12_26_9" in indicator_values:
+        indicator_values["macd"] = indicator_values["macd_12_26_9"]["macd"]
 
     # Generate interpretations
     interpretations = _interpret_indicators(indicator_values, df["close"].iloc[-1])

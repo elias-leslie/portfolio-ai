@@ -74,7 +74,8 @@ class BacktestState:
     def get_total_equity(self, current_prices: dict[str, Decimal]) -> Decimal:
         """Calculate total equity (cash + position values)."""
         position_value = sum(
-            self.get_position_value(symbol, current_prices[symbol]) for symbol in self.positions
+            (self.get_position_value(symbol, current_prices[symbol]) for symbol in self.positions),
+            Decimal("0.0"),  # Ensure Decimal type even with empty positions
         )
         return self.cash + position_value
 
@@ -83,7 +84,8 @@ class BacktestState:
     ) -> BacktestEquity:
         """Record daily equity snapshot."""
         position_value = sum(
-            self.get_position_value(symbol, current_prices[symbol]) for symbol in self.positions
+            (self.get_position_value(symbol, current_prices[symbol]) for symbol in self.positions),
+            Decimal("0.0"),  # Ensure Decimal type even with empty positions
         )
         equity = self.cash + position_value
 
@@ -377,8 +379,9 @@ def replay_backtest(
         f"Starting backtest: {symbol} | {start_date} to {end_date} | Capital: ${initial_capital:.2f}"
     )
 
-    # Initialize state
-    state = BacktestState(cash=initial_capital, peak_equity=initial_capital)
+    # Initialize state (convert to Decimal for precision)
+    initial_capital_dec = Decimal(str(initial_capital))
+    state = BacktestState(cash=initial_capital_dec, peak_equity=initial_capital_dec)
 
     # 1. Fetch ALL data at once (optimization)
     # We need data from (start_date - lookback) to end_date
