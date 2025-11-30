@@ -20,7 +20,7 @@ import {
   SortingState,
 } from "@tanstack/react-table";
 import { format } from "date-fns";
-import { ArrowUpIcon, ArrowDownIcon, TrendingUp } from "lucide-react";
+import { ArrowUpIcon, ArrowDownIcon, TrendingUp, Loader2, BarChart2 } from "lucide-react";
 
 import { SectionCard } from "@/components/shared/SectionCard";
 import {
@@ -33,14 +33,16 @@ import {
 } from "@/components/ui/table";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 import {
   useBacktestRun,
   useBacktestEquity,
   useCompareBacktests,
+  useMonteCarloSimulation,
 } from "@/lib/hooks/useBacktestUI";
-import type { BacktestEquity, BacktestTrade } from "@/lib/api/backtest-ui";
+import type { BacktestEquity, BacktestTrade, BacktestComparisonResponse, RunMetrics, MonteCarloResponse } from "@/lib/api/backtest-ui";
 
 // ============================================================================
 // Types
@@ -182,6 +184,7 @@ export function BacktestDetails({
   comparisonRunIds,
 }: BacktestDetailsProps) {
   const [tradeSorting, setTradeSorting] = useState<SortingState>([]);
+  const [monteCarloData, setMonteCarloData] = useState<MonteCarloResponse | null>(null);
 
   // Fetch single run data
   const { data: runData, isLoading: runLoading } = useBacktestRun(
@@ -200,6 +203,16 @@ export function BacktestDetails({
     comparisonRunIds,
     { enabled: comparisonMode && comparisonRunIds.length >= 2 }
   );
+
+  // Monte Carlo simulation mutation
+  const monteCarloMutation = useMonteCarloSimulation(runId || "");
+
+  // Handle Monte Carlo run
+  const handleRunMonteCarlo = async () => {
+    setMonteCarloData(null);
+    const result = await monteCarloMutation.mutateAsync({ num_simulations: 1000 });
+    setMonteCarloData(result);
+  };
 
   // Determine loading state
   const isLoading = comparisonMode ? comparisonLoading : runLoading || equityLoading;
@@ -250,13 +263,19 @@ export function BacktestDetails({
 
   // Comparison mode rendering
   if (comparisonMode && comparisonData) {
+    // Get symbol names for legend
+    const symbolMap: Record<string, string> = {};
+    comparisonData.metrics.forEach((m) => {
+      symbolMap[m.run_id] = m.symbol;
+    });
+
     return (
       <div className="space-y-6">
         {/* Equity Curve Comparison Chart */}
         <SectionCard
           variant="surface"
           title="Equity Curve Comparison"
-          description="Overlay of selected backtest runs"
+          description="Normalized returns overlay (starting at 0%)"
         >
           <ResponsiveContainer width="100%" height={400}>
             <LineChart
@@ -283,12 +302,66 @@ export function BacktestDetails({
                   strokeWidth={2}
                   dot={false}
                   activeDot={{ r: 6 }}
-                  name={`Run ${index + 1}`}
+                  name={symbolMap[runId] || `Run ${index + 1}`}
                 />
               ))}
             </LineChart>
           </ResponsiveContainer>
         </SectionCard>
+
+        {/* Metrics Comparison Table */}
+        <SectionCard
+          variant="surface"
+          title="Performance Metrics"
+          description="Side-by-side comparison with rankings"
+        >
+          <MetricsComparisonTable metrics={comparisonData.metrics} />
+        </SectionCard>
+
+        {/* Correlation Matrix (if available) */}
+        {comparisonData.correlation_matrix && (
+          <SectionCard
+            variant="surface"
+            title="Strategy Correlation"
+            description="Return correlation between strategies"
+          >
+            <div className="rounded-md border border-border bg-surface/40 overflow-x-auto p-4">
+              <div className="grid gap-2" style={{ gridTemplateColumns: `auto repeat(${Object.keys(comparisonData.correlation_matrix).length}, 1fr)` }}>
+                {/* Header row */}
+                <div className="font-medium text-text-muted"></div>
+                {Object.keys(comparisonData.correlation_matrix).map((runId) => (
+                  <div key={runId} className="text-center text-xs font-medium text-text-muted">
+                    {symbolMap[runId] || runId.slice(0, 8)}
+                  </div>
+                ))}
+                {/* Data rows */}
+                {Object.entries(comparisonData.correlation_matrix).map(([rowId, correlations]) => (
+                  <>
+                    <div key={`label-${rowId}`} className="text-xs font-medium text-text-muted">
+                      {symbolMap[rowId] || rowId.slice(0, 8)}
+                    </div>
+                    {Object.entries(correlations).map(([colId, corr]) => (
+                      <div
+                        key={`${rowId}-${colId}`}
+                        className={cn(
+                          "text-center text-xs font-medium rounded px-2 py-1",
+                          corr >= 0.7 ? "bg-loss/20 text-loss" :
+                          corr >= 0.4 ? "bg-warning/20 text-warning" :
+                          "bg-gain/20 text-gain"
+                        )}
+                      >
+                        {corr.toFixed(2)}
+                      </div>
+                    ))}
+                  </>
+                ))}
+              </div>
+              <p className="mt-4 text-xs text-text-muted">
+                Low correlation (&lt;0.4) = good diversification • High correlation (&gt;0.7) = similar strategies
+              </p>
+            </div>
+          </SectionCard>
+        )}
 
         <div className="rounded-lg border border-border bg-surface/40 p-4 text-sm text-text-muted">
           <p>Comparing {comparisonRunIds.length} backtest runs</p>
@@ -315,10 +388,10 @@ export function BacktestDetails({
   const equity = equityData || [];
 
   // Transform equity data for chart - calculate cumulative return from equity
-  const initialEquity = equity.length > 0 ? parseFloat(equity[0].equity) : 100000;
+  const initialEquity = equity.length > 0 ? parseFloat(String(equity[0].equity)) : 100000;
   const chartData = equity.map((point) => ({
     date: point.date,
-    return: ((parseFloat(point.equity) - initialEquity) / initialEquity) * 100,
+    return: ((parseFloat(String(point.equity)) - initialEquity) / initialEquity) * 100,
   }));
 
   // Format metrics - convert string to number if needed
@@ -501,6 +574,48 @@ export function BacktestDetails({
           </div>
         </SectionCard>
       )}
+
+      {/* Monte Carlo Simulation Section */}
+      {trades.length > 0 && run.status === "completed" && (
+        <SectionCard
+          variant="surface"
+          title="Monte Carlo Simulation"
+          description="Stress test strategy with randomized scenarios"
+        >
+          {!monteCarloData && !monteCarloMutation.isPending && (
+            <div className="flex flex-col items-center justify-center py-8">
+              <BarChart2 className="h-12 w-12 text-text-muted/50 mb-4" />
+              <p className="text-sm text-text-muted mb-4">
+                Run 1,000 simulations to estimate probability distribution of returns
+              </p>
+              <Button onClick={handleRunMonteCarlo} variant="outline">
+                <BarChart2 className="mr-2 h-4 w-4" />
+                Run Monte Carlo
+              </Button>
+            </div>
+          )}
+
+          {monteCarloMutation.isPending && (
+            <div className="flex flex-col items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-text-muted mb-4" />
+              <p className="text-sm text-text-muted">Running simulations...</p>
+            </div>
+          )}
+
+          {monteCarloMutation.isError && (
+            <div className="py-8 text-center">
+              <p className="text-sm text-loss mb-4">
+                Simulation failed: {String(monteCarloMutation.error)}
+              </p>
+              <Button onClick={handleRunMonteCarlo} variant="outline" size="sm">
+                Try Again
+              </Button>
+            </div>
+          )}
+
+          {monteCarloData && <MonteCarloResults data={monteCarloData} />}
+        </SectionCard>
+      )}
     </div>
   );
 }
@@ -664,12 +779,12 @@ function TradesTable({ trades, sorting, onSortingChange }: TradesTableProps) {
  * Converts multiple runs' equity curves into a single chart dataset
  */
 function transformComparisonData(
-  comparisonData: Record<string, BacktestEquity[]>
+  comparisonData: BacktestComparisonResponse
 ): ChartDataPoint[] {
   const dateMap = new Map<string, ChartDataPoint>();
 
-  // Iterate through each run
-  Object.entries(comparisonData).forEach(([runId, equityPoints]) => {
+  // Iterate through each run's equity curve
+  Object.entries(comparisonData.equity_curves).forEach(([runId, equityPoints]) => {
     equityPoints.forEach((point) => {
       const dateStr = point.date;
       if (!dateMap.has(dateStr)) {
@@ -684,5 +799,167 @@ function transformComparisonData(
   // Convert map to sorted array
   return Array.from(dateMap.values()).sort(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
+}
+
+/**
+ * Render a rank badge (1 = gold, 2 = silver, 3 = bronze)
+ */
+function RankBadge({ rank }: { rank: number | null }) {
+  if (rank === null) return <span className="text-text-muted">—</span>;
+
+  const variants: Record<number, "default" | "secondary" | "outline"> = {
+    1: "default",
+    2: "secondary",
+    3: "outline",
+  };
+
+  return (
+    <Badge variant={variants[rank] || "outline"} className="text-xs font-medium">
+      #{rank}
+    </Badge>
+  );
+}
+
+/**
+ * Metrics comparison table component
+ */
+function MetricsComparisonTable({ metrics }: { metrics: RunMetrics[] }) {
+  const formatPercent = (value: string | null) => {
+    if (value === null) return "—";
+    const num = parseFloat(value);
+    return `${num >= 0 ? "+" : ""}${num.toFixed(2)}%`;
+  };
+
+  const formatNumber = (value: string | null) => {
+    if (value === null) return "—";
+    return parseFloat(value).toFixed(2);
+  };
+
+  return (
+    <div className="rounded-md border border-border bg-surface/40 overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Symbol</TableHead>
+            <TableHead>Return</TableHead>
+            <TableHead>Rank</TableHead>
+            <TableHead>Sharpe</TableHead>
+            <TableHead>Rank</TableHead>
+            <TableHead>Drawdown</TableHead>
+            <TableHead>Rank</TableHead>
+            <TableHead>Win Rate</TableHead>
+            <TableHead>Trades</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {metrics.map((m) => (
+            <TableRow key={m.run_id}>
+              <TableCell className="font-medium">{m.symbol}</TableCell>
+              <TableCell className={cn(
+                parseFloat(m.total_return_pct || "0") >= 0 ? "text-gain" : "text-loss",
+                "font-medium"
+              )}>
+                {formatPercent(m.total_return_pct)}
+              </TableCell>
+              <TableCell><RankBadge rank={m.return_rank} /></TableCell>
+              <TableCell>{formatNumber(m.sharpe_ratio)}</TableCell>
+              <TableCell><RankBadge rank={m.sharpe_rank} /></TableCell>
+              <TableCell className="text-loss">{formatPercent(m.max_drawdown_pct)}</TableCell>
+              <TableCell><RankBadge rank={m.drawdown_rank} /></TableCell>
+              <TableCell>{formatPercent(m.win_rate)}</TableCell>
+              <TableCell>{m.num_trades ?? "—"}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+/**
+ * Monte Carlo results section component
+ */
+function MonteCarloResults({ data }: { data: MonteCarloResponse }) {
+  const stats = data.statistics;
+
+  return (
+    <div className="space-y-6">
+      {/* Key Statistics Cards */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+        <Card className="p-4">
+          <div className="text-xs font-medium text-text-muted mb-2">Median Return</div>
+          <div className={cn(
+            "text-lg font-bold",
+            stats.percentile_50 >= 0 ? "text-gain" : "text-loss"
+          )}>
+            {stats.percentile_50 >= 0 ? "+" : ""}{stats.percentile_50.toFixed(2)}%
+          </div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-xs font-medium text-text-muted mb-2">95% Confidence</div>
+          <div className="text-sm font-medium text-text">
+            {stats.percentile_5.toFixed(1)}% to {stats.percentile_95.toFixed(1)}%
+          </div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-xs font-medium text-text-muted mb-2">Prob. of Loss</div>
+          <div className={cn(
+            "text-lg font-bold",
+            stats.probability_of_loss <= 20 ? "text-gain" :
+            stats.probability_of_loss <= 40 ? "text-warning" : "text-loss"
+          )}>
+            {stats.probability_of_loss.toFixed(1)}%
+          </div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-xs font-medium text-text-muted mb-2">Value at Risk (95%)</div>
+          <div className="text-lg font-bold text-loss">
+            {stats.value_at_risk_95.toFixed(2)}%
+          </div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-xs font-medium text-text-muted mb-2">Expected Shortfall</div>
+          <div className="text-lg font-bold text-loss">
+            {stats.expected_shortfall.toFixed(2)}%
+          </div>
+        </Card>
+      </div>
+
+      {/* Distribution Statistics */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <Card className="p-4">
+          <div className="text-xs font-medium text-text-muted mb-2">Mean Return</div>
+          <div className="text-sm font-bold text-text">
+            {stats.mean_return >= 0 ? "+" : ""}{stats.mean_return.toFixed(2)}%
+          </div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-xs font-medium text-text-muted mb-2">Std Deviation</div>
+          <div className="text-sm font-bold text-text">{stats.std_dev.toFixed(2)}%</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-xs font-medium text-text-muted mb-2">Skewness</div>
+          <div className="text-sm font-bold text-text">{stats.skewness.toFixed(2)}</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-xs font-medium text-text-muted mb-2">Kurtosis</div>
+          <div className="text-sm font-bold text-text">{stats.kurtosis.toFixed(2)}</div>
+        </Card>
+      </div>
+
+      {/* Comparison with Original */}
+      <div className="rounded-lg border border-border bg-surface/40 p-4">
+        <p className="text-sm text-text-muted">
+          Based on {stats.num_simulations.toLocaleString()} simulations of resampled trades.
+          Original backtest return: <span className={cn(
+            "font-medium",
+            stats.original_return >= 0 ? "text-gain" : "text-loss"
+          )}>
+            {stats.original_return >= 0 ? "+" : ""}{stats.original_return.toFixed(2)}%
+          </span>
+        </p>
+      </div>
+    </div>
   );
 }

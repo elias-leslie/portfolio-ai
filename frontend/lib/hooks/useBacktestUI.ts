@@ -5,8 +5,8 @@
  * This module adds UI-specific hooks like comparison
  */
 
-import { useQuery } from "@tanstack/react-query";
-import { compareBacktests, type BacktestComparisonResponse } from "@/lib/api/backtest-ui";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { compareBacktests, runMonteCarlo, type BacktestComparisonResponse, type MonteCarloResponse, type MonteCarloRequest } from "@/lib/api/backtest-ui";
 
 // Re-export core backtest hooks
 export {
@@ -43,5 +43,21 @@ export function useCompareBacktests(runIds: string[], options?: { enabled?: bool
     queryFn: () => compareBacktests(runIds),
     enabled,
     staleTime: 1000 * 60 * 5, // 5 minutes (backtest results don't change)
+  });
+}
+
+/**
+ * Hook to run Monte Carlo simulation on a backtest
+ * Returns mutation for triggering simulation on demand
+ */
+export function useMonteCarloSimulation(runId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params?: MonteCarloRequest) => runMonteCarlo(runId, params),
+    onSuccess: () => {
+      // Optionally invalidate backtest data to refresh UI
+      queryClient.invalidateQueries({ queryKey: ["backtest", runId] });
+    },
   });
 }

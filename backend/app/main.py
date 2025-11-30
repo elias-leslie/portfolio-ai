@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api import (
+    agents,
     analytics,
     backtest,
     capabilities,
@@ -160,6 +161,7 @@ app.include_router(paper_trades.router)
 app.include_router(paper_trading.router)
 app.include_router(strategies.router)  # Task 4.9: Strategy management API
 app.include_router(layouts.router)  # Task 0042: Customizable dashboard layouts
+app.include_router(agents.router)  # Task 0077: Agent telemetry dashboard
 
 
 @app.get("/")

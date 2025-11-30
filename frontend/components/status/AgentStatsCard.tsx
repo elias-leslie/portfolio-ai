@@ -1,16 +1,28 @@
 "use client";
 
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Activity, CheckCircle2, XCircle, Clock, DollarSign } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Activity, CheckCircle2, XCircle, Clock, DollarSign, Cpu, ArrowRight } from "lucide-react";
 import type { AgentStats } from "@/lib/api/status";
+import { useTelemetrySummary } from "@/lib/hooks/useAgentTelemetry";
 
 interface AgentStatsCardProps {
   stats: AgentStats | undefined;
 }
 
+function formatNumber(num: number): string {
+  if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+  if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+  return num.toString();
+}
+
 export function AgentStatsCard({ stats }: AgentStatsCardProps) {
-  if (!stats) {
+  // Fetch telemetry for token usage (7 day summary)
+  const { data: telemetry } = useTelemetrySummary(7);
+
+  if (!stats && !telemetry) {
     return (
       <Card>
         <CardHeader>
@@ -26,9 +38,9 @@ export function AgentStatsCard({ stats }: AgentStatsCardProps) {
     );
   }
 
-  const successRate = stats.total_runs > 0
+  const successRate = stats && stats.total_runs > 0
     ? ((stats.completed_runs / stats.total_runs) * 100).toFixed(1)
-    : "0.0";
+    : telemetry ? telemetry.success_rate.toFixed(1) : "0.0";
 
   const getSuccessRateColor = (rate: number) => {
     if (rate >= 80) return "text-green-600";
@@ -54,7 +66,7 @@ export function AgentStatsCard({ stats }: AgentStatsCardProps) {
               <Activity className="h-4 w-4 text-muted-foreground" />
               <p className="text-sm font-medium">Total Runs</p>
             </div>
-            <p className="text-2xl font-bold">{stats.total_runs}</p>
+            <p className="text-2xl font-bold">{stats?.total_runs ?? telemetry?.total_runs ?? 0}</p>
           </div>
 
           {/* Success Rate */}
@@ -75,7 +87,7 @@ export function AgentStatsCard({ stats }: AgentStatsCardProps) {
               <p className="text-sm font-medium">Completed</p>
             </div>
             <div className="flex items-center gap-2">
-              <p className="text-xl font-semibold">{stats.completed_runs}</p>
+              <p className="text-xl font-semibold">{stats?.completed_runs ?? telemetry?.successful_runs ?? 0}</p>
               <Badge variant="success" className="text-xs">
                 Success
               </Badge>
@@ -89,7 +101,7 @@ export function AgentStatsCard({ stats }: AgentStatsCardProps) {
               <p className="text-sm font-medium">Failed</p>
             </div>
             <div className="flex items-center gap-2">
-              <p className="text-xl font-semibold">{stats.failed_runs}</p>
+              <p className="text-xl font-semibold">{stats?.failed_runs ?? telemetry?.failed_runs ?? 0}</p>
               <Badge variant="destructive" className="text-xs">
                 Failed
               </Badge>
@@ -97,20 +109,24 @@ export function AgentStatsCard({ stats }: AgentStatsCardProps) {
           </div>
 
           {/* Average Duration */}
-          {stats.avg_duration_s !== undefined && stats.avg_duration_s !== null && (
+          {(stats?.avg_duration_s !== undefined || telemetry?.avg_duration_ms !== undefined) && (
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-muted-foreground" />
                 <p className="text-sm font-medium">Avg Duration</p>
               </div>
               <p className="text-lg font-semibold">
-                {stats.avg_duration_s.toFixed(1)}s
+                {stats?.avg_duration_s !== undefined
+                  ? `${stats.avg_duration_s.toFixed(1)}s`
+                  : telemetry?.avg_duration_ms !== undefined
+                  ? `${(telemetry.avg_duration_ms / 1000).toFixed(1)}s`
+                  : "N/A"}
               </p>
             </div>
           )}
 
           {/* Average Cost */}
-          {stats.avg_cost_usd !== undefined && stats.avg_cost_usd !== null && (
+          {stats?.avg_cost_usd !== undefined && stats?.avg_cost_usd !== null && (
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
@@ -121,6 +137,29 @@ export function AgentStatsCard({ stats }: AgentStatsCardProps) {
               </p>
             </div>
           )}
+
+          {/* Total Tokens (7d) */}
+          {telemetry && (
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Cpu className="h-4 w-4 text-muted-foreground" />
+                <p className="text-sm font-medium">Tokens (7d)</p>
+              </div>
+              <p className="text-lg font-semibold">
+                {formatNumber(telemetry.total_tokens)}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Link to full telemetry dashboard */}
+        <div className="mt-4 pt-4 border-t">
+          <Link href="/agents">
+            <Button variant="outline" size="sm" className="w-full">
+              View Full Telemetry
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </Link>
         </div>
       </CardContent>
     </Card>

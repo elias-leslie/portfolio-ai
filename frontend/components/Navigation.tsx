@@ -11,6 +11,7 @@ import {
   Database,
   TrendingUp,
   BarChart3,
+  Bot,
 } from "lucide-react";
 
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -50,6 +51,11 @@ const mainLinks = [
 ];
 
 const utilityLinks = [
+  {
+    href: "/agents",
+    label: "Agents",
+    icon: Bot,
+  },
   {
     href: "/status",
     label: "Status",
