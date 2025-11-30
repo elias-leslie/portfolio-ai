@@ -37,6 +37,7 @@ class TransactionLogger:
         cash_before: float,
         cash_after: float,
         notes: str | None = None,
+        agent_run_id: str | None = None,
     ) -> bool:
         """Log a trade entry transaction.
 
@@ -48,6 +49,7 @@ class TransactionLogger:
             cash_before: Cash balance before transaction
             cash_after: Cash balance after transaction
             notes: Optional transaction notes
+            agent_run_id: Optional ID linking to agent workflow (P3 audit trail)
 
         Returns:
             True if logged successfully, False otherwise
@@ -64,9 +66,10 @@ class TransactionLogger:
                 amount,
                 cash_before,
                 cash_after,
-                notes
+                notes,
+                agent_run_id
             )
-            VALUES ($1, 'ENTRY', $2, $3, $4, $5, $6, $7, $8)
+            VALUES ($1, 'ENTRY', $2, $3, $4, $5, $6, $7, $8, $9)
         """
 
         try:
@@ -82,6 +85,7 @@ class TransactionLogger:
                         cash_before,
                         cash_after,
                         notes or f"Entry: {ticker} {shares} shares @ ${price:.2f}",
+                        agent_run_id,
                     ],
                 )
                 conn.commit()  # Commit INSERT to database
@@ -89,6 +93,7 @@ class TransactionLogger:
             logger.info(
                 f"Logged ENTRY transaction: {trade_id} - {ticker} "
                 f"{shares} shares @ ${price:.2f} (${amount:.2f})"
+                + (f" [agent: {agent_run_id[:8]}...]" if agent_run_id else "")
             )
             return True
 
@@ -106,6 +111,7 @@ class TransactionLogger:
         cash_after: float,
         pnl: float,
         notes: str | None = None,
+        agent_run_id: str | None = None,
     ) -> bool:
         """Log a trade exit transaction.
 
@@ -118,6 +124,7 @@ class TransactionLogger:
             cash_after: Cash balance after transaction
             pnl: Realized profit/loss
             notes: Optional transaction notes (usually exit reason)
+            agent_run_id: Optional ID linking to agent workflow (P3 audit trail)
 
         Returns:
             True if logged successfully, False otherwise
@@ -139,9 +146,10 @@ class TransactionLogger:
                 amount,
                 cash_before,
                 cash_after,
-                notes
+                notes,
+                agent_run_id
             )
-            VALUES ($1, 'EXIT', $2, $3, $4, $5, $6, $7, $8)
+            VALUES ($1, 'EXIT', $2, $3, $4, $5, $6, $7, $8, $9)
         """
 
         try:
@@ -157,6 +165,7 @@ class TransactionLogger:
                         cash_before,
                         cash_after,
                         notes,
+                        agent_run_id,
                     ],
                 )
                 conn.commit()  # Commit INSERT to database
@@ -164,6 +173,7 @@ class TransactionLogger:
             logger.info(
                 f"Logged EXIT transaction: {trade_id} - {ticker} "
                 f"{shares} shares @ ${price:.2f} (${amount:.2f}, P&L: ${pnl:.2f})"
+                + (f" [agent: {agent_run_id[:8]}...]" if agent_run_id else "")
             )
             return True
 

@@ -185,7 +185,7 @@ Validate gaps, add missed insights, refine priorities, provide final recommendat
 
 
 @celery_app.task(name="app.tasks.workflow_tasks.paper_trade_validation_workflow")  # type: ignore[misc]
-def paper_trade_validation_workflow(
+def paper_trade_validation_workflow(  # noqa: PLR0911
     strategy_id: str, ticker: str, action: str, thesis: str
 ) -> dict[str, object]:
     """Multi-agent paper trade validation workflow.
@@ -313,6 +313,43 @@ def paper_trade_validation_workflow(
                     "num_trades": backtest_result.get("num_trades", 0),
                 }
                 logger.info(f"Backtest complete: {backtest_metrics}")
+
+                # B3: Hard gating - reject if metrics fail thresholds (VISION.md compliance)
+                sharpe = backtest_metrics["sharpe_ratio"]
+                win_rate = backtest_metrics["win_rate"]
+                max_dd = backtest_metrics["max_drawdown_pct"]
+
+                gating_failures = []
+                if sharpe < 1.0:
+                    gating_failures.append(f"Sharpe ratio {sharpe:.2f} < 1.0")
+                if win_rate < 50.0:
+                    gating_failures.append(f"Win rate {win_rate:.1f}% < 50%")
+                if max_dd > 20.0:
+                    gating_failures.append(f"Max drawdown {max_dd:.1f}% > 20%")
+
+                if gating_failures:
+                    gating_reason = "; ".join(gating_failures)
+                    logger.warning(f"Backtest gating FAILED for {ticker}: {gating_reason}")
+                    orchestrator.complete_workflow(
+                        workflow_id,
+                        result={
+                            "ticker": ticker,
+                            "action": action,
+                            "approved": False,
+                            "trade_id": None,
+                            "gating_failed": True,
+                            "gating_reason": gating_reason,
+                            "backtest_metrics": backtest_metrics,
+                        },
+                    )
+                    return {
+                        "status": "completed",
+                        "workflow_id": workflow_id,
+                        "approved": False,
+                        "gating_failed": True,
+                        "gating_reason": gating_reason,
+                        "backtest_metrics": backtest_metrics,
+                    }
             else:
                 error_msg_obj = backtest_result.get("error", "Unknown backtest error")
                 error_msg = str(error_msg_obj)
@@ -351,9 +388,10 @@ Task:
    - Sharpe ratio > 1.0 (good risk-adjusted returns)
    - Win rate > 50% (more wins than losses)
    - Max drawdown < 20% (reasonable risk)
-3. Explain reasoning based on ACTUAL metrics (not hypothetical)
+3. Rate your confidence in the decision (0-100%)
+4. Explain reasoning based on ACTUAL metrics (not hypothetical)
 
-Respond with JSON: {{"decision": "APPROVE|REJECT", "reasoning": "..."}}"""
+Respond with JSON: {{"decision": "APPROVE|REJECT", "confidence": <0-100>, "reasoning": "..."}}"""
 
         strategy_output = None
         try:
@@ -385,9 +423,10 @@ Task:
    - Win rate > 50% (more wins than losses)
    - Max drawdown < 20% (risk level acceptable)
 3. Consider if thesis is supported by backtest performance
-4. Make your own APPROVE/REJECT decision
+4. Rate your confidence in the decision (0-100%)
+5. Make your own APPROVE/REJECT decision
 
-Respond with JSON: {{"decision": "APPROVE|REJECT", "reasoning": "..."}}"""
+Respond with JSON: {{"decision": "APPROVE|REJECT", "confidence": <0-100>, "reasoning": "..."}}"""
 
         risk_output = None
         try:
@@ -425,12 +464,15 @@ Respond with JSON: {{"decision": "APPROVE|REJECT", "reasoning": "..."}}"""
         risk_approved = False
         strategy_reasoning = "Unknown"
         risk_reasoning = "Unknown"
+        strategy_confidence = 50  # Default confidence
+        risk_confidence = 50
 
         try:
             strategy_json = extract_json(strategy_output)
             strategy_data = json.loads(strategy_json)
             strategy_approved = strategy_data.get("decision") == "APPROVE"
             strategy_reasoning = strategy_data.get("reasoning", "Unknown")
+            strategy_confidence = int(strategy_data.get("confidence", 50))
         except Exception as e:
             logger.warning(f"Failed to parse strategy agent response: {e}")
 
@@ -439,16 +481,45 @@ Respond with JSON: {{"decision": "APPROVE|REJECT", "reasoning": "..."}}"""
             risk_data = json.loads(risk_json)
             risk_approved = risk_data.get("decision") == "APPROVE"
             risk_reasoning = risk_data.get("reasoning", "Unknown")
+            risk_confidence = int(risk_data.get("confidence", 50))
         except Exception as e:
             logger.warning(f"Failed to parse risk agent response: {e}")
 
+        # A2: Confidence-weighted consensus (VISION.md compliance)
+        # Convert decisions to scores: APPROVE=1, REJECT=0
+        strategy_score = 1 if strategy_approved else 0
+        risk_score = 1 if risk_approved else 0
+
+        # Weighted average: each agent's vote weighted by confidence
+        total_weight = strategy_confidence + risk_confidence
+        if total_weight > 0:
+            weighted_score = (
+                strategy_score * strategy_confidence + risk_score * risk_confidence
+            ) / total_weight
+        else:
+            weighted_score = 0.0
+
+        # Conservative consensus: require >= 0.5 weighted score AND no hard reject
+        # This means both must approve for approval, but confidence matters for logging
         approved = strategy_approved and risk_approved
+
+        # A1: Detect agent disagreement (VISION.md compliance)
+        agents_disagree = strategy_approved != risk_approved
+        if agents_disagree:
+            logger.warning(
+                f"AGENT DISAGREEMENT on {ticker} {action}: "
+                f"Strategy={strategy_approved} (conf={strategy_confidence}%), "
+                f"Risk={risk_approved} (conf={risk_confidence}%). "
+                f"Weighted score: {weighted_score:.2f}. "
+                f"Strategy: {strategy_reasoning[:100]}... | Risk: {risk_reasoning[:100]}..."
+            )
 
         logger.info(
             f"Trade validation: {ticker} {action} - "
             f"Strategy: {'APPROVE' if strategy_approved else 'REJECT'}, "
             f"Risk: {'APPROVE' if risk_approved else 'REJECT'} = "
             f"{'APPROVED' if approved else 'REJECTED'}"
+            f"{' (DISAGREEMENT)' if agents_disagree else ''}"
         )
 
         # Execute paper trade if approved
@@ -484,11 +555,15 @@ Respond with JSON: {{"decision": "APPROVE|REJECT", "reasoning": "..."}}"""
                 "ticker": ticker,
                 "action": action,
                 "approved": approved,
+                "agents_disagree": agents_disagree,  # A1: Track disagreements
                 "trade_id": str(trade_id) if trade_id else None,
                 "strategy_approved": strategy_approved,
+                "strategy_confidence": strategy_confidence,  # A2
                 "strategy_reasoning": strategy_reasoning,
                 "risk_approved": risk_approved,
+                "risk_confidence": risk_confidence,  # A2
                 "risk_reasoning": risk_reasoning,
+                "weighted_score": round(weighted_score, 2),  # A2
                 "backtest_metrics": backtest_metrics,
             },
         )

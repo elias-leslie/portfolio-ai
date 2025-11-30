@@ -3,6 +3,10 @@
 This module handles executing market orders (instant fills) for paper trading.
 Phase A MVP: Simple instant fills at current price, no order states.
 Phase B: Advanced order types (limit, stop), fill simulation with slippage.
+
+VISION.md P2 Compliance:
+- Max 5% of portfolio per position
+- Max 20% exposure per sector
 """
 
 from __future__ import annotations
@@ -18,6 +22,10 @@ if TYPE_CHECKING:
     from app.storage import PortfolioStorage
 
 logger = get_logger(__name__)
+
+# VISION.md P2 position limits
+MAX_POSITION_PCT = 0.05  # 5% of portfolio per position
+MAX_SECTOR_EXPOSURE_PCT = 0.20  # 20% max exposure per sector
 
 
 class OrderExecutionResult(TypedDict, total=False):
@@ -125,6 +133,21 @@ class OrderExecutor:
                     "error": f"Insufficient cash: need ${amount:.2f}, have ${cash_before:.2f}",
                 }
 
+            # P2: Check position size and sector exposure limits
+            valid, limit_error = self.validate_position_limits(ticker, amount, account_id)
+            if not valid:
+                logger.warning(f"Position limits exceeded for {ticker}: {limit_error}")
+                return {
+                    "filled": False,
+                    "ticker": ticker,
+                    "action": action,
+                    "shares": shares,
+                    "price": current_price,
+                    "amount": amount,
+                    "cash_before": cash_before,
+                    "error": limit_error,
+                }
+
             # Deduct cash
             reason = notes or f"Buy {shares} shares of {ticker} @ ${current_price:.2f}"
             success = self.cash_manager.deduct_cash(account_id, amount, reason)
@@ -200,11 +223,11 @@ class OrderExecutor:
         }
 
     def calculate_max_shares(
-        self, ticker: str, account_id: str, max_position_pct: float = 0.05
+        self, ticker: str, account_id: str, max_position_pct: float = MAX_POSITION_PCT
     ) -> int:
         """Calculate maximum shares affordable for a position.
 
-        Uses simple equal-weight position sizing (5% of account by default).
+        Uses simple equal-weight position sizing (5% of account by default per P2).
 
         Args:
             ticker: Stock symbol
@@ -233,3 +256,122 @@ class OrderExecutor:
         except Exception as e:
             logger.error(f"Failed to calculate max shares for {ticker}: {e}")
             return 0
+
+    def get_ticker_sector(self, ticker: str) -> str | None:
+        """Get the sector for a given ticker from price_cache.
+
+        Args:
+            ticker: Stock symbol
+
+        Returns:
+            Sector name or None if not found
+        """
+        query = """
+            SELECT sector FROM price_cache
+            WHERE ticker = $1 AND sector IS NOT NULL AND sector != ''
+            ORDER BY cached_at DESC LIMIT 1
+        """
+        result = self.storage.query(query, [ticker])
+        if result.is_empty():
+            return None
+        return str(result.get_column("sector")[0])
+
+    def get_sector_exposure(self, account_id: str, sector: str) -> float:
+        """Calculate current exposure to a sector as % of portfolio value.
+
+        Args:
+            account_id: Portfolio account ID
+            sector: Sector name to check
+
+        Returns:
+            Sector exposure as decimal (0.15 = 15%)
+        """
+        # Get all positions for this account
+        positions_query = """
+            SELECT pp.ticker, pp.shares, pp.current_price
+            FROM portfolio_positions pp
+            JOIN portfolio_accounts pa ON pp.account_id = pa.id
+            WHERE pa.id = $1
+        """
+        positions = self.storage.query(positions_query, [account_id])
+
+        if positions.is_empty():
+            return 0.0
+
+        # Get total portfolio value (cash + positions)
+        cash_balance = self.cash_manager.get_cash_balance(account_id)
+        total_position_value = 0.0
+        sector_value = 0.0
+
+        for row in positions.iter_rows(named=True):
+            ticker = row["ticker"]
+            shares = row["shares"] or 0
+            price = row["current_price"] or 0.0
+            position_value = shares * price
+            total_position_value += position_value
+
+            # Check if this position is in the target sector
+            pos_sector = self.get_ticker_sector(ticker)
+            if pos_sector and pos_sector.lower() == sector.lower():
+                sector_value += position_value
+
+        portfolio_value = cash_balance + total_position_value
+        if portfolio_value <= 0:
+            return 0.0
+
+        return sector_value / portfolio_value
+
+    def validate_position_limits(
+        self, ticker: str, amount: float, account_id: str
+    ) -> tuple[bool, str | None]:
+        """Validate position against P2 limits (5% position, 20% sector).
+
+        Args:
+            ticker: Stock symbol
+            amount: Dollar amount of proposed position
+            account_id: Portfolio account ID
+
+        Returns:
+            Tuple of (valid, error_message)
+        """
+        try:
+            # Get portfolio value
+            cash_balance = self.cash_manager.get_cash_balance(account_id)
+
+            # Calculate total portfolio value including positions
+            positions_query = """
+                SELECT COALESCE(SUM(shares * current_price), 0) as position_value
+                FROM portfolio_positions
+                WHERE account_id = $1
+            """
+            result = self.storage.query(positions_query, [account_id])
+            position_value = float(result.get_column("position_value")[0] or 0)
+            portfolio_value = cash_balance + position_value
+
+            if portfolio_value <= 0:
+                return False, "Portfolio value is zero or negative"
+
+            # Check position size limit (5%)
+            position_pct = amount / portfolio_value
+            if position_pct > MAX_POSITION_PCT:
+                return False, (
+                    f"Position size {position_pct:.1%} exceeds {MAX_POSITION_PCT:.0%} limit. "
+                    f"Max allowed: ${portfolio_value * MAX_POSITION_PCT:.2f}"
+                )
+
+            # Check sector exposure limit (20%)
+            sector = self.get_ticker_sector(ticker)
+            if sector:
+                current_exposure = self.get_sector_exposure(account_id, sector)
+                new_exposure = current_exposure + (amount / portfolio_value)
+                if new_exposure > MAX_SECTOR_EXPOSURE_PCT:
+                    return False, (
+                        f"Sector '{sector}' exposure would be {new_exposure:.1%}, "
+                        f"exceeding {MAX_SECTOR_EXPOSURE_PCT:.0%} limit"
+                    )
+
+            return True, None
+
+        except Exception as e:
+            logger.error(f"Failed to validate position limits for {ticker}: {e}")
+            return True, None  # Allow trade if validation fails (fail-open)
