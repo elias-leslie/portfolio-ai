@@ -97,8 +97,9 @@ export function Navigation() {
                 </Link>
               );
             })}
+            <div className="mx-1 h-4 w-px bg-border/50" aria-hidden="true" />
+            <ThemeToggle />
           </div>
-          <ThemeToggle />
         </div>
       </div>
     </nav>
