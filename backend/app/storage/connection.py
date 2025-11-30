@@ -241,26 +241,28 @@ class PostgreSQLConnectionWrapper:
             logger.debug(f"Skipping empty DataFrame for table {table_name}")
             return 0
 
-        # Use pandas to_sql with SQLAlchemy connection for efficient bulk insert
-        # pandas requires a proper SQLAlchemy connection in a transaction context
-        if self._engine is None:
-            raise RuntimeError(
-                "SQLAlchemy engine not available. "
-                "DataFrame operations require the engine to be passed to wrapper."
-            )
+        # Build INSERT statement
+        columns = list(pdf.columns)
+        columns_str = ", ".join(columns)
+        placeholders = ", ".join(["%s"] * len(columns))
+        query = f"INSERT INTO {table_name} ({columns_str}) VALUES ({placeholders})"
 
-        # pandas to_sql needs to run in its own transaction
-        # Use the engine directly (not the wrapped connection) to avoid conflicts
-        with self._engine.connect() as sql_conn, sql_conn.begin():
-            pdf.to_sql(
-                name=table_name,
-                con=sql_conn,
-                if_exists=if_exists,
-                index=False,
-                method="multi",  # Batch inserts (much faster than default)
-            )
+        # Convert DataFrame to list of tuples for executemany
+        # Replace NaN with None for SQL NULL
+        data = pdf.where(pd.notnull(pdf), None).values.tolist()
 
-        row_count = len(pdf)
+        # Execute bulk insert using raw cursor
+        try:
+            self._cursor.executemany(query, data)
+            # Commit is handled by caller (IngestionManager) or auto-commit if not in transaction
+            # But IngestionManager expects us to NOT commit if we are just part of a flow?
+            # IngestionManager calls conn.commit() AFTER calling this.
+            # So we just execute.
+        except Exception as e:
+            self._conn.rollback()
+            raise e
+
+        row_count = len(data)
         logger.debug(f"Inserted {row_count} rows into {table_name}")
         return row_count
 

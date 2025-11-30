@@ -20,7 +20,7 @@ else:
     import pandas as pd
 
 from app.analytics.indicators import _fetch_ohlcv_data, calculate_indicators_from_df
-from app.backtest.models import BacktestState
+from app.backtest.models import BacktestTrade, BacktestEquity
 from app.storage.connection import ConnectionManager
 
 logger = logging.getLogger(__name__)

@@ -5,10 +5,10 @@ from decimal import Decimal
 # Add backend to path
 sys.path.append(os.path.join(os.getcwd(), "backend"))
 
-from app.storage.connection import get_connection_manager
+from app.storage.facade import PortfolioStorage
 
 def cleanup_confidence_scores():
-    storage = get_connection_manager()
+    storage = PortfolioStorage()
     
     print("Checking for anomalous confidence scores...")
     

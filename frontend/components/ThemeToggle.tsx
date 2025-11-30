@@ -27,11 +27,11 @@ export function ThemeToggle() {
 
   const icon =
     theme === "system" ? (
-      <Monitor aria-hidden className="size-4" />
+      <Monitor aria-hidden className="size-4" suppressHydrationWarning />
     ) : resolvedTheme === "light" ? (
-      <Sun aria-hidden className="size-4" />
+      <Sun aria-hidden className="size-4" suppressHydrationWarning />
     ) : (
-      <Moon aria-hidden className="size-4" />
+      <Moon aria-hidden className="size-4" suppressHydrationWarning />
     );
 
   return (

@@ -50,7 +50,7 @@ export default function TradingPage() {
           size="md"
           actions={
             <Button onClick={() => setIsNewOrderOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus className="mr-2 h-4 w-4" suppressHydrationWarning />
               New Order
             </Button>
           }
@@ -71,7 +71,7 @@ export default function TradingPage() {
                     {summaryLoading ? "-" : summary?.total_open || 0}
                   </p>
                 </div>
-                <TrendingUp className="h-8 w-8 text-primary" />
+                <TrendingUp className="h-8 w-8 text-primary" suppressHydrationWarning />
               </div>
             </CardContent>
           </Card>
@@ -86,7 +86,7 @@ export default function TradingPage() {
                     {summaryLoading ? "-" : `${(summary?.win_rate || 0).toFixed(1)}%`}
                   </p>
                 </div>
-                <Target className="h-8 w-8 text-gain" />
+                <Target className="h-8 w-8 text-gain" suppressHydrationWarning />
               </div>
             </CardContent>
           </Card>
@@ -101,7 +101,7 @@ export default function TradingPage() {
                     {summaryLoading ? "-" : formatPct(summary?.total_pnl_pct)}
                   </p>
                 </div>
-                <DollarSign className={`h-8 w-8 ${getPnlColor(summary?.total_pnl_pct)}`} />
+                <DollarSign className={`h-8 w-8 ${getPnlColor(summary?.total_pnl_pct)}`} suppressHydrationWarning />
               </div>
             </CardContent>
           </Card>
@@ -116,7 +116,7 @@ export default function TradingPage() {
                     {summaryLoading ? "-" : formatPct(summary?.best_trade_pct)}
                   </p>
                 </div>
-                <TrendingUp className="h-8 w-8 text-gain" />
+                <TrendingUp className="h-8 w-8 text-gain" suppressHydrationWarning />
               </div>
             </CardContent>
           </Card>

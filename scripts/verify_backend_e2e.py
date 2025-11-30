@@ -7,13 +7,22 @@ from datetime import date, timedelta
 # Add backend to path
 sys.path.append(os.path.join(os.getcwd(), "backend"))
 
-from app.storage.connection import get_connection_manager
+from app.storage.facade import PortfolioStorage
 from app.agents.tool_executors_trading import TradingTools
 
 def verify_backend_e2e():
-    storage = get_connection_manager()
+    storage = PortfolioStorage()
     tools = TradingTools(storage)
     run_id = str(uuid.uuid4())
+    
+    # Create dummy agent_run
+    print(f"Creating dummy agent_run {run_id}...")
+    storage.insert_dict("agent_runs", {
+        "id": run_id,
+        "agent_type": "test_agent",
+        "status": "running",
+        "started_at": date.today().isoformat()
+    })
     
     print("=== 1. Testing Paper Trade Creation ===")
     # Create a trade with "70" confidence (should be normalized to 0.7)
@@ -44,6 +53,17 @@ def verify_backend_e2e():
     else:
         print(f"❌ Confidence score incorrect! Expected 0.75, got {score}")
         sys.exit(1)
+
+    print("\n=== 1.5. Testing Paper Trade Creation ===")
+    print("Creating paper trade...")
+    trade_result = tools.execute_create_paper_trade(
+        agent_run_id=run_id,
+        ticker="AAPL",
+        action="buy",
+        thesis="E2E Test Trade Thesis",
+        confidence_score=75.0  # Should be normalized to 0.75
+    )
+    print(f"Created trade: {trade_result}")
         
     print("\n=== 2. Testing Backtest Execution ===")
     # Run a quick backtest

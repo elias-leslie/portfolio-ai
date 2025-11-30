@@ -97,7 +97,7 @@ export function Navigation() {
                       : "text-text-muted hover:bg-surface-muted hover:text-text"
                   )}
                 >
-                  <Icon className="size-4" aria-hidden />
+                  <Icon className="size-4" aria-hidden suppressHydrationWarning />
                   <span className="hidden sm:inline">{link.label}</span>
                 </Link>
               );
@@ -124,7 +124,7 @@ export function Navigation() {
                       : "text-text-muted hover:bg-surface-muted hover:text-text"
                   )}
                 >
-                  <Icon className="size-4" aria-hidden />
+                  <Icon className="size-4" aria-hidden suppressHydrationWarning />
                   <span className="hidden sm:inline">{link.label}</span>
                 </Link>
               );

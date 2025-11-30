@@ -267,6 +267,7 @@ class TradingTools:
         thesis: str,
         target_price: float | None = None,
         stop_loss_pct: float | None = None,
+        confidence_score: float = 0.7,
     ) -> dict[str, object]:
         """Execute create_paper_trade tool for autonomous paper trading.
 
@@ -321,7 +322,9 @@ class TradingTools:
                 "thesis": thesis,
                 "action": f"{action.capitalize()} {max_shares} shares of {ticker}",
                 "action": f"{action.capitalize()} {max_shares} shares of {ticker}",
-                "confidence_score": 0.7,  # Default confidence (0.7 = 70%)
+                "confidence_score": (
+                    confidence_score / 100.0 if confidence_score > 1.0 else confidence_score
+                ),
                 "risk_level": "medium",  # Default risk
                 "status": "pending",
                 "created_at": now.isoformat(),
