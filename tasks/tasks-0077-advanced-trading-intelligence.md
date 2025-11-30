@@ -147,10 +147,16 @@
   - ✅ Agent telemetry tests: 11 tests in test_agent_telemetry.py
 - [x] Quality: ~/portfolio-ai/scripts/lint.sh passes (ruff + mypy)
   - ✅ All backend files pass ruff and mypy
-- [ ] Services: Restarted and verified (bash ~/portfolio-ai/scripts/restart.sh)
+- [x] Services: Restarted and verified (bash ~/portfolio-ai/scripts/restart.sh)
+  - ✅ All services running: Backend, Celery Worker, Celery Beat, Frontend
+  - ✅ Telemetry API verified: /api/agents/telemetry/summary returns data
+  - ✅ Provider metrics verified: /api/agents/telemetry/providers returns data
 - [x] Performance: Monte Carlo 1000 sims completes in < 30 seconds
   - ✅ Runs in ~1-2 seconds for typical backtests (synchronous, no Celery needed)
-- [ ] Docs: Updated API_REFERENCE.md with new endpoints
+- [x] Docs: Updated API_REFERENCE.md with new endpoints
+  - ✅ Added Agent Telemetry Endpoints section (4 endpoints)
+  - ✅ Added Backtest Comparison Endpoints section
+  - ✅ Added Monte Carlo Simulation Endpoints section
 - [x] UI: All new pages mobile-responsive
   - ✅ Using responsive grid layouts and existing SectionCard pattern
 

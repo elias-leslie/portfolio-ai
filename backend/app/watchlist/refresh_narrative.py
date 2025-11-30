@@ -56,6 +56,27 @@ class NarrativeResultDict(TypedDict):
     special_notes: str | None
 
 
+def _calculate_analyst_buy_pct(fundamentals_data: FundamentalData | None) -> float | None:
+    """Calculate analyst buy percentage from recommendation mean (Task 0074).
+
+    Converts recommendation_mean (1.0-5.0 scale, 1=strong buy) to buy percentage.
+    Formula: (5.0 - recommendation_mean) / 4.0
+
+    Args:
+        fundamentals_data: Fundamental data with recommendation_mean
+
+    Returns:
+        Buy percentage as decimal (0.0-1.0), or None if no recommendation data
+    """
+    if fundamentals_data is None or fundamentals_data.recommendation_mean is None:
+        return None
+
+    # Convert 1-5 scale to 0-1 buy percentage
+    # 1.0 → 100% buy, 5.0 → 0% buy
+    buy_pct = (5.0 - fundamentals_data.recommendation_mean) / 4.0
+    return max(0.0, min(1.0, buy_pct))
+
+
 def build_signal_inputs(
     price_data: PriceData,
     technical_snapshot: TechnicalSnapshot,
@@ -65,8 +86,12 @@ def build_signal_inputs(
     company_health_str: str | None,
     news_sentiment_value: float | None,
     earnings_days_away_val: int | None,
+    fundamentals_data: FundamentalData | None = None,  # Task 0074
 ) -> SignalInputsDict:
-    """Build signal inputs for classification."""
+    """Build signal inputs for classification.
+
+    Now includes fundamental and analyst data (Task 0074) for graded confidence scoring.
+    """
     return {
         "price": price_data.price,
         "ema_20": technical_snapshot.ema_20,
@@ -79,6 +104,15 @@ def build_signal_inputs(
         "company_health": company_health_str,
         "news_sentiment": news_sentiment_value,
         "earnings_days_away": earnings_days_away_val,
+        # Fundamental component fields (Task 0074)
+        "profit_margin": fundamentals_data.profit_margin if fundamentals_data else None,
+        "revenue_growth": fundamentals_data.revenue_growth if fundamentals_data else None,
+        "debt_to_equity": fundamentals_data.debt_to_equity if fundamentals_data else None,
+        # Analyst component fields (Task 0074)
+        "recommendation_mean": (
+            fundamentals_data.recommendation_mean if fundamentals_data else None
+        ),
+        "analyst_buy_pct": _calculate_analyst_buy_pct(fundamentals_data),
     }
 
 
@@ -346,6 +380,7 @@ def generate_narrative_and_trade_levels(
             company_health_str,
             news_sentiment_value,
             earnings_days_away_val,
+            fundamentals_data,  # Task 0074: Pass fundamental data for graded scoring
         )
         signal_type, signal_strength, headline, style_result = classify_signal_and_style(
             symbol, signal_inputs, technical_snapshot.rsi_14, earnings_days_away_val

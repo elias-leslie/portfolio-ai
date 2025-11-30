@@ -87,6 +87,13 @@ class SignalInputsDict(TypedDict, total=False):
     company_health: str | None  # "EXCELLENT", "GOOD", "WEAK"
     news_sentiment: float | None
     earnings_days_away: int | None
+    # Fundamental component fields (Task 0074)
+    profit_margin: float | None  # 0.20 = 20%
+    revenue_growth: float | None  # 0.25 = 25%
+    debt_to_equity: float | None  # 0.5 = 50%
+    # Analyst component fields (Task 0074)
+    recommendation_mean: float | None  # 1.0-5.0 (1=strong buy, 5=sell)
+    analyst_buy_pct: float | None  # 0.0-1.0 (0.75 = 75% buy)
 
 
 class NormalizedSignalInputsDict(TypedDict):
@@ -102,7 +109,14 @@ class NormalizedSignalInputsDict(TypedDict):
     volume_avg_20: float
     company_health: str
     news_sentiment: float
-    earnings_days_away: int | None  # Only field that can remain None
+    earnings_days_away: int | None  # Can remain None
+    # Fundamental component fields (Task 0074) - can be None if data unavailable
+    profit_margin: float | None
+    revenue_growth: float | None
+    debt_to_equity: float | None
+    # Analyst component fields (Task 0074) - can be None if data unavailable
+    recommendation_mean: float | None
+    analyst_buy_pct: float | None
 
 
 class TradingStyleDict(TypedDict):
