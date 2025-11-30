@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, datetime, timedelta
 
 from app.agents.llm_client import DualProviderClient
@@ -302,9 +303,15 @@ def paper_trade_validation_workflow(
                 position_size_value=position_size_value,
             )
 
-            if backtest_result.get("status") == "success":
-                metrics_obj = backtest_result.get("metrics", {})
-                backtest_metrics = metrics_obj if isinstance(metrics_obj, dict) else {}
+            if backtest_result.get("status") == "completed":
+                # Metrics are at top level, not in a "metrics" dict
+                backtest_metrics = {
+                    "sharpe_ratio": backtest_result.get("sharpe_ratio", 0.0),
+                    "win_rate": backtest_result.get("win_rate", 0.0),
+                    "max_drawdown_pct": backtest_result.get("max_drawdown_pct", 0.0),
+                    "total_return_pct": backtest_result.get("total_return_pct", 0.0),
+                    "num_trades": backtest_result.get("num_trades", 0),
+                }
                 logger.info(f"Backtest complete: {backtest_metrics}")
             else:
                 error_msg_obj = backtest_result.get("error", "Unknown backtest error")
@@ -405,25 +412,35 @@ Respond with JSON: {{"decision": "APPROVE|REJECT", "reasoning": "..."}}"""
                 "error": error_msg,
             }
 
-        # Parse decisions
+        # Parse decisions (handle markdown code blocks from LLM)
+        def extract_json(text: str) -> str:
+            """Extract JSON from potential markdown code blocks."""
+            # Try to find JSON in markdown code block
+            match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, re.DOTALL)
+            if match:
+                return match.group(1).strip()
+            return text.strip()
+
         strategy_approved = False
         risk_approved = False
         strategy_reasoning = "Unknown"
         risk_reasoning = "Unknown"
 
         try:
-            strategy_data = json.loads(strategy_output)
+            strategy_json = extract_json(strategy_output)
+            strategy_data = json.loads(strategy_json)
             strategy_approved = strategy_data.get("decision") == "APPROVE"
             strategy_reasoning = strategy_data.get("reasoning", "Unknown")
-        except Exception:
-            logger.warning("Failed to parse strategy agent response")
+        except Exception as e:
+            logger.warning(f"Failed to parse strategy agent response: {e}")
 
         try:
-            risk_data = json.loads(risk_output)
+            risk_json = extract_json(risk_output)
+            risk_data = json.loads(risk_json)
             risk_approved = risk_data.get("decision") == "APPROVE"
             risk_reasoning = risk_data.get("reasoning", "Unknown")
-        except Exception:
-            logger.warning("Failed to parse risk agent response")
+        except Exception as e:
+            logger.warning(f"Failed to parse risk agent response: {e}")
 
         approved = strategy_approved and risk_approved
 
@@ -460,10 +477,20 @@ Respond with JSON: {{"decision": "APPROVE|REJECT", "reasoning": "..."}}"""
             else:
                 logger.error(f"Failed to create paper trade: {trade_result}")
 
-        orchestrator.update_workflow_status(
+        # Complete workflow with result (required by DB constraint)
+        orchestrator.complete_workflow(
             workflow_id,
-            status="complete",
-            current_step="trade_decision_made" if approved else "trade_rejected",
+            result={
+                "ticker": ticker,
+                "action": action,
+                "approved": approved,
+                "trade_id": str(trade_id) if trade_id else None,
+                "strategy_approved": strategy_approved,
+                "strategy_reasoning": strategy_reasoning,
+                "risk_approved": risk_approved,
+                "risk_reasoning": risk_reasoning,
+                "backtest_metrics": backtest_metrics,
+            },
         )
 
         logger.info(
