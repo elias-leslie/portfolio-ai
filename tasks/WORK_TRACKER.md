@@ -41,19 +41,32 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Fix Multi-Agent Workflow and Trading** (HIGH, 0/6 tasks (today))
+1. **Fix Multi-Agent Workflow and Trading** (HIGH, 0/5 tasks)
    - File: `tasks-0076-fix-multi-agent-workflow-and-trading.md`
-   - Created: 2025-11-30
-   - Goal: Fix critical failures in backtesting, paper trading, and multi-agent workflows to ensure end-to-end functionality and VISION.md compliance.
+   - Created: 2025-11-30 (revised with VISION.md alignment items)
+   - Goal: Fix critical failures in backtesting, paper trading, and multi-agent workflows + implement VISION.md features
+   - VISION Items: A1 (disagreement detection), A2 (confidence consensus), A4 (workflow health), B1 (252-day validation), B3 (backtest gating), P1-P4 (paper trading), D1-D2 (data freshness)
    - Tasks:
      - [ ] Task 0: Scope Discovery (MANDATORY)
-     - [ ] Task 1: Fix Backtesting Functionality
-     - [ ] Task 2: Fix Paper Trading Functionality
-     - [ ] Task 3: Fix Multi-Agent Workflow
-     - [ ] Task 4: Fix News and Datasource Freshness
-     - [ ] Task 5: End-to-End Verification
+     - [ ] Task 1: Fix Backtesting Functionality (5 sub-tasks)
+     - [ ] Task 2: Fix Paper Trading Functionality (6 sub-tasks)
+     - [ ] Task 3: Fix Multi-Agent Workflow (7 sub-tasks)
+     - [ ] Task 4: Fix News and Data Source Freshness (5 sub-tasks)
+     - [ ] Task 5: End-to-End Verification (5 sub-tasks)
 
-2. **Vision Gap Analysis & Remediation** (HIGH, 5/6 tasks (yesterday))
+2. **Advanced Trading Intelligence Features** (HIGH, 0/3 tasks - AFTER 0076)
+   - File: `tasks-0077-advanced-trading-intelligence.md`
+   - Created: 2025-11-30
+   - Goal: Agent telemetry dashboard, strategy comparison, Monte Carlo simulation
+   - VISION Items: A3 (telemetry), B2 (strategy comparison), B4 (Monte Carlo)
+   - Prerequisite: tasks-0076 must be complete
+   - Tasks:
+     - [ ] Task 0: Scope Discovery (MANDATORY)
+     - [ ] Task 1: Agent Telemetry Dashboard (7 sub-tasks)
+     - [ ] Task 2: Strategy Comparison Mode (6 sub-tasks)
+     - [ ] Task 3: Monte Carlo Simulation (7 sub-tasks)
+
+3. **Vision Gap Analysis & Remediation** (HIGH, 5/6 tasks (yesterday))
    - File: `tasks-0075-vision-gap-analysis.md`
    - Created: 2025-11-29
    - Goal: Bring the solution into full alignment with `docs/core/VISION.md` by addressing critical gaps in reliability, testing, and code quality.
