@@ -12,10 +12,15 @@ import logging
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
-from app.analytics.indicators import calculate_indicators
-from app.backtest.models import BacktestEquity, BacktestTrade
+if TYPE_CHECKING:
+    import pandas as pd
+else:
+    import pandas as pd
+
+from app.analytics.indicators import _fetch_ohlcv_data, calculate_indicators_from_df
+from app.backtest.models import BacktestState
 from app.storage.connection import ConnectionManager
 
 logger = logging.getLogger(__name__)
@@ -373,35 +378,88 @@ def replay_backtest(
     # Initialize state
     state = BacktestState(cash=initial_capital, peak_equity=initial_capital)
 
-    # Get trading days
-    trading_days = get_trading_days(storage, symbol, start_date, end_date)
-    logger.info(f"Backtest period: {len(trading_days)} trading days")
+    # 1. Fetch ALL data at once (optimization)
+    # We need data from (start_date - lookback) to end_date
+    # 365 days lookback ensures we have enough for 200-day MA even with weekends/holidays
+    lookback_days = 365
+    data_start_date = start_date - datetime.timedelta(days=lookback_days)
+    
+    logger.info(f"Fetching bulk OHLCV data for {symbol} from {data_start_date} to {end_date}")
+    
+    # Use the internal fetcher from indicators module or direct query
+    # We'll use a direct query here for efficiency to get a DataFrame
+    
+    # Fetch all data in one go
+    full_df = _fetch_ohlcv_data(
+        storage, 
+        symbol, 
+        lookback_days=10000,  # Large number to get everything in range
+        as_of_date=end_date
+    )
+    
+    if full_df.empty:
+        logger.error(f"No data found for {symbol}")
+        raise ValueError(f"No trading data found for {symbol}")
+        
+    # Filter for our specific range if needed, though _fetch_ohlcv_data does some limiting
+    # Ensure we have data up to end_date
+    
+    # Get trading days within the backtest period
+    # Filter df where date >= start_date and date <= end_date
+    mask = (full_df.index >= pd.Timestamp(start_date)) & (full_df.index <= pd.Timestamp(end_date))
+    trading_days_df = full_df.loc[mask]
+    
+    if trading_days_df.empty:
+        logger.error(f"No trading days found between {start_date} and {end_date}")
+        raise ValueError(f"No trading data found for {symbol} in requested period")
+        
+    trading_days = [d.date() for d in trading_days_df.index]
+    logger.info(f"Running backtest over {len(trading_days)} trading days")
 
-    # Date loop replay
+    # Main Loop
     for backtest_date in trading_days:
-        # Fetch OHLCV data
-        ohlcv = get_ohlcv(storage, symbol, backtest_date)
-        if not ohlcv:
-            logger.warning(f"No OHLCV data for {symbol} on {backtest_date}, skipping")
+        # Slice the dataframe to get data up to this date
+        # We need enough history for indicators (e.g. 250 rows)
+        # Using .loc[:backtest_date] gets everything up to and including that date
+        current_data_slice = full_df.loc[:pd.Timestamp(backtest_date)]
+        
+        # We only need the last N rows for indicators to save memory/processing
+        # 300 is safe for 200 SMA
+        if len(current_data_slice) > 300:
+            current_data_slice = current_data_slice.iloc[-300:]
+            
+        if current_data_slice.empty:
             continue
+            
+        # Get current day's OHLCV (last row)
+        current_bar = current_data_slice.iloc[-1]
+        ohlcv = {
+            "open": float(current_bar["open"]),
+            "high": float(current_bar["high"]),
+            "low": float(current_bar["low"]),
+            "close": float(current_bar["close"]),
+            "volume": float(current_bar["volume"]),
+        }
 
-        # Calculate indicators (need historical data, pass date range)
-        # For MVP, we'll fetch enough historical data to calculate indicators
-        indicator_start = trading_days[max(0, trading_days.index(backtest_date) - 250)]
-        indicators = calculate_indicators(storage, symbol, indicator_start, backtest_date)  # type: ignore[arg-type]
+        # Calculate indicators using the slice
+        # This avoids a DB call
+        indicators_result = calculate_indicators_from_df(
+            current_data_slice, 
+            symbol
+        )
+        indicators = indicators_result["indicators"]
 
         # Update excursions for open positions
-        current_price = ohlcv["close"]
+        current_price = Decimal(str(ohlcv["close"])) # Convert float to Decimal
         for pos in state.positions.values():
             pos.update_excursions(current_price)
 
-        # Check exits first (for existing positions)
+        # Check exits first
         for symbol_check in list(state.positions.keys()):
             position = state.positions[symbol_check]
             should_exit, exit_reason = strategy.should_exit(
                 position, backtest_date, indicators, ohlcv
             )
-
             if should_exit:
                 exit_trade(state, run_id, symbol_check, backtest_date, current_price, exit_reason)
 
@@ -410,7 +468,6 @@ def replay_backtest(
             symbol, backtest_date, indicators, ohlcv
         ):
             shares = calculate_position_size(state.cash, current_price, sizing_method, size_value)
-
             if shares > 0:
                 enter_trade(state, symbol, backtest_date, current_price, shares)
 

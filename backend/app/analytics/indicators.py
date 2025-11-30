@@ -190,6 +190,28 @@ def calculate_indicators(
             f"Insufficient data for ticker {ticker}. Need at least 200 days of OHLCV data."
         )
 
+    return calculate_indicators_from_df(df, ticker, indicators)
+
+
+def calculate_indicators_from_df(
+    df: pd.DataFrame,
+    ticker: str,
+    indicators: list[str] | None = None,
+) -> dict[str, Any]:
+    """Calculate technical indicators from an existing DataFrame.
+
+    Args:
+        df: pandas DataFrame with OHLCV data (must be indexed by date)
+        ticker: Stock ticker symbol
+        indicators: List of indicator names to calculate. If None, uses DEFAULT_INDICATORS.
+
+    Returns:
+        Dict with ticker, date, indicators dict, and interpretations dict.
+    """
+    # Use default indicators if none specified
+    if indicators is None:
+        indicators = DEFAULT_INDICATORS
+
     # Get the latest date in the dataset
     latest_date = df.index[-1]
 

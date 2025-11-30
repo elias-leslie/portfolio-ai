@@ -16,7 +16,7 @@ import {
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { cn } from "@/lib/utils";
 
-const links = [
+const mainLinks = [
   {
     href: "/",
     label: "Dashboard",
@@ -47,6 +47,9 @@ const links = [
     label: "Capabilities",
     icon: Database,
   },
+];
+
+const utilityLinks = [
   {
     href: "/status",
     label: "Status",
@@ -64,17 +67,46 @@ export function Navigation() {
 
   return (
     <nav className="border-b border-border bg-surface">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-        <Link
-          href="/"
-          className="rounded-md px-2 py-1 text-lg font-semibold text-text transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-        >
-          Portfolio AI
-        </Link>
+      <div className="mx-auto h-16 max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex h-full items-center justify-between gap-4">
+          {/* Logo */}
+          <Link
+            href="/"
+            className="flex-shrink-0 rounded-md px-2 py-1 text-lg font-semibold text-text transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+          >
+            Portfolio AI
+          </Link>
 
-        <div className="flex items-center gap-2">
+          {/* Main Navigation */}
           <div className="flex items-center gap-0.5 sm:gap-1 rounded-full bg-surface-muted/40 p-1">
-            {links.map((link) => {
+            {mainLinks.map((link) => {
+              const Icon = link.icon;
+              const isActive = pathname === link.href;
+
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  aria-current={isActive ? "page" : undefined}
+                  aria-label={link.label}
+                  title={link.label}
+                  className={cn(
+                    "flex items-center gap-2 rounded-full px-2 sm:px-4 py-1.5 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus",
+                    isActive
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-text-muted hover:bg-surface-muted hover:text-text"
+                  )}
+                >
+                  <Icon className="size-4" aria-hidden />
+                  <span className="hidden sm:inline">{link.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+
+          {/* Utility Items */}
+          <div className="flex items-center gap-0.5 sm:gap-1 rounded-full bg-surface-muted/40 p-1">
+            {utilityLinks.map((link) => {
               const Icon = link.icon;
               const isActive = pathname === link.href;
 

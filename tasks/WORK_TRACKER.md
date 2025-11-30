@@ -21,10 +21,10 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Data Source Reliability and Freshness Guarantee** (50% - 3/6 complete)
+1. **Data Source Reliability and Freshness Guarantee** (17% - 1/6 complete)
    - File: `tasks-0073-data-source-reliability.md`
-   - Started: 2025-11-22 (today)
-   - Last updated: PAUSED (50% complete - 3/6 tasks, DataFrame API bug)
+   - Started: 2025-11-22 (1 weeks ago)
+   - Last updated: PAUSED (50% complete - 3/6 tasks)
    - Next: Fix DataFrame.empty bug in data_freshness_tasks.py
    - Tasks:
      - [ ] Task 1: Configure All 6 Data Source API Keys
@@ -41,17 +41,31 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Vision Gap Analysis & Remediation** (HIGH, 4 critical gaps)
+1. **Fix Multi-Agent Workflow and Trading** (HIGH, 0/6 tasks (today))
+   - File: `tasks-0076-fix-multi-agent-workflow-and-trading.md`
+   - Created: 2025-11-30
+   - Goal: Fix critical failures in backtesting, paper trading, and multi-agent workflows to ensure end-to-end functionality and VISION.md compliance.
+   - Tasks:
+     - [ ] Task 0: Scope Discovery (MANDATORY)
+     - [ ] Task 1: Fix Backtesting Functionality
+     - [ ] Task 2: Fix Paper Trading Functionality
+     - [ ] Task 3: Fix Multi-Agent Workflow
+     - [ ] Task 4: Fix News and Datasource Freshness
+     - [ ] Task 5: End-to-End Verification
+
+2. **Vision Gap Analysis & Remediation** (HIGH, 5/6 tasks (yesterday))
    - File: `tasks-0075-vision-gap-analysis.md`
    - Created: 2025-11-29
-   - Goal: Fix critical reliability issues (12 down sources), test collection errors, and code quality violations to align with VISION.md.
+   - Goal: Bring the solution into full alignment with `docs/core/VISION.md` by addressing critical gaps in reliability, testing, and code quality.
    - Tasks:
-     - [ ] Task 1: Fix Data Source Reliability (Task 0073)
+     - [x] Task 1: Fix Data Source Reliability (Task 0073)
      - [ ] Task 2: Fix Test Suite Collection Errors
-     - [ ] Task 3: Enforce Code Quality Limits (llm_client.py)
-     - [ ] Task 4: Enhance Plain Language Insights
+     - [x] Task 3: Enforce Code Quality Limits
+     - [x] Task 4: Enhance Plain Language Insights
+     - [x] Task 5: Full UI Review (Vision Alignment)
+     - [x] Task 6: Fix Critical (P0) UI Bugs
 
-1. **Investment Intelligence Confidence Scoring Completion** (MEDIUM (5-7 hours), 0/8 tasks (today))
+3. **Investment Intelligence Confidence Scoring Completion** (MEDIUM (5-7 hours), 0/8 tasks (1 weeks ago))
    - File: `tasks-0074-investment-intelligence-confidence-scoring.md`
    - Created: 2025-11-22
    - Goal: Achieve VISION.md compliance for Investment Intelligence confidence scoring by integrating fundamental data thresholds and analyst sentiment into graded weighting system, where EXCELLENT companies contribute more to confidence than GOOD companies
@@ -65,7 +79,7 @@
      - [ ] Task 7: Integration Testing and Validation
      - [ ] Task 8: Documentation and VISION Compliance
 
-2. **Investment Intelligence Confidence Scoring Completion** (MEDIUM (5-7 hours), 0/8 tasks (today))
+4. **Investment Intelligence Confidence Scoring Completion** (MEDIUM (5-7 hours), 0/8 tasks (1 weeks ago))
    - File: `tasks-0074-investment-intelligence-confidence-scoring.md`
    - Created: 2025-11-22
    - Goal: Achieve VISION.md compliance for Investment Intelligence confidence scoring by integrating fundamental data thresholds and analyst sentiment into graded weighting system, where EXCELLENT companies contribute more to confidence than GOOD companies
@@ -79,7 +93,7 @@
      - [ ] Task 7: Integration Testing and Validation
      - [ ] Task 8: Documentation and VISION Compliance
 
-3. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (1 weeks ago))
+5. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (2 weeks ago))
    - File: `tasks-0042-customizable-dashboard-layouts.md`
    - Created: 2025-11-11
    - Goal: Enable users to customize dashboard layouts by dragging/resizing cards, with persistence to PostgreSQL backend
@@ -96,14 +110,14 @@
      - [ ] Task 9: Polish and Edge Cases
      - [ ] Task 10: Testing and Documentation
 
-4. **UI Standardization & UX Fixes** (MEDIUM-HIGH (4-6 hours, 12-15 files), 0/0 tasks (1 weeks ago))
+6. **UI Standardization & UX Fixes** (MEDIUM-HIGH (4-6 hours, 12-15 files), 0/0 tasks (2 weeks ago))
    - File: `tasks-0055-ui-standardization-and-ux-fixes.md`
    - Created: 2025-11-12
    - Goal: Bring the Portfolio AI web UI up to a consistent design baseline by aligning headers, loading states, and critical interactions so that every surface communicates status clearly and meets accessibility expectations.
    - Tasks:
      - (No tasks defined yet)
 
-5. **Response Caching Middleware** (TBD, 0/8 tasks (1 weeks ago))
+7. **Response Caching Middleware** (TBD, 0/8 tasks (2 weeks ago))
    - File: `tasks-0047-response-caching-middleware.md`
    - Created: 2025-11-11
    - Tasks:

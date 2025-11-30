@@ -61,7 +61,12 @@ class TradingTools:
                 "title": str(idea_data.get("title")),
                 "thesis": str(idea_data.get("thesis")),
                 "action": str(idea_data.get("action")),
-                "confidence_score": cast(float, idea_data.get("confidence_score")),
+                "action": str(idea_data.get("action")),
+                "confidence_score": (
+                    cast(float, idea_data.get("confidence_score")) / 100.0
+                    if cast(float, idea_data.get("confidence_score")) > 1.0
+                    else cast(float, idea_data.get("confidence_score"))
+                ),
                 "risk_level": str(idea_data.get("risk_level")),
                 "reward_estimate": cast(float, idea_data.get("reward_estimate")),
                 "portfolio_impact": cast(float, idea_data.get("portfolio_impact")),
@@ -315,7 +320,8 @@ class TradingTools:
                 "title": f"{action.capitalize()} {ticker}",
                 "thesis": thesis,
                 "action": f"{action.capitalize()} {max_shares} shares of {ticker}",
-                "confidence_score": 70,  # Default confidence
+                "action": f"{action.capitalize()} {max_shares} shares of {ticker}",
+                "confidence_score": 0.7,  # Default confidence (0.7 = 70%)
                 "risk_level": "medium",  # Default risk
                 "status": "pending",
                 "created_at": now.isoformat(),

@@ -55,7 +55,7 @@
   - [x] Fix Systemd Service Configuration (Celery Beat/Worker)
   - [x] Fix SQL Bug in `fear_greed_pipeline.py`
   - [x] Backfill missing market data (Nov 15-28)
-  - [ ] Investigate RSS feed timeouts (12 sources down)
+  - [x] Investigate RSS feed timeouts (Fixed User-Agent)
 
 ### 2.0 Fix Test Suite Collection Errors
 
@@ -66,17 +66,31 @@
 
 ### 3.0 Enforce Code Quality Limits
 
-- [ ] 3.1 Refactor `backend/app/agents/llm_client.py`
-  - [ ] Extract `ClaudeCLIClient` to `backend/app/agents/clients/claude_client.py`
-  - [ ] Extract `GeminiCLIClient` to `backend/app/agents/clients/gemini_client.py`
-  - [ ] Keep `LLMClient` base class and `DualProviderClient` in `llm_client.py` (or rename to `client_factory.py`)
-- [ ] 3.2 Verify no files > 800 lines remain
+- [x] 3.1 Refactor `backend/app/agents/llm_client.py`
+  - [x] Extract `ClaudeCLIClient` to `backend/app/agents/clients/claude_client.py`
+  - [x] Extract `GeminiCLIClient` to `backend/app/agents/clients/gemini_client.py`
+  - [x] Keep `LLMClient` base class and `DualProviderClient` in `llm_client.py` (or rename to `client_factory.py`)
+- [x] 3.2 Verify no files > 800 lines remain
 
 ### 4.0 Enhance Plain Language Insights
 
-- [ ] 4.1 Review current insight generation logic
-- [ ] 4.2 Improve templates/prompts for "WHY THIS WORKS" to be more specific
-- [ ] 4.3 Verify improvements in Watchlist UI
+- [x] 4.1 Review current insight generation logic
+- [x] 4.2 Improve templates/prompts for "WHY THIS WORKS" to be more specific
+- [x] 4.3 Verify improvements in Watchlist UI
+
+### 5.0 Full UI Review (Vision Alignment)
+
+- [x] 5.1 Perform end-to-end UI crawl (Dashboard, Portfolio, Watchlist, Trading, Backtest, Capabilities, Status)
+- [x] 5.2 Document findings and gaps against VISION.md
+- [x] 5.3 Create detailed review artifact: [ui_review_findings.md](./ui_review_findings.md)
+
+### 6.0 Fix Critical (P0) UI Bugs
+
+- [x] 6.1 Fix Hydration Error in `app/layout.tsx` (Trading Page Crash)
+- [x] 6.2 Fix TypeError in `components/trading/TradeDetails.tsx` (Trade Details Crash)
+- [x] 6.3 Fix Capabilities Page Data Population (Scan System)
+- [x] 6.4 Optimize Trading Page Load Time (>15s) (Investigated - backend fast)
+- [x] 6.5 Add "New Order" Button to Trading Page
 
 ---
 
@@ -84,5 +98,6 @@
 
 - [x] **Reliability**: Dashboard data is current (<24h). (Verified Fear & Greed = Nov 28)
 - [x] **Tests**: `pytest` runs with 0 collection errors.
-- [ ] **Code Quality**: No files > 800 lines. `mypy --strict` passes.
-- [ ] **UX**: Watchlist insights are specific and helpful.
+- [x] **Code Quality**: No files > 800 lines. `mypy --strict` passes.
+- [x] **UX**: Watchlist insights are specific and helpful.
+- [x] **Bug Fixes**: Critical P0 bugs resolved.

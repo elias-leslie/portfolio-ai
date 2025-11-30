@@ -337,6 +337,8 @@ def generate_special_notes(
     earnings_days_away: int | None,
     company_health: str,
     gap_result: dict[str, Any] | None = None,
+    technicals: dict[str, Any] | None = None,
+    fundamentals: dict[str, Any] | None = None,
 ) -> str:
     """Generate special notes and warnings (earnings, WHY THIS WORKS, data gaps).
 
@@ -346,13 +348,15 @@ def generate_special_notes(
         earnings_days_away: Days until next earnings (None if unknown)
         company_health: Company health rating (EXCELLENT, GOOD, WEAK)
         gap_result: Optional gap analysis result (readiness_score, confidence_level, missing_capabilities)
+        technicals: Optional technical indicators dict (price, ema_20, rsi_14, etc.)
+        fundamentals: Optional fundamental data dict (revenue_growth, profit_margin, etc.)
 
     Returns:
         Plain-language special notes text
 
     Example:
-        >>> notes = generate_special_notes("BUY", 9, 3, "EXCELLENT")
-        >>> # Returns text with earnings warning + WHY THIS WORKS + gap warnings
+        >>> notes = generate_special_notes("BUY", 9, 3, "EXCELLENT", technicals={...})
+        >>> # Returns text with earnings warning + specific WHY THIS WORKS insights
     """
     sections: list[str] = []
 
@@ -406,16 +410,50 @@ def generate_special_notes(
     # WHY THIS WORKS explanation
     if signal_type == "BUY":
         why_text = "💡 WHY THIS WORKS:\n"
-        if signal_strength >= 8:
-            why_text += "• Strong technical setup + solid fundamentals align\n"
-            if company_health == "EXCELLENT":
-                why_text += "• Top-tier company with excellent growth metrics\n"
-            why_text += "• Multiple confirming indicators pointing to upside\n"
-            why_text += "• Good risk/reward at current levels"
-        else:
-            why_text += "• Decent technical setup with quality company\n"
-            why_text += "• Fundamentals support the technical picture\n"
-            why_text += "• Reasonable entry point for long-term holders"
+        
+        # Use specific data points if available
+        reasons = []
+        
+        # Technical reasons
+        if technicals:
+            price = technicals.get("price", 0.0)
+            ema_20 = technicals.get("ema_20", 0.0)
+            rsi = technicals.get("rsi_14", 50.0)
+            
+            if price > ema_20:
+                reasons.append("• Price above 20-day trend (Bullish)")
+            if 40 <= rsi <= 60:
+                reasons.append("• RSI in healthy zone (Not overbought)")
+            elif rsi < 30:
+                reasons.append("• RSI oversold (Potential bounce)")
+                
+        # Fundamental reasons
+        if fundamentals:
+            rev_growth = fundamentals.get("revenue_growth")
+            profit_margin = fundamentals.get("profit_margin")
+            analyst_buy = fundamentals.get("analyst_buy_pct")
+            
+            if rev_growth and rev_growth > 0.15:
+                reasons.append(f"• High growth (+{rev_growth*100:.0f}% revenue)")
+            if profit_margin and profit_margin > 0.15:
+                reasons.append(f"• Highly profitable ({profit_margin*100:.0f}% margin)")
+            if analyst_buy and analyst_buy > 0.65:
+                reasons.append(f"• Analysts bullish ({analyst_buy*100:.0f}% buy ratings)")
+
+        # Fallback to generic templates if specific data is missing
+        if not reasons:
+            if signal_strength >= 8:
+                reasons.append("• Strong technical setup + solid fundamentals align")
+                if company_health == "EXCELLENT":
+                    reasons.append("• Top-tier company with excellent growth metrics")
+                reasons.append("• Multiple confirming indicators pointing to upside")
+                reasons.append("• Good risk/reward at current levels")
+            else:
+                reasons.append("• Decent technical setup with quality company")
+                reasons.append("• Fundamentals support the technical picture")
+                reasons.append("• Reasonable entry point for long-term holders")
+        
+        why_text += "\n".join(reasons)
         sections.append(why_text.rstrip())
 
     elif signal_type == "HOLD":

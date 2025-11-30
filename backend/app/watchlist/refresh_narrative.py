@@ -128,6 +128,7 @@ def generate_narrative_texts(
     company_health_str: str | None,
     earnings_days_away: int | None,
     fundamentals_data: FundamentalData | None,
+    technical_snapshot: TechnicalSnapshot | None,  # Added
     gap_result: dict[str, Any] | None = None,
 ) -> tuple[str | None, str | None, list[str] | None, str | None]:
     """Generate all narrative text components.
@@ -143,6 +144,7 @@ def generate_narrative_texts(
         company_health_str: Company health rating
         earnings_days_away: Days until next earnings
         fundamentals_data: Fundamental data for company health bullets
+        technical_snapshot: Technical indicators for specific insights
         gap_result: Optional gap analysis result for data coverage warnings
 
     Returns:
@@ -182,7 +184,8 @@ def generate_narrative_texts(
         except Exception as e:
             logger.warning("position_sizing_text_generation_failed", symbol=symbol, error=str(e))
 
-    # Company health bullets
+    # Company health bullets and fundamentals dict construction
+    fundamentals_dict: dict[str, Any] | None = None
     if fundamentals_data is not None:
         try:
             fundamentals_dict = {
@@ -204,12 +207,23 @@ def generate_narrative_texts(
     # Special notes
     if company_health_str is not None:
         try:
+            # Prepare technicals dict if snapshot available
+            technicals_dict: dict[str, Any] | None = None
+            if technical_snapshot:
+                technicals_dict = {
+                    "price": technical_snapshot.price if hasattr(technical_snapshot, "price") else 0.0,
+                    "ema_20": technical_snapshot.ema_20,
+                    "rsi_14": technical_snapshot.rsi_14,
+                }
+
             special_notes = generate_special_notes(
                 signal_type=signal_type,
                 signal_strength=signal_strength,
                 earnings_days_away=earnings_days_away,
                 company_health=company_health_str,
-                gap_result=gap_result,  # Task 5.2: Include gap warnings
+                gap_result=gap_result,
+                technicals=technicals_dict,
+                fundamentals=fundamentals_dict,
             )
         except Exception as e:
             logger.warning("special_notes_generation_failed", symbol=symbol, error=str(e))
@@ -359,6 +373,7 @@ def generate_narrative_and_trade_levels(
                 company_health_str,
                 earnings_days_away_val,
                 fundamentals_data,
+                technical_snapshot,  # Added
                 gap_result,  # Task 5.2: Include gap analysis
             )
         )

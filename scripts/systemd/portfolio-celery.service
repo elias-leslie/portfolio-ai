@@ -5,18 +5,18 @@ Wants=postgresql.service redis-server.service
 
 [Service]
 Type=simple
-WorkingDirectory=/home/kasadis/portfolio-ai/backend
-Environment="PATH=/home/kasadis/portfolio-ai/backend/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+WorkingDirectory=%h/portfolio-ai/backend
+Environment="PATH=%h/portfolio-ai/backend/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="HOME=%h"
 Environment="NUMBA_CACHE_DIR=%h/.cache/numba"
 Environment="HF_HOME=%h/.cache/huggingface"
-EnvironmentFile=-/home/kasadis/portfolio-ai/backend/.env
-RuntimeDirectory=portfolio-ai
-ExecStart=/home/kasadis/portfolio-ai/backend/.venv/bin/celery -A app.celery_app worker --loglevel=info --concurrency=2
+EnvironmentFile=-%h/portfolio-ai/backend/.env
+ExecStart=%h/portfolio-ai/backend/.venv/bin/celery -A app.celery_app worker --loglevel=info --concurrency=2
 Restart=always
 RestartSec=10
-StandardOutput=append:/var/log/portfolio-ai/celery-worker.log
-StandardError=append:/var/log/portfolio-ai/celery-worker-error.log
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=portfolio-celery
 
 [Install]
 WantedBy=default.target

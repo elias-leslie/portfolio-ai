@@ -881,3 +881,34 @@ class TestGenerateSpecialNotes:
         all_text = notes.lower()
         # Should explain why AVOID
         assert any(word in all_text for word in ["risk", "avoid", "concern", "weak"])
+
+    def test_generate_special_notes_with_specific_insights(self) -> None:
+        """Test special notes with specific technical and fundamental insights."""
+        from app.watchlist.narrative import generate_special_notes
+
+        technicals = {
+            "price": 105.0,
+            "ema_20": 100.0,
+            "rsi_14": 55.0,
+        }
+        fundamentals = {
+            "revenue_growth": 0.25,
+            "profit_margin": 0.20,
+            "analyst_buy_pct": 0.80,
+        }
+
+        notes = generate_special_notes(
+            signal_type="BUY",
+            signal_strength=9,
+            earnings_days_away=None,
+            company_health="EXCELLENT",
+            technicals=technicals,
+            fundamentals=fundamentals,
+        )
+
+        # Should contain specific insights
+        assert "Price above 20-day trend" in notes
+        assert "RSI in healthy zone" in notes
+        assert "High growth (+25% revenue)" in notes
+        assert "Highly profitable (20% margin)" in notes
+        assert "Analysts bullish (80% buy ratings)" in notes

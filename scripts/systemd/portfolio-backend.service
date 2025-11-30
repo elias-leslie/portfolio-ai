@@ -5,22 +5,21 @@ Wants=postgresql.service redis-server.service
 
 [Service]
 Type=simple
-User=portfolio-ai
-Group=portfolio-ai
-WorkingDirectory=/home/kasadis/portfolio-ai/backend
-Environment="PATH=/home/kasadis/portfolio-ai/backend/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-Environment="HOME=/var/cache/portfolio-ai"
+WorkingDirectory=%h/portfolio-ai/backend
+# Added %h/.local/bin for claude/gemini CLIs
+Environment="PATH=%h/.local/bin:%h/portfolio-ai/backend/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="HOME=%h"
 Environment="DB_POOL_SIZE=3"
 Environment="DB_MAX_OVERFLOW=2"
-Environment="NUMBA_CACHE_DIR=/var/cache/portfolio-ai/numba"
-Environment="HF_HOME=/var/cache/portfolio-ai/huggingface"
-EnvironmentFile=-/home/kasadis/portfolio-ai/backend/.env
-RuntimeDirectory=portfolio-ai
-ExecStart=/home/kasadis/portfolio-ai/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Environment="NUMBA_CACHE_DIR=%h/.cache/numba"
+Environment="HF_HOME=%h/.cache/huggingface"
+EnvironmentFile=-%h/portfolio-ai/backend/.env
+ExecStart=%h/portfolio-ai/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
 Restart=always
 RestartSec=10
-StandardOutput=append:/var/log/portfolio-ai/backend.log
-StandardError=append:/var/log/portfolio-ai/backend-error.log
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=portfolio-backend
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
