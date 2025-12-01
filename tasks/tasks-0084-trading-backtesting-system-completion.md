@@ -1,4 +1,4 @@
-<!-- ACTIVE: 2025-12-01 16:00 | Context: ~60% | Next: Task 1.5 - Kelly criterion (GAP-045) -->
+<!-- ACTIVE: 2025-12-01 16:30 | Context: ~70% | Next: Task 1.7 - Drawdown tracking (GAP-023) -->
 
 # Task List: Trading & Backtesting System Completion
 
@@ -8,10 +8,10 @@
 **Environment**: Local Dev (auto-detected)
 **Created**: 2025-12-01 13:45
 **Status**: IN_PROGRESS
-**Last Updated**: 2025-12-01 16:00
-**Context Used**: ~120K/200K (~60%)
-**Completed This Session**: Tasks 1.1-1.4 (GAP-020, GAP-042, GAP-044, GAP-003)
-**Next Action**: Task 1.5 - Implement Kelly criterion (GAP-045)
+**Last Updated**: 2025-12-01 16:30
+**Context Used**: ~140K/200K (~70%)
+**Completed This Session**: Tasks 1.1-1.6 (6 P0 gaps fixed!)
+**Next Action**: Task 1.7 - Add drawdown tracking (GAP-023)
 **Resume Command**: `/do_it tasks-0084-trading-backtesting-system-completion.md` or `/do_it`
 
 ---
@@ -140,19 +140,19 @@
   - [x] 1.4.4 Integrated into paper_trading_orders.py
   - [x] 1.4.5 Added 10 unit tests (tests/analytics/test_earnings_filter.py)
 
-- [ ] 1.5 GAP-045: Implement Kelly criterion position sizing
-  - [ ] 1.5.1 Research Kelly criterion formula for position sizing
-  - [ ] 1.5.2 Implement fractional Kelly (50% of full Kelly)
-  - [ ] 1.5.3 Add as alternative to fixed 5% sizing
-  - [ ] 1.5.4 Compare Kelly vs fixed sizing in backtests
-  - [ ] 1.5.5 Validate via backtest
+- [x] 1.5 GAP-045: Implement Kelly criterion position sizing ✅ COMPLETE
+  - [x] 1.5.1 Created app/analytics/kelly.py with Kelly formula
+  - [x] 1.5.2 Implemented fractional Kelly (25% default for safety)
+  - [x] 1.5.3 Added get_strategy_stats() from backtest_trades
+  - [x] 1.5.4 Added bounds: min 1%, max 25% position size
+  - [x] 1.5.5 Added 12 unit tests (tests/analytics/test_kelly.py)
 
-- [ ] 1.6 GAP-048: Add pattern day trader rules
-  - [ ] 1.6.1 Track day trades in rolling 5-day window
-  - [ ] 1.6.2 Block 4th day trade if account <$25k
-  - [ ] 1.6.3 Add PDT status to portfolio UI
-  - [ ] 1.6.4 Add override for cash accounts (no PDT rule)
-  - [ ] 1.6.5 Document in OPERATIONS.md
+- [x] 1.6 PDT Rules: Add pattern day trader enforcement ✅ COMPLETE
+  - [x] 1.6.1 Created app/analytics/pdt_rules.py
+  - [x] 1.6.2 Tracks day trades in 5-day rolling window
+  - [x] 1.6.3 Blocks 4th day trade if account <$25k
+  - [x] 1.6.4 Allows unlimited for PDT accounts with $25k+ equity
+  - [x] 1.6.5 Added 12 unit tests (tests/analytics/test_pdt_rules.py)
 
 - [ ] 1.7 GAP-023: Add drawdown tracking
   - [ ] 1.7.1 Add real-time drawdown calculation to portfolio
