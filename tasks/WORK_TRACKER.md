@@ -1,6 +1,6 @@
 # Work Tracker
 
-**Last Updated:** 2025-11-30 (Task 0074 Investment Intelligence Confidence Scoring COMPLETE)
+**Last Updated:** 2025-11-30 (Task 0081 Fix Capabilities Page COMPLETE)
 
 **Current Status:** 🎯 **VISION.MD ALIGNMENT** | ✅ 91% Complete | 🚀 Priority #3 Complete (Tasks 0072, 0073, 0077, 0074 done)
 
@@ -46,14 +46,14 @@
      - [ ] Task 9: Polish and Edge Cases
      - [ ] Task 10: Testing and Documentation
 
-3. **UI Standardization & UX Fixes** (MEDIUM-HIGH (4-6 hours, 12-15 files), 0/0 tasks (2 weeks ago))
+2. **UI Standardization & UX Fixes** (MEDIUM-HIGH (4-6 hours, 12-15 files), 0/0 tasks (2 weeks ago))
    - File: `tasks-0055-ui-standardization-and-ux-fixes.md`
    - Created: 2025-11-12
    - Goal: Bring the Portfolio AI web UI up to a consistent design baseline by aligning headers, loading states, and critical interactions so that every surface communicates status clearly and meets accessibility expectations.
    - Tasks:
      - (No tasks defined yet)
 
-4. **Response Caching Middleware** (TBD, 0/8 tasks (2 weeks ago))
+3. **Response Caching Middleware** (TBD, 0/8 tasks (2 weeks ago))
    - File: `tasks-0047-response-caching-middleware.md`
    - Created: 2025-11-11
    - Tasks:
@@ -66,6 +66,18 @@
      - [ ] Task 7: Cache Management Endpoints
      - [ ] Task 8: Integration and Configuration
 
+4. **Fix Capabilities Page - Backend Data Flow** (MEDIUM, 0/6 tasks (today))
+   - File: `tasks-0081-fix-capabilities-page-backend.md`
+   - Created: 2025-11-30
+   - Goal: Make the Capabilities page functional - currently shows 0 items despite 118 records in database. Fix backend TypedDict definitions, Insights API 500 error, and API scanner garbage data.
+   - Tasks:
+     - [ ] Task 1: Fix CapabilityDict TypedDict (CRITICAL)
+     - [ ] Task 2: Fix InsightDict Validation Error
+     - [ ] Task 3: Fix API Scanner Garbage Data
+     - [ ] Task 4: Fix URL Redirect Issue (If Needed)
+     - [ ] Task 5: Verify Frontend Displays Data
+     - [ ] Task 6: Fix Any Remaining Frontend Issues
+
 
 ---
 
@@ -73,7 +85,22 @@
 
 *Last 5 completed tasks*
 
-1. **Dashboard News Performance Optimization** ✅ COMPLETE (2025-11-30)
+1. **Fix Capabilities Page Backend Data Flow** ✅ COMPLETE (2025-11-30)
+   - File: `tasks-0081-fix-capabilities-page-backend.md`
+   - Completed: 2025-11-30 19:10
+   - Duration: ~1 hour
+   - Summary: Fixed Capabilities page showing 0 items - now displays all 118 records
+   - Key fixes:
+     - Added 30+ missing fields to CapabilityDict TypedDict
+     - Fixed InsightDict capability_id to be nullable
+     - Fixed datetime serialization (convert to isoformat strings)
+     - Fixed API scanner parsing (only search SQL strings, filter Python imports)
+     - Added trailing slashes to frontend API URLs
+     - Added health summary query for tab counts
+   - Result: Page shows 55 DB tables, 41 Celery tasks, 22 API endpoints
+   - Commit: b914ad0
+
+2. **Dashboard News Performance Optimization** ✅ COMPLETE (2025-11-30)
    - File: `tasks-0080-dashboard-news-performance.md`
    - Completed: 2025-11-30 21:45
    - Duration: ~30 minutes
