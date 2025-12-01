@@ -21,24 +21,26 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-(No active tasks)
+1. **Trading & Backtesting System Completion** (HIGH (12-16 weeks total, phased approach), 1/5 tasks, PAUSED 2025-12-01)
+   - File: `tasks-0084-trading-backtesting-system-completion.md`
+   - Created: 2025-12-01
+   - Goal: Transform trading and backtesting systems from ~30% confidence (limited swing trading) to professional-grade edge (Sharpe >2.0) by verifying existing implementation, filling 37 identified trading intelligence gaps, and completing dynamic strategy generation.
+   - Status: PAUSED (2025-12-01 18:45)
+   - Context: 64% used
+   - Next: Task 1.1 - Fix portfolio risk math (GAP-020)
+   - Resume: `/do_it tasks-0084-trading-backtesting-system-completion.md` or `/do_it`
+   - Progress:
+     - [x] Task 0: Scope Discovery - Verify Backtesting Framework ✅ COMPLETE
+     - [ ] Task 1: Phase 1: Fix P0 Critical Gaps (4 weeks)
+     - [ ] Task 2: Phase 2A: Complete Dynamic Strategy Generation
+     - [ ] Task 3: Phase 2B: Fill P1 High-Priority Gaps
+     - [ ] Task 4: Phase 3: Backtesting Phase B Features
 
 ---
 
 ## 📋 Planned Tasks
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
-
-1. **Trading & Backtesting System Completion** (HIGH (12-16 weeks total, phased approach), 0/5 tasks (today))
-   - File: `tasks-0084-trading-backtesting-system-completion.md`
-   - Created: 2025-12-01
-   - Goal: Transform trading and backtesting systems from ~30% confidence (limited swing trading) to professional-grade edge (Sharpe >2.0) by verifying existing implementation, filling 37 identified trading intelligence gaps, and completing dynamic strategy generation.
-   - Tasks:
-     - [ ] Task 0: Scope Discovery - Verify Backtesting Framework (MANDATORY)
-     - [ ] Task 1: Phase 1: Fix P0 Critical Gaps (4 weeks)
-     - [ ] Task 2: Phase 2A: Complete Dynamic Strategy Generation
-     - [ ] Task 3: Phase 2B: Fill P1 High-Priority Gaps
-     - [ ] Task 4: Phase 3: Backtesting Phase B Features
 
 2. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (2 weeks ago))
    - File: `tasks-0042-customizable-dashboard-layouts.md`

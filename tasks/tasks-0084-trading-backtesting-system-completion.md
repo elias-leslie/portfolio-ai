@@ -1,3 +1,5 @@
+<!-- PAUSED: 2025-12-01 18:45 | Context: 64% | Reason: User request | Next: Task 1.1 - Fix portfolio risk math (GAP-020) -->
+
 # Task List: Trading & Backtesting System Completion
 
 **Source**: Comprehensive review of backtest/trading pages and capabilities/gaps analysis
@@ -5,6 +7,13 @@
 **Effort**: HIGH (12-16 weeks total, phased approach)
 **Environment**: Local Dev (auto-detected)
 **Created**: 2025-12-01 13:45
+**Status**: PAUSED
+**Last Updated**: 2025-12-01 18:45
+**Pause Reason**: User request (end of session)
+**Context Used**: 132K/200K (64%)
+**Completed This Session**: Task 0 (backtesting verification + permanent indicator fix)
+**Next Action**: Task 1.1 - Fix portfolio risk math (GAP-020)
+**Resume Command**: `/do_it tasks-0084-trading-backtesting-system-completion.md` or `/do_it`
 
 ---
 
