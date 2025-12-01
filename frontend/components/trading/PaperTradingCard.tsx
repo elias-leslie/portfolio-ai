@@ -99,8 +99,8 @@ export function PaperTradingCard() {
               <p className="text-sm text-text-muted">Win Rate</p>
               <p className="text-2xl font-bold text-text mt-1">
                 {typeof summary.win_rate === "number"
-                  ? (summary.win_rate * 100).toFixed(0)
-                  : (parseFloat(String(summary.win_rate)) * 100).toFixed(0)}
+                  ? summary.win_rate.toFixed(0)
+                  : parseFloat(String(summary.win_rate)).toFixed(0)}
                 %
               </p>
             </div>
