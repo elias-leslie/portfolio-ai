@@ -33,12 +33,11 @@ Why separate polling (60s) from execution (15+ min)?
   - Decoupling allows dynamic adjustment without Beat restart
   - Task can decide to skip execution based on runtime conditions
 
-DISABLED TASKS:
----------------
-Some tasks are intentionally disabled and removed from the schedule:
-  - fetch-putcall-ratio-daily: CBOE CDN returns HTTP 403 (CloudFront blocks requests).
-    See backend/app/sources/cboe_source.py for details and alternatives.
-    Task code retained for future if CBOE provides API access.
+PREVIOUSLY DISABLED TASKS (now fixed):
+--------------------------------------
+  - fetch-putcall-ratio: Was disabled due to CBOE HTTP 403 blocks.
+    Fixed 2025-12-01: Now uses yfinance options chains (SPY+QQQ+IWM aggregate).
+    See backend/app/tasks/market_data/options_pipeline.py for implementation.
 """
 
 from celery.schedules import crontab  # type: ignore[import-untyped]
@@ -293,6 +292,26 @@ def get_beat_schedule() -> dict[str, object]:
             #   * Sector distribution
             # - Stores in options_market_metrics table
             # - Used for market positioning intelligence
+        },
+        "fetch-putcall-ratio-market-open": {
+            "task": "fetch_putcall_ratio",
+            "schedule": crontab(hour=14, minute=30),  # Daily at 14:30 UTC (9:30 AM ET)
+            "options": {"expires": 3600},  # Task expires after 1 hour
+            # Notes:
+            # - Runs at market open to capture overnight sentiment
+            # - Uses yfinance options chains (SPY+QQQ+IWM aggregate)
+            # - Replaced CBOE source which was blocked (HTTP 403)
+            # - Stores put_call_ratio in fear_greed_inputs table
+        },
+        "fetch-putcall-ratio-market-close": {
+            "task": "fetch_putcall_ratio",
+            "schedule": crontab(hour=21, minute=30),  # Daily at 21:30 UTC (4:30 PM ET)
+            "options": {"expires": 3600},  # Task expires after 1 hour
+            # Notes:
+            # - Runs after market close to capture final daily sentiment
+            # - Uses yfinance options chains (SPY+QQQ+IWM aggregate)
+            # - Overwrites market-open value with end-of-day data
+            # - Stores put_call_ratio in fear_greed_inputs table
         },
         "scan-system-capabilities": {
             "task": "scan_system_capabilities",

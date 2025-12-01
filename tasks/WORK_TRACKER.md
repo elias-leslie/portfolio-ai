@@ -66,17 +66,24 @@
      - [ ] Task 7: Cache Management Endpoints
      - [ ] Task 8: Integration and Configuration
 
-4. **Fix Capabilities Page - Backend Data Flow** (MEDIUM, 0/6 tasks (today))
+4. **Fix Capabilities Page - Backend Data Flow** (MEDIUM, 0/0 tasks (yesterday))
    - File: `tasks-0081-fix-capabilities-page-backend.md`
    - Created: 2025-11-30
    - Goal: Make the Capabilities page functional - currently shows 0 items despite 118 records in database. Fix backend TypedDict definitions, Insights API 500 error, and API scanner garbage data.
    - Tasks:
-     - [ ] Task 1: Fix CapabilityDict TypedDict (CRITICAL)
-     - [ ] Task 2: Fix InsightDict Validation Error
-     - [ ] Task 3: Fix API Scanner Garbage Data
-     - [ ] Task 4: Fix URL Redirect Issue (If Needed)
-     - [ ] Task 5: Verify Frontend Displays Data
-     - [ ] Task 6: Fix Any Remaining Frontend Issues
+     - (No tasks defined yet)
+
+5. **Data Source Reliability & Monitoring** (MEDIUM, 0/6 tasks (today))
+   - File: `tasks-0082-data-source-reliability-monitoring.md`
+   - Created: 2025-12-01
+   - Goal: Make data pipelines self-healing, redundant, and bulletproof with proactive monitoring and alerting for stale data conditions.
+   - Tasks:
+     - [ ] Task 0: Scope Discovery (MANDATORY)
+     - [ ] Task 1: Data Freshness Monitoring with Alerts
+     - [ ] Task 2: Self-Healing Technical Indicators
+     - [ ] Task 3: Redundant Data Source Fallback Verification
+     - [ ] Task 4: Unified Data Source Health Dashboard Endpoint
+     - [ ] Task 5: Celery Task Retry Logic Enhancement
 
 
 ---
