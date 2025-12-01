@@ -79,20 +79,89 @@ class GapDetector:
         """Analyze gaps affecting current watchlist.
 
         Returns:
-            Dict with watchlist gap analysis
+            Dict with watchlist gap analysis including:
+            - watchlist_tickers: List of ticker symbols
+            - ticker_coverage: Per-ticker coverage analysis
+            - aggregate_gaps: Gaps affecting multiple tickers
         """
         logger.info("analyzing_watchlist_gaps")
 
-        # TODO: Implement watchlist gap analysis
-        # - Get current watchlist tickers
-        # - Check coverage per ticker
-        # - Aggregate: "8/12 watchlist tickers missing earnings data"
+        # Get watchlist tickers from database
+        try:
+            with self.conn_mgr.connection() as conn:
+                result = conn.execute(
+                    "SELECT DISTINCT symbol FROM watchlist_items ORDER BY symbol"
+                ).fetchall()
+                tickers = [str(row[0]) for row in result if row[0] is not None]
+        except Exception as e:
+            logger.error("failed_to_fetch_watchlist_tickers", error=str(e))
+            tickers = []
 
-        # Return empty but valid structure for now
+        if not tickers:
+            logger.info("no_watchlist_tickers_found")
+            return {
+                "watchlist_tickers": [],
+                "ticker_coverage": {},
+                "aggregate_gaps": [],
+            }
+
+        logger.info("analyzing_watchlist_gaps", ticker_count=len(tickers))
+
+        # Analyze each ticker
+        ticker_coverage: dict[str, dict[str, Any]] = {}
+        all_missing_capabilities: dict[str, list[str]] = {}  # capability → tickers missing it
+
+        for ticker in tickers:
+            try:
+                analysis = self.analyzer.analyze_ticker_gaps(ticker)
+                ticker_coverage[ticker] = analysis
+
+                # Track which capabilities are missing per ticker
+                for cap in analysis.get("missing_capabilities", []):
+                    # cap format: "capability_name (analysis_type)"
+                    cap_name = cap.split(" (")[0] if " (" in cap else cap
+                    if cap_name not in all_missing_capabilities:
+                        all_missing_capabilities[cap_name] = []
+                    all_missing_capabilities[cap_name].append(ticker)
+            except Exception as e:
+                logger.warning("ticker_analysis_failed", ticker=ticker, error=str(e))
+                ticker_coverage[ticker] = {
+                    "ticker": ticker,
+                    "readiness_score": 0.0,
+                    "confidence_level": "LOW",
+                    "coverage_by_analysis": {},
+                    "missing_capabilities": [],
+                    "data_availability": {},
+                    "error": str(e),
+                }
+
+        # Aggregate gaps affecting multiple tickers
+        aggregate_gaps: list[dict[str, Any]] = []
+        for capability, affected_tickers in sorted(
+            all_missing_capabilities.items(),
+            key=lambda x: len(x[1]),
+            reverse=True,
+        ):
+            if len(affected_tickers) > 1:  # Only include if affects 2+ tickers
+                aggregate_gaps.append({
+                    "capability": capability,
+                    "description": f"Missing {capability}",
+                    "affected_tickers": len(affected_tickers),
+                    "total_tickers": len(tickers),
+                    "affected_pct": round(len(affected_tickers) / len(tickers) * 100, 1),
+                    "tickers": affected_tickers,
+                })
+
+        logger.info(
+            "watchlist_gaps_analyzed",
+            ticker_count=len(tickers),
+            aggregate_gap_count=len(aggregate_gaps),
+        )
+
         return {
-            "watchlist_tickers": [],
-            "ticker_coverage": {},
-            "aggregate_gaps": [],
+            "watchlist_tickers": tickers,
+            "ticker_coverage": ticker_coverage,
+            "aggregate_gaps": aggregate_gaps[:20],  # Top 20 aggregate gaps
         }
 
     def generate_task_list(self, gap_ids: list[str]) -> dict[str, Any]:

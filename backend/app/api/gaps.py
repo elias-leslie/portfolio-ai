@@ -193,8 +193,8 @@ class WatchlistGapsResponse(BaseModel):
     """Gaps affecting current watchlist."""
 
     watchlist_tickers: list[str]
-    ticker_coverage: dict[str, TickerCoverageByAnalysis]  # ticker → coverage by analysis
-    aggregate_gaps: list[AggregateGap]  # Gaps affecting multiple tickers
+    ticker_coverage: dict[str, Any]  # ticker → full coverage analysis
+    aggregate_gaps: list[dict[str, Any]]  # Gaps affecting multiple tickers
 
 
 class TaskListGeneratedResponse(BaseModel):
