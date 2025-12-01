@@ -50,12 +50,34 @@ function formatAnalysisType(type: string): string {
 }
 
 /**
- * Calculate average coverage for a ticker
+ * Ticker coverage data from API
  */
-function getAverageCoverage(tickerCoverage: Record<string, { coverage_pct: number }>): number {
-  const coverages = Object.values(tickerCoverage).map((c) => c.coverage_pct);
+interface TickerCoverageData {
+  ticker: string;
+  readiness_score: number;
+  confidence_level: "LOW" | "MEDIUM" | "HIGH";
+  coverage_by_analysis: Record<string, number>;
+  missing_capabilities: string[];
+  data_availability: Record<string, { exists: boolean; has_data: boolean; row_count: number }>;
+}
+
+/**
+ * Calculate average coverage for a ticker from coverage_by_analysis
+ */
+function getAverageCoverage(tickerData: TickerCoverageData | undefined): number {
+  if (!tickerData?.coverage_by_analysis) return 0;
+  const coverages = Object.values(tickerData.coverage_by_analysis);
   if (coverages.length === 0) return 0;
   return coverages.reduce((sum, val) => sum + val, 0) / coverages.length;
+}
+
+/**
+ * Get confidence level badge color
+ */
+function getConfidenceColor(level: string): string {
+  if (level === "HIGH") return "bg-green-500/20 text-green-700 dark:text-green-400";
+  if (level === "MEDIUM") return "bg-yellow-500/20 text-yellow-700 dark:text-yellow-400";
+  return "bg-red-500/20 text-red-700 dark:text-red-400";
 }
 
 /**
@@ -63,18 +85,21 @@ function getAverageCoverage(tickerCoverage: Record<string, { coverage_pct: numbe
  */
 function TickerRow({
   ticker,
-  coverage,
+  tickerData,
   analysisTypes,
   isExpanded,
   onToggle,
 }: {
   ticker: string;
-  coverage: Record<string, { coverage_pct: number; missing_capabilities?: string[] }>;
+  tickerData: TickerCoverageData | undefined;
   analysisTypes: string[];
   isExpanded: boolean;
   onToggle: () => void;
 }) {
-  const avgCoverage = getAverageCoverage(coverage);
+  const coverageByAnalysis = tickerData?.coverage_by_analysis || {};
+  const missingCapabilities = tickerData?.missing_capabilities || [];
+  const readinessScore = tickerData?.readiness_score || 0;
+  const confidenceLevel = tickerData?.confidence_level || "LOW";
 
   return (
     <div className="border-b border-border last:border-0">
@@ -83,7 +108,7 @@ function TickerRow({
         <div
           className="grid gap-2 px-4 py-3 cursor-pointer"
           style={{
-            gridTemplateColumns: `auto 120px repeat(${analysisTypes.length}, minmax(80px, 1fr))`,
+            gridTemplateColumns: `auto 100px 80px repeat(${analysisTypes.length}, minmax(70px, 1fr)) 80px`,
           }}
           onClick={onToggle}
         >
@@ -101,9 +126,16 @@ function TickerRow({
             <span className="font-mono font-semibold text-text">{ticker}</span>
           </div>
 
+          {/* Confidence level */}
+          <div className="flex items-center justify-center">
+            <span className={`text-xs font-semibold px-2 py-1 rounded ${getConfidenceColor(confidenceLevel)}`}>
+              {confidenceLevel}
+            </span>
+          </div>
+
           {/* Coverage per analysis type */}
           {analysisTypes.map((analysisType) => {
-            const typeCoverage = coverage[analysisType]?.coverage_pct || 0;
+            const typeCoverage = coverageByAnalysis[analysisType] || 0;
             return (
               <div
                 key={analysisType}
@@ -116,6 +148,11 @@ function TickerRow({
               </div>
             );
           })}
+
+          {/* Readiness score */}
+          <div className={`flex items-center justify-center rounded-md p-2 ${getCoverageColor(readinessScore)}`}>
+            <span className="text-xs font-semibold">{Math.round(readinessScore)}%</span>
+          </div>
         </div>
       </div>
 
@@ -126,40 +163,22 @@ function TickerRow({
           onClick={(e) => e.stopPropagation()}
         >
           <p className="text-xs uppercase tracking-wide text-muted-foreground mb-3">
-            Missing Capabilities for {ticker}
+            Missing Capabilities for {ticker} ({missingCapabilities.length} total)
           </p>
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {analysisTypes.map((analysisType) => {
-              const missing = coverage[analysisType]?.missing_capabilities || [];
-              if (missing.length === 0) return null;
 
-              return (
+          {missingCapabilities.length > 0 ? (
+            <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+              {missingCapabilities.map((capability) => (
                 <div
-                  key={analysisType}
-                  className="rounded-lg border border-border bg-surface p-3"
+                  key={capability}
+                  className="flex items-start gap-2 rounded-lg border border-border bg-surface p-2"
                 >
-                  <p className="text-xs font-semibold text-text mb-2">
-                    {formatAnalysisType(analysisType)}
-                  </p>
-                  <ul className="space-y-1">
-                    {missing.slice(0, 3).map((capability) => (
-                      <li key={capability} className="text-xs text-muted-foreground flex items-start gap-1">
-                        <span className="text-loss">•</span>
-                        <span>{capability}</span>
-                      </li>
-                    ))}
-                    {missing.length > 3 && (
-                      <li className="text-xs text-muted-foreground italic">
-                        +{missing.length - 3} more...
-                      </li>
-                    )}
-                  </ul>
+                  <span className="text-loss">•</span>
+                  <span className="text-xs text-muted-foreground">{capability}</span>
                 </div>
-              );
-            })}
-          </div>
-
-          {Object.values(coverage).every((c) => !c.missing_capabilities || c.missing_capabilities.length === 0) && (
+              ))}
+            </div>
+          ) : (
             <div className="rounded-lg border border-border bg-surface p-4 text-center">
               <CheckCircle2 className="mx-auto h-8 w-8 text-gain opacity-50" />
               <p className="mt-2 text-xs text-muted-foreground">
@@ -183,11 +202,11 @@ export function WatchlistCoverage({ data }: WatchlistCoverageProps) {
     setExpandedTicker(expandedTicker === ticker ? null : ticker);
   };
 
-  // Get unique analysis types from all tickers
+  // Get unique analysis types from coverage_by_analysis of all tickers
   const analysisTypes = Array.from(
     new Set(
-      Object.values(data.ticker_coverage || {}).flatMap((coverage) =>
-        Object.keys(coverage)
+      Object.values(data.ticker_coverage || {}).flatMap((tickerData) =>
+        Object.keys((tickerData as TickerCoverageData)?.coverage_by_analysis || {})
       )
     )
   ).sort();
@@ -205,6 +224,12 @@ export function WatchlistCoverage({ data }: WatchlistCoverageProps) {
       </div>
     );
   }
+
+  // Calculate average readiness across all tickers
+  const avgReadiness = tickers.reduce((sum, ticker) => {
+    const tickerData = data.ticker_coverage?.[ticker] as TickerCoverageData | undefined;
+    return sum + (tickerData?.readiness_score || 0);
+  }, 0) / (tickers.length || 1);
 
   return (
     <div className="space-y-4">
@@ -245,16 +270,18 @@ export function WatchlistCoverage({ data }: WatchlistCoverageProps) {
         <div
           className="grid gap-2 border-b border-border bg-surface-muted px-4 py-3 text-xs font-medium text-muted-foreground sticky top-0"
           style={{
-            gridTemplateColumns: `auto 120px repeat(${analysisTypes.length}, minmax(80px, 1fr))`,
+            gridTemplateColumns: `auto 100px 80px repeat(${analysisTypes.length}, minmax(70px, 1fr)) 80px`,
           }}
         >
           <div></div>
           <div>Ticker</div>
+          <div className="text-center">Confidence</div>
           {analysisTypes.map((type) => (
-            <div key={type} className="text-center">
-              {formatAnalysisType(type).split(" ").slice(0, 2).join(" ")}
+            <div key={type} className="text-center text-[10px]">
+              {formatAnalysisType(type).replace(" Analysis", "").replace(" Infrastructure", "")}
             </div>
           ))}
+          <div className="text-center">Ready</div>
         </div>
 
         {/* Ticker rows */}
@@ -263,7 +290,7 @@ export function WatchlistCoverage({ data }: WatchlistCoverageProps) {
             <TickerRow
               key={ticker}
               ticker={ticker}
-              coverage={data.ticker_coverage?.[ticker] || {}}
+              tickerData={data.ticker_coverage?.[ticker] as TickerCoverageData | undefined}
               analysisTypes={analysisTypes}
               isExpanded={expandedTicker === ticker}
               onToggle={() => toggleExpand(ticker)}
@@ -285,16 +312,10 @@ export function WatchlistCoverage({ data }: WatchlistCoverageProps) {
             <p className="text-xs text-muted-foreground">Analysis Types</p>
           </div>
           <div>
-            <p className="text-2xl font-semibold text-text">
-              {Math.round(
-                tickers.reduce(
-                  (sum, ticker) => sum + getAverageCoverage(data.ticker_coverage?.[ticker] || {}),
-                  0
-                ) / (tickers.length || 1)
-              )}
-              %
+            <p className={`text-2xl font-semibold ${avgReadiness >= 50 ? "text-gain" : "text-loss"}`}>
+              {Math.round(avgReadiness)}%
             </p>
-            <p className="text-xs text-muted-foreground">Average Coverage</p>
+            <p className="text-xs text-muted-foreground">Average Readiness</p>
           </div>
         </div>
       </div>
