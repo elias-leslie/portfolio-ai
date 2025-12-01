@@ -154,7 +154,11 @@ async def list_paper_trades(
                 io.exit_date,
                 io.exit_reason,
                 io.realized_return_pct,
-                io.holding_days,
+                CASE
+                    WHEN io.status = 'open' AND io.entry_date IS NOT NULL
+                    THEN CURRENT_DATE - io.entry_date::date
+                    ELSE io.holding_days
+                END as holding_days,
                 io.max_favorable_pct,
                 io.max_adverse_pct,
                 ai.thesis,
