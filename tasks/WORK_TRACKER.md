@@ -21,7 +21,14 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-(No active tasks)
+1. **Data Source Reliability & Monitoring** (MEDIUM, 0/35 tasks, PAUSED 2025-12-01)
+   - File: `tasks-0082-data-source-reliability-monitoring.md`
+   - Created: 2025-12-01
+   - Goal: Make data pipelines self-healing, redundant, and bulletproof with proactive monitoring and alerting
+   - Status: PAUSED (2025-12-01 08:35) - Context 85%
+   - Context: Session fixed multiple data pipeline issues (see Recently Completed)
+   - Next: Task 0.1 - Scope Discovery (full discovery for ALL tasks)
+   - Resume: `/do_it tasks/tasks-0082-data-source-reliability-monitoring.md`
 
 ---
 
@@ -73,26 +80,27 @@
    - Tasks:
      - (No tasks defined yet)
 
-5. **Data Source Reliability & Monitoring** (MEDIUM, 0/6 tasks (today))
-   - File: `tasks-0082-data-source-reliability-monitoring.md`
-   - Created: 2025-12-01
-   - Goal: Make data pipelines self-healing, redundant, and bulletproof with proactive monitoring and alerting for stale data conditions.
-   - Tasks:
-     - [ ] Task 0: Scope Discovery (MANDATORY)
-     - [ ] Task 1: Data Freshness Monitoring with Alerts
-     - [ ] Task 2: Self-Healing Technical Indicators
-     - [ ] Task 3: Redundant Data Source Fallback Verification
-     - [ ] Task 4: Unified Data Source Health Dashboard Endpoint
-     - [ ] Task 5: Celery Task Retry Logic Enhancement
-
-
 ---
 
 ## ✅ Recently Completed
 
 *Last 5 completed tasks*
 
-1. **Fix Capabilities Page Backend Data Flow** ✅ COMPLETE (2025-11-30)
+1. **Data Pipeline Emergency Fixes** ✅ COMPLETE (2025-12-01)
+   - File: Ad-hoc fixes (no task file - incident response)
+   - Completed: 2025-12-01 08:30
+   - Duration: ~2.5 hours
+   - Summary: Fixed multiple critical data pipeline issues discovered during dashboard review
+   - Key fixes:
+     - Win rate 10000% → Fixed frontend multiplication bug
+     - SPY OHLCV 4 days → 258 days (changed DELETE+INSERT to UPSERT, fixed deadlocks)
+     - Technical indicators Nov 14 → Nov 28 (backfilled OHLCV data)
+     - API credentials not loading → Added load_credentials_from_database() to data_ingestion_tasks
+     - Put/Call ratio Nov 14 → Dec 1 (replaced blocked CBOE with yfinance + Polygon/Finnhub fallbacks)
+   - Commits: 5d212d0, bfde627, a1c8027
+   - Next: Task 0082 - Add monitoring/self-healing to prevent recurrence
+
+2. **Fix Capabilities Page Backend Data Flow** ✅ COMPLETE (2025-11-30)
    - File: `tasks-0081-fix-capabilities-page-backend.md`
    - Completed: 2025-11-30 19:10
    - Duration: ~1 hour

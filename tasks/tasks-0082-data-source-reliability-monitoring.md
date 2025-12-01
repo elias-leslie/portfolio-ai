@@ -1,3 +1,5 @@
+<!-- PAUSED: 2025-12-01 08:35 | Context: 85% | Reason: Context limit | Next: Task 0.1 - Scope Discovery -->
+
 # Task List: Data Source Reliability & Monitoring Improvements
 
 **Source**: User request via /task_it - Post-incident improvements after data staleness issues
@@ -5,6 +7,11 @@
 **Effort**: MEDIUM
 **Environment**: Local Dev (auto-detected)
 **Created**: 2025-12-01 08:15
+**Status**: PAUSED
+**Last Updated**: 2025-12-01 08:35
+**Pause Reason**: Context limit (85%)
+**Next Action**: Task 0.1 - Scope Discovery (full discovery for ALL tasks, not just monitoring)
+**Resume Command**: `/do_it tasks/tasks-0082-data-source-reliability-monitoring.md`
 
 ---
 
@@ -37,18 +44,34 @@ Recent incident revealed:
 
 ## Tasks
 
-### 0.0 Scope Discovery (MANDATORY)
+### 0.0 Scope Discovery (MANDATORY - Full Discovery for ALL Tasks Below)
 
-- [ ] 0.1 Explore existing monitoring patterns
+**USER CLARIFICATION**: This is not just monitoring discovery - discover ALL code/data related to:
+- Self-healing mechanisms (Task 2)
+- Data source fallbacks (Task 3)
+- Existing status page at http://192.168.8.233:3000/status (Task 4)
+- Celery retry patterns (Task 5)
+
+- [ ] 0.1 Explore existing monitoring and self-healing patterns
   - Pattern: maintenance_log, capability_insights, data freshness checks
   - Find: All places where data staleness is already checked
   - Find: Existing alerting mechanisms (logs, status endpoints)
-- [ ] 0.2 Document current data source dependencies
+  - Find: Any existing self-healing/auto-retry logic in Celery tasks
+  - Find: Data source fallback patterns (like the yfinance fallback added today)
+- [ ] 0.2 Document current data source dependencies and pipelines
   - Map: Which tasks depend on which data sources
   - Map: Task execution order and timing
-- [ ] 0.3 Checkpoint: Confirm scope
+  - Map: All Celery scheduled tasks that pull/refresh data
+  - Map: Data flow: API → storage → UI
+- [ ] 0.3 Analyze existing Status Page (http://192.168.8.233:3000/status)
+  - What data does it already show?
+  - What endpoints does it call?
+  - What's missing that users need?
+  - Set up next agent for success by documenting current state
+- [ ] 0.4 Checkpoint: Confirm scope for ALL tasks
   - Existing monitoring coverage: [TBD]
-  - Gap areas: [TBD]
+  - Existing self-healing mechanisms: [TBD]
+  - Gap areas per task: [TBD]
   - Integration points: [TBD]
 
 **DO NOT PROCEED TO TASK 1 UNTIL SCOPE CONFIRMED**
@@ -68,21 +91,40 @@ Recent incident revealed:
   - Use market calendar for accurate thresholds
 - [ ] 1.4 Add freshness check to existing maintain_data_freshness task
 
-### 2.0 Self-Healing Technical Indicators
+### 2.0 Self-Healing Data Pipelines (ENTIRE SOLUTION)
 
-- [ ] 2.1 Add staleness detection for technical_indicators
+**USER CLARIFICATION**: Not just technical indicators - self-healing mechanisms for our ENTIRE solution that will re-pull data when no/stale/partial data exists.
+
+- [ ] 2.1 Create unified self-healing framework
+  - Generic "check freshness → trigger refresh" pattern
+  - Apply to ALL data tables, not just indicators
+  - Handle: no data, stale data, partial data scenarios
+- [ ] 2.2 Self-healing for OHLCV data (day_bars)
+  - Check if symbol has <252 days OR data >1 trading day old
+  - Trigger maintain_historical_market_data or refresh_daily_ohlcv
+- [ ] 2.3 Self-healing for technical_indicators
   - Check if SPY indicators are >1 trading day old
   - Check if required OHLCV data exists (>200 days)
-- [ ] 2.2 Implement auto-recalculation trigger
-  - If indicators stale AND OHLCV data sufficient, trigger update_technical_indicators
-  - Add to maintain_data_freshness task
-- [ ] 2.3 Add self-healing for Fear & Greed pipeline
+  - Trigger update_technical_indicators
+- [ ] 2.4 Self-healing for Fear & Greed pipeline
   - Check fear_greed_inputs freshness
   - Trigger populate_fear_greed_inputs if stale
   - Chain to calculate_fear_greed after successful populate
-- [ ] 2.4 Test self-healing scenarios
-  - Simulate stale data conditions
-  - Verify automatic remediation
+- [ ] 2.5 Self-healing for Put/Call ratio
+  - Check if put_call_ratio in fear_greed_inputs is stale
+  - Trigger fetch_putcall_ratio (yfinance with fallbacks)
+- [ ] 2.6 Self-healing for reference/fundamental data
+  - Check reference_cache freshness per symbol
+  - Trigger refresh for stale symbols
+- [ ] 2.7 Self-healing for news data
+  - Check news_cache age
+  - Trigger news refresh if stale
+- [ ] 2.8 Create maintain_all_data_freshness umbrella task
+  - Single scheduled task that runs ALL self-healing checks
+  - Runs frequently (every 2-4 hours during market hours)
+- [ ] 2.9 Test self-healing scenarios
+  - Simulate stale data conditions for each data type
+  - Verify automatic remediation works end-to-end
 
 ### 3.0 Redundant Data Source Fallback Verification
 
@@ -100,19 +142,29 @@ Recent incident revealed:
 
 ### 4.0 Unified Data Source Health Dashboard Endpoint
 
-- [ ] 4.1 Create /api/status/data-health endpoint
-  - Return freshness status for all data sources
+**USER CLARIFICATION**: Check existing status page at http://192.168.8.233:3000/status FIRST before designing new endpoints. Understand what already exists to avoid duplication.
+
+**PREREQUISITE**: Task 0.3 must document existing status page capabilities
+
+- [ ] 4.1 Gap analysis vs existing status page
+  - What does /status already show?
+  - What backend endpoints does it call?
+  - What's missing for data health visibility?
+- [ ] 4.2 Extend existing endpoints (prefer over creating new)
+  - Add data freshness to existing /api/status/* endpoints if possible
+  - Only create new /api/status/data-health if truly needed
   - Include last update time, staleness flag, row counts
-- [ ] 4.2 Add data source availability status
+- [ ] 4.3 Add data source availability status
   - Show which API sources are configured
   - Show recent success/failure rates per source
-- [ ] 4.3 Add pipeline execution status
+- [ ] 4.4 Add pipeline execution status
   - Show last run time for each scheduled task
   - Show success/failure status
   - Show next scheduled run
-- [ ] 4.4 Create frontend component for status page
-  - Display data health in existing status page
+- [ ] 4.5 Enhance frontend status page (extend existing, don't rebuild)
+  - Add data health section to existing status page
   - Color-coded freshness indicators (green/yellow/red)
+  - Integrate with existing UI patterns
 
 ### 5.0 Celery Task Retry Logic Enhancement
 
