@@ -5,12 +5,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  RefreshCw,
   ChevronRight,
   Loader2,
   Database,
@@ -21,12 +19,10 @@ import {
 } from "lucide-react";
 import {
   fetchInsights,
-  triggerScan,
   type CapabilityInsight,
   type InsightSeverity,
 } from "@/lib/api/capabilities";
 import { formatDistanceToNow } from "date-fns";
-import { toast } from "sonner";
 
 interface HealthSummary {
   total: number;
@@ -90,7 +86,6 @@ function getCapabilityName(insight: CapabilityInsight): string {
  */
 export function CapabilitiesDashboard() {
   const router = useRouter();
-  const queryClient = useQueryClient();
 
   // Fetch health summary
   const { data: healthSummary, isLoading: healthLoading } = useQuery<HealthSummary>({
@@ -112,22 +107,6 @@ export function CapabilitiesDashboard() {
         limit: 10,
         offset: 0,
       }),
-  });
-
-  // Trigger scan mutation
-  const scanMutation = useMutation({
-    mutationFn: triggerScan,
-    onSuccess: (data) => {
-      toast.success(data.message);
-      // Refresh data after a delay (scan runs async)
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ["capabilities"] });
-        queryClient.invalidateQueries({ queryKey: ["capability-insights"] });
-      }, 2000);
-    },
-    onError: (error: Error) => {
-      toast.error(`Failed to trigger scan: ${error.message}`);
-    },
   });
 
   // Navigate to capability detail from insight
@@ -190,9 +169,9 @@ export function CapabilitiesDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Quick Actions Bar */}
-      <div className="flex items-center justify-between rounded-lg border border-border bg-surface p-4">
-        <div className="text-sm text-muted-foreground">
+      {/* Scan Info Bar */}
+      {(healthSummary?.last_scan || healthSummary?.next_scan) && (
+        <div className="rounded-lg border border-border bg-surface p-4 text-sm text-muted-foreground">
           {healthSummary?.last_scan && (
             <span>
               Last scan: {formatDistanceToNow(new Date(healthSummary.last_scan), { addSuffix: true })}
@@ -204,15 +183,7 @@ export function CapabilitiesDashboard() {
             </span>
           )}
         </div>
-        <Button onClick={() => scanMutation.mutate()} disabled={scanMutation.isPending} size="sm">
-          {scanMutation.isPending ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <RefreshCw className="mr-2 h-4 w-4" />
-          )}
-          Scan Now
-        </Button>
-      </div>
+      )}
 
       {/* Health Summary Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
