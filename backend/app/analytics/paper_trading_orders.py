@@ -177,6 +177,15 @@ def create_paper_trade_from_idea(storage: PortfolioStorage, idea_id: str) -> Pap
 
     # Calculate stop-loss and target price
     stop_loss_price = calculate_stop_loss(storage, ticker, entry_price)
+    if stop_loss_price is None:
+        logger.warning(
+            "paper_trade_blocked_no_atr",
+            idea_id=idea_id,
+            ticker=ticker,
+            reason="insufficient_volatility_data_for_stop_loss",
+        )
+        return None
+
     target_price = extract_target_price_from_thesis(idea["thesis"], entry_price)
 
     # Build paper trade record

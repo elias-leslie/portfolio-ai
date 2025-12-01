@@ -17,7 +17,10 @@ logger = get_logger(__name__)
 
 
 def calculate_stop_loss(storage: PortfolioStorage, ticker: str, entry_price: float) -> float | None:
-    """Calculate stop-loss price using 2x ATR method.
+    """Calculate stop-loss price using 2x ATR method (GAP-042 fix).
+
+    NEVER uses flat percentage fallback - always volatility-adjusted.
+    A flat 5% on a utility is too wide, on a biotech is too tight.
 
     Args:
         storage: PortfolioStorage instance
@@ -25,52 +28,99 @@ def calculate_stop_loss(storage: PortfolioStorage, ticker: str, entry_price: flo
         entry_price: Entry price for the trade
 
     Returns:
-        Stop loss price (entry - 2xATR), or None if ATR unavailable
+        Stop loss price (entry - 2xATR), or None if ATR unavailable.
+        Returning None should block the trade (insufficient data).
+    """
+    atr_value = get_atr_for_ticker(storage, ticker)
+
+    if atr_value is None:
+        logger.warning(
+            "stop_loss_calculation_blocked",
+            ticker=ticker,
+            reason="no_atr_available",
+            entry_price=entry_price,
+        )
+        return None  # Block trade - insufficient risk data
+
+    stop_loss = entry_price - (2.0 * atr_value)
+    stop_loss = max(stop_loss, 0.01)  # Ensure positive, never negative
+
+    logger.info(
+        "stop_loss_calculated",
+        ticker=ticker,
+        entry_price=entry_price,
+        atr=atr_value,
+        stop_loss=stop_loss,
+        stop_percent=((entry_price - stop_loss) / entry_price) * 100,
+    )
+
+    return stop_loss
+
+
+def get_atr_for_ticker(storage: PortfolioStorage, ticker: str) -> float | None:
+    """Get ATR value for a ticker from multiple sources.
+
+    Tries in order:
+    1. technical_indicators table (cached daily)
+    2. Calculate from day_bars (on-the-fly)
+    3. Returns None if neither available
+
+    Args:
+        storage: PortfolioStorage instance
+        ticker: Stock ticker symbol
+
+    Returns:
+        ATR-14 value as float, or None if unavailable
     """
     try:
-        # Try to get ATR from technical_indicators table
+        # Source 1: Try cached ATR from technical_indicators table
         atr_query = """
             SELECT atr_14
             FROM technical_indicators
-            WHERE ticker = ?
+            WHERE ticker = $1
             ORDER BY date DESC
             LIMIT 1
         """
-
         atr_result = storage.query(atr_query, [ticker])
 
         if not atr_result.is_empty():
             atr_value = atr_result.to_dicts()[0]["atr_14"]
             if atr_value is not None:
-                atr: float = float(atr_value)
-                stop_loss = entry_price - (2 * atr)
-                return max(stop_loss, 0.0)  # Ensure non-negative
+                logger.debug(
+                    "atr_from_technical_indicators",
+                    ticker=ticker,
+                    atr=atr_value,
+                )
+                return float(atr_value)
 
-        # Fallback: calculate ATR on the fly
+        # Source 2: Calculate from day_bars on-the-fly
         indicators = calculate_indicators(storage, ticker, ["atr"])
         if indicators and "atr_14" in indicators:
             atr_indicator = indicators["atr_14"]
             if atr_indicator is not None:
-                atr_calc: float = float(atr_indicator)
-                stop_loss_calc = entry_price - (2 * atr_calc)
-                return max(stop_loss_calc, 0.0)
+                logger.debug(
+                    "atr_calculated_on_fly",
+                    ticker=ticker,
+                    atr=atr_indicator,
+                )
+                return float(atr_indicator)
 
-        # If ATR unavailable, use simple 5% stop loss
+        # No ATR available - log and return None
         logger.warning(
-            "stop_loss_fallback",
+            "atr_unavailable",
             ticker=ticker,
-            method="5_percent_default",
+            reason="no_data_in_technical_indicators_or_day_bars",
         )
-        return entry_price * 0.95
+        return None
 
     except Exception as e:
         logger.error(
-            "stop_loss_calculation_error",
+            "atr_calculation_error",
             ticker=ticker,
             error=str(e),
+            error_type=type(e).__name__,
         )
-        # Fallback to 5% stop loss
-        return entry_price * 0.95
+        return None
 
 
 def extract_target_price_from_thesis(thesis: str, entry_price: float) -> float | None:

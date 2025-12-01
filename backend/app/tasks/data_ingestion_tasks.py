@@ -594,3 +594,103 @@ def ingest_historical_ohlcv(  # type: ignore[no-untyped-def]
         >>> # Backfills 252 days of OHLCV data for 3 tickers
     """
     return _ingest_historical_ohlcv_impl(tickers, days, self.request.id)
+
+
+@celery_app.task(
+    bind=True,
+    name="update_portfolio_covariance",
+    max_retries=2,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=300,
+    retry_jitter=True,
+)  # type: ignore[misc]
+def update_portfolio_covariance(  # type: ignore[no-untyped-def]
+    self,
+    tickers: list[str] | None = None,
+    lookback_days: int = 252,
+) -> dict[str, int | str]:
+    """Update portfolio covariance matrix for proper risk calculation (GAP-020).
+
+    Calculates pairwise covariance matrix from historical returns in day_bars.
+    Uses the formula: sigma_portfolio = sqrt(w' * Cov * w)
+
+    Args:
+        tickers: Optional list of tickers. If None, uses all watchlist + portfolio tickers.
+        lookback_days: Number of trading days for calculation (default: 252 = 1 year)
+
+    Returns:
+        Dict with task results:
+        - task_id: Celery task ID
+        - tickers_count: Number of unique tickers processed
+        - pairs_updated: Number of covariance pairs calculated
+        - status: 'success' or 'error'
+
+    Example:
+        >>> update_portfolio_covariance.delay()  # Updates all watchlist/portfolio tickers
+        >>> update_portfolio_covariance.delay(["AAPL", "MSFT", "GOOGL"])  # Custom list
+    """
+    from app.analytics.covariance import update_covariance_matrix  # noqa: PLC0415
+
+    task_id = self.request.id
+    logger.info(
+        "update_portfolio_covariance_started",
+        task_id=task_id,
+        tickers=tickers,
+        lookback_days=lookback_days,
+    )
+
+    try:
+        storage = get_storage()
+
+        # If no tickers specified, get all watchlist + portfolio tickers
+        if tickers is None:
+            # Get watchlist tickers
+            watchlist_result = storage.query(
+                "SELECT DISTINCT ticker FROM watchlist_items"
+            )
+            watchlist_tickers = (
+                watchlist_result.get_column("ticker").to_list()
+                if not watchlist_result.is_empty()
+                else []
+            )
+
+            # Get portfolio tickers
+            portfolio_result = storage.query(
+                "SELECT DISTINCT ticker FROM portfolio_positions"
+            )
+            portfolio_tickers = (
+                portfolio_result.get_column("ticker").to_list()
+                if not portfolio_result.is_empty()
+                else []
+            )
+
+            # Combine and deduplicate
+            all_tickers = list(set(watchlist_tickers + portfolio_tickers))
+            tickers = all_tickers if all_tickers else ["SPY"]
+
+        # Update covariance matrix
+        pairs_updated = update_covariance_matrix(storage, tickers, lookback_days)
+
+        logger.info(
+            "update_portfolio_covariance_completed",
+            task_id=task_id,
+            tickers_count=len(tickers),
+            pairs_updated=pairs_updated,
+        )
+
+        return {
+            "task_id": str(task_id),
+            "tickers_count": len(tickers),
+            "pairs_updated": pairs_updated,
+            "status": "success",
+        }
+
+    except Exception as e:
+        logger.error(
+            "update_portfolio_covariance_failed",
+            task_id=task_id,
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+        raise

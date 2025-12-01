@@ -621,4 +621,19 @@ def get_beat_schedule() -> dict[str, object]:
             # - Runs strategy_research_workflow for each symbol
             # - Commits generated strategies to git with research context
         },
+        # ============================================================================
+        # PORTFOLIO RISK ANALYTICS (GAP-020)
+        # ============================================================================
+        "update-portfolio-covariance-daily": {
+            "task": "update_portfolio_covariance",
+            "schedule": crontab(hour=5, minute=30),  # Daily at 05:30 UTC
+            "options": {"expires": 3600},
+            # Notes:
+            # - Runs daily at 05:30 UTC (after OHLCV data refresh completes)
+            # - Calculates pairwise covariance matrix for all watchlist/portfolio tickers
+            # - Uses 252-day (1 year) lookback for statistical significance
+            # - Enables proper portfolio volatility calculation: sigma = sqrt(w' * Cov * w)
+            # - Fixes GAP-020: Wrong portfolio risk math using weighted average
+            # - Results cached in portfolio_covariance table for 24 hours
+        },
     }

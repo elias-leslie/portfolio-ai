@@ -2,12 +2,20 @@
 
 This module handles calculations related to portfolio value, gains,
 and position performance metrics.
+
+GAP-020 FIX: Portfolio volatility now uses proper covariance matrix calculation
+instead of incorrect weighted-average approach that assumed rho=1.
 """
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from ..logging_config import get_logger
 from .models import PortfolioValue, Position, PositionPerformance, PriceData
+
+if TYPE_CHECKING:
+    from ..storage import PortfolioStorage
 
 logger = get_logger(__name__)
 
@@ -98,8 +106,75 @@ def calculate_portfolio_beta(
 def calculate_portfolio_volatility(
     positions: list[Position],
     price_data: dict[str, PriceData],
+    storage: PortfolioStorage | None = None,
 ) -> float | None:
-    """Calculate portfolio volatility (weighted average).
+    """Calculate portfolio volatility using covariance matrix (GAP-020 fix).
+
+    Uses proper formula: sigma_portfolio = sqrt(w' * Cov * w)
+    Falls back to weighted average if storage unavailable or covariance fails.
+
+    Args:
+        positions: List of portfolio positions
+        price_data: Dictionary mapping symbol to PriceData
+        storage: Optional storage for covariance matrix lookup
+
+    Returns:
+        Portfolio volatility (annualized), or None if insufficient data
+    """
+    # Calculate position weights
+    total_value = 0.0
+    position_values: dict[str, float] = {}
+
+    for position in positions:
+        price = price_data.get(position.symbol)
+        if not price or price.error:
+            continue
+
+        position_value = position.shares * price.price
+        position_values[position.symbol] = position_value
+        total_value += position_value
+
+    if total_value == 0:
+        return None
+
+    # Calculate weights
+    weights = {symbol: value / total_value for symbol, value in position_values.items()}
+
+    # Try covariance-based calculation if storage available
+    if storage is not None and len(weights) >= 2:
+        try:
+            from ..analytics.covariance import get_portfolio_volatility  # noqa: PLC0415
+
+            portfolio_vol, weighted_avg_vol, div_benefit = get_portfolio_volatility(
+                storage,
+                weights,
+                portfolio_id="portfolio",
+            )
+
+            if portfolio_vol is not None:
+                logger.debug(
+                    "portfolio_volatility_covariance",
+                    portfolio_vol=f"{portfolio_vol:.4f}",
+                    weighted_avg=f"{weighted_avg_vol:.4f}" if weighted_avg_vol else "N/A",
+                    div_benefit=f"{div_benefit:.2%}" if div_benefit else "N/A",
+                )
+                return portfolio_vol
+        except Exception as e:
+            logger.warning("portfolio_volatility_covariance_failed", error=str(e))
+
+    # Fallback to weighted average (incorrect but better than nothing)
+    return _calculate_weighted_avg_volatility(positions, price_data)
+
+
+def _calculate_weighted_avg_volatility(
+    positions: list[Position],
+    price_data: dict[str, PriceData],
+) -> float | None:
+    """Calculate portfolio volatility using simple weighted average (DEPRECATED).
+
+    WARNING: This assumes perfect correlation (rho=1) between all assets,
+    which overstates portfolio risk by 30-60%. Use covariance-based
+    calculation when possible.
 
     Args:
         positions: List of portfolio positions
@@ -123,6 +198,7 @@ def calculate_portfolio_volatility(
     if total_value == 0:
         return None
 
+    logger.debug("portfolio_volatility_fallback_weighted_avg")
     return weighted_vol_sum / total_value
 
 

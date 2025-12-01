@@ -112,6 +112,17 @@ class PortfolioStorage:
         """Execute a SQL query and return results as a Polars DataFrame."""
         return self.query_mgr.query(sql, params)
 
+    def execute(self, sql: str, params: list[ParameterValue] | None = None) -> None:
+        """Execute a write SQL query (INSERT, UPDATE, DELETE).
+
+        Args:
+            sql: SQL query string
+            params: Optional list of query parameters
+        """
+        with self.connection() as conn:
+            conn.execute(sql, params)
+            conn.commit()
+
 
 # Singleton instance
 _storage: PortfolioStorage | None = None
