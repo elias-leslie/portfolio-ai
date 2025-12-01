@@ -79,3 +79,6 @@ test-results/
 .validation-state.json
 backend/.venv.python312.backup/
 backups/
+
+# Backend models
+backend/models/
