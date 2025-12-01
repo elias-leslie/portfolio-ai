@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import datetime as dt
 import uuid
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     pass
@@ -23,7 +23,7 @@ from app.sources.polygon_source import PolygonSource
 from app.sources.twelvedata_source import TwelveDataSource
 from app.sources.yfinance_source import YFinanceSource
 from app.storage import PortfolioStorage, get_storage
-from app.storage.types import ParameterValue
+from app.storage.credential_loader import load_credentials_from_database
 
 logger = get_logger(__name__)
 
@@ -38,17 +38,57 @@ def _initialize_data_sources() -> list[
 ]:
     """Initialize all available OHLCV data sources for multi-source fetching.
 
+    Only instantiates sources that have their API keys configured.
+    YFinanceSource is always included as it doesn't require an API key.
+
     Returns:
         List of configured data source instances in priority order
     """
-    return [
-        YFinanceSource(),
-        TwelveDataSource(),
-        FMPSource(),
-        PolygonSource(),
-        FinnhubSource(),
-        AlphaVantageSource(),
+    # Load API credentials from database into environment variables
+    # This ensures Celery workers have access to API keys stored in source_credentials table
+    load_credentials_from_database()
+
+    sources: list[
+        YFinanceSource
+        | TwelveDataSource
+        | FMPSource
+        | PolygonSource
+        | FinnhubSource
+        | AlphaVantageSource
+    ] = []
+
+    # YFinanceSource doesn't require API key - always available
+    sources.append(YFinanceSource())
+
+    # Try to initialize other sources - skip if API key missing
+    source_classes = [
+        TwelveDataSource,
+        FMPSource,
+        PolygonSource,
+        FinnhubSource,
+        AlphaVantageSource,
     ]
+
+    for source_class in source_classes:
+        try:
+            source = source_class()
+            sources.append(source)
+            logger.debug(f"data_source_initialized source={source_class.__name__}")
+        except (RuntimeError, ValueError) as e:
+            # API key not configured - skip this source
+            logger.info(
+                "data_source_skipped",
+                source=source_class.__name__,
+                reason=str(e),
+            )
+
+    logger.info(
+        "data_sources_initialized",
+        sources=[type(s).__name__ for s in sources],
+        count=len(sources),
+    )
+
+    return sources
 
 
 def _calculate_date_range(days: int) -> tuple[dt.date, dt.date]:
@@ -121,24 +161,6 @@ def _prepare_dataframe(result_df: Any, ingest_run_id: str) -> tuple[Any, list[st
     return result_df, unique_tickers
 
 
-def _delete_existing_data(storage: PortfolioStorage, tickers: list[str]) -> None:
-    """Delete existing data for the specified tickers to avoid duplicates.
-
-    Args:
-        storage: Storage instance for database operations
-        tickers: List of tickers to delete data for
-    """
-    with storage.connection() as conn:
-        placeholders = ", ".join(["%s"] * len(tickers))
-        # Cast tickers to proper types for execute()
-        params = cast(list[ParameterValue], tickers)
-        conn.execute(
-            f"DELETE FROM day_bars WHERE ticker IN ({placeholders})",
-            params,
-        )
-        conn.commit()
-
-
 def _fetch_ohlcv_data(
     fetcher: MultiSourceFetcher,
     request: DatasetRequest,
@@ -168,7 +190,12 @@ def _fetch_ohlcv_data(
 
 
 def _insert_ohlcv_data(storage: PortfolioStorage, result_df: Any, ingest_run_id: str) -> int:
-    """Insert OHLCV data into day_bars table.
+    """Insert OHLCV data into day_bars table using UPSERT.
+
+    Uses UPSERT (ON CONFLICT DO UPDATE) to:
+    1. Prevent deadlocks from concurrent tasks
+    2. Preserve existing historical data
+    3. Update only the rows that changed
 
     Args:
         storage: Storage instance for database operations
@@ -176,33 +203,33 @@ def _insert_ohlcv_data(storage: PortfolioStorage, result_df: Any, ingest_run_id:
         ingest_run_id: Unique ID for this ingestion run
 
     Returns:
-        Number of rows inserted
+        Number of rows upserted
     """
     # Prepare DataFrame and get unique tickers
     result_df, unique_tickers = _prepare_dataframe(result_df, ingest_run_id)
 
     # Log insertion start
     logger.info(
-        "ingest_inserting_data",
+        "ingest_upserting_data",
         ingest_run_id=ingest_run_id,
         rows=len(result_df),
+        tickers=unique_tickers,
     )
 
-    # Delete existing data for these tickers to avoid duplicates
-    _delete_existing_data(storage, unique_tickers)
-
-    # Insert new data (using append since we already deleted the old rows)
-    storage.insert_dataframe("day_bars", result_df, mode="append")
-    rows_inserted = len(result_df)
+    # Use UPSERT mode to prevent deadlocks and preserve historical data
+    # This replaces DELETE + INSERT pattern which caused PostgreSQL deadlocks
+    # when multiple tasks ran concurrently
+    storage.insert_dataframe("day_bars", result_df, mode="upsert")
+    rows_upserted = len(result_df)
 
     # Log insertion completion
     logger.info(
-        "ingest_data_inserted",
+        "ingest_data_upserted",
         ingest_run_id=ingest_run_id,
-        rows_inserted=rows_inserted,
+        rows_upserted=rows_upserted,
     )
 
-    return rows_inserted
+    return rows_upserted
 
 
 def _build_ingestion_result(
