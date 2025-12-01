@@ -113,27 +113,29 @@ def update_open_trade(
     """
     update_query = """
         UPDATE idea_outcomes
-        SET current_price = ?,
-            current_return_pct = ?,
-            max_favorable_pct = ?,
-            max_adverse_pct = ?,
-            holding_days = ?,
-            updated_at = ?
-        WHERE idea_id = ?
+        SET current_price = $1,
+            current_return_pct = $2,
+            max_favorable_pct = $3,
+            max_adverse_pct = $4,
+            holding_days = $5,
+            updated_at = $6
+        WHERE idea_id = $7
     """
 
-    storage.query(
-        update_query,
-        [
-            current_price,
-            current_return_pct,
-            max_favorable_pct,
-            max_adverse_pct,
-            holding_days,
-            datetime.now(UTC),
-            trade["idea_id"],
-        ],
-    )
+    with storage.connection() as conn:
+        conn.execute(
+            update_query,
+            [
+                current_price,
+                current_return_pct,
+                max_favorable_pct,
+                max_adverse_pct,
+                holding_days,
+                datetime.now(UTC),
+                trade["idea_id"],
+            ],
+        )
+        conn.commit()
 
 
 def close_trade(
@@ -162,37 +164,39 @@ def close_trade(
     """
     update_query = """
         UPDATE idea_outcomes
-        SET current_price = ?,
-            current_return_pct = ?,
-            max_favorable_pct = ?,
-            max_adverse_pct = ?,
-            holding_days = ?,
-            status = ?,
-            exit_price = ?,
-            exit_date = ?,
-            exit_reason = ?,
-            realized_return_pct = ?,
-            updated_at = ?
-        WHERE idea_id = ?
+        SET current_price = $1,
+            current_return_pct = $2,
+            max_favorable_pct = $3,
+            max_adverse_pct = $4,
+            holding_days = $5,
+            status = $6,
+            exit_price = $7,
+            exit_date = $8,
+            exit_reason = $9,
+            realized_return_pct = $10,
+            updated_at = $11
+        WHERE idea_id = $12
     """
 
-    storage.query(
-        update_query,
-        [
-            current_price,
-            current_return_pct,
-            max_favorable_pct,
-            max_adverse_pct,
-            holding_days,
-            status,
-            current_price,  # exit_price
-            str(dt.date.today()),  # exit_date
-            exit_reason,
-            current_return_pct,  # realized_return_pct
-            datetime.now(UTC),
-            trade["idea_id"],
-        ],
-    )
+    with storage.connection() as conn:
+        conn.execute(
+            update_query,
+            [
+                current_price,
+                current_return_pct,
+                max_favorable_pct,
+                max_adverse_pct,
+                holding_days,
+                status,
+                current_price,  # exit_price
+                str(dt.date.today()),  # exit_date
+                exit_reason,
+                current_return_pct,  # realized_return_pct
+                datetime.now(UTC),
+                trade["idea_id"],
+            ],
+        )
+        conn.commit()
 
     logger.info(
         "paper_trade_closed",
