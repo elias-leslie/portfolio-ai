@@ -56,6 +56,8 @@ def dict_from_row(row: tuple[Any, ...], columns: list[str]) -> dict[str, Any]:
 def capability_from_row(row: tuple[Any, ...], columns: list[str]) -> CapabilityDict:
     """Convert database row to CapabilityDict.
 
+    Converts datetime and date objects to ISO format strings for JSON serialization.
+
     Args:
         row: Database row tuple
         columns: Column names matching row values
@@ -65,7 +67,11 @@ def capability_from_row(row: tuple[Any, ...], columns: list[str]) -> CapabilityD
     """
     result: CapabilityDict = {}
     for key, value in zip(columns, row, strict=True):
-        result[key] = value  # type: ignore
+        if hasattr(value, "isoformat"):
+            # Convert datetime and date objects to ISO format strings
+            result[key] = value.isoformat()  # type: ignore
+        else:
+            result[key] = value  # type: ignore
     return result
 
 

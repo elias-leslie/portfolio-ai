@@ -71,6 +71,26 @@ function CapabilitiesPageContent() {
   const [page, setPage] = useState(0);
   const pageSize = 50;
 
+  // Fetch health summary for tab counts (always enabled)
+  interface HealthSummary {
+    total: number;
+    by_type: {
+      database: { active: number; orphaned: number; legacy: number; suspect: number };
+      celery: { active: number; orphaned: number; legacy: number; suspect: number };
+      api: { active: number; orphaned: number; legacy: number; suspect: number };
+    };
+    by_status: { active: number; orphaned: number; legacy: number; suspect: number };
+  }
+
+  const { data: healthSummary } = useQuery<HealthSummary>({
+    queryKey: ["capabilities", "health-summary"],
+    queryFn: async () => {
+      const response = await fetch("/api/capabilities/health/summary");
+      if (!response.ok) throw new Error("Failed to fetch health summary");
+      return response.json();
+    },
+  });
+
   // Handle health filter change with URL sync
   const handleHealthFilterChange = (value: string) => {
     setHealthFilter(value);
@@ -121,7 +141,13 @@ function CapabilitiesPageContent() {
     enabled: activeTab !== "dashboard" && activeTab !== "insights" && activeTab !== "gaps",
   });
 
-  // Fetch insights for insights tab
+  // Fetch insights count (always enabled for tab badge)
+  const { data: insightsCountData } = useQuery({
+    queryKey: ["insights-count"],
+    queryFn: () => fetchInsights({ limit: 1 }),
+  });
+
+  // Fetch insights for insights tab (full data when tab active)
   const {
     data: insightsData,
     isLoading: insightsLoading,
@@ -292,13 +318,20 @@ function CapabilitiesPageContent() {
     );
   }
 
-  // Count capabilities by type
-  const dbCount =
-    capabilitiesData?.capabilities.filter((c) => c.capability_type === "db").length || 0;
-  const celeryCount =
-    capabilitiesData?.capabilities.filter((c) => c.capability_type === "celery").length || 0;
-  const apiCount =
-    capabilitiesData?.capabilities.filter((c) => c.capability_type === "api").length || 0;
+  // Count capabilities by type from health summary (always available)
+  const dbStats = healthSummary?.by_type?.database;
+  const celeryStats = healthSummary?.by_type?.celery;
+  const apiStats = healthSummary?.by_type?.api;
+
+  const dbCount = dbStats
+    ? dbStats.active + dbStats.orphaned + dbStats.legacy + dbStats.suspect
+    : 0;
+  const celeryCount = celeryStats
+    ? celeryStats.active + celeryStats.orphaned + celeryStats.legacy + celeryStats.suspect
+    : 0;
+  const apiCount = apiStats
+    ? apiStats.active + apiStats.orphaned + apiStats.legacy + apiStats.suspect
+    : 0;
 
   return (
     <div className="bg-bg min-h-screen">
@@ -350,9 +383,9 @@ function CapabilitiesPageContent() {
             <TabsTrigger value="insights">
               <AlertTriangle className="mr-2 h-4 w-4" />
               Insights
-              {insightsData && insightsData.total > 0 && (
+              {(insightsCountData?.total ?? insightsData?.total ?? 0) > 0 && (
                 <span className="ml-2 rounded-full bg-accent/20 px-2 py-0.5 text-xs">
-                  {insightsData.total}
+                  {insightsCountData?.total ?? insightsData?.total}
                 </span>
               )}
             </TabsTrigger>

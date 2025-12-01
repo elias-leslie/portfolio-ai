@@ -10,8 +10,13 @@ from typing import TypedDict
 
 
 class CapabilityDict(TypedDict, total=False):
-    """Single capability record from database."""
+    """Single capability record from database.
 
+    Contains fields from all three capability tables (db, celery, api)
+    as this is a union type used for the capabilities list endpoint.
+    """
+
+    # Common fields
     id: int
     name: str
     category: str
@@ -19,16 +24,53 @@ class CapabilityDict(TypedDict, total=False):
     capability_type: str
     insights_count: int
     notes_count: int
-    # db_capability fields
+    last_scanned_at: str | None
+    created_at: str | None
+    updated_at: str | None
+
+    # db_capabilities fields
+    table_name: str
+    row_count: int | None
+    columns: list[str] | None
+    total_columns: int | None
+    columns_with_data: list[str] | None
+    columns_mostly_null: list[str] | None
+    completeness_pct: int | None
+    date_range_start: str | None
+    date_range_end: str | None
+    expected_freshness: str | None
     days_since_update: int | None
+    freshness_status: str | None
     age_hours: int | None
     source: str | None
     description: str
-    freshness_status: str | None
-    # celery_capability fields
+
+    # celery_capabilities fields
+    task_name: str
+    task_path: str | None
+    function_name: str | None
+    schedule_description: str | None
+    schedule_crontab: str | None
+    schedule_interval_seconds: int | None
+    last_run_at: str | None
+    next_run_at: str | None
+    success_count_7d: int | None
+    failure_count_7d: int | None
+    success_rate_pct: int | None
+    avg_duration_ms: int | None
+    max_duration_ms: int | None
     populates_tables: list[str]
     depends_on_tasks: list[str]
-    # api_capability fields
+
+    # api_capabilities fields
+    endpoint_path: str
+    http_method: str
+    route_file: str | None
+    avg_response_time_ms: int | None
+    p95_response_time_ms: int | None
+    p99_response_time_ms: int | None
+    error_rate_pct: float | None
+    last_7d_request_count: int | None
     depends_on_tables: list[str]
 
 
@@ -49,19 +91,35 @@ class DependenciesDict(TypedDict, total=False):
 
 
 class InsightDict(TypedDict, total=False):
-    """Capability insight record."""
+    """Capability insight record.
+
+    Contains all fields from capability_insights table.
+    """
 
     id: int
     capability_type: str
-    capability_id: int
-    status: str
-    severity: str
+    capability_id: int | None  # Can be NULL in database
+    table_name: str | None
     insight_type: str
-    message: str
+    severity: str
+    finding: str
+    expected_behavior: str | None
+    actual_behavior: str | None
+    impact: str | None
+    suggested_fix: str | None
+    reference_data: dict[str, object] | None
+    ai_model: str | None
+    ai_confidence: float | None
+    status: str
+    status_reason: str | None
     generated_at: str
     reviewed_at: str | None
     reviewed_by: str | None
     fixed_at: str | None
+    created_at: str | None
+    updated_at: str | None
+    # Legacy field kept for backwards compatibility
+    message: str
 
 
 class NoteDict(TypedDict, total=False):

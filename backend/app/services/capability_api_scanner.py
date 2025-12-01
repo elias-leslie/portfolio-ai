@@ -218,7 +218,8 @@ class APIScanner:
     def _detect_table_dependencies(self, content: str, function_name: str | None) -> list[str]:
         """Detect which tables an endpoint depends on.
 
-        Uses basic regex to find SELECT ... FROM statements.
+        Uses regex to find SELECT ... FROM / JOIN statements in SQL strings only.
+        Filters out Python imports which share similar syntax (from X import).
 
         Args:
             content: File content
@@ -230,19 +231,58 @@ class APIScanner:
         try:
             tables = set()
 
-            # Patterns for SQL queries
-            patterns = [
-                r"FROM\s+([a-z_][a-z0-9_]*)",
-                r"JOIN\s+([a-z_][a-z0-9_]*)",
+            # Extract only SQL string content (inside quotes)
+            # This avoids matching Python import statements like "from typing import"
+            sql_string_patterns = [
+                r'"""([^"]*?)"""',  # Triple-quoted strings
+                r"'''([^']*?)'''",  # Triple single-quoted strings
+                r'"([^"\n]*?)"',  # Double-quoted strings (single line)
+                r"'([^'\n]*?)'",  # Single-quoted strings (single line)
             ]
 
-            for pattern in patterns:
-                matches = re.findall(pattern, content, re.IGNORECASE)
+            sql_content = ""
+            for pattern in sql_string_patterns:
+                matches = re.findall(pattern, content, re.DOTALL)
+                sql_content += " ".join(matches) + " "
+
+            # Now search for table references ONLY in the extracted SQL strings
+            table_patterns = [
+                r"FROM\s+([a-z_][a-z0-9_]*)",
+                r"JOIN\s+([a-z_][a-z0-9_]*)",
+                r"INTO\s+([a-z_][a-z0-9_]*)",
+                r"UPDATE\s+([a-z_][a-z0-9_]*)",
+            ]
+
+            for pattern in table_patterns:
+                matches = re.findall(pattern, sql_content, re.IGNORECASE)
                 tables.update(matches)
 
-            # Filter out SQL keywords that might be matched
-            sql_keywords = {"select", "where", "order", "group", "limit", "offset"}
-            tables = {t for t in tables if t.lower() not in sql_keywords}
+            # Filter out SQL keywords and common Python module names
+            exclude_names = {
+                # SQL keywords
+                "select",
+                "where",
+                "order",
+                "group",
+                "limit",
+                "offset",
+                "values",
+                # Python modules that might slip through
+                "__future__",
+                "typing",
+                "datetime",
+                "pydantic",
+                "fastapi",
+                "app",
+                "decimal",
+                "json",
+                "re",
+                "os",
+                "sys",
+                "pathlib",
+                "logging",
+            }
+            tables = {t for t in tables if t.lower() not in exclude_names}
 
             return sorted(tables)
 

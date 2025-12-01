@@ -226,7 +226,7 @@ export async function fetchCapabilities(
   if (filters.offset) params.append("offset", filters.offset.toString());
 
   const queryString = params.toString();
-  const url = `/api/capabilities${queryString ? `?${queryString}` : ""}`;
+  const url = `/api/capabilities/${queryString ? `?${queryString}` : ""}`;
 
   return get<CapabilitiesListResponse>(url);
 }
@@ -256,7 +256,7 @@ export async function fetchInsights(
   if (filters.offset) params.append("offset", filters.offset.toString());
 
   const queryString = params.toString();
-  const url = `/api/capabilities/insights${queryString ? `?${queryString}` : ""}`;
+  const url = `/api/capabilities/insights/${queryString ? `?${queryString}` : ""}`;
 
   return get<InsightsListResponse>(url);
 }
@@ -295,7 +295,7 @@ export async function fetchNotes(filters: {
   if (filters.insight_id) params.append("insight_id", filters.insight_id.toString());
 
   const queryString = params.toString();
-  const url = `/api/capabilities/notes${queryString ? `?${queryString}` : ""}`;
+  const url = `/api/capabilities/notes/${queryString ? `?${queryString}` : ""}`;
 
   return get<NotesListResponse>(url);
 }
