@@ -83,13 +83,16 @@ class GapDetector:
         """
         logger.info("analyzing_watchlist_gaps")
 
-        # Note: Watchlist gap analysis not yet implemented
+        # TODO: Implement watchlist gap analysis
         # - Get current watchlist tickers
         # - Check coverage per ticker
         # - Aggregate: "8/12 watchlist tickers missing earnings data"
 
+        # Return empty but valid structure for now
         return {
-            "message": "Watchlist gap analysis not yet implemented",
+            "watchlist_tickers": [],
+            "ticker_coverage": {},
+            "aggregate_gaps": [],
         }
 
     def generate_task_list(self, gap_ids: list[str]) -> dict[str, Any]:
