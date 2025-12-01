@@ -6,6 +6,8 @@ system status, dependencies, and service availability including multi-source dat
 
 from __future__ import annotations
 
+import json
+from datetime import datetime
 from typing import Any, Literal
 
 from fastapi import APIRouter, Response
@@ -33,6 +35,136 @@ from ..utils.health_workflows import WorkflowHealthInfo
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/health", tags=["health"])
+
+
+# Helper functions for status page enhancement
+async def get_data_freshness_summary() -> dict[str, Any]:
+    """Get summary of data freshness status from last check.
+
+    Returns:
+        Dict with last_check, tables_checked, fresh, stale, critical counts
+    """
+    storage = get_storage()
+
+    try:
+        # Query maintenance_log for recent check_all_data_freshness runs
+        query = """
+            SELECT summary, started_at, status
+            FROM maintenance_log
+            WHERE task_name = 'check_all_data_freshness'
+            ORDER BY started_at DESC
+            LIMIT 1
+        """
+
+        with storage.connection() as conn:
+            result = conn.execute(query).fetchone()
+
+        if not result:
+            return {
+                "last_check": None,
+                "status": "no_data",
+                "message": "No freshness checks have been run yet"
+            }
+
+        # Unpack result with proper types
+        summary_json = result[0]  # Can be str, dict, or None
+        started_at = result[1]  # Should be datetime or None
+        status = result[2]  # Should be str
+
+        # Parse summary JSON
+        if isinstance(summary_json, str):
+            summary = json.loads(summary_json)
+        elif isinstance(summary_json, dict):
+            summary = summary_json
+        else:
+            summary = {}
+
+        return {
+            "last_check": started_at.isoformat() if isinstance(started_at, datetime) else None,
+            "status": str(status) if status else "unknown",
+            "tables_checked": summary.get("tables_checked", 0),
+            "fresh": summary.get("fresh", 0),
+            "stale": summary.get("stale", 0),
+            "critical": summary.get("critical", 0),
+            "remediations_triggered": summary.get("remediations_triggered", 0),
+        }
+
+    except Exception as e:
+        logger.error("get_data_freshness_summary_failed", error=str(e))
+        return {
+            "last_check": None,
+            "status": "error",
+            "error": str(e)
+        }
+
+
+async def get_recent_remediations(hours: int = 24) -> list[dict[str, Any]]:
+    """Get recent auto-remediation actions.
+
+    Args:
+        hours: Time window in hours (default: 24)
+
+    Returns:
+        List of recent remediation events
+    """
+    storage = get_storage()
+
+    try:
+        # Query maintenance_log for remediation triggers (last N hours)
+        # Note: Using f-string for INTERVAL as parameter binding doesn't work with INTERVAL multiplication
+        query = f"""
+            SELECT task_name, started_at, status, summary, error_message
+            FROM maintenance_log
+            WHERE task_name LIKE 'data_freshness_alert_%'
+            AND started_at > NOW() - INTERVAL '{hours} hours'
+            ORDER BY started_at DESC
+            LIMIT 20
+        """
+
+        with storage.connection() as conn:
+            result = conn.execute(query).fetchall()
+
+        remediations = []
+        for row in result:
+            # Unpack row with explicit types
+            task_name_val = row[0]  # str | int | float | None
+            started_at_val = row[1]  # datetime or other DatabaseValue
+            status_val = row[2]  # str | int | float | None
+            summary_json_val = row[3]  # str | dict | None
+            error_message_val = row[4]  # str | None
+
+            # Extract table name from task_name (format: data_freshness_alert_TABLE_NAME)
+            if isinstance(task_name_val, str):
+                table_name = task_name_val.replace("data_freshness_alert_", "")
+            else:
+                table_name = "unknown"
+
+            # Parse summary
+            summary = {}
+            if summary_json_val:
+                if isinstance(summary_json_val, str):
+                    try:
+                        summary = json.loads(summary_json_val)
+                    except json.JSONDecodeError:
+                        summary = {}
+                elif isinstance(summary_json_val, dict):
+                    summary = summary_json_val
+
+            remediations.append({
+                "table_name": table_name,
+                "triggered_at": started_at_val.isoformat() if isinstance(started_at_val, datetime) else None,
+                "status": str(status_val) if status_val else "unknown",
+                "age_hours": summary.get("age_hours"),
+                "threshold_hours": summary.get("threshold_hours"),
+                "reason": summary.get("reason"),
+                "error_message": str(error_message_val) if error_message_val else None,
+            })
+
+        return remediations
+
+    except Exception as e:
+        logger.error("get_recent_remediations_failed", error=str(e))
+        return []
 
 
 # API Response Models
@@ -66,6 +198,14 @@ class DetailedHealthCheckResponse(HealthCheckResponse):
     workflow_metrics: dict[str, Any] = Field(
         default_factory=dict,
         description="Workflow metrics for last 7 days",
+    )
+    data_freshness_status: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Pipeline execution status from last freshness check",
+    )
+    recent_remediations: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Recent auto-remediation actions (last 24h)",
     )
 
 
@@ -145,6 +285,8 @@ async def detailed_health_check(response: Response) -> DetailedHealthCheckRespon
     - Celery worker active status and pool information
     - API key configuration status
     - Disk usage statistics
+    - Data freshness monitoring status (pipeline execution)
+    - Recent auto-remediation activity
 
     Returns HTTP 503 if database is down, HTTP 200 otherwise.
     """
@@ -154,12 +296,18 @@ async def detailed_health_check(response: Response) -> DetailedHealthCheckRespon
     if result["status"] == "down":
         response.status_code = 503
 
+    # Add pipeline execution and remediation data
+    result["data_freshness_status"] = await get_data_freshness_summary()
+    result["recent_remediations"] = await get_recent_remediations()
+
     logger.info(
         "detailed_health_check_endpoint",
         status=result["status"],
         day_bars_tickers=len(result["day_bars_freshness"]),
         celery_active=result["celery_worker"].active if result["celery_worker"] else False,
         api_keys_configured=sum(1 for k in result["api_keys"] if k.configured),
+        freshness_status=result["data_freshness_status"].get("status"),
+        remediations_count=len(result["recent_remediations"]),
     )
 
     return DetailedHealthCheckResponse(**result)

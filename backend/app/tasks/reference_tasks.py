@@ -346,7 +346,15 @@ def parse_valuation_metrics(self: Task) -> dict[str, int | str]:
         }
 
 
-@celery_app.task(name="refresh_yfinance_reference_data", bind=True)  # type: ignore[misc]
+@celery_app.task(
+    bind=True,
+    name="refresh_yfinance_reference_data",
+    max_retries=3,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=600,
+    retry_jitter=True,
+)  # type: ignore[misc]
 def refresh_yfinance_reference_data(self: Task) -> dict[str, int | str]:
     """Fetch reference data (including valuation metrics) from yfinance for watchlist symbols.
 

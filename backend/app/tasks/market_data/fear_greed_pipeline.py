@@ -481,7 +481,15 @@ def _process_and_return_results(
     }
 
 
-@celery_app.task(name="populate_fear_greed_inputs", bind=True)  # type: ignore[misc]
+@celery_app.task(
+    bind=True,
+    name="populate_fear_greed_inputs",
+    max_retries=3,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=600,
+    retry_jitter=True,
+)  # type: ignore[misc]
 def populate_fear_greed_inputs(self: Task, days: int = 7) -> FearGreedPipelineResultDict:
     """Populate fear_greed_inputs table with latest market data.
 

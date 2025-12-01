@@ -427,6 +427,18 @@ def get_beat_schedule() -> dict[str, object]:
             "schedule": crontab(hour="*/2"),  # Every 2 hours
             "options": {"expires": 3600},  # 1-hour expiry
         },
+        "check-all-data-freshness": {
+            "task": "check_all_data_freshness",
+            "schedule": crontab(minute=0, hour="*/2"),  # Every 2 hours
+            "options": {"expires": 3600},  # 1-hour expiry
+            # Notes:
+            # - Runs every 2 hours to monitor all critical tables
+            # - Checks: day_bars, technical_indicators, fear_greed_inputs,
+            #   fear_greed_daily, options_market_metrics, news_cache, reference_cache
+            # - Creates maintenance_log alerts for critically stale data
+            # - Trading day awareness: Skips weekend/holiday alerts for market data
+            # - Complements maintain-data-freshness (watchlist-specific)
+        },
         "cleanup-old-logs-daily": {
             "task": "cleanup_old_logs_task",
             "schedule": crontab(hour=2, minute=0),  # Daily at 02:00 UTC
@@ -502,6 +514,17 @@ def get_beat_schedule() -> dict[str, object]:
             # - Alerts (via logs) if any partition > 85% used
             # - Tracks disk usage trends in maintenance_stats table
             # - Critical for preventing disk space issues
+        },
+        "check-data-source-health-periodic": {
+            "task": "check_data_source_health",
+            "schedule": crontab(minute=30, hour="*/6"),  # Every 6 hours at :30
+            "options": {"expires": 600},
+            # Notes:
+            # - Runs every 6 hours at :30 (00:30, 06:30, 12:30, 18:30 UTC)
+            # - Tests each data source with SPY OHLCV fetch
+            # - Categorizes sources: healthy, degraded, down
+            # - Provides visibility into source availability
+            # - Complements multi-source fallback logging
         },
         "get-database-size-daily": {
             "task": "get_database_size_task",

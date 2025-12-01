@@ -10,7 +10,11 @@ from typing import TYPE_CHECKING, Any
 
 from app.celery_app import celery_app
 from app.logging_config import get_logger
+from app.services.data_freshness_service import check_all_tables_freshness
+from app.services.maintenance_tracker import record_maintenance_completion, record_maintenance_start
 from app.storage import get_storage
+from app.storage.connection import get_connection_manager
+from app.tasks.watchlist_tasks import refresh_watchlist_scores_task
 
 if TYPE_CHECKING:
     from celery import Task  # type: ignore[import-untyped]
@@ -75,7 +79,15 @@ def _check_data_freshness_impl() -> dict[str, Any]:
     }
 
 
-@celery_app.task(name="maintain_data_freshness", bind=True)  # type: ignore[misc]
+@celery_app.task(
+    bind=True,
+    name="maintain_data_freshness",
+    max_retries=3,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=600,
+    retry_jitter=True,
+)  # type: ignore[misc]
 def maintain_data_freshness(self: Task) -> dict[str, Any]:
     """Check all watchlist tickers for freshness and auto-refresh stale data.
 
@@ -115,8 +127,6 @@ def maintain_data_freshness(self: Task) -> dict[str, Any]:
 
         # Refresh stale tickers by triggering full watchlist refresh
         # Note: refresh_watchlist_scores_task refreshes all tickers
-        from app.tasks.watchlist_tasks import refresh_watchlist_scores_task
-
         try:
             refresh_watchlist_scores_task.apply(args=["default"])
             refreshed = len(stale_tickers)
@@ -151,5 +161,97 @@ def maintain_data_freshness(self: Task) -> dict[str, Any]:
         return {
             "status": "failed",
             "error": str(e),
+            "execution_time_sec": round(duration, 2),
+        }
+
+
+@celery_app.task(
+    bind=True,
+    name="check_all_data_freshness",
+    max_retries=3,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=600,
+    retry_jitter=True,
+)  # type: ignore[misc]
+def check_all_data_freshness(self: Task, auto_remediate: bool = True) -> dict[str, Any]:
+    """Comprehensive data freshness check for all critical tables with auto-remediation.
+
+    VISION.md requirement: <24 hour data freshness for all monitored tables
+
+    Process:
+    1. Query MAX(date_column) for each configured table
+    2. Calculate age in hours
+    3. Create maintenance_log alerts for critically stale tables
+    4. Trigger refresh tasks for stale/critical tables (if auto_remediate=True)
+    5. Skip weekend/holiday alerts for market data tables
+    6. Return summary metrics
+
+    Args:
+        auto_remediate: If True, automatically trigger refresh tasks for stale data
+
+    Returns:
+        Dict with status, tables_checked, fresh, stale, critical, alerts_created, remediations_triggered
+    """
+    task_id = self.request.id
+    start_time = dt.datetime.now(dt.UTC)
+    logger.info("check_all_data_freshness_started", task_id=task_id, auto_remediate=auto_remediate)
+
+    # Record start in maintenance_log
+    log_id = record_maintenance_start(task_name="check_all_data_freshness", dry_run=False)
+
+    try:
+        # Get database connection
+        storage = get_connection_manager()
+
+        # Check all tables with auto-remediation
+        result = check_all_tables_freshness(storage, auto_remediate=auto_remediate)
+
+        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+
+        # Build response
+        response = {
+            "status": "success",
+            "tables_checked": result["tables_checked"],
+            "fresh": result["fresh"],
+            "stale": result["stale"],
+            "critical": result["critical"],
+            "alerts_created": result["alerts_created"],
+            "remediations_triggered": result.get("remediations_triggered", 0),
+            "execution_time_sec": round(duration, 2),
+        }
+
+        # Record completion in maintenance_log
+        record_maintenance_completion(
+            log_id=log_id,
+            status="success",
+            summary=response,
+            error_message=None,
+        )
+
+        logger.info("check_all_data_freshness_completed", **response)
+        return response
+
+    except Exception as e:
+        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        error_msg = str(e)
+
+        # Record failure in maintenance_log
+        record_maintenance_completion(
+            log_id=log_id,
+            status="error",
+            summary={"execution_time_sec": round(duration, 2)},
+            error_message=error_msg,
+        )
+
+        logger.error(
+            "check_all_data_freshness_failed",
+            task_id=task_id,
+            error=error_msg,
+            duration_seconds=round(duration, 2),
+        )
+        return {
+            "status": "failed",
+            "error": error_msg,
             "execution_time_sec": round(duration, 2),
         }

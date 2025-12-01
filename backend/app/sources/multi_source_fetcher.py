@@ -300,6 +300,21 @@ class MultiSourceFetcher:
         if not sources:
             return None, {"error": [f"No sources available for dataset: {request.dataset}"]}
 
+        # Log available sources at start
+        available_sources = [s.name for s in sources]
+        sources_in_cooldown = [
+            s.name for s in sources if self.metrics_manager.is_in_cooldown(s.name)
+        ]
+        if verbose:
+            logger.info(
+                "fetch_started",
+                dataset=request.dataset,
+                num_tickers=len(list(request.tickers)),
+                available_sources=available_sources,
+                total_sources=len(available_sources),
+                sources_in_cooldown=sources_in_cooldown,
+            )
+
         all_data = []
         errors_by_source: dict[str, list[str]] = {}
         tickers_remaining = set(request.tickers)
@@ -344,15 +359,45 @@ class MultiSourceFetcher:
                 errors_by_source[source.name].append(str(e))
                 self.metrics_manager.record_failure(source.name, e)
 
+                # Log source failure with fallback info
+                next_source = None
+                for idx, s in enumerate(sources):
+                    if s.name == source.name and idx + 1 < len(sources):
+                        # Find next source not in cooldown
+                        for next_s in sources[idx + 1 :]:
+                            if not self.metrics_manager.is_in_cooldown(next_s.name):
+                                next_source = next_s
+                                break
+                        break
+
+                if verbose:
+                    logger.warning(
+                        "source_failed",
+                        source=source.name,
+                        error=str(e),
+                        fallback_to=next_source.name if next_source else None,
+                    )
+
         # Combine and return results
         combined = self._combine_results(all_data, verbose)
 
         if combined is None and verbose:
-            logger.warning(
-                "multi_source_fetch_failed",
+            logger.error(
+                "fetch_all_sources_failed",
                 dataset=request.dataset,
                 num_tickers_requested=len(list(request.tickers)),
+                sources_tried=len(sources),
+                sources_in_cooldown=len(sources_in_cooldown),
                 errors=errors_by_source,
+            )
+        elif combined is not None and verbose:
+            sources_used = len(all_data)
+            logger.info(
+                "fetch_completed",
+                dataset=request.dataset,
+                total_rows=len(combined),
+                sources_used=sources_used,
+                sources_tried=len(sources),
             )
 
         return combined, errors_by_source

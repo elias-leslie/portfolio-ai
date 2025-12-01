@@ -79,7 +79,15 @@ def _check_symbol_data(ticker: str) -> tuple[bool, int]:
     return needs_backfill, days_available
 
 
-@celery_app.task(name="maintain_historical_market_data", bind=True)  # type: ignore[misc]
+@celery_app.task(
+    bind=True,
+    name="maintain_historical_market_data",
+    max_retries=3,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=600,
+    retry_jitter=True,
+)  # type: ignore[misc]
 def maintain_historical_market_data(  # type: ignore[no-untyped-def]
     self,
 ) -> dict[str, int | str | float]:

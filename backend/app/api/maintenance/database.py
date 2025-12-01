@@ -168,6 +168,11 @@ def row_to_maintenance_result(row: tuple[Any, ...]) -> MaintenanceResult:
     Returns:
         MaintenanceResult model instance
     """
+    # Handle summary - may be a dict (JSONB) or string (JSON text)
+    summary = row[6]
+    if summary is not None and isinstance(summary, str):
+        summary = json.loads(summary)
+
     return MaintenanceResult(
         task_id=row[0],
         task_name=row[1],
@@ -175,6 +180,6 @@ def row_to_maintenance_result(row: tuple[Any, ...]) -> MaintenanceResult:
         completed_at=row[3],
         status=row[4],
         dry_run=row[5],
-        summary=json.loads(row[6]) if row[6] else None,
+        summary=summary,
         error_message=row[7],
     )

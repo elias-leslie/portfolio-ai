@@ -1,6 +1,6 @@
 # Work Tracker
 
-**Last Updated:** 2025-11-30 (Task 0081 Fix Capabilities Page COMPLETE)
+**Last Updated:** 2025-12-01 (Task 0082 Data Source Reliability COMPLETE)
 
 **Current Status:** 🎯 **VISION.MD ALIGNMENT** | ✅ 91% Complete | 🚀 Priority #3 Complete (Tasks 0072, 0073, 0077, 0074 done)
 
@@ -21,14 +21,7 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Data Source Reliability & Monitoring** (MEDIUM, 0/35 tasks, PAUSED 2025-12-01)
-   - File: `tasks-0082-data-source-reliability-monitoring.md`
-   - Created: 2025-12-01
-   - Goal: Make data pipelines self-healing, redundant, and bulletproof with proactive monitoring and alerting
-   - Status: PAUSED (2025-12-01 08:35) - Context 85%
-   - Context: Session fixed multiple data pipeline issues (see Recently Completed)
-   - Next: Task 0.1 - Scope Discovery (full discovery for ALL tasks)
-   - Resume: `/do_it tasks/tasks-0082-data-source-reliability-monitoring.md`
+(No active tasks)
 
 ---
 
@@ -36,7 +29,19 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (2 weeks ago))
+1. **Market Hours Awareness** (MEDIUM-HIGH, 0/6 tasks (today))
+   - File: `tasks-0083-market-hours-awareness.md`
+   - Created: 2025-12-01
+   - Goal: Add comprehensive market hours awareness throughout the solution to prevent thrashing, show accurate status, and make self-healing intelligent about when remediation makes sense.
+   - Tasks:
+     - [ ] Task 0: Scope Discovery (MANDATORY)
+     - [ ] Task 1: Create Market Hours Service
+     - [ ] Task 2: Update Freshness Monitoring with Market Awareness
+     - [ ] Task 3: Add Thrashing Protections to Self-Healing
+     - [ ] Task 4: Add Market Status UI Indicator
+     - [ ] Task 5: Update Scheduled Tasks with Market Awareness
+
+2. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (2 weeks ago))
    - File: `tasks-0042-customizable-dashboard-layouts.md`
    - Created: 2025-11-11
    - Goal: Enable users to customize dashboard layouts by dragging/resizing cards, with persistence to PostgreSQL backend
@@ -53,13 +58,6 @@
      - [ ] Task 9: Polish and Edge Cases
      - [ ] Task 10: Testing and Documentation
 
-2. **UI Standardization & UX Fixes** (MEDIUM-HIGH (4-6 hours, 12-15 files), 0/0 tasks (2 weeks ago))
-   - File: `tasks-0055-ui-standardization-and-ux-fixes.md`
-   - Created: 2025-11-12
-   - Goal: Bring the Portfolio AI web UI up to a consistent design baseline by aligning headers, loading states, and critical interactions so that every surface communicates status clearly and meets accessibility expectations.
-   - Tasks:
-     - (No tasks defined yet)
-
 3. **Response Caching Middleware** (TBD, 0/8 tasks (2 weeks ago))
    - File: `tasks-0047-response-caching-middleware.md`
    - Created: 2025-11-11
@@ -73,12 +71,6 @@
      - [ ] Task 7: Cache Management Endpoints
      - [ ] Task 8: Integration and Configuration
 
-4. **Fix Capabilities Page - Backend Data Flow** (MEDIUM, 0/0 tasks (yesterday))
-   - File: `tasks-0081-fix-capabilities-page-backend.md`
-   - Created: 2025-11-30
-   - Goal: Make the Capabilities page functional - currently shows 0 items despite 118 records in database. Fix backend TypedDict definitions, Insights API 500 error, and API scanner garbage data.
-   - Tasks:
-     - (No tasks defined yet)
 
 ---
 
@@ -86,7 +78,23 @@
 
 *Last 5 completed tasks*
 
-1. **Data Pipeline Emergency Fixes** ✅ COMPLETE (2025-12-01)
+1. **Data Source Reliability & Monitoring** ✅ COMPLETE (2025-12-01)
+   - File: `tasks-0082-data-source-reliability-monitoring.md`
+   - Completed: 2025-12-01
+   - Duration: ~2 hours
+   - Summary: Made data pipelines self-healing with monitoring and alerts
+   - Key achievements:
+     - ✅ Task 0: Scope Discovery (4 parallel agents analyzed codebase)
+     - ✅ Task 1: Data Freshness Monitoring (9 tables, every 2 hours)
+     - ✅ Task 2: Self-Healing Framework (auto-remediate stale data)
+     - ✅ Task 3: Fallback Verification (source health check every 6h)
+     - ✅ Task 4: Status Page Enhancement (extended /health/detailed)
+     - ✅ Task 5: Celery Retry Logic (10 critical tasks with exponential backoff)
+   - Files created: data_freshness_service.py, source_health_tasks.py
+   - Files modified: 7 task files with retry config, celery_schedules.py
+   - Impact: Automated monitoring + self-healing for all data pipelines
+
+2. **Data Pipeline Emergency Fixes** ✅ COMPLETE (2025-12-01)
    - File: Ad-hoc fixes (no task file - incident response)
    - Completed: 2025-12-01 08:30
    - Duration: ~2.5 hours

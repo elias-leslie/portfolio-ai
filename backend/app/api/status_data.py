@@ -94,7 +94,7 @@ async def get_table_freshness() -> TableFreshnessResponse:
     - fear_greed_daily: F&G calculated scores
     - fear_greed_components: F&G component scores
     - news: News articles
-    - watchlist_items: User watchlist entries
+    - watchlist_snapshots: Watchlist score snapshots
     - positions: Portfolio positions
     - accounts: Portfolio accounts
     - price_cache: Real-time price cache
@@ -123,8 +123,8 @@ async def get_table_freshness() -> TableFreshnessResponse:
                 "News articles (refreshes every ~1min, 2h tolerance)",
             ),
             (
-                "watchlist_items",
-                "updated_at",
+                "watchlist_snapshots",
+                "fetched_at",
                 "timestamp",
                 2,
                 "Watchlist scores (refreshes every ~1min, 2h tolerance)",

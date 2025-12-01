@@ -161,7 +161,15 @@ def _upsert_indicators(storage: PortfolioStorage, indicator_data: IndicatorDataD
         conn.commit()
 
 
-@celery_app.task(name="update_technical_indicators", bind=True)  # type: ignore[misc]
+@celery_app.task(
+    bind=True,
+    name="update_technical_indicators",
+    max_retries=3,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=600,
+    retry_jitter=True,
+)  # type: ignore[misc]
 def update_technical_indicators(  # type: ignore[no-untyped-def]
     self, tickers: list[str]
 ) -> TechnicalIndicatorResultDict:
@@ -524,7 +532,15 @@ def _invalidate_redis_cache() -> None:
         )
 
 
-@celery_app.task(name="calculate_fear_greed", bind=True)  # type: ignore[misc]
+@celery_app.task(
+    bind=True,
+    name="calculate_fear_greed",
+    max_retries=3,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=600,
+    retry_jitter=True,
+)  # type: ignore[misc]
 def calculate_fear_greed(self: Task, as_of_date: str | None = None) -> FearGreedCalculationDict:
     """Calculate Fear & Greed Index from inputs table.
 

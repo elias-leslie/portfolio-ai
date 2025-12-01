@@ -270,7 +270,15 @@ def _build_ingestion_result(
     return result
 
 
-@celery_app.task(name="refresh_daily_ohlcv", bind=True)  # type: ignore[misc]
+@celery_app.task(
+    bind=True,
+    name="refresh_daily_ohlcv",
+    max_retries=3,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=600,
+    retry_jitter=True,
+)  # type: ignore[misc]
 def refresh_daily_ohlcv(  # type: ignore[no-untyped-def]
     self, tickers: list[str] | None = None
 ) -> dict[str, int | str | float]:
@@ -323,7 +331,15 @@ def refresh_daily_ohlcv(  # type: ignore[no-untyped-def]
         raise
 
 
-@celery_app.task(name="refresh_watchlist_ohlcv", bind=True)  # type: ignore[misc]
+@celery_app.task(
+    bind=True,
+    name="refresh_watchlist_ohlcv",
+    max_retries=3,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=600,
+    retry_jitter=True,
+)  # type: ignore[misc]
 def refresh_watchlist_ohlcv(  # type: ignore[no-untyped-def]
     self,
 ) -> dict[str, int | str | float]:
@@ -543,7 +559,15 @@ def _ingest_historical_ohlcv_impl(
         raise
 
 
-@celery_app.task(name="ingest_historical_ohlcv", bind=True)  # type: ignore[misc]
+@celery_app.task(
+    bind=True,
+    name="ingest_historical_ohlcv",
+    max_retries=3,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=600,
+    retry_jitter=True,
+)  # type: ignore[misc]
 def ingest_historical_ohlcv(  # type: ignore[no-untyped-def]
     self, tickers: list[str], days: int = 252
 ) -> dict[str, int | str | float]:
