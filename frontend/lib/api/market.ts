@@ -221,3 +221,80 @@ export async function fetchFearGreed(
 export async function fetchMarketTrends(days: number = 30): Promise<MarketTrendsResponse> {
   return apiRequest<MarketTrendsResponse>(`/api/market/trends?days=${days}`);
 }
+
+// ============================================================================
+// Historical Data Types & Functions for Market Conditions Redesign
+// ============================================================================
+
+export interface FearGreedHistoryResponse {
+  dates: string[];
+  scores: number[];
+  labels: string[];
+}
+
+export interface IndicatorDataPoint {
+  date: string;
+  close: number;
+  pct_change: number;
+}
+
+export interface IndicatorHistoryResponse {
+  sp500: IndicatorDataPoint[];
+  vix: IndicatorDataPoint[];
+  tnx: IndicatorDataPoint[];
+  dxy: IndicatorDataPoint[];
+  period_start: string;
+  period_end: string;
+}
+
+export interface SectorDataPoint {
+  date: string;
+  close: number;
+  pct_change: number;
+}
+
+export interface SectorHistory {
+  name: string;
+  symbol: string;
+  data: SectorDataPoint[];
+  current_pct: number;
+}
+
+export interface SectorHistoryResponse {
+  sectors: SectorHistory[];
+  period_start: string;
+  period_end: string;
+}
+
+/**
+ * Get Fear & Greed historical data for trend charts
+ */
+export async function fetchFearGreedHistory(
+  days: number = 365
+): Promise<FearGreedHistoryResponse> {
+  return apiRequest<FearGreedHistoryResponse>(
+    `/api/market/fear-greed-history?days=${days}`
+  );
+}
+
+/**
+ * Get key indicator historical data for trend charts
+ */
+export async function fetchIndicatorHistory(
+  days: number = 365
+): Promise<IndicatorHistoryResponse> {
+  return apiRequest<IndicatorHistoryResponse>(
+    `/api/market/indicator-history?days=${days}`
+  );
+}
+
+/**
+ * Get sector ETF historical data for performance charts
+ */
+export async function fetchSectorHistory(
+  days: number = 365
+): Promise<SectorHistoryResponse> {
+  return apiRequest<SectorHistoryResponse>(
+    `/api/market/sector-history?days=${days}`
+  );
+}

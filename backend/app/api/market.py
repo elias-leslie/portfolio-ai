@@ -26,6 +26,15 @@ from app.models.market_intelligence import (
 from app.portfolio.models import PriceData
 from app.portfolio.price_fetcher import PriceDataFetcher
 from app.storage import get_storage
+from app.utils.market_hours import (
+    NY_TZ,
+    MarketStatus,
+    get_last_trading_day,
+    get_market_status,
+    get_next_trading_day,
+    is_early_close_day,
+    is_market_holiday,
+)
 
 router = APIRouter(prefix="/api/market", tags=["market"])
 
@@ -91,6 +100,45 @@ def calculate_daily_change_pct(
         if row and row[0]:
             prev_close = float(row[0])
             return ((current_price - prev_close) / prev_close) * 100
+    return None
+
+
+def calculate_weekly_change_pct(
+    ticker: str,
+    current_price: float,
+) -> float | None:
+    """Calculate week-over-week change: current price vs last week's close.
+
+    Finds the last trading day of the previous calendar week (typically Friday,
+    but could be Thursday if Friday was a holiday) and compares current price to that.
+
+    This answers: "How are we doing this week compared to where we ended last week?"
+
+    Args:
+        ticker: Symbol to calculate change for
+        current_price: Current price
+
+    Returns:
+        Week-over-week change percentage, or None if no historical data
+    """
+    with storage.connection() as conn:
+        # Find last week's close: the most recent trading day before this week started
+        # This week started on the most recent Monday (or today if today is Monday)
+        result = conn.execute(
+            """
+            SELECT close, date
+            FROM day_bars
+            WHERE ticker = %s
+              AND date < date_trunc('week', CURRENT_DATE)::date
+            ORDER BY date DESC
+            LIMIT 1
+            """,
+            [ticker],
+        )
+        row = result.fetchone()
+        if row and row[0]:
+            last_week_close = float(row[0])
+            return ((current_price - last_week_close) / last_week_close) * 100
     return None
 
 
@@ -361,7 +409,25 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
     # Extract leading sector names for narrative
     leading_sector_names = [s.name for s in leading_sectors[:3]]  # Top 3
 
-    # Generate narrative
+    # Calculate weekly changes for dynamic narrative
+    weekly_changes = narrative_generator.WeeklyChanges(
+        vix=calculate_weekly_change_pct("^VIX", vix_data.price) if vix_data else None,
+        sp500=calculate_weekly_change_pct("^GSPC", sp500_data.price) if sp500_data else None,
+        tnx=calculate_weekly_change_pct("^TNX", tnx_data.price) if tnx_data else None,
+        dxy=calculate_weekly_change_pct("DX-Y.NYB", dxy_data.price) if dxy_data else None,
+    )
+
+    # Build sector weekly changes with friendly names (all sectors, sorted by perf)
+    all_sectors = leading_sectors + neutral_sectors + lagging_sectors
+    sector_changes = [
+        narrative_generator.SectorWeeklyChange(
+            name=s.name,
+            change_pct=calculate_weekly_change_pct(s.symbol, s.price) if s.price else None,
+        )
+        for s in all_sectors
+    ]
+
+    # Generate narrative with dynamic weekly data
     narrative = narrative_generator.generate_market_narrative(
         health_score=health_score_data.overall_score,
         fg_score=int(fg_reading.score),
@@ -370,6 +436,8 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
         tnx_yield=tnx_data.price if tnx_data else None,
         dxy_price=dxy_data.price if dxy_data else None,
         leading_sectors=leading_sector_names,
+        weekly_changes=weekly_changes,
+        sector_changes=sector_changes,
     )
 
     # Enrich indicators with plain-language labels using intelligence helpers
@@ -586,4 +654,282 @@ async def get_market_trends(
         dates=dates,
         fear_greed_scores=fear_greed_scores_list,
         market_health_scores=market_health_scores,
+    )
+
+
+class MarketStatusResponse(BaseModel):
+    """Response model for market status endpoint."""
+
+    status: MarketStatus = Field(..., description="Current market status")
+    is_open: bool = Field(..., description="Whether market is currently open for regular trading")
+    last_trading_day: str = Field(..., description="Most recent trading day (ISO format)")
+    next_trading_day: str = Field(..., description="Next trading day (ISO format)")
+    current_time_et: str = Field(..., description="Current time in Eastern Time")
+    is_holiday: bool = Field(False, description="Whether today is a market holiday")
+    holiday_name: str | None = Field(None, description="Holiday name if today is a holiday")
+    is_early_close: bool = Field(False, description="Whether today is an early close day")
+    early_close_name: str | None = Field(None, description="Early close day name if applicable")
+
+
+@router.get("/status", response_model=MarketStatusResponse)
+@cache_response(ttl=60)  # Cache for 1 minute
+async def get_market_status_endpoint(request: Request) -> MarketStatusResponse:
+    """Get current market status and trading day information.
+
+    Returns:
+        MarketStatusResponse with current status, open/closed state,
+        last and next trading days, and holiday information.
+    """
+    now = datetime.now(NY_TZ)
+    today = now.date()
+
+    # Get market status
+    status = get_market_status(now)
+
+    # Get trading days
+    last_trading = get_last_trading_day(today)
+    next_trading = get_next_trading_day(today)
+
+    # Check holiday status
+    is_holiday, holiday_name = is_market_holiday(today)
+    is_early, early_name = is_early_close_day(today)
+
+    return MarketStatusResponse(
+        status=status,
+        is_open=status == "open",
+        last_trading_day=last_trading.isoformat(),
+        next_trading_day=next_trading.isoformat(),
+        current_time_et=now.strftime("%Y-%m-%d %H:%M:%S ET"),
+        is_holiday=is_holiday,
+        holiday_name=holiday_name,
+        is_early_close=is_early,
+        early_close_name=early_name,
+    )
+
+
+# ============================================================================
+# Historical Data Endpoints for Market Conditions Card Redesign
+# ============================================================================
+
+
+class FearGreedHistoryResponse(BaseModel):
+    """Response model for Fear & Greed history."""
+
+    dates: list[str] = Field(..., description="ISO date strings")
+    scores: list[float] = Field(..., description="Fear & Greed scores (0-100)")
+    labels: list[str] = Field(..., description="Labels (Extreme Fear, Fear, etc.)")
+
+
+@router.get("/fear-greed-history", response_model=FearGreedHistoryResponse)
+@cache_response(ttl=300)
+async def get_fear_greed_history(
+    request: Request,
+    days: int = Query(365, ge=7, le=730, description="Number of days of history"),
+) -> FearGreedHistoryResponse:
+    """Get Fear & Greed historical data for trend charts."""
+    with storage.connection() as conn:
+        result = conn.execute(
+            """
+            SELECT as_of_date, score, label
+            FROM fear_greed_daily
+            WHERE as_of_date >= CURRENT_DATE - %s
+            ORDER BY as_of_date ASC
+            """,
+            [days],
+        )
+        rows = result.fetchall()
+
+    dates: list[str] = []
+    scores: list[float] = []
+    labels: list[str] = []
+    for row in rows:
+        if row[0] and row[1] is not None:
+            dates.append(row[0].isoformat())
+            scores.append(float(row[1]))
+            labels.append(str(row[2]) if row[2] else "Unknown")
+
+    return FearGreedHistoryResponse(dates=dates, scores=scores, labels=labels)
+
+
+class IndicatorDataPoint(BaseModel):
+    """Single data point for an indicator."""
+
+    date: str
+    close: float
+    pct_change: float = Field(..., description="% change from period start")
+
+
+class IndicatorHistoryResponse(BaseModel):
+    """Response model for indicator history."""
+
+    sp500: list[IndicatorDataPoint] = Field(default_factory=list)
+    vix: list[IndicatorDataPoint] = Field(default_factory=list)
+    tnx: list[IndicatorDataPoint] = Field(default_factory=list)
+    dxy: list[IndicatorDataPoint] = Field(default_factory=list)
+    period_start: str
+    period_end: str
+
+
+@router.get("/indicator-history", response_model=IndicatorHistoryResponse)
+@cache_response(ttl=300)
+async def get_indicator_history(
+    request: Request,
+    days: int = Query(365, ge=7, le=730, description="Number of days of history"),
+) -> IndicatorHistoryResponse:
+    """Get key indicator historical data for trend charts."""
+    indicators = {
+        "sp500": "^GSPC",
+        "vix": "^VIX",
+        "tnx": "^TNX",
+        "dxy": "DX-Y.NYB",
+    }
+
+    result_data: dict[str, list[IndicatorDataPoint]] = {}
+    period_start = ""
+    period_end = ""
+
+    for key, ticker in indicators.items():
+        with storage.connection() as conn:
+            query_result = conn.execute(
+                """
+                SELECT date, close
+                FROM day_bars
+                WHERE ticker = %s AND date >= CURRENT_DATE - %s
+                ORDER BY date ASC
+                """,
+                [ticker, days],
+            )
+            rows = query_result.fetchall()
+
+        data_points: list[IndicatorDataPoint] = []
+        base_price: float | None = None
+        for row in rows:
+            if row[0] and row[1] is not None:
+                close = float(row[1])
+                if base_price is None:
+                    base_price = close
+                    if not period_start:
+                        period_start = row[0].isoformat()
+                pct_change = ((close - base_price) / base_price * 100) if base_price else 0
+                data_points.append(
+                    IndicatorDataPoint(
+                        date=row[0].isoformat(),
+                        close=close,
+                        pct_change=round(pct_change, 2),
+                    )
+                )
+                period_end = row[0].isoformat()
+        result_data[key] = data_points
+
+    return IndicatorHistoryResponse(
+        sp500=result_data.get("sp500", []),
+        vix=result_data.get("vix", []),
+        tnx=result_data.get("tnx", []),
+        dxy=result_data.get("dxy", []),
+        period_start=period_start,
+        period_end=period_end,
+    )
+
+
+class SectorDataPoint(BaseModel):
+    """Single data point for a sector."""
+
+    date: str
+    close: float
+    pct_change: float = Field(..., description="% change from period start")
+
+
+class SectorHistory(BaseModel):
+    """History data for a single sector."""
+
+    name: str
+    symbol: str
+    data: list[SectorDataPoint]
+    current_pct: float = Field(..., description="Current % change from period start")
+
+
+class SectorHistoryResponse(BaseModel):
+    """Response model for sector history."""
+
+    sectors: list[SectorHistory]
+    period_start: str
+    period_end: str
+
+
+SECTOR_ETFS = {
+    "XLK": "Technology",
+    "XLF": "Financials",
+    "XLE": "Energy",
+    "XLV": "Healthcare",
+    "XLY": "Consumer Discretionary",
+    "XLP": "Consumer Staples",
+    "XLI": "Industrials",
+    "XLU": "Utilities",
+    "XLRE": "Real Estate",
+    "XLB": "Materials",
+    "XLC": "Communication Services",
+}
+
+
+@router.get("/sector-history", response_model=SectorHistoryResponse)
+@cache_response(ttl=300)
+async def get_sector_history(
+    request: Request,
+    days: int = Query(365, ge=7, le=730, description="Number of days of history"),
+) -> SectorHistoryResponse:
+    """Get sector ETF historical data for performance charts."""
+    sectors: list[SectorHistory] = []
+    period_start = ""
+    period_end = ""
+
+    for symbol, name in SECTOR_ETFS.items():
+        with storage.connection() as conn:
+            query_result = conn.execute(
+                """
+                SELECT date, close
+                FROM day_bars
+                WHERE ticker = %s AND date >= CURRENT_DATE - %s
+                ORDER BY date ASC
+                """,
+                [symbol, days],
+            )
+            rows = query_result.fetchall()
+
+        data_points: list[SectorDataPoint] = []
+        base_price: float | None = None
+        current_pct = 0.0
+        for row in rows:
+            if row[0] and row[1] is not None:
+                close = float(row[1])
+                if base_price is None:
+                    base_price = close
+                    if not period_start:
+                        period_start = row[0].isoformat()
+                pct_change = ((close - base_price) / base_price * 100) if base_price else 0
+                data_points.append(
+                    SectorDataPoint(
+                        date=row[0].isoformat(),
+                        close=close,
+                        pct_change=round(pct_change, 2),
+                    )
+                )
+                current_pct = round(pct_change, 2)
+                period_end = row[0].isoformat()
+
+        sectors.append(
+            SectorHistory(
+                name=name,
+                symbol=symbol,
+                data=data_points,
+                current_pct=current_pct,
+            )
+        )
+
+    # Sort by current performance descending
+    sectors.sort(key=lambda s: s.current_pct, reverse=True)
+
+    return SectorHistoryResponse(
+        sectors=sectors,
+        period_start=period_start,
+        period_end=period_end,
     )

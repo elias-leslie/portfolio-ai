@@ -2,43 +2,56 @@
 
 Generates plain-language, actionable narratives from market data.
 Zero jargon, focused on helping amateur investors understand and act.
+Uses dynamic weekly % changes for concrete, meaningful insights.
 """
 
 from __future__ import annotations
 
-# Narrative templates for different market conditions
-MARKET_NARRATIVE_TEMPLATES: dict[str, str] = {
-    # Overall sentiment templates
-    "very_bullish": "Markets are very bullish today (Health: {health_score}/100, Fear & Greed: {fg_score}/100).",
-    "bullish": "Markets are healthy today (Health: {health_score}/100, Fear & Greed: {fg_score}/100).",
-    "neutral": "Markets are balanced today (Health: {health_score}/100, Fear & Greed: {fg_score}/100).",
-    "bearish": "Markets are cautious today (Health: {health_score}/100, Fear & Greed: {fg_score}/100).",
-    "very_bearish": "Markets are fearful today (Health: {health_score}/100, Fear & Greed: {fg_score}/100).",
-    # Volatility context
-    "low_volatility": "Low volatility shows investor confidence.",
-    "normal_volatility": "Normal volatility levels suggest steady markets.",
-    "high_volatility": "High volatility signals market uncertainty.",
-    "extreme_volatility": "Extreme volatility indicates panic or major uncertainty.",
-    # S&P 500 levels
-    "strong_sp500": "Strong S&P levels favor staying invested.",
-    "moderate_sp500": "Moderate S&P levels suggest selective opportunities.",
-    "weak_sp500": "Weak S&P levels warrant caution.",
-    # Sector rotation patterns
-    "tech_leading": "Technology and growth sectors are leading.",
-    "defensive_leading": "Defensive sectors like Utilities and Healthcare are leading.",
-    "cyclical_leading": "Cyclical sectors like Energy and Financials are leading.",
-    "broad_strength": "Strength is broad across sectors.",
-    "narrow_leadership": "Leadership is narrow - only a few sectors performing well.",
-    "rotation_to_safety": "Money is rotating to safe-haven sectors.",
-    # Bond yield context
-    "healthy_yields": "Moderate bond yields support stock valuations.",
-    "low_yields": "Low yields may signal recession concerns.",
-    "high_yields": "High yields create headwinds for stocks.",
-    # Dollar strength
-    "weak_dollar": "A weak dollar supports international stocks and exports.",
-    "moderate_dollar": "Dollar at moderate levels.",
-    "strong_dollar": "Dollar strength may pressure international stocks.",
-    # Actionable recommendations
+from dataclasses import dataclass
+
+
+@dataclass
+class WeeklyChanges:
+    """Weekly % changes for key market indicators."""
+
+    vix: float | None = None
+    sp500: float | None = None
+    tnx: float | None = None
+    dxy: float | None = None
+
+
+@dataclass
+class SectorWeeklyChange:
+    """Weekly % change for a sector with friendly name."""
+
+    name: str  # Friendly name like "Technology", "Healthcare"
+    change_pct: float | None
+
+
+def _format_change(pct: float | None, name: str) -> str:
+    """Format a % change into readable text.
+
+    Args:
+        pct: Percentage change (can be negative)
+        name: Human-readable name of the indicator
+
+    Returns:
+        Formatted string like "VIX climbed 8%" or "S&P 500 fell 2%"
+    """
+    if pct is None:
+        return ""
+
+    if abs(pct) < 0.5:
+        return f"{name} was flat"
+    if pct > 0:
+        verb = "climbed" if pct > 3 else "rose"
+        return f"{name} {verb} {abs(pct):.1f}%"
+    verb = "dropped" if pct < -3 else "fell"
+    return f"{name} {verb} {abs(pct):.1f}%"
+
+
+# Actionable recommendations based on conditions
+RECOMMENDATIONS: dict[str, str] = {
     "stay_invested": "Good time to stay invested.",
     "selective": "Be selective with new positions.",
     "quality_focus": "Focus on quality names.",
@@ -56,155 +69,127 @@ def _determine_sentiment(health_score: int, fg_score: int) -> str:
         fg_score: Fear & Greed score (0-100)
 
     Returns:
-        Sentiment key: very_bullish, bullish, neutral, bearish, very_bearish
+        Sentiment description: "very bullish", "bullish", "balanced", etc.
     """
-    # Average the two scores for overall sentiment
     avg_score = (health_score + fg_score) / 2
 
     if avg_score >= 75:
-        return "very_bullish"
+        return "very bullish"
     if avg_score >= 60:
         return "bullish"
     if avg_score >= 40:
-        return "neutral"
+        return "balanced"
     if avg_score >= 25:
-        return "bearish"
-    return "very_bearish"
+        return "cautious"
+    return "fearful"
 
 
-def _get_volatility_context(vix_price: float | None) -> str:
-    """Get volatility context narrative.
-
-    Args:
-        vix_price: Current VIX price
-
-    Returns:
-        Volatility context key
-    """
-    if vix_price is None:
-        return "normal_volatility"
-
-    if vix_price < 15:
-        return "low_volatility"
-    if vix_price < 25:
-        return "normal_volatility"
-    if vix_price < 35:
-        return "high_volatility"
-    return "extreme_volatility"
-
-
-def _get_sp500_context(sp500_price: float | None) -> str:
-    """Get S&P 500 level context.
-
-    Args:
-        sp500_price: Current S&P 500 price
-
-    Returns:
-        S&P context key
-    """
-    if sp500_price is None:
-        return "moderate_sp500"
-
-    # These thresholds will need updating over time as markets evolve
-    if sp500_price > 4800:
-        return "strong_sp500"
-    if sp500_price > 4000:
-        return "moderate_sp500"
-    return "weak_sp500"
-
-
-def _get_yield_context(tnx_yield: float | None) -> str:
-    """Get bond yield context.
-
-    Args:
-        tnx_yield: Current 10Y Treasury yield
-
-    Returns:
-        Yield context key
-    """
-    if tnx_yield is None:
-        return "healthy_yields"
-
-    if 3.5 <= tnx_yield <= 4.5:
-        return "healthy_yields"
-    if tnx_yield < 3.0:
-        return "low_yields"
-    return "high_yields"
-
-
-def _get_dollar_context(dxy_price: float | None) -> str:
-    """Get dollar strength context.
-
-    Args:
-        dxy_price: Current DXY price
-
-    Returns:
-        Dollar context key
-    """
-    if dxy_price is None:
-        return "moderate_dollar"
-
-    if dxy_price < 100:
-        return "weak_dollar"
-    if dxy_price < 105:
-        return "moderate_dollar"
-    return "strong_dollar"
-
-
-def _get_sector_rotation_context(leading_sectors: list[str]) -> str:
-    """Get sector rotation narrative.
-
-    Args:
-        leading_sectors: List of leading sector names (plain language)
-
-    Returns:
-        Sector rotation context key
-    """
-    if not leading_sectors:
-        return "broad_strength"
-
-    # Check for specific rotation patterns
-    tech_leading = any(s in ["Technology", "Communication Services"] for s in leading_sectors)
-    defensive_leading = any(
-        s in ["Utilities", "Healthcare", "Consumer Staples"] for s in leading_sectors
-    )
-    cyclical_leading = any(s in ["Energy", "Financials", "Materials"] for s in leading_sectors)
-
-    if len(leading_sectors) >= 6:
-        return "broad_strength"
-    if defensive_leading and not tech_leading:
-        return "defensive_leading"
-    if cyclical_leading:
-        return "cyclical_leading"
-    if tech_leading:
-        return "tech_leading"
-
-    return "narrow_leadership"
-
-
-def _get_recommendation(sentiment: str, volatility_context: str) -> str:
+def _get_recommendation(sentiment: str, vix_change: float | None) -> str:
     """Get actionable recommendation based on market conditions.
 
     Args:
-        sentiment: Overall sentiment (very_bullish, bullish, etc.)
-        volatility_context: Volatility context (low, normal, high, extreme)
+        sentiment: Overall sentiment description
+        vix_change: Weekly VIX change (positive = volatility increased)
 
     Returns:
-        Recommendation key
+        Recommendation key for RECOMMENDATIONS dict
     """
-    # Combine bullish cases (reduces from 7 to 6 return statements)
-    if sentiment in ("very_bullish", "bullish"):
+    if sentiment in ("very bullish", "bullish"):
         return "stay_invested"
-    if sentiment == "neutral":
+    if sentiment == "balanced":
         return "selective"
-    if sentiment == "bearish":
+    if sentiment == "cautious":
         return "defensive_stance"
-    if sentiment == "very_bearish" and volatility_context == "extreme_volatility":
-        return "opportunity"  # Contrarian: extreme fear = opportunity
-    if sentiment == "very_bearish":
+    # Contrarian: extreme fear + high volatility spike = opportunity
+    if sentiment == "fearful" and vix_change is not None and vix_change > 20:
+        return "opportunity"
+    if sentiment == "fearful":
         return "wait_and_see"
-
     return "quality_focus"
+
+
+def _build_indicator_sentence(weekly: WeeklyChanges) -> str:
+    """Build a sentence describing key indicator moves this week.
+
+    Args:
+        weekly: Weekly % changes for indicators
+
+    Returns:
+        Sentence like "VIX climbed 8% this week while S&P 500 fell 2%."
+    """
+    parts: list[str] = []
+
+    # VIX is most important for volatility context
+    if weekly.vix is not None and abs(weekly.vix) >= 3:
+        parts.append(_format_change(weekly.vix, "VIX"))
+
+    # S&P 500 for overall market direction
+    if weekly.sp500 is not None and abs(weekly.sp500) >= 1:
+        parts.append(_format_change(weekly.sp500, "S&P 500"))
+
+    # Treasury yields if notable move
+    if weekly.tnx is not None and abs(weekly.tnx) >= 3:
+        parts.append(_format_change(weekly.tnx, "Treasury yields"))
+
+    # Dollar if notable move
+    if weekly.dxy is not None and abs(weekly.dxy) >= 2:
+        parts.append(_format_change(weekly.dxy, "the dollar"))
+
+    if not parts:
+        return "Markets are quiet so far this week."
+
+    if len(parts) == 1:
+        return f"{parts[0]} this week vs last."
+
+    # Join with "while" - lowercase the verb only, not the proper noun
+    second_part = parts[1]
+    # Only lowercase if first word is a common word (not VIX, S&P, Treasury)
+    if second_part.startswith(("the ", "a ")):
+        second_part = second_part.lower()
+    return f"{parts[0]} this week while {second_part}."
+
+
+def _build_sector_sentence(sectors: list[SectorWeeklyChange]) -> str:
+    """Build a sentence about sector performance.
+
+    Args:
+        sectors: List of sector weekly changes (should be sorted by change_pct desc)
+
+    Returns:
+        Sentence about leading/lagging sectors with friendly names
+    """
+    if not sectors:
+        return ""
+
+    # Filter to sectors with valid data
+    valid_sectors = [s for s in sectors if s.change_pct is not None]
+    if not valid_sectors:
+        return ""
+
+    # Get top 2 performers and bottom 2
+    sorted_sectors = sorted(valid_sectors, key=lambda s: s.change_pct or 0, reverse=True)
+
+    top_sectors = sorted_sectors[:2]
+    bottom_sectors = sorted_sectors[-2:] if len(sorted_sectors) > 2 else []
+
+    # Check if broadly positive or negative
+    avg_change = sum(s.change_pct or 0 for s in valid_sectors) / len(valid_sectors)
+
+    if avg_change > 2:
+        # Broad rally - mention leaders
+        leaders = ", ".join(s.name for s in top_sectors)
+        return f"Sectors rallied broadly, led by {leaders}."
+    if avg_change < -2:
+        # Broad selloff
+        laggers = ", ".join(s.name for s in bottom_sectors)
+        return f"Sectors sold off broadly, with {laggers} hit hardest."
+    # Mixed - show rotation
+    if top_sectors and bottom_sectors:
+        top_names = " and ".join(s.name for s in top_sectors)
+        bottom_names = " and ".join(s.name for s in bottom_sectors)
+        return f"{top_names} outperformed while {bottom_names} lagged."
+
+    return ""
 
 
 def generate_market_narrative(
@@ -215,8 +200,12 @@ def generate_market_narrative(
     tnx_yield: float | None,
     dxy_price: float | None,
     leading_sectors: list[str],
+    weekly_changes: WeeklyChanges | None = None,
+    sector_changes: list[SectorWeeklyChange] | None = None,
 ) -> str:
     """Generate actionable market narrative from current conditions.
+
+    Uses dynamic weekly % changes for concrete, meaningful insights.
 
     Args:
         health_score: Market health score (0-100)
@@ -225,10 +214,12 @@ def generate_market_narrative(
         sp500_price: Current S&P 500 price
         tnx_yield: Current 10Y Treasury yield
         dxy_price: Current US Dollar Index price
-        leading_sectors: List of top performing sector names (plain language)
+        leading_sectors: List of top performing sector names (plain language) - legacy
+        weekly_changes: Weekly % changes for key indicators (VIX, S&P, etc.)
+        sector_changes: Weekly % changes for sectors with friendly names
 
     Returns:
-        3-4 sentence actionable narrative with recommendations
+        3-4 sentence actionable narrative with dynamic weekly data
 
     Example:
         >>> narrative = generate_market_narrative(
@@ -238,51 +229,41 @@ def generate_market_narrative(
         ...     sp500_price=4825.0,
         ...     tnx_yield=4.1,
         ...     dxy_price=104.5,
-        ...     leading_sectors=["Technology", "Financials", "Energy"]
+        ...     leading_sectors=["Technology", "Financials"],
+        ...     weekly_changes=WeeklyChanges(vix=-5.2, sp500=2.1, tnx=1.5, dxy=-0.8),
+        ...     sector_changes=[
+        ...         SectorWeeklyChange("Technology", 3.5),
+        ...         SectorWeeklyChange("Healthcare", -1.2),
+        ...     ]
         ... )
         >>> print(narrative)
-        Markets are healthy today (Health: 68/100, Fear & Greed: 72/100).
-        Low volatility shows investor confidence. Technology and growth
-        sectors are leading. Good time to stay invested.
+        Markets are bullish today. VIX fell 5.2% this week while S&P 500 rose 2.1%.
+        Technology outperformed while Healthcare lagged. Good time to stay invested.
     """
-    # Determine contexts
     sentiment = _determine_sentiment(health_score, fg_score)
-    volatility_context = _get_volatility_context(vix_price)
-    sp500_context = _get_sp500_context(sp500_price)
-    yield_context = _get_yield_context(tnx_yield)
-    dollar_context = _get_dollar_context(dxy_price)
-    sector_context = _get_sector_rotation_context(leading_sectors)
-    recommendation = _get_recommendation(sentiment, volatility_context)
+    vix_change = weekly_changes.vix if weekly_changes else None
+    recommendation = _get_recommendation(sentiment, vix_change)
 
-    # Build narrative
     sentences: list[str] = []
 
-    # Sentence 1: Overall sentiment with scores
-    sentiment_template = MARKET_NARRATIVE_TEMPLATES[sentiment]
-    sentences.append(sentiment_template.format(health_score=health_score, fg_score=fg_score))
+    # Sentence 1: Overall sentiment (simpler, no redundant scores)
+    sentences.append(f"Markets are {sentiment} today.")
 
-    # Sentence 2: Key market context (volatility OR S&P level)
-    # Choose most relevant based on sentiment
-    if volatility_context in ["high_volatility", "extreme_volatility", "low_volatility"]:
-        sentences.append(MARKET_NARRATIVE_TEMPLATES[volatility_context])
-    else:
-        sentences.append(MARKET_NARRATIVE_TEMPLATES[sp500_context])
+    # Sentence 2: Dynamic indicator changes (if available)
+    if weekly_changes:
+        indicator_sentence = _build_indicator_sentence(weekly_changes)
+        if indicator_sentence:
+            sentences.append(indicator_sentence)
 
-    # Sentence 3: Sector rotation OR yield/dollar context
-    if sector_context != "broad_strength":
-        sentences.append(MARKET_NARRATIVE_TEMPLATES[sector_context])
-    # If sectors are broad, mention yields or dollar if notable
-    elif yield_context in ["low_yields", "high_yields"]:
-        sentences.append(MARKET_NARRATIVE_TEMPLATES[yield_context])
-    elif dollar_context in ["weak_dollar", "strong_dollar"]:
-        sentences.append(MARKET_NARRATIVE_TEMPLATES[dollar_context])
-    else:
-        sentences.append(MARKET_NARRATIVE_TEMPLATES["broad_strength"])
+    # Sentence 3: Sector rotation with friendly names
+    if sector_changes:
+        sector_sentence = _build_sector_sentence(sector_changes)
+        if sector_sentence:
+            sentences.append(sector_sentence)
 
     # Sentence 4: Actionable recommendation
-    sentences.append(MARKET_NARRATIVE_TEMPLATES[recommendation])
+    sentences.append(RECOMMENDATIONS[recommendation])
 
-    # Join into paragraph
     return " ".join(sentences)
 
 
@@ -295,19 +276,8 @@ def generate_simple_narrative(health_score: int, fg_score: int) -> str:
 
     Returns:
         Simple 1-2 sentence narrative
-
-    Example:
-        >>> narrative = generate_simple_narrative(68, 72)
-        >>> print(narrative)
-        Markets are healthy today (Health: 68/100, Fear & Greed: 72/100).
-        Good time to stay invested.
     """
     sentiment = _determine_sentiment(health_score, fg_score)
-    recommendation = _get_recommendation(sentiment, "normal_volatility")
+    recommendation = _get_recommendation(sentiment, None)
 
-    sentiment_template = MARKET_NARRATIVE_TEMPLATES[sentiment]
-    sentiment_text = sentiment_template.format(health_score=health_score, fg_score=fg_score)
-
-    recommendation_text = MARKET_NARRATIVE_TEMPLATES[recommendation]
-
-    return f"{sentiment_text} {recommendation_text}"
+    return f"Markets are {sentiment} today. {RECOMMENDATIONS[recommendation]}"

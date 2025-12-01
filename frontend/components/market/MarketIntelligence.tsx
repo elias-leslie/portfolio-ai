@@ -1,66 +1,49 @@
 /**
- * MarketIntelligence Component
+ * MarketIntelligence Component (Redesigned)
  *
- * Consolidated market intelligence view with:
- * - Plain-language narrative at top
- * - Dual health scoring (Market Health + Fear & Greed)
- * - Split-view layout: indicators left, sectors right
- * - Zero technical jargon
+ * New layout focused on trends and what's changed:
+ * - Dynamic narrative (what changed this week)
+ * - Fear & Greed 1-year trend chart
+ * - Key Indicators 1-year trend chart
+ * - Sector Performance 1-year chart
+ * - Today's movers summary
  */
 
 "use client";
 
 import { useMarketIntelligence } from "@/lib/hooks/useMarketIntelligence";
 import { Card } from "@/components/ui/card";
-import { MarketNarrative } from "./MarketNarrative";
-import { LabeledIndicator } from "./LabeledIndicator";
-import { SectorRotationSummary } from "./SectorRotationSummary";
-import { MarketTrendChart } from "./MarketTrendChart";
+import { SentimentTrendChart } from "./SentimentTrendChart";
+import { IndicatorsTrendChart } from "./IndicatorsTrendChart";
+import { SectorPerformanceChart } from "./SectorPerformanceChart";
 import { formatRelativeTime } from "@/lib/utils";
-import { fetchMarketTrends, MarketTrendsResponse } from "@/lib/api/market";
-import { useState, useEffect } from "react";
 
-// Helper function to render trend arrow
-const getTrendArrow = (trend?: "up" | "down" | "flat" | null, trendChange?: number | null) => {
-  if (!trend || !trendChange) return null;
-
-  if (trend === "up") {
-    return <span className="text-gain ml-1" title={`+${trendChange} over 7 days`}>↑</span>;
-  } else if (trend === "down") {
-    return <span className="text-loss ml-1" title={`${trendChange} over 7 days`}>↓</span>;
-  }
-  return null; // flat - no arrow
+// Sector colors matching SectorPerformanceChart
+const SECTOR_COLORS: Record<string, string> = {
+  XLK: "#8B5CF6", // Purple - Technology
+  XLF: "#3B82F6", // Blue - Financials
+  XLE: "#F97316", // Orange - Energy
+  XLV: "#10B981", // Green - Healthcare
+  XLY: "#EC4899", // Pink - Consumer Discretionary
+  XLP: "#6366F1", // Indigo - Consumer Staples
+  XLI: "#EAB308", // Yellow - Industrials
+  XLU: "#14B8A6", // Teal - Utilities
+  XLRE: "#F43F5E", // Rose - Real Estate
+  XLB: "#84CC16", // Lime - Materials
+  XLC: "#06B6D4", // Cyan - Communication Services
 };
 
 export function MarketIntelligence() {
   const { data, isLoading, error } = useMarketIntelligence();
-  const [trendData, setTrendData] = useState<MarketTrendsResponse | null>(null);
-  const [trendLoading, setTrendLoading] = useState(true);
-
-  // Fetch trend data
-  useEffect(() => {
-    async function loadTrends() {
-      try {
-        const trends = await fetchMarketTrends(30);
-        setTrendData(trends);
-      } catch (err) {
-        console.error("Failed to load market trends:", err);
-      } finally {
-        setTrendLoading(false);
-      }
-    }
-    loadTrends();
-  }, []);
 
   if (isLoading) {
     return (
-      <Card className="p-6">
+      <Card className="p-6 shadow-lg">
         <div className="space-y-6 animate-pulse">
-          <div className="h-32 bg-surface-muted/60 rounded" />
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="h-64 bg-surface-muted/60 rounded" />
-            <div className="h-64 bg-surface-muted/60 rounded" />
-          </div>
+          <div className="h-24 bg-surface-muted/60 rounded" />
+          <div className="h-48 bg-surface-muted/60 rounded" />
+          <div className="h-48 bg-surface-muted/60 rounded" />
+          <div className="h-64 bg-surface-muted/60 rounded" />
         </div>
       </Card>
     );
@@ -68,7 +51,7 @@ export function MarketIntelligence() {
 
   if (error || !data) {
     return (
-      <Card className="p-6">
+      <Card className="p-6 shadow-lg">
         <div className="text-sm text-text-muted py-4">
           Failed to load market intelligence. Please try again later.
         </div>
@@ -76,374 +59,132 @@ export function MarketIntelligence() {
     );
   }
 
-  const { narrative, market_health, fear_greed, indicators, sector_rotation, options_activity } = data;
+  const { narrative, fear_greed, sector_rotation, last_updated } = data;
 
-  // Extract indicators in order
-  const vixIndicator = indicators.vix;
-  const sp500Indicator = indicators.sp500;
-  const tnxIndicator = indicators.tnx;
-  const dxyIndicator = indicators.dxy;
-  const putcallIndicator = indicators.putcall;
+  // Build today's movers from sector rotation
+  const leadingSectors = sector_rotation.leading.slice(0, 3);
+  const laggingSectors = sector_rotation.lagging.slice(0, 3);
+  const neutralSectors = sector_rotation.neutral.slice(0, 4);
 
   return (
     <Card className="p-6 shadow-lg">
-      {/* Header */}
-      <div className="mb-6">
+      {/* Header with last updated */}
+      <div className="flex items-center justify-between mb-6">
         <h2 className="text-lg font-semibold text-text bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
           Market Conditions
         </h2>
+        <span className="text-xs text-text-muted">
+          Updated {formatRelativeTime(last_updated)}
+        </span>
       </div>
 
-      {/* Narrative */}
-      <div className="mb-6">
-        <MarketNarrative
-          narrative={narrative}
-          healthScore={market_health.overall_score}
-          fearGreedScore={fear_greed.score}
-        />
-      </div>
-
-      {/* Staleness Warning */}
-      {fear_greed.is_stale && (
-        <div className="mb-6 p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
-          <div className="flex items-start gap-3">
-            <span className="text-xl">⚠️</span>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-yellow-600 dark:text-yellow-400">
-                Fear & Greed data is {fear_greed.age_days} day{fear_greed.age_days > 1 ? 's' : ''} old
-              </p>
-              <p className="text-xs text-yellow-600/80 dark:text-yellow-400/80 mt-1">
-                Next update scheduled at 03:00 UTC daily
-              </p>
-            </div>
+      {/* Market Overview Narrative */}
+      <div className="mb-6 p-4 bg-surface-muted/40 rounded-xl border border-border/50">
+        <div className="flex items-start gap-3">
+          <span className="text-lg">📊</span>
+          <div>
+            <h3 className="text-sm font-semibold text-text mb-1">Market Overview</h3>
+            <p className="text-sm text-text-muted leading-relaxed">{narrative}</p>
           </div>
+        </div>
+      </div>
+
+      {/* Fear & Greed Alert if stale */}
+      {fear_greed.is_stale && (
+        <div className="mb-4 px-3 py-2 bg-warning/10 border border-warning/30 rounded-lg text-xs text-warning">
+          Fear & Greed data is {fear_greed.age_days} days old. Market may have changed.
         </div>
       )}
 
-      {/* Split View: Indicators (left) + Sector Rotation (right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left Column: Key Indicators */}
-        <div className="space-y-4">
-          <h3 className="text-sm font-semibold text-text mb-4 uppercase tracking-wide">
-            Key Indicators
-          </h3>
+      {/* Charts Section */}
+      <div className="space-y-8">
+        {/* Sentiment Trend */}
+        <div className="relative">
+          <SentimentTrendChart />
+        </div>
 
-          {/* Dual Scores */}
-          <div className="grid grid-cols-2 gap-4 p-4 rounded-lg bg-surface-muted/20">
-            <div className="flex flex-col">
-              <div className="flex items-center gap-1">
-                <LabeledIndicator
-                  label="Market Health"
-                  value={market_health.overall_score}
-                  signal={
-                    market_health.overall_score >= 60
-                      ? "bullish"
-                      : market_health.overall_score >= 40
-                      ? "neutral"
-                      : "bearish"
-                  }
-                  size="md"
-                />
-                {getTrendArrow(market_health.trend, market_health.trend_change)}
-              </div>
-              {market_health.last_updated && (
-                <p className="text-[10px] text-text-muted mt-1">
-                  {formatRelativeTime(market_health.last_updated)}
-                </p>
-              )}
-            </div>
-            <div className="flex flex-col">
-              <div className="flex items-center gap-1">
-                <LabeledIndicator
-                  label="Fear & Greed"
-                  value={fear_greed.score}
-                  signal={
-                    fear_greed.score >= 60
-                      ? "bullish"
-                      : fear_greed.score >= 40
-                      ? "neutral"
-                      : "bearish"
-                  }
-                  size="md"
-                />
-                {getTrendArrow(fear_greed.trend, fear_greed.trend_change)}
-              </div>
-              {fear_greed.last_updated && (
-                <p className="text-[10px] text-text-muted mt-1">
-                  {formatRelativeTime(fear_greed.last_updated)}
-                </p>
-              )}
-            </div>
-          </div>
+        {/* Key Indicators */}
+        <div>
+          <IndicatorsTrendChart />
+        </div>
 
-          {/* 30-Day Sparkline */}
-          {!trendLoading && trendData && trendData.dates.length > 0 && (
-            <div className="p-4 rounded-lg bg-surface-muted/20">
-              <div className="flex items-baseline justify-between mb-2">
-                <h4 className="text-xs font-semibold text-text-muted uppercase tracking-wide">
-                  30-Day Trend
-                </h4>
-                {trendData.dates.length > 0 && (
-                  <p className="text-[10px] text-text-muted">
-                    as of {trendData.dates[trendData.dates.length - 1]}
-                  </p>
-                )}
-              </div>
-              <div className="w-full h-[60px]">
-                <MarketTrendChart data={trendData} height={60} />
+        {/* Sector Performance */}
+        <div>
+          <SectorPerformanceChart />
+        </div>
+      </div>
+
+      {/* Today's Movers */}
+      <div className="mt-8 pt-4 border-t border-border/50">
+        <h3 className="text-sm font-semibold text-text mb-3">Today&apos;s Movers</h3>
+        <div className="space-y-2 text-xs">
+          {/* Leading */}
+          {leadingSectors.length > 0 && (
+            <div className="flex items-start gap-2">
+              <span className="text-success font-medium w-16">▲ Leading</span>
+              <div className="flex flex-wrap gap-x-2">
+                {leadingSectors.map((s, i) => (
+                  <span key={s.symbol}>
+                    <span style={{ color: SECTOR_COLORS[s.symbol] || "#888" }} className="font-medium">
+                      {s.name}
+                    </span>
+                    {s.change_pct !== null && (
+                      <span className={s.change_pct >= 0 ? "text-gain" : "text-loss"}>
+                        {` ${s.change_pct >= 0 ? "+" : ""}${s.change_pct.toFixed(2)}%`}
+                      </span>
+                    )}
+                    {i < leadingSectors.length - 1 && <span className="text-text-muted"> │</span>}
+                  </span>
+                ))}
               </div>
             </div>
           )}
 
-          {/* Market Indicators */}
-          <div className="space-y-4">
-            {vixIndicator && (
-              <div className="p-4 rounded-lg bg-surface-muted/20 hover:bg-surface-muted/30 transition-colors">
-                <LabeledIndicator
-                  label={vixIndicator.label}
-                  value={vixIndicator.value.toFixed(2)}
-                  changePct={vixIndicator.change_pct}
-                  tooltip={vixIndicator.tooltip}
-                  signal={
-                    vixIndicator.signal === "Bullish"
-                      ? "bullish"
-                      : vixIndicator.signal === "Bearish"
-                      ? "bearish"
-                      : "neutral"
-                  }
-                  emoji={vixIndicator.emoji}
-                  size="sm"
-                />
-                {vixIndicator.last_updated && (
-                  <p className="text-[10px] text-text-muted mt-1">
-                    {formatRelativeTime(vixIndicator.last_updated)}
-                  </p>
-                )}
+          {/* Neutral */}
+          {neutralSectors.length > 0 && (
+            <div className="flex items-start gap-2">
+              <span className="text-text-muted font-medium w-16">→ Neutral</span>
+              <div className="flex flex-wrap gap-x-2">
+                {neutralSectors.map((s, i) => (
+                  <span key={s.symbol}>
+                    <span style={{ color: SECTOR_COLORS[s.symbol] || "#888" }} className="font-medium">
+                      {s.name}
+                    </span>
+                    {s.change_pct !== null && (
+                      <span className={s.change_pct >= 0 ? "text-gain" : "text-loss"}>
+                        {` ${s.change_pct >= 0 ? "+" : ""}${s.change_pct.toFixed(2)}%`}
+                      </span>
+                    )}
+                    {i < neutralSectors.length - 1 && <span className="text-text-muted"> │</span>}
+                  </span>
+                ))}
               </div>
-            )}
+            </div>
+          )}
 
-            {sp500Indicator && (
-              <div className="p-4 rounded-lg bg-surface-muted/20 hover:bg-surface-muted/30 transition-colors">
-                <LabeledIndicator
-                  label={sp500Indicator.label}
-                  value={sp500Indicator.value.toFixed(2)}
-                  changePct={sp500Indicator.change_pct}
-                  tooltip={sp500Indicator.tooltip}
-                  signal={
-                    sp500Indicator.signal === "Bullish"
-                      ? "bullish"
-                      : sp500Indicator.signal === "Bearish"
-                      ? "bearish"
-                      : "neutral"
-                  }
-                  emoji={sp500Indicator.emoji}
-                  size="sm"
-                />
-                {sp500Indicator.last_updated && (
-                  <p className="text-[10px] text-text-muted mt-1">
-                    {formatRelativeTime(sp500Indicator.last_updated)}
-                  </p>
-                )}
+          {/* Lagging */}
+          {laggingSectors.length > 0 && (
+            <div className="flex items-start gap-2">
+              <span className="text-destructive font-medium w-16">▼ Lagging</span>
+              <div className="flex flex-wrap gap-x-2">
+                {laggingSectors.map((s, i) => (
+                  <span key={s.symbol}>
+                    <span style={{ color: SECTOR_COLORS[s.symbol] || "#888" }} className="font-medium">
+                      {s.name}
+                    </span>
+                    {s.change_pct !== null && (
+                      <span className={s.change_pct >= 0 ? "text-gain" : "text-loss"}>
+                        {` ${s.change_pct >= 0 ? "+" : ""}${s.change_pct.toFixed(2)}%`}
+                      </span>
+                    )}
+                    {i < laggingSectors.length - 1 && <span className="text-text-muted"> │</span>}
+                  </span>
+                ))}
               </div>
-            )}
-
-            {tnxIndicator && (
-              <div className="p-4 rounded-lg bg-surface-muted/20 hover:bg-surface-muted/30 transition-colors">
-                <LabeledIndicator
-                  label={tnxIndicator.label}
-                  value={`${tnxIndicator.value.toFixed(2)}%`}
-                  changePct={tnxIndicator.change_pct}
-                  tooltip={tnxIndicator.tooltip}
-                  signal={
-                    tnxIndicator.signal === "Bullish"
-                      ? "bullish"
-                      : tnxIndicator.signal === "Bearish"
-                      ? "bearish"
-                      : "neutral"
-                  }
-                  emoji={tnxIndicator.emoji}
-                  size="sm"
-                />
-                {tnxIndicator.last_updated && (
-                  <p className="text-[10px] text-text-muted mt-1">
-                    {formatRelativeTime(tnxIndicator.last_updated)}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {dxyIndicator && (
-              <div className="p-4 rounded-lg bg-surface-muted/20 hover:bg-surface-muted/30 transition-colors">
-                <LabeledIndicator
-                  label={dxyIndicator.label}
-                  value={dxyIndicator.value.toFixed(2)}
-                  changePct={dxyIndicator.change_pct}
-                  tooltip={dxyIndicator.tooltip}
-                  signal={
-                    dxyIndicator.signal === "Bullish"
-                      ? "bullish"
-                      : dxyIndicator.signal === "Bearish"
-                      ? "bearish"
-                      : "neutral"
-                  }
-                  emoji={dxyIndicator.emoji}
-                  size="sm"
-                />
-                {dxyIndicator.last_updated && (
-                  <p className="text-[10px] text-text-muted mt-1">
-                    {formatRelativeTime(dxyIndicator.last_updated)}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {putcallIndicator && (
-              <div className="p-4 rounded-lg bg-surface-muted/20 hover:bg-surface-muted/30 transition-colors">
-                <LabeledIndicator
-                  label={putcallIndicator.label}
-                  value={putcallIndicator.value.toFixed(2)}
-                  changePct={putcallIndicator.change_pct}
-                  tooltip={putcallIndicator.tooltip}
-                  signal={
-                    putcallIndicator.signal === "Bullish"
-                      ? "bullish"
-                      : putcallIndicator.signal === "Bearish"
-                      ? "bearish"
-                      : "neutral"
-                  }
-                  emoji={putcallIndicator.emoji}
-                  size="sm"
-                />
-                {putcallIndicator.last_updated && (
-                  <p className="text-[10px] text-text-muted mt-1">
-                    {formatRelativeTime(putcallIndicator.last_updated)}
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Right Column: Sector Rotation */}
-        <div className="space-y-4">
-          <div className="flex items-baseline justify-between mb-4">
-            <h3 className="text-sm font-semibold text-text uppercase tracking-wide">
-              Sector Rotation
-            </h3>
-            {sector_rotation.leading?.[0]?.last_updated && (
-              <p className="text-[10px] text-text-muted">
-                {formatRelativeTime(sector_rotation.leading[0].last_updated)}
-              </p>
-            )}
-          </div>
-          <div className="p-4 rounded-lg bg-surface-muted/20">
-            <SectorRotationSummary rotation={sector_rotation} />
-          </div>
+            </div>
+          )}
         </div>
       </div>
-
-      {/* Options Activity Section */}
-      {options_activity && (
-        <div className="mt-6 pt-6 border-t border-border">
-          <div className="flex items-baseline justify-between mb-4">
-            <h3 className="text-sm font-semibold text-text uppercase tracking-wide">
-              Options Positioning
-            </h3>
-            {options_activity.last_updated && (
-              <p className="text-[10px] text-text-muted">
-                {formatRelativeTime(options_activity.last_updated)}
-              </p>
-            )}
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Near-term Focus */}
-            <div className="p-4 rounded-lg bg-surface-muted/20 hover:bg-surface-muted/30 transition-colors">
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-text-muted uppercase tracking-wide">
-                    Near-term Focus
-                  </span>
-                  <span
-                    className={`text-xs font-semibold px-2 py-0.5 rounded ${
-                      options_activity.near_term_signal === "High"
-                        ? "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400"
-                        : options_activity.near_term_signal === "Low"
-                        ? "bg-blue-500/10 text-blue-600 dark:text-blue-400"
-                        : "bg-surface-muted/40 text-text-muted"
-                    }`}
-                  >
-                    {options_activity.near_term_signal}
-                  </span>
-                </div>
-                <div className="text-2xl font-bold text-text">
-                  {options_activity.near_term_pct.toFixed(0)}%
-                </div>
-                <p className="text-xs text-text-muted">
-                  {options_activity.near_term_signal === "High"
-                    ? "Event uncertainty"
-                    : options_activity.near_term_signal === "Low"
-                    ? "Long-term positioning"
-                    : "Balanced time horizon"}
-                </p>
-              </div>
-            </div>
-
-            {/* Concentration */}
-            <div className="p-4 rounded-lg bg-surface-muted/20 hover:bg-surface-muted/30 transition-colors">
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-text-muted uppercase tracking-wide">
-                    Market Positioning
-                  </span>
-                  <span
-                    className={`text-xs font-semibold px-2 py-0.5 rounded ${
-                      options_activity.concentration_signal === "Focused"
-                        ? "bg-red-500/10 text-red-600 dark:text-red-400"
-                        : options_activity.concentration_signal === "Dispersed"
-                        ? "bg-green-500/10 text-green-600 dark:text-green-400"
-                        : "bg-surface-muted/40 text-text-muted"
-                    }`}
-                  >
-                    {options_activity.concentration_signal}
-                  </span>
-                </div>
-                <div className="text-2xl font-bold text-text">
-                  {options_activity.concentration_pct.toFixed(0)}%
-                </div>
-                <p className="text-xs text-text-muted">
-                  {options_activity.concentration_signal === "Focused"
-                    ? "High conviction trades"
-                    : options_activity.concentration_signal === "Dispersed"
-                    ? "Broad participation"
-                    : "Balanced distribution"}
-                </p>
-              </div>
-            </div>
-
-            {/* Top Sectors */}
-            <div className="p-4 rounded-lg bg-surface-muted/20 hover:bg-surface-muted/30 transition-colors">
-              <div className="flex flex-col gap-1">
-                <span className="text-xs font-medium text-text-muted uppercase tracking-wide">
-                  Top Sectors
-                </span>
-                <div className="space-y-2 mt-2">
-                  {options_activity.top_sectors.map((sector, idx) => (
-                    <div key={idx} className="flex items-center justify-between">
-                      <span className="text-xs text-text truncate flex-1">
-                        {sector.sector}
-                      </span>
-                      <span className="text-xs font-semibold text-text ml-2">
-                        {sector.weight_pct.toFixed(0)}%
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
     </Card>
   );
 }

@@ -1,0 +1,172 @@
+"use client";
+
+import { useState, useMemo } from "react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+  Legend,
+} from "recharts";
+import { useIndicatorHistory } from "@/lib/hooks/useMarketIntelligence";
+import { TimeframeSelector, Timeframe, timeframeToDays } from "./TimeframeSelector";
+import { Loader2 } from "lucide-react";
+
+const INDICATOR_CONFIG = {
+  sp500: { name: "S&P 500", color: "#3B82F6" },
+  vix: { name: "VIX", color: "#EF4444" },
+  tnx: { name: "10Y Yield", color: "#F97316" },
+  dxy: { name: "Dollar", color: "#10B981" },
+};
+
+type IndicatorKey = keyof typeof INDICATOR_CONFIG;
+
+export function IndicatorsTrendChart() {
+  const [timeframe, setTimeframe] = useState<Timeframe>("1Y");
+  const [highlighted, setHighlighted] = useState<IndicatorKey | null>(null);
+  const days = timeframeToDays(timeframe);
+
+  const { data, isLoading, error } = useIndicatorHistory(days);
+
+  // Transform data for Recharts - merge all indicators by date
+  const chartData = useMemo(() => {
+    if (!data?.sp500?.length) return [];
+
+    return data.sp500.map((point, idx) => ({
+      date: point.date,
+      sp500: point.pct_change,
+      vix: data.vix[idx]?.pct_change ?? 0,
+      tnx: data.tnx[idx]?.pct_change ?? 0,
+      dxy: data.dxy[idx]?.pct_change ?? 0,
+    }));
+  }, [data]);
+
+  // Get current values for summary
+  const currentValues = useMemo(() => {
+    if (!data?.sp500?.length) return null;
+    const last = (arr: { pct_change: number; close: number }[]) =>
+      arr.length > 0 ? arr[arr.length - 1] : null;
+    return {
+      sp500: last(data.sp500),
+      vix: last(data.vix),
+      tnx: last(data.tnx),
+      dxy: last(data.dxy),
+    };
+  }, [data]);
+
+  const formatXAxis = (date: string) => {
+    const d = new Date(date);
+    return d.toLocaleDateString("en-US", { month: "short" });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-48">
+        <Loader2 className="h-6 w-6 animate-spin text-text-muted" />
+      </div>
+    );
+  }
+
+  if (error || !data?.sp500?.length) {
+    return (
+      <div className="flex items-center justify-center h-48 text-text-muted text-sm">
+        Unable to load indicator data
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-text">Key Indicators</h3>
+        <TimeframeSelector value={timeframe} onChange={setTimeframe} />
+      </div>
+
+      <div className="h-40">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+            <XAxis
+              dataKey="date"
+              tickFormatter={formatXAxis}
+              tick={{ fontSize: 10, fill: "var(--color-text-muted)" }}
+              axisLine={{ stroke: "var(--color-border)" }}
+              tickLine={false}
+              interval="preserveStartEnd"
+            />
+            <YAxis
+              tickFormatter={(v) => `${v}%`}
+              tick={{ fontSize: 10, fill: "var(--color-text-muted)" }}
+              axisLine={false}
+              tickLine={false}
+              width={40}
+            />
+            <ReferenceLine y={0} stroke="var(--color-border)" strokeDasharray="3 3" />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: "var(--color-surface)",
+                border: "1px solid var(--color-border)",
+                borderRadius: "8px",
+                fontSize: "12px",
+              }}
+              formatter={(value: number, name: string) => [
+                `${value.toFixed(1)}%`,
+                INDICATOR_CONFIG[name as IndicatorKey]?.name || name,
+              ]}
+              labelFormatter={(label) =>
+                new Date(label).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })
+              }
+            />
+            {(Object.keys(INDICATOR_CONFIG) as IndicatorKey[]).map((key) => (
+              <Line
+                key={key}
+                type="monotone"
+                dataKey={key}
+                stroke={INDICATOR_CONFIG[key].color}
+                strokeWidth={highlighted === key ? 3 : 1.5}
+                dot={false}
+                opacity={highlighted === null || highlighted === key ? 1 : 0.2}
+              />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Interactive legend with current values */}
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+        {(Object.keys(INDICATOR_CONFIG) as IndicatorKey[]).map((key) => {
+          const config = INDICATOR_CONFIG[key];
+          const current = currentValues?.[key];
+          const pct = current?.pct_change ?? 0;
+          return (
+            <button
+              key={key}
+              onClick={() => setHighlighted(highlighted === key ? null : key)}
+              className={`flex items-center gap-1 transition-opacity ${
+                highlighted !== null && highlighted !== key ? "opacity-40" : ""
+              }`}
+            >
+              <span
+                className="w-2 h-2 rounded-full"
+                style={{ backgroundColor: config.color }}
+              />
+              <span className="text-text-muted">
+                {config.name}{" "}
+                <span className={pct >= 0 ? "text-success" : "text-destructive"}>
+                  {pct >= 0 ? "+" : ""}
+                  {pct.toFixed(1)}%
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
