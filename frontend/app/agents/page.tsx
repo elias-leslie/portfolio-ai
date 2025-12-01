@@ -118,8 +118,9 @@ export default function AgentsPage() {
                 <Tooltip />
                 <Bar
                   dataKey="total_runs"
-                  fill="hsl(var(--primary))"
+                  fill="var(--color-chart-1)"
                   name="Runs"
+                  radius={[4, 4, 0, 0]}
                 />
               </BarChart>
             </ResponsiveContainer>
@@ -146,7 +147,7 @@ export default function AgentsPage() {
                 <Line
                   type="monotone"
                   dataKey="total_tokens"
-                  stroke="hsl(var(--primary))"
+                  stroke="var(--color-chart-2)"
                   name="Tokens"
                   strokeWidth={2}
                 />

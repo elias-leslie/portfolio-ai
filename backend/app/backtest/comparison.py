@@ -187,19 +187,29 @@ def rank_metrics(metrics_list: list[RunMetrics]) -> list[RunMetrics]:
         return metrics_list
 
     # Rank by total return (higher is better)
-    returns = [(i, m.total_return_pct) for i, m in enumerate(metrics_list) if m.total_return_pct is not None]
+    returns = [
+        (i, m.total_return_pct)
+        for i, m in enumerate(metrics_list)
+        if m.total_return_pct is not None
+    ]
     returns.sort(key=lambda x: float(x[1]), reverse=True)
     for rank, (idx, _) in enumerate(returns, 1):
         metrics_list[idx].return_rank = rank
 
     # Rank by Sharpe ratio (higher is better)
-    sharpes = [(i, m.sharpe_ratio) for i, m in enumerate(metrics_list) if m.sharpe_ratio is not None]
+    sharpes = [
+        (i, m.sharpe_ratio) for i, m in enumerate(metrics_list) if m.sharpe_ratio is not None
+    ]
     sharpes.sort(key=lambda x: float(x[1]), reverse=True)
     for rank, (idx, _) in enumerate(sharpes, 1):
         metrics_list[idx].sharpe_rank = rank
 
     # Rank by max drawdown (lower is better)
-    drawdowns = [(i, m.max_drawdown_pct) for i, m in enumerate(metrics_list) if m.max_drawdown_pct is not None]
+    drawdowns = [
+        (i, m.max_drawdown_pct)
+        for i, m in enumerate(metrics_list)
+        if m.max_drawdown_pct is not None
+    ]
     drawdowns.sort(key=lambda x: float(x[1]))  # Lower drawdown is better
     for rank, (idx, _) in enumerate(drawdowns, 1):
         metrics_list[idx].drawdown_rank = rank

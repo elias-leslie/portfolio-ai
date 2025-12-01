@@ -171,7 +171,9 @@ class EquityBand(BaseModel):
 class MonteCarloRequest(BaseModel):
     """Request model for Monte Carlo simulation."""
 
-    num_simulations: int = Field(default=1000, ge=100, le=10000, description="Number of simulations")
+    num_simulations: int = Field(
+        default=1000, ge=100, le=10000, description="Number of simulations"
+    )
     seed: int | None = Field(default=None, description="Random seed for reproducibility")
 
 

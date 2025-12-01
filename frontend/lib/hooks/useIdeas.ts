@@ -52,6 +52,7 @@ export function useIdeaDetails(ideaId: string | null) {
     queryFn: () => (ideaId ? fetchIdeaDetails(ideaId) : null),
     enabled: !!ideaId, // Only run if ideaId is provided
     staleTime: 1000 * 60 * 5, // 5 minutes
+    retry: false, // Don't retry on 404 - show "not found" immediately
   });
 }
 
