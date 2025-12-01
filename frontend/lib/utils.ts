@@ -10,6 +10,42 @@ export function cn(...inputs: ClassValue[]) {
  * @param timestamp ISO 8601 timestamp string
  * @returns Formatted time string
  */
+/**
+ * Format a date string consistently across the app (MM/DD/YYYY style)
+ * @param dateStr ISO 8601 date string or date-only string (YYYY-MM-DD)
+ * @param includeYear Whether to include the year (default: true)
+ * @returns Formatted date string like "Nov 18, 2025" or "Nov 18"
+ */
+export function formatDate(dateStr: string | undefined | null, includeYear: boolean = true): string {
+  if (!dateStr) return "-";
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return "-";
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    ...(includeYear && { year: "numeric" }),
+  });
+}
+
+/**
+ * Format a datetime string with time component
+ * @param dateStr ISO 8601 timestamp string
+ * @returns Formatted string like "Nov 18, 10:30 AM"
+ */
+export function formatDateTime(dateStr: string | undefined | null): string {
+  if (!dateStr) return "-";
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return "-";
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 export function formatRelativeTime(timestamp: string): string {
   const now = new Date()
   const then = new Date(timestamp)

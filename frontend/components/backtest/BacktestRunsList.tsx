@@ -26,8 +26,12 @@ export function BacktestRunsList({
   onSelectRun,
   onToggleComparison,
 }: BacktestRunsListProps) {
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString(undefined, {
+  // Use standard date formatting from utils (US locale: "Nov 18, 2025")
+  const formatDateRange = (dateStr: string) => {
+    if (!dateStr) return "-";
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return "-";
+    return date.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
     });
@@ -99,7 +103,7 @@ export function BacktestRunsList({
                     <span className="font-semibold truncate">{run.symbol}</span>
                   </div>
                   <p className="text-xs text-text-muted mt-1">
-                    {formatDate(run.start_date)} - {formatDate(run.end_date)}
+                    {formatDateRange(run.start_date)} - {formatDateRange(run.end_date)}
                   </p>
                   {run.sharpe_ratio && (
                     <p className="text-xs text-text-muted mt-1">

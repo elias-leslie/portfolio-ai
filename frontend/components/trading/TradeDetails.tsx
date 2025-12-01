@@ -5,17 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import type { PaperTrade } from "@/lib/api/paper-trades";
+import { formatDate } from "@/lib/utils";
 
 interface TradeDetailsProps {
   trade: PaperTrade;
 }
 
 export function TradeDetails({ trade }: TradeDetailsProps) {
-  // Format helpers
-  const formatDate = (dateStr: string | undefined) => {
-    if (!dateStr) return "-";
-    return new Date(dateStr).toLocaleDateString();
-  };
 
   const getRiskBadgeVariant = (risk: string | undefined) => {
     if (!risk) return "secondary";

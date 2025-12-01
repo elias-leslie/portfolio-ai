@@ -19,7 +19,7 @@ import {
   ColumnDef,
   SortingState,
 } from "@tanstack/react-table";
-import { format } from "date-fns";
+import { formatDate } from "@/lib/utils";
 import { ArrowUpIcon, ArrowDownIcon, TrendingUp, Loader2, BarChart2 } from "lucide-react";
 
 import { SectionCard } from "@/components/shared/SectionCard";
@@ -96,7 +96,7 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
   return (
     <div className="bg-surface border border-border rounded-lg p-3 shadow-lg">
       <p className="text-xs text-text-muted mb-2">
-        {format(dateObj, "MMM d, yyyy")}
+        {formatDate(dateObj.toISOString())}
       </p>
       <div className="space-y-1">
         {payload.map((entry, index) => (
@@ -413,8 +413,8 @@ export function BacktestDetails({
           <div>
             <h2 className="text-2xl font-bold text-text">{run.symbol}</h2>
             <p className="text-sm text-text-muted mt-1">
-              {format(new Date(run.start_date), "MMM d, yyyy")} →{" "}
-              {format(new Date(run.end_date), "MMM d, yyyy")}
+              {formatDate(run.start_date)} →{" "}
+              {formatDate(run.end_date)}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -631,10 +631,7 @@ interface TradesTableProps {
 }
 
 function TradesTable({ trades, sorting, onSortingChange }: TradesTableProps) {
-  const formatDate = (dateStr: string | undefined) => {
-    if (!dateStr) return "—";
-    return format(new Date(dateStr), "MMM d, yyyy");
-  };
+  // Using standard formatDate from @/lib/utils
 
   const formatCurrency = (value: number | undefined) => {
     if (value === undefined || value === null) return "—";
