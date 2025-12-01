@@ -1,6 +1,6 @@
 # Work Tracker
 
-**Last Updated:** 2025-12-01 (Task 0082 Data Source Reliability COMPLETE)
+**Last Updated:** 2025-12-01 (Task 0083 Market Hours Awareness COMPLETE)
 
 **Current Status:** 🎯 **VISION.MD ALIGNMENT** | ✅ 91% Complete | 🚀 Priority #3 Complete (Tasks 0072, 0073, 0077, 0074 done)
 
@@ -29,17 +29,16 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Market Hours Awareness** (MEDIUM-HIGH, 0/6 tasks (today))
-   - File: `tasks-0083-market-hours-awareness.md`
+1. **Trading & Backtesting System Completion** (HIGH (12-16 weeks total, phased approach), 0/5 tasks (today))
+   - File: `tasks-0084-trading-backtesting-system-completion.md`
    - Created: 2025-12-01
-   - Goal: Add comprehensive market hours awareness throughout the solution to prevent thrashing, show accurate status, and make self-healing intelligent about when remediation makes sense.
+   - Goal: Transform trading and backtesting systems from ~30% confidence (limited swing trading) to professional-grade edge (Sharpe >2.0) by verifying existing implementation, filling 37 identified trading intelligence gaps, and completing dynamic strategy generation.
    - Tasks:
-     - [ ] Task 0: Scope Discovery (MANDATORY)
-     - [ ] Task 1: Create Market Hours Service
-     - [ ] Task 2: Update Freshness Monitoring with Market Awareness
-     - [ ] Task 3: Add Thrashing Protections to Self-Healing
-     - [ ] Task 4: Add Market Status UI Indicator
-     - [ ] Task 5: Update Scheduled Tasks with Market Awareness
+     - [ ] Task 0: Scope Discovery - Verify Backtesting Framework (MANDATORY)
+     - [ ] Task 1: Phase 1: Fix P0 Critical Gaps (4 weeks)
+     - [ ] Task 2: Phase 2A: Complete Dynamic Strategy Generation
+     - [ ] Task 3: Phase 2B: Fill P1 High-Priority Gaps
+     - [ ] Task 4: Phase 3: Backtesting Phase B Features
 
 2. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (2 weeks ago))
    - File: `tasks-0042-customizable-dashboard-layouts.md`
@@ -78,7 +77,21 @@
 
 *Last 5 completed tasks*
 
-1. **Data Source Reliability & Monitoring** ✅ COMPLETE (2025-12-01)
+1. **Market Hours Awareness** ✅ COMPLETE (2025-12-01)
+   - File: `tasks-0083-market-hours-awareness.md`
+   - Completed: 2025-12-01
+   - Duration: ~2 hours
+   - Summary: Added comprehensive market hours awareness to prevent thrashing and show accurate status
+   - Key achievements:
+     - ✅ Extended market_hours.py with holiday calendar (2024-2026), status functions
+     - ✅ Market-aware freshness: Friday data stays "fresh" on weekends
+     - ✅ Thrashing protection: 30-min cooldown, skip remediation when market closed
+     - ✅ UI indicator: MarketStatusBadge in navigation (open/pre-market/after-hours/closed)
+     - ✅ API endpoint: GET /api/market/status
+   - Tests: 19/19 unit tests passing
+   - Impact: No false "stale" alerts on weekends, no wasted API calls when market closed
+
+2. **Data Source Reliability & Monitoring** ✅ COMPLETE (2025-12-01)
    - File: `tasks-0082-data-source-reliability-monitoring.md`
    - Completed: 2025-12-01
    - Duration: ~2 hours

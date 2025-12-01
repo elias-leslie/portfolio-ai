@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from ..logging_config import get_logger
 from ..storage.connection import get_connection_manager
+from ..utils.market_hours import get_market_aware_age_hours
 
 logger = get_logger(__name__)
 
@@ -102,18 +103,21 @@ async def get_table_freshness() -> TableFreshnessResponse:
     try:
         conn_mgr = get_connection_manager()
 
-        # Define tables with their timestamp columns and expected refresh intervals (in hours)
+        # Table configs: table_name, timestamp_col, col_type, expected_hours, description, is_market_data
+        # is_market_data=True uses market-aware age (Friday data fresh on weekend)
+        # is_market_data=False uses calendar age (24/7 data like news)
         table_configs = [
-            ("day_bars", "date", "date", 24, "Daily OHLCV market data"),
-            ("fear_greed_inputs", "as_of_date", "date", 24, "Fear & Greed raw inputs"),
-            ("fear_greed_daily", "as_of_date", "date", 24, "Fear & Greed calculated scores"),
-            ("fear_greed_components", "as_of_date", "date", 24, "Fear & Greed component scores"),
+            ("day_bars", "date", "date", 24, "Daily OHLCV market data", True),
+            ("fear_greed_inputs", "as_of_date", "date", 24, "Fear & Greed raw inputs", True),
+            ("fear_greed_daily", "as_of_date", "date", 24, "Fear & Greed calculated scores", True),
+            ("fear_greed_components", "as_of_date", "date", 24, "Fear & Greed component scores", True),
             (
                 "technical_indicators",
                 "calculated_at",
                 "timestamp",
                 24,
                 "Daily technical indicators (RSI, MACD, etc.)",
+                True,
             ),
             (
                 "news_cache",
@@ -121,6 +125,7 @@ async def get_table_freshness() -> TableFreshnessResponse:
                 "timestamp",
                 2,
                 "News articles (refreshes every ~1min, 2h tolerance)",
+                False,
             ),
             (
                 "watchlist_snapshots",
@@ -128,10 +133,11 @@ async def get_table_freshness() -> TableFreshnessResponse:
                 "timestamp",
                 2,
                 "Watchlist scores (refreshes every ~1min, 2h tolerance)",
+                False,
             ),
-            ("price_cache", "cached_at", "timestamp", 1, "Real-time price cache (on-demand)"),
-            ("ml_model_metrics", "trained_at", "timestamp", 24, "ML model training metrics"),
-            ("source_metrics", "calculated_at", "timestamp", 12, "News source quality profiling"),
+            ("price_cache", "cached_at", "timestamp", 1, "Real-time price cache (on-demand)", False),
+            ("ml_model_metrics", "trained_at", "timestamp", 24, "ML model training metrics", False),
+            ("source_metrics", "calculated_at", "timestamp", 12, "News source quality profiling", False),
         ]
 
         tables: list[TableFreshnessStatus] = []
@@ -141,7 +147,7 @@ async def get_table_freshness() -> TableFreshnessResponse:
             # Validate all table and column names exist before executing queries
             # This prevents SQL injection by verifying configuration against schema
             validated_configs = []
-            for table_name, timestamp_col, col_type, expected_hours, desc in table_configs:
+            for table_name, timestamp_col, col_type, expected_hours, desc, is_market_data in table_configs:
                 try:
                     # Check table exists in information_schema
                     table_check = conn.execute(
@@ -186,7 +192,7 @@ async def get_table_freshness() -> TableFreshnessResponse:
 
                     # validated: table/column from information_schema
                     validated_configs.append(
-                        (table_name, timestamp_col, col_type, expected_hours, desc)
+                        (table_name, timestamp_col, col_type, expected_hours, desc, is_market_data)
                     )
                 except Exception as e:
                     logger.warning(
@@ -195,7 +201,7 @@ async def get_table_freshness() -> TableFreshnessResponse:
                     )
                     continue
 
-            for table_name, timestamp_col, col_type, expected_hours, desc in validated_configs:
+            for table_name, timestamp_col, col_type, expected_hours, desc, is_market_data in validated_configs:
                 try:
                     # Get latest timestamp
                     # validated: table/column from information_schema
@@ -238,8 +244,17 @@ async def get_table_freshness() -> TableFreshnessResponse:
                             last_updated = None
 
                         if last_updated is not None:
-                            age_delta = now - last_updated
-                            age_hours = age_delta.total_seconds() / 3600
+                            # Make timezone-aware if needed
+                            if last_updated.tzinfo is None:
+                                last_updated = last_updated.replace(tzinfo=UTC)
+
+                            # Use market-aware age for market data tables
+                            # (Friday data stays "fresh" on weekends)
+                            age_hours = get_market_aware_age_hours(
+                                last_update=last_updated,
+                                now=now,
+                                is_market_data=is_market_data,
+                            )
 
                             # Status based on expected interval with 2x tolerance
                             if age_hours <= expected_hours:

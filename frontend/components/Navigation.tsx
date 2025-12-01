@@ -14,6 +14,7 @@ import {
   Bot,
 } from "lucide-react";
 
+import { MarketStatusBadge } from "@/components/market/MarketStatusBadge";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { cn } from "@/lib/utils";
 
@@ -135,6 +136,8 @@ export function Navigation() {
                 </Link>
               );
             })}
+            <div className="mx-1 h-4 w-px bg-border/50" aria-hidden="true" />
+            <MarketStatusBadge />
             <div className="mx-1 h-4 w-px bg-border/50" aria-hidden="true" />
             <ThemeToggle />
           </div>

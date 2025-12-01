@@ -4,7 +4,6 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { MarketIntelligence } from "@/components/market/MarketIntelligence";
 import { UnifiedNewsIntelligenceCard } from "@/components/shared/UnifiedNewsIntelligenceCard";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { SectionCard } from "@/components/shared/SectionCard";
 import { useNewsIntelligence } from "@/lib/hooks/useNews";
 import { PaperTradingCard } from "@/components/trading/PaperTradingCard";
 import { BacktestCard } from "@/components/backtest/BacktestCard";
@@ -96,36 +95,29 @@ function MarketNewsSection() {
 
   return (
     <div ref={sectionRef}>
-      <SectionCard
-        variant="surface"
-        title="Market News"
-        description="Curated macro headlines and sentiment shifts across your tracked universe."
-      >
-        {showSkeleton && <SectionLoadingState label="Fetching latest headlines" rows={4} />}
-        {!showSkeleton && error && (
-          <div className="rounded-lg border border-border/50 bg-surface-muted/40 p-4 text-sm text-text-muted">
-            Failed to load market news.{" "}
-            <button
-              className="text-primary underline-offset-2 hover:underline"
-              onClick={() => refetch()}
-              type="button"
-            >
-              Retry
-            </button>
-          </div>
-        )}
-        {!showSkeleton && !error && (
-          <UnifiedNewsIntelligenceCard
-            marketNewsData={newsData}
-            ticker={null}
-            showHeader={false}
-            onRequestExpanded={
-              articleLimit < MARKET_NEWS_EXPANDED_LIMIT ? handleExpandRequest : undefined
-            }
-            isLoadingMore={isLoadingMore}
-          />
-        )}
-      </SectionCard>
+      {showSkeleton && <SectionLoadingState label="Fetching latest headlines" rows={4} />}
+      {!showSkeleton && error && (
+        <div className="rounded-lg border border-border/50 bg-surface-muted/40 p-4 text-sm text-text-muted">
+          Failed to load market news.{" "}
+          <button
+            className="text-primary underline-offset-2 hover:underline"
+            onClick={() => refetch()}
+            type="button"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+      {!showSkeleton && !error && (
+        <UnifiedNewsIntelligenceCard
+          marketNewsData={newsData}
+          ticker={null}
+          onRequestExpanded={
+            articleLimit < MARKET_NEWS_EXPANDED_LIMIT ? handleExpandRequest : undefined
+          }
+          isLoadingMore={isLoadingMore}
+        />
+      )}
     </div>
   );
 }
@@ -139,15 +131,9 @@ export default function Dashboard() {
           description="AI-powered portfolio intelligence and market insights"
         />
 
-        <SectionCard
-          variant="surface"
-          title="Market Intelligence"
-          description="Daily macro trends, sentiment shifts, and flow signals across sectors."
-        >
-          <Suspense fallback={<SectionLoadingState label="Loading market intelligence" rows={5} />}>
-            <MarketIntelligence />
-          </Suspense>
-        </SectionCard>
+        <Suspense fallback={<SectionLoadingState label="Loading market intelligence" rows={5} />}>
+          <MarketIntelligence />
+        </Suspense>
 
         {/* AI Trading & Backtesting Cards */}
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">

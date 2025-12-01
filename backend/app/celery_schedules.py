@@ -38,6 +38,29 @@ PREVIOUSLY DISABLED TASKS (now fixed):
   - fetch-putcall-ratio: Was disabled due to CBOE HTTP 403 blocks.
     Fixed 2025-12-01: Now uses yfinance options chains (SPY+QQQ+IWM aggregate).
     See backend/app/tasks/market_data/options_pipeline.py for implementation.
+
+MARKET HOURS AWARENESS:
+-----------------------
+The system is market-hours aware to prevent thrashing on weekends/holidays:
+
+1. Data Freshness Monitoring (data_freshness_service.py):
+   - Uses market-aware age calculation for market_data tables
+   - On weekends, data from Friday is considered "fresh" (not stale)
+   - Skips remediation alerts for market data when market is closed
+
+2. Remediation Thrashing Protection:
+   - Cooldown period: 30 minutes between remediation attempts per table
+   - Market check: Won't trigger market data remediation when market closed
+   - Cooldowns clear on successful data refresh
+
+3. Holiday Calendar:
+   - Full NYSE/NASDAQ holiday support (2024-2026)
+   - Early close days (1 PM close) handled separately
+   - See app/utils/market_hours.py for complete calendar
+
+4. API Endpoint:
+   - GET /api/market/status - Returns current market status, last/next trading days
+   - Used by frontend MarketStatusBadge component in navigation
 """
 
 from celery.schedules import crontab  # type: ignore[import-untyped]
@@ -168,13 +191,16 @@ def get_beat_schedule() -> dict[str, object]:
             # - Runs daily to keep model fresh with evolving news patterns
         },
         "update-technical-indicators-daily": {
-            "task": "update_technical_indicators",
+            "task": "backfill_technical_indicators",
             "schedule": crontab(hour=2, minute=30),  # Daily at 02:30 UTC
-            "args": [["SPY"]],  # Update SPY indicators
+            "args": [None, 50],  # backfill_technical_indicators(tickers=None, batch_size=50) - auto-discovers all tickers
             "options": {"expires": 3600},  # Task expires after 1 hour
             # Notes:
+            # - Changed from update_technical_indicators to backfill_technical_indicators
             # - Runs daily at 02:30 UTC (after OHLCV refresh at 02:00)
-            # - Calculates RSI, SMA_200, and other technical indicators
+            # - Auto-discovers ALL tickers from day_bars table
+            # - Calculates indicators for any missing dates (catch-up + new dates)
+            # - Permanent fix: ensures indicators stay in sync with OHLCV data
             # - Must run after refresh-daily-ohlcv completes
         },
         "populate-fear-greed-inputs-daily": {

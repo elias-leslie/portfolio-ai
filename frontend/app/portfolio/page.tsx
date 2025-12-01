@@ -24,7 +24,6 @@ import {
 } from "@/components/ui/select";
 import { useAddPosition, useCreateAccount, useAccounts } from "@/lib/hooks/usePortfolio";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { SectionCard } from "@/components/shared/SectionCard";
 
 type PositionType = "long" | "short";
 type AccountType = "IRA" | "Taxable" | "401k" | "Roth" | "HSA";
@@ -123,23 +122,15 @@ export default function PortfolioPage() {
           description="Manage your positions, accounts, and view detailed analytics."
         />
 
-        <SectionCard
-          variant="surface"
-          title="Portfolio Analytics"
-          description="Allocation, diversification, and performance snapshots powered by live market data."
-        >
-          <PortfolioOverview />
-        </SectionCard>
+        <PortfolioOverview />
 
-        <SectionCard variant="ghost" padding="none">
-          <AccountsWithPositions
-            onAddAccount={() => setAccountOpen(true)}
-            onAddPosition={(accountId) => {
-              setAccountId(accountId);
-              setPositionOpen(true);
-            }}
-          />
-        </SectionCard>
+        <AccountsWithPositions
+          onAddAccount={() => setAccountOpen(true)}
+          onAddPosition={(accountId) => {
+            setAccountId(accountId);
+            setPositionOpen(true);
+          }}
+        />
 
         {/* Hidden Dialogs */}
         <div className="hidden">

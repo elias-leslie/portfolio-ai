@@ -18,6 +18,10 @@ from typing import TYPE_CHECKING, TypedDict
 from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.services.maintenance_tracker import record_maintenance_completion, record_maintenance_start
+from app.utils.market_hours import (
+    get_market_aware_age_hours,
+    is_trading_day,
+)
 
 if TYPE_CHECKING:
     from app.storage.connection import ConnectionManager
@@ -26,16 +30,19 @@ logger = get_logger(__name__)
 
 
 # Map tables to their refresh tasks for auto-remediation
+# Note: For fear_greed_daily/components, we trigger populate_fear_greed_inputs
+# because it fetches new data AND triggers calculate_fear_greed afterwards.
+# Triggering just calculate_fear_greed would only recalculate from existing inputs.
 REMEDIATION_TASKS: dict[str, str] = {
     "day_bars": "maintain_historical_market_data",
     "technical_indicators": "update_technical_indicators",
     "fear_greed_inputs": "populate_fear_greed_inputs",
-    "fear_greed_daily": "calculate_fear_greed",
-    "fear_greed_components": "calculate_fear_greed",  # Same task populates both tables
+    "fear_greed_daily": "populate_fear_greed_inputs",  # Populates inputs then calculates
+    "fear_greed_components": "populate_fear_greed_inputs",  # Populates inputs then calculates
     "options_market_metrics": "fetch_options_activity_metrics",
     "news_cache": "refresh_news_sentiment",
     "reference_cache": "refresh_yfinance_reference_data",
-    "watchlist_snapshots": "refresh_watchlist_scores",  # Refreshes watchlist scores
+    "watchlist_snapshots": "refresh_watchlist_scores",
 }
 
 
@@ -117,40 +124,97 @@ TABLE_FRESHNESS_CONFIG: list[TableFreshnessConfig] = [
 ]
 
 
-def _is_trading_day(now: dt.datetime | None = None) -> bool:
-    """Check if today is a trading day (Monday-Friday, not checking holidays).
+# Remediation cooldown tracking (in-memory, resets on service restart)
+# Maps table_name -> last_remediation_timestamp
+_remediation_cooldowns: dict[str, dt.datetime] = {}
+REMEDIATION_COOLDOWN_MINUTES = 30
 
-    Args:
-        now: Current datetime. If None, uses current time in UTC.
+
+def get_remediation_cooldowns() -> dict[str, str]:
+    """Get current remediation cooldowns for visibility in health endpoints.
 
     Returns:
-        True if weekday (Mon-Fri), False if weekend
-
-    Note:
-        This does not account for market holidays. For full market hours check,
-        use is_market_hours() from market_hours.py.
+        Dict mapping table_name to ISO timestamp of last remediation attempt.
     """
-    if now is None:
-        now = dt.datetime.now(dt.UTC)
-
-    # Monday=0, Sunday=6
-    return now.weekday() < 5
+    return {table: ts.isoformat() for table, ts in _remediation_cooldowns.items()}
 
 
-def trigger_remediation(table_name: str, age_hours: float | None) -> str | None:
+def clear_remediation_cooldown(table_name: str) -> None:
+    """Clear cooldown for a table after successful data refresh.
+
+    Args:
+        table_name: Table to clear cooldown for
+    """
+    if table_name in _remediation_cooldowns:
+        del _remediation_cooldowns[table_name]
+        logger.info("remediation_cooldown_cleared", table_name=table_name)
+
+
+def _is_in_cooldown(table_name: str, now: dt.datetime) -> bool:
+    """Check if a table is still in remediation cooldown.
+
+    Args:
+        table_name: Table to check
+        now: Current datetime
+
+    Returns:
+        True if table was remediated within cooldown period
+    """
+    last_attempt = _remediation_cooldowns.get(table_name)
+    if last_attempt is None:
+        return False
+
+    elapsed = now - last_attempt
+    return elapsed < dt.timedelta(minutes=REMEDIATION_COOLDOWN_MINUTES)
+
+
+def trigger_remediation(
+    table_name: str,
+    age_hours: float | None,
+    is_market_data: bool = False,
+) -> str | None:
     """Trigger the appropriate refresh task for a stale table.
+
+    Includes thrashing protection:
+    - Won't retry same table within 30 minutes
+    - Won't attempt market data remediation if market is closed
 
     Args:
         table_name: Name of the stale table
         age_hours: Age of the data in hours (None if no data)
+        is_market_data: Whether this is a market-data table (skip if market closed)
 
     Returns:
-        task_id if triggered, None if no remediation available
+        task_id if triggered, None if skipped or no remediation available
     """
+    now = dt.datetime.now(dt.UTC)
+
+    # Check cooldown - prevent thrashing
+    if _is_in_cooldown(table_name, now):
+        logger.info(
+            "remediation_skipped_cooldown",
+            table_name=table_name,
+            reason="in_cooldown",
+            cooldown_minutes=REMEDIATION_COOLDOWN_MINUTES,
+        )
+        return None
+
+    # Check market hours for market data tables
+    if is_market_data and not is_trading_day(now.date()):
+        logger.info(
+            "remediation_skipped_market_closed",
+            table_name=table_name,
+            reason="market_closed",
+        )
+        return None
+
     task_name = REMEDIATION_TASKS.get(table_name)
     if not task_name:
         logger.warning("no_remediation_task", table_name=table_name)
         return None
+
+    # Record cooldown before triggering
+    _remediation_cooldowns[table_name] = now
 
     # Use celery_app.send_task to trigger by name
     result = celery_app.send_task(task_name)
@@ -226,11 +290,14 @@ def check_table_freshness(
     if last_update.tzinfo is None:
         last_update = last_update.replace(tzinfo=dt.UTC)
 
-    # Calculate age
-    age = now - last_update
-    age_hours = age.total_seconds() / 3600
+    # Calculate age (market-aware for market data tables)
+    age_hours = get_market_aware_age_hours(
+        last_update=last_update,
+        now=now,
+        is_market_data=config["market_data"],
+    )
 
-    # Check staleness
+    # Check staleness using market-aware age
     is_stale = age_hours > config["expected_hours"]
     is_critical = age_hours > config["critical_hours"]
 
@@ -255,7 +322,7 @@ def check_all_tables_freshness(storage: ConnectionManager, auto_remediate: bool 
         Dict with tables_checked, fresh, stale, critical, alerts_created, remediations_triggered, details
     """
     now = dt.datetime.now(dt.UTC)
-    is_trading = _is_trading_day(now)
+    is_trading = is_trading_day(now.date())
 
     results = []
     alerts_created = 0
@@ -293,12 +360,13 @@ def check_all_tables_freshness(storage: ConnectionManager, auto_remediate: bool 
                 # Even if not critical, remediate stale data
                 should_remediate = True
 
-            # Trigger remediation if needed
+            # Trigger remediation if needed (with thrashing protection)
             if should_remediate and auto_remediate:
                 age_hours_val = result["age_hours"]
                 task_id = trigger_remediation(
                     table_name=config["table_name"],
                     age_hours=age_hours_val if isinstance(age_hours_val, (float, int, type(None))) else None,
+                    is_market_data=config["market_data"],
                 )
                 if task_id:
                     remediations_triggered += 1
