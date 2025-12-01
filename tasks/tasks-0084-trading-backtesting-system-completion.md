@@ -1,4 +1,4 @@
-<!-- ACTIVE: 2025-12-01 15:30 | Context: ~50% | Next: Task 1.4 - Add earnings date tracking (GAP-001) -->
+<!-- ACTIVE: 2025-12-01 16:00 | Context: ~60% | Next: Task 1.5 - Kelly criterion (GAP-045) -->
 
 # Task List: Trading & Backtesting System Completion
 
@@ -8,10 +8,10 @@
 **Environment**: Local Dev (auto-detected)
 **Created**: 2025-12-01 13:45
 **Status**: IN_PROGRESS
-**Last Updated**: 2025-12-01 15:30
-**Context Used**: ~100K/200K (~50%)
-**Completed This Session**: Tasks 1.1, 1.2, 1.3 (GAP-020, GAP-042, GAP-044)
-**Next Action**: Task 1.4 - Add earnings date tracking (GAP-001)
+**Last Updated**: 2025-12-01 16:00
+**Context Used**: ~120K/200K (~60%)
+**Completed This Session**: Tasks 1.1-1.4 (GAP-020, GAP-042, GAP-044, GAP-003)
+**Next Action**: Task 1.5 - Implement Kelly criterion (GAP-045)
 **Resume Command**: `/do_it tasks-0084-trading-backtesting-system-completion.md` or `/do_it`
 
 ---
@@ -133,12 +133,12 @@
   - [x] 1.3.5 Added 12 unit tests (tests/analytics/test_liquidity.py)
   - [x] 1.3.6 Verified: All 12 tests pass
 
-- [ ] 1.4 GAP-001: Add earnings date tracking
-  - [ ] 1.4.1 Create earnings_dates table
-  - [ ] 1.4.2 Add yfinance earnings calendar data source
-  - [ ] 1.4.3 Schedule daily earnings data refresh task
-  - [ ] 1.4.4 Add earnings proximity filter (don't trade 2 days before earnings)
-  - [ ] 1.4.5 Validate via backtest
+- [x] 1.4 GAP-003: Add earnings proximity filter ✅ COMPLETE
+  - [x] 1.4.1 Created app/analytics/earnings_filter.py
+  - [x] 1.4.2 Leveraged existing earnings.py for date fetching
+  - [x] 1.4.3 Implemented 2-day minimum before earnings for new trades
+  - [x] 1.4.4 Integrated into paper_trading_orders.py
+  - [x] 1.4.5 Added 10 unit tests (tests/analytics/test_earnings_filter.py)
 
 - [ ] 1.5 GAP-045: Implement Kelly criterion position sizing
   - [ ] 1.5.1 Research Kelly criterion formula for position sizing

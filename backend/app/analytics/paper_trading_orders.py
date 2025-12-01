@@ -131,7 +131,9 @@ def build_paper_trade_record(
     )
 
 
-def create_paper_trade_from_idea(storage: PortfolioStorage, idea_id: str) -> PaperTradeDict | None:
+def create_paper_trade_from_idea(  # noqa: PLR0911
+    storage: PortfolioStorage, idea_id: str
+) -> PaperTradeDict | None:
     """Create a paper trade entry for an agent idea.
 
     Extracts idea details from agent_ideas table, fetches current price,
@@ -167,6 +169,18 @@ def create_paper_trade_from_idea(storage: PortfolioStorage, idea_id: str) -> Pap
             reason="ticker_not_extracted",
             idea_id=idea_id,
             title=idea["title"],
+        )
+        return None
+
+    # Check earnings proximity (GAP-003)
+    from app.analytics.earnings_filter import should_block_for_earnings  # noqa: PLC0415
+
+    if should_block_for_earnings(storage, ticker):
+        logger.warning(
+            "paper_trade_blocked_earnings",
+            idea_id=idea_id,
+            ticker=ticker,
+            reason="too_close_to_earnings",
         )
         return None
 
