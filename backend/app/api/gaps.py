@@ -37,14 +37,24 @@ class CoverageResult(TypedDict, total=False):
     maturity_level: str
 
 
-class MVPRoadmap(TypedDict):
+class MVPWeek(TypedDict, total=False):
+    """Single week in the MVP roadmap."""
+
+    phase: str
+    focus: str
+    gaps: list[str]
+    deliverable: str
+    expected_edge: str  # Only present in week_4
+
+
+class MVPRoadmap(TypedDict, total=False):
     """MVP roadmap data."""
 
-    week_1_tasks: list[str]
-    week_2_tasks: list[str]
-    week_3_tasks: list[str]
-    week_4_tasks: list[str]
-    expected_edge: str
+    goal: str
+    week_1: MVPWeek
+    week_2: MVPWeek
+    week_3: MVPWeek
+    week_4: MVPWeek
 
 
 class DataAvailability(TypedDict):
@@ -156,16 +166,16 @@ class GapSummaryResponse(BaseModel):
     p1_gaps: int
     p2_gaps: int
     p3_gaps: int
-    analysis_types: dict[str, CoverageResult]  # analysis_type → CoverageResult
+    analysis_types: dict[str, Any]  # analysis_type → CoverageResult (complex nested)
     avg_coverage_pct: float
-    top_10_priorities: list[dict[str, str | int | float]]  # GapInfo for TOP 10
-    mvp_roadmap: MVPRoadmap
+    top_10_priorities: list[dict[str, Any]]  # GapInfo with nested structures
+    mvp_roadmap: dict[str, Any]  # Complex nested week structure
 
 
 class GapsByAnalysisResponse(BaseModel):
     """Gaps grouped by analysis type."""
 
-    analysis_types: dict[str, CoverageResult]  # analysis_type → CoverageResult
+    analysis_types: dict[str, Any]  # analysis_type → CoverageResult (complex nested)
 
 
 class TickerGapsResponse(BaseModel):
