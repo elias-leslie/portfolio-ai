@@ -1,6 +1,6 @@
 # Work Tracker
 
-**Last Updated:** 2025-12-02 (Task 0047 Response Caching verified + extended to 16 endpoints)
+**Last Updated:** 2025-12-02 (Task 0087 Recommendations page complete)
 
 **Current Status:** 🎯 **VISION.MD ALIGNMENT** | ✅ 91% Complete | 🚀 Priority #3 Complete (Tasks 0072, 0073, 0077, 0074 done)
 
@@ -21,7 +21,7 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-(None - Task 0086 complete)
+(No active tasks)
 
 ---
 
@@ -29,15 +29,7 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Recommendations Dashboard** (MEDIUM, 4-6 hours)
-   - File: `tasks/tasks-0087-autonomous-trading-gaps.md`
-   - Status: Task 1.0 and 3.1 complete, Task 2.0 remaining
-   - Goal: `/recommendations` page showing top trades with sizing/entry/exit/reasoning
-   - Tasks:
-     - [x] 1.0 Auto-promotion of strategies (DONE)
-     - [ ] 2.0 Recommendations dashboard (API + frontend)
-     - [x] 3.1 Signal threshold lowered to 5 (DONE)
-
+(No planned tasks)
 
 ---
 
@@ -45,7 +37,20 @@
 
 *Last 5 completed tasks*
 
-1. **Strategies UI & Autonomous Trading Pipeline** ✅ COMPLETE (2025-12-02)
+1. **Autonomous Trading Gaps - Recommendations Page** ✅ COMPLETE (2025-12-02)
+   - File: `tasks-0087-autonomous-trading-gaps.md`
+   - Completed: 2025-12-02
+   - Duration: ~1 hour
+   - Summary: /recommendations page with trade signals and position sizing
+   - Key achievements:
+     - ✅ GET /api/recommendations endpoint with signal data
+     - ✅ Position sizing: 5% of portfolio, 8% stop loss, 15% target
+     - ✅ /recommendations page with card-based trade display
+     - ✅ Track in Portfolio button creates strategy-linked positions
+     - ✅ Navigation link added ("Recs" with Target icon)
+   - Impact: Users can now see actionable trades with full sizing info
+
+2. **Strategies UI & Autonomous Trading Pipeline** ✅ COMPLETE (2025-12-02)
    - File: `tasks-0086-strategies-ui-and-agent-triggers.md`
    - Completed: 2025-12-02 17:15
    - Duration: ~6 hours
