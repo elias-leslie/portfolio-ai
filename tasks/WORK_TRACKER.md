@@ -29,7 +29,14 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-(No planned tasks)
+1. **Recommendations Dashboard** (MEDIUM, 4-6 hours)
+   - File: `tasks/tasks-0087-autonomous-trading-gaps.md`
+   - Status: Task 1.0 and 3.1 complete, Task 2.0 remaining
+   - Goal: `/recommendations` page showing top trades with sizing/entry/exit/reasoning
+   - Tasks:
+     - [x] 1.0 Auto-promotion of strategies (DONE)
+     - [ ] 2.0 Recommendations dashboard (API + frontend)
+     - [x] 3.1 Signal threshold lowered to 5 (DONE)
 
 
 ---
