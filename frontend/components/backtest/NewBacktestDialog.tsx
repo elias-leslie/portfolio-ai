@@ -19,23 +19,44 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { useStartBacktest } from "@/lib/hooks/useBacktest";
-import { toast } from "sonner";
-import { Calendar } from "lucide-react";
+import { Calendar, ChevronDown, Settings2 } from "lucide-react";
 
 interface NewBacktestDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
+// Strategy descriptions for tooltips
+const STRATEGY_INFO: Record<string, string> = {
+  enhanced: "Multi-confirmation technical strategy with configurable parameters",
+  signal_classifier: "Original signal classifier using technical indicators",
+  momentum: "Rides intermediate-term momentum with trend confirmation",
+  mean_reversion: "Catches oversold bounces in uptrending stocks",
+  trend_following: "Follows strong trends with trailing ATR stops",
+};
+
 export function NewBacktestDialog({
   open,
   onOpenChange,
 }: NewBacktestDialogProps) {
   const [ticker, setTicker] = useState("");
-  const [strategy, setStrategy] = useState("signal_classifier");
+  const [strategy, setStrategy] = useState("enhanced");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const startBacktest = useStartBacktest();
+
+  // Strategy parameters with defaults
+  const [stopLossAtr, setStopLossAtr] = useState(2.0);
+  const [maxHoldingDays, setMaxHoldingDays] = useState(30);
+  const [targetProfitPct, setTargetProfitPct] = useState(15);
+  const [minConfirmations, setMinConfirmations] = useState(5);
 
   // Calculate default dates (1 year lookback)
   const getDefaultDates = () => {
@@ -82,6 +103,21 @@ export function NewBacktestDialog({
   const canSubmit = !validationError && !isProcessing;
 
   /**
+   * Reset form to defaults
+   */
+  const resetForm = () => {
+    setTicker("");
+    setStrategy("enhanced");
+    setStartDate(defaultDates.start);
+    setEndDate(defaultDates.end);
+    setStopLossAtr(2.0);
+    setMaxHoldingDays(30);
+    setTargetProfitPct(15);
+    setMinConfirmations(5);
+    setShowAdvanced(false);
+  };
+
+  /**
    * Handle form submission
    */
   const handleSubmit = async () => {
@@ -94,13 +130,16 @@ export function NewBacktestDialog({
         strategy,
         start_date: startDate,
         end_date: endDate,
+        parameters: {
+          stop_loss_atr_multiplier: stopLossAtr,
+          max_holding_days: maxHoldingDays,
+          target_profit_pct: targetProfitPct,
+          min_confirmations: minConfirmations,
+        },
       });
 
       // Reset form and close dialog on success
-      setTicker("");
-      setStrategy("signal_classifier");
-      setStartDate(defaultDates.start);
-      setEndDate(defaultDates.end);
+      resetForm();
       onOpenChange(false);
     } catch (error) {
       // Error is already handled by the mutation hook
@@ -115,18 +154,14 @@ export function NewBacktestDialog({
    */
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen && !isProcessing) {
-      // Reset form on close
-      setTicker("");
-      setStrategy("signal_classifier");
-      setStartDate(defaultDates.start);
-      setEndDate(defaultDates.end);
+      resetForm();
     }
     onOpenChange(newOpen);
   };
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[550px]">
         <DialogHeader>
           <DialogTitle>Start New Backtest</DialogTitle>
           <DialogDescription>
@@ -147,9 +182,6 @@ export function NewBacktestDialog({
               autoFocus
               className="font-mono uppercase"
             />
-            <p className="text-xs text-text-muted">
-              Enter the stock symbol to backtest
-            </p>
           </div>
 
           {/* Strategy Select */}
@@ -164,6 +196,7 @@ export function NewBacktestDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="enhanced">Enhanced Signal</SelectItem>
                 <SelectItem value="signal_classifier">
                   Signal Classifier
                 </SelectItem>
@@ -173,13 +206,12 @@ export function NewBacktestDialog({
               </SelectContent>
             </Select>
             <p className="text-xs text-text-muted">
-              Choose the trading strategy to test
+              {STRATEGY_INFO[strategy] || "Select a strategy"}
             </p>
           </div>
 
           {/* Date Range */}
           <div className="grid grid-cols-2 gap-4">
-            {/* Start Date */}
             <div className="grid gap-2">
               <Label htmlFor="start-date">Start Date</Label>
               <div className="relative">
@@ -194,8 +226,6 @@ export function NewBacktestDialog({
                 <Calendar className="absolute right-3 top-2.5 h-4 w-4 text-text-muted pointer-events-none" />
               </div>
             </div>
-
-            {/* End Date */}
             <div className="grid gap-2">
               <Label htmlFor="end-date">End Date</Label>
               <div className="relative">
@@ -211,6 +241,117 @@ export function NewBacktestDialog({
               </div>
             </div>
           </div>
+
+          {/* Advanced Parameters (Collapsible) */}
+          <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
+            <CollapsibleTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-between text-text-muted hover:text-text"
+                disabled={isProcessing}
+              >
+                <span className="flex items-center gap-2">
+                  <Settings2 className="h-4 w-4" />
+                  Advanced Parameters
+                </span>
+                <ChevronDown
+                  className={`h-4 w-4 transition-transform ${
+                    showAdvanced ? "rotate-180" : ""
+                  }`}
+                />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-4 space-y-4 rounded-lg border border-border bg-card p-4">
+              {/* Stop Loss ATR Multiplier */}
+              <div className="grid gap-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm">Stop Loss</Label>
+                  <span className="text-sm font-mono text-text-muted">
+                    {stopLossAtr.toFixed(1)}x ATR
+                  </span>
+                </div>
+                <Slider
+                  value={[stopLossAtr]}
+                  onValueChange={([v]) => setStopLossAtr(v)}
+                  min={1.0}
+                  max={4.0}
+                  step={0.5}
+                  disabled={isProcessing}
+                  className="w-full"
+                />
+                <p className="text-xs text-text-muted">
+                  Exit when price drops this many ATR from entry
+                </p>
+              </div>
+
+              {/* Max Holding Days */}
+              <div className="grid gap-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm">Max Holding Period</Label>
+                  <span className="text-sm font-mono text-text-muted">
+                    {maxHoldingDays} days
+                  </span>
+                </div>
+                <Slider
+                  value={[maxHoldingDays]}
+                  onValueChange={([v]) => setMaxHoldingDays(v)}
+                  min={5}
+                  max={120}
+                  step={5}
+                  disabled={isProcessing}
+                  className="w-full"
+                />
+                <p className="text-xs text-text-muted">
+                  Force exit after this many days regardless of price
+                </p>
+              </div>
+
+              {/* Target Profit % */}
+              <div className="grid gap-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm">Target Profit</Label>
+                  <span className="text-sm font-mono text-text-muted">
+                    {targetProfitPct}%
+                  </span>
+                </div>
+                <Slider
+                  value={[targetProfitPct]}
+                  onValueChange={([v]) => setTargetProfitPct(v)}
+                  min={5}
+                  max={50}
+                  step={5}
+                  disabled={isProcessing}
+                  className="w-full"
+                />
+                <p className="text-xs text-text-muted">
+                  Take profit when gain reaches this percentage
+                </p>
+              </div>
+
+              {/* Min Confirmations */}
+              <div className="grid gap-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm">Min Confirmations</Label>
+                  <span className="text-sm font-mono text-text-muted">
+                    {minConfirmations} / 8
+                  </span>
+                </div>
+                <Slider
+                  value={[minConfirmations]}
+                  onValueChange={([v]) => setMinConfirmations(v)}
+                  min={3}
+                  max={8}
+                  step={1}
+                  disabled={isProcessing}
+                  className="w-full"
+                />
+                <p className="text-xs text-text-muted">
+                  Minimum technical confirmations required to enter trade
+                </p>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
 
           {/* Validation Error */}
           {validationError && (

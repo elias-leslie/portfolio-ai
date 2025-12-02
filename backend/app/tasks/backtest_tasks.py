@@ -13,6 +13,12 @@ from decimal import Decimal
 from typing import Any
 
 from app.backtest import metrics, replay, storage, strategies
+from app.backtest.additional_strategies import (
+    MeanReversionStrategy,
+    MomentumStrategy,
+    TrendFollowingStrategy,
+)
+from app.backtest.enhanced_strategy import EnhancedSignalStrategy
 from app.celery_app import celery_app
 from app.storage.facade import get_storage
 
@@ -20,26 +26,59 @@ logger = logging.getLogger(__name__)
 
 
 def _initialize_strategy(
-    strategy_name: str, min_signal_strength: int, max_holding_days: int
-) -> strategies.SignalStrategy:
+    strategy_name: str,
+    stop_loss_atr_multiplier: float = 2.0,
+    max_holding_days: int = 30,
+    target_profit_pct: float = 15.0,
+    min_confirmations: int = 5,
+) -> Any:
     """Initialize backtest strategy from name and parameters.
 
     Args:
-        strategy_name: Strategy identifier
-        min_signal_strength: Minimum signal strength for entry (1-10)
+        strategy_name: Strategy identifier (signal_classifier, enhanced, momentum, etc.)
+        stop_loss_atr_multiplier: Stop loss in ATR multiples
         max_holding_days: Maximum holding period
+        target_profit_pct: Target profit percentage
+        min_confirmations: Minimum confirmations for entry
 
     Returns:
-        Initialized SignalStrategy instance
+        Initialized strategy instance
 
     Raises:
         ValueError: If strategy_name is unknown
     """
+    storage = get_storage()
+
     if strategy_name == "signal_classifier":
         return strategies.SignalStrategy(
-            min_signal_strength=min_signal_strength,
+            min_signal_strength=min_confirmations + 2,  # Map to 7 default
             max_holding_days=max_holding_days,
-            stop_loss_atr_multiplier=Decimal("2.0"),
+            stop_loss_atr_multiplier=Decimal(str(stop_loss_atr_multiplier)),
+        )
+    if strategy_name == "enhanced":
+        return EnhancedSignalStrategy(
+            min_confirmations=min_confirmations,
+            max_holding_days=max_holding_days,
+            stop_loss_atr_multiplier=Decimal(str(stop_loss_atr_multiplier)),
+            target_profit_pct=Decimal(str(target_profit_pct)),
+        )
+    if strategy_name == "momentum":
+        return MomentumStrategy(
+            storage=storage,
+            max_holding_days=max_holding_days,
+            target_profit_pct=Decimal(str(target_profit_pct)),
+            stop_loss_pct=Decimal(str(stop_loss_atr_multiplier * 3)),  # Convert ATR to %
+        )
+    if strategy_name == "mean_reversion":
+        return MeanReversionStrategy(
+            max_holding_days=min(max_holding_days, 15),  # Mean reversion = shorter holds
+            target_profit_pct=Decimal(str(min(target_profit_pct, 8))),  # Lower targets
+            stop_loss_pct=Decimal(str(min(stop_loss_atr_multiplier * 2, 5))),
+        )
+    if strategy_name == "trend_following":
+        return TrendFollowingStrategy(
+            max_holding_days=max(max_holding_days, 60),  # Trend = longer holds
+            trailing_stop_atr_multiplier=Decimal(str(stop_loss_atr_multiplier)),
         )
     raise ValueError(f"Unknown strategy: {strategy_name}")
 
@@ -124,8 +163,10 @@ def run_backtest_task(  # type: ignore[no-untyped-def]
     end_date: str,  # ISO format (YYYY-MM-DD)
     initial_capital: float,
     strategy_name: str,
-    min_signal_strength: int = 7,
-    max_holding_days: int = 60,
+    stop_loss_atr_multiplier: float = 2.0,
+    max_holding_days: int = 30,
+    target_profit_pct: float = 15.0,
+    min_confirmations: int = 5,
     position_sizing_method: str = "fixed_dollars",
     position_size_value: float = 10000.00,
 ) -> dict[str, str | int | float]:
@@ -143,9 +184,11 @@ def run_backtest_task(  # type: ignore[no-untyped-def]
         start_date: Backtest start date (ISO format)
         end_date: Backtest end date (ISO format)
         initial_capital: Starting capital
-        strategy_name: Strategy identifier (only "signal_classifier" supported in Phase A)
-        min_signal_strength: Minimum signal strength for entry (1-10)
+        strategy_name: Strategy identifier (signal_classifier, enhanced, momentum, etc.)
+        stop_loss_atr_multiplier: Stop loss in ATR multiples (1.0-5.0)
         max_holding_days: Maximum holding period
+        target_profit_pct: Target profit percentage
+        min_confirmations: Minimum confirmations for entry (3-8)
         position_sizing_method: "fixed_dollars" or "fixed_shares"
         position_size_value: Position size (dollars or shares)
 
@@ -155,7 +198,11 @@ def run_backtest_task(  # type: ignore[no-untyped-def]
     Raises:
         Exception: If backtest fails (saved to error_message field)
     """
-    logger.info(f"Starting backtest task: {run_id} | {symbol} | {start_date} to {end_date}")
+    logger.info(
+        f"Starting backtest task: {run_id} | {symbol} | {start_date} to {end_date} | "
+        f"Strategy: {strategy_name} | Stop: {stop_loss_atr_multiplier}x ATR | "
+        f"Max Hold: {max_holding_days}d | Target: {target_profit_pct}%"
+    )
 
     storage_mgr = get_storage()
 
@@ -164,8 +211,14 @@ def run_backtest_task(  # type: ignore[no-untyped-def]
         start = date.fromisoformat(start_date)
         end = date.fromisoformat(end_date)
 
-        # Initialize strategy
-        strategy = _initialize_strategy(strategy_name, min_signal_strength, max_holding_days)
+        # Initialize strategy with all parameters
+        strategy = _initialize_strategy(
+            strategy_name=strategy_name,
+            stop_loss_atr_multiplier=stop_loss_atr_multiplier,
+            max_holding_days=max_holding_days,
+            target_profit_pct=target_profit_pct,
+            min_confirmations=min_confirmations,
+        )
 
         # Run backtest replay
         state = replay.replay_backtest(

@@ -49,6 +49,23 @@ router = APIRouter(prefix="/api/backtest", tags=["backtest"])
 # ============================================================================
 
 
+class StrategyParametersRequest(BaseModel):
+    """Optional strategy parameters for backtest customization."""
+
+    stop_loss_atr_multiplier: Decimal = Field(
+        default=Decimal("2.0"), gt=0, le=5, description="Stop loss in ATR multiples (1.0-5.0)"
+    )
+    max_holding_days: int = Field(
+        default=30, gt=0, le=365, description="Maximum holding period in days"
+    )
+    target_profit_pct: Decimal = Field(
+        default=Decimal("15.0"), gt=0, le=100, description="Target profit percentage"
+    )
+    min_confirmations: int = Field(
+        default=5, ge=3, le=8, description="Minimum confirmations for entry (3-8)"
+    )
+
+
 class StartBacktestRequest(BaseModel):
     """Request model for starting a backtest."""
 
@@ -58,13 +75,12 @@ class StartBacktestRequest(BaseModel):
     initial_capital: Decimal = Field(
         default=Decimal("100000.00"), gt=0, description="Starting capital in dollars"
     )
-    strategy_name: Literal["signal_classifier"] = Field(
-        default="signal_classifier", description="Strategy to use"
+    strategy: Literal[
+        "signal_classifier", "enhanced", "momentum", "mean_reversion", "trend_following"
+    ] = Field(default="enhanced", description="Strategy to use")
+    parameters: StrategyParametersRequest | None = Field(
+        default=None, description="Optional strategy parameters"
     )
-    min_signal_strength: int = Field(
-        default=7, ge=1, le=10, description="Minimum signal strength for entry"
-    )
-    max_holding_days: int = Field(default=60, gt=0, description="Maximum holding period in days")
     position_sizing_method: Literal["fixed_dollars", "fixed_shares"] = Field(
         default="fixed_dollars"
     )
@@ -198,7 +214,7 @@ async def start_backtest(request: StartBacktestRequest) -> StartBacktestResponse
     Creates backtest_run record and launches Celery task for async execution.
 
     Args:
-        request: Backtest configuration
+        request: Backtest configuration including optional strategy parameters
 
     Returns:
         Run ID, task ID, and status
@@ -220,7 +236,7 @@ async def start_backtest(request: StartBacktestRequest) -> StartBacktestResponse
         # Create backtest run record
         run_id = create_backtest_run(
             storage=storage_mgr,
-            strategy_name=request.strategy_name,
+            strategy_name=request.strategy,
             symbol=request.symbol,
             start_date=request.start_date,
             end_date=request.end_date,
@@ -230,6 +246,9 @@ async def start_backtest(request: StartBacktestRequest) -> StartBacktestResponse
         # Update status to "running"
         update_backtest_status(storage_mgr, run_id, "running")
 
+        # Extract parameters with defaults
+        params = request.parameters or StrategyParametersRequest()
+
         # Launch Celery task (async execution)
         task = run_backtest_task.delay(
             run_id=run_id,
@@ -237,9 +256,11 @@ async def start_backtest(request: StartBacktestRequest) -> StartBacktestResponse
             start_date=request.start_date.isoformat(),
             end_date=request.end_date.isoformat(),
             initial_capital=float(request.initial_capital),
-            strategy_name=request.strategy_name,
-            min_signal_strength=request.min_signal_strength,
-            max_holding_days=request.max_holding_days,
+            strategy_name=request.strategy,
+            stop_loss_atr_multiplier=float(params.stop_loss_atr_multiplier),
+            max_holding_days=params.max_holding_days,
+            target_profit_pct=float(params.target_profit_pct),
+            min_confirmations=params.min_confirmations,
             position_sizing_method=request.position_sizing_method,
             position_size_value=float(request.position_size_value),
         )

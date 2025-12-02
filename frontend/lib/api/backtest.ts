@@ -69,11 +69,19 @@ export interface BacktestResult {
   total_days?: number;
 }
 
+export interface StrategyParameters {
+  stop_loss_atr_multiplier?: number;
+  max_holding_days?: number;
+  target_profit_pct?: number;
+  min_confirmations?: number;
+}
+
 export interface StartBacktestRequest {
   symbol: string;
   strategy: string;
   start_date: string;
   end_date: string;
+  parameters?: StrategyParameters;
 }
 
 export interface StartBacktestResponse {
