@@ -21,18 +21,7 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Strategies UI & Autonomous Trading Pipeline** (HIGH, Phase B in progress)
-   - File: `tasks-0086-strategies-ui-and-agent-triggers.md`
-   - Phase A: ✅ COMPLETE (UI, triggers, buttons)
-   - Phase B: 🔄 IN PROGRESS (autonomous trading pipeline)
-   - Tasks:
-     - [x] Tasks 0-6: UI & Manual Triggers (COMPLETE)
-     - [ ] Task 7: Schema Migration (strategy_id linking)
-     - [ ] Task 8: Signal Generation Service
-     - [ ] Task 9: Auto Paper Trading
-     - [ ] Task 10: Performance Tracking Fix
-     - [ ] Task 11: Manual Trade Linking
-     - [ ] Task 12: Validation Dashboard
+(None - Task 0086 complete)
 
 ---
 
@@ -49,32 +38,24 @@
 
 *Last 5 completed tasks*
 
-1. **Strategies UI & Agent Trigger Buttons** ✅ COMPLETE (2025-12-02)
+1. **Strategies UI & Autonomous Trading Pipeline** ✅ COMPLETE (2025-12-02)
    - File: `tasks-0086-strategies-ui-and-agent-triggers.md`
-   - Completed: 2025-12-02 14:30
-   - Duration: ~2 hours
-   - Summary: Added /strategies page and unified agent trigger buttons
-   - Key achievements:
-     - ✅ Created /strategies page with table, filters, summary cards
-     - ✅ Strategy detail modal with research summary, parameters, backtest metrics
-     - ✅ "Run AI Agent" button on watchlist triggers strategy generation
+   - Completed: 2025-12-02 17:15
+   - Duration: ~6 hours
+   - Summary: Full autonomous strategy discovery and validation pipeline
+   - Phase A (UI):
+     - ✅ /strategies page with table, filters, summary cards
+     - ✅ Strategy detail modal with research summary, backtest metrics
+     - ✅ "Run AI Agent" button triggers strategy generation
      - ✅ "Generate Strategies" batch button on backtest/trading pages
-     - ✅ Navigation link added (Brain icon)
-     - ✅ API documented in API_REFERENCE.md
-   - Files created:
-     - frontend/app/strategies/page.tsx
-     - frontend/components/strategies/StrategiesTable.tsx
-     - frontend/components/strategies/StrategyDetailModal.tsx
-     - frontend/lib/api/strategies.ts
-     - frontend/lib/hooks/useStrategies.ts
-     - frontend/components/ui/skeleton.tsx
-   - Files modified:
-     - backend/app/api/strategies.py (added generate-batch endpoint)
-     - frontend/components/Navigation.tsx
-     - frontend/components/watchlist/ExpandedRow.tsx
-     - frontend/app/backtest/page.tsx
-     - frontend/app/trading/page.tsx
-   - Impact: Users can now view all AI-generated strategies and trigger generation on-demand
+   - Phase B (Pipeline):
+     - ✅ Schema: strategy_id on idea_outcomes, portfolio_positions, backtest_runs
+     - ✅ Signal generation: Celery task at 21:30 UTC
+     - ✅ Auto paper trading: Celery task at 21:45 UTC (BUY signals → trades)
+     - ✅ Performance tracking: Fixed metrics query to filter by strategy_id
+     - ✅ Manual trade linking: Portfolio positions can link to strategies
+   - Results: 4 active strategies, AMD paper trade created from signal
+   - Impact: Full autonomous pipeline: generation → signals → trades → tracking
 
 2. **Fix Strategy Research Workflow** ✅ COMPLETE (2025-12-02)
    - File: `tasks-0085-fix-strategy-research-workflow.md`
