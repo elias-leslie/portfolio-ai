@@ -250,22 +250,22 @@ export function StrategyDetailModal({
                           className="flex items-center justify-between rounded border p-2 text-sm"
                         >
                           <span className="text-text-muted">
-                            {metric.window_start} - {metric.window_end}
+                            {metric.window_start || "?"} - {metric.window_end || "?"}
                           </span>
                           <div className="flex gap-4">
                             <span>
                               Sharpe:{" "}
                               <span
-                                className={metric.sharpe > 1 ? "text-green-600" : "text-yellow-600"}
+                                className={(metric.sharpe ?? 0) > 1 ? "text-green-600" : "text-yellow-600"}
                               >
-                                {metric.sharpe.toFixed(2)}
+                                {metric.sharpe?.toFixed(2) ?? "-"}
                               </span>
                             </span>
                             <span>
-                              Win: {(metric.win_rate * 100).toFixed(0)}%
+                              Win: {metric.win_rate != null ? `${(metric.win_rate * 100).toFixed(0)}%` : "-"}
                             </span>
                             <span>
-                              DD: {(metric.max_drawdown * 100).toFixed(1)}%
+                              DD: {metric.max_drawdown != null ? `${(metric.max_drawdown * 100).toFixed(1)}%` : "-"}
                             </span>
                           </div>
                         </div>
