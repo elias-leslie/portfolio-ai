@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import itertools
 import logging
+import statistics
 import uuid
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -360,7 +361,7 @@ class StrategyOptimizer:
     def _calculate_metrics_from_state(self, state: BacktestState) -> BacktestMetrics:
         """Calculate performance metrics from backtest state.
 
-        TODO: Implement proper metric calculation from:
+        Calculates real metrics from:
         - state.trades (for win rate, profit factor)
         - state.equity_curve (for sharpe ratio, drawdown, returns)
 
@@ -370,15 +371,65 @@ class StrategyOptimizer:
         Returns:
             BacktestMetrics with performance statistics
         """
-        # Placeholder implementation - returns mock metrics
-        # Real implementation needs to calculate from trades and equity_curve
+        num_trades = len(state.trades)
+
+        # Default metrics for no trades
+        if num_trades == 0:
+            return BacktestMetrics(
+                sharpe_ratio=0.0,
+                win_rate=0.0,
+                max_drawdown=0.0,
+                total_return=0.0,
+                num_trades=0,
+                profit_factor=0.0,
+            )
+
+        # Calculate win rate and profit factor from trades
+        wins = [t for t in state.trades if t.pnl and t.pnl > 0]
+        losses = [t for t in state.trades if t.pnl and t.pnl < 0]
+
+        win_rate = len(wins) / num_trades if num_trades > 0 else 0.0
+
+        total_wins = sum(float(t.pnl) for t in wins) if wins else 0.0
+        total_losses = abs(sum(float(t.pnl) for t in losses)) if losses else 0.0
+        profit_factor = total_wins / total_losses if total_losses > 0 else (2.0 if total_wins > 0 else 0.0)
+
+        # Calculate from equity curve
+        if state.equity_curve:
+            equities = [float(e.equity) for e in state.equity_curve]
+            initial_equity = equities[0] if equities else 1.0
+            final_equity = equities[-1] if equities else initial_equity
+
+            # Total return
+            total_return = (final_equity - initial_equity) / initial_equity if initial_equity > 0 else 0.0
+
+            # Max drawdown (already tracked in equity curve)
+            max_drawdown = max(float(e.drawdown_pct) for e in state.equity_curve) if state.equity_curve else 0.0
+
+            # Sharpe ratio from daily returns
+            if len(equities) > 1:
+                daily_returns = [(equities[i] - equities[i - 1]) / equities[i - 1] for i in range(1, len(equities)) if equities[i - 1] > 0]
+                if daily_returns:
+                    mean_return = statistics.mean(daily_returns)
+                    std_return = statistics.stdev(daily_returns) if len(daily_returns) > 1 else 0.0
+                    # Annualize: sqrt(252) * daily Sharpe
+                    sharpe_ratio = (mean_return / std_return * (252 ** 0.5)) if std_return > 0 else 0.0
+                else:
+                    sharpe_ratio = 0.0
+            else:
+                sharpe_ratio = 0.0
+        else:
+            total_return = 0.0
+            max_drawdown = 0.0
+            sharpe_ratio = 0.0
+
         return BacktestMetrics(
-            sharpe_ratio=1.0,  # TODO: Calculate from equity_curve
-            win_rate=0.55,  # TODO: Calculate from trades
-            max_drawdown=0.15,  # TODO: Calculate from equity_curve
-            total_return=0.20,  # TODO: Calculate from equity_curve
-            num_trades=len(state.trades),
-            profit_factor=1.5,  # TODO: Calculate from trades
+            sharpe_ratio=sharpe_ratio,
+            win_rate=win_rate,
+            max_drawdown=max_drawdown,
+            total_return=total_return,
+            num_trades=num_trades,
+            profit_factor=profit_factor,
         )
 
     def _aggregate_window_metrics(self, window_results: list[BacktestMetrics]) -> dict[str, float]:
