@@ -36,13 +36,13 @@ def _fetch_current_market_data(conn: Any, symbol: str) -> dict[str, Any] | None:
             ti.sma_5,
             ti.sma_20,
             ti.rsi_14,
-            ti.macd_line,
+            ti.macd as macd_line,
             ti.macd_signal,
-            ti.volume_avg_20,
+            ti.atr_14 as volume_avg_20,
             db.date as data_date
         FROM day_bars db
-        LEFT JOIN technical_indicators ti ON db.symbol = ti.symbol AND db.date = ti.date
-        WHERE db.symbol = %s
+        LEFT JOIN technical_indicators ti ON db.ticker = ti.ticker AND db.date = ti.date
+        WHERE db.ticker = %s
         ORDER BY db.date DESC
         LIMIT 2
         """,
@@ -56,24 +56,34 @@ def _fetch_current_market_data(conn: Any, symbol: str) -> dict[str, Any] | None:
     current = result[0]
     previous = result[1]
 
-    # Get fundamentals
-    fundamentals = conn.execute(
+    # Get fundamentals (table may not exist in all environments)
+    fundamentals = None
+    table_exists = conn.execute(
         """
-        SELECT profit_margin, revenue_growth, debt_to_equity
-        FROM stock_fundamentals
-        WHERE symbol = %s
-        ORDER BY fetched_at DESC
-        LIMIT 1
-        """,
-        (symbol,),
-    ).fetchone()
+        SELECT EXISTS (
+            SELECT FROM information_schema.tables
+            WHERE table_name = 'stock_fundamentals'
+        )
+        """
+    ).fetchone()[0]
+    if table_exists:
+        fundamentals = conn.execute(
+            """
+            SELECT profit_margin, revenue_growth, debt_to_equity
+            FROM stock_fundamentals
+            WHERE symbol = %s
+            ORDER BY fetched_at DESC
+            LIMIT 1
+            """,
+            (symbol,),
+        ).fetchone()
 
     # Get news sentiment
     sentiment = conn.execute(
         """
         SELECT AVG(sentiment_score) as avg_sentiment
         FROM news_cache
-        WHERE %s = ANY(tickers)
+        WHERE ticker = %s
         AND published_at >= NOW() - INTERVAL '7 days'
         """,
         (symbol,),

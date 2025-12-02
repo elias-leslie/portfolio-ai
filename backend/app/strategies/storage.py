@@ -234,6 +234,7 @@ class StrategyStorage:
                 """,
                 (strategy_id,),
             )
+            conn.commit()
 
         logger.info(f"Strategy activated: {strategy_id}")
 
@@ -255,6 +256,7 @@ class StrategyStorage:
                 """,
                 (reason, strategy_id),
             )
+            conn.commit()
 
         logger.info(f"Strategy archived: {strategy_id} (reason: {reason})")
 
