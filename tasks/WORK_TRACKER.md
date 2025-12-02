@@ -21,23 +21,27 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Trading & Backtesting System Completion** (20% - 1/5 complete)
+1. **Trading & Backtesting System Completion** (35% - 7/20 tasks complete)
    - File: `tasks-0084-trading-backtesting-system-completion.md`
-   - Started: 2025-12-01 (today)
-   - Last updated: PAUSED
-   - Next: Task 1.1 - Fix portfolio risk math (GAP-020)
-   - Progress:
-     - [x] Task 0: Scope Discovery - Verify Backtesting Framework ✅ COMPLETE
-     - [ ] Task 1: Phase 1: Fix P0 Critical Gaps (4 weeks)
-     - [ ] Task 2: Phase 2A: Complete Dynamic Strategy Generation
-     - [ ] Task 3: Phase 2B: Fill P1 High-Priority Gaps
-     - [ ] Task 4: Phase 3: Backtesting Phase B Features
-   - Tasks:
-     - [x] Task 0: Scope Discovery - Verify Backtesting Framework (MANDATORY) ✅ COMPLETE
-     - [ ] Task 1: Phase 1: Fix P0 Critical Gaps (4 weeks)
-     - [ ] Task 2: Phase 2A: Complete Dynamic Strategy Generation
-     - [ ] Task 3: Phase 2B: Fill P1 High-Priority Gaps
-     - [ ] Task 4: Phase 3: Backtesting Phase B Features
+   - Started: 2025-12-01
+   - Last updated: PAUSED (2025-12-01 16:45)
+   - Context: 86% (172K/200K)
+   - Next: Task 1.7 - Add drawdown tracking (GAP-023)
+   - Session Summary: **6 P0 critical gaps fixed!**
+     - [x] Task 1.1: GAP-020 - Portfolio covariance matrix (proper risk math)
+     - [x] Task 1.2: GAP-042 - ATR-based stops (no flat 5% fallback)
+     - [x] Task 1.3: GAP-044 - Liquidity checks (1% ADV limit)
+     - [x] Task 1.4: GAP-003 - Earnings proximity filter (2-day buffer)
+     - [x] Task 1.5: GAP-045 - Kelly criterion position sizing
+     - [x] Task 1.6: PDT rules - Pattern day trader enforcement
+   - New modules created:
+     - `app/analytics/covariance.py` - Portfolio volatility (19.67% diversification benefit measured)
+     - `app/analytics/liquidity.py` - ADV-based position limits
+     - `app/analytics/earnings_filter.py` - Trade blocking near earnings
+     - `app/analytics/kelly.py` - Optimal position sizing
+     - `app/analytics/pdt_rules.py` - Day trade tracking
+   - Test coverage: 578 tests (up from 523, +55 new tests)
+   - Resume: `/do_it`
 
 
 ---

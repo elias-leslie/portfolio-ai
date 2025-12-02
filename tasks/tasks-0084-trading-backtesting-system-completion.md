@@ -1,4 +1,4 @@
-<!-- ACTIVE: 2025-12-01 16:30 | Context: ~70% | Next: Task 1.7 - Drawdown tracking (GAP-023) -->
+<!-- PAUSED: 2025-12-01 16:45 | Context: 86% | Reason: Context limit | Next: Task 1.7 - Add drawdown tracking (GAP-023) -->
 
 # Task List: Trading & Backtesting System Completion
 
@@ -7,9 +7,10 @@
 **Effort**: HIGH (12-16 weeks total, phased approach)
 **Environment**: Local Dev (auto-detected)
 **Created**: 2025-12-01 13:45
-**Status**: IN_PROGRESS
-**Last Updated**: 2025-12-01 16:30
-**Context Used**: ~140K/200K (~70%)
+**Status**: PAUSED
+**Last Updated**: 2025-12-01 16:45
+**Pause Reason**: Context at 86% (172K/200K)
+**Context Used**: 172K/200K (86%)
 **Completed This Session**: Tasks 1.1-1.6 (6 P0 gaps fixed!)
 **Next Action**: Task 1.7 - Add drawdown tracking (GAP-023)
 **Resume Command**: `/do_it tasks-0084-trading-backtesting-system-completion.md` or `/do_it`
