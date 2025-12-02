@@ -13,6 +13,7 @@ import {
   BarChart3,
   Bot,
   Brain,
+  Target,
 } from "lucide-react";
 
 import { MarketStatusBadge } from "@/components/market/MarketStatusBadge";
@@ -49,6 +50,11 @@ const mainLinks = [
     href: "/strategies",
     label: "Strategies",
     icon: Brain,
+  },
+  {
+    href: "/recommendations",
+    label: "Recs",
+    icon: Target,
   },
   {
     href: "/capabilities",
