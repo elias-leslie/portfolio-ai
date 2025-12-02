@@ -153,7 +153,7 @@ class ResearchAggregationService:
         Returns:
             Dict with news intelligence fields
         """
-        # Query news table for 30-day sentiment
+        # Query news_cache table for 30-day sentiment
         with self.conn.connection() as conn:
             result_wrapper = conn.execute(
                 """
@@ -162,7 +162,7 @@ class ResearchAggregationService:
                     published_at,
                     is_material_event,
                     headline
-                FROM news
+                FROM news_cache
                 WHERE ticker = %s
                   AND published_at >= %s
                   AND published_at <= %s
@@ -189,11 +189,15 @@ class ResearchAggregationService:
         all_scores = [
             row["sentiment_score"] for row in news_rows if row["sentiment_score"] is not None
         ]
+        # Convert end_date to datetime for comparison with published_at (which is datetime)
+        from datetime import datetime as dt
+        end_datetime = dt.combine(end_date, dt.min.time())
         recent_7d = [
             row["sentiment_score"]
             for row in news_rows
             if row["sentiment_score"] is not None
-            and row["published_at"] >= (end_date - timedelta(days=7))
+            and row["published_at"] is not None
+            and (row["published_at"].replace(tzinfo=None) if hasattr(row["published_at"], 'replace') else row["published_at"]) >= (end_datetime - timedelta(days=7))
         ]
 
         sentiment_score = all_scores[0] if all_scores else 0.0  # Most recent

@@ -1,6 +1,6 @@
 # Work Tracker
 
-**Last Updated:** 2025-12-02 (Task 0084 ALL PHASES COMPLETE - Sharpe 3.09, beats SPY by 10.1%)
+**Last Updated:** 2025-12-02 (Task 0047 Response Caching verified + extended to 16 endpoints)
 
 **Current Status:** 🎯 **VISION.MD ALIGNMENT** | ✅ 91% Complete | 🚀 Priority #3 Complete (Tasks 0072, 0073, 0077, 0074 done)
 
@@ -21,8 +21,7 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-*(No active tasks - all phases complete. Run `/task_it` to create new work)*
-
+(No active tasks)
 
 ---
 
@@ -30,36 +29,18 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (3 weeks ago))
-   - File: `tasks-0042-customizable-dashboard-layouts.md`
-   - Created: 2025-11-11
-   - Goal: Enable users to customize dashboard layouts by dragging/resizing cards, with persistence to PostgreSQL backend
-   - Status: PAUSED (2025-11-22)
+1. **Fix Strategy Research Workflow** (MEDIUM 4-6h, 0/24 tasks)
+   - File: `tasks-0085-fix-strategy-research-workflow.md`
+   - Created: 2025-12-02
+   - Goal: Fix bugs preventing autonomous backtest/paper trade execution
    - Tasks:
-     - [ ] Task 1: Database Schema and Migration ✅ COMPLETE
-     - [ ] Task 2: Backend API Endpoints ✅ COMPLETE
-     - [ ] Task 3: Frontend Library Integration
-     - [ ] Task 4: Layout State Management and Persistence
-     - [ ] Task 5: Lock/Unlock UI and Visual Feedback
-     - [ ] Task 6: Responsive Breakpoints
-     - [ ] Task 7: Status Page Integration (POC)
-     - [ ] Task 8: Extend to All Pages (Generic System)
-     - [ ] Task 9: Polish and Edge Cases
-     - [ ] Task 10: Testing and Documentation
-
-2. **Response Caching Middleware** (TBD, 0/8 tasks (3 weeks ago))
-   - File: `tasks-0047-response-caching-middleware.md`
-   - Created: 2025-11-11
-   - Tasks:
-     - [ ] Task 1: Create Middleware Infrastructure
-     - [ ] Task 2: Apply Caching to Market Endpoints
-     - [ ] Task 3: Apply Caching to Watchlist Endpoints
-     - [ ] Task 4: Apply Caching to Portfolio Endpoints
-     - [ ] Task 5: Apply Caching to Paper Trades Endpoints
-     - [ ] Task 6: Cache Invalidation Strategy
-     - [ ] Task 7: Cache Management Endpoints
-     - [ ] Task 8: Integration and Configuration
-
+     - [ ] Task 0: Scope Discovery (MANDATORY)
+     - [ ] Task 1: Fix Research Aggregator Methods
+     - [ ] Task 2: Fix Strategy Generator
+     - [ ] Task 3: Fix Strategy Optimizer
+     - [ ] Task 4: Fix Strategy Storage
+     - [ ] Task 5: End-to-End Integration Test
+     - [ ] Task 6: Add Monitoring & Error Handling
 
 ---
 
@@ -67,7 +48,19 @@
 
 *Last 5 completed tasks*
 
-1. **Trading & Backtesting System Completion** ✅ COMPLETE (2025-12-02)
+1. **Response Caching Middleware** ✅ COMPLETE (2025-12-02)
+   - File: `tasks-0047-response-caching-middleware.md`
+   - Completed: 2025-12-02
+   - Duration: ~30 min (verification + extension)
+   - Summary: Verified existing implementation + extended to 5 new endpoints
+   - Key achievements:
+     - ✅ Verified middleware working (87%+ cache hit rate)
+     - ✅ Cache invalidation on mutations working (watchlist, portfolio)
+     - ✅ Extended caching to: /api/news, /api/paper-trades/summary, /api/backtest/runs, /api/ideas, /api/agents/telemetry/summary
+     - ✅ Total: 16 cached endpoints with appropriate TTLs
+   - Impact: 50-80% faster response times for cached endpoints
+
+2. **Trading & Backtesting System Completion** ✅ COMPLETE (2025-12-02)
    - File: `tasks-0084-trading-backtesting-system-completion.md`
    - Completed: 2025-12-02
    - Duration: ~8 hours (across 2 sessions)

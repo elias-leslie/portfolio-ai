@@ -12,10 +12,11 @@ from __future__ import annotations
 from datetime import date
 from typing import TYPE_CHECKING, Literal
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from app.logging_config import get_logger
+from app.middleware.cache import cache_response
 from app.storage import get_storage
 
 if TYPE_CHECKING:
@@ -231,7 +232,8 @@ async def list_paper_trades(
 
 
 @router.get("/summary", response_model=PaperTradeSummaryResponse)
-async def get_paper_trade_summary() -> PaperTradeSummaryResponse:
+@cache_response(ttl=60)  # 1 minute cache for summary stats
+async def get_paper_trade_summary(request: Request) -> PaperTradeSummaryResponse:
     """Get summary statistics for paper trading performance.
 
     Returns:

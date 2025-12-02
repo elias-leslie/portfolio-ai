@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, Field
 
+from app.middleware.cache import cache_response
 from app.services import NewsService
 from app.storage import get_storage
 from app.storage.credential_loader import load_credentials_from_database
@@ -200,7 +201,9 @@ def _serialize_bundle(bundle: object, *, limit: int) -> NewsBundleResponse:
 
 
 @router.get("", response_model=NewsBundleResponse)
+@cache_response(ttl=120)  # 2 minutes cache for news (frequently accessed)
 async def get_news_intelligence(
+    request: Request,
     ticker: str | None = Query(
         None,
         description="Optional ticker symbol. If omitted, returns market-wide news. If provided, returns ticker-specific news.",

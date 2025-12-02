@@ -7,12 +7,13 @@ from datetime import UTC, datetime
 from typing import Any, Literal, cast
 
 from celery.result import AsyncResult  # type: ignore[import-untyped]
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app.analytics.agent_performance import get_agent_performance, get_agent_performance_summary
 from app.celery_app import celery_app
 from app.logging_config import get_logger
+from app.middleware.cache import cache_response
 from app.storage import get_storage
 from app.tasks.agent_tasks import run_discovery_agent, run_portfolio_analyzer
 
@@ -99,7 +100,9 @@ class UpdateIdeaStatusRequest(BaseModel):
 
 
 @router.get("/", response_model=IdeasListResponse)
+@cache_response(ttl=60)  # 1 minute cache for ideas list
 async def get_ideas(
+    request: Request,
     idea_type: str | None = None,
     status: str | None = None,
     limit: int = 50,

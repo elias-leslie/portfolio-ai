@@ -19,7 +19,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from app.backtest.comparison import (
@@ -36,6 +36,7 @@ from app.backtest.storage import (
     list_backtest_runs,
     update_backtest_status,
 )
+from app.middleware.cache import cache_response
 from app.storage.connection import get_connection_manager
 from app.tasks.backtest_tasks import run_backtest_task
 
@@ -396,7 +397,9 @@ async def get_strategy_details(strategy_id: str) -> StrategyDetailsResponse:
 
 
 @router.get("/runs", response_model=list[BacktestRunListItem])
+@cache_response(ttl=30)  # 30 seconds cache for runs list
 async def get_backtest_runs_list(
+    request: Request,
     limit: int = Query(default=50, ge=1, le=200, description="Maximum number of runs to return"),
     offset: int = Query(default=0, ge=0, description="Pagination offset"),
     symbol: str | None = Query(default=None, description="Filter by symbol"),

@@ -277,12 +277,21 @@ def weekly_strategy_generation() -> dict[str, Any]:
         with get_connection_manager().connection() as conn:
             strategy_storage = get_strategy_storage()
 
-            # Get top 20 watchlist symbols
+            # Get top 20 watchlist symbols ordered by highest overall score
+            # Uses latest snapshot per symbol to get current scores
             top_symbols = conn.execute(
                 """
+                WITH latest_scores AS (
+                    SELECT DISTINCT ON (wi.symbol)
+                        wi.symbol,
+                        ws.overall_score
+                    FROM watchlist_items wi
+                    LEFT JOIN watchlist_snapshots ws ON wi.id = ws.item_id
+                    ORDER BY wi.symbol, ws.fetched_at DESC
+                )
                 SELECT symbol
-                FROM watchlist_items
-                ORDER BY priority DESC
+                FROM latest_scores
+                ORDER BY overall_score DESC NULLS LAST
                 LIMIT 20
                 """
             ).fetchall()

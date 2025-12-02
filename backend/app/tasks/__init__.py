@@ -24,6 +24,7 @@ from . import (
     news_profiling_tasks,
     news_tasks,
     reference_tasks,
+    strategy_monitoring_tasks,
     watchlist_tasks,
     workflow_tasks,
 )
@@ -54,6 +55,7 @@ __all__ = [
     "reference_tasks",
     "refresh_watchlist_scores_task",
     "run_discovery_agent",
+    "strategy_monitoring_tasks",
     "run_portfolio_analyzer",
     "update_paper_trades_task",
     "update_technical_indicators",

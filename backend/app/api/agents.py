@@ -10,9 +10,10 @@ from __future__ import annotations
 
 import json
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
 from ..logging_config import get_logger
+from ..middleware.cache import cache_response
 from ..services.agent_telemetry import (
     AgentRunDetail,
     AgentTelemetryService,
@@ -28,7 +29,9 @@ router = APIRouter(prefix="/api/agents", tags=["agents"])
 
 
 @router.get("/telemetry/summary", response_model=TelemetrySummary)
+@cache_response(ttl=60)  # 1 minute cache for telemetry summary
 async def get_telemetry_summary(
+    request: Request,
     days: int = Query(default=7, ge=1, le=90, description="Number of days to include"),
 ) -> TelemetrySummary:
     """Get agent telemetry summary for the specified period.
