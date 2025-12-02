@@ -21,6 +21,18 @@ from .models import (
 logger = logging.getLogger(__name__)
 
 
+def _json_serializer(obj: Any) -> Any:
+    """Custom JSON serializer for objects not serializable by default json.
+
+    Handles Decimal, date, datetime types.
+    """
+    if isinstance(obj, Decimal):
+        return float(obj)
+    if isinstance(obj, (date, datetime)):
+        return obj.isoformat()
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+
 class StrategyStorage:
     """Database operations for strategy management."""
 
@@ -68,10 +80,10 @@ class StrategyStorage:
         # Get next version number
         version = self._get_next_version(symbol, name)
 
-        # Serialize JSONB fields
-        parameters_json = json.dumps(parameters)
-        research_summary_json = json.dumps(research_summary)
-        backtest_metrics_json = json.dumps(backtest_metrics)
+        # Serialize JSONB fields (handle Decimal types)
+        parameters_json = json.dumps(parameters, default=_json_serializer)
+        research_summary_json = json.dumps(research_summary, default=_json_serializer)
+        backtest_metrics_json = json.dumps(backtest_metrics, default=_json_serializer)
 
         with self.conn.connection() as conn:
             conn.execute(
@@ -101,6 +113,7 @@ class StrategyStorage:
                     status,
                 ),
             )
+            conn.commit()
 
         logger.info(f"Strategy stored: {symbol} {strategy_type} v{version} (id={strategy_id})")
 
@@ -350,9 +363,15 @@ class StrategyStorage:
 
         Returns:
             Dictionary with column names as keys
+
+        Note: Column order must match the CREATE TABLE order in migration 047:
+            id, name, symbol, strategy_type,
+            parameters, research_summary, generation_reasoning,
+            backtest_metrics, expected_sharpe, expected_win_rate, expected_max_drawdown,
+            created_by, created_at, version,
+            status, activation_date, archive_date, archive_reason,
+            live_trades_count, live_win_rate, live_sharpe_ratio, last_used_at
         """
-        # Get column names from the cursor (requires recent connection)
-        # For now, we'll handle the specific columns we know about
         column_names = [
             "id",
             "name",
@@ -366,9 +385,9 @@ class StrategyStorage:
             "expected_win_rate",
             "expected_max_drawdown",
             "created_by",
+            "created_at",  # Fixed order: created_at before version per schema
             "version",
             "status",
-            "created_at",
             "activation_date",
             "archive_date",
             "archive_reason",
@@ -428,8 +447,9 @@ class StrategyStorage:
         Returns:
             StrategyDefinition object
         """
+        # Convert UUID to string, Decimal to float for Pydantic
         return StrategyDefinition(
-            id=row["id"],
+            id=str(row["id"]),  # UUID → string
             name=row["name"],
             symbol=row["symbol"],
             strategy_type=row["strategy_type"],
@@ -437,9 +457,9 @@ class StrategyStorage:
             research_summary=row["research_summary"],
             generation_reasoning=row["generation_reasoning"],
             backtest_metrics=row["backtest_metrics"],
-            expected_sharpe=row["expected_sharpe"],
-            expected_win_rate=row["expected_win_rate"],
-            expected_max_drawdown=row["expected_max_drawdown"],
+            expected_sharpe=float(row["expected_sharpe"]) if row["expected_sharpe"] else None,
+            expected_win_rate=float(row["expected_win_rate"]) if row["expected_win_rate"] else None,
+            expected_max_drawdown=float(row["expected_max_drawdown"]) if row["expected_max_drawdown"] else None,
             created_by=row["created_by"],
             created_at=row["created_at"],
             version=row["version"],
@@ -448,8 +468,8 @@ class StrategyStorage:
             archive_date=row.get("archive_date"),
             archive_reason=row.get("archive_reason"),
             live_trades_count=row.get("live_trades_count", 0),
-            live_win_rate=row.get("live_win_rate"),
-            live_sharpe_ratio=row.get("live_sharpe_ratio"),
+            live_win_rate=float(row["live_win_rate"]) if row.get("live_win_rate") else None,
+            live_sharpe_ratio=float(row["live_sharpe_ratio"]) if row.get("live_sharpe_ratio") else None,
             last_used_at=row.get("last_used_at"),
         )
 

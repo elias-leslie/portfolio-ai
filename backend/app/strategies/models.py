@@ -171,7 +171,7 @@ class StrategyDefinition(BaseModel):
     generation_reasoning: str
 
     # Performance metrics
-    backtest_metrics: dict[str, Any]  # Optimization results as JSON
+    backtest_metrics: list[dict[str, Any]]  # Walk-forward validation results
     expected_sharpe: Decimal | None
     expected_win_rate: Decimal | None
     expected_max_drawdown: Decimal | None

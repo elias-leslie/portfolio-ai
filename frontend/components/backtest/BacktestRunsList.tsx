@@ -105,11 +105,18 @@ export function BacktestRunsList({
                   <p className="text-xs text-text-muted mt-1">
                     {formatDateRange(run.start_date)} - {formatDateRange(run.end_date)}
                   </p>
-                  {run.sharpe_ratio && (
-                    <p className="text-xs text-text-muted mt-1">
-                      Sharpe: {typeof run.sharpe_ratio === "number" ? run.sharpe_ratio.toFixed(2) : parseFloat(String(run.sharpe_ratio)).toFixed(2)}
-                    </p>
-                  )}
+                  <div className="flex items-center gap-3 text-xs text-text-muted mt-1">
+                    {run.sharpe_ratio && (
+                      <span>
+                        Sharpe: {typeof run.sharpe_ratio === "number" ? run.sharpe_ratio.toFixed(2) : parseFloat(String(run.sharpe_ratio)).toFixed(2)}
+                      </span>
+                    )}
+                    {run.created_at && (
+                      <span className="opacity-70">
+                        Created {new Date(run.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <Badge variant={getStatusColor(run.status)} className="text-xs">
                   {run.status}

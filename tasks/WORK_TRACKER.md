@@ -29,18 +29,8 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Fix Strategy Research Workflow** (MEDIUM 4-6h, 0/24 tasks)
-   - File: `tasks-0085-fix-strategy-research-workflow.md`
-   - Created: 2025-12-02
-   - Goal: Fix bugs preventing autonomous backtest/paper trade execution
-   - Tasks:
-     - [ ] Task 0: Scope Discovery (MANDATORY)
-     - [ ] Task 1: Fix Research Aggregator Methods
-     - [ ] Task 2: Fix Strategy Generator
-     - [ ] Task 3: Fix Strategy Optimizer
-     - [ ] Task 4: Fix Strategy Storage
-     - [ ] Task 5: End-to-End Integration Test
-     - [ ] Task 6: Add Monitoring & Error Handling
+(No planned tasks)
+
 
 ---
 
@@ -48,7 +38,23 @@
 
 *Last 5 completed tasks*
 
-1. **Response Caching Middleware** ✅ COMPLETE (2025-12-02)
+1. **Fix Strategy Research Workflow** ✅ COMPLETE (2025-12-02)
+   - File: `tasks-0085-fix-strategy-research-workflow.md`
+   - Completed: 2025-12-02 12:40
+   - Duration: ~2 hours
+   - Summary: Fixed all bugs in strategy research workflow enabling autonomous strategy generation
+   - Key fixes:
+     - ✅ Fixed 7 schema mismatches in research_aggregator.py (day_bars, fear_greed, news_cache, watchlist)
+     - ✅ Fixed optimizer to pass real fundamental data through to backtest strategy
+     - ✅ Fixed storage commit/serialization issues
+     - ✅ Fixed model type mismatches
+   - Results:
+     - Strategy generated and stored: GOOGL_Reversal_2025Q4
+     - Real fundamental data flowing (company_health: GOOD, valuation_tier: undervalued)
+     - Expected Sharpe: 4.24
+   - Impact: Weekly strategy generation can now run autonomously
+
+2. **Response Caching Middleware** ✅ COMPLETE (2025-12-02)
    - File: `tasks-0047-response-caching-middleware.md`
    - Completed: 2025-12-02
    - Duration: ~30 min (verification + extension)

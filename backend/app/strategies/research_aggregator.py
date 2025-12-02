@@ -160,7 +160,6 @@ class ResearchAggregationService:
                 SELECT
                     sentiment_score,
                     published_at,
-                    is_material_event,
                     headline
                 FROM news_cache
                 WHERE ticker = %s
@@ -190,8 +189,7 @@ class ResearchAggregationService:
             row["sentiment_score"] for row in news_rows if row["sentiment_score"] is not None
         ]
         # Convert end_date to datetime for comparison with published_at (which is datetime)
-        from datetime import datetime as dt
-        end_datetime = dt.combine(end_date, dt.min.time())
+        end_datetime = datetime.combine(end_date, datetime.min.time())
         recent_7d = [
             row["sentiment_score"]
             for row in news_rows
@@ -212,22 +210,23 @@ class ResearchAggregationService:
         else:
             sentiment_trend = "stable"
 
-        # Extract material events
+        # Extract material events from headlines (keyword-based classification)
+        # Note: is_material_event column does not exist in news_cache schema
         material_events = []
         for row in news_rows:
-            if row["is_material_event"]:
-                headline = row["headline"]
-                # Simple event classification based on keywords
-                if any(kw in headline.lower() for kw in ["earnings", "beat", "miss"]):
-                    material_events.append("earnings")
-                elif any(kw in headline.lower() for kw in ["product", "launch", "release"]):
-                    material_events.append("product_launch")
-                elif any(kw in headline.lower() for kw in ["acquisition", "merger", "acquire"]):
-                    material_events.append("acquisition")
-                elif any(kw in headline.lower() for kw in ["fda", "approval", "regulatory"]):
-                    material_events.append("regulatory")
-                else:
-                    material_events.append("other")
+            headline = row.get("headline", "")
+            if not headline:
+                continue
+            headline_lower = headline.lower()
+            # Simple event classification based on keywords
+            if any(kw in headline_lower for kw in ["earnings", "beat", "miss", "eps", "revenue"]):
+                material_events.append("earnings")
+            elif any(kw in headline_lower for kw in ["product", "launch", "release", "announce"]):
+                material_events.append("product_launch")
+            elif any(kw in headline_lower for kw in ["acquisition", "merger", "acquire", "buyout"]):
+                material_events.append("acquisition")
+            elif any(kw in headline_lower for kw in ["fda", "approval", "regulatory", "sec"]):
+                material_events.append("regulatory")
 
         # Deduplicate events
         material_events = list(set(material_events))
@@ -377,7 +376,7 @@ class ResearchAggregationService:
                 """
                 SELECT close
                 FROM day_bars
-                WHERE symbol = %s
+                WHERE ticker = %s
                 ORDER BY date DESC
                 LIMIT 1
                 """,
@@ -413,7 +412,7 @@ class ResearchAggregationService:
                 """
                 SELECT date, close
                 FROM day_bars
-                WHERE symbol = %s
+                WHERE ticker = %s
                 ORDER BY date DESC
                 LIMIT 60
                 """,
@@ -453,7 +452,7 @@ class ResearchAggregationService:
                 """
                 SELECT volume
                 FROM day_bars
-                WHERE symbol = %s
+                WHERE ticker = %s
                 ORDER BY date DESC
                 LIMIT 20
                 """,
@@ -491,7 +490,7 @@ class ResearchAggregationService:
         # Confidence (1.0 if we have 252 days of data)
         with self.conn.connection() as conn:
             result_wrapper = conn.execute(
-                "SELECT COUNT(*) as count FROM day_bars WHERE symbol = %s", [symbol]
+                "SELECT COUNT(*) as count FROM day_bars WHERE ticker = %s", [symbol]
             )
             rows = result_wrapper.fetchall()
             bar_count = _rows_to_dicts(rows, conn)
@@ -523,7 +522,7 @@ class ResearchAggregationService:
                 """
                 SELECT score, signal_count
                 FROM fear_greed_daily
-                ORDER BY date DESC
+                ORDER BY as_of_date DESC
                 LIMIT 1
                 """
             )
@@ -555,7 +554,7 @@ class ResearchAggregationService:
                 """
                 SELECT close
                 FROM day_bars
-                WHERE symbol = 'SPY'
+                WHERE ticker = 'SPY'
                 ORDER BY date DESC
                 LIMIT 1
                 """
@@ -567,7 +566,7 @@ class ResearchAggregationService:
                 """
                 SELECT close as vix_close
                 FROM day_bars
-                WHERE symbol = '^VIX'
+                WHERE ticker = '^VIX'
                 ORDER BY date DESC
                 LIMIT 1
                 """
@@ -616,23 +615,29 @@ class ResearchAggregationService:
         Returns:
             Dict with sector strength fields
         """
-        # Query sector from existing watchlist data
-        with self.conn.connection() as conn:
-            result_wrapper = conn.execute(
-                """
-                SELECT sector
-                FROM watchlist_items
-                WHERE symbol = %s
-                LIMIT 1
-                """,
-                [symbol],
-            )
-            rows = result_wrapper.fetchall()
-            sector_rows = _rows_to_dicts(rows, conn)
+        # Query sector from watchlist metadata (stored as JSON) or fallback to Unknown
+        # Note: watchlist_items has no 'sector' column - sector is stored in metadata JSON
+        sector = "Unknown"
+        try:
+            with self.conn.connection() as conn:
+                result_wrapper = conn.execute(
+                    """
+                    SELECT metadata
+                    FROM watchlist_items
+                    WHERE symbol = %s
+                    LIMIT 1
+                    """,
+                    [symbol],
+                )
+                rows = result_wrapper.fetchall()
+                meta_rows = _rows_to_dicts(rows, conn)
 
-        sector = (
-            sector_rows[0]["sector"] if sector_rows and sector_rows[0].get("sector") else "Unknown"
-        )
+            if meta_rows and meta_rows[0].get("metadata"):
+                metadata = meta_rows[0]["metadata"]
+                if isinstance(metadata, dict):
+                    sector = metadata.get("sector", "Unknown")
+        except Exception as e:
+            logger.warning(f"Could not fetch sector for {symbol}: {e}")
 
         # If no sector mapping, return defaults
         if sector == "Unknown" or not sector:
@@ -688,7 +693,7 @@ class ResearchAggregationService:
                 """
                 SELECT close
                 FROM day_bars
-                WHERE symbol = %s
+                WHERE ticker = %s
                 ORDER BY date DESC
                 LIMIT 31
                 """,

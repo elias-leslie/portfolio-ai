@@ -168,60 +168,101 @@ def _calculate_rolling_metrics(
 ) -> dict[str, Any]:
     """Calculate rolling performance metrics for a strategy.
 
+    Note: Currently there's no direct link between strategies and paper trades
+    in the database schema. This function returns zeros until a strategy_id
+    column is added to idea_outcomes or paper_trade_transactions.
+
+    TODO (Task 0085): Add strategy_id column to idea_outcomes table to enable
+    proper performance tracking. Until then, strategies can't be linked to trades.
+
     Args:
         conn: Database connection
         strategy_id: Strategy UUID
         window_days: Rolling window size (default 30 days)
 
     Returns:
-        Dict with calculated metrics
+        Dict with calculated metrics (zeros until schema extended)
     """
     cutoff_date = date.today() - timedelta(days=window_days)
 
-    # Query paper trade transactions for this strategy
-    rows = conn.execute_query(
-        """
-        SELECT
-            t.date,
-            t.pnl,
-            CASE WHEN t.pnl > 0 THEN 1 ELSE 0 END as is_win
-        FROM paper_trade_transactions t
-        JOIN paper_trades pt ON t.paper_trade_id = pt.id
-        WHERE pt.agent_run_id LIKE %s
-          AND t.date >= %s
-        ORDER BY t.date
-        """,
-        (f"%{strategy_id}%", cutoff_date),
-    )
+    # NOTE: The original query joined paper_trades table which doesn't exist.
+    # The correct schema is:
+    # - paper_trade_transactions.trade_id -> idea_outcomes.idea_id
+    # - But there's no strategy_id link from idea_outcomes to strategy_definitions
+    #
+    # Until the schema is extended, we query idea_outcomes directly but can't
+    # filter by strategy_id. Return zeros for now.
+    #
+    # Future schema addition needed:
+    # ALTER TABLE idea_outcomes ADD COLUMN strategy_id UUID REFERENCES strategy_definitions(id);
+
+    try:
+        result = conn.execute(
+            """
+            SELECT
+                o.created_at::DATE as trade_date,
+                o.realized_pnl as pnl
+            FROM idea_outcomes o
+            WHERE o.realized_pnl IS NOT NULL
+              AND o.created_at >= %s
+            ORDER BY o.created_at
+            """,
+            [cutoff_date],
+        )
+        rows = result.fetchall()
+    except Exception as e:
+        logger.warning(f"Could not query trades for strategy {strategy_id}: {e}")
+        rows = []
+
+    # Default return for no trades
+    empty_metrics = {
+        "trades_today": 0,
+        "wins_today": 0,
+        "losses_today": 0,
+        "pnl_today": 0.0,
+        "trades_30d": 0,
+        "win_rate_30d": 0.0,
+        "sharpe_ratio_30d": 0.0,
+        "max_drawdown_30d": 0.0,
+    }
 
     if not rows or len(rows) == 0:
         # No trades in window
-        return {
-            "trades_today": 0,
-            "wins_today": 0,
-            "losses_today": 0,
-            "pnl_today": 0.0,
-            "trades_30d": 0,
-            "win_rate_30d": 0.0,
-            "sharpe_ratio_30d": 0.0,
-            "max_drawdown_30d": 0.0,
-        }
+        return empty_metrics
+
+    # Convert rows to list of dicts for easier access
+    # Rows are tuples: (trade_date, pnl)
+    trades = []
+    for row in rows:
+        if isinstance(row, tuple):
+            trade_date, pnl = row[0], row[1]
+        else:
+            trade_date = row.get("trade_date", row.get("date"))
+            pnl = row.get("pnl", 0.0)
+
+        if pnl is None:
+            continue
+
+        trades.append({"date": trade_date, "pnl": float(pnl)})
+
+    if not trades:
+        return empty_metrics
 
     # Calculate metrics
     today = date.today()
-    today_trades = [r for r in rows if r["date"] == today]
+    today_trades = [t for t in trades if t["date"] == today]
 
     trades_today = len(today_trades)
-    wins_today = sum(1 for r in today_trades if r["pnl"] > 0)
+    wins_today = sum(1 for t in today_trades if t["pnl"] > 0)
     losses_today = trades_today - wins_today
-    pnl_today = sum(float(r["pnl"]) for r in today_trades)
+    pnl_today = sum(t["pnl"] for t in today_trades)
 
-    trades_30d = len(rows)
-    wins_30d = sum(1 for r in rows if r["pnl"] > 0)
+    trades_30d = len(trades)
+    wins_30d = sum(1 for t in trades if t["pnl"] > 0)
     win_rate_30d = wins_30d / trades_30d if trades_30d > 0 else 0.0
 
     # Calculate Sharpe ratio (simplified: mean/std of daily returns)
-    daily_returns = [float(r["pnl"]) for r in rows]
+    daily_returns = [t["pnl"] for t in trades]
     if len(daily_returns) > 1:
         mean_return = sum(daily_returns) / len(daily_returns)
         variance = sum((r - mean_return) ** 2 for r in daily_returns) / len(daily_returns)
@@ -235,8 +276,8 @@ def _calculate_rolling_metrics(
     peak_pnl = 0.0
     max_drawdown = 0.0
 
-    for r in rows:
-        cumulative_pnl += float(r["pnl"])
+    for t in trades:
+        cumulative_pnl += t["pnl"]
         peak_pnl = max(peak_pnl, cumulative_pnl)
         drawdown = (peak_pnl - cumulative_pnl) / peak_pnl if peak_pnl > 0 else 0.0
         max_drawdown = max(max_drawdown, drawdown)

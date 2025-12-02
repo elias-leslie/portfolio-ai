@@ -416,6 +416,11 @@ export function BacktestDetails({
               {formatDate(run.start_date)} →{" "}
               {formatDate(run.end_date)}
             </p>
+            {run.created_at && (
+              <p className="text-xs text-text-muted mt-0.5 opacity-70">
+                Run created {formatDate(run.created_at)}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <Badge

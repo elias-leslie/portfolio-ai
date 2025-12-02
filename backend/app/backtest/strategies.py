@@ -40,6 +40,7 @@ class SignalStrategy:
         min_signal_strength: int = 7,
         max_holding_days: int = 60,
         stop_loss_atr_multiplier: Decimal = Decimal("2.0"),
+        fundamental_data: dict[str, object] | None = None,
     ):
         """Initialize strategy parameters.
 
@@ -47,10 +48,19 @@ class SignalStrategy:
             min_signal_strength: Minimum signal strength (1-10) to enter position
             max_holding_days: Maximum days to hold position before force exit
             stop_loss_atr_multiplier: Stop loss distance in ATR multiples
+            fundamental_data: Real fundamental data from ResearchInsights including:
+                - company_health: Company health rating
+                - news_sentiment: News sentiment score (-1 to 1)
+                - profit_margin: Profit margin as decimal
+                - revenue_growth: Revenue growth as decimal
+                - debt_to_equity: Debt-to-equity ratio
+                - recommendation_mean: Analyst recommendation (1-5)
+                - analyst_buy_pct: Percentage of analysts with buy rating (0-1)
         """
         self.min_signal_strength = min_signal_strength
         self.max_holding_days = max_holding_days
         self.stop_loss_atr_multiplier = stop_loss_atr_multiplier
+        self.fundamental_data = fundamental_data or {}
 
     def should_enter(
         self,
@@ -71,8 +81,7 @@ class SignalStrategy:
             True if should enter position
         """
         # Build input dict for classify_signal (expects single dict with all values)
-        # For backtesting, we don't have news sentiment or company health
-        # Use technical indicators only (6 of 8 signal confirmations)
+        # Use real fundamental data if provided via self.fundamental_data, else None
         signal_inputs: dict[str, object] = {
             "price": float(ohlcv["close"]),
             "ema_20": indicators.get("ema_20", 0.0),
@@ -82,9 +91,15 @@ class SignalStrategy:
             "macd": indicators.get("macd", 0.0),
             "volume": float(ohlcv.get("volume", 0)),
             "volume_avg_20": indicators.get("volume_avg_20", 0.0),
-            "company_health": "GOOD",  # Placeholder (not historical)
-            "news_sentiment": 0.0,  # No historical news sentiment
-            "earnings_days_away": None,  # Phase B: Add earnings API integration
+            # Use real fundamental data if available
+            "company_health": self.fundamental_data.get("company_health") if self.fundamental_data else None,
+            "news_sentiment": self.fundamental_data.get("news_sentiment") if self.fundamental_data else None,
+            "earnings_days_away": None,
+            "profit_margin": self.fundamental_data.get("profit_margin") if self.fundamental_data else None,
+            "revenue_growth": self.fundamental_data.get("revenue_growth") if self.fundamental_data else None,
+            "debt_to_equity": self.fundamental_data.get("debt_to_equity") if self.fundamental_data else None,
+            "recommendation_mean": self.fundamental_data.get("recommendation_mean") if self.fundamental_data else None,
+            "analyst_buy_pct": self.fundamental_data.get("analyst_buy_pct") if self.fundamental_data else None,
         }
 
         # Classify signal using existing logic
@@ -158,8 +173,9 @@ class SignalStrategy:
             "macd": indicators.get("macd", 0.0),
             "volume": float(ohlcv.get("volume", 0)),
             "volume_avg_20": indicators.get("volume_avg_20", 0.0),
-            "company_health": "GOOD",
-            "news_sentiment": 0.0,
+            # Use real fundamental data if available
+            "company_health": self.fundamental_data.get("company_health"),
+            "news_sentiment": self.fundamental_data.get("news_sentiment"),
             "earnings_days_away": None,
         }
 

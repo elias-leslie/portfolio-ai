@@ -127,6 +127,7 @@ async def strategy_research_workflow(
         optimized = await optimizer.optimize_strategy_parameters(
             symbol=symbol,
             strategy_template=agent_result,
+            research=research,  # Pass real fundamental data for signal classification
             lookback_days=365,
             max_combinations=50,
         )
