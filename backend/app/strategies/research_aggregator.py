@@ -21,6 +21,7 @@ from app.storage import PortfolioStorage
 from app.storage.connection import get_connection_manager
 from app.watchlist.fundamentals import (
     FundamentalData,
+    calculate_fundamental_score,
     classify_company_health,
     fetch_fundamentals,
 )
@@ -280,8 +281,9 @@ class ResearchAggregationService:
         # Classify company health using existing logic
         company_health = classify_company_health(fund_data)
 
-        # Extract or calculate fundamental score
-        fundamental_score = int(fund_data.fundamental_score or 0)
+        # Calculate fundamental score using the same 4-pillar system as watchlist
+        # This ensures consistency: research aggregator matches watchlist UI
+        fundamental_score = int(calculate_fundamental_score(fund_data))
 
         # Classify valuation tier
         profit_margin = fund_data.profit_margin or 0.0
