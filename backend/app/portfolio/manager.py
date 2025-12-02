@@ -224,7 +224,11 @@ class PortfolioManager:
 
         positions = []
         for row in df.iter_rows(named=True):
-            positions.append(Position(**row))
+            # Convert UUID to string if present (database returns UUID objects)
+            row_dict = dict(row)
+            if row_dict.get("strategy_id") is not None:
+                row_dict["strategy_id"] = str(row_dict["strategy_id"])
+            positions.append(Position(**row_dict))
 
         return positions
 

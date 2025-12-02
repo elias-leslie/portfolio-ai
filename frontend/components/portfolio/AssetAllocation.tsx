@@ -46,7 +46,7 @@ export function AssetAllocation({ topPerformers }: AssetAllocationProps) {
       <div className="space-y-4">
         {topHoldings.length > 0 ? (
           topHoldings.map((position, index) => (
-            <div key={position.symbol}>
+            <div key={`holding-${index}-${position.symbol}`}>
               <div className="mb-1 flex items-center justify-between">
                 <span className="font-medium text-text">{position.symbol}</span>
                 <span className="text-sm text-text-muted">

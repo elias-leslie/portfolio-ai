@@ -34,8 +34,8 @@ export function TopPerformers({ topPerformers, bottomPerformers }: TopPerformers
           </div>
           <div className="space-y-2">
             {topPerformers.length > 0 ? (
-              topPerformers.map((position) => (
-                <div key={position.symbol} className="flex items-center justify-between">
+              topPerformers.map((position, index) => (
+                <div key={`top-${index}-${position.symbol}`} className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <span className="font-medium text-text">{position.symbol}</span>
                     <span className="text-xs text-text-muted">
@@ -69,8 +69,8 @@ export function TopPerformers({ topPerformers, bottomPerformers }: TopPerformers
           </div>
           <div className="space-y-2">
             {bottomPerformers.length > 0 ? (
-              bottomPerformers.map((position) => (
-                <div key={position.symbol} className="flex items-center justify-between">
+              bottomPerformers.map((position, index) => (
+                <div key={`bottom-${index}-${position.symbol}`} className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <span className="font-medium text-text">{position.symbol}</span>
                     <span className="text-xs text-text-muted">
