@@ -77,11 +77,14 @@ export function StrategyDetailModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
         {isLoading ? (
-          <div className="space-y-4">
-            <Skeleton className="h-8 w-1/2" />
-            <Skeleton className="h-4 w-3/4" />
-            <Skeleton className="h-32 w-full" />
-          </div>
+          <DialogHeader>
+            <DialogTitle>Loading Strategy...</DialogTitle>
+            <div className="space-y-4 pt-4">
+              <Skeleton className="h-8 w-1/2" />
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-32 w-full" />
+            </div>
+          </DialogHeader>
         ) : strategy ? (
           <>
             <DialogHeader>
@@ -294,7 +297,10 @@ export function StrategyDetailModal({
             </div>
           </>
         ) : (
-          <p className="text-text-muted">Strategy not found.</p>
+          <DialogHeader>
+            <DialogTitle>Strategy Not Found</DialogTitle>
+            <p className="text-text-muted">The requested strategy could not be found.</p>
+          </DialogHeader>
         )}
       </DialogContent>
     </Dialog>
