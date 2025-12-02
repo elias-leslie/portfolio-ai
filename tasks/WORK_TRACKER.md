@@ -38,7 +38,34 @@
 
 *Last 5 completed tasks*
 
-1. **Fix Strategy Research Workflow** ✅ COMPLETE (2025-12-02)
+1. **Strategies UI & Agent Trigger Buttons** ✅ COMPLETE (2025-12-02)
+   - File: `tasks-0086-strategies-ui-and-agent-triggers.md`
+   - Completed: 2025-12-02 14:30
+   - Duration: ~2 hours
+   - Summary: Added /strategies page and unified agent trigger buttons
+   - Key achievements:
+     - ✅ Created /strategies page with table, filters, summary cards
+     - ✅ Strategy detail modal with research summary, parameters, backtest metrics
+     - ✅ "Run AI Agent" button on watchlist triggers strategy generation
+     - ✅ "Generate Strategies" batch button on backtest/trading pages
+     - ✅ Navigation link added (Brain icon)
+     - ✅ API documented in API_REFERENCE.md
+   - Files created:
+     - frontend/app/strategies/page.tsx
+     - frontend/components/strategies/StrategiesTable.tsx
+     - frontend/components/strategies/StrategyDetailModal.tsx
+     - frontend/lib/api/strategies.ts
+     - frontend/lib/hooks/useStrategies.ts
+     - frontend/components/ui/skeleton.tsx
+   - Files modified:
+     - backend/app/api/strategies.py (added generate-batch endpoint)
+     - frontend/components/Navigation.tsx
+     - frontend/components/watchlist/ExpandedRow.tsx
+     - frontend/app/backtest/page.tsx
+     - frontend/app/trading/page.tsx
+   - Impact: Users can now view all AI-generated strategies and trigger generation on-demand
+
+2. **Fix Strategy Research Workflow** ✅ COMPLETE (2025-12-02)
    - File: `tasks-0085-fix-strategy-research-workflow.md`
    - Completed: 2025-12-02 12:40
    - Duration: ~2 hours

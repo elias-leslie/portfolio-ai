@@ -12,6 +12,7 @@ import {
   TrendingUp,
   BarChart3,
   Bot,
+  Brain,
 } from "lucide-react";
 
 import { MarketStatusBadge } from "@/components/market/MarketStatusBadge";
@@ -43,6 +44,11 @@ const mainLinks = [
     href: "/backtest",
     label: "Backtest",
     icon: BarChart3,
+  },
+  {
+    href: "/strategies",
+    label: "Strategies",
+    icon: Brain,
   },
   {
     href: "/capabilities",

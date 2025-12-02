@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from app.agents.workflows.strategy_research_workflow import strategy_research_workflow
 from app.logging_config import get_logger
 from app.strategies.storage import get_strategy_storage
+from app.tasks.strategy_monitoring_tasks import weekly_strategy_generation
 
 logger = get_logger(__name__)
 
@@ -80,10 +81,22 @@ class GenerateStrategyRequest(BaseModel):
     force_regenerate: bool = False
 
 
+class GenerateBatchRequest(BaseModel):
+    """Request to generate strategies for multiple symbols."""
+
+    symbols: list[str] | None = Field(
+        default=None,
+        description="Symbols to generate for. If None, uses top N watchlist symbols.",
+    )
+    top_n: int = Field(default=20, ge=1, le=50, description="Top N symbols if no list provided")
+    force_regenerate: bool = False
+
+
 class UpdateStrategyStatusRequest(BaseModel):
     """Request to update strategy status."""
 
     status: Literal["active", "archived"]
+    archive_reason: str | None = Field(default=None, description="Reason for archival")
 
 
 # ============================================================================
@@ -283,6 +296,80 @@ async def generate_strategy(request: GenerateStrategyRequest) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Strategy generation failed: {e!s}") from e
 
 
+@router.post("/generate-batch", response_model=dict[str, Any])
+async def generate_batch(request: GenerateBatchRequest) -> dict[str, Any]:
+    """Trigger batch strategy generation for multiple symbols.
+
+    Args:
+        request: Batch generation request with symbols or top_n
+
+    Returns:
+        Summary with task_id for async monitoring
+    """
+    try:
+        # If specific symbols provided, we run synchronously for each
+        if request.symbols:
+            symbols = request.symbols
+            logger.info(
+                "Triggering batch strategy generation",
+                symbols=symbols,
+                force=request.force_regenerate,
+            )
+            results: list[dict[str, str | None]] = []
+
+            for symbol in symbols:
+                try:
+                    result = await strategy_research_workflow(
+                        symbol=symbol,
+                        force_regenerate=request.force_regenerate,
+                    )
+                    results.append({
+                        "symbol": symbol,
+                        "status": result.get("status", "unknown"),
+                        "strategy_id": result.get("strategy_id"),
+                        "message": result.get("message"),
+                    })
+                except Exception as e:
+                    results.append({
+                        "symbol": symbol,
+                        "status": "failed",
+                        "strategy_id": None,
+                        "message": str(e),
+                    })
+
+            generated = sum(1 for r in results if r["status"] == "completed")
+            return {
+                "status": "completed",
+                "symbols_processed": len(results),
+                "strategies_generated": generated,
+                "results": results,
+            }
+
+        # Otherwise use top N from watchlist - trigger Celery task
+        logger.info(
+            "Triggering weekly strategy generation",
+            top_n=request.top_n,
+            force=request.force_regenerate,
+        )
+
+        # For now, run synchronously since the Celery task is already sync
+        # In future can make this async with task.delay()
+        result = weekly_strategy_generation()
+
+        return {
+            "status": "completed",
+            "symbols_evaluated": result.get("symbols_evaluated", 0),
+            "strategies_generated": result.get("strategies_generated", 0),
+            "details": result.get("details", []),
+        }
+
+    except Exception as e:
+        logger.exception("Batch strategy generation failed", error=str(e))
+        raise HTTPException(
+            status_code=500, detail=f"Batch strategy generation failed: {e!s}"
+        ) from e
+
+
 @router.patch("/{strategy_id}", response_model=dict[str, Any])
 async def update_strategy_status(
     strategy_id: str,
@@ -309,7 +396,7 @@ async def update_strategy_status(
             logger.info("Strategy activated", strategy_id=strategy_id)
             message = f"Strategy {strategy.name} activated"
         else:  # archived
-            reason = "Manual archival via API"
+            reason = request.archive_reason or "Manual archival via API"
             storage.archive_strategy(strategy_id, reason)
             logger.info("Strategy archived", strategy_id=strategy_id, reason=reason)
             message = f"Strategy {strategy.name} archived"

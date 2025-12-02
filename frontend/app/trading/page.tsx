@@ -1,13 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { TrendingUp, TrendingDown, DollarSign, Target, Plus } from "lucide-react";
+import { TrendingUp, DollarSign, Target, Plus, Sparkles, ExternalLink } from "lucide-react";
+import Link from "next/link";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { SectionCard } from "@/components/shared/SectionCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { usePaperTrades, usePaperTradeSummary } from "@/lib/hooks/usePaperTrades";
+import { useGenerateStrategiesBatch } from "@/lib/hooks/useStrategies";
 import { PaperTradesTable } from "@/components/trading/PaperTradesTable";
 import { NewOrderDialog } from "@/components/trading/NewOrderDialog";
 
@@ -27,6 +29,7 @@ export default function TradingPage() {
   });
 
   const { data: summary, isLoading: summaryLoading } = usePaperTradeSummary();
+  const generateBatch = useGenerateStrategiesBatch();
 
   // Calculate color for P&L display
   const getPnlColor = (value: number | undefined) => {
@@ -49,10 +52,26 @@ export default function TradingPage() {
           description="AI-driven paper trades with real-time performance tracking"
           size="md"
           actions={
-            <Button onClick={() => setIsNewOrderOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" suppressHydrationWarning />
-              New Order
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => generateBatch.mutate({ top_n: 20 })}
+                disabled={generateBatch.isPending}
+              >
+                <Sparkles className="mr-2 h-4 w-4" suppressHydrationWarning />
+                {generateBatch.isPending ? "Generating..." : "Generate Strategies"}
+              </Button>
+              <Link href="/strategies">
+                <Button variant="ghost">
+                  <ExternalLink className="mr-2 h-4 w-4" suppressHydrationWarning />
+                  View Strategies
+                </Button>
+              </Link>
+              <Button onClick={() => setIsNewOrderOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" suppressHydrationWarning />
+                New Order
+              </Button>
+            </div>
           }
         />
 

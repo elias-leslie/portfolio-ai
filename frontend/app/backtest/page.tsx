@@ -1,13 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { BarChart3, Plus } from "lucide-react";
+import { Plus, Sparkles, ExternalLink } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { useBacktestRuns } from "@/lib/hooks/useBacktest";
+import { useGenerateStrategiesBatch } from "@/lib/hooks/useStrategies";
 import { BacktestRunsList } from "@/components/backtest/BacktestRunsList";
 import { BacktestDetails } from "@/components/backtest/BacktestDetails";
 import { NewBacktestDialog } from "@/components/backtest/NewBacktestDialog";
+import Link from "next/link";
 
 export default function BacktestPage() {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
@@ -16,6 +18,7 @@ export default function BacktestPage() {
   const [selectedRunIds, setSelectedRunIds] = useState<Set<string>>(new Set());
 
   const { data: runs, isLoading } = useBacktestRuns();
+  const generateBatch = useGenerateStrategiesBatch();
 
   // Handle run selection
   const handleSelectRun = (runId: string) => {
@@ -58,10 +61,26 @@ export default function BacktestPage() {
           description="Strategy validation with historical data"
           size="md"
           actions={
-            <Button onClick={() => setNewBacktestOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              New Backtest
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => generateBatch.mutate({ top_n: 20 })}
+                disabled={generateBatch.isPending}
+              >
+                <Sparkles className="mr-2 h-4 w-4" />
+                {generateBatch.isPending ? "Generating..." : "Generate Strategies"}
+              </Button>
+              <Link href="/strategies">
+                <Button variant="ghost">
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  View Strategies
+                </Button>
+              </Link>
+              <Button onClick={() => setNewBacktestOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                New Backtest
+              </Button>
+            </div>
           }
         />
 

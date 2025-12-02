@@ -13,14 +13,13 @@
  * Refactored from 1,142-line monolithic component into focused subcomponents.
  */
 
-import { useState } from "react";
 import { usePreferences } from "@/lib/hooks/usePreferences";
 import { useNewsIntelligence } from "@/lib/hooks/useNews";
 import type { WatchlistItem, RefreshStatus } from "@/lib/api/watchlist";
 import { UnifiedNewsIntelligenceCard } from "@/components/shared/UnifiedNewsIntelligenceCard";
 import { Button } from "@/components/ui/button";
-import { BarChart3, Sparkles } from "lucide-react";
-import { toast } from "sonner";
+import { Bot, BarChart3, ExternalLink } from "lucide-react";
+import { useGenerateStrategy } from "@/lib/hooks/useStrategies";
 import { ExpandedRowRefreshStatus } from "./ExpandedRowRefreshStatus";
 import { ExpandedRowNarrative } from "./ExpandedRowNarrative";
 import { ExpandedRowScoreBreakdown } from "./ExpandedRowScoreBreakdown";
@@ -34,19 +33,17 @@ interface ExpandedRowProps {
 export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
     const { data: preferences } = usePreferences();
     const { data: fullNewsData } = useNewsIntelligence(item.symbol, { limit: 50 });
-    const [isBacktestLoading, setIsBacktestLoading] = useState(false);
+    const generateStrategy = useGenerateStrategy();
 
     const userTimezone = preferences?.display_timezone ?? "America/New_York";
     const newsHidden = preferences?.watchlist_show_news === false;
 
-    const handleRunBacktest = () => {
-        setIsBacktestLoading(true);
-        // Navigate to backtest page with ticker pre-filled
-        window.location.href = `/backtest?ticker=${item.symbol}`;
+    const handleRunAgent = () => {
+        generateStrategy.mutate({ symbol: item.symbol });
     };
 
-    const handleGenerateIdea = () => {
-        toast.info("AI Idea Generation coming soon! This will trigger autonomous agent analysis.");
+    const handleRunBacktest = () => {
+        window.location.href = `/backtest?ticker=${item.symbol}`;
     };
 
     return (
@@ -65,21 +62,29 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
             {/* Quick Actions */}
             <div className="flex flex-wrap gap-2">
                 <Button
-                    variant="outline"
+                    variant="default"
                     size="sm"
-                    onClick={handleRunBacktest}
-                    disabled={isBacktestLoading}
+                    onClick={handleRunAgent}
+                    disabled={generateStrategy.isPending}
                 >
-                    <BarChart3 className="mr-2 h-4 w-4" />
-                    Run Backtest
+                    <Bot className="mr-2 h-4 w-4" />
+                    {generateStrategy.isPending ? "Generating..." : "Run AI Agent"}
                 </Button>
                 <Button
                     variant="outline"
                     size="sm"
-                    onClick={handleGenerateIdea}
+                    onClick={handleRunBacktest}
                 >
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    Generate AI Idea
+                    <BarChart3 className="mr-2 h-4 w-4" />
+                    Backtest
+                </Button>
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => window.location.href = `/strategies?symbol=${item.symbol}`}
+                >
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    View Strategies
                 </Button>
             </div>
 
