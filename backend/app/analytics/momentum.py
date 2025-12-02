@@ -13,7 +13,7 @@ Cross-sectional ranks provide relative strength vs market.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date
 from typing import TYPE_CHECKING
 
 from ..logging_config import get_logger

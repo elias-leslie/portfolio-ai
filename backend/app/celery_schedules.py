@@ -304,6 +304,18 @@ def get_beat_schedule() -> dict[str, object]:
             # - Idempotent: Safe to run multiple times
             # - Self-healing: Automatically fills gaps in valuation data coverage
         },
+        "update-earnings-surprises-weekly": {
+            "task": "update_earnings_surprises",
+            "schedule": crontab(hour=5, minute=0, day_of_week=0),  # Sundays at 05:00 UTC
+            "options": {"expires": 7200},  # Task expires after 2 hours
+            # Notes:
+            # - Runs weekly on Sundays at 05:00 UTC (GAP-003)
+            # - Fetches earnings surprise data (EPS estimate vs actual) from Finnhub
+            # - Auto-discovers all watchlist + portfolio tickers
+            # - Weekly is sufficient since earnings are quarterly events
+            # - Data stored in earnings_surprises table
+            # - Used for signal classification (consistent beats = bullish)
+        },
         "fetch-options-activity-daily": {
             "task": "fetch_options_activity_metrics",
             "schedule": crontab(hour=21, minute=15),  # Daily at 21:15 UTC (4:15 PM ET)

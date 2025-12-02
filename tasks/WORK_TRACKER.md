@@ -21,15 +21,14 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Trading & Backtesting System Completion** (40% - 2/5 phases, 10/12 P0 gaps)
+1. **Trading & Backtesting System Completion** (20% - 1/5 complete)
    - File: `tasks-0084-trading-backtesting-system-completion.md`
-   - Started: 2025-12-01
-   - Last updated: PAUSED (2025-12-02, 81% context)
+   - Started: 2025-12-01 (yesterday)
+   - Last updated: PAUSED
    - Next: Task 1.11 - Add earnings surprise data (GAP-003)
-   - P0 Gaps Completed: GAP-020, GAP-042, GAP-044, GAP-045, GAP-003, GAP-052, GAP-023, GAP-031, GAP-012, GAP-013
    - Tasks:
      - [x] Task 0: Scope Discovery - Verify Backtesting Framework (MANDATORY) ✅ COMPLETE
-     - [~] Task 1: Phase 1: Fix P0 Critical Gaps (10/12 complete)
+     - [ ] Task 1: Phase 1: Fix P0 Critical Gaps (4 weeks)
      - [ ] Task 2: Phase 2A: Complete Dynamic Strategy Generation
      - [ ] Task 3: Phase 2B: Fill P1 High-Priority Gaps
      - [ ] Task 4: Phase 3: Backtesting Phase B Features

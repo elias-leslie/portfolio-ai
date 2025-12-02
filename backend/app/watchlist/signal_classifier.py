@@ -126,6 +126,9 @@ def _extract_signal_inputs(inputs: SignalInputsDict) -> NormalizedSignalInputsDi
         "options_call_pct": inputs.get("options_call_pct"),
         "options_near_term_pct": inputs.get("options_near_term_pct"),
         "ticker_in_active_sector": inputs.get("ticker_in_active_sector"),
+        # Earnings surprise fields (GAP-003)
+        "earnings_surprise_score": inputs.get("earnings_surprise_score"),
+        "earnings_surprise_reasons": inputs.get("earnings_surprise_reasons"),
     }
 
 
@@ -423,14 +426,15 @@ def _calculate_signal_strength(confirmations: int) -> int:
 def classify_signal(inputs: SignalInputsDict) -> SignalClassification:
     """Classify watchlist signal as BUY, HOLD, or AVOID based on multiple indicators.
 
-    Scoring System (Task 0074 + GAP-031):
+    Scoring System (Task 0074 + GAP-031 + GAP-003):
     - Technical signals: 0-6 points (from _check_buy_signals)
     - Fundamental component: -3 to +5 points (profit margin, revenue growth, debt)
     - Analyst component: 0-5 points (recommendation mean, buy %)
     - News sentiment: 0-5 points (scaled from -1..+1)
     - Options flow: 0-4 points (call %, sector activity) [GAP-031]
+    - Earnings surprise: -1 to +4 points (beat/miss history) [GAP-003]
 
-    Total range: -3 to +25 confirmations → 0-10 strength
+    Total range: -4 to +29 confirmations → 0-10 strength
 
     Args:
         inputs: Dictionary containing:
@@ -504,6 +508,15 @@ def classify_signal(inputs: SignalInputsDict) -> SignalClassification:
     )
     confirmations += options_score
     buy_reasons.extend(options_reasons)
+
+    # Add earnings surprise component score (GAP-003)
+    # Score is pre-computed and passed in (requires database access)
+    earnings_surprise_score = data.get("earnings_surprise_score")
+    earnings_surprise_reasons = data.get("earnings_surprise_reasons")
+    if earnings_surprise_score is not None:
+        confirmations += earnings_surprise_score
+        if earnings_surprise_reasons:
+            buy_reasons.extend(earnings_surprise_reasons)
 
     # Calculate signal strength using expanded range
     strength_value = _calculate_signal_strength(confirmations)

@@ -98,6 +98,9 @@ class SignalInputsDict(TypedDict, total=False):
     options_call_pct: float | None  # 0.0-1.0 (0.55 = 55% calls, bullish)
     options_near_term_pct: float | None  # 0.0-1.0 (high = speculative)
     ticker_in_active_sector: bool | None  # True if sector has high options activity
+    # Earnings surprise fields (GAP-003)
+    earnings_surprise_score: int | None  # -1 to +4 points (pre-computed)
+    earnings_surprise_reasons: list[str] | None  # Reasons for the score
 
 
 class NormalizedSignalInputsDict(TypedDict):
@@ -125,6 +128,9 @@ class NormalizedSignalInputsDict(TypedDict):
     options_call_pct: float | None
     options_near_term_pct: float | None
     ticker_in_active_sector: bool | None
+    # Earnings surprise fields (GAP-003) - can be None if data unavailable
+    earnings_surprise_score: int | None
+    earnings_surprise_reasons: list[str] | None
 
 
 class TradingStyleDict(TypedDict):

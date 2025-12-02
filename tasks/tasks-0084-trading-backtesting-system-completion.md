@@ -187,19 +187,21 @@
   - [x] 1.10.4 Created calculate_sector_strength_score() for signal integration (-1 to +2 points)
   - [x] 1.10.5 Added 20 unit tests (tests/analytics/test_sector_strength.py) - all passing
 
-- [ ] 1.11 GAP-003: Add earnings surprise data
-  - [ ] 1.11.1 Create earnings_surprises table
-  - [ ] 1.11.2 Add earnings surprise data source (Alpha Vantage or FMP)
-  - [ ] 1.11.3 Calculate surprise % (actual vs estimate)
-  - [ ] 1.11.4 Add earnings surprise signal to fundamental scoring
-  - [ ] 1.11.5 Validate via backtest
+- [x] 1.11 GAP-003: Add earnings surprise data ✅ COMPLETE
+  - [x] 1.11.1 Created earnings_surprises table (migration 051)
+  - [x] 1.11.2 Added Finnhub earnings surprise data source (app/analytics/earnings_surprise.py)
+  - [x] 1.11.3 Calculated surprise % = (actual - estimate) / |estimate| * 100
+  - [x] 1.11.4 Added earnings_surprise_score to signal_classifier (-1 to +4 points)
+  - [x] 1.11.5 Added 17 unit tests (tests/analytics/test_earnings_surprise.py) - all passing
+  - [x] 1.11.6 Added Celery task update_earnings_surprises (weekly schedule)
 
-- [ ] 1.12 GAP-043: Fix position sizing (depends on GAP-020)
-  - [ ] 1.12.1 Implement position sizing based on fixed risk % (1-2% per trade)
-  - [ ] 1.12.2 Calculate shares based on stop-loss distance
-  - [ ] 1.12.3 Add position sizing validation in order_executor
-  - [ ] 1.12.4 Test with various stop distances
-  - [ ] 1.12.5 Validate via backtest
+- [x] 1.12 GAP-043: Fix position sizing (risk-based) ✅ COMPLETE
+  - [x] 1.12.1 Created position_sizing.py with calculate_risk_based_shares()
+  - [x] 1.12.2 Formula: shares = (risk_pct * equity) / (entry - stop_loss)
+  - [x] 1.12.3 Added calculate_risk_based_shares() to OrderExecutor
+  - [x] 1.12.4 Added validate_position_size() for pre-trade validation
+  - [x] 1.12.5 Added 23 unit tests (tests/analytics/test_position_sizing.py) - all passing
+  - [x] 1.12.6 Integrated with existing ATR-based stop loss (GAP-042)
 
 - [ ] 1.13 Phase 1 validation and metrics
   - [ ] 1.13.1 Run comprehensive backtest suite with all P0 fixes

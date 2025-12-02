@@ -393,3 +393,96 @@ class OrderExecutor:
         except Exception as e:
             logger.error(f"Failed to validate position limits for {ticker}: {e}")
             return True, None  # Allow trade if validation fails (fail-open)
+
+    def calculate_risk_based_shares(
+        self,
+        ticker: str,
+        account_id: str,
+        stop_loss: float | None = None,
+        risk_percent: float = 0.015,
+    ) -> tuple[int, dict[str, float | str | None]]:
+        """Calculate position size using risk-based sizing (GAP-043).
+
+        Integrates with position_sizing module for proper risk management.
+        Formula: shares = (risk_percent * equity) / (entry_price - stop_loss)
+
+        Args:
+            ticker: Stock symbol
+            account_id: Portfolio account ID
+            stop_loss: Stop-loss price. If None, calculates ATR-based stop.
+            risk_percent: Risk per trade as fraction (0.015 = 1.5%)
+
+        Returns:
+            Tuple of (shares, details dict)
+        """
+        from app.analytics.position_sizing import (  # noqa: PLC0415
+            DEFAULT_RISK_PERCENT,
+            calculate_risk_based_shares,
+        )
+        from app.analytics.trade_calculations import calculate_stop_loss  # noqa: PLC0415
+
+        details: dict[str, float | str | None] = {
+            "ticker": ticker,
+            "account_id": account_id,
+            "equity": None,
+            "entry_price": None,
+            "stop_loss": None,
+            "stop_distance_pct": None,
+            "risk_percent": risk_percent or DEFAULT_RISK_PERCENT,
+            "shares": 0,
+            "position_value": None,
+            "error": None,
+        }
+
+        try:
+            # Get current price (entry price)
+            price_data_dict = self.price_fetcher.fetch_price_data([ticker])
+            entry_price = price_data_dict[ticker].price
+            details["entry_price"] = entry_price
+
+            # Get portfolio equity
+            cash_balance = self.cash_manager.get_cash_balance(account_id)
+            positions_query = """
+                SELECT COALESCE(SUM(shares * current_price), 0) as position_value
+                FROM portfolio_positions
+                WHERE account_id = $1
+            """
+            result = self.storage.query(positions_query, [account_id])
+            position_value = float(result.get_column("position_value")[0] or 0)
+            equity = cash_balance + position_value
+            details["equity"] = equity
+
+            # Get or calculate stop loss
+            if stop_loss is None:
+                stop_loss = calculate_stop_loss(self.storage, ticker, entry_price)
+                if stop_loss is None:
+                    details["error"] = "Cannot calculate ATR-based stop loss"
+                    return 0, details
+
+            details["stop_loss"] = stop_loss
+
+            # Calculate stop distance as percentage
+            if stop_loss and entry_price > stop_loss:
+                details["stop_distance_pct"] = (entry_price - stop_loss) / entry_price
+
+            # Calculate risk-based shares
+            shares, size_details = calculate_risk_based_shares(
+                equity=equity,
+                entry_price=entry_price,
+                stop_loss=stop_loss,
+                risk_percent=risk_percent or DEFAULT_RISK_PERCENT,
+            )
+
+            # Merge details
+            details["risk_amount"] = size_details.get("risk_amount")
+            details["risk_per_share"] = size_details.get("risk_per_share")
+            details["shares"] = float(shares)
+            details["position_value"] = size_details.get("position_value")
+            details["position_percent"] = size_details.get("position_percent")
+
+            return shares, details
+
+        except Exception as e:
+            logger.error(f"Failed to calculate risk-based shares for {ticker}: {e}")
+            details["error"] = str(e)
+            return 0, details

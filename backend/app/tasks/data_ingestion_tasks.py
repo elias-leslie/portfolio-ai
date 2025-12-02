@@ -694,3 +694,117 @@ def update_portfolio_covariance(  # type: ignore[no-untyped-def]
             error_type=type(e).__name__,
         )
         raise
+
+
+@celery_app.task(
+    bind=True,
+    name="update_earnings_surprises",
+    max_retries=3,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=600,
+    retry_jitter=True,
+)  # type: ignore[misc]
+def update_earnings_surprises(  # type: ignore[no-untyped-def]
+    self,
+    tickers: list[str] | None = None,
+) -> dict[str, Any]:
+    """Update earnings surprise data for watchlist/portfolio tickers (GAP-003).
+
+    Fetches historical earnings surprise data (EPS estimate vs actual)
+    from Finnhub API and stores in earnings_surprises table.
+
+    Scheduled to run weekly (earnings are quarterly events).
+
+    Args:
+        tickers: Optional list of tickers. If None, uses watchlist + portfolio tickers.
+
+    Returns:
+        Dict with:
+        - task_id: Celery task ID
+        - tickers_count: Number of tickers processed
+        - records_saved: Number of earnings records saved
+        - status: success or error
+    """
+    from app.analytics.earnings_surprise import fetch_and_store_earnings_surprises  # noqa: PLC0415
+
+    task_id = self.request.id or str(uuid.uuid4())
+
+    logger.info(
+        "update_earnings_surprises_started",
+        task_id=task_id,
+        tickers=tickers[:5] if tickers else None,
+    )
+
+    try:
+        storage = get_storage()
+
+        # Auto-discover tickers if not provided
+        if not tickers:
+            # Get watchlist tickers
+            watchlist_result = storage.query(
+                "SELECT DISTINCT ticker FROM watchlist_items"
+            )
+            watchlist_tickers = (
+                watchlist_result.get_column("ticker").to_list()
+                if not watchlist_result.is_empty()
+                else []
+            )
+
+            # Get portfolio tickers
+            portfolio_result = storage.query(
+                "SELECT DISTINCT ticker FROM portfolio_positions"
+            )
+            portfolio_tickers = (
+                portfolio_result.get_column("ticker").to_list()
+                if not portfolio_result.is_empty()
+                else []
+            )
+
+            # Combine and deduplicate
+            all_tickers = list(set(watchlist_tickers + portfolio_tickers))
+            tickers = all_tickers if all_tickers else []
+
+        if not tickers:
+            logger.info("update_earnings_surprises_no_tickers", task_id=task_id)
+            return {
+                "task_id": str(task_id),
+                "tickers_count": 0,
+                "records_saved": 0,
+                "status": "success",
+            }
+
+        total_records = 0
+        for ticker in tickers:
+            try:
+                records = fetch_and_store_earnings_surprises(storage, ticker)
+                total_records += records
+            except Exception as e:
+                logger.warning(
+                    "earnings_surprise_ticker_failed",
+                    ticker=ticker,
+                    error=str(e),
+                )
+
+        logger.info(
+            "update_earnings_surprises_completed",
+            task_id=task_id,
+            tickers_count=len(tickers),
+            records_saved=total_records,
+        )
+
+        return {
+            "task_id": str(task_id),
+            "tickers_count": len(tickers),
+            "records_saved": total_records,
+            "status": "success",
+        }
+
+    except Exception as e:
+        logger.error(
+            "update_earnings_surprises_failed",
+            task_id=task_id,
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+        raise
