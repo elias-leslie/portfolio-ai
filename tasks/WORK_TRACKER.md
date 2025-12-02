@@ -21,20 +21,15 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Trading & Backtesting System Completion** (60% - 3/5 complete) PAUSED
+1. **Trading & Backtesting System Completion** (60% - 3/5 complete)
    - File: `tasks-0084-trading-backtesting-system-completion.md`
-   - Started: 2025-12-01
-   - Last updated: 2025-12-02 (Phase 1+2A COMPLETE)
-   - Status: PAUSED (2025-12-02, 72% context)
+   - Started: 2025-12-01 (yesterday)
+   - Last updated: PAUSED
    - Next: Task 3 - Phase 2B: Fill P1 High-Priority Gaps
-   - Resume: `/do_it tasks-0084-trading-backtesting-system-completion.md`
    - Tasks:
-     - [x] Task 0: Scope Discovery - Verify Backtesting Framework ✅ COMPLETE
-     - [x] Task 1: Phase 1: Fix P0 Critical Gaps ✅ COMPLETE (12/12 gaps)
-     - [x] Task 2: Phase 2A: Dynamic Strategy Generation ✅ COMPLETE
-       - Fixed optimizer metrics (real Sharpe/win rate/drawdown)
-       - 8 unit tests added and passing
-       - All 5 sub-modules verified working
+     - [x] Task 0: Scope Discovery - Verify Backtesting Framework (MANDATORY) ✅ COMPLETE
+     - [x] Task 1: Phase 1: Fix P0 Critical Gaps (4 weeks)
+     - [x] Task 2: Phase 2A: Complete Dynamic Strategy Generation ✅ COMPLETE
      - [ ] Task 3: Phase 2B: Fill P1 High-Priority Gaps
      - [ ] Task 4: Phase 3: Backtesting Phase B Features
 

@@ -213,6 +213,9 @@ class YFinanceSource(BaseSource):
             "operatingMargins": info.get("operatingMargins"),
             "revenueGrowth": info.get("revenueGrowth"),
             "earningsGrowth": info.get("earningsGrowth"),
+            # Ownership metrics (for GAP-008 institutional ownership)
+            "heldPercentInstitutions": info.get("heldPercentInstitutions"),
+            "heldPercentInsiders": info.get("heldPercentInsiders"),
         }
 
     def fetch_reference_payload(
