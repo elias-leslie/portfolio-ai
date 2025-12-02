@@ -318,8 +318,12 @@ async def track_recommendation(
     Returns:
         Created position details
     """
+    from app.portfolio.manager import PortfolioManager
+    from app.storage import get_storage
+
     try:
         conn_mgr = get_connection_manager()
+        storage = get_storage()
 
         with conn_mgr.connection() as conn:
             # Verify strategy exists and is active
@@ -349,38 +353,42 @@ async def track_recommendation(
             entry_price = float(price_row[0])
             shares = int(position_size / entry_price)
 
-            # Create portfolio position with strategy link
-            # Note: This uses the portfolio API pattern for consistency
-            result = conn.execute(
-                """
-                INSERT INTO portfolio_positions (
-                    account_id, ticker, quantity, entry_price, strategy_id
-                )
-                SELECT
-                    (SELECT id FROM portfolio_accounts ORDER BY id LIMIT 1),
-                    %s, %s, %s, %s
-                RETURNING id, ticker, quantity, entry_price
-                """,
-                (symbol, shares, entry_price, strategy_id),
+            # Get first account (or create paper account if none exist)
+            account_row = conn.execute(
+                "SELECT id FROM portfolio_accounts ORDER BY created_at LIMIT 1"
             ).fetchone()
 
-            conn.commit()
+            if not account_row:
+                raise HTTPException(
+                    status_code=400,
+                    detail="No portfolio account exists. Create an account first.",
+                )
 
-            if not result:
-                raise HTTPException(status_code=500, detail="Failed to create position")
+            account_id = account_row[0]
 
-            return {
-                "status": "created",
-                "position": {
-                    "id": result[0],
-                    "symbol": result[1],
-                    "quantity": result[2],
-                    "entry_price": float(result[3]),
-                    "strategy_id": strategy_id,
-                    "strategy_name": strategy[0],
-                },
-                "message": f"Position created for {shares} shares of {symbol} at ${entry_price:.2f}",
-            }
+        # Use PortfolioManager for proper position creation
+        manager = PortfolioManager(storage)
+        position = manager.add_position(
+            account_id=account_id,
+            symbol=symbol,
+            shares=shares,
+            cost_basis=entry_price,
+            position_type="long",
+            strategy_id=strategy_id,
+        )
+
+        return {
+            "status": "created",
+            "position": {
+                "id": position.id,
+                "symbol": position.symbol,
+                "shares": position.shares,
+                "cost_basis": position.cost_basis,
+                "strategy_id": strategy_id,
+                "strategy_name": strategy[0],
+            },
+            "message": f"Position created for {shares} shares of {symbol} at ${entry_price:.2f}",
+        }
 
     except HTTPException:
         raise

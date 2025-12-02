@@ -58,8 +58,8 @@ export interface TrackRecommendationResponse {
   position: {
     id: number;
     symbol: string;
-    quantity: number;
-    entry_price: number;
+    shares: number;
+    cost_basis: number;
     strategy_id: string;
     strategy_name: string;
   };
