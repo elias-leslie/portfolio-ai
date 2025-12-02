@@ -21,27 +21,18 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Trading & Backtesting System Completion** (35% - 7/20 tasks complete)
+1. **Trading & Backtesting System Completion** (40% - 2/5 phases, 10/12 P0 gaps)
    - File: `tasks-0084-trading-backtesting-system-completion.md`
    - Started: 2025-12-01
-   - Last updated: PAUSED (2025-12-01 16:45)
-   - Context: 86% (172K/200K)
-   - Next: Task 1.7 - Add drawdown tracking (GAP-023)
-   - Session Summary: **6 P0 critical gaps fixed!**
-     - [x] Task 1.1: GAP-020 - Portfolio covariance matrix (proper risk math)
-     - [x] Task 1.2: GAP-042 - ATR-based stops (no flat 5% fallback)
-     - [x] Task 1.3: GAP-044 - Liquidity checks (1% ADV limit)
-     - [x] Task 1.4: GAP-003 - Earnings proximity filter (2-day buffer)
-     - [x] Task 1.5: GAP-045 - Kelly criterion position sizing
-     - [x] Task 1.6: PDT rules - Pattern day trader enforcement
-   - New modules created:
-     - `app/analytics/covariance.py` - Portfolio volatility (19.67% diversification benefit measured)
-     - `app/analytics/liquidity.py` - ADV-based position limits
-     - `app/analytics/earnings_filter.py` - Trade blocking near earnings
-     - `app/analytics/kelly.py` - Optimal position sizing
-     - `app/analytics/pdt_rules.py` - Day trade tracking
-   - Test coverage: 578 tests (up from 523, +55 new tests)
-   - Resume: `/do_it`
+   - Last updated: PAUSED (2025-12-02, 81% context)
+   - Next: Task 1.11 - Add earnings surprise data (GAP-003)
+   - P0 Gaps Completed: GAP-020, GAP-042, GAP-044, GAP-045, GAP-003, GAP-052, GAP-023, GAP-031, GAP-012, GAP-013
+   - Tasks:
+     - [x] Task 0: Scope Discovery - Verify Backtesting Framework (MANDATORY) ✅ COMPLETE
+     - [~] Task 1: Phase 1: Fix P0 Critical Gaps (10/12 complete)
+     - [ ] Task 2: Phase 2A: Complete Dynamic Strategy Generation
+     - [ ] Task 3: Phase 2B: Fill P1 High-Priority Gaps
+     - [ ] Task 4: Phase 3: Backtesting Phase B Features
 
 
 ---
@@ -50,7 +41,7 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (2 weeks ago))
+1. **Customizable Dashboard Layouts** (MEDIUM-HIGH (6-10 hours), 0/10 tasks (3 weeks ago))
    - File: `tasks-0042-customizable-dashboard-layouts.md`
    - Created: 2025-11-11
    - Goal: Enable users to customize dashboard layouts by dragging/resizing cards, with persistence to PostgreSQL backend
@@ -67,7 +58,7 @@
      - [ ] Task 9: Polish and Edge Cases
      - [ ] Task 10: Testing and Documentation
 
-2. **Response Caching Middleware** (TBD, 0/8 tasks (2 weeks ago))
+2. **Response Caching Middleware** (TBD, 0/8 tasks (3 weeks ago))
    - File: `tasks-0047-response-caching-middleware.md`
    - Created: 2025-11-11
    - Tasks:
