@@ -96,9 +96,18 @@
 ## Test Evidence
 
 ```
-Strategy stored: GOOGL_Reversal_2025Q4
-Type: reversal
-Expected Sharpe: 4.2432
+Strategy stored: GOOGL_Value_2025Q4
+Type: value
+Expected Sharpe: 4.24
+fundamental_score: 83 (matches watchlist)
 company_health: GOOD
-research_quality: high
+valuation_tier: undervalued
+growth_tier: stable
 ```
+
+**Verified pillar scores match watchlist UI exactly:**
+- VALUATION: 90 ✅
+- GROWTH: 60 ✅
+- HEALTH: 100 ✅
+- SENTIMENT: 100 ✅
+- OVERALL: 83 ✅
