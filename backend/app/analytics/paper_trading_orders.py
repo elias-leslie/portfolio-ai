@@ -309,23 +309,39 @@ def create_paper_trade_from_strategy_signal(
         "strategy_id": strategy_id,
     }
 
-    # Also create an agent_ideas record (required for foreign key)
+    # Create agent_run record first (required for FK)
+    agent_run_id = f"strategy:{strategy_id}"
     thesis = f"Auto-generated from strategy signal. Strength: {signal_strength}/10. "
     if signal_reasons:
         thesis += "Reasons: " + ", ".join(signal_reasons[:3])
 
     try:
-        # Create agent_ideas record first
+        # Check if agent_run already exists
+        with storage.connection() as conn:
+            exists = conn.execute(
+                "SELECT 1 FROM agent_runs WHERE id = %s", (agent_run_id,)
+            ).fetchone()
+            if not exists:
+                conn.execute(
+                    """
+                    INSERT INTO agent_runs (id, session_id, agent_type, status, started_at)
+                    VALUES (%s, %s, %s, %s, %s)
+                    """,
+                    (agent_run_id, f"strategy-signal-{strategy_id[:8]}", "strategy_signal", "completed", now),
+                )
+                conn.commit()
+
+        # Create agent_ideas record
         storage.insert_dict(
             "agent_ideas",
             {
                 "id": idea_id,
-                "agent_run_id": f"strategy:{strategy_id}",
+                "agent_run_id": agent_run_id,
                 "idea_type": "buy",
                 "title": f"Buy {symbol}",
                 "thesis": thesis,
                 "action": f"Buy {symbol}",
-                "confidence_score": signal_strength * 10,  # Convert 0-10 to 0-100
+                "confidence_score": signal_strength / 10.0,  # Convert 0-10 to 0.0-1.0
                 "risk_level": "medium",
                 "status": "pending",
                 "created_at": now.isoformat(),

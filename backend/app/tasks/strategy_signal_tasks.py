@@ -8,6 +8,7 @@ Schedule: Daily at 15:00 UTC (after US market close)
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, date, datetime
 from typing import Any
 
@@ -56,27 +57,20 @@ def _fetch_current_market_data(conn: Any, symbol: str) -> dict[str, Any] | None:
     current = result[0]
     previous = result[1]
 
-    # Get fundamentals (table may not exist in all environments)
-    fundamentals = None
-    table_exists = conn.execute(
+    # Get fundamentals from reference_cache (stored in payload JSONB)
+    fundamentals_row = conn.execute(
         """
-        SELECT EXISTS (
-            SELECT FROM information_schema.tables
-            WHERE table_name = 'stock_fundamentals'
-        )
-        """
-    ).fetchone()[0]
-    if table_exists:
-        fundamentals = conn.execute(
-            """
-            SELECT profit_margin, revenue_growth, debt_to_equity
-            FROM stock_fundamentals
-            WHERE symbol = %s
-            ORDER BY fetched_at DESC
-            LIMIT 1
-            """,
-            (symbol,),
-        ).fetchone()
+        SELECT payload->>'profit_margin' as profit_margin,
+               payload->>'revenue_growth' as revenue_growth,
+               payload->>'debt_to_equity' as debt_to_equity
+        FROM reference_cache
+        WHERE ticker = %s
+        ORDER BY as_of_date DESC
+        LIMIT 1
+        """,
+        (symbol,),
+    ).fetchone()
+    fundamentals = fundamentals_row if fundamentals_row else None
 
     # Get news sentiment
     sentiment = conn.execute(
@@ -111,7 +105,7 @@ def _fetch_current_market_data(conn: Any, symbol: str) -> dict[str, Any] | None:
         "macd": float(current[6]) if current[6] else None,
         "macd_signal": float(current[7]) if current[7] else None,
         "volume_avg_20": float(current[8]) if current[8] else None,
-        "data_date": current[9],
+        "data_date": current[9].isoformat() if current[9] else None,
         "profit_margin": float(fundamentals[0]) if fundamentals and fundamentals[0] else None,
         "revenue_growth": float(fundamentals[1]) if fundamentals and fundamentals[1] else None,
         "debt_to_equity": float(fundamentals[2]) if fundamentals and fundamentals[2] else None,
@@ -227,8 +221,8 @@ def store_signal(conn: Any, signal_data: dict[str, Any]) -> str | None:
                 date.today(),
                 signal_data["signal_type"],
                 signal_data["signal_strength"],
-                signal_data["reasons"],
-                signal_data["market_data"],
+                signal_data["reasons"],  # PostgreSQL handles list -> TEXT[]
+                json.dumps(signal_data["market_data"]),  # JSONB requires JSON string
             ),
         ).fetchone()
         return str(result[0]) if result else None
