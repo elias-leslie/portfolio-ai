@@ -7,6 +7,9 @@ Phase B: Advanced order types (limit, stop), fill simulation with slippage.
 VISION.md P2 Compliance:
 - Max 5% of portfolio per position
 - Max 20% exposure per sector
+
+GAP-023 Compliance:
+- Portfolio-level trading halt at -10% drawdown
 """
 
 from __future__ import annotations
@@ -16,6 +19,7 @@ from typing import TYPE_CHECKING, Literal, TypedDict
 from app.analytics.cash_manager import CashManager
 from app.analytics.transaction_logger import TransactionLogger
 from app.logging_config import get_logger
+from app.portfolio.drawdown import check_portfolio_drawdown_halt
 from app.portfolio.price_fetcher import PriceDataFetcher
 
 if TYPE_CHECKING:
@@ -120,6 +124,20 @@ class OrderExecutor:
 
         # Execute order based on action
         if action == "buy":
+            # GAP-023: Check portfolio drawdown halt (no new buys at -10% drawdown)
+            can_trade, halt_reason = check_portfolio_drawdown_halt(self.storage, account_id)
+            if not can_trade:
+                return {
+                    "filled": False,
+                    "ticker": ticker,
+                    "action": action,
+                    "shares": shares,
+                    "price": current_price,
+                    "amount": amount,
+                    "cash_before": cash_before,
+                    "error": halt_reason or "Trading halted due to portfolio drawdown",
+                }
+
             # Check sufficient cash
             if not self.cash_manager.check_sufficient_cash(account_id, amount):
                 return {

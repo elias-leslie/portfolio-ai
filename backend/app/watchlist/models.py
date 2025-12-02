@@ -94,6 +94,10 @@ class SignalInputsDict(TypedDict, total=False):
     # Analyst component fields (Task 0074)
     recommendation_mean: float | None  # 1.0-5.0 (1=strong buy, 5=sell)
     analyst_buy_pct: float | None  # 0.0-1.0 (0.75 = 75% buy)
+    # Options flow fields (GAP-031)
+    options_call_pct: float | None  # 0.0-1.0 (0.55 = 55% calls, bullish)
+    options_near_term_pct: float | None  # 0.0-1.0 (high = speculative)
+    ticker_in_active_sector: bool | None  # True if sector has high options activity
 
 
 class NormalizedSignalInputsDict(TypedDict):
@@ -117,6 +121,10 @@ class NormalizedSignalInputsDict(TypedDict):
     # Analyst component fields (Task 0074) - can be None if data unavailable
     recommendation_mean: float | None
     analyst_buy_pct: float | None
+    # Options flow fields (GAP-031) - can be None if data unavailable
+    options_call_pct: float | None
+    options_near_term_pct: float | None
+    ticker_in_active_sector: bool | None
 
 
 class TradingStyleDict(TypedDict):

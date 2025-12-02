@@ -636,4 +636,19 @@ def get_beat_schedule() -> dict[str, object]:
             # - Fixes GAP-020: Wrong portfolio risk math using weighted average
             # - Results cached in portfolio_covariance table for 24 hours
         },
+        # ============================================================================
+        # PORTFOLIO DRAWDOWN TRACKING (GAP-023)
+        # ============================================================================
+        "save-portfolio-snapshots-daily": {
+            "task": "save_portfolio_snapshots",
+            "schedule": crontab(hour=21, minute=30),  # Daily at 21:30 UTC (4:30 PM ET)
+            "options": {"expires": 1800},
+            # Notes:
+            # - Runs daily at 21:30 UTC (30 min after market close at 4 PM ET)
+            # - Saves equity snapshots for all portfolio accounts
+            # - Tracks peak equity and calculates drawdown from peak
+            # - Enables portfolio-level trading halt at -10% drawdown
+            # - Historical snapshots enable equity curve visualization
+            # - Fixes GAP-023: No drawdown tracking
+        },
     }

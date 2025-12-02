@@ -122,6 +122,10 @@ def _extract_signal_inputs(inputs: SignalInputsDict) -> NormalizedSignalInputsDi
         # Analyst component fields (Task 0074)
         "recommendation_mean": inputs.get("recommendation_mean"),
         "analyst_buy_pct": inputs.get("analyst_buy_pct"),
+        # Options flow fields (GAP-031)
+        "options_call_pct": inputs.get("options_call_pct"),
+        "options_near_term_pct": inputs.get("options_near_term_pct"),
+        "ticker_in_active_sector": inputs.get("ticker_in_active_sector"),
     }
 
 
@@ -247,6 +251,59 @@ def _calculate_news_sentiment_score(news_sentiment: float) -> tuple[int, list[st
     return scaled_score, reasons
 
 
+def _calculate_options_flow_score(
+    options_call_pct: float | None,
+    options_near_term_pct: float | None,
+    ticker_in_active_sector: bool | None,
+) -> tuple[int, list[str]]:
+    """Calculate 0-4 point options flow sentiment score (GAP-031).
+
+    Options flow provides insight into institutional positioning:
+    - Call % > 55%: Bullish sentiment (institutions buying upside)
+    - Call % < 45%: Bearish sentiment (put buying for protection/bet)
+    - Near-term concentration: Speculative/event-driven
+
+    Args:
+        options_call_pct: Percentage of call volume (0.0-1.0)
+        options_near_term_pct: Percentage of near-term options (0.0-1.0)
+        ticker_in_active_sector: True if ticker's sector has high options volume
+
+    Returns:
+        (score, reasons) where score is 0-4 based on options sentiment
+    """
+    if options_call_pct is None:
+        return 0, []
+
+    score = 0
+    reasons: list[str] = []
+
+    # Call/put ratio component (0-3 points)
+    # >58%: Strong bullish (institutional upside bets)
+    # 55-58%: Moderate bullish
+    # 45-55%: Neutral (no signal)
+    # <45%: Bearish (put buying)
+    if options_call_pct >= 0.58:
+        score += 3
+        reasons.append(f"Options flow bullish: {options_call_pct:.0%} calls")
+    elif options_call_pct >= 0.55:
+        score += 2
+        reasons.append(f"Options flow moderately bullish: {options_call_pct:.0%} calls")
+    elif options_call_pct >= 0.52:
+        score += 1
+        reasons.append(f"Options flow slightly bullish: {options_call_pct:.0%} calls")
+    elif options_call_pct < 0.45:
+        # Bearish signal - don't add points, could subtract in AVOID logic
+        reasons.append(f"Options flow bearish: {options_call_pct:.0%} calls")
+
+    # Sector activity bonus (0-1 point)
+    # Ticker in active sector gets a conviction boost
+    if ticker_in_active_sector:
+        score += 1
+        reasons.append("Sector has high options activity")
+
+    return score, reasons
+
+
 def _check_avoid_signals(data: NormalizedSignalInputsDict) -> tuple[int, list[str]]:
     """Check for AVOID signals and count negative indicators.
 
@@ -366,13 +423,14 @@ def _calculate_signal_strength(confirmations: int) -> int:
 def classify_signal(inputs: SignalInputsDict) -> SignalClassification:
     """Classify watchlist signal as BUY, HOLD, or AVOID based on multiple indicators.
 
-    NEW Scoring System (Task 0074):
+    Scoring System (Task 0074 + GAP-031):
     - Technical signals: 0-6 points (from _check_buy_signals)
     - Fundamental component: -3 to +5 points (profit margin, revenue growth, debt)
     - Analyst component: 0-5 points (recommendation mean, buy %)
     - News sentiment: 0-5 points (scaled from -1..+1)
+    - Options flow: 0-4 points (call %, sector activity) [GAP-031]
 
-    Total range: -3 to +21 confirmations → 0-10 strength
+    Total range: -3 to +25 confirmations → 0-10 strength
 
     Args:
         inputs: Dictionary containing:
@@ -437,6 +495,15 @@ def classify_signal(inputs: SignalInputsDict) -> SignalClassification:
     news_score, news_reasons = _calculate_news_sentiment_score(data["news_sentiment"])
     confirmations += news_score
     buy_reasons.extend(news_reasons)
+
+    # Add options flow component score (GAP-031)
+    options_score, options_reasons = _calculate_options_flow_score(
+        options_call_pct=data["options_call_pct"],
+        options_near_term_pct=data["options_near_term_pct"],
+        ticker_in_active_sector=data["ticker_in_active_sector"],
+    )
+    confirmations += options_score
+    buy_reasons.extend(options_reasons)
 
     # Calculate signal strength using expanded range
     strength_value = _calculate_signal_strength(confirmations)

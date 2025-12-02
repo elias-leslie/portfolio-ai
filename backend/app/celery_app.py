@@ -72,6 +72,7 @@ from app.tasks import (  # noqa: E402, F401
     ml_training_tasks,
     news_profiling_tasks,
     news_tasks,
+    portfolio_tasks,
     reference_tasks,
     watchlist_tasks,
     workflow_tasks,
