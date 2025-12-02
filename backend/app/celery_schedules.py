@@ -623,6 +623,15 @@ def get_beat_schedule() -> dict[str, object]:
             # - Archives strategies with <70% expected performance for >30 days
             # - Updates strategy_performance table with daily metrics
         },
+        "auto-promote-strategies": {
+            "task": "app.tasks.strategy_monitoring_tasks.auto_promote_strategies",
+            "schedule": crontab(hour=4, minute=15),  # Daily at 04:15 UTC (after evaluation)
+            "options": {"expires": 3600},
+            # Notes:
+            # - Auto-promotes testing strategies to active after validation
+            # - Criteria: 3+ days old, expected Sharpe >= 1.0, no blocking issues
+            # - Runs after evaluate-strategy-performance to use fresh data
+        },
         "generate-weekly-strategies": {
             "task": "app.tasks.strategy_monitoring_tasks.weekly_strategy_generation",
             "schedule": crontab(hour=5, minute=0, day_of_week=0),  # Sunday 05:00 UTC
@@ -648,7 +657,7 @@ def get_beat_schedule() -> dict[str, object]:
             "schedule": crontab(hour=21, minute=45),  # Daily at 21:45 UTC (after signals)
             "options": {"expires": 3600},
             # Notes:
-            # - Creates paper trades from BUY signals with strength >= 7
+            # - Creates paper trades from BUY signals with strength >= 5
             # - Skips if open position already exists for strategy+symbol
             # - Links trades to strategies via strategy_id
             # - Runs 15 minutes after signal generation to ensure signals are stored

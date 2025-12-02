@@ -341,7 +341,7 @@ def generate_signal_for_strategy_task(strategy_id: str, symbol: str) -> dict[str
 
 
 @celery_app.task(name="app.tasks.strategy_signal_tasks.auto_paper_trade_from_signals")  # type: ignore[misc]
-def auto_paper_trade_from_signals(min_signal_strength: int = 7) -> dict[str, Any]:
+def auto_paper_trade_from_signals(min_signal_strength: int = 5) -> dict[str, Any]:
     """Create paper trades from BUY signals.
 
     Schedule: Daily at 21:45 UTC (after signals generated)

@@ -7,7 +7,7 @@ Runs daily to track live performance vs expected metrics.
 from __future__ import annotations
 
 import asyncio
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Literal
 
@@ -275,6 +275,110 @@ def _calculate_rolling_metrics(
         "sharpe_ratio_30d": sharpe_ratio_30d,
         "max_drawdown_30d": max_drawdown,
     }
+
+
+@celery_app.task(name="app.tasks.strategy_monitoring_tasks.auto_promote_strategies")  # type: ignore[misc]
+def auto_promote_strategies(
+    min_days: int = 3,
+    min_sharpe: float = 1.0,
+) -> dict[str, Any]:
+    """Auto-promote testing strategies that meet validation criteria.
+
+    Schedule: Daily at 04:15 UTC (after performance evaluation)
+
+    Criteria for promotion:
+    1. Strategy in 'testing' status for >= min_days
+    2. Expected Sharpe ratio >= min_sharpe
+    3. No blocking issues (negative Sharpe, etc.)
+
+    Args:
+        min_days: Minimum days in testing before promotion (default 3)
+        min_sharpe: Minimum expected Sharpe to promote (default 1.0)
+
+    Returns:
+        Summary dict with promotion results
+    """
+    logger.info("Starting auto-promotion of validated strategies", min_days=min_days, min_sharpe=min_sharpe)
+
+    try:
+        strategy_storage = get_strategy_storage()
+        testing_strategies = strategy_storage.list_strategies(status="testing")
+
+        if not testing_strategies:
+            logger.info("No testing strategies to evaluate")
+            return {
+                "status": "completed",
+                "strategies_evaluated": 0,
+                "strategies_promoted": 0,
+                "details": [],
+            }
+
+        logger.info(f"Evaluating {len(testing_strategies)} testing strategies for promotion")
+
+        results = []
+        promoted_count = 0
+
+        for strategy in testing_strategies:
+            try:
+                # Check age (handle timezone-aware datetimes)
+                now = datetime.now(UTC)
+                created = strategy.created_at
+                if created and created.tzinfo is None:
+                    created = created.replace(tzinfo=UTC)
+                days_since_creation = (now - created).days if created else 0
+
+                if days_since_creation < min_days:
+                    logger.debug(f"Skipping {strategy.name}: only {days_since_creation} days old (need {min_days})")
+                    continue
+
+                # Check expected Sharpe
+                expected_sharpe = float(strategy.expected_sharpe or 0.0)
+
+                if expected_sharpe < min_sharpe:
+                    logger.debug(f"Skipping {strategy.name}: Sharpe {expected_sharpe:.2f} < {min_sharpe}")
+                    continue
+
+                # Check for blocking issues (negative Sharpe = likely bad strategy)
+                if expected_sharpe < 0:
+                    logger.debug(f"Skipping {strategy.name}: negative expected Sharpe")
+                    continue
+
+                # All criteria met - promote!
+                strategy_storage.activate_strategy(strategy.id)
+                promoted_count += 1
+                results.append(f"Promoted {strategy.name} (Sharpe={expected_sharpe:.2f}, age={days_since_creation}d)")
+
+                logger.info(
+                    "Strategy auto-promoted",
+                    strategy_id=strategy.id,
+                    strategy_name=strategy.name,
+                    expected_sharpe=expected_sharpe,
+                    days_since_creation=days_since_creation,
+                )
+
+            except Exception as e:
+                logger.exception(
+                    "Failed to evaluate strategy for promotion",
+                    strategy_id=strategy.id,
+                    error=str(e),
+                )
+
+        logger.info(
+            "Auto-promotion complete",
+            strategies_evaluated=len(testing_strategies),
+            strategies_promoted=promoted_count,
+        )
+
+        return {
+            "status": "completed",
+            "strategies_evaluated": len(testing_strategies),
+            "strategies_promoted": promoted_count,
+            "details": results,
+        }
+
+    except Exception as e:
+        logger.exception("Auto-promotion failed", error=str(e))
+        return {"status": "failed", "error": str(e)}
 
 
 @celery_app.task(name="app.tasks.strategy_monitoring_tasks.weekly_strategy_generation")  # type: ignore[misc]
