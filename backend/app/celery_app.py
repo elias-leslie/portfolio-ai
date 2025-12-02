@@ -75,6 +75,7 @@ from app.tasks import (  # noqa: E402, F401
     portfolio_tasks,
     reference_tasks,
     strategy_monitoring_tasks,
+    strategy_signal_tasks,
     watchlist_tasks,
     workflow_tasks,
 )

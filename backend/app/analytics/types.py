@@ -32,6 +32,7 @@ class TradeRecordDict(TypedDict, total=False):
     agent_run_id: str
     agent_type: str
     started_at: datetime  # datetime from database
+    strategy_id: str | None  # Optional - links to strategies table
 
 
 class PaperTradeDict(TypedDict, total=False):
@@ -57,6 +58,7 @@ class PaperTradeDict(TypedDict, total=False):
     max_adverse_pct: float
     created_at: datetime  # datetime from database
     updated_at: datetime  # datetime from database
+    strategy_id: str | None  # Optional - links to strategies table
 
 
 class TradeDict(TypedDict, total=False):

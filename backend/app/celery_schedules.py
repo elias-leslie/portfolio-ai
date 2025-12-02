@@ -633,6 +633,26 @@ def get_beat_schedule() -> dict[str, object]:
             # - Runs strategy_research_workflow for each symbol
             # - Commits generated strategies to git with research context
         },
+        "generate-daily-strategy-signals": {
+            "task": "app.tasks.strategy_signal_tasks.generate_daily_strategy_signals",
+            "schedule": crontab(hour=21, minute=30),  # Daily at 21:30 UTC (after US market close)
+            "options": {"expires": 3600},
+            # Notes:
+            # - Generates trading signals for all active strategies
+            # - Evaluates current market data against strategy parameters
+            # - Stores signals in strategy_signals table
+            # - BUY signals can trigger auto paper trading (if enabled)
+        },
+        "auto-paper-trade-from-signals": {
+            "task": "app.tasks.strategy_signal_tasks.auto_paper_trade_from_signals",
+            "schedule": crontab(hour=21, minute=45),  # Daily at 21:45 UTC (after signals)
+            "options": {"expires": 3600},
+            # Notes:
+            # - Creates paper trades from BUY signals with strength >= 7
+            # - Skips if open position already exists for strategy+symbol
+            # - Links trades to strategies via strategy_id
+            # - Runs 15 minutes after signal generation to ensure signals are stored
+        },
         # ============================================================================
         # PORTFOLIO RISK ANALYTICS (GAP-020)
         # ============================================================================

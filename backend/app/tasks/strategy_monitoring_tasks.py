@@ -168,33 +168,15 @@ def _calculate_rolling_metrics(
 ) -> dict[str, Any]:
     """Calculate rolling performance metrics for a strategy.
 
-    Note: Currently there's no direct link between strategies and paper trades
-    in the database schema. This function returns zeros until a strategy_id
-    column is added to idea_outcomes or paper_trade_transactions.
-
-    TODO (Task 0085): Add strategy_id column to idea_outcomes table to enable
-    proper performance tracking. Until then, strategies can't be linked to trades.
-
     Args:
         conn: Database connection
         strategy_id: Strategy UUID
         window_days: Rolling window size (default 30 days)
 
     Returns:
-        Dict with calculated metrics (zeros until schema extended)
+        Dict with calculated metrics
     """
     cutoff_date = date.today() - timedelta(days=window_days)
-
-    # NOTE: The original query joined paper_trades table which doesn't exist.
-    # The correct schema is:
-    # - paper_trade_transactions.trade_id -> idea_outcomes.idea_id
-    # - But there's no strategy_id link from idea_outcomes to strategy_definitions
-    #
-    # Until the schema is extended, we query idea_outcomes directly but can't
-    # filter by strategy_id. Return zeros for now.
-    #
-    # Future schema addition needed:
-    # ALTER TABLE idea_outcomes ADD COLUMN strategy_id UUID REFERENCES strategy_definitions(id);
 
     try:
         result = conn.execute(
@@ -205,9 +187,10 @@ def _calculate_rolling_metrics(
             FROM idea_outcomes o
             WHERE o.realized_pnl IS NOT NULL
               AND o.created_at >= %s
+              AND o.strategy_id = %s
             ORDER BY o.created_at
             """,
-            [cutoff_date],
+            [cutoff_date, strategy_id],
         )
         rows = result.fetchall()
     except Exception as e:

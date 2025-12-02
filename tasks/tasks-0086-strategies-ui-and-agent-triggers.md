@@ -1,24 +1,34 @@
-# Task List: Strategies UI & Agent Trigger Buttons
+# Task List: Strategies UI & Autonomous Trading Pipeline
 
 **Source**: User request via /task_it
 **Complexity**: Complex
-**Effort**: HIGH (6-8 hours)
+**Effort**: HIGH (20-25 hours total)
 **Environment**: Local Dev (auto-detected)
 **Created**: 2025-12-02 13:15
+**Extended**: 2025-12-02 15:00 (added autonomous trading pipeline)
 
 ---
 
 ## Summary
 
-**Goal**: Add visibility into generated strategies and give users control to trigger autonomous agent workflows on-demand.
+**Goal**: Build a production-quality autonomous strategy discovery and validation system.
 
-**Approach**:
-1. Create new `/strategies` page showing all generated strategies with full metrics
-2. Replace watchlist "Run Backtest" + "Generate AI Idea" buttons with single "Run AI Agent" button
+**Phase A (COMPLETE)**: UI & Manual Triggers
+1. Create `/strategies` page showing all generated strategies
+2. Add "Run AI Agent" button on watchlist to trigger strategy generation
 3. Add global trigger buttons on backtest/trading pages
-4. Deprecate Ideas system in favor of Strategies (no deletion, just documentation)
 
-**Scope Discovery**: Required - need to understand existing UI patterns and API structure
+**Phase B (NEW)**: Autonomous Trading Pipeline
+4. Schema migration: Link strategies to trades (strategy_id FK)
+5. Signal generation service: Daily signals for active strategies
+6. Auto paper trading: Create trades when signals fire
+7. Performance tracking: Fix broken metrics calculation
+8. Manual trade linking: Allow linking portfolio positions to strategies
+9. Validation dashboard: Show expected vs actual performance
+
+**End State**: User can sit back while AI agents discover/test/validate strategies. When a strategy performs well, user steps in to execute live trades and track them.
+
+**Scope Discovery**: Very thorough exploration completed - see findings below
 
 ---
 
@@ -174,3 +184,133 @@
 **Docs:**
 - `docs/core/API_REFERENCE.md`
 - `docs/core/OPERATIONS.md`
+
+---
+
+## Exploration Findings (2025-12-02)
+
+### What EXISTS and Works:
+| Component | Location | Status |
+|-----------|----------|--------|
+| Signal classifier | `watchlist/signal_classifier.py` | ✅ Full BUY/HOLD/AVOID with 0-10 strength |
+| Trading style classifier | `watchlist/signal_classifier.py:22` | ✅ Index/Trend/Value/Swing/Event |
+| Paper trade system | `analytics/order_executor.py` | ✅ Full with OrderExecutor, cash mgmt |
+| Strategy storage | `strategies/storage.py` | ✅ CRUD for strategy_definitions |
+| Performance table | `migrations/047_strategy_definitions.sql` | ✅ strategy_performance exists |
+| Evaluation task | `tasks/strategy_monitoring_tasks.py` | ⚠️ Exists but returns zeros |
+| Walk-forward optimization | `strategies/optimizer.py` | ✅ Works during generation |
+
+### What's MISSING (Schema Gaps):
+| Table | Missing Column | Impact |
+|-------|---------------|--------|
+| `idea_outcomes` | `strategy_id UUID` | Can't track which strategy created a trade |
+| `portfolio_positions` | `strategy_id UUID` | Can't link manual trades to strategies |
+| `backtest_runs` | `strategy_id UUID` | Can't backtest stored strategies by ID |
+
+### What's MISSING (Functionality):
+| Feature | Status | Needed |
+|---------|--------|--------|
+| Daily signal generation | ❌ None | Task to evaluate active strategies daily |
+| Auto paper trade creation | ❌ None | Create trades when signals fire |
+| Performance calculation | ⚠️ Broken | `_calculate_rolling_metrics` returns zeros |
+| Strategy → Trade linking | ❌ None | Pass strategy_id when creating trades |
+| Validation comparison | ❌ None | Compare expected vs actual Sharpe |
+
+### Key Files to Modify:
+```
+backend/migrations/052_strategy_trade_linking.sql  (NEW)
+backend/app/tasks/strategy_signal_tasks.py         (NEW)
+backend/app/tasks/strategy_monitoring_tasks.py     (FIX _calculate_rolling_metrics)
+backend/app/analytics/order_executor.py            (ADD strategy_id param)
+backend/app/api/paper_trading.py                   (ADD strategy_id param)
+backend/app/api/portfolio.py                       (ADD strategy_id param)
+frontend/app/strategies/page.tsx                   (ADD validation section)
+```
+
+---
+
+## Phase B Tasks: Autonomous Trading Pipeline
+
+### 7.0 Schema Migration: Strategy-Trade Linking
+
+- [x] 7.1 Create migration `052_strategy_trade_linking.sql`
+  - Add `strategy_id UUID` to `idea_outcomes` table
+  - Add `strategy_id UUID` to `portfolio_positions` table
+  - Add `strategy_definition_id UUID` to `backtest_runs` table
+  - Create `strategy_signals` table for daily signal storage
+  - Add indexes for efficient lookups
+- [x] 7.2 Run migration and verify schema
+  - Applied migration via Python script
+  - Verified all columns exist
+- [x] 7.3 Update Python models
+  - Add strategy_id to TradeRecordDict, PaperTradeDict (types.py)
+  - Add strategy_id to Position model (models.py)
+  - Add strategy_id to PaperTradeResponse (paper_trades.py)
+
+### 8.0 Signal Generation Service
+
+- [x] 8.1 Create `strategy_signals` table
+  - Created in migration 052 with: strategy_id, symbol, signal_date, signal_type, strength, reasons, market_data
+- [x] 8.2 Create `generate_strategy_signals()` function
+  - Created in strategy_signal_tasks.py
+  - Fetches current market data, builds SignalInputsDict, calls classify_signal()
+- [x] 8.3 Create Celery task `daily_strategy_signals`
+  - Scheduled: Daily at 21:30 UTC (after market close)
+  - Generates signals for all active strategies
+- [x] 8.4 Create API endpoint `GET /api/strategies/{id}/signal`
+  - Returns current signal with type, strength, reasons, market_data
+  - Also added POST /api/strategies/{id}/signal/generate for on-demand
+- [ ] 8.5 Add signal column to strategies list UI (DEFERRED - backend complete)
+
+### 9.0 Auto Paper Trading
+
+- [x] 9.1 Create `create_paper_trade_from_strategy_signal()` function
+  - Created in paper_trading_orders.py
+  - Creates paper trade linked to strategy via strategy_id
+- [x] 9.2 Update paper trade creation to accept strategy_id
+  - Updated build_paper_trade_record() with strategy_id parameter
+  - Updated create_paper_trade_from_idea() with strategy_id parameter
+- [x] 9.3 Create Celery task `auto_paper_trade_from_signals`
+  - Scheduled: Daily at 21:45 UTC (after signals)
+  - Creates trades for BUY signals with strength >= 7
+  - Skips if open position already exists
+- [ ] 9.4 Update paper trade UI to show strategy name (DEFERRED - backend complete)
+
+### 10.0 Performance Tracking Fix
+
+- [x] 10.1 Fix `_calculate_rolling_metrics()` query
+  - Added WHERE strategy_id = %s filter
+  - Now returns actual metrics instead of zeros
+- [x] 10.2 Update `evaluate_strategy_performance()` task
+  - Now calculates real metrics from linked trades
+  - Existing auto-archive logic will work once trades are linked
+- [ ] 10.3 Add performance comparison to strategy detail (DEFERRED - API exists)
+- [ ] 10.4 Add performance history chart (DEFERRED)
+
+### 11.0 Manual Trade Linking
+
+- [x] 11.1 Update portfolio position API
+  - Added optional `strategy_id` parameter to POST /api/portfolio/position
+  - Added strategy_id and strategy_name to PositionResponse
+- [ ] 11.2 Update portfolio position UI (DEFERRED - backend complete)
+- [ ] 11.3 Track manual trades in strategy performance (FUTURE - requires UI)
+
+### 12.0 Validation Dashboard (DEFERRED)
+
+- [ ] 12.1 Add "Performance" tab to /strategies page
+- [ ] 12.2 Add strategy comparison view
+- [ ] 12.3 Add auto-promotion rules display
+
+---
+
+## Phase B Verification
+
+- [x] Signals: Active strategies generate daily signals (21:30 UTC task)
+- [x] Paper Trades: BUY signals create paper trades automatically (21:45 UTC task)
+- [x] Performance: Actual metrics calculated from linked trades (query fixed)
+- [ ] Comparison: Expected vs actual visible in UI (DEFERRED - API ready)
+- [x] Manual Linking: Can link portfolio positions to strategies (API ready)
+- [x] Auto-Archive: Underperforming strategies auto-archived (existing logic works)
+- [x] E2E: Full pipeline from generation → signal → trade → performance tracking
+
+**Backend Complete**: All backend infrastructure is in place. UI updates deferred.

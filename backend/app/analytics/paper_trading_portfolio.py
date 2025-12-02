@@ -42,7 +42,8 @@ def fetch_open_trades(storage: PortfolioStorage) -> list[PaperTradeDict]:
             current_return_pct,
             max_favorable_pct,
             max_adverse_pct,
-            created_at
+            created_at,
+            strategy_id
         FROM idea_outcomes
         WHERE status = 'open'
     """

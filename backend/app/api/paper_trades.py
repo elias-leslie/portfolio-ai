@@ -65,6 +65,8 @@ class PaperTradeResponse(BaseModel):
     backtest_sharpe: float | None = None
     backtest_win_rate: float | None = None
     backtest_max_drawdown: float | None = None
+    # Strategy linkage
+    strategy_id: str | None = None
 
 
 class PaperTradesListResponse(BaseModel):
@@ -164,7 +166,8 @@ async def list_paper_trades(
                 io.max_adverse_pct,
                 ai.thesis,
                 ai.confidence_score,
-                ai.risk_level
+                ai.risk_level,
+                io.strategy_id
             FROM idea_outcomes io
             LEFT JOIN agent_ideas ai ON io.idea_id = ai.id
             {status_filter}
@@ -208,6 +211,7 @@ async def list_paper_trades(
                 thesis=str(row[18]) if row[18] else None,
                 confidence_score=float(row[19]) if row[19] is not None else None,
                 risk_level=str(row[20]) if row[20] else None,
+                strategy_id=str(row[21]) if row[21] else None,
             )
             for row in rows
         ]

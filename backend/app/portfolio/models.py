@@ -30,6 +30,7 @@ class Position(BaseModel):
     shares: float
     cost_basis: float
     position_type: Literal["long", "short"]
+    strategy_id: str | None = None  # Optional - links to strategies table
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
 

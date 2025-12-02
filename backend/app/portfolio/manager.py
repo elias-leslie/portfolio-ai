@@ -90,6 +90,7 @@ class PortfolioManager:
         shares: float,
         cost_basis: float,
         position_type: Literal["long", "short"] = "long",
+        strategy_id: str | None = None,
     ) -> Position:
         """Add a new position to an account.
 
@@ -99,6 +100,7 @@ class PortfolioManager:
             shares: Number of shares
             cost_basis: Cost basis per share
             position_type: 'long' or 'short'
+            strategy_id: Optional strategy ID to link this position to
 
         Returns:
             Created Position instance
@@ -113,6 +115,7 @@ class PortfolioManager:
             shares=shares,
             cost_basis=cost_basis,
             position_type=position_type,
+            strategy_id=strategy_id,
             created_at=now,
             updated_at=now,
         )

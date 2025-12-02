@@ -486,3 +486,114 @@ async def get_strategy_performance(strategy_id: str) -> dict[str, Any]:
         raise HTTPException(
             status_code=500, detail=f"Failed to get strategy performance: {e!s}"
         ) from e
+
+
+@router.get("/{strategy_id}/signal", response_model=dict[str, Any])
+async def get_strategy_signal(strategy_id: str) -> dict[str, Any]:
+    """Get current trading signal for a strategy.
+
+    Args:
+        strategy_id: Strategy UUID
+
+    Returns:
+        Current signal with type, strength, reasons, and timestamp
+    """
+    from app.storage.connection import get_connection_manager
+    from app.tasks.strategy_signal_tasks import generate_signal_for_strategy
+
+    try:
+        storage = get_strategy_storage()
+        strategy = storage.get_strategy_by_id(strategy_id)
+
+        if not strategy:
+            raise HTTPException(status_code=404, detail=f"Strategy {strategy_id} not found")
+
+        # Check for stored signal from today
+        conn_mgr = get_connection_manager()
+        with conn_mgr.connection() as conn:
+            result = conn.execute(
+                """
+                SELECT signal_type, signal_strength, reasons, market_data, created_at
+                FROM strategy_signals
+                WHERE strategy_id = %s
+                ORDER BY signal_date DESC
+                LIMIT 1
+                """,
+                (strategy_id,),
+            ).fetchone()
+
+        if result:
+            return {
+                "strategy_id": strategy_id,
+                "symbol": strategy.symbol,
+                "signal_type": result[0],
+                "signal_strength": result[1],
+                "reasons": result[2] or [],
+                "market_data": result[3] or {},
+                "generated_at": result[4].isoformat() if result[4] else None,
+                "source": "stored",
+            }
+
+        # Generate fresh signal if none stored
+        signal_data = generate_signal_for_strategy(strategy_id, strategy.symbol)
+
+        if "error" in signal_data:
+            raise HTTPException(status_code=400, detail=signal_data["error"])
+
+        signal_data["source"] = "generated"
+        return signal_data
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Failed to get strategy signal", strategy_id=strategy_id, error=str(e))
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get strategy signal: {e!s}"
+        ) from e
+
+
+@router.post("/{strategy_id}/signal/generate", response_model=dict[str, Any])
+async def generate_strategy_signal(strategy_id: str) -> dict[str, Any]:
+    """Force generate a new signal for a strategy (ignores stored signals).
+
+    Args:
+        strategy_id: Strategy UUID
+
+    Returns:
+        Newly generated signal
+    """
+    from app.storage.connection import get_connection_manager
+    from app.tasks.strategy_signal_tasks import generate_signal_for_strategy, store_signal
+
+    try:
+        storage = get_strategy_storage()
+        strategy = storage.get_strategy_by_id(strategy_id)
+
+        if not strategy:
+            raise HTTPException(status_code=404, detail=f"Strategy {strategy_id} not found")
+
+        # Generate fresh signal
+        signal_data = generate_signal_for_strategy(strategy_id, strategy.symbol)
+
+        if "error" in signal_data:
+            raise HTTPException(status_code=400, detail=signal_data["error"])
+
+        # Store the signal
+        conn_mgr = get_connection_manager()
+        with conn_mgr.connection() as conn:
+            signal_id = store_signal(conn, signal_data)
+            conn.commit()
+
+        signal_data["signal_id"] = signal_id
+        signal_data["source"] = "generated"
+        return signal_data
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(
+            "Failed to generate strategy signal", strategy_id=strategy_id, error=str(e)
+        )
+        raise HTTPException(
+            status_code=500, detail=f"Failed to generate strategy signal: {e!s}"
+        ) from e

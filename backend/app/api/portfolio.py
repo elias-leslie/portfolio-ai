@@ -53,6 +53,7 @@ class PositionCreate(BaseModel):
     shares: float = Field(..., description="Number of shares", gt=0)
     cost_basis: float = Field(..., description="Cost basis per share", gt=0)
     position_type: Literal["long", "short"] = Field(default="long", description="Position type")
+    strategy_id: str | None = Field(default=None, description="Optional strategy ID to link this position to")
 
 
 class PositionResponse(BaseModel):
@@ -64,6 +65,8 @@ class PositionResponse(BaseModel):
     shares: float
     cost_basis: float
     position_type: str
+    strategy_id: str | None = None
+    strategy_name: str | None = None
     created_at: str
     updated_at: str
     current_price: float | None = None
@@ -263,6 +266,7 @@ async def create_position(position: PositionCreate) -> PositionResponse:
         shares=position.shares,
         cost_basis=position.cost_basis,
         position_type=position.position_type,
+        strategy_id=position.strategy_id,
     )
 
     # Invalidate portfolio cache
@@ -283,6 +287,14 @@ async def create_position(position: PositionCreate) -> PositionResponse:
         gain = None
         gain_pct = None
 
+    # Get strategy name if linked
+    strategy_name = None
+    if created.strategy_id:
+        from app.strategies.storage import get_strategy_storage
+        strategy_storage = get_strategy_storage()
+        strategy = strategy_storage.get_strategy_by_id(created.strategy_id)
+        strategy_name = strategy.name if strategy else None
+
     return PositionResponse(
         id=created.id,
         account_id=created.account_id,
@@ -290,6 +302,8 @@ async def create_position(position: PositionCreate) -> PositionResponse:
         shares=created.shares,
         cost_basis=created.cost_basis,
         position_type=created.position_type,
+        strategy_id=created.strategy_id,
+        strategy_name=strategy_name,
         created_at=created.created_at.isoformat(),
         updated_at=created.updated_at.isoformat(),
         current_price=current_price,

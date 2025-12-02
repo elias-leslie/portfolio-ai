@@ -21,7 +21,18 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-(No active tasks)
+1. **Strategies UI & Autonomous Trading Pipeline** (HIGH, Phase B in progress)
+   - File: `tasks-0086-strategies-ui-and-agent-triggers.md`
+   - Phase A: ✅ COMPLETE (UI, triggers, buttons)
+   - Phase B: 🔄 IN PROGRESS (autonomous trading pipeline)
+   - Tasks:
+     - [x] Tasks 0-6: UI & Manual Triggers (COMPLETE)
+     - [ ] Task 7: Schema Migration (strategy_id linking)
+     - [ ] Task 8: Signal Generation Service
+     - [ ] Task 9: Auto Paper Trading
+     - [ ] Task 10: Performance Tracking Fix
+     - [ ] Task 11: Manual Trade Linking
+     - [ ] Task 12: Validation Dashboard
 
 ---
 
