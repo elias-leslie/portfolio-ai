@@ -85,14 +85,14 @@ analysis_types:
       - capability: intraday_data
         gap_id: GAP-001
         criticality: P1
-        current_state: "minute_bars table empty, no intraday ingestion"
+        current_state: "No intraday data ingestion (table removed as unimplemented)"
         desired_state: "1-min OHLCV, 30-day rolling history"
         why: "Enables day trading, realized volatility, breakouts. Unlocks 40% of strategies"
         data_sources:
           - polygon: "1-min bars, $200/mo"
           - alpaca: "1-min bars, free with account"
         tables:
-          - minute_bars
+          - minute_bars  # Table needs to be created when implementing
         freshness_requirement: "< 1 hour (intraday), < 1 day (daily refresh)"
         coverage_requirement: "All watchlist tickers"
 
@@ -106,7 +106,7 @@ analysis_types:
           - polygon: "Extended hours support"
           - alpaca: "Extended hours support"
         tables:
-          - minute_bars
+          - minute_bars  # Table needs to be created when implementing
         freshness_requirement: "< 1 hour"
         coverage_requirement: "All watchlist tickers"
 
