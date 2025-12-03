@@ -167,7 +167,7 @@ analysis_types:
           - fmp: "Earnings historical + surprise API"
           - finnhub: "Earnings surprises API"
         tables:
-          - earnings_surprises (new table)
+          - earnings_surprises
         freshness_requirement: "< 1 day after earnings"
         coverage_requirement: "80% of watchlist tickers (exclude new IPOs)"
 
