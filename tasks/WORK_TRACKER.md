@@ -19,20 +19,7 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Data Architecture Consolidation** (25% - 2/8 complete)
-   - File: `tasks-0004-data-architecture-consolidation.md`
-   - Started: 2025-12-03 (today)
-   - Last updated: PAUSED
-   - Next: Task 2 - Consolidate Hardcoded Symbol Lists ✅ COMPLETE
-   - Tasks:
-     - [x] Task 0: Scope Discovery (MANDATORY)
-     - [x] Task 1: Remove Deprecated CBOE Source ✅ COMPLETE
-     - [ ] Task 2: Consolidate Hardcoded Symbol Lists ✅ COMPLETE
-     - [ ] Task 3: Standardize Database Access Patterns
-     - [ ] Task 4: Refactor Large Upsert Method
-     - [ ] Task 5: Fix DRY Violation in Source Initialization
-     - [ ] Task 6: Add Missing Query Profiling (Optional Enhancement)
-     - [ ] Task 7: Standardize Placeholder Styles (Low Priority)
+(No active tasks)
 
 
 ---
@@ -49,7 +36,20 @@
 
 *Last 5 completed tasks*
 
-1. **Multi-LLM Disagreement Detection** ✅ COMPLETE (2025-12-03)
+1. **Data Architecture Consolidation** ✅ COMPLETE (2025-12-03)
+   - File: `tasks-0004-data-architecture-consolidation.md`
+   - Completed: 2025-12-03
+   - Duration: ~3 hours
+   - Summary: Database normalization with symbols table, FK constraints, and DRY improvements
+   - Key achievements:
+     - ✅ Created symbols table (44 symbols) with FK constraints on 10 tables
+     - ✅ Renamed ticker→symbol columns (migration 059-060)
+     - ✅ Consolidated source initialization (removed ~100 lines duplication)
+     - ✅ Removed deprecated CBOE source
+     - ✅ Fixed SQL column references for symbol standardization
+   - Impact: Referential integrity enforced, consistent naming, cleaner code
+
+2. **Multi-LLM Disagreement Detection** ✅ COMPLETE (2025-12-03)
    - File: `tasks-0003-multi-llm-disagreement-detection.md`
    - Completed: 2025-12-03
    - Duration: ~2 hours
