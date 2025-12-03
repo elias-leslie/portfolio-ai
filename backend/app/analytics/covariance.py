@@ -76,7 +76,7 @@ def calculate_daily_returns(
     # Use a simpler query that works correctly
     query = f"""
         SELECT
-            ticker,
+            symbol,
             date,
             close
         FROM day_bars
@@ -93,7 +93,7 @@ def calculate_daily_returns(
     # Organize by ticker and calculate returns
     ticker_prices: dict[str, list[tuple[date, float]]] = {}
     for row in result.iter_rows(named=True):
-        ticker = row["ticker"]
+        ticker = row["symbol"]
         price_date = row["date"]
         close = row["close"]
 

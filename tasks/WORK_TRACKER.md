@@ -19,7 +19,9 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-(No active tasks)
+- [ ] **Capability Improvements (capability_it 2025-12-03)** - tasks/tasks-0001-capability-improvements.md
+  - Focus: Fix broken Celery tasks, populate empty tables, implement P0 gaps
+  - Critical: 11 insights, 11 P0 gaps (26.8% coverage)
 
 ---
 
