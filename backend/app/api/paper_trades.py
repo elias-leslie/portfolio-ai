@@ -38,7 +38,7 @@ class PaperTradeResponse(BaseModel):
 
     idea_id: str
     agent_run_id: str
-    ticker: str
+    symbol: str
     idea_type: Literal["buy", "sell"]
     shares: int | None = None
     entry_price: float | None = None
@@ -187,7 +187,7 @@ async def list_paper_trades(
             SELECT
                 io.idea_id,
                 io.agent_run_id,
-                io.symbol as ticker,
+                io.symbol,
                 io.idea_type,
                 io.shares,
                 io.entry_price,
@@ -233,7 +233,7 @@ async def list_paper_trades(
             total_count = conn.execute(count_query).fetchone()[0]  # type: ignore[index]
 
         # Convert to response models
-        # Column indices: 0=idea_id, 1=agent_run_id, 2=ticker, 3=idea_type, 4=shares,
+        # Column indices: 0=idea_id, 1=agent_run_id, 2=symbol, 3=idea_type, 4=shares,
         # 5=entry_price, 6=entry_amount, 7=entry_date, 8=target_price, 9=stop_loss_price,
         # 10=current_price, 11=current_return_pct, 12=status, 13=exit_price, 14=exit_date,
         # 15=exit_reason, 16=realized_return_pct, 17=holding_days, 18=max_favorable_pct,
@@ -242,7 +242,7 @@ async def list_paper_trades(
             PaperTradeResponse(
                 idea_id=str(row[0]) if row[0] else "",
                 agent_run_id=str(row[1]) if row[1] else "",
-                ticker=str(row[2]) if row[2] else "",
+                symbol=str(row[2]) if row[2] else "",
                 idea_type=str(row[3]) if row[3] in ["buy", "sell"] else "buy",  # type: ignore[arg-type]
                 shares=int(row[4]) if row[4] is not None else None,
                 entry_price=float(row[5]) if row[5] is not None else None,
@@ -416,7 +416,7 @@ async def get_paper_trade(trade_id: str) -> PaperTradeResponse:
             SELECT
                 io.idea_id,
                 io.agent_run_id,
-                io.symbol as ticker,
+                io.symbol,
                 io.idea_type,
                 io.entry_price,
                 io.entry_date,
