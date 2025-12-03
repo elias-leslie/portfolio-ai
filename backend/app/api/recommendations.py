@@ -388,7 +388,8 @@ async def paper_trade_recommendation(
 ) -> dict[str, Any]:
     """Create a paper trade from a recommendation.
 
-    Uses the paper trading system on /trading page.
+    Uses the paper trading system - creates proper records in agent_ideas
+    and idea_outcomes so trades appear on the /trading page.
 
     Args:
         symbol: Stock symbol
@@ -397,6 +398,10 @@ async def paper_trade_recommendation(
     Returns:
         Paper trade details
     """
+    import uuid
+    from datetime import UTC, datetime
+    from typing import Literal, cast
+
     from app.analytics.order_executor import OrderExecutor
     from app.storage import get_storage
 
@@ -414,7 +419,6 @@ async def paper_trade_recommendation(
             if not strategy:
                 raise HTTPException(status_code=404, detail=f"Active strategy {strategy_id} not found")
 
-        # Use OrderExecutor to create paper trade
         order_executor = OrderExecutor(storage)
         account_id = "paper_trading"
 
@@ -427,28 +431,100 @@ async def paper_trade_recommendation(
                 detail="Insufficient cash or failed to calculate position size",
             )
 
-        # Execute buy order
-        result = order_executor.execute_market_order(
-            ticker=symbol,
-            action="buy",
-            shares=max_shares,
-            account_id=account_id,
-            notes=f"Strategy recommendation: {strategy[0]}",
+        # Create agent idea record (like manual trade)
+        idea_id = str(uuid.uuid4())
+        thesis = f"Strategy recommendation from {strategy[0]}"
+
+        # Use "manual" agent_run_id which exists in agent_runs table
+        agent_run_id = "manual"
+
+        storage.insert_dict(
+            "agent_ideas",
+            {
+                "id": idea_id,
+                "agent_run_id": agent_run_id,
+                "idea_type": "buy",
+                "title": f"Buy {symbol} - {strategy[0]}",
+                "thesis": thesis,
+                "action": f"Buy {max_shares} shares of {symbol}",
+                "confidence_score": 0.7,  # 0-1 scale
+                "risk_level": "medium",
+                "status": "pending",
+                "created_at": datetime.now(UTC).isoformat(),
+                "updated_at": datetime.now(UTC).isoformat(),
+            },
         )
 
-        if not result.get("filled"):
-            raise HTTPException(status_code=400, detail=result.get("error", "Trade execution failed"))
+        # Create placeholder idea_outcomes record
+        storage.insert_dict(
+            "idea_outcomes",
+            {
+                "idea_id": idea_id,
+                "agent_run_id": agent_run_id,
+                "ticker": symbol,
+                "idea_type": "buy",
+                "entry_price": 0.0,
+                "entry_date": datetime.now(UTC).date().isoformat(),
+                "target_price": None,
+                "stop_loss_price": None,
+                "current_price": 0.0,
+                "current_return_pct": 0.0,
+                "status": "open",
+                "shares": max_shares,
+                "entry_amount": 0.0,
+                "created_at": datetime.now(UTC).isoformat(),
+                "updated_at": datetime.now(UTC).isoformat(),
+            },
+        )
+
+        # Execute market order
+        action_typed = cast(Literal["buy", "sell"], "buy")
+        order_result = order_executor.execute_market_order(
+            ticker=symbol,
+            action=action_typed,
+            shares=max_shares,
+            account_id=account_id,
+            trade_id=idea_id,
+            notes=thesis,
+        )
+
+        if not order_result.get("filled"):
+            # Rollback the idea records
+            with conn_mgr.connection() as conn:
+                conn.execute("DELETE FROM idea_outcomes WHERE idea_id = %s", (idea_id,))
+                conn.execute("DELETE FROM agent_ideas WHERE id = %s", (idea_id,))
+                conn.commit()
+            raise HTTPException(status_code=400, detail=order_result.get("error", "Trade execution failed"))
+
+        # Update idea_outcomes with execution details
+        entry_price = order_result.get("price", 0)
+        entry_amount = order_result.get("amount", 0)
+
+        with conn_mgr.connection() as conn:
+            conn.execute(
+                """UPDATE idea_outcomes
+                   SET entry_price = %s, entry_amount = %s, current_price = %s,
+                       updated_at = %s
+                   WHERE idea_id = %s""",
+                (entry_price, entry_amount, entry_price, datetime.now(UTC).isoformat(), idea_id),
+            )
+            conn.execute(
+                "UPDATE agent_ideas SET status = 'executed' WHERE id = %s",
+                (idea_id,),
+            )
+            conn.commit()
 
         return {
             "status": "created",
             "trade": {
+                "idea_id": idea_id,
                 "symbol": symbol,
-                "shares": result.get("shares"),
-                "entry_price": result.get("price"),
-                "total_cost": result.get("amount"),
+                "shares": order_result.get("shares"),
+                "entry_price": entry_price,
+                "total_cost": entry_amount,
                 "strategy_name": strategy[0],
             },
-            "message": f"Paper trade: bought {result.get('shares')} shares of {symbol} at ${result.get('price'):.2f}",
+            "message": f"Paper trade: bought {order_result.get('shares')} shares of {symbol} at ${entry_price:.2f}",
         }
 
     except HTTPException:

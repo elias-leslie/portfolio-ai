@@ -13,7 +13,9 @@ export interface PaperTrade {
   agent_run_id: string;
   ticker: string;
   idea_type: "buy" | "sell";
+  shares?: number;
   entry_price?: number;
+  entry_amount?: number;
   entry_date?: string;
   target_price?: number;
   stop_loss_price?: number;

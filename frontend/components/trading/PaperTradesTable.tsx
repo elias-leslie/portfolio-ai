@@ -101,6 +101,7 @@ export function PaperTradesTable({ trades, type }: PaperTradesTableProps) {
               <TableHead className="w-12"></TableHead>
               <TableHead>Ticker</TableHead>
               <TableHead>Type</TableHead>
+              <TableHead className="text-right">Shares</TableHead>
               <TableHead className="text-right">Entry</TableHead>
               {type === "open" && (
                 <>
@@ -150,6 +151,7 @@ export function PaperTradesTable({ trades, type }: PaperTradesTableProps) {
                         {trade.idea_type.toUpperCase()}
                       </Badge>
                     </TableCell>
+                    <TableCell className="text-right">{trade.shares || "-"}</TableCell>
                     <TableCell className="text-right">{formatPrice(trade.entry_price)}</TableCell>
                     {type === "open" && (
                       <>
@@ -205,7 +207,7 @@ export function PaperTradesTable({ trades, type }: PaperTradesTableProps) {
                   {/* Expanded Row Details */}
                   {isExpanded && (
                     <TableRow>
-                      <TableCell colSpan={type === "open" ? 10 : 9} className="bg-surface-muted/30">
+                      <TableCell colSpan={type === "open" ? 11 : 10} className="bg-surface-muted/30">
                         <TradeDetails trade={trade} />
                       </TableCell>
                     </TableRow>
