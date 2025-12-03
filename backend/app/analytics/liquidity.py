@@ -159,10 +159,14 @@ def check_position_liquidity(
     adv = calculate_adv(storage, ticker)
 
     if adv is None:
-        return False, "Insufficient volume data", {
-            "ticker": ticker,
-            "reason": "no_adv_available",
-        }
+        return (
+            False,
+            "Insufficient volume data",
+            {
+                "ticker": ticker,
+                "reason": "no_adv_available",
+            },
+        )
 
     max_shares = int(MAX_POSITION_PERCENT_ADV * adv)
     position_percent_adv = (proposed_shares / adv) * 100 if adv > 0 else 100
@@ -181,7 +185,7 @@ def check_position_liquidity(
     if proposed_shares > max_shares:
         message = (
             f"Position too large: {proposed_shares:,} shares = "
-            f"{position_percent_adv:.2f}% of ADV (max {MAX_POSITION_PERCENT_ADV*100:.0f}%)"
+            f"{position_percent_adv:.2f}% of ADV (max {MAX_POSITION_PERCENT_ADV * 100:.0f}%)"
         )
         logger.warning(
             "liquidity_check_failed",
@@ -225,7 +229,10 @@ def apply_liquidity_cap(
         return 0, f"Trade blocked: No volume data for {ticker}"
 
     if desired_shares <= max_shares:
-        return desired_shares, f"Position within liquidity limit ({desired_shares:,} <= {max_shares:,})"
+        return (
+            desired_shares,
+            f"Position within liquidity limit ({desired_shares:,} <= {max_shares:,})",
+        )
 
     # Reduce to max allowed
     logger.info(

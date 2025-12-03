@@ -63,7 +63,7 @@ The system is market-hours aware to prevent thrashing on weekends/holidays:
    - Used by frontend MarketStatusBadge component in navigation
 """
 
-from celery.schedules import crontab  # type: ignore[import-untyped]
+from celery.schedules import crontab
 
 
 def get_beat_schedule() -> dict[str, object]:
@@ -193,7 +193,10 @@ def get_beat_schedule() -> dict[str, object]:
         "update-technical-indicators-daily": {
             "task": "backfill_technical_indicators",
             "schedule": crontab(hour=2, minute=30),  # Daily at 02:30 UTC
-            "args": [None, 50],  # backfill_technical_indicators(tickers=None, batch_size=50) - auto-discovers all tickers
+            "args": [
+                None,
+                50,
+            ],  # backfill_technical_indicators(tickers=None, batch_size=50) - auto-discovers all tickers
             "options": {"expires": 3600},  # Task expires after 1 hour
             # Notes:
             # - Changed from update_technical_indicators to backfill_technical_indicators

@@ -16,11 +16,11 @@ from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.sources.fred import FREDSource
 from app.storage import get_storage
-from app.tasks.indicator_tasks import calculate_fear_greed
+from app.tasks.indicators import calculate_fear_greed
 from app.tasks.types import FearGreedPipelineResultDict
 
 if TYPE_CHECKING:
-    from celery import Task  # type: ignore[import-untyped]
+    from celery import Task
 
     from app.storage.facade import PortfolioStorage
 

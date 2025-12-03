@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.storage import get_storage
-from app.tasks.data_ingestion_tasks import ingest_historical_ohlcv
+from app.tasks.ingestion import ingest_historical_ohlcv
 
 if TYPE_CHECKING:
     pass

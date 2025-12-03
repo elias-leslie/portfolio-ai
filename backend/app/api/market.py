@@ -4,11 +4,38 @@ from __future__ import annotations
 
 import datetime as dt
 from datetime import date, datetime
-from typing import cast
+from typing import Any
 
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, Field
 
+from app.api.market_data_sources import (
+    SECTOR_ETFS,
+    calculate_daily_change_pct,
+    calculate_weekly_change_pct,
+    fetch_sector_data_with_changes,
+    get_actual_data_dates,
+    get_market_data_timestamp,
+    get_options_activity_metrics,
+    get_put_call_ratio_data,
+)
+from app.api.market_responses import (
+    FearGreedHistoryResponse,
+    IndicatorDataPoint,
+    IndicatorHistoryResponse,
+    MarketConditionsResponse,
+    MarketStatusResponse,
+    PriceResponse,
+    PricesResponse,
+    SectorHistory,
+    SectorHistoryResponse,
+)
+from app.api.market_transformers import (
+    build_indicator_data_points,
+    build_sector_history,
+    get_sector_symbols,
+    sort_sectors_by_performance,
+)
 from app.market import intelligence, narrative_generator
 from app.market.fear_greed_stub import get_fear_greed_score
 from app.market.sentiment import MarketHealthScore, calculate_market_health
@@ -23,7 +50,6 @@ from app.models.market_intelligence import (
 from app.models.market_intelligence import (
     MarketHealthScore as MarketHealthScoreResponse,
 )
-from app.portfolio.models import PriceData
 from app.portfolio.price_fetcher import PriceDataFetcher
 from app.storage import get_storage
 from app.utils.market_hours import (
@@ -41,172 +67,6 @@ router = APIRouter(prefix="/api/market", tags=["market"])
 # Initialize services
 storage = get_storage()
 price_fetcher = PriceDataFetcher(storage)
-
-
-# Response models (sentiment models imported from app.market.sentiment)
-class MarketConditionsResponse(BaseModel):
-    """Response model for market conditions."""
-
-    sp500: dict[str, float | None | str] = Field(..., description="S&P 500 data")
-    vix: dict[str, float | None | str] = Field(..., description="VIX volatility index")
-    tnx: dict[str, float | None | str] = Field(..., description="10-Year Treasury yield")
-    dxy: dict[str, float | None | str] = Field(..., description="US Dollar Index")
-    health: MarketHealthScore = Field(..., description="Market health scoring")
-
-
-class PriceResponse(BaseModel):
-    """Response model for price data."""
-
-    symbol: str
-    price: float
-    beta: float | None
-    volatility: float | None
-    sector: str | None
-
-
-class PricesResponse(BaseModel):
-    """Response model for multiple prices."""
-
-    prices: dict[str, PriceResponse]
-    count: int
-
-
-# Helper functions
-def calculate_daily_change_pct(
-    ticker: str,
-    current_price: float,
-) -> float | None:
-    """Calculate daily change percentage from day_bars historical data.
-
-    Args:
-        ticker: Symbol to calculate change for
-        current_price: Current price
-
-    Returns:
-        Daily change percentage, or None if no historical data
-    """
-    with storage.connection() as conn:
-        result = conn.execute(
-            """
-            SELECT close
-            FROM day_bars
-            WHERE ticker = %s
-            ORDER BY date DESC
-            LIMIT 1 OFFSET 1
-            """,
-            [ticker],
-        )
-        row = result.fetchone()
-        if row and row[0]:
-            prev_close = float(row[0])
-            return ((current_price - prev_close) / prev_close) * 100
-    return None
-
-
-def calculate_weekly_change_pct(
-    ticker: str,
-    current_price: float,
-) -> float | None:
-    """Calculate week-over-week change: current price vs last week's close.
-
-    Finds the last trading day of the previous calendar week (typically Friday,
-    but could be Thursday if Friday was a holiday) and compares current price to that.
-
-    This answers: "How are we doing this week compared to where we ended last week?"
-
-    Args:
-        ticker: Symbol to calculate change for
-        current_price: Current price
-
-    Returns:
-        Week-over-week change percentage, or None if no historical data
-    """
-    with storage.connection() as conn:
-        # Find last week's close: the most recent trading day before this week started
-        # This week started on the most recent Monday (or today if today is Monday)
-        result = conn.execute(
-            """
-            SELECT close, date
-            FROM day_bars
-            WHERE ticker = %s
-              AND date < date_trunc('week', CURRENT_DATE)::date
-            ORDER BY date DESC
-            LIMIT 1
-            """,
-            [ticker],
-        )
-        row = result.fetchone()
-        if row and row[0]:
-            last_week_close = float(row[0])
-            return ((current_price - last_week_close) / last_week_close) * 100
-    return None
-
-
-def fetch_sector_data_with_changes(
-    sector_symbols: list[str],
-    sector_price_data: dict[str, PriceData],
-) -> dict[str, tuple[float | None, float | None, str | None]]:
-    """Fetch sector data with daily change percentages using batch query.
-
-    IMPORTANT: Uses ONLY day_bars historical data for change calculation.
-    Never uses cache-to-cache comparison as cache timestamps are unreliable
-    (cache may be refreshed without market data actually changing).
-
-    Args:
-        sector_symbols: List of sector ETF symbols
-        sector_price_data: Dict of current price data by symbol
-
-    Returns:
-        Dict mapping symbol to (price, change_pct, timestamp) tuple
-    """
-    sector_data: dict[str, tuple[float | None, float | None, str | None]] = {}
-
-    # Get previous closes in a single batch query (avoiding N+1 query problem)
-    # Using window function to get second-most-recent close for each ticker
-    # This ensures we calculate change from actual market closes, not cache timestamps
-    with storage.connection() as conn:
-        # Cast list[str] to expected parameter type for ANY operator compatibility
-        params: list[
-            str | int | float | bool | datetime | list[str | int | float | bool | None] | None
-        ] = [cast(list[str | int | float | bool | None], sector_symbols)]
-
-        result = conn.execute(
-            """
-            SELECT ticker, close
-            FROM (
-                SELECT ticker, close, ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY date DESC) as rn
-                FROM day_bars
-                WHERE ticker = ANY(%s)
-            ) ranked
-            WHERE rn = 2
-            """,
-            params,
-        )
-        prev_closes: dict[str, float] = {}
-        for row in result.fetchall():
-            ticker_val = row[0]
-            close_val = row[1]
-            if isinstance(ticker_val, str) and isinstance(close_val, (int, float)):
-                prev_closes[ticker_val] = float(close_val)
-
-    # Calculate change percentages
-    for symbol in sector_symbols:
-        current_price = sector_price_data.get(symbol)
-        if not current_price:
-            sector_data[symbol] = (None, None, None)
-            continue
-
-        prev_close = prev_closes.get(symbol)
-        if prev_close:
-            change_pct = ((current_price.price - prev_close) / prev_close) * 100
-            sector_timestamp = current_price.cached_at.isoformat()
-            sector_data[symbol] = (current_price.price, change_pct, sector_timestamp)
-        else:
-            # No historical data, just use current price
-            sector_timestamp = current_price.cached_at.isoformat()
-            sector_data[symbol] = (current_price.price, None, sector_timestamp)
-
-    return sector_data
 
 
 # API endpoints
@@ -235,11 +95,11 @@ async def get_market_conditions(request: Request) -> MarketConditionsResponse:
     )
 
     # Fetch sector ETF data
-    sector_symbols = ["XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLU", "XLRE", "XLB", "XLC"]
+    sector_symbols = get_sector_symbols()
     sector_price_data = price_fetcher.fetch_price_data(sector_symbols)
 
     # Get sector data with changes using batch query (avoiding N+1 query problem)
-    sector_data = fetch_sector_data_with_changes(sector_symbols, sector_price_data)
+    sector_data = fetch_sector_data_with_changes(storage, sector_symbols, sector_price_data)
 
     # Calculate market health score with sector data
     health_score = calculate_market_health(
@@ -327,60 +187,23 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
 
     # Get ACTUAL data dates from day_bars (not cache timestamps)
     # This shows when the market data was created, not when we fetched it
-    actual_data_dates: dict[str, dt.datetime] = {}
-    with storage.connection() as conn:
-        for symbol in symbols:
-            result = conn.execute("SELECT MAX(date) FROM day_bars WHERE ticker = %s", [symbol])
-            row = result.fetchone()
-            if row and row[0]:
-                # Convert date to timestamp at market close (21:00 UTC = 4:00 PM ET)
-                data_date = row[0]
-                if isinstance(data_date, date):
-                    data_timestamp = dt.datetime.combine(
-                        data_date, dt.time(21, 0, 0), tzinfo=dt.UTC
-                    )
-                    actual_data_dates[symbol] = data_timestamp
+    actual_data_dates = get_actual_data_dates(storage, symbols)
 
-    # Get Fear & Greed date to determine actual data freshness
-    # (This represents when the market data was created, not when we cached it)
     # Get the actual market data date from Fear & Greed (most accurate source)
     # This represents when the underlying market data is from, not when we cached it
-    with storage.connection() as conn:
-        result = conn.execute(
-            "SELECT as_of_date FROM fear_greed_daily ORDER BY as_of_date DESC LIMIT 1"
+    current_timestamp = get_market_data_timestamp(storage)
+    if not current_timestamp:
+        # Fallback to cache timestamp if no Fear & Greed data
+        current_timestamp = (
+            sp500_data.cached_at.isoformat() if sp500_data else datetime.utcnow().isoformat() + "Z"
         )
-        row = result.fetchone()
-        if row and row[0]:
-            # Use the actual market data date (as_of_date) for the timestamp
-            # This shows users the age of the underlying market data, not the cache
-            market_data_date = row[0]
-            # Set time to market close (4:00 PM ET = 21:00 UTC) for consistency
-            if isinstance(market_data_date, date):
-                market_close_time = dt.datetime.combine(
-                    market_data_date, dt.time(21, 0, 0), tzinfo=dt.UTC
-                )
-                current_timestamp = market_close_time.isoformat()
-            else:
-                current_timestamp = (
-                    sp500_data.cached_at.isoformat()
-                    if sp500_data
-                    else datetime.utcnow().isoformat() + "Z"
-                )
-        else:
-            # Fallback to cache timestamp if no Fear & Greed data
-            # This is less ideal but better than nothing
-            current_timestamp = (
-                sp500_data.cached_at.isoformat()
-                if sp500_data
-                else datetime.utcnow().isoformat() + "Z"
-            )
 
     # Fetch sector ETF data
-    sector_symbols = ["XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLU", "XLRE", "XLB", "XLC"]
+    sector_symbols = get_sector_symbols()
     sector_price_data = price_fetcher.fetch_price_data(sector_symbols)
 
     # Get sector data with changes using batch query (avoiding N+1 query problem)
-    sector_data_dict = fetch_sector_data_with_changes(sector_symbols, sector_price_data)
+    sector_data_dict = fetch_sector_data_with_changes(storage, sector_symbols, sector_price_data)
 
     # Convert to list format for intelligence helper
     sector_data_list = [(symbol, *sector_data_dict[symbol]) for symbol in sector_symbols]
@@ -411,10 +234,12 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
 
     # Calculate weekly changes for dynamic narrative
     weekly_changes = narrative_generator.WeeklyChanges(
-        vix=calculate_weekly_change_pct("^VIX", vix_data.price) if vix_data else None,
-        sp500=calculate_weekly_change_pct("^GSPC", sp500_data.price) if sp500_data else None,
-        tnx=calculate_weekly_change_pct("^TNX", tnx_data.price) if tnx_data else None,
-        dxy=calculate_weekly_change_pct("DX-Y.NYB", dxy_data.price) if dxy_data else None,
+        vix=calculate_weekly_change_pct(storage, "^VIX", vix_data.price) if vix_data else None,
+        sp500=calculate_weekly_change_pct(storage, "^GSPC", sp500_data.price)
+        if sp500_data
+        else None,
+        tnx=calculate_weekly_change_pct(storage, "^TNX", tnx_data.price) if tnx_data else None,
+        dxy=calculate_weekly_change_pct(storage, "DX-Y.NYB", dxy_data.price) if dxy_data else None,
     )
 
     # Build sector weekly changes with friendly names (all sectors, sorted by perf)
@@ -422,7 +247,7 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
     sector_changes = [
         narrative_generator.SectorWeeklyChange(
             name=s.name,
-            change_pct=calculate_weekly_change_pct(s.symbol, s.price) if s.price else None,
+            change_pct=calculate_weekly_change_pct(storage, s.symbol, s.price) if s.price else None,
         )
         for s in all_sectors
     ]
@@ -445,7 +270,7 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
     # Use actual data timestamps (from day_bars) instead of cache timestamps
     enriched_indicators = {}
     if vix_data:
-        vix_change = calculate_daily_change_pct("^VIX", vix_data.price)
+        vix_change = calculate_daily_change_pct(storage, "^VIX", vix_data.price)
         vix_timestamp = actual_data_dates.get("^VIX")
         # Temporarily override cached_at with actual data date
         if vix_timestamp:
@@ -454,7 +279,7 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
             vix_data, health_score_data, change_pct=vix_change
         )
     if sp500_data:
-        sp500_change = calculate_daily_change_pct("^GSPC", sp500_data.price)
+        sp500_change = calculate_daily_change_pct(storage, "^GSPC", sp500_data.price)
         sp500_timestamp = actual_data_dates.get("^GSPC")
         if sp500_timestamp:
             sp500_data.cached_at = sp500_timestamp
@@ -462,7 +287,7 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
             sp500_data, health_score_data, change_pct=sp500_change
         )
     if tnx_data:
-        tnx_change = calculate_daily_change_pct("^TNX", tnx_data.price)
+        tnx_change = calculate_daily_change_pct(storage, "^TNX", tnx_data.price)
         tnx_timestamp = actual_data_dates.get("^TNX")
         if tnx_timestamp:
             tnx_data.cached_at = tnx_timestamp
@@ -470,7 +295,7 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
             tnx_data, health_score_data, change_pct=tnx_change
         )
     if dxy_data:
-        dxy_change = calculate_daily_change_pct("DX-Y.NYB", dxy_data.price)
+        dxy_change = calculate_daily_change_pct(storage, "DX-Y.NYB", dxy_data.price)
         dxy_timestamp = actual_data_dates.get("DX-Y.NYB")
         if dxy_timestamp:
             dxy_data.cached_at = dxy_timestamp
@@ -479,93 +304,40 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
         )
 
     # Get Put/Call Ratio from fear_greed_inputs
-    with storage.connection() as conn:
-        result = conn.execute(
-            "SELECT put_call_ratio, as_of_date FROM fear_greed_inputs WHERE put_call_ratio IS NOT NULL ORDER BY as_of_date DESC LIMIT 1"
+    putcall_data = get_put_call_ratio_data(storage)
+    if putcall_data:
+        put_call_ratio, putcall_timestamp = putcall_data
+        # Extract date from timestamp for context calculation
+        putcall_date = date.fromisoformat(putcall_timestamp[:10])
+
+        # Calculate historical context
+        from app.market.options_context import calculate_putcall_context  # noqa: PLC0415
+
+        putcall_context = calculate_putcall_context(put_call_ratio, putcall_date, storage)
+
+        enriched_indicators["putcall"] = intelligence.enrich_putcall_indicator(
+            put_call_ratio,
+            putcall_timestamp,
+            context=putcall_context,  # type: ignore[arg-type]
         )
-        row = result.fetchone()
-        if row and row[0]:
-            put_call_ratio_val = row[0]
-            putcall_date_val = row[1]
-            # Type narrowing: ensure put_call_ratio is float and putcall_date is date
-            if isinstance(put_call_ratio_val, (int, float)) and isinstance(putcall_date_val, date):
-                put_call_ratio = float(put_call_ratio_val)
-                putcall_date = putcall_date_val
-                # Set time to market close (4:00 PM ET = 21:00 UTC) for consistency
-                putcall_timestamp = dt.datetime.combine(
-                    putcall_date, dt.time(21, 0, 0), tzinfo=dt.UTC
-                ).isoformat()
-
-                # Calculate historical context
-                from app.market.options_context import calculate_putcall_context  # noqa: PLC0415
-
-                putcall_context = calculate_putcall_context(put_call_ratio, putcall_date, storage)
-
-                enriched_indicators["putcall"] = intelligence.enrich_putcall_indicator(
-                    put_call_ratio, putcall_timestamp, context=putcall_context
-                )
 
     # Get Options Activity metrics from options_market_metrics table
     options_activity = None
-    with storage.connection() as conn:
-        result = conn.execute(
-            """
-            SELECT near_term_pct, concentration_pct, sector_weights, source_timestamp
-            FROM options_market_metrics
-            ORDER BY as_of_date DESC
-            LIMIT 1
-            """
+    options_data = get_options_activity_metrics(storage)
+    if options_data:
+        # Type narrowing for mypy
+        near_term = options_data["near_term_pct"]
+        concentration = options_data["concentration_pct"]
+        assert isinstance(near_term, (int, float))
+        assert isinstance(concentration, (int, float))
+        options_activity = OptionsActivityMetrics(
+            near_term_pct=float(near_term),
+            near_term_signal=str(options_data["near_term_signal"]),
+            concentration_pct=float(concentration),
+            concentration_signal=str(options_data["concentration_signal"]),
+            top_sectors=options_data["top_sectors"],  # type: ignore[arg-type]
+            last_updated=str(options_data["last_updated"]),
         )
-        row = result.fetchone()
-        if row:
-            near_term_val = row[0]
-            concentration_val = row[1]
-            sector_weights_val = row[2]  # JSONB
-            source_timestamp_val = row[3]
-
-            # Type narrowing: ensure proper types
-            if isinstance(near_term_val, (int, float)) and isinstance(
-                concentration_val, (int, float)
-            ):
-                near_term_pct = float(near_term_val)
-                concentration_pct = float(concentration_val)
-
-                # Calculate signals based on thresholds
-                # Near-term: >65% = High (event-driven), 45-65% = Normal, <45% = Low
-                if near_term_pct > 65:
-                    near_term_signal = "High"
-                elif near_term_pct >= 45:
-                    near_term_signal = "Normal"
-                else:
-                    near_term_signal = "Low"
-
-                # Concentration: >80% = Focused, 50-80% = Balanced, <50% = Dispersed
-                if concentration_pct > 80:
-                    concentration_signal = "Focused"
-                elif concentration_pct >= 50:
-                    concentration_signal = "Balanced"
-                else:
-                    concentration_signal = "Dispersed"
-
-                # Get top 3 sectors by weight - ensure sector_weights is dict-like
-                if isinstance(sector_weights_val, dict):
-                    sector_items = sorted(
-                        sector_weights_val.items(), key=lambda x: x[1], reverse=True
-                    )[:3]
-                    top_sectors = [
-                        {"sector": sector, "weight_pct": weight} for sector, weight in sector_items
-                    ]
-
-                    # Ensure source_timestamp has isoformat method
-                    if hasattr(source_timestamp_val, "isoformat"):
-                        options_activity = OptionsActivityMetrics(
-                            near_term_pct=near_term_pct,
-                            near_term_signal=near_term_signal,
-                            concentration_pct=concentration_pct,
-                            concentration_signal=concentration_signal,
-                            top_sectors=top_sectors,
-                            last_updated=source_timestamp_val.isoformat(),
-                        )
 
     # Build response
     return MarketIntelligenceResponse(
@@ -657,20 +429,6 @@ async def get_market_trends(
     )
 
 
-class MarketStatusResponse(BaseModel):
-    """Response model for market status endpoint."""
-
-    status: MarketStatus = Field(..., description="Current market status")
-    is_open: bool = Field(..., description="Whether market is currently open for regular trading")
-    last_trading_day: str = Field(..., description="Most recent trading day (ISO format)")
-    next_trading_day: str = Field(..., description="Next trading day (ISO format)")
-    current_time_et: str = Field(..., description="Current time in Eastern Time")
-    is_holiday: bool = Field(False, description="Whether today is a market holiday")
-    holiday_name: str | None = Field(None, description="Holiday name if today is a holiday")
-    is_early_close: bool = Field(False, description="Whether today is an early close day")
-    early_close_name: str | None = Field(None, description="Early close day name if applicable")
-
-
 @router.get("/status", response_model=MarketStatusResponse)
 @cache_response(ttl=60)  # Cache for 1 minute
 async def get_market_status_endpoint(request: Request) -> MarketStatusResponse:
@@ -712,14 +470,6 @@ async def get_market_status_endpoint(request: Request) -> MarketStatusResponse:
 # ============================================================================
 
 
-class FearGreedHistoryResponse(BaseModel):
-    """Response model for Fear & Greed history."""
-
-    dates: list[str] = Field(..., description="ISO date strings")
-    scores: list[float] = Field(..., description="Fear & Greed scores (0-100)")
-    labels: list[str] = Field(..., description="Labels (Extreme Fear, Fear, etc.)")
-
-
 @router.get("/fear-greed-history", response_model=FearGreedHistoryResponse)
 @cache_response(ttl=300)
 async def get_fear_greed_history(
@@ -744,30 +494,18 @@ async def get_fear_greed_history(
     labels: list[str] = []
     for row in rows:
         if row[0] and row[1] is not None:
-            dates.append(row[0].isoformat())
+            # row[0] is date from SQL - handle as datetime/date object
+            date_val = row[0]
+            if isinstance(date_val, (datetime, date)):
+                dates.append(date_val.isoformat())
+            elif isinstance(date_val, str):
+                dates.append(date_val)
+            else:
+                continue  # Skip if not a valid date type
             scores.append(float(row[1]))
             labels.append(str(row[2]) if row[2] else "Unknown")
 
     return FearGreedHistoryResponse(dates=dates, scores=scores, labels=labels)
-
-
-class IndicatorDataPoint(BaseModel):
-    """Single data point for an indicator."""
-
-    date: str
-    close: float
-    pct_change: float = Field(..., description="% change from period start")
-
-
-class IndicatorHistoryResponse(BaseModel):
-    """Response model for indicator history."""
-
-    sp500: list[IndicatorDataPoint] = Field(default_factory=list)
-    vix: list[IndicatorDataPoint] = Field(default_factory=list)
-    tnx: list[IndicatorDataPoint] = Field(default_factory=list)
-    dxy: list[IndicatorDataPoint] = Field(default_factory=list)
-    period_start: str
-    period_end: str
 
 
 @router.get("/indicator-history", response_model=IndicatorHistoryResponse)
@@ -784,7 +522,7 @@ async def get_indicator_history(
         "dxy": "DX-Y.NYB",
     }
 
-    result_data: dict[str, list[IndicatorDataPoint]] = {}
+    result_data: dict[str, list[dict[str, Any]]] = {}
     period_start = ""
     period_end = ""
 
@@ -801,74 +539,19 @@ async def get_indicator_history(
             )
             rows = query_result.fetchall()
 
-        data_points: list[IndicatorDataPoint] = []
-        base_price: float | None = None
-        for row in rows:
-            if row[0] and row[1] is not None:
-                close = float(row[1])
-                if base_price is None:
-                    base_price = close
-                    if not period_start:
-                        period_start = row[0].isoformat()
-                pct_change = ((close - base_price) / base_price * 100) if base_price else 0
-                data_points.append(
-                    IndicatorDataPoint(
-                        date=row[0].isoformat(),
-                        close=close,
-                        pct_change=round(pct_change, 2),
-                    )
-                )
-                period_end = row[0].isoformat()
+        data_points, period_start, period_end = build_indicator_data_points(
+            rows, period_start, period_end
+        )
         result_data[key] = data_points
 
     return IndicatorHistoryResponse(
-        sp500=result_data.get("sp500", []),
-        vix=result_data.get("vix", []),
-        tnx=result_data.get("tnx", []),
-        dxy=result_data.get("dxy", []),
+        sp500=[IndicatorDataPoint(**dp) for dp in result_data.get("sp500", [])],
+        vix=[IndicatorDataPoint(**dp) for dp in result_data.get("vix", [])],
+        tnx=[IndicatorDataPoint(**dp) for dp in result_data.get("tnx", [])],
+        dxy=[IndicatorDataPoint(**dp) for dp in result_data.get("dxy", [])],
         period_start=period_start,
         period_end=period_end,
     )
-
-
-class SectorDataPoint(BaseModel):
-    """Single data point for a sector."""
-
-    date: str
-    close: float
-    pct_change: float = Field(..., description="% change from period start")
-
-
-class SectorHistory(BaseModel):
-    """History data for a single sector."""
-
-    name: str
-    symbol: str
-    data: list[SectorDataPoint]
-    current_pct: float = Field(..., description="Current % change from period start")
-
-
-class SectorHistoryResponse(BaseModel):
-    """Response model for sector history."""
-
-    sectors: list[SectorHistory]
-    period_start: str
-    period_end: str
-
-
-SECTOR_ETFS = {
-    "XLK": "Technology",
-    "XLF": "Financials",
-    "XLE": "Energy",
-    "XLV": "Healthcare",
-    "XLY": "Consumer Discretionary",
-    "XLP": "Consumer Staples",
-    "XLI": "Industrials",
-    "XLU": "Utilities",
-    "XLRE": "Real Estate",
-    "XLB": "Materials",
-    "XLC": "Communication Services",
-}
 
 
 @router.get("/sector-history", response_model=SectorHistoryResponse)
@@ -895,38 +578,13 @@ async def get_sector_history(
             )
             rows = query_result.fetchall()
 
-        data_points: list[SectorDataPoint] = []
-        base_price: float | None = None
-        current_pct = 0.0
-        for row in rows:
-            if row[0] and row[1] is not None:
-                close = float(row[1])
-                if base_price is None:
-                    base_price = close
-                    if not period_start:
-                        period_start = row[0].isoformat()
-                pct_change = ((close - base_price) / base_price * 100) if base_price else 0
-                data_points.append(
-                    SectorDataPoint(
-                        date=row[0].isoformat(),
-                        close=close,
-                        pct_change=round(pct_change, 2),
-                    )
-                )
-                current_pct = round(pct_change, 2)
-                period_end = row[0].isoformat()
-
-        sectors.append(
-            SectorHistory(
-                name=name,
-                symbol=symbol,
-                data=data_points,
-                current_pct=current_pct,
-            )
+        sector_history, period_start, period_end = build_sector_history(
+            symbol, name, rows, period_start, period_end
         )
+        sectors.append(sector_history)
 
     # Sort by current performance descending
-    sectors.sort(key=lambda s: s.current_pct, reverse=True)
+    sectors = sort_sectors_by_performance(sectors)
 
     return SectorHistoryResponse(
         sectors=sectors,

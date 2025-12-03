@@ -311,7 +311,9 @@ def check_table_freshness(
     }
 
 
-def check_all_tables_freshness(storage: ConnectionManager, auto_remediate: bool = True) -> dict[str, object]:
+def check_all_tables_freshness(
+    storage: ConnectionManager, auto_remediate: bool = True
+) -> dict[str, object]:
     """Check freshness of all configured tables with optional auto-remediation.
 
     Args:
@@ -350,7 +352,9 @@ def check_all_tables_freshness(storage: ConnectionManager, auto_remediate: bool 
                 reason_val = result.get("reason", "age")
                 create_staleness_alert(
                     table_name=config["table_name"],
-                    age_hours=age_hours_val if isinstance(age_hours_val, (float, int, type(None))) else None,
+                    age_hours=age_hours_val
+                    if isinstance(age_hours_val, (float, int, type(None)))
+                    else None,
                     threshold=config["critical_hours"],
                     reason=reason_val if isinstance(reason_val, str) else "unknown",
                 )
@@ -365,7 +369,9 @@ def check_all_tables_freshness(storage: ConnectionManager, auto_remediate: bool 
                 age_hours_val = result["age_hours"]
                 task_id = trigger_remediation(
                     table_name=config["table_name"],
-                    age_hours=age_hours_val if isinstance(age_hours_val, (float, int, type(None))) else None,
+                    age_hours=age_hours_val
+                    if isinstance(age_hours_val, (float, int, type(None)))
+                    else None,
                     is_market_data=config["market_data"],
                 )
                 if task_id:

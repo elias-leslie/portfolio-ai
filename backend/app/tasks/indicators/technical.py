@@ -1,0 +1,298 @@
+"""Celery tasks for technical indicator calculations.
+
+This module defines background tasks for calculating and caching technical indicators
+like RSI, MACD, SMA, EMA, Bollinger Bands, ATR, and Stochastic indicators.
+"""
+
+from __future__ import annotations
+
+from app.analytics.indicators import calculate_indicators
+from app.celery_app import celery_app
+from app.logging_config import get_logger
+from app.storage import get_storage
+from app.tasks.indicators.helpers import build_indicator_data, upsert_indicators
+from app.tasks.types import TechnicalIndicatorResultDict
+
+logger = get_logger(__name__)
+
+
+@celery_app.task(
+    bind=True,
+    name="update_technical_indicators",
+    max_retries=3,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=600,
+    retry_jitter=True,
+)  # type: ignore[misc]
+def update_technical_indicators(  # type: ignore[no-untyped-def]
+    self, tickers: list[str]
+) -> TechnicalIndicatorResultDict:
+    """Calculate and cache technical indicators for given tickers.
+
+    This task calculates RSI, MACD, Bollinger Bands, moving averages (SMA/EMA),
+    ATR, and Stochastic indicators using the latest 200 days of OHLCV data.
+    Results are stored in the technical_indicators table for fast retrieval.
+
+    Args:
+        tickers: List of ticker symbols to calculate indicators for
+
+    Returns:
+        TechnicalIndicatorResultDict with counts: {"success": int, "failed": int, "tickers_processed": int}
+
+    Example:
+        >>> # Run immediately
+        >>> update_technical_indicators(["AAPL", "MSFT", "GOOGL"])
+        {"success": 3, "failed": 0, "tickers_processed": 3}
+
+        >>> # Schedule as background task
+        >>> update_technical_indicators.delay(["AAPL", "MSFT", "GOOGL"])
+
+    Note:
+        This task can be scheduled daily at market close + 30 minutes (4:30 PM ET)
+        using Celery beat for automated indicator updates.
+    """
+    task_id = self.request.id
+    logger.info(
+        "update_technical_indicators_started",
+        task_id=task_id,
+        num_tickers=len(tickers),
+        tickers=tickers,
+    )
+
+    storage = get_storage()
+    success_count = 0
+    failed_count = 0
+
+    for ticker in tickers:
+        try:
+            # Calculate indicators using latest data
+            result = calculate_indicators(
+                storage=storage,
+                ticker=ticker,
+                indicators=None,  # Calculate all indicators
+                as_of_date=None,  # Use latest available date
+            )
+
+            # Extract indicator values from result
+            indicators = result["indicators"]
+            date = result["date"]
+
+            # Prepare and insert indicator data
+            indicator_data = build_indicator_data(ticker, indicators, date)
+            upsert_indicators(storage, indicator_data)
+
+            success_count += 1
+            logger.info(
+                "technical_indicators_calculated",
+                ticker=ticker,
+                date=date,
+                num_indicators=len([v for v in indicators.values() if v is not None]),
+            )
+
+        except Exception as e:
+            failed_count += 1
+            logger.error(
+                "technical_indicators_calculation_failed",
+                ticker=ticker,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+            # Continue with next ticker instead of failing entire task
+
+    task_result: TechnicalIndicatorResultDict = {
+        "success": success_count,
+        "failed": failed_count,
+        "tickers_processed": len(tickers),
+    }
+
+    logger.info(
+        "update_technical_indicators_completed",
+        task_id=task_id,
+        **task_result,
+    )
+
+    return task_result
+
+
+@celery_app.task(
+    bind=True,
+    name="backfill_technical_indicators",
+    max_retries=1,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=600,
+    retry_jitter=True,
+)  # type: ignore[misc]
+def backfill_technical_indicators(  # type: ignore[no-untyped-def]
+    self, tickers: list[str] | None = None, batch_size: int = 50
+) -> dict[str, int]:
+    """Backfill technical indicators for all historical dates with OHLCV data.
+
+    This task calculates indicators for ALL dates that have OHLCV data but are missing
+    indicators. It's designed for one-time backfill or catch-up operations.
+
+    The regular update_technical_indicators task only calculates for the LATEST date.
+    Use this task when:
+    - Initial setup of indicator data
+    - After adding new tickers to watchlist
+    - Recovering from data gaps
+
+    Args:
+        tickers: List of tickers to backfill. If None, backfills ALL tickers from day_bars.
+        batch_size: Number of dates to process per ticker before committing (default: 50)
+
+    Returns:
+        Dict with counts: {"tickers_processed": int, "indicators_created": int, "errors": int}
+
+    Example:
+        >>> # Backfill all tickers
+        >>> backfill_technical_indicators.delay()
+
+        >>> # Backfill specific tickers
+        >>> backfill_technical_indicators.delay(["AAPL", "MSFT", "GOOGL"])
+
+    Note:
+        This task can take several minutes for large datasets. Run manually or schedule
+        during off-hours. Progress is logged for monitoring.
+    """
+    task_id = self.request.id
+    logger.info(
+        "backfill_technical_indicators_started",
+        task_id=task_id,
+        tickers=tickers,
+        batch_size=batch_size,
+    )
+
+    storage = get_storage()
+
+    # Get all tickers from day_bars if not specified
+    if tickers is None:
+        query = "SELECT DISTINCT ticker FROM day_bars ORDER BY ticker"
+        result_df = storage.query(query, [])
+        tickers = [row["ticker"] for row in result_df.to_dicts()]
+        logger.info("backfill_auto_discovered_tickers", num_tickers=len(tickers))
+
+    tickers_processed = 0
+    indicators_created = 0
+    errors = 0
+
+    for ticker in tickers:
+        try:
+            # Find dates with OHLCV data but NO indicators
+            query = """
+                SELECT DISTINCT db.date
+                FROM day_bars db
+                LEFT JOIN technical_indicators ti
+                    ON db.ticker = ti.ticker AND db.date = ti.date
+                WHERE db.ticker = $1
+                  AND ti.ticker IS NULL
+                ORDER BY db.date ASC
+            """
+            missing_dates_df = storage.query(query, [ticker])
+            missing_dates = [row["date"] for row in missing_dates_df.to_dicts()]
+
+            if not missing_dates:
+                logger.info(
+                    "backfill_ticker_complete",
+                    ticker=ticker,
+                    reason="no_missing_dates",
+                )
+                tickers_processed += 1
+                continue
+
+            logger.info(
+                "backfill_ticker_started",
+                ticker=ticker,
+                missing_dates=len(missing_dates),
+            )
+
+            # Process dates in batches
+            for i in range(0, len(missing_dates), batch_size):
+                batch = missing_dates[i : i + batch_size]
+                batch_created = 0
+
+                for date in batch:
+                    try:
+                        # Calculate indicators for this specific date
+                        result = calculate_indicators(
+                            storage=storage,
+                            ticker=ticker,
+                            indicators=None,  # Use all default indicators
+                            as_of_date=date,  # Calculate for this specific historical date
+                        )
+
+                        # Extract and store
+                        indicators = result["indicators"]
+                        indicator_data = build_indicator_data(ticker, indicators, date)
+                        upsert_indicators(storage, indicator_data)
+
+                        batch_created += 1
+                        indicators_created += 1
+
+                    except ValueError as e:
+                        # Skip dates with insufficient data (e.g., first 200 days for SMA-200)
+                        if "Insufficient data" in str(e):
+                            logger.debug(
+                                "backfill_skip_insufficient_data",
+                                ticker=ticker,
+                                date=date,
+                                error=str(e),
+                            )
+                        else:
+                            logger.error(
+                                "backfill_date_failed",
+                                ticker=ticker,
+                                date=date,
+                                error=str(e),
+                            )
+                            errors += 1
+                    except Exception as e:
+                        logger.error(
+                            "backfill_date_failed",
+                            ticker=ticker,
+                            date=date,
+                            error=str(e),
+                            error_type=type(e).__name__,
+                        )
+                        errors += 1
+
+                # Log batch progress
+                logger.info(
+                    "backfill_batch_complete",
+                    ticker=ticker,
+                    batch_num=i // batch_size + 1,
+                    batch_size=len(batch),
+                    created=batch_created,
+                )
+
+            tickers_processed += 1
+            logger.info(
+                "backfill_ticker_complete",
+                ticker=ticker,
+                indicators_created=indicators_created,
+            )
+
+        except Exception as e:
+            logger.error(
+                "backfill_ticker_failed",
+                ticker=ticker,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+            errors += 1
+            # Continue with next ticker
+
+    result = {
+        "tickers_processed": tickers_processed,
+        "indicators_created": indicators_created,
+        "errors": errors,
+    }
+
+    logger.info(
+        "backfill_technical_indicators_completed",
+        task_id=task_id,
+        **result,
+    )
+
+    return result

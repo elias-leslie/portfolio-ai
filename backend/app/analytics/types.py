@@ -63,6 +63,9 @@ class PaperTradeDict(TypedDict, total=False):
     backtest_sharpe: float | None
     backtest_win_rate: float | None
     backtest_max_drawdown: float | None
+    # Position sizing (optional - for strategy-based paper trades)
+    shares: int | None
+    entry_amount: float | None
 
 
 class TradeDict(TypedDict, total=False):

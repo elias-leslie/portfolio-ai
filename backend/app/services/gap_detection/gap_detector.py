@@ -143,14 +143,16 @@ class GapDetector:
             reverse=True,
         ):
             if len(affected_tickers) > 1:  # Only include if affects 2+ tickers
-                aggregate_gaps.append({
-                    "capability": capability,
-                    "description": f"Missing {capability}",
-                    "affected_tickers": len(affected_tickers),
-                    "total_tickers": len(tickers),
-                    "affected_pct": round(len(affected_tickers) / len(tickers) * 100, 1),
-                    "tickers": affected_tickers,
-                })
+                aggregate_gaps.append(
+                    {
+                        "capability": capability,
+                        "description": f"Missing {capability}",
+                        "affected_tickers": len(affected_tickers),
+                        "total_tickers": len(tickers),
+                        "affected_pct": round(len(affected_tickers) / len(tickers) * 100, 1),
+                        "tickers": affected_tickers,
+                    }
+                )
 
         logger.info(
             "watchlist_gaps_analyzed",

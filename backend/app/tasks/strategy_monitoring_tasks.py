@@ -298,7 +298,9 @@ def auto_promote_strategies(
     Returns:
         Summary dict with promotion results
     """
-    logger.info("Starting auto-promotion of validated strategies", min_days=min_days, min_sharpe=min_sharpe)
+    logger.info(
+        "Starting auto-promotion of validated strategies", min_days=min_days, min_sharpe=min_sharpe
+    )
 
     try:
         strategy_storage = get_strategy_storage()
@@ -328,14 +330,18 @@ def auto_promote_strategies(
                 days_since_creation = (now - created).days if created else 0
 
                 if days_since_creation < min_days:
-                    logger.debug(f"Skipping {strategy.name}: only {days_since_creation} days old (need {min_days})")
+                    logger.debug(
+                        f"Skipping {strategy.name}: only {days_since_creation} days old (need {min_days})"
+                    )
                     continue
 
                 # Check expected Sharpe
                 expected_sharpe = float(strategy.expected_sharpe or 0.0)
 
                 if expected_sharpe < min_sharpe:
-                    logger.debug(f"Skipping {strategy.name}: Sharpe {expected_sharpe:.2f} < {min_sharpe}")
+                    logger.debug(
+                        f"Skipping {strategy.name}: Sharpe {expected_sharpe:.2f} < {min_sharpe}"
+                    )
                     continue
 
                 # Check for blocking issues (negative Sharpe = likely bad strategy)
@@ -346,7 +352,9 @@ def auto_promote_strategies(
                 # All criteria met - promote!
                 strategy_storage.activate_strategy(strategy.id)
                 promoted_count += 1
-                results.append(f"Promoted {strategy.name} (Sharpe={expected_sharpe:.2f}, age={days_since_creation}d)")
+                results.append(
+                    f"Promoted {strategy.name} (Sharpe={expected_sharpe:.2f}, age={days_since_creation}d)"
+                )
 
                 logger.info(
                     "Strategy auto-promoted",

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, cast
 
-from celery.schedules import (  # type: ignore[import-untyped]
+from celery.schedules import (
     crontab as CrontabSchedule,  # noqa: N812 - Using CamelCase for isinstance checks
 )
 from fastapi import APIRouter, HTTPException

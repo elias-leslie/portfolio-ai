@@ -23,12 +23,12 @@ from ..sources.yfinance_source import YFinanceSource
 from ..storage import PortfolioStorage
 
 if TYPE_CHECKING:
-    from celery import Task  # type: ignore[import-untyped]
+    from celery import Task
 
 logger = get_logger(__name__)
 
 
-@celery_app.task(bind=True, name="check_data_source_health", max_retries=1)
+@celery_app.task(bind=True, name="check_data_source_health", max_retries=1)  # type: ignore[misc]
 def check_data_source_health(self: Task) -> dict[str, Any]:
     """Periodically test each configured data source.
 

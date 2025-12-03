@@ -75,9 +75,7 @@ def get_ownership_from_cache(ticker: str, storage: PortfolioStorage) -> Ownershi
         return None
 
 
-def calculate_ownership_score(
-    institutional_pct: float | None, insider_pct: float | None
-) -> int:
+def calculate_ownership_score(institutional_pct: float | None, insider_pct: float | None) -> int:
     """Calculate ownership quality score (0-5 points).
 
     Scoring logic:

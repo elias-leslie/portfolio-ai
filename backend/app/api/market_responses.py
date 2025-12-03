@@ -1,0 +1,107 @@
+"""Response models for market API endpoints."""
+
+from __future__ import annotations
+
+from pydantic import BaseModel, Field
+
+from app.market.sentiment import MarketHealthScore
+from app.utils.market_hours import MarketStatus
+
+
+# Market conditions endpoint
+class MarketConditionsResponse(BaseModel):
+    """Response model for market conditions."""
+
+    sp500: dict[str, float | None | str] = Field(..., description="S&P 500 data")
+    vix: dict[str, float | None | str] = Field(..., description="VIX volatility index")
+    tnx: dict[str, float | None | str] = Field(..., description="10-Year Treasury yield")
+    dxy: dict[str, float | None | str] = Field(..., description="US Dollar Index")
+    health: MarketHealthScore = Field(..., description="Market health scoring")
+
+
+# Prices endpoint
+class PriceResponse(BaseModel):
+    """Response model for price data."""
+
+    symbol: str
+    price: float
+    beta: float | None
+    volatility: float | None
+    sector: str | None
+
+
+class PricesResponse(BaseModel):
+    """Response model for multiple prices."""
+
+    prices: dict[str, PriceResponse]
+    count: int
+
+
+# Market status endpoint
+class MarketStatusResponse(BaseModel):
+    """Response model for market status endpoint."""
+
+    status: MarketStatus = Field(..., description="Current market status")
+    is_open: bool = Field(..., description="Whether market is currently open for regular trading")
+    last_trading_day: str = Field(..., description="Most recent trading day (ISO format)")
+    next_trading_day: str = Field(..., description="Next trading day (ISO format)")
+    current_time_et: str = Field(..., description="Current time in Eastern Time")
+    is_holiday: bool = Field(False, description="Whether today is a market holiday")
+    holiday_name: str | None = Field(None, description="Holiday name if today is a holiday")
+    is_early_close: bool = Field(False, description="Whether today is an early close day")
+    early_close_name: str | None = Field(None, description="Early close day name if applicable")
+
+
+# Fear & Greed history endpoint
+class FearGreedHistoryResponse(BaseModel):
+    """Response model for Fear & Greed history."""
+
+    dates: list[str] = Field(..., description="ISO date strings")
+    scores: list[float] = Field(..., description="Fear & Greed scores (0-100)")
+    labels: list[str] = Field(..., description="Labels (Extreme Fear, Fear, etc.)")
+
+
+# Indicator history endpoint
+class IndicatorDataPoint(BaseModel):
+    """Single data point for an indicator."""
+
+    date: str
+    close: float
+    pct_change: float = Field(..., description="% change from period start")
+
+
+class IndicatorHistoryResponse(BaseModel):
+    """Response model for indicator history."""
+
+    sp500: list[IndicatorDataPoint] = Field(default_factory=list)
+    vix: list[IndicatorDataPoint] = Field(default_factory=list)
+    tnx: list[IndicatorDataPoint] = Field(default_factory=list)
+    dxy: list[IndicatorDataPoint] = Field(default_factory=list)
+    period_start: str
+    period_end: str
+
+
+# Sector history endpoint
+class SectorDataPoint(BaseModel):
+    """Single data point for a sector."""
+
+    date: str
+    close: float
+    pct_change: float = Field(..., description="% change from period start")
+
+
+class SectorHistory(BaseModel):
+    """History data for a single sector."""
+
+    name: str
+    symbol: str
+    data: list[SectorDataPoint]
+    current_pct: float = Field(..., description="Current % change from period start")
+
+
+class SectorHistoryResponse(BaseModel):
+    """Response model for sector history."""
+
+    sectors: list[SectorHistory]
+    period_start: str
+    period_end: str

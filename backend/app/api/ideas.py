@@ -6,7 +6,7 @@ import json
 from datetime import UTC, datetime
 from typing import Any, Literal, cast
 
-from celery.result import AsyncResult  # type: ignore[import-untyped]
+from celery.result import AsyncResult
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 

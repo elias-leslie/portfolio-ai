@@ -179,7 +179,7 @@ class CeleryScanner:
         Returns:
             Tuple of (description, crontab_string, interval_seconds)
         """
-        from celery.schedules import crontab  # type: ignore[import-untyped]  # noqa: PLC0415
+        from celery.schedules import crontab  # noqa: PLC0415
 
         schedule_str = str(schedule_obj)
 
@@ -336,7 +336,9 @@ class CeleryScanner:
             return "suspect" if has_zero_success else "active"
 
         # Orphaned: Not scheduled and no dependencies and no callers
-        is_isolated = schedule_interval_seconds is None and not populates_tables and not depends_on_tasks
+        is_isolated = (
+            schedule_interval_seconds is None and not populates_tables and not depends_on_tasks
+        )
         if is_isolated:
             return "orphaned"
 

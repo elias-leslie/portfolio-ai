@@ -220,9 +220,7 @@ class EnhancedSignalStrategy:
 
         # 1. Max holding period
         if holding_days >= self.max_holding_days:
-            logger.debug(
-                f"EXIT (TIME): {position.symbol} | Held {holding_days} days"
-            )
+            logger.debug(f"EXIT (TIME): {position.symbol} | Held {holding_days} days")
             return (True, "time")
 
         # 2. Stop loss (2x ATR)
@@ -231,8 +229,7 @@ class EnhancedSignalStrategy:
             stop_loss = position.entry_price - (self.stop_loss_atr_multiplier * atr)
             if current_price <= stop_loss:
                 logger.debug(
-                    f"EXIT (STOP): {position.symbol} | "
-                    f"${current_price:.2f} <= ${stop_loss:.2f}"
+                    f"EXIT (STOP): {position.symbol} | ${current_price:.2f} <= ${stop_loss:.2f}"
                 )
                 return (True, "stop")
 
@@ -243,16 +240,13 @@ class EnhancedSignalStrategy:
 
         # RSI overbought exit - use "signal" as valid exit reason
         if rsi_14 > 75:
-            logger.debug(
-                f"EXIT (RSI): {position.symbol} | RSI {rsi_14:.1f} > 75"
-            )
+            logger.debug(f"EXIT (RSI): {position.symbol} | RSI {rsi_14:.1f} > 75")
             return (True, "signal")
 
         # Price fallen below EMA significantly (trend reversal) - use "signal"
         if ema_20 > 0 and price < ema_20 * 0.98:  # 2% below EMA
             logger.debug(
-                f"EXIT (TREND): {position.symbol} | "
-                f"Price ${price:.2f} < EMA ${ema_20:.2f}"
+                f"EXIT (TREND): {position.symbol} | Price ${price:.2f} < EMA ${ema_20:.2f}"
             )
             return (True, "signal")
 

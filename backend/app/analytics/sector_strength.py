@@ -204,7 +204,7 @@ def calculate_sector_relative_strength(
 
     # Fetch all sector ETFs and SPY
     tickers = list(SECTOR_ETFS.keys()) + [BENCHMARK]
-    placeholders = ", ".join(f"${i+1}" for i in range(len(tickers)))
+    placeholders = ", ".join(f"${i + 1}" for i in range(len(tickers)))
 
     query = f"""
         SELECT ticker, date, close

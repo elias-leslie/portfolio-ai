@@ -241,7 +241,9 @@ def run_stress_test(
         total_stressed += stressed_value
 
     # Calculate portfolio-level metrics
-    portfolio_loss_pct = (total_stressed - total_current) / total_current if total_current > 0 else 0
+    portfolio_loss_pct = (
+        (total_stressed - total_current) / total_current if total_current > 0 else 0
+    )
 
     # Sort to find worst positions
     worst_positions = sorted(position_results, key=lambda x: x.loss_pct)[:5]
@@ -339,8 +341,10 @@ def get_stress_test_summary(results: list[PortfolioStressResult]) -> dict[str, A
         "average_loss_pct": avg_loss,
         "average_resilience_score": avg_resilience,
         "overall_rating": (
-            "RESILIENT" if avg_resilience >= 70
-            else "MODERATE" if avg_resilience >= 40
+            "RESILIENT"
+            if avg_resilience >= 70
+            else "MODERATE"
+            if avg_resilience >= 40
             else "VULNERABLE"
         ),
     }

@@ -6,7 +6,8 @@ Used by /recommendations page to show actionable trades.
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from datetime import date, datetime
+from typing import Any, Literal, cast
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -170,8 +171,12 @@ async def get_recommendations(
     min_strength: int = Query(5, ge=0, le=10, description="Minimum signal strength"),
     limit: int = Query(20, ge=1, le=100, description="Maximum recommendations"),
     signal_type: Literal["BUY", "SELL", "all"] = Query("BUY", description="Filter by signal type"),
-    portfolio_size: float = Query(DEFAULT_PORTFOLIO_SIZE, ge=1000, description="Portfolio size for sizing"),
-    position_pct: float = Query(DEFAULT_POSITION_PCT, ge=0.01, le=0.25, description="Position size %"),
+    portfolio_size: float = Query(
+        DEFAULT_PORTFOLIO_SIZE, ge=1000, description="Portfolio size for sizing"
+    ),
+    position_pct: float = Query(
+        DEFAULT_POSITION_PCT, ge=0.01, le=0.25, description="Position size %"
+    ),
 ) -> RecommendationsResponse:
     """Get top trade recommendations from active strategies.
 
@@ -231,7 +236,14 @@ async def get_recommendations(
         from app.portfolio.price_fetcher import PriceDataFetcher
         from app.storage import get_storage
 
-        symbols = list({row[0] for row in rows})
+        # Extract symbols and ensure they're all strings
+        symbols: list[str] = []
+        for row in rows:
+            sym = row[0]
+            if isinstance(sym, str):
+                symbols.append(sym)
+        symbols = list(set(symbols))  # Deduplicate
+
         current_prices: dict[str, float] = {}
 
         if symbols:
@@ -249,20 +261,58 @@ async def get_recommendations(
         total_position = 0.0
 
         for row in rows:
-            symbol = row[0]
+            # Extract and validate row data with proper types
+            symbol_raw = row[0]
+            if not isinstance(symbol_raw, str):
+                continue  # Skip invalid symbols
+            symbol: str = symbol_raw
+
             strategy_id = str(row[1])
-            strategy_name = row[2]
-            strategy_type = row[3]
-            sig_type = row[4]
-            strength = row[5]
-            reasons = row[6] or []
-            market_data = row[7] or {}
-            signal_date = row[8]
-            created_at = row[9]
+
+            strategy_name_raw = row[2]
+            if not isinstance(strategy_name_raw, str):
+                continue
+            strategy_name: str = strategy_name_raw
+
+            strategy_type_raw = row[3]
+            if not isinstance(strategy_type_raw, str):
+                continue
+            strategy_type: str = strategy_type_raw
+
+            sig_type_raw = row[4]
+            if not isinstance(sig_type_raw, str):
+                continue
+            sig_type: str = sig_type_raw
+
+            strength_raw = row[5]
+            if not isinstance(strength_raw, int):
+                continue
+            strength: int = strength_raw
+
+            # Type annotate reasons and market_data with proper validation
+            reasons_raw = row[6]
+            reasons: list[str]
+            if reasons_raw is None or not isinstance(reasons_raw, list):
+                reasons = []
+            else:
+                # Ensure all items are strings
+                reasons = [str(r) for r in reasons_raw if r is not None]
+
+            market_data_raw = row[7]
+            market_data: dict[str, Any]
+            if market_data_raw is None or not isinstance(market_data_raw, dict):
+                market_data = {}
+            else:
+                market_data = market_data_raw
+
+            signal_date_raw = row[8]
+            created_at_raw = row[9]
             expected_sharpe = float(row[10]) if row[10] else None
 
             # Get entry price from market data (when signal was generated)
-            entry_price = float(market_data.get("price", 0))
+            # market_data is guaranteed to be dict at this point
+            price_value = market_data.get("price", 0)
+            entry_price = float(price_value) if price_value else 0.0
             if entry_price <= 0:
                 continue  # Skip if no valid price
 
@@ -276,7 +326,9 @@ async def get_recommendations(
 
             # Skip invalidated signals
             if signal_status == "invalidated":
-                logger.info(f"Skipping {symbol}: signal invalidated (price change: {price_change_pct:.1f}%)")
+                logger.info(
+                    f"Skipping {symbol}: signal invalidated (price change: {price_change_pct:.1f}%)"
+                )
                 continue
 
             # Calculate position sizing based on CURRENT price
@@ -285,6 +337,20 @@ async def get_recommendations(
             target_price = _calculate_target(current_price)
             risk_reward = _calculate_risk_reward(current_price, stop_loss, target_price)
 
+            # Handle signal_date conversion
+            signal_date_str: str = ""
+            if isinstance(signal_date_raw, (date, datetime)):
+                signal_date_str = signal_date_raw.isoformat()
+            elif isinstance(signal_date_raw, str):
+                signal_date_str = signal_date_raw
+
+            # Handle created_at conversion
+            generated_at_str: str | None = None
+            if isinstance(created_at_raw, (date, datetime)):
+                generated_at_str = created_at_raw.isoformat()
+            elif isinstance(created_at_raw, str):
+                generated_at_str = created_at_raw
+
             recommendations.append(
                 TradeRecommendation(
                     symbol=symbol,
@@ -292,7 +358,7 @@ async def get_recommendations(
                     strategy_name=strategy_name,
                     strategy_type=strategy_type,
                     signal_strength=strength,
-                    signal_type=sig_type,
+                    signal_type=cast(Literal["BUY", "SELL", "HOLD"], sig_type),
                     signal_reasons=reasons,
                     entry_price=entry_price,
                     current_price=current_price,
@@ -304,8 +370,8 @@ async def get_recommendations(
                     position_size_shares=shares,
                     risk_reward_ratio=risk_reward,
                     expected_sharpe=expected_sharpe,
-                    signal_date=signal_date.isoformat() if signal_date else "",
-                    generated_at=created_at.isoformat() if created_at else None,
+                    signal_date=signal_date_str,
+                    generated_at=generated_at_str,
                 )
             )
 
@@ -326,7 +392,9 @@ async def get_recommendations(
                 "total_position_size": round(total_position, 2),
                 "avg_signal_strength": round(
                     sum(r.signal_strength for r in recommendations) / len(recommendations), 1
-                ) if recommendations else 0,
+                )
+                if recommendations
+                else 0,
                 "portfolio_size": portfolio_size,
                 "position_pct": position_pct,
             },
@@ -417,9 +485,13 @@ async def paper_trade_recommendation(
             ).fetchone()
 
             if not strategy:
-                raise HTTPException(status_code=404, detail=f"Active strategy {strategy_id} not found")
+                raise HTTPException(
+                    status_code=404, detail=f"Active strategy {strategy_id} not found"
+                )
 
-            signal_strength = int(strategy[1]) if strategy[1] else 7  # Default to 7 if no recent signal
+            signal_strength = (
+                int(strategy[1]) if strategy[1] else 7
+            )  # Default to 7 if no recent signal
 
         # Use the proper paper trading function with backtest metrics
         trade = create_paper_trade_from_strategy_signal(

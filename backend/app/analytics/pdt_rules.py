@@ -157,12 +157,12 @@ def check_pdt_status(
         if equity >= PDT_EQUITY_THRESHOLD:
             message = (
                 f"WARNING: Next day trade triggers PDT status. "
-                f"{day_trades}/{PDT_DAY_TRADE_LIMIT-1} used. Equity OK (${equity:,.0f})"
+                f"{day_trades}/{PDT_DAY_TRADE_LIMIT - 1} used. Equity OK (${equity:,.0f})"
             )
             return True, message, details
         message = (
             f"BLOCKED: Next day trade triggers PDT but equity "
-            f"(${equity:,.0f}) < $25k required. {day_trades}/{PDT_DAY_TRADE_LIMIT-1} used"
+            f"(${equity:,.0f}) < $25k required. {day_trades}/{PDT_DAY_TRADE_LIMIT - 1} used"
         )
         details["trades_remaining"] = 0
         logger.warning(
@@ -174,7 +174,9 @@ def check_pdt_status(
         return False, message, details
 
     # Normal case - under limit
-    message = f"OK: {day_trades}/{PDT_DAY_TRADE_LIMIT-1} day trades used, {trades_remaining} remaining"
+    message = (
+        f"OK: {day_trades}/{PDT_DAY_TRADE_LIMIT - 1} day trades used, {trades_remaining} remaining"
+    )
     logger.debug(
         "pdt_check_passed",
         account_id=account_id,

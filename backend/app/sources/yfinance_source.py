@@ -20,7 +20,7 @@ import polars as pl
 if not os.environ.get("HOME"):
     os.environ["HOME"] = "/var/cache/portfolio-ai"
 
-import yfinance as yf  # type: ignore[import-untyped]  # yfinance doesn't ship type stubs
+import yfinance as yf  # yfinance doesn't ship type stubs
 
 from ..logging_config import get_logger
 from .base import BaseSource, DatasetRequest

@@ -196,7 +196,12 @@ class ResearchAggregationService:
             for row in news_rows
             if row["sentiment_score"] is not None
             and row["published_at"] is not None
-            and (row["published_at"].replace(tzinfo=None) if hasattr(row["published_at"], 'replace') else row["published_at"]) >= (end_datetime - timedelta(days=7))
+            and (
+                row["published_at"].replace(tzinfo=None)
+                if hasattr(row["published_at"], "replace")
+                else row["published_at"]
+            )
+            >= (end_datetime - timedelta(days=7))
         ]
 
         sentiment_score = all_scores[0] if all_scores else 0.0  # Most recent

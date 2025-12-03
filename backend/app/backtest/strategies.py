@@ -92,14 +92,28 @@ class SignalStrategy:
             "volume": float(ohlcv.get("volume", 0)),
             "volume_avg_20": indicators.get("volume_avg_20", 0.0),
             # Use real fundamental data if available
-            "company_health": self.fundamental_data.get("company_health") if self.fundamental_data else None,
-            "news_sentiment": self.fundamental_data.get("news_sentiment") if self.fundamental_data else None,
+            "company_health": self.fundamental_data.get("company_health")
+            if self.fundamental_data
+            else None,
+            "news_sentiment": self.fundamental_data.get("news_sentiment")
+            if self.fundamental_data
+            else None,
             "earnings_days_away": None,
-            "profit_margin": self.fundamental_data.get("profit_margin") if self.fundamental_data else None,
-            "revenue_growth": self.fundamental_data.get("revenue_growth") if self.fundamental_data else None,
-            "debt_to_equity": self.fundamental_data.get("debt_to_equity") if self.fundamental_data else None,
-            "recommendation_mean": self.fundamental_data.get("recommendation_mean") if self.fundamental_data else None,
-            "analyst_buy_pct": self.fundamental_data.get("analyst_buy_pct") if self.fundamental_data else None,
+            "profit_margin": self.fundamental_data.get("profit_margin")
+            if self.fundamental_data
+            else None,
+            "revenue_growth": self.fundamental_data.get("revenue_growth")
+            if self.fundamental_data
+            else None,
+            "debt_to_equity": self.fundamental_data.get("debt_to_equity")
+            if self.fundamental_data
+            else None,
+            "recommendation_mean": self.fundamental_data.get("recommendation_mean")
+            if self.fundamental_data
+            else None,
+            "analyst_buy_pct": self.fundamental_data.get("analyst_buy_pct")
+            if self.fundamental_data
+            else None,
         }
 
         # Classify signal using existing logic

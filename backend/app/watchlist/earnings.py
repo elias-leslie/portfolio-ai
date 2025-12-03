@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     pass
 
 try:
-    import yfinance as yf  # type: ignore[import-untyped]
+    import yfinance as yf
 
     YFINANCE_AVAILABLE = True
 except ImportError:

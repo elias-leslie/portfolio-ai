@@ -12,7 +12,7 @@ import json
 from typing import TYPE_CHECKING, Any, TypedDict
 
 if TYPE_CHECKING:
-    from celery import Task  # type: ignore[import-untyped]
+    from celery import Task
 
 from app.celery_app import celery_app
 from app.logging_config import get_logger

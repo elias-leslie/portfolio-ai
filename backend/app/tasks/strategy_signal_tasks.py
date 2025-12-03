@@ -114,7 +114,9 @@ def _fetch_current_market_data(conn: Any, symbol: str) -> dict[str, Any] | None:
     }
 
 
-def _build_signal_inputs(market_data: dict[str, Any], strategy_params: dict[str, Any]) -> SignalInputsDict:
+def _build_signal_inputs(
+    market_data: dict[str, Any], strategy_params: dict[str, Any]
+) -> SignalInputsDict:
     """Build SignalInputsDict from market data and strategy parameters."""
     return SignalInputsDict(
         price=market_data.get("price", 0.0),
@@ -261,7 +263,7 @@ def generate_daily_strategy_signals() -> dict[str, Any]:
 
     logger.info(f"Evaluating {len(active_strategies)} active strategies")
 
-    results = {
+    results: dict[str, Any] = {
         "status": "completed",
         "strategies_evaluated": len(active_strategies),
         "signals_generated": 0,
@@ -277,11 +279,13 @@ def generate_daily_strategy_signals() -> dict[str, Any]:
                 signal_data = generate_signal_for_strategy(strategy.id, strategy.symbol)
 
                 if "error" in signal_data:
-                    results["errors"].append({
-                        "strategy_id": strategy.id,
-                        "symbol": strategy.symbol,
-                        "error": signal_data["error"],
-                    })
+                    results["errors"].append(
+                        {
+                            "strategy_id": strategy.id,
+                            "symbol": strategy.symbol,
+                            "error": signal_data["error"],
+                        }
+                    )
                     continue
 
                 # Store signal
@@ -311,11 +315,13 @@ def generate_daily_strategy_signals() -> dict[str, Any]:
                     symbol=strategy.symbol,
                     error=str(e),
                 )
-                results["errors"].append({
-                    "strategy_id": strategy.id,
-                    "symbol": strategy.symbol,
-                    "error": str(e),
-                })
+                results["errors"].append(
+                    {
+                        "strategy_id": strategy.id,
+                        "symbol": strategy.symbol,
+                        "error": str(e),
+                    }
+                )
 
         conn.commit()
 
@@ -364,7 +370,7 @@ def auto_paper_trade_from_signals(min_signal_strength: int = 5) -> dict[str, Any
     conn_mgr = get_connection_manager()
     storage = get_storage()
 
-    results = {
+    results: dict[str, Any] = {
         "status": "completed",
         "signals_evaluated": 0,
         "trades_created": 0,
@@ -400,10 +406,10 @@ def auto_paper_trade_from_signals(min_signal_strength: int = 5) -> dict[str, Any
 
         for signal in signals:
             strategy_id = str(signal[0])
-            symbol = signal[1]
-            signal_strength = signal[3]
-            reasons = signal[4] or []
-            strategy_name = signal[5]
+            symbol = str(signal[1])
+            signal_strength = int(signal[3]) if signal[3] is not None else 0
+            reasons: list[str] = signal[4] if isinstance(signal[4], list) else []
+            strategy_name = str(signal[5])
 
             try:
                 # Check if open position already exists for this strategy+symbol
@@ -447,11 +453,13 @@ def auto_paper_trade_from_signals(min_signal_strength: int = 5) -> dict[str, Any
                         entry_price=trade["entry_price"],
                     )
                 else:
-                    results["errors"].append({
-                        "strategy_id": strategy_id,
-                        "symbol": symbol,
-                        "error": "Failed to create trade",
-                    })
+                    results["errors"].append(
+                        {
+                            "strategy_id": strategy_id,
+                            "symbol": symbol,
+                            "error": "Failed to create trade",
+                        }
+                    )
 
             except Exception as e:
                 logger.exception(
@@ -460,11 +468,13 @@ def auto_paper_trade_from_signals(min_signal_strength: int = 5) -> dict[str, Any
                     symbol=symbol,
                     error=str(e),
                 )
-                results["errors"].append({
-                    "strategy_id": strategy_id,
-                    "symbol": symbol,
-                    "error": str(e),
-                })
+                results["errors"].append(
+                    {
+                        "strategy_id": strategy_id,
+                        "symbol": symbol,
+                        "error": str(e),
+                    }
+                )
 
     logger.info(
         "Auto paper trading completed",

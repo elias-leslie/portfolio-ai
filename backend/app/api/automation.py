@@ -227,9 +227,14 @@ async def get_pipeline_status() -> PipelineStatusResponse:
             ).fetchone()
 
             # Get last backtest run
-            last_backtest = conn.execute(
-                "SELECT MAX(created_at) FROM backtest_runs"
-            ).fetchone()
+            last_backtest = conn.execute("SELECT MAX(created_at) FROM backtest_runs").fetchone()
+
+        # Handle last_backtest datetime conversion
+        last_backtest_str = None
+        if last_backtest and last_backtest[0] is not None:
+            backtest_obj = last_backtest[0]
+            if hasattr(backtest_obj, "isoformat"):
+                last_backtest_str = backtest_obj.isoformat()
 
         return PipelineStatusResponse(
             stages={
@@ -244,7 +249,7 @@ async def get_pipeline_status() -> PipelineStatusResponse:
                 },
             },
             last_run={
-                "backtest": last_backtest[0].isoformat() if last_backtest and last_backtest[0] else None,
+                "backtest": last_backtest_str,
             },
         )
 

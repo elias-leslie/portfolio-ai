@@ -323,19 +323,23 @@ async def generate_batch(request: GenerateBatchRequest) -> dict[str, Any]:
                         symbol=symbol,
                         force_regenerate=request.force_regenerate,
                     )
-                    results.append({
-                        "symbol": symbol,
-                        "status": result.get("status", "unknown"),
-                        "strategy_id": result.get("strategy_id"),
-                        "message": result.get("message"),
-                    })
+                    results.append(
+                        {
+                            "symbol": symbol,
+                            "status": result.get("status", "unknown"),
+                            "strategy_id": result.get("strategy_id"),
+                            "message": result.get("message"),
+                        }
+                    )
                 except Exception as e:
-                    results.append({
-                        "symbol": symbol,
-                        "status": "failed",
-                        "strategy_id": None,
-                        "message": str(e),
-                    })
+                    results.append(
+                        {
+                            "symbol": symbol,
+                            "status": "failed",
+                            "strategy_id": None,
+                            "message": str(e),
+                        }
+                    )
 
             generated = sum(1 for r in results if r["status"] == "completed")
             return {
@@ -523,6 +527,11 @@ async def get_strategy_signal(strategy_id: str) -> dict[str, Any]:
             ).fetchone()
 
         if result:
+            generated_at_obj = result[4]
+            generated_at_str = None
+            if generated_at_obj is not None and hasattr(generated_at_obj, "isoformat"):
+                generated_at_str = generated_at_obj.isoformat()
+
             return {
                 "strategy_id": strategy_id,
                 "symbol": strategy.symbol,
@@ -530,7 +539,7 @@ async def get_strategy_signal(strategy_id: str) -> dict[str, Any]:
                 "signal_strength": result[1],
                 "reasons": result[2] or [],
                 "market_data": result[3] or {},
-                "generated_at": result[4].isoformat() if result[4] else None,
+                "generated_at": generated_at_str,
                 "source": "stored",
             }
 
@@ -547,9 +556,7 @@ async def get_strategy_signal(strategy_id: str) -> dict[str, Any]:
         raise
     except Exception as e:
         logger.exception("Failed to get strategy signal", strategy_id=strategy_id, error=str(e))
-        raise HTTPException(
-            status_code=500, detail=f"Failed to get strategy signal: {e!s}"
-        ) from e
+        raise HTTPException(status_code=500, detail=f"Failed to get strategy signal: {e!s}") from e
 
 
 @router.post("/{strategy_id}/signal/generate", response_model=dict[str, Any])

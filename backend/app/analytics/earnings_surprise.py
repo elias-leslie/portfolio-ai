@@ -28,9 +28,9 @@ logger = get_logger(__name__)
 
 # Score thresholds
 LARGE_BEAT_PCT = 10.0  # >10% beat = very bullish
-SMALL_BEAT_PCT = 2.0   # >2% beat = bullish
+SMALL_BEAT_PCT = 2.0  # >2% beat = bullish
 SMALL_MISS_PCT = -2.0  # <-2% miss = bearish
-LARGE_MISS_PCT = -10.0 # <-10% miss = very bearish
+LARGE_MISS_PCT = -10.0  # <-10% miss = very bearish
 
 
 @dataclass

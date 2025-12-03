@@ -164,8 +164,7 @@ class MomentumStrategy:
         sma_50 = float(indicators.get("sma_50", 0) or 0)
         if sma_50 > 0 and price < sma_50:
             logger.debug(
-                f"EXIT (SIGNAL): {position.symbol} | "
-                f"Price ${price:.2f} < SMA50 ${sma_50:.2f}"
+                f"EXIT (SIGNAL): {position.symbol} | Price ${price:.2f} < SMA50 ${sma_50:.2f}"
             )
             return (True, "signal")
 
@@ -173,8 +172,7 @@ class MomentumStrategy:
         rsi_14 = float(indicators.get("rsi_14", 50) or 50)
         if rsi_14 < self.rsi_exit_threshold:
             logger.debug(
-                f"EXIT (SIGNAL): {position.symbol} | "
-                f"RSI {rsi_14:.1f} < {self.rsi_exit_threshold}"
+                f"EXIT (SIGNAL): {position.symbol} | RSI {rsi_14:.1f} < {self.rsi_exit_threshold}"
             )
             return (True, "signal")
 
@@ -307,8 +305,7 @@ class MeanReversionStrategy:
         rsi_14 = float(indicators.get("rsi_14", 50) or 50)
         if rsi_14 >= self.rsi_exit:
             logger.debug(
-                f"EXIT (SIGNAL): {position.symbol} | "
-                f"RSI {rsi_14:.1f} >= {self.rsi_exit} (neutral)"
+                f"EXIT (SIGNAL): {position.symbol} | RSI {rsi_14:.1f} >= {self.rsi_exit} (neutral)"
             )
             return (True, "signal")
 
@@ -426,8 +423,7 @@ class TrendFollowingStrategy:
         sma_20 = float(indicators.get("sma_20", 0) or 0)
         if sma_20 > 0 and price < sma_20:
             logger.debug(
-                f"EXIT (SIGNAL): {position.symbol} | "
-                f"Price ${price:.2f} < SMA20 ${sma_20:.2f}"
+                f"EXIT (SIGNAL): {position.symbol} | Price ${price:.2f} < SMA20 ${sma_20:.2f}"
             )
             return (True, "signal")
 

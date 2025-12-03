@@ -449,7 +449,7 @@ class StrategyStorage:
         Returns:
             StrategyDefinition object
         """
-        # Convert UUID to string, Decimal to float for Pydantic
+        # Convert UUID to string, keep Decimal for Pydantic
         return StrategyDefinition(
             id=str(row["id"]),  # UUID → string
             name=row["name"],
@@ -459,9 +459,9 @@ class StrategyStorage:
             research_summary=row["research_summary"],
             generation_reasoning=row["generation_reasoning"],
             backtest_metrics=row["backtest_metrics"],
-            expected_sharpe=float(row["expected_sharpe"]) if row["expected_sharpe"] else None,
-            expected_win_rate=float(row["expected_win_rate"]) if row["expected_win_rate"] else None,
-            expected_max_drawdown=float(row["expected_max_drawdown"]) if row["expected_max_drawdown"] else None,
+            expected_sharpe=row["expected_sharpe"],
+            expected_win_rate=row["expected_win_rate"],
+            expected_max_drawdown=row["expected_max_drawdown"],
             created_by=row["created_by"],
             created_at=row["created_at"],
             version=row["version"],
@@ -470,8 +470,8 @@ class StrategyStorage:
             archive_date=row.get("archive_date"),
             archive_reason=row.get("archive_reason"),
             live_trades_count=row.get("live_trades_count", 0),
-            live_win_rate=float(row["live_win_rate"]) if row.get("live_win_rate") else None,
-            live_sharpe_ratio=float(row["live_sharpe_ratio"]) if row.get("live_sharpe_ratio") else None,
+            live_win_rate=row.get("live_win_rate"),
+            live_sharpe_ratio=row.get("live_sharpe_ratio"),
             last_used_at=row.get("last_used_at"),
         )
 

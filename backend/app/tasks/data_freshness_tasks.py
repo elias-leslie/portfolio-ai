@@ -17,7 +17,7 @@ from app.storage.connection import get_connection_manager
 from app.tasks.watchlist_tasks import refresh_watchlist_scores_task
 
 if TYPE_CHECKING:
-    from celery import Task  # type: ignore[import-untyped]
+    from celery import Task
 
 logger = get_logger(__name__)
 

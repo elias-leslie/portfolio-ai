@@ -62,7 +62,7 @@ def calculate_daily_returns(
             FROM day_bars
             WHERE ticker IN ({placeholders})
             ORDER BY ticker, date DESC
-            LIMIT ${ len(tickers) + 1}
+            LIMIT ${len(tickers) + 1}
         )
         SELECT
             ticker,

@@ -368,7 +368,15 @@ def save_portfolio_snapshot(
     """
     storage.execute(
         upsert_query,
-        [account_id, str(snapshot_date), current_equity, cash, position_value, peak_equity, drawdown_pct],
+        [
+            account_id,
+            str(snapshot_date),
+            current_equity,
+            cash,
+            position_value,
+            peak_equity,
+            drawdown_pct,
+        ],
     )
 
     logger.info(
@@ -395,13 +403,16 @@ def get_drawdown_history(
     Returns:
         List of dicts with date, equity, drawdown_pct
     """
-    query = """
+    query = (
+        """
         SELECT snapshot_date, equity, drawdown_pct, peak_equity
         FROM portfolio_snapshots
         WHERE account_id = $1
           AND snapshot_date >= CURRENT_DATE - INTERVAL '%s days'
         ORDER BY snapshot_date ASC
-    """ % days
+    """
+        % days
+    )
 
     result = storage.query(query, [account_id])
 
@@ -415,12 +426,14 @@ def get_drawdown_history(
             snapshot_date_str = str(snapshot_date_val.date())
         else:
             snapshot_date_str = str(snapshot_date_val)
-        history.append({
-            "date": snapshot_date_str,
-            "equity": float(row["equity"]),
-            "drawdown_pct": float(row["drawdown_pct"]),
-            "peak_equity": float(row["peak_equity"]),
-        })
+        history.append(
+            {
+                "date": snapshot_date_str,
+                "equity": float(row["equity"]),
+                "drawdown_pct": float(row["drawdown_pct"]),
+                "peak_equity": float(row["peak_equity"]),
+            }
+        )
 
     return history
 

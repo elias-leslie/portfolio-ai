@@ -387,7 +387,13 @@ def create_paper_trade_from_strategy_signal(
                     INSERT INTO agent_runs (id, session_id, agent_type, status, started_at)
                     VALUES (%s, %s, %s, %s, %s)
                     """,
-                    (agent_run_id, f"strategy-signal-{strategy_id[:8]}", "strategy_signal", "completed", now),
+                    (
+                        agent_run_id,
+                        f"strategy-signal-{strategy_id[:8]}",
+                        "strategy_signal",
+                        "completed",
+                        now,
+                    ),
                 )
                 conn.commit()
 

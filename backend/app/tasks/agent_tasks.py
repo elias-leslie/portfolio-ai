@@ -29,7 +29,7 @@ from app.sources.fred import FREDSource
 from app.storage import get_storage
 
 if TYPE_CHECKING:
-    from celery import Task  # type: ignore[import-untyped]
+    from celery import Task
 from app.storage.credential_loader import load_credentials_from_database
 
 if TYPE_CHECKING:

@@ -24,7 +24,7 @@ from app.storage.facade import PortfolioStorage
 from app.tasks.types import NewsProfilingResultDict
 
 if TYPE_CHECKING:
-    from celery import Task  # type: ignore[import-untyped]
+    from celery import Task
 
 logger = get_logger(__name__)
 

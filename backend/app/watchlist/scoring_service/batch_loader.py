@@ -114,7 +114,7 @@ def trigger_auto_backfill(storage: PortfolioStorage, symbols: list[str]) -> None
 
     if tickers_needing_backfill:
         try:
-            from ...tasks.data_ingestion_tasks import ingest_historical_ohlcv  # noqa: PLC0415
+            from ...tasks.ingestion import ingest_historical_ohlcv  # noqa: PLC0415
 
             logger.info(
                 "auto_backfill_triggered",

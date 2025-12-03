@@ -110,7 +110,14 @@ async def get_table_freshness() -> TableFreshnessResponse:
             ("day_bars", "date", "date", 24, "Daily OHLCV market data", True),
             ("fear_greed_inputs", "as_of_date", "date", 24, "Fear & Greed raw inputs", True),
             ("fear_greed_daily", "as_of_date", "date", 24, "Fear & Greed calculated scores", True),
-            ("fear_greed_components", "as_of_date", "date", 24, "Fear & Greed component scores", True),
+            (
+                "fear_greed_components",
+                "as_of_date",
+                "date",
+                24,
+                "Fear & Greed component scores",
+                True,
+            ),
             (
                 "technical_indicators",
                 "calculated_at",
@@ -135,9 +142,23 @@ async def get_table_freshness() -> TableFreshnessResponse:
                 "Watchlist scores (refreshes every ~1min, 2h tolerance)",
                 False,
             ),
-            ("price_cache", "cached_at", "timestamp", 1, "Real-time price cache (on-demand)", False),
+            (
+                "price_cache",
+                "cached_at",
+                "timestamp",
+                1,
+                "Real-time price cache (on-demand)",
+                False,
+            ),
             ("ml_model_metrics", "trained_at", "timestamp", 24, "ML model training metrics", False),
-            ("source_metrics", "calculated_at", "timestamp", 12, "News source quality profiling", False),
+            (
+                "source_metrics",
+                "calculated_at",
+                "timestamp",
+                12,
+                "News source quality profiling",
+                False,
+            ),
         ]
 
         tables: list[TableFreshnessStatus] = []
@@ -147,7 +168,14 @@ async def get_table_freshness() -> TableFreshnessResponse:
             # Validate all table and column names exist before executing queries
             # This prevents SQL injection by verifying configuration against schema
             validated_configs = []
-            for table_name, timestamp_col, col_type, expected_hours, desc, is_market_data in table_configs:
+            for (
+                table_name,
+                timestamp_col,
+                col_type,
+                expected_hours,
+                desc,
+                is_market_data,
+            ) in table_configs:
                 try:
                     # Check table exists in information_schema
                     table_check = conn.execute(
@@ -201,7 +229,14 @@ async def get_table_freshness() -> TableFreshnessResponse:
                     )
                     continue
 
-            for table_name, timestamp_col, col_type, expected_hours, desc, is_market_data in validated_configs:
+            for (
+                table_name,
+                timestamp_col,
+                col_type,
+                expected_hours,
+                desc,
+                is_market_data,
+            ) in validated_configs:
                 try:
                     # Get latest timestamp
                     # validated: table/column from information_schema

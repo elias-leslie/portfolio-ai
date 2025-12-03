@@ -118,7 +118,12 @@ async def create_insight(insight: InsightCreateRequest) -> InsightCreateResponse
             ).fetchone()
             conn.commit()
 
-            insight_id = result[0] if result else 0
+            if not result or result[0] is None:
+                raise HTTPException(
+                    status_code=500, detail="Failed to create insight: no ID returned"
+                )
+
+            insight_id = int(result[0])
 
             logger.info(
                 "insight_created",

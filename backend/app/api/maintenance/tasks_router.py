@@ -6,7 +6,7 @@ Celery-based maintenance tasks.
 
 from __future__ import annotations
 
-from celery.result import AsyncResult  # type: ignore[import-untyped]
+from celery.result import AsyncResult
 from fastapi import APIRouter, HTTPException
 
 from ...celery_app import celery_app

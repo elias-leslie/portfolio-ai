@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import os
 
-from celery import Celery  # type: ignore[import-untyped]  # celery doesn't ship type stubs
-from celery.signals import (  # type: ignore[import-untyped]
+from celery import Celery  # celery doesn't ship type stubs
+from celery.signals import (
     after_setup_logger,
     after_setup_task_logger,
 )
@@ -65,8 +65,7 @@ from app.tasks import (  # noqa: E402, F401
     backtest_tasks,
     capability_tasks,
     data_freshness_tasks,
-    data_ingestion_tasks,
-    indicator_tasks,
+    ingestion,
     log_cleanup_tasks,
     maintenance_tasks,
     ml_training_tasks,
@@ -78,6 +77,11 @@ from app.tasks import (  # noqa: E402, F401
     strategy_signal_tasks,
     watchlist_tasks,
     workflow_tasks,
+)
+from app.tasks.indicators import (  # noqa: E402, F401
+    backfill_technical_indicators,
+    calculate_fear_greed,
+    update_technical_indicators,
 )
 from app.tasks.market_data import (  # noqa: E402, F401
     fear_greed_pipeline,

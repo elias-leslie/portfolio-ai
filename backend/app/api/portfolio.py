@@ -53,7 +53,9 @@ class PositionCreate(BaseModel):
     shares: float = Field(..., description="Number of shares", gt=0)
     cost_basis: float = Field(..., description="Cost basis per share", gt=0)
     position_type: Literal["long", "short"] = Field(default="long", description="Position type")
-    strategy_id: str | None = Field(default=None, description="Optional strategy ID to link this position to")
+    strategy_id: str | None = Field(
+        default=None, description="Optional strategy ID to link this position to"
+    )
 
 
 class PositionResponse(BaseModel):
@@ -313,6 +315,7 @@ async def create_position(position: PositionCreate) -> PositionResponse:
     strategy_name = None
     if created.strategy_id:
         from app.strategies.storage import get_strategy_storage
+
         strategy_storage = get_strategy_storage()
         strategy = strategy_storage.get_strategy_by_id(created.strategy_id)
         strategy_name = strategy.name if strategy else None

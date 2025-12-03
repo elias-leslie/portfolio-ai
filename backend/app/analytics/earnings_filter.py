@@ -106,11 +106,15 @@ def check_earnings_proximity(
             ticker=ticker,
             action="allowing_trade",
         )
-        return True, "Earnings date unknown - trade allowed", {
-            "ticker": ticker,
-            "earnings_date": None,
-            "days_away": None,
-        }
+        return (
+            True,
+            "Earnings date unknown - trade allowed",
+            {
+                "ticker": ticker,
+                "earnings_date": None,
+                "days_away": None,
+            },
+        )
 
     # Calculate days until earnings
     now = datetime.now(UTC)

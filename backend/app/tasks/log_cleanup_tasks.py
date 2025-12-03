@@ -23,7 +23,7 @@ from app.logging_config import get_logger
 from app.storage.connection import get_connection_manager
 
 if TYPE_CHECKING:
-    from celery import Task  # type: ignore[import-untyped]
+    from celery import Task
 
 logger = get_logger(__name__)
 

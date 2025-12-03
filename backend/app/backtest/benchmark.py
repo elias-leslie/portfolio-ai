@@ -367,10 +367,14 @@ class BenchmarkComparisonEngine:
         if not common_dates:
             # No overlapping dates - return basic metrics only
             strategy_return = (
-                strategy_normalized[-1].cumulative_return_pct if strategy_normalized else Decimal("0")
+                strategy_normalized[-1].cumulative_return_pct
+                if strategy_normalized
+                else Decimal("0")
             )
             benchmark_return = (
-                benchmark_normalized[-1].cumulative_return_pct if benchmark_normalized else Decimal("0")
+                benchmark_normalized[-1].cumulative_return_pct
+                if benchmark_normalized
+                else Decimal("0")
             )
 
             return BenchmarkMetrics(

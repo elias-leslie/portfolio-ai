@@ -310,7 +310,9 @@ class PortfolioBacktest:
         # Average holding period
         if state.trades:
             total_holding_days = sum(
-                (trade.exit_date - trade.entry_date).days for trade in state.trades
+                (trade.exit_date - trade.entry_date).days
+                for trade in state.trades
+                if trade.exit_date is not None
             )
             avg_holding = Decimal(str(total_holding_days)) / Decimal(str(len(state.trades)))
         else:
@@ -485,7 +487,12 @@ class PortfolioBacktest:
                     )
                     if should_exit:
                         exit_trade(
-                            state, run_id, symbol, backtest_date, current_prices[symbol], exit_reason
+                            state,
+                            run_id,
+                            symbol,
+                            backtest_date,
+                            current_prices[symbol],
+                            exit_reason,
                         )
 
                 # Check entries (for symbols without positions)
@@ -528,7 +535,9 @@ class PortfolioBacktest:
                     exit_trade(state, run_id, symbol, final_date, current_prices[symbol], "eod")
 
         # Calculate portfolio metrics
-        metrics = self._calculate_portfolio_metrics(state, self.initial_capital, start_date, end_date)
+        metrics = self._calculate_portfolio_metrics(
+            state, self.initial_capital, start_date, end_date
+        )
 
         logger.info(
             f"Portfolio backtest complete: {len(state.trades)} trades | "

@@ -438,9 +438,13 @@ class StrategyOptimizer:
 
         win_rate = len(wins) / num_trades if num_trades > 0 else 0.0
 
-        total_wins = sum(float(t.pnl) for t in wins) if wins else 0.0
-        total_losses = abs(sum(float(t.pnl) for t in losses)) if losses else 0.0
-        profit_factor = total_wins / total_losses if total_losses > 0 else (2.0 if total_wins > 0 else 0.0)
+        total_wins = sum(float(t.pnl) for t in wins if t.pnl is not None) if wins else 0.0
+        total_losses = (
+            abs(sum(float(t.pnl) for t in losses if t.pnl is not None)) if losses else 0.0
+        )
+        profit_factor = (
+            total_wins / total_losses if total_losses > 0 else (2.0 if total_wins > 0 else 0.0)
+        )
 
         # Calculate from equity curve
         if state.equity_curve:
@@ -449,19 +453,31 @@ class StrategyOptimizer:
             final_equity = equities[-1] if equities else initial_equity
 
             # Total return
-            total_return = (final_equity - initial_equity) / initial_equity if initial_equity > 0 else 0.0
+            total_return = (
+                (final_equity - initial_equity) / initial_equity if initial_equity > 0 else 0.0
+            )
 
             # Max drawdown (already tracked in equity curve)
-            max_drawdown = max(float(e.drawdown_pct) for e in state.equity_curve) if state.equity_curve else 0.0
+            max_drawdown = (
+                max(float(e.drawdown_pct) for e in state.equity_curve)
+                if state.equity_curve
+                else 0.0
+            )
 
             # Sharpe ratio from daily returns
             if len(equities) > 1:
-                daily_returns = [(equities[i] - equities[i - 1]) / equities[i - 1] for i in range(1, len(equities)) if equities[i - 1] > 0]
+                daily_returns = [
+                    (equities[i] - equities[i - 1]) / equities[i - 1]
+                    for i in range(1, len(equities))
+                    if equities[i - 1] > 0
+                ]
                 if daily_returns:
                     mean_return = statistics.mean(daily_returns)
                     std_return = statistics.stdev(daily_returns) if len(daily_returns) > 1 else 0.0
                     # Annualize: sqrt(252) * daily Sharpe
-                    sharpe_ratio = (mean_return / std_return * (252 ** 0.5)) if std_return > 0 else 0.0
+                    sharpe_ratio = (
+                        (mean_return / std_return * (252**0.5)) if std_return > 0 else 0.0
+                    )
                 else:
                     sharpe_ratio = 0.0
             else:
@@ -657,19 +673,21 @@ class StrategyOptimizer:
 
             # Persist trades
             for trade in state.trades:
-                save_backtest_trade(self.storage, trade)
+                save_backtest_trade(self.storage.connection_mgr, trade)
 
             # Persist equity curve
             for snapshot in state.equity_curve:
-                save_equity_snapshot(self.storage, snapshot)
+                save_equity_snapshot(self.storage.connection_mgr, snapshot)
 
             # Calculate final metrics
             final_metrics = self._calculate_metrics_from_state(state)
 
             # Update run with results
-            final_equity = state.equity_curve[-1].equity if state.equity_curve else Decimal("100000.00")
+            final_equity = (
+                state.equity_curve[-1].equity if state.equity_curve else Decimal("100000.00")
+            )
             update_backtest_result(
-                storage=self.storage,
+                storage=self.storage.connection_mgr,
                 run_id=run_id,
                 final_equity=final_equity,
                 total_return_pct=Decimal(str(final_metrics.total_return * 100)),

@@ -343,8 +343,13 @@ async def get_paper_trade_summary() -> PaperTradeSummaryResponse:
                 """
             ).fetchone()
 
-            cash_balance = float(account_row[0]) if account_row else None  # type: ignore[index]
-            starting_balance = float(account_row[1]) if account_row else None  # type: ignore[index]
+            # Type narrow: account_row[0] and account_row[1] are DB values (str | int | float | bool | None)
+            cash_balance = (
+                float(account_row[0]) if account_row and account_row[0] is not None else None
+            )
+            starting_balance = (
+                float(account_row[1]) if account_row and account_row[1] is not None else None
+            )
 
             # Calculate positions value from open trades
             positions_value_row = conn.execute(
@@ -354,7 +359,12 @@ async def get_paper_trade_summary() -> PaperTradeSummaryResponse:
                 WHERE status = 'open' AND shares IS NOT NULL
                 """
             ).fetchone()
-            positions_value = float(positions_value_row[0]) if positions_value_row else 0.0  # type: ignore[index]
+            # Type narrow: positions_value_row[0] is a DB value (str | int | float | bool | None)
+            positions_value = (
+                float(positions_value_row[0])
+                if positions_value_row and positions_value_row[0] is not None
+                else 0.0
+            )
 
             # Total portfolio value
             total_portfolio_value = (
@@ -552,7 +562,8 @@ async def close_paper_trade(
             conn.commit()
 
         # Return proceeds to cash balance
-        if shares and shares > 0:
+        # Type narrow: shares is str | int | float from DB, check it's a positive number
+        if shares is not None and (isinstance(shares, (int, float)) and shares > 0):
             exit_amount = float(shares) * float(exit_price)
             cash_manager = CashManager(storage)
             cash_manager.add_cash(
@@ -619,6 +630,11 @@ async def reset_paper_account(request: ResetAccountRequest) -> ResetAccountRespo
             if not account_row:
                 raise HTTPException(status_code=404, detail="Paper trading account not found")
 
+            # Type narrow: account_row[0] and account_row[1] are DB values (str | int | float | bool | None)
+            if account_row[0] is None or account_row[1] is None:
+                raise HTTPException(
+                    status_code=500, detail="Account balance data is corrupted (NULL values)"
+                )
             previous_balance = float(account_row[0])
             current_initial = float(account_row[1])
 
@@ -630,7 +646,8 @@ async def reset_paper_account(request: ResetAccountRequest) -> ResetAccountRespo
                 count_row = conn.execute(
                     "SELECT COUNT(*) FROM idea_outcomes WHERE status = 'open'"
                 ).fetchone()
-                trades_closed = int(count_row[0]) if count_row else 0
+                # Type narrow: count_row[0] is a DB value (str | int | float | bool | None)
+                trades_closed = int(count_row[0]) if count_row and count_row[0] is not None else 0
 
                 # Close all open trades
                 if trades_closed > 0:
@@ -721,6 +738,11 @@ async def update_paper_settings(request: UpdateSettingsRequest) -> UpdateSetting
             if not account_row:
                 raise HTTPException(status_code=404, detail="Paper trading account not found")
 
+            # Type narrow: account_row[0] is a DB value (str | int | float | bool | None)
+            if account_row[0] is None:
+                raise HTTPException(
+                    status_code=500, detail="Account balance data is corrupted (NULL value)"
+                )
             current_cash = float(account_row[0])
 
             # Update initial_cash only (not current balance)

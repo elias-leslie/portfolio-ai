@@ -214,9 +214,7 @@ def calculate_kelly_position_size(
         - details: Dict with kelly_fraction, position_value, etc.
     """
     # Get strategy statistics
-    win_rate, avg_win, avg_loss, trade_count = get_strategy_stats(
-        storage, strategy_name
-    )
+    win_rate, avg_win, avg_loss, trade_count = get_strategy_stats(storage, strategy_name)
 
     details: dict[str, float | int | str | None] = {
         "win_rate": win_rate,
@@ -246,9 +244,7 @@ def calculate_kelly_position_size(
         return shares, details
 
     # Calculate Kelly fraction
-    kelly_fraction = calculate_kelly_fraction(
-        win_rate, avg_win, avg_loss, kelly_multiplier
-    )
+    kelly_fraction = calculate_kelly_fraction(win_rate, avg_win, avg_loss, kelly_multiplier)
 
     # Calculate position
     position_value = portfolio_value * kelly_fraction

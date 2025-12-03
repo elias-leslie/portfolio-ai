@@ -10,7 +10,7 @@ import time
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from celery import Task  # type: ignore[import-untyped]
+    from celery import Task
 
 from app.celery_app import celery_app
 from app.logging_config import get_logger
@@ -134,7 +134,7 @@ def _trigger_auto_backfill(storage: PortfolioStorage) -> None:
                 )
 
                 # Import here to avoid circular dependency
-                from .data_ingestion_tasks import ingest_historical_ohlcv  # noqa: PLC0415
+                from .ingestion import ingest_historical_ohlcv  # noqa: PLC0415
 
                 # Trigger async backfill (non-blocking)
                 ingest_historical_ohlcv.delay(tickers_needing_backfill, days=252)

@@ -63,7 +63,7 @@ async def get_data_freshness_summary() -> dict[str, Any]:
             return {
                 "last_check": None,
                 "status": "no_data",
-                "message": "No freshness checks have been run yet"
+                "message": "No freshness checks have been run yet",
             }
 
         # Unpack result with proper types
@@ -91,11 +91,7 @@ async def get_data_freshness_summary() -> dict[str, Any]:
 
     except Exception as e:
         logger.error("get_data_freshness_summary_failed", error=str(e))
-        return {
-            "last_check": None,
-            "status": "error",
-            "error": str(e)
-        }
+        return {"last_check": None, "status": "error", "error": str(e)}
 
 
 async def get_recent_remediations(hours: int = 24) -> list[dict[str, Any]]:
@@ -150,15 +146,19 @@ async def get_recent_remediations(hours: int = 24) -> list[dict[str, Any]]:
                 elif isinstance(summary_json_val, dict):
                     summary = summary_json_val
 
-            remediations.append({
-                "table_name": table_name,
-                "triggered_at": started_at_val.isoformat() if isinstance(started_at_val, datetime) else None,
-                "status": str(status_val) if status_val else "unknown",
-                "age_hours": summary.get("age_hours"),
-                "threshold_hours": summary.get("threshold_hours"),
-                "reason": summary.get("reason"),
-                "error_message": str(error_message_val) if error_message_val else None,
-            })
+            remediations.append(
+                {
+                    "table_name": table_name,
+                    "triggered_at": started_at_val.isoformat()
+                    if isinstance(started_at_val, datetime)
+                    else None,
+                    "status": str(status_val) if status_val else "unknown",
+                    "age_hours": summary.get("age_hours"),
+                    "threshold_hours": summary.get("threshold_hours"),
+                    "reason": summary.get("reason"),
+                    "error_message": str(error_message_val) if error_message_val else None,
+                }
+            )
 
         return remediations
 

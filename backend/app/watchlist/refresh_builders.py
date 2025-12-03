@@ -140,7 +140,7 @@ def handle_price_change_and_backfill(
     # Queue backfill task if historical data is missing
     if not has_historical_data:
         try:
-            from ..tasks.data_ingestion_tasks import (  # noqa: PLC0415 - avoid circular dependency
+            from ..tasks.ingestion import (  # noqa: PLC0415 - avoid circular dependency
                 ingest_historical_ohlcv,
             )
 

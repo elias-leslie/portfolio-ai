@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from celery import chain  # type: ignore[import-untyped]
+from celery import chain
 from fastapi import APIRouter, HTTPException, Query
 
 from ...logging_config import get_logger
@@ -509,34 +509,52 @@ async def get_cleanup_candidates() -> dict[str, Any]:
                     AND table_name NOT IN ({placeholders})
                 ORDER BY health_status, table_name
             """
-            result = conn.execute(db_query, system_tables_list)
+            result = conn.execute(db_query, tuple(system_tables_list))
             for row in result.fetchall():
-                item = {
-                    "id": row[0],
-                    "name": row[1],
-                    "category": row[2],
-                    "health_status": row[3],
-                    "row_count": row[4],
-                    "freshness_status": row[5],
-                    "days_since_update": float(row[6]) if row[6] else None,
-                    "completeness_pct": row[7],
-                    "evidence": [],
+                # Type annotations for row values
+                row_id: Any = row[0]
+                table_name: Any = row[1]
+                category: Any = row[2]
+                health_status: Any = row[3]
+                row_count: Any = row[4]
+                freshness_status: Any = row[5]
+                days_since_update_raw: Any = row[6]
+                completeness_pct: Any = row[7]
+
+                # Build item with proper types
+                evidence_list: list[str] = []
+                days_since_update: float | None = (
+                    float(days_since_update_raw) if days_since_update_raw else None
+                )
+
+                item: dict[str, Any] = {
+                    "id": row_id,
+                    "name": table_name,
+                    "category": category,
+                    "health_status": health_status,
+                    "row_count": row_count,
+                    "freshness_status": freshness_status,
+                    "days_since_update": days_since_update,
+                    "completeness_pct": completeness_pct,
+                    "evidence": evidence_list,
                 }
+
                 # Build evidence list based on health status
-                if item["health_status"] == "orphaned":
-                    item["evidence"].append("Marked as orphaned (no active usage detected)")
-                if item["health_status"] == "legacy":
-                    item["evidence"].append("Marked as legacy (outdated or inactive)")
-                if item["row_count"] == 0:
-                    item["evidence"].append("Table is empty (0 rows)")
-                if item["days_since_update"] and item["days_since_update"] > 30:
-                    item["evidence"].append(f"No updates in {item['days_since_update']:.0f} days")
-                if item["completeness_pct"] is not None and item["completeness_pct"] < 10:
-                    item["evidence"].append(f"Very low completeness ({item['completeness_pct']}%)")
+                if health_status == "orphaned":
+                    evidence_list.append("Marked as orphaned (no active usage detected)")
+                if health_status == "legacy":
+                    evidence_list.append("Marked as legacy (outdated or inactive)")
+                if isinstance(row_count, int) and row_count == 0:
+                    evidence_list.append("Table is empty (0 rows)")
+                if isinstance(days_since_update, (int, float)) and days_since_update > 30:
+                    evidence_list.append(f"No updates in {days_since_update:.0f} days")
+                if isinstance(completeness_pct, (int, float)) and completeness_pct < 10:
+                    evidence_list.append(f"Very low completeness ({completeness_pct}%)")
 
                 candidates["database"].append(item)
                 candidates["summary"]["total_candidates"] += 1
-                candidates["summary"]["by_status"][item["health_status"]] += 1
+                if isinstance(health_status, str):
+                    candidates["summary"]["by_status"][health_status] += 1
 
             # Query orphaned/legacy Celery tasks
             celery_query = """
@@ -556,32 +574,48 @@ async def get_cleanup_candidates() -> dict[str, Any]:
             """
             result = conn.execute(celery_query)
             for row in result.fetchall():
-                has_schedule = bool(row[5] or row[6])  # crontab or interval
-                item = {
-                    "id": row[0],
-                    "name": row[1],
-                    "category": row[2],
-                    "health_status": row[3],
-                    "schedule_description": row[4],
-                    "has_schedule": has_schedule,
-                    "success_rate_pct": row[7],
-                    "populates_tables": row[8] or [],
-                    "evidence": [],
-                }
-                if item["health_status"] == "orphaned":
-                    item["evidence"].append("Marked as orphaned (no active usage detected)")
-                if item["health_status"] == "legacy":
-                    item["evidence"].append("Marked as legacy (outdated or inactive)")
-                if not has_schedule:
-                    item["evidence"].append("Not scheduled (no crontab/interval)")
-                if not item["populates_tables"]:
-                    item["evidence"].append("Does not populate any tables")
-                if item["success_rate_pct"] is not None and item["success_rate_pct"] < 50:
-                    item["evidence"].append(f"Low success rate ({item['success_rate_pct']}%)")
+                # Type annotations for row values
+                task_id: Any = row[0]
+                task_name: Any = row[1]
+                task_category: Any = row[2]
+                task_health_status: Any = row[3]
+                schedule_desc: Any = row[4]
+                schedule_crontab: Any = row[5]
+                schedule_interval: Any = row[6]
+                success_rate: Any = row[7]
+                populates_tables_raw: Any = row[8]
 
-                candidates["celery"].append(item)
+                has_schedule = bool(schedule_crontab or schedule_interval)
+                populates_tables_list = populates_tables_raw if populates_tables_raw else []
+                evidence_list_celery: list[str] = []
+
+                item_celery: dict[str, Any] = {
+                    "id": task_id,
+                    "name": task_name,
+                    "category": task_category,
+                    "health_status": task_health_status,
+                    "schedule_description": schedule_desc,
+                    "has_schedule": has_schedule,
+                    "success_rate_pct": success_rate,
+                    "populates_tables": populates_tables_list,
+                    "evidence": evidence_list_celery,
+                }
+
+                if task_health_status == "orphaned":
+                    evidence_list_celery.append("Marked as orphaned (no active usage detected)")
+                if task_health_status == "legacy":
+                    evidence_list_celery.append("Marked as legacy (outdated or inactive)")
+                if not has_schedule:
+                    evidence_list_celery.append("Not scheduled (no crontab/interval)")
+                if not populates_tables_list:
+                    evidence_list_celery.append("Does not populate any tables")
+                if isinstance(success_rate, (int, float)) and success_rate < 50:
+                    evidence_list_celery.append(f"Low success rate ({success_rate}%)")
+
+                candidates["celery"].append(item_celery)
                 candidates["summary"]["total_candidates"] += 1
-                candidates["summary"]["by_status"][item["health_status"]] += 1
+                if isinstance(task_health_status, str):
+                    candidates["summary"]["by_status"][task_health_status] += 1
 
             # Query orphaned/legacy API endpoints
             api_query = """
@@ -598,26 +632,39 @@ async def get_cleanup_candidates() -> dict[str, Any]:
             """
             result = conn.execute(api_query)
             for row in result.fetchall():
-                item = {
-                    "id": row[0],
-                    "name": row[1],  # endpoint_path as name
-                    "category": row[2],
-                    "health_status": row[3],
-                    "http_method": row[4],
-                    "path": row[1],  # endpoint_path
-                    "depends_on_tables": row[5] or [],
-                    "evidence": [],
-                }
-                if item["health_status"] == "orphaned":
-                    item["evidence"].append("Marked as orphaned (no active usage detected)")
-                if item["health_status"] == "legacy":
-                    item["evidence"].append("Marked as legacy (outdated or inactive)")
-                if not item["depends_on_tables"]:
-                    item["evidence"].append("No table dependencies detected")
+                # Type annotations for row values
+                api_id: Any = row[0]
+                endpoint_path: Any = row[1]
+                api_category: Any = row[2]
+                api_health_status: Any = row[3]
+                http_method: Any = row[4]
+                depends_on_tables_raw: Any = row[5]
 
-                candidates["api"].append(item)
+                depends_on_tables_list = depends_on_tables_raw if depends_on_tables_raw else []
+                evidence_list_api: list[str] = []
+
+                item_api: dict[str, Any] = {
+                    "id": api_id,
+                    "name": endpoint_path,  # endpoint_path as name
+                    "category": api_category,
+                    "health_status": api_health_status,
+                    "http_method": http_method,
+                    "path": endpoint_path,  # endpoint_path
+                    "depends_on_tables": depends_on_tables_list,
+                    "evidence": evidence_list_api,
+                }
+
+                if api_health_status == "orphaned":
+                    evidence_list_api.append("Marked as orphaned (no active usage detected)")
+                if api_health_status == "legacy":
+                    evidence_list_api.append("Marked as legacy (outdated or inactive)")
+                if not depends_on_tables_list:
+                    evidence_list_api.append("No table dependencies detected")
+
+                candidates["api"].append(item_api)
                 candidates["summary"]["total_candidates"] += 1
-                candidates["summary"]["by_status"][item["health_status"]] += 1
+                if isinstance(api_health_status, str):
+                    candidates["summary"]["by_status"][api_health_status] += 1
 
             logger.info(
                 "cleanup_candidates_retrieved",

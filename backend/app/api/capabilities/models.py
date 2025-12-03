@@ -6,6 +6,8 @@ capabilities routers.
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 from ..types import CapabilityDict, DependenciesDict, InsightDict, NoteDict
@@ -56,7 +58,9 @@ class InsightCreateRequest(BaseModel):
     actual_behavior: str | None = Field(default=None, description="What's actually happening")
     impact: str | None = Field(default=None, description="Why this matters")
     suggested_fix: str | None = Field(default=None, description="Specific action to take")
-    reference_data: dict | None = Field(default=None, description="Related files, tables, etc.")
+    reference_data: dict[str, Any] | None = Field(
+        default=None, description="Related files, tables, etc."
+    )
     ai_model: str | None = Field(default=None, description="AI model that generated insight")
     ai_confidence: float | None = Field(
         default=None, ge=0.0, le=1.0, description="AI confidence 0.0-1.0"

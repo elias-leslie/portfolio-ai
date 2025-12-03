@@ -177,7 +177,7 @@ class WatchlistService:
 
         if not has_historical_data:
             try:
-                from ...tasks.data_ingestion_tasks import ingest_historical_ohlcv  # noqa: PLC0415
+                from ...tasks.ingestion import ingest_historical_ohlcv  # noqa: PLC0415
 
                 ingest_historical_ohlcv.delay([symbol], days=252)
                 logger.info(

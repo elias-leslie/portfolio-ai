@@ -247,9 +247,10 @@ class AgentTelemetryService:
             for drow in result.fetchall():
                 # drow[0] is a date from PostgreSQL
                 date_obj = drow[0]
-                date_val = (
-                    date_obj.isoformat() if hasattr(date_obj, "isoformat") else str(date_obj or "")
-                )  # type: ignore[union-attr]
+                if date_obj is not None and hasattr(date_obj, "isoformat"):
+                    date_val = date_obj.isoformat()
+                else:
+                    date_val = str(date_obj or "")
                 daily_data.append(
                     DailyTelemetry(
                         date=date_val,
@@ -350,9 +351,12 @@ class AgentTelemetryService:
                 raw_token = row[8]
                 if raw_token:
                     try:
-                        tu = (
-                            json.loads(raw_token) if isinstance(raw_token, str) else dict(raw_token)
-                        )  # type: ignore[call-overload]
+                        if isinstance(raw_token, str):
+                            tu = json.loads(raw_token)
+                        elif isinstance(raw_token, dict):
+                            tu = raw_token
+                        else:
+                            tu = {}
                         token_usage = TokenUsage(
                             input_tokens=tu.get("input_tokens", 0),
                             output_tokens=tu.get("output_tokens", 0),
@@ -364,8 +368,18 @@ class AgentTelemetryService:
                 # Extract values with proper type casting
                 run_id = str(row[0])
                 agent_type_val = str(row[1]) if row[1] else "unknown"
-                started_at_val = row[2].isoformat() if hasattr(row[2], "isoformat") else ""  # type: ignore[union-attr]
-                completed_at_val = row[3].isoformat() if hasattr(row[3], "isoformat") else None  # type: ignore[union-attr]
+                started_at_obj = row[2]
+                started_at_val = (
+                    started_at_obj.isoformat()
+                    if started_at_obj is not None and hasattr(started_at_obj, "isoformat")
+                    else ""
+                )
+                completed_at_obj = row[3]
+                completed_at_val = (
+                    completed_at_obj.isoformat()
+                    if completed_at_obj is not None and hasattr(completed_at_obj, "isoformat")
+                    else None
+                )
                 status_val = str(row[4]) if row[4] else "unknown"
                 provider_val = str(row[5]) if row[5] else None
                 model_val = str(row[6]) if row[6] else None

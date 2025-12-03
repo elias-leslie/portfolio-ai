@@ -16,7 +16,7 @@ from app.storage.credential_loader import load_credentials_from_database
 from app.watchlist.watchlist_service import WatchlistService
 
 if TYPE_CHECKING:
-    from celery import Task  # type: ignore[import-untyped]
+    from celery import Task
 
 logger = get_logger(__name__)
 
