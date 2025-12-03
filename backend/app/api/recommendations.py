@@ -52,7 +52,8 @@ class TradeRecommendation(BaseModel):
     signal_strength: int = Field(ge=0, le=10)
     signal_type: Literal["BUY", "SELL", "HOLD"]
     signal_reasons: list[str]
-    entry_price: float
+    entry_price: float  # Price when signal was generated
+    current_price: float  # Real-time current price
     stop_loss: float
     target_price: float
     position_size_dollars: float
@@ -182,6 +183,22 @@ async def get_recommendations(
 
             rows = conn.execute(query, params).fetchall()
 
+        # Fetch real-time prices for all symbols
+        from app.portfolio.price_fetcher import PriceDataFetcher
+        from app.storage import get_storage
+
+        symbols = list({row[0] for row in rows})
+        current_prices: dict[str, float] = {}
+
+        if symbols:
+            try:
+                storage = get_storage()
+                price_fetcher = PriceDataFetcher(storage)
+                price_data = price_fetcher.fetch_price_data(symbols)
+                current_prices = {sym: data.price for sym, data in price_data.items()}
+            except Exception as e:
+                logger.warning(f"Failed to fetch real-time prices: {e}")
+
         recommendations: list[TradeRecommendation] = []
         buy_count = 0
         sell_count = 0
@@ -200,16 +217,19 @@ async def get_recommendations(
             created_at = row[9]
             expected_sharpe = float(row[10]) if row[10] else None
 
-            # Get entry price from market data
+            # Get entry price from market data (when signal was generated)
             entry_price = float(market_data.get("price", 0))
             if entry_price <= 0:
                 continue  # Skip if no valid price
 
-            # Calculate position sizing
-            dollars, shares = _calculate_position_size(entry_price, portfolio_size, position_pct)
-            stop_loss = _calculate_stop_loss(entry_price)
-            target_price = _calculate_target(entry_price)
-            risk_reward = _calculate_risk_reward(entry_price, stop_loss, target_price)
+            # Get current real-time price
+            current_price = current_prices.get(symbol, entry_price)
+
+            # Calculate position sizing based on CURRENT price
+            dollars, shares = _calculate_position_size(current_price, portfolio_size, position_pct)
+            stop_loss = _calculate_stop_loss(current_price)
+            target_price = _calculate_target(current_price)
+            risk_reward = _calculate_risk_reward(current_price, stop_loss, target_price)
 
             recommendations.append(
                 TradeRecommendation(
@@ -221,6 +241,7 @@ async def get_recommendations(
                     signal_type=sig_type,
                     signal_reasons=reasons,
                     entry_price=entry_price,
+                    current_price=current_price,
                     stop_loss=stop_loss,
                     target_price=target_price,
                     position_size_dollars=dollars,

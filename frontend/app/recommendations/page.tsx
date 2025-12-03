@@ -64,10 +64,12 @@ function RecommendationCard({
   isPaperTrading: boolean;
 }) {
   const riskReward = rec.risk_reward_ratio;
-  const potentialGain = rec.target_price - rec.entry_price;
-  const potentialLoss = rec.entry_price - rec.stop_loss;
-  const potentialGainPct = (potentialGain / rec.entry_price) * 100;
-  const potentialLossPct = (potentialLoss / rec.entry_price) * 100;
+  const potentialGain = rec.target_price - rec.current_price;
+  const potentialLoss = rec.current_price - rec.stop_loss;
+  const potentialGainPct = (potentialGain / rec.current_price) * 100;
+  const potentialLossPct = (potentialLoss / rec.current_price) * 100;
+  const priceChange = rec.current_price - rec.entry_price;
+  const priceChangePct = (priceChange / rec.entry_price) * 100;
 
   return (
     <Card className="transition-shadow hover:shadow-lg">
@@ -90,6 +92,20 @@ function RecommendationCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Current Price Banner */}
+        <div className="flex items-center justify-between rounded-lg bg-surface-muted p-3">
+          <div>
+            <p className="text-xs font-medium text-text-muted">Current Price</p>
+            <p className="text-2xl font-bold">${rec.current_price.toFixed(2)}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-text-muted">Since Signal</p>
+            <p className={`text-lg font-bold ${priceChange >= 0 ? "text-green-600" : "text-red-600"}`}>
+              {priceChange >= 0 ? "+" : ""}{priceChangePct.toFixed(2)}%
+            </p>
+          </div>
+        </div>
+
         {/* Price Levels */}
         <div className="grid grid-cols-3 gap-4 text-center">
           <div className="rounded-lg bg-red-50 p-3 dark:bg-red-950/30">
@@ -99,10 +115,12 @@ function RecommendationCard({
             </p>
             <p className="text-xs text-red-500">-{potentialLossPct.toFixed(1)}%</p>
           </div>
-          <div className="rounded-lg bg-surface-muted p-3">
-            <p className="text-xs font-medium text-text-muted">Entry</p>
-            <p className="text-lg font-bold">${rec.entry_price.toFixed(2)}</p>
-            <p className="text-xs text-text-muted">Current</p>
+          <div className="rounded-lg bg-blue-50 p-3 dark:bg-blue-950/30">
+            <p className="text-xs font-medium text-blue-600 dark:text-blue-400">Signal Price</p>
+            <p className="text-lg font-bold text-blue-700 dark:text-blue-300">
+              ${rec.entry_price.toFixed(2)}
+            </p>
+            <p className="text-xs text-blue-500">{rec.signal_date}</p>
           </div>
           <div className="rounded-lg bg-green-50 p-3 dark:bg-green-950/30">
             <p className="text-xs font-medium text-green-600 dark:text-green-400">Target</p>
@@ -118,7 +136,7 @@ function RecommendationCard({
           <div>
             <p className="text-sm font-medium">Position Size</p>
             <p className="text-xs text-text-muted">
-              {rec.position_size_shares} shares @ ${rec.entry_price.toFixed(2)}
+              {rec.position_size_shares} shares @ ${rec.current_price.toFixed(2)}
             </p>
           </div>
           <div className="text-right">
@@ -204,7 +222,7 @@ function TrackInPortfolioModal({ open, onOpenChange, recommendation, onConfirm, 
 
   if (!recommendation) return null;
 
-  const totalCost = shares * recommendation.entry_price;
+  const totalCost = shares * recommendation.current_price;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -262,8 +280,8 @@ function TrackInPortfolioModal({ open, onOpenChange, recommendation, onConfirm, 
           {/* Summary */}
           <div className="rounded-lg border border-border bg-surface-muted/50 p-3">
             <div className="flex justify-between text-sm">
-              <span>Entry Price:</span>
-              <span className="font-medium">${recommendation.entry_price.toFixed(2)}</span>
+              <span>Current Price:</span>
+              <span className="font-medium">${recommendation.current_price.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span>Shares:</span>

@@ -16,7 +16,8 @@ export interface TradeRecommendation {
   signal_strength: number;
   signal_type: "BUY" | "SELL" | "HOLD";
   signal_reasons: string[];
-  entry_price: number;
+  entry_price: number;  // Price when signal was generated
+  current_price: number;  // Real-time current price
   stop_loss: number;
   target_price: number;
   position_size_dollars: number;
