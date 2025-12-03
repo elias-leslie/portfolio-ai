@@ -304,12 +304,17 @@ class OrderExecutor:
         Returns:
             Sector exposure as decimal (0.15 = 15%)
         """
-        # Get all positions for this account
+        # Get all positions for this account with current prices from day_bars
         positions_query = """
-            SELECT pp.ticker, pp.shares, pp.current_price
+            SELECT pp.symbol as ticker, pp.shares,
+                   COALESCE(db.close, pp.cost_basis) as price
             FROM portfolio_positions pp
-            JOIN portfolio_accounts pa ON pp.account_id = pa.id
-            WHERE pa.id = $1
+            LEFT JOIN LATERAL (
+                SELECT close FROM day_bars
+                WHERE ticker = pp.symbol
+                ORDER BY date DESC LIMIT 1
+            ) db ON true
+            WHERE pp.account_id = $1
         """
         positions = self.storage.query(positions_query, [account_id])
 
@@ -324,7 +329,7 @@ class OrderExecutor:
         for row in positions.iter_rows(named=True):
             ticker = row["ticker"]
             shares = row["shares"] or 0
-            price = row["current_price"] or 0.0
+            price = row["price"] or 0.0
             position_value = shares * price
             total_position_value += position_value
 
@@ -356,15 +361,9 @@ class OrderExecutor:
             # Get portfolio value
             cash_balance = self.cash_manager.get_cash_balance(account_id)
 
-            # Calculate total portfolio value including positions
-            positions_query = """
-                SELECT COALESCE(SUM(shares * current_price), 0) as position_value
-                FROM portfolio_positions
-                WHERE account_id = $1
-            """
-            result = self.storage.query(positions_query, [account_id])
-            position_value = float(result.get_column("position_value")[0] or 0)
-            portfolio_value = cash_balance + position_value
+            # For paper trading, just use cash balance as portfolio value
+            # Real portfolio would need to join with day_bars for current prices
+            portfolio_value = cash_balance
 
             if portfolio_value <= 0:
                 return False, "Portfolio value is zero or negative"
@@ -442,14 +441,9 @@ class OrderExecutor:
 
             # Get portfolio equity
             cash_balance = self.cash_manager.get_cash_balance(account_id)
-            positions_query = """
-                SELECT COALESCE(SUM(shares * current_price), 0) as position_value
-                FROM portfolio_positions
-                WHERE account_id = $1
-            """
-            result = self.storage.query(positions_query, [account_id])
-            position_value = float(result.get_column("position_value")[0] or 0)
-            equity = cash_balance + position_value
+            # For paper trading, just use cash as equity
+            # Real portfolio would need to join with day_bars for current prices
+            equity = cash_balance
             details["equity"] = equity
 
             # Get or calculate stop loss

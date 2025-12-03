@@ -347,15 +347,15 @@ async def paper_trade_recommendation(
             )
 
         # Execute buy order
-        result = order_executor.execute_buy(
+        result = order_executor.execute_market_order(
             ticker=symbol,
+            action="buy",
             shares=max_shares,
             account_id=account_id,
-            idea_id=None,  # Manual trade
-            thesis=f"Strategy recommendation: {strategy[0]}",
+            notes=f"Strategy recommendation: {strategy[0]}",
         )
 
-        if not result.get("success"):
+        if not result.get("filled"):
             raise HTTPException(status_code=400, detail=result.get("error", "Trade execution failed"))
 
         return {

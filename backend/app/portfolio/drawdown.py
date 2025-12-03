@@ -160,11 +160,16 @@ def get_portfolio_equity(
         return 0.0
     cash = float(cash_result.get_column("cash_balance")[0] or 0)
 
-    # Get position values
+    # Get position values using latest day_bars prices
     positions_query = """
-        SELECT COALESCE(SUM(shares * current_price), 0) as position_value
-        FROM portfolio_positions
-        WHERE account_id = $1
+        SELECT COALESCE(SUM(pp.shares * COALESCE(db.close, pp.cost_basis)), 0) as position_value
+        FROM portfolio_positions pp
+        LEFT JOIN LATERAL (
+            SELECT close FROM day_bars
+            WHERE ticker = pp.symbol
+            ORDER BY date DESC LIMIT 1
+        ) db ON true
+        WHERE pp.account_id = $1
     """
     positions_result = storage.query(positions_query, [account_id])
     position_value = float(positions_result.get_column("position_value")[0] or 0)
