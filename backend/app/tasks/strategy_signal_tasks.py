@@ -376,6 +376,7 @@ def auto_paper_trade_from_signals(min_signal_strength: int = 5) -> dict[str, Any
         "trades_created": 0,
         "skipped_existing_position": 0,
         "skipped_low_strength": 0,
+        "rejected_validation": 0,  # Trades rejected due to backtest validation
         "errors": [],
     }
 
@@ -453,12 +454,12 @@ def auto_paper_trade_from_signals(min_signal_strength: int = 5) -> dict[str, Any
                         entry_price=trade["entry_price"],
                     )
                 else:
-                    results["errors"].append(
-                        {
-                            "strategy_id": strategy_id,
-                            "symbol": symbol,
-                            "error": "Failed to create trade",
-                        }
+                    # Trade was rejected (likely due to backtest validation)
+                    results["rejected_validation"] += 1
+                    logger.info(
+                        "Trade rejected by validation",
+                        strategy_id=strategy_id,
+                        symbol=symbol,
                     )
 
             except Exception as e:
@@ -481,6 +482,7 @@ def auto_paper_trade_from_signals(min_signal_strength: int = 5) -> dict[str, Any
         signals=results["signals_evaluated"],
         trades=results["trades_created"],
         skipped=results["skipped_existing_position"],
+        rejected_validation=results["rejected_validation"],
         errors=len(results["errors"]),
     )
 

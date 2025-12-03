@@ -239,11 +239,20 @@ def create_paper_trade_from_strategy_signal(
     symbol: str,
     signal_strength: int,
     signal_reasons: list[str] | None = None,
+    backtest_run_id: str | None = None,
+    min_sharpe: float = 0.5,
+    min_win_rate: float = 0.30,
 ) -> PaperTradeDict | None:
     """Create a paper trade from a strategy signal.
 
     This is used by the auto paper trading task to create trades
     when a strategy generates a BUY signal.
+
+    VISION.md: "Validate Before Execute" - Requires backtest validation
+    before paper trade execution. Trade is rejected if:
+    - No backtest exists for strategy (expected_sharpe is None)
+    - Sharpe ratio < min_sharpe (default 0.5)
+    - Win rate < min_win_rate (default 30%)
 
     Args:
         storage: PortfolioStorage instance
@@ -251,9 +260,12 @@ def create_paper_trade_from_strategy_signal(
         symbol: Stock ticker symbol
         signal_strength: Signal strength (0-10)
         signal_reasons: Reasons for the signal
+        backtest_run_id: Optional backtest run ID that validated this trade
+        min_sharpe: Minimum required Sharpe ratio (default 0.5)
+        min_win_rate: Minimum required win rate (default 0.30 = 30%)
 
     Returns:
-        Dict with paper trade details if successful, None if failed
+        Dict with paper trade details if successful, None if failed/rejected
     """
     import uuid
 
@@ -292,6 +304,36 @@ def create_paper_trade_from_strategy_signal(
                 backtest_max_drawdown = float(strategy_row[2]) if strategy_row[2] else None
     except Exception as e:
         logger.warning(f"Failed to fetch strategy metrics: {e}")
+
+    # VISION.md: "Validate Before Execute" - Enforce backtest validation
+    if backtest_sharpe is None:
+        logger.warning(
+            "paper_trade_rejected_no_backtest",
+            strategy_id=strategy_id,
+            symbol=symbol,
+            reason="No backtest metrics found for strategy",
+        )
+        return None
+
+    if backtest_sharpe < min_sharpe:
+        logger.warning(
+            "paper_trade_rejected_low_sharpe",
+            strategy_id=strategy_id,
+            symbol=symbol,
+            backtest_sharpe=backtest_sharpe,
+            min_sharpe=min_sharpe,
+        )
+        return None
+
+    if backtest_win_rate is not None and backtest_win_rate < min_win_rate:
+        logger.warning(
+            "paper_trade_rejected_low_win_rate",
+            strategy_id=strategy_id,
+            symbol=symbol,
+            backtest_win_rate=backtest_win_rate,
+            min_win_rate=min_win_rate,
+        )
+        return None
 
     # Fetch current price
     entry_price = fetch_entry_price(storage, symbol, idea_id)
@@ -367,6 +409,7 @@ def create_paper_trade_from_strategy_signal(
         "backtest_sharpe": backtest_sharpe,
         "backtest_win_rate": backtest_win_rate,
         "backtest_max_drawdown": backtest_max_drawdown,
+        "backtest_run_id": backtest_run_id,
     }
 
     # Create agent_run record first (required for FK)

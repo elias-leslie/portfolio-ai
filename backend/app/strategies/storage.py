@@ -282,7 +282,8 @@ class StrategyStorage:
                 SET live_trades_count = %s,
                     live_win_rate = %s,
                     live_sharpe_ratio = %s,
-                    last_used_at = NOW()
+                    last_used_at = NOW(),
+                    live_metrics_updated_at = NOW()
                 WHERE id = %s
                 """,
                 (trades_count, win_rate, sharpe_ratio, strategy_id),

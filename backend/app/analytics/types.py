@@ -33,6 +33,7 @@ class TradeRecordDict(TypedDict, total=False):
     agent_type: str
     started_at: datetime  # datetime from database
     strategy_id: str | None  # Optional - links to strategies table
+    backtest_run_id: str | None  # Optional - links to backtest that validated trade
 
 
 class PaperTradeDict(TypedDict, total=False):
@@ -63,6 +64,7 @@ class PaperTradeDict(TypedDict, total=False):
     backtest_sharpe: float | None
     backtest_win_rate: float | None
     backtest_max_drawdown: float | None
+    backtest_run_id: str | None  # Links to backtest that validated this trade
     # Position sizing (optional - for strategy-based paper trades)
     shares: int | None
     entry_amount: float | None

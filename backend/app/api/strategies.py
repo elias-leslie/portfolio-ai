@@ -46,6 +46,9 @@ class StrategyListItem(BaseModel):
     trades_count: int
     created_at: str
     activation_date: str | None
+    # Performance variance indicator (Task 4.2)
+    performance_variance: float | None = None  # Ratio of live vs expected Sharpe
+    performance_flag: Literal["exceeding", "meeting", "underperforming", "no_data"] | None = None
 
 
 class StrategyDetail(BaseModel):
@@ -133,24 +136,45 @@ async def list_strategies(
             limit=limit,
         )
 
-        # Convert to list items (summary view)
-        items = [
-            StrategyListItem(
-                id=s.id,
-                name=s.name,
-                symbol=s.symbol,
-                strategy_type=s.strategy_type,
-                status=s.status,
-                version=s.version,
-                expected_sharpe=float(s.expected_sharpe) if s.expected_sharpe else None,
-                live_sharpe_ratio=float(s.live_sharpe_ratio) if s.live_sharpe_ratio else None,
-                live_win_rate=float(s.live_win_rate) if s.live_win_rate else None,
-                trades_count=s.live_trades_count,
-                created_at=s.created_at.isoformat(),
-                activation_date=s.activation_date.isoformat() if s.activation_date else None,
-            ).model_dump()
-            for s in strategies
-        ]
+        # Convert to list items (summary view) with performance variance
+        items = []
+        for s in strategies:
+            expected = float(s.expected_sharpe) if s.expected_sharpe else None
+            live = float(s.live_sharpe_ratio) if s.live_sharpe_ratio else None
+
+            # Calculate performance variance (Task 4.2)
+            variance: float | None = None
+            flag: Literal["exceeding", "meeting", "underperforming", "no_data"] | None = None
+
+            if s.live_trades_count == 0:
+                flag = "no_data"
+            elif expected and expected > 0 and live is not None:
+                variance = live / expected
+                if variance >= 0.9:
+                    flag = "exceeding"
+                elif variance >= 0.7:
+                    flag = "meeting"
+                else:
+                    flag = "underperforming"
+
+            items.append(
+                StrategyListItem(
+                    id=s.id,
+                    name=s.name,
+                    symbol=s.symbol,
+                    strategy_type=s.strategy_type,
+                    status=s.status,
+                    version=s.version,
+                    expected_sharpe=expected,
+                    live_sharpe_ratio=live,
+                    live_win_rate=float(s.live_win_rate) if s.live_win_rate else None,
+                    trades_count=s.live_trades_count,
+                    created_at=s.created_at.isoformat(),
+                    activation_date=s.activation_date.isoformat() if s.activation_date else None,
+                    performance_variance=variance,
+                    performance_flag=flag,
+                ).model_dump()
+            )
 
         return {
             "strategies": items,
