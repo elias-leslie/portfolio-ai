@@ -98,9 +98,7 @@ class MultiReviewer:
             "claude": ClaudeCLIClient(),
         }
 
-    async def review_signal_dual(
-        self, signal_data: dict[str, Any]
-    ) -> DualReviewResult:
+    async def review_signal_dual(self, signal_data: dict[str, Any]) -> DualReviewResult:
         """Review a trading signal using both providers in parallel.
 
         Args:
@@ -123,16 +121,10 @@ class MultiReviewer:
         )
 
         # Execute both reviews in parallel
-        gemini_task = asyncio.create_task(
-            self._generate_review("gemini", prompt, rationale)
-        )
-        claude_task = asyncio.create_task(
-            self._generate_review("claude", prompt, rationale)
-        )
+        gemini_task = asyncio.create_task(self._generate_review("gemini", prompt, rationale))
+        claude_task = asyncio.create_task(self._generate_review("claude", prompt, rationale))
 
-        results = await asyncio.gather(
-            gemini_task, claude_task, return_exceptions=True
-        )
+        results = await asyncio.gather(gemini_task, claude_task, return_exceptions=True)
 
         gemini_result, claude_result = results[0], results[1]
 
@@ -195,9 +187,7 @@ class MultiReviewer:
 
         return result
 
-    async def _generate_review(
-        self, provider: str, prompt: str, rationale: str
-    ) -> ProviderReview:
+    async def _generate_review(self, provider: str, prompt: str, rationale: str) -> ProviderReview:
         """Generate review from a single provider.
 
         Args:

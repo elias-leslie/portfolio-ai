@@ -19,11 +19,21 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Data Architecture Consolidation** 🔄 IN PROGRESS
+1. **Data Architecture Consolidation** (25% - 2/8 complete)
    - File: `tasks-0004-data-architecture-consolidation.md`
-   - Started: 2025-12-03
-   - Status: Tasks 1, 2, 8, 9 complete. Tasks 3, 4 pending.
-   - Progress: 4/6 core tasks done
+   - Started: 2025-12-03 (today)
+   - Last updated: PAUSED
+   - Next: Task 2 - Consolidate Hardcoded Symbol Lists ✅ COMPLETE
+   - Tasks:
+     - [x] Task 0: Scope Discovery (MANDATORY)
+     - [x] Task 1: Remove Deprecated CBOE Source ✅ COMPLETE
+     - [ ] Task 2: Consolidate Hardcoded Symbol Lists ✅ COMPLETE
+     - [ ] Task 3: Standardize Database Access Patterns
+     - [ ] Task 4: Refactor Large Upsert Method
+     - [ ] Task 5: Fix DRY Violation in Source Initialization
+     - [ ] Task 6: Add Missing Query Profiling (Optional Enhancement)
+     - [ ] Task 7: Standardize Placeholder Styles (Low Priority)
+
 
 ---
 

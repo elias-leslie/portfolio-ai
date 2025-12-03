@@ -298,8 +298,8 @@ def should_skip_cascade(threshold: int = QUEUE_BACKPRESSURE_THRESHOLD) -> bool:
 
 def schedule_with_backpressure(
     task: Any,
-    args: tuple | None = None,
-    kwargs: dict | None = None,
+    args: tuple[Any, ...] | None = None,
+    kwargs: dict[str, Any] | None = None,
     threshold: int = QUEUE_BACKPRESSURE_THRESHOLD,
     countdown: int | None = None,
 ) -> str | None:
@@ -329,7 +329,8 @@ def schedule_with_backpressure(
         apply_kwargs["countdown"] = countdown
 
     result = task.apply_async(**apply_kwargs)
-    return result.id
+    task_id: str | None = result.id
+    return task_id
 
 
 def get_unified_task_list(

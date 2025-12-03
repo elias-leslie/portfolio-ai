@@ -221,7 +221,9 @@ def refresh_watchlist_scores_task(self: Task, account_id: str | None = None) -> 
                 "duration_seconds": round(time.time() - start_time, 2),
             }
 
-        return _refresh_watchlist_scores_impl(self, account_id, skip_check_start, start_time, task_id)
+        return _refresh_watchlist_scores_impl(
+            self, account_id, skip_check_start, start_time, task_id
+        )
 
 
 def _refresh_watchlist_scores_impl(

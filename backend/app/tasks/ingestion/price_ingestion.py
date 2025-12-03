@@ -7,21 +7,13 @@ from __future__ import annotations
 
 import datetime as dt
 import uuid
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    pass
+from typing import Any
 
 from app.celery_app import celery_app
 from app.logging_config import get_logger
-from app.sources.alphavantage_source import AlphaVantageSource
+from app.sources import initialize_data_sources
 from app.sources.base import DatasetRequest
-from app.sources.finnhub_source import FinnhubSource
-from app.sources.fmp_source import FMPSource
 from app.sources.multi_source_fetcher import MultiSourceFetcher
-from app.sources.polygon_source import PolygonSource
-from app.sources.twelvedata_source import TwelveDataSource
-from app.sources.yfinance_source import YFinanceSource
 from app.storage import PortfolioStorage, get_storage
 from app.storage.credential_loader import load_credentials_from_database
 from app.utils.task_locks import generate_task_lock_key, task_lock
@@ -29,67 +21,19 @@ from app.utils.task_locks import generate_task_lock_key, task_lock
 logger = get_logger(__name__)
 
 
-def _initialize_data_sources() -> list[
-    YFinanceSource
-    | TwelveDataSource
-    | FMPSource
-    | PolygonSource
-    | FinnhubSource
-    | AlphaVantageSource
-]:
-    """Initialize all available OHLCV data sources for multi-source fetching.
+def _initialize_data_sources_with_credentials() -> list[Any]:
+    """Initialize data sources after loading credentials from database.
 
-    Only instantiates sources that have their API keys configured.
-    YFinanceSource is always included as it doesn't require an API key.
+    This wrapper ensures Celery workers have access to API keys stored in
+    source_credentials table before initializing the sources.
 
     Returns:
         List of configured data source instances in priority order
     """
     # Load API credentials from database into environment variables
-    # This ensures Celery workers have access to API keys stored in source_credentials table
     load_credentials_from_database()
 
-    sources: list[
-        YFinanceSource
-        | TwelveDataSource
-        | FMPSource
-        | PolygonSource
-        | FinnhubSource
-        | AlphaVantageSource
-    ] = []
-
-    # YFinanceSource doesn't require API key - always available
-    sources.append(YFinanceSource())
-
-    # Try to initialize other sources - skip if API key missing
-    source_classes = [
-        TwelveDataSource,
-        FMPSource,
-        PolygonSource,
-        FinnhubSource,
-        AlphaVantageSource,
-    ]
-
-    for source_class in source_classes:
-        try:
-            source = source_class()
-            sources.append(source)
-            logger.debug(f"data_source_initialized source={source_class.__name__}")
-        except (RuntimeError, ValueError) as e:
-            # API key not configured - skip this source
-            logger.info(
-                "data_source_skipped",
-                source=source_class.__name__,
-                reason=str(e),
-            )
-
-    logger.info(
-        "data_sources_initialized",
-        sources=[type(s).__name__ for s in sources],
-        count=len(sources),
-    )
-
-    return sources
+    return initialize_data_sources()
 
 
 def _calculate_date_range(days: int) -> tuple[dt.date, dt.date]:
@@ -302,7 +246,7 @@ def _ingest_historical_ohlcv_impl(
         storage = get_storage()
 
         # Initialize all available sources
-        sources = _initialize_data_sources()
+        sources = _initialize_data_sources_with_credentials()
 
         # Create multi-source fetcher with priority-based failover
         fetcher = MultiSourceFetcher(sources, storage)
@@ -481,7 +425,7 @@ def refresh_watchlist_ohlcv(  # type: ignore[no-untyped-def]
         )
 
         # Initialize all available sources
-        sources = _initialize_data_sources()
+        sources = _initialize_data_sources_with_credentials()
 
         # Create multi-source fetcher with priority-based failover
         fetcher = MultiSourceFetcher(sources, storage)

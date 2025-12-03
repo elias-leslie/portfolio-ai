@@ -50,7 +50,7 @@ def _fetch_sector_mapping(storage: PortfolioStorage) -> pl.DataFrame | None:
                 AND sector != ''
             ORDER BY symbol, cached_at DESC
         )
-        SELECT symbol, sector
+        SELECT ticker, sector
         FROM latest_sectors
     """
     return storage.query(sector_query, [])
@@ -108,7 +108,7 @@ def _fetch_ticker_returns(
             QUALIFY ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date ASC) = 1
         )
         SELECT
-            p.ticker,
+            p.symbol as ticker,
             p.close_now,
             p.volume,
             p5.close_5d,
@@ -122,8 +122,8 @@ def _fetch_ticker_returns(
                 ELSE NULL
             END as return_20d
         FROM price_now p
-        LEFT JOIN price_5d p5 ON p.ticker = p5.ticker
-        LEFT JOIN price_20d p20 ON p.ticker = p20.ticker
+        LEFT JOIN price_5d p5 ON p.symbol = p5.symbol
+        LEFT JOIN price_20d p20 ON p.symbol = p20.symbol
     """
     return storage.query(
         returns_query,

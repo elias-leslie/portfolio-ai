@@ -468,7 +468,11 @@ def replay_backtest(
 
     logger.info(
         f"Starting backtest: {symbol} | {actual_start} to {actual_end} | Capital: ${initial_capital:.2f}"
-        + (f" (adjusted from {start_date}-{end_date})" if actual_start != start_date or actual_end != end_date else "")
+        + (
+            f" (adjusted from {start_date}-{end_date})"
+            if actual_start != start_date or actual_end != end_date
+            else ""
+        )
     )
 
     # Use adjusted dates for the backtest

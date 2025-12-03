@@ -3,6 +3,83 @@
 This module provides data sources for news and macroeconomic indicators.
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from ..logging_config import get_logger
+
+if TYPE_CHECKING:
+    from .base import BaseSource
+
 from .fred import FREDSource
 
-__all__ = ["FREDSource"]
+logger = get_logger(__name__)
+
+
+def initialize_data_sources() -> list[BaseSource]:
+    """Initialize all available OHLCV data sources for multi-source fetching.
+
+    Only instantiates sources that have their API keys configured.
+    YFinanceSource is always included as it doesn't require an API key.
+
+    Returns:
+        List of configured data source instances in priority order:
+        1. YFinance (no API key needed)
+        2. TwelveData
+        3. FMP
+        4. Polygon
+        5. Finnhub
+        6. AlphaVantage
+    """
+    # Import here to avoid circular imports
+    from .alphavantage_source import AlphaVantageSource
+    from .finnhub_source import FinnhubSource
+    from .fmp_source import FMPSource
+    from .polygon_source import PolygonSource
+    from .twelvedata_source import TwelveDataSource
+    from .yfinance_source import YFinanceSource
+
+    sources: list[BaseSource] = []
+    source_names: list[str] = []
+    skipped_sources: list[str] = []
+
+    # YFinanceSource doesn't require API key - always available
+    sources.append(YFinanceSource())
+    source_names.append("yfinance")
+
+    # Try to initialize other sources - skip if API key missing
+    source_classes = [
+        ("twelvedata", TwelveDataSource),
+        ("fmp", FMPSource),
+        ("polygon", PolygonSource),
+        ("finnhub", FinnhubSource),
+        ("alphavantage", AlphaVantageSource),
+    ]
+
+    for name, source_class in source_classes:
+        try:
+            source = source_class()
+            sources.append(source)
+            source_names.append(name)
+            logger.debug(f"data_source_initialized source={source_class.__name__}")
+        except (RuntimeError, ValueError) as e:
+            # API key not configured - skip this source
+            skipped_sources.append(name)
+            logger.info(
+                "data_source_skipped",
+                source=source_class.__name__,
+                reason=str(e),
+            )
+
+    logger.info(
+        "data_sources_initialized",
+        sources=source_names,
+        skipped=skipped_sources,
+        count=len(sources),
+    )
+
+    return sources
+
+
+__all__ = ["FREDSource", "initialize_data_sources"]

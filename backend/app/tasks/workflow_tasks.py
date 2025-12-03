@@ -22,7 +22,9 @@ from app.utils.git_automation import commit_workflow_results
 logger = get_logger(__name__)
 
 
-def _get_available_data_range(storage: PortfolioStorage, ticker: str) -> tuple[str | None, str | None]:
+def _get_available_data_range(
+    storage: PortfolioStorage, ticker: str
+) -> tuple[str | None, str | None]:
     """Get the available date range for a ticker in day_bars.
 
     Args:
