@@ -169,14 +169,13 @@ def _determine_regime(momentum_252d: float | None) -> str:
 
     if momentum_252d >= STRONG_UPTREND:
         return "STRONG_UP"
-    elif momentum_252d >= WEAK_UPTREND:
+    if momentum_252d >= WEAK_UPTREND:
         return "UP"
-    elif momentum_252d >= CHOPPY_RANGE:
+    if momentum_252d >= CHOPPY_RANGE:
         return "CHOPPY"
-    elif momentum_252d >= WEAK_DOWNTREND:
+    if momentum_252d >= WEAK_DOWNTREND:
         return "DOWN"
-    else:
-        return "STRONG_DOWN"
+    return "STRONG_DOWN"
 
 
 def _check_trend_alignment(momentum_values: dict[int, float | None]) -> bool:

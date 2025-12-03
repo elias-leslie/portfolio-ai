@@ -11,8 +11,8 @@ interface PortfolioStatsProps {
 export function PortfolioStats({ analytics }: PortfolioStatsProps) {
   // Calculate average position size
   const avgPositionSize =
-    analytics.top_performers.length > 0
-      ? analytics.total_value / analytics.top_performers.length
+    analytics.num_positions > 0
+      ? analytics.portfolio_value.total_value / analytics.num_positions
       : 0;
 
   // Find largest position
@@ -41,7 +41,7 @@ export function PortfolioStats({ analytics }: PortfolioStatsProps) {
         <div className="flex justify-between items-center">
           <span className="text-sm text-text-muted">Total Positions</span>
           <span className="text-sm font-medium text-text">
-            {analytics.top_performers.length + analytics.bottom_performers.length}
+            {analytics.num_positions}
           </span>
         </div>
         <div className="flex justify-between items-center">

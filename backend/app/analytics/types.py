@@ -59,6 +59,10 @@ class PaperTradeDict(TypedDict, total=False):
     created_at: datetime  # datetime from database
     updated_at: datetime  # datetime from database
     strategy_id: str | None  # Optional - links to strategies table
+    # Backtest metrics from strategy
+    backtest_sharpe: float | None
+    backtest_win_rate: float | None
+    backtest_max_drawdown: float | None
 
 
 class TradeDict(TypedDict, total=False):

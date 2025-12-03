@@ -10,6 +10,7 @@ import {
   fetchPaperTradeSummary,
   closePaperTrade,
   createPaperTrade,
+  resetPaperAccount,
   type PaperTrade,
   type PaperTradesListResponse,
   type PaperTradeSummary,
@@ -17,6 +18,8 @@ import {
   type CloseTradeResponse,
   type CreateTradeRequest,
   type CreateTradeResponse,
+  type ResetAccountRequest,
+  type ResetAccountResponse,
 } from "@/lib/api/paper-trades";
 
 // ============================================================================
@@ -180,6 +183,34 @@ export function useCreatePaperTrade() {
 
       // Show error toast
       toast.error(`Failed to create trade: ${error instanceof Error ? error.message : "Unknown error"}`);
+    },
+  });
+}
+
+/**
+ * Hook to reset paper trading account
+ */
+export function useResetPaperAccount() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (request: ResetAccountRequest = {}) => resetPaperAccount(request),
+    onMutate: async () => {
+      toast.loading("Resetting account...");
+    },
+    onSuccess: (data) => {
+      toast.dismiss();
+      toast.success(data.message);
+
+      // Invalidate all paper trade queries to force refetch
+      queryClient.invalidateQueries({
+        queryKey: paperTradeKeys.all,
+        refetchType: "active",
+      });
+    },
+    onError: (error) => {
+      toast.dismiss();
+      toast.error(`Failed to reset account: ${error instanceof Error ? error.message : "Unknown error"}`);
     },
   });
 }

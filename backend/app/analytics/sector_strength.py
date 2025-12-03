@@ -13,7 +13,7 @@ Relative strength > absolute strength for sector allocation.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date
 from typing import TYPE_CHECKING
 
 from ..logging_config import get_logger
@@ -306,11 +306,11 @@ def _calculate_returns(
         Dict of horizon -> return percentage
     """
     if not prices:
-        return {h: None for h in horizons}
+        return dict.fromkeys(horizons)
 
     sorted_dates = sorted(prices.keys(), reverse=True)
     if not sorted_dates:
-        return {h: None for h in horizons}
+        return dict.fromkeys(horizons)
 
     latest_close = prices[sorted_dates[0]]
     returns: dict[int, float | None] = {}

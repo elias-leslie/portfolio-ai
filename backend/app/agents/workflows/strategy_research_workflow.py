@@ -148,6 +148,34 @@ async def strategy_research_workflow(
             status="testing",  # Start in testing mode
         )
 
+        # Step 5b: Persist final backtest run to backtest_runs table
+        logger.info("Persisting backtest run", workflow_id=workflow_id, strategy_id=strategy_id)
+        try:
+            backtest_run_id = optimizer.persist_best_backtest(
+                symbol=symbol,
+                strategy_name=f"{agent_result.strategy_type}_{symbol}",
+                params=optimized.parameters,
+                metrics={
+                    "avg_sharpe": optimized.avg_sharpe,
+                    "max_drawdown": optimized.max_drawdown,
+                    "avg_win_rate": optimized.avg_win_rate,
+                },
+                strategy_id=strategy_id,
+            )
+            logger.info(
+                "Backtest persisted",
+                workflow_id=workflow_id,
+                backtest_run_id=backtest_run_id,
+            )
+        except Exception as e:
+            # Non-fatal - strategy still created
+            logger.warning(
+                "Failed to persist backtest run",
+                workflow_id=workflow_id,
+                error=str(e),
+            )
+            backtest_run_id = None
+
         # Step 6: Commit to git
         logger.info("Committing strategy to git", workflow_id=workflow_id, strategy_id=strategy_id)
         snapshot = {

@@ -500,3 +500,131 @@ def weekly_strategy_generation() -> dict[str, Any]:
             "status": "failed",
             "error": str(e),
         }
+
+
+@celery_app.task(name="app.tasks.strategy_monitoring_tasks.daily_strategy_refresh")  # type: ignore[misc]
+def daily_strategy_refresh(max_symbols: int = 5) -> dict[str, Any]:
+    """Daily strategy refresh - regenerate strategies for underperformers.
+
+    Schedule: Daily at 05:00 UTC (after performance evaluation)
+
+    Logic:
+    1. Get top 20 watchlist symbols
+    2. For each symbol:
+       - If no active strategy: generate one
+       - If strategy underperforming (30-day Sharpe < 0.5): regenerate
+    3. Limit to max_symbols per day to control costs
+
+    Args:
+        max_symbols: Maximum strategies to generate per run (default 5)
+
+    Returns:
+        Summary dict with generation results
+    """
+    logger.info("Starting daily strategy refresh", max_symbols=max_symbols)
+
+    from app.agents.workflows.strategy_research_workflow import strategy_research_workflow
+
+    try:
+        with get_connection_manager().connection() as conn:
+            # Get symbols needing strategy generation:
+            # 1. Top watchlist symbols without active strategy
+            # 2. Symbols with underperforming strategies (30-day Sharpe < 0.5)
+            symbols_to_generate = conn.execute(
+                """
+                WITH latest_scores AS (
+                    SELECT DISTINCT ON (wi.symbol)
+                        wi.symbol,
+                        ws.overall_score
+                    FROM watchlist_items wi
+                    LEFT JOIN watchlist_snapshots ws ON wi.id = ws.item_id
+                    ORDER BY wi.symbol, ws.fetched_at DESC
+                ),
+                active_strategies AS (
+                    SELECT symbol, id, expected_sharpe
+                    FROM strategy_definitions
+                    WHERE status = 'active'
+                ),
+                underperforming AS (
+                    SELECT DISTINCT sd.symbol
+                    FROM strategy_definitions sd
+                    JOIN strategy_performance sp ON sd.id = sp.strategy_id
+                    WHERE sd.status = 'active'
+                      AND sp.date >= CURRENT_DATE - INTERVAL '30 days'
+                    GROUP BY sd.symbol
+                    HAVING AVG(sp.sharpe_ratio_30d) < 0.5
+                )
+                SELECT ls.symbol, ls.overall_score,
+                       CASE
+                           WHEN acts.id IS NULL THEN 'no_strategy'
+                           WHEN under.symbol IS NOT NULL THEN 'underperforming'
+                           ELSE 'active'
+                       END as reason
+                FROM latest_scores ls
+                LEFT JOIN active_strategies acts ON ls.symbol = acts.symbol
+                LEFT JOIN underperforming under ON ls.symbol = under.symbol
+                WHERE acts.id IS NULL OR under.symbol IS NOT NULL
+                ORDER BY ls.overall_score DESC NULLS LAST
+                LIMIT %s
+                """,
+                (max_symbols * 2,),  # Fetch extra in case some fail
+            ).fetchall()
+
+            if not symbols_to_generate:
+                logger.info("No symbols need strategy generation")
+                return {
+                    "status": "completed",
+                    "symbols_evaluated": 0,
+                    "strategies_generated": 0,
+                    "details": [],
+                }
+
+            logger.info(f"Found {len(symbols_to_generate)} symbols needing strategies")
+
+            results = []
+            generated_count = 0
+
+            for row in symbols_to_generate:
+                if generated_count >= max_symbols:
+                    break
+
+                symbol = str(row[0])
+                reason = row[2]
+
+                # Force regenerate if underperforming
+                force = reason == "underperforming"
+
+                try:
+                    logger.info(f"Generating strategy for {symbol} (reason: {reason})")
+                    result = asyncio.run(
+                        strategy_research_workflow(symbol=symbol, force_regenerate=force)
+                    )
+
+                    if result["status"] == "completed":
+                        generated_count += 1
+                        results.append(
+                            f"Generated strategy for {symbol} ({reason}): {result.get('strategy_id')}"
+                        )
+                    else:
+                        results.append(f"Skipped {symbol}: {result.get('message', 'unknown')}")
+
+                except Exception as e:
+                    logger.exception("Strategy generation failed", symbol=symbol, error=str(e))
+                    results.append(f"Error for {symbol}: {str(e)[:100]}")
+
+            logger.info(
+                "Daily strategy refresh complete",
+                symbols_evaluated=len(symbols_to_generate),
+                strategies_generated=generated_count,
+            )
+
+            return {
+                "status": "completed",
+                "symbols_evaluated": len(symbols_to_generate),
+                "strategies_generated": generated_count,
+                "details": results,
+            }
+
+    except Exception as e:
+        logger.exception("Daily strategy refresh failed", error=str(e))
+        return {"status": "failed", "error": str(e)}

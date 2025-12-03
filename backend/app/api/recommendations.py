@@ -142,25 +142,22 @@ def _calculate_signal_status(
     if signal_type == "BUY":
         if price_change_pct < -15 or price_change_pct > 15:
             return price_change_pct, "invalidated"
-        elif price_change_pct < -5:
+        if price_change_pct < -5:
             return price_change_pct, "better_entry"  # Significant drop = better buy
-        elif price_change_pct > 5:
+        if price_change_pct > 5:
             return price_change_pct, "caution"  # Rose too much, may have missed
-        elif price_change_pct < 0:
+        if price_change_pct < 0:
             return price_change_pct, "better_entry"  # Small drop = slightly better
-        else:
-            return price_change_pct, "valid"
-    else:  # SELL
-        if price_change_pct < -15 or price_change_pct > 15:
-            return price_change_pct, "invalidated"
-        elif price_change_pct > 5:
-            return price_change_pct, "better_entry"  # Rose = better sell price
-        elif price_change_pct < -5:
-            return price_change_pct, "caution"  # Dropped, may have missed
-        elif price_change_pct > 0:
-            return price_change_pct, "better_entry"
-        else:
-            return price_change_pct, "valid"
+        return price_change_pct, "valid"
+    if price_change_pct < -15 or price_change_pct > 15:
+        return price_change_pct, "invalidated"
+    if price_change_pct > 5:
+        return price_change_pct, "better_entry"  # Rose = better sell price
+    if price_change_pct < -5:
+        return price_change_pct, "caution"  # Dropped, may have missed
+    if price_change_pct > 0:
+        return price_change_pct, "better_entry"
+    return price_change_pct, "valid"
 
 
 # ============================================================================
@@ -388,8 +385,8 @@ async def paper_trade_recommendation(
 ) -> dict[str, Any]:
     """Create a paper trade from a recommendation.
 
-    Uses the paper trading system - creates proper records in agent_ideas
-    and idea_outcomes so trades appear on the /trading page.
+    Uses the proper paper trading flow with strategy linkage and backtest metrics.
+    Creates records in agent_ideas and idea_outcomes that appear on /trading page.
 
     Args:
         symbol: Stock symbol
@@ -398,11 +395,7 @@ async def paper_trade_recommendation(
     Returns:
         Paper trade details
     """
-    import uuid
-    from datetime import UTC, datetime
-    from typing import Literal, cast
-
-    from app.analytics.order_executor import OrderExecutor
+    from app.analytics.paper_trading_orders import create_paper_trade_from_strategy_signal
     from app.storage import get_storage
 
     try:
@@ -410,121 +403,52 @@ async def paper_trade_recommendation(
         storage = get_storage()
 
         with conn_mgr.connection() as conn:
-            # Get strategy details
+            # Get strategy details and signal strength
             strategy = conn.execute(
-                "SELECT name, symbol FROM strategy_definitions WHERE id = %s AND status = 'active'",
-                (strategy_id,),
+                """SELECT sd.name, ss.signal_strength
+                   FROM strategy_definitions sd
+                   LEFT JOIN strategy_signals ss ON sd.id = ss.strategy_id
+                     AND ss.symbol = %s
+                     AND ss.signal_date >= CURRENT_DATE - INTERVAL '1 day'
+                   WHERE sd.id = %s AND sd.status = 'active'
+                   ORDER BY ss.signal_date DESC NULLS LAST
+                   LIMIT 1""",
+                (symbol, strategy_id),
             ).fetchone()
 
             if not strategy:
                 raise HTTPException(status_code=404, detail=f"Active strategy {strategy_id} not found")
 
-        order_executor = OrderExecutor(storage)
-        account_id = "paper_trading"
+            signal_strength = int(strategy[1]) if strategy[1] else 7  # Default to 7 if no recent signal
 
-        # Calculate position size (5% of account)
-        max_shares = order_executor.calculate_max_shares(symbol, account_id, max_position_pct=0.05)
+        # Use the proper paper trading function with backtest metrics
+        trade = create_paper_trade_from_strategy_signal(
+            storage=storage,
+            strategy_id=strategy_id,
+            symbol=symbol,
+            signal_strength=signal_strength,
+            signal_reasons=["Manual paper trade from recommendations page"],
+        )
 
-        if max_shares == 0:
+        if not trade:
             raise HTTPException(
                 status_code=400,
-                detail="Insufficient cash or failed to calculate position size",
+                detail="Failed to create paper trade (insufficient data or cash)",
             )
-
-        # Create agent idea record (like manual trade)
-        idea_id = str(uuid.uuid4())
-        thesis = f"Strategy recommendation from {strategy[0]}"
-
-        # Use "manual" agent_run_id which exists in agent_runs table
-        agent_run_id = "manual"
-
-        storage.insert_dict(
-            "agent_ideas",
-            {
-                "id": idea_id,
-                "agent_run_id": agent_run_id,
-                "idea_type": "buy",
-                "title": f"Buy {symbol} - {strategy[0]}",
-                "thesis": thesis,
-                "action": f"Buy {max_shares} shares of {symbol}",
-                "confidence_score": 0.7,  # 0-1 scale
-                "risk_level": "medium",
-                "status": "pending",
-                "created_at": datetime.now(UTC).isoformat(),
-                "updated_at": datetime.now(UTC).isoformat(),
-            },
-        )
-
-        # Create placeholder idea_outcomes record
-        storage.insert_dict(
-            "idea_outcomes",
-            {
-                "idea_id": idea_id,
-                "agent_run_id": agent_run_id,
-                "ticker": symbol,
-                "idea_type": "buy",
-                "entry_price": 0.0,
-                "entry_date": datetime.now(UTC).date().isoformat(),
-                "target_price": None,
-                "stop_loss_price": None,
-                "current_price": 0.0,
-                "current_return_pct": 0.0,
-                "status": "open",
-                "shares": max_shares,
-                "entry_amount": 0.0,
-                "created_at": datetime.now(UTC).isoformat(),
-                "updated_at": datetime.now(UTC).isoformat(),
-            },
-        )
-
-        # Execute market order
-        action_typed = cast(Literal["buy", "sell"], "buy")
-        order_result = order_executor.execute_market_order(
-            ticker=symbol,
-            action=action_typed,
-            shares=max_shares,
-            account_id=account_id,
-            trade_id=idea_id,
-            notes=thesis,
-        )
-
-        if not order_result.get("filled"):
-            # Rollback the idea records
-            with conn_mgr.connection() as conn:
-                conn.execute("DELETE FROM idea_outcomes WHERE idea_id = %s", (idea_id,))
-                conn.execute("DELETE FROM agent_ideas WHERE id = %s", (idea_id,))
-                conn.commit()
-            raise HTTPException(status_code=400, detail=order_result.get("error", "Trade execution failed"))
-
-        # Update idea_outcomes with execution details
-        entry_price = order_result.get("price", 0)
-        entry_amount = order_result.get("amount", 0)
-
-        with conn_mgr.connection() as conn:
-            conn.execute(
-                """UPDATE idea_outcomes
-                   SET entry_price = %s, entry_amount = %s, current_price = %s,
-                       updated_at = %s
-                   WHERE idea_id = %s""",
-                (entry_price, entry_amount, entry_price, datetime.now(UTC).isoformat(), idea_id),
-            )
-            conn.execute(
-                "UPDATE agent_ideas SET status = 'executed' WHERE id = %s",
-                (idea_id,),
-            )
-            conn.commit()
 
         return {
             "status": "created",
             "trade": {
-                "idea_id": idea_id,
+                "idea_id": trade["idea_id"],
                 "symbol": symbol,
-                "shares": order_result.get("shares"),
-                "entry_price": entry_price,
-                "total_cost": entry_amount,
+                "entry_price": trade["entry_price"],
+                "target_price": trade.get("target_price"),
+                "stop_loss_price": trade.get("stop_loss_price"),
                 "strategy_name": strategy[0],
+                "backtest_sharpe": trade.get("backtest_sharpe"),
+                "backtest_win_rate": trade.get("backtest_win_rate"),
             },
-            "message": f"Paper trade: bought {order_result.get('shares')} shares of {symbol} at ${entry_price:.2f}",
+            "message": f"Paper trade: bought {symbol} at ${trade['entry_price']:.2f}",
         }
 
     except HTTPException:

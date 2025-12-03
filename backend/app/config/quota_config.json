@@ -2,13 +2,6 @@
   "$schema": "https://json-schema.org/draft-07/schema#",
   "description": "API quota configuration for external data sources",
   "sources": {
-    "yfinance": {
-      "env_var": "YFINANCE_KEY",
-      "rate_limit": "Unlimited",
-      "daily_limit": "Unlimited",
-      "capacity": null,
-      "description": "Yahoo Finance - Free tier, unlimited requests"
-    },
     "twelvedata": {
       "env_var": "TWELVEDATA_API_KEY",
       "rate_limit": "8 req/min",

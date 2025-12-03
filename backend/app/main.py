@@ -15,6 +15,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.api import (
     agents,
     analytics,
+    automation,
     backtest,
     capabilities,
     celery_endpoints,
@@ -164,6 +165,7 @@ app.include_router(strategies.router)  # Task 4.9: Strategy management API
 app.include_router(recommendations.router)  # Task 0087: Trade recommendations
 app.include_router(layouts.router)  # Task 0042: Customizable dashboard layouts
 app.include_router(agents.router)  # Task 0077: Agent telemetry dashboard
+app.include_router(automation.router)  # Manual pipeline triggers
 
 
 @app.get("/")

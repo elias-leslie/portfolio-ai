@@ -14,8 +14,7 @@ Features:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
-from decimal import Decimal
+from datetime import date, datetime
 from typing import TYPE_CHECKING
 
 from ..logging_config import get_logger
@@ -340,8 +339,7 @@ def save_portfolio_snapshot(
     peak_equity, _ = get_peak_equity(storage, account_id)
 
     # Update peak if new high
-    if current_equity > peak_equity:
-        peak_equity = current_equity
+    peak_equity = max(peak_equity, current_equity)
 
     drawdown_pct = calculate_drawdown(peak_equity, current_equity)
 

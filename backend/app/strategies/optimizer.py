@@ -17,6 +17,12 @@ from decimal import Decimal
 from typing import Any
 
 from app.backtest.replay import BacktestState, replay_backtest
+from app.backtest.storage import (
+    create_backtest_run,
+    save_backtest_trade,
+    save_equity_snapshot,
+    update_backtest_result,
+)
 from app.backtest.strategies import SignalStrategy
 from app.storage import PortfolioStorage
 
@@ -591,6 +597,114 @@ class StrategyOptimizer:
             "stop_loss": float(params.stop_loss_atr_multiplier),
             "max_hold": params.max_holding_days,
         }
+
+    def persist_best_backtest(
+        self,
+        symbol: str,
+        strategy_name: str,
+        params: StrategyParameters,
+        metrics: dict[str, float],
+        strategy_id: str | None = None,
+    ) -> str:
+        """Persist the best backtest run to database.
+
+        Runs a final backtest with the optimized parameters and stores
+        the results in backtest_runs, backtest_trades, and backtest_equity.
+
+        Args:
+            symbol: Stock symbol
+            strategy_name: Strategy name
+            params: Optimized parameters
+            metrics: Aggregated metrics from optimization
+            strategy_id: Optional strategy ID to link
+
+        Returns:
+            Backtest run ID
+        """
+        # Run a final backtest with best params over last 90 days
+        end_date = date.today()
+        start_date = end_date - timedelta(days=90)
+
+        strategy = SignalStrategy(
+            min_signal_strength=params.min_confirmations,
+            max_holding_days=params.max_holding_days,
+            stop_loss_atr_multiplier=params.stop_loss_atr_multiplier,
+            fundamental_data=self._fundamental_data,
+        )
+
+        # Create the backtest run record FIRST
+        run_id = create_backtest_run(
+            storage=self.storage,
+            strategy_name=strategy_name,
+            symbol=symbol,
+            start_date=start_date,
+            end_date=end_date,
+            initial_capital=Decimal("100000.00"),
+        )
+
+        try:
+            # Run backtest
+            state = replay_backtest(
+                storage=self.storage,
+                run_id=run_id,
+                symbol=symbol,
+                start_date=start_date,
+                end_date=end_date,
+                strategy=strategy,
+                initial_capital=Decimal("100000.00"),
+            )
+
+            # Persist trades
+            for trade in state.trades:
+                save_backtest_trade(self.storage, trade)
+
+            # Persist equity curve
+            for snapshot in state.equity_curve:
+                save_equity_snapshot(self.storage, snapshot)
+
+            # Calculate final metrics
+            final_metrics = self._calculate_metrics_from_state(state)
+
+            # Update run with results
+            final_equity = state.equity_curve[-1].equity if state.equity_curve else Decimal("100000.00")
+            update_backtest_result(
+                storage=self.storage,
+                run_id=run_id,
+                final_equity=final_equity,
+                total_return_pct=Decimal(str(final_metrics.total_return * 100)),
+                sharpe_ratio=Decimal(str(final_metrics.sharpe_ratio)),
+                max_drawdown_pct=Decimal(str(final_metrics.max_drawdown)),
+                win_rate=Decimal(str(final_metrics.win_rate * 100)),
+                num_trades=final_metrics.num_trades,
+                profit_factor=Decimal(str(final_metrics.profit_factor)),
+            )
+
+            # Link to strategy if provided
+            if strategy_id:
+                with self.storage.connection() as conn:
+                    conn.execute(
+                        "UPDATE backtest_runs SET strategy_definition_id = %s WHERE id = %s",
+                        (strategy_id, run_id),
+                    )
+                    conn.commit()
+
+            logger.info(
+                f"Persisted backtest run {run_id}: {len(state.trades)} trades, "
+                f"Sharpe={final_metrics.sharpe_ratio:.2f}"
+            )
+
+            return run_id
+
+        except Exception as e:
+            logger.error(f"Failed to persist backtest {run_id}: {e}")
+            # Mark as failed
+            with self.storage.connection() as conn:
+                conn.execute(
+                    "UPDATE backtest_runs SET status = 'failed', error_message = %s WHERE id = %s",
+                    (str(e), run_id),
+                )
+                conn.commit()
+            raise
 
 
 # Singleton instance

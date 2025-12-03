@@ -131,9 +131,22 @@ class AnalyticsResponse(BaseModel):
 
 @router.get("/", response_model=PortfolioResponse)
 @cache_response(ttl=30)  # 30 seconds cache
-async def get_portfolio(request: Request) -> PortfolioResponse:
-    """Get all portfolio positions with current values."""
-    positions = portfolio_mgr.get_positions()
+async def get_portfolio(request: Request, include_paper: bool = False) -> PortfolioResponse:
+    """Get all portfolio positions with current values.
+
+    Args:
+        include_paper: If False (default), excludes paper trading accounts.
+    """
+    all_positions = portfolio_mgr.get_positions()
+
+    # Filter out paper accounts unless explicitly requested
+    if not include_paper:
+        paper_account_ids = {
+            acc.id for acc in portfolio_mgr.get_accounts() if acc.account_type == "paper"
+        }
+        positions = [p for p in all_positions if p.account_id not in paper_account_ids]
+    else:
+        positions = all_positions
 
     if not positions:
         return PortfolioResponse(
@@ -201,9 +214,18 @@ async def get_portfolio(request: Request) -> PortfolioResponse:
 
 
 @router.get("/accounts", response_model=list[AccountResponse])
-async def get_accounts() -> list[AccountResponse]:
-    """Get all portfolio accounts."""
+async def get_accounts(include_paper: bool = False) -> list[AccountResponse]:
+    """Get all portfolio accounts.
+
+    Args:
+        include_paper: If False (default), excludes paper trading accounts.
+    """
     accounts = portfolio_mgr.get_accounts()
+
+    # Filter out paper accounts unless explicitly requested
+    if not include_paper:
+        accounts = [acc for acc in accounts if acc.account_type != "paper"]
+
     return [
         AccountResponse(
             id=acc.id,
@@ -385,9 +407,22 @@ async def delete_position(position_id: str) -> dict[str, str]:
 
 @router.get("/analytics", response_model=AnalyticsResponse)
 @cache_response(ttl=30)  # 30 seconds cache
-async def get_analytics(request: Request) -> AnalyticsResponse:
-    """Get portfolio analytics (value, beta, volatility, concentration, sector exposure)."""
-    positions = portfolio_mgr.get_positions()
+async def get_analytics(request: Request, include_paper: bool = False) -> AnalyticsResponse:
+    """Get portfolio analytics (value, beta, volatility, concentration, sector exposure).
+
+    Args:
+        include_paper: If False (default), excludes paper trading accounts.
+    """
+    all_positions = portfolio_mgr.get_positions()
+
+    # Filter out paper accounts unless explicitly requested
+    if not include_paper:
+        paper_account_ids = {
+            acc.id for acc in portfolio_mgr.get_accounts() if acc.account_type == "paper"
+        }
+        positions = [p for p in all_positions if p.account_id not in paper_account_ids]
+    else:
+        positions = all_positions
 
     if not positions:
         raise HTTPException(status_code=404, detail="No positions in portfolio")

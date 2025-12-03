@@ -637,10 +637,20 @@ def get_beat_schedule() -> dict[str, object]:
             "schedule": crontab(hour=5, minute=0, day_of_week=0),  # Sunday 05:00 UTC
             "options": {"expires": 7200},
             # Notes:
-            # - Generates new strategies for top 20 watchlist symbols
+            # - Full sweep of top 20 watchlist symbols
             # - Skips symbols that already have active strategies
             # - Runs strategy_research_workflow for each symbol
             # - Commits generated strategies to git with research context
+        },
+        "daily-strategy-refresh": {
+            "task": "app.tasks.strategy_monitoring_tasks.daily_strategy_refresh",
+            "schedule": crontab(hour=5, minute=15),  # Daily at 05:15 UTC
+            "options": {"expires": 3600},
+            # Notes:
+            # - Runs daily to catch new symbols and replace underperformers
+            # - Generates max 5 strategies per day (cost control)
+            # - Only for: symbols without strategy OR underperforming (Sharpe < 0.5)
+            # - More responsive than weekly-only approach
         },
         "generate-daily-strategy-signals": {
             "task": "app.tasks.strategy_signal_tasks.generate_daily_strategy_signals",

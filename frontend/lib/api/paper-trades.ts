@@ -55,6 +55,11 @@ export interface PaperTradeSummary {
   total_pnl_pct: number;
   best_trade_pct?: number;
   worst_trade_pct?: number;
+  // Paper trading account balances
+  cash_balance?: number;
+  starting_balance?: number;
+  positions_value?: number;
+  total_portfolio_value?: number;
 }
 
 export interface CloseTradeRequest {
@@ -93,6 +98,19 @@ export interface CreateTradeResponse {
   cash_remaining?: number;
   message: string;
   error?: string;
+}
+
+export interface ResetAccountRequest {
+  new_starting_balance?: number;
+  close_open_trades?: boolean;
+}
+
+export interface ResetAccountResponse {
+  status: string;
+  previous_balance: number;
+  new_balance: number;
+  trades_closed: number;
+  message: string;
 }
 
 // ============================================================================
@@ -150,6 +168,18 @@ export async function closePaperTrade(
   request: CloseTradeRequest
 ): Promise<CloseTradeResponse> {
   return apiRequest<CloseTradeResponse>(`/api/paper-trades/${tradeId}/close`, {
+    method: "POST",
+    body: JSON.stringify(request),
+  });
+}
+
+/**
+ * Reset paper trading account to starting balance
+ */
+export async function resetPaperAccount(
+  request: ResetAccountRequest = {}
+): Promise<ResetAccountResponse> {
+  return apiRequest<ResetAccountResponse>("/api/paper-trades/account/reset", {
     method: "POST",
     body: JSON.stringify(request),
   });

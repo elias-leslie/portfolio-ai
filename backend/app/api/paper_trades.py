@@ -12,11 +12,11 @@ from __future__ import annotations
 from datetime import date
 from typing import TYPE_CHECKING, Literal
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from app.analytics.cash_manager import CashManager
 from app.logging_config import get_logger
-from app.middleware.cache import cache_response
 from app.storage import get_storage
 
 if TYPE_CHECKING:
@@ -88,6 +88,11 @@ class PaperTradeSummaryResponse(BaseModel):
     total_pnl_pct: float
     best_trade_pct: float | None = None
     worst_trade_pct: float | None = None
+    # Paper trading account balances
+    cash_balance: float | None = None
+    starting_balance: float | None = None
+    positions_value: float | None = None
+    total_portfolio_value: float | None = None
 
 
 class CloseTradeRequest(BaseModel):
@@ -108,6 +113,42 @@ class CloseTradeResponse(BaseModel):
     exit_price: float
     exit_date: str
     realized_return_pct: float
+    message: str
+
+
+class ResetAccountRequest(BaseModel):
+    """Request model for resetting paper trading account."""
+
+    new_starting_balance: float | None = Field(
+        None, description="New starting balance (uses current initial_cash if not provided)"
+    )
+    close_open_trades: bool = Field(
+        default=True, description="Whether to close all open trades before reset"
+    )
+
+
+class ResetAccountResponse(BaseModel):
+    """Response model for reset account operation."""
+
+    status: str
+    previous_balance: float
+    new_balance: float
+    trades_closed: int
+    message: str
+
+
+class UpdateSettingsRequest(BaseModel):
+    """Request model for updating paper trading settings."""
+
+    starting_balance: float = Field(..., gt=0, description="New starting balance amount")
+
+
+class UpdateSettingsResponse(BaseModel):
+    """Response model for update settings operation."""
+
+    status: str
+    starting_balance: float
+    cash_balance: float
     message: str
 
 
@@ -247,8 +288,7 @@ async def list_paper_trades(
 
 
 @router.get("/summary", response_model=PaperTradeSummaryResponse)
-@cache_response(ttl=60)  # 1 minute cache for summary stats
-async def get_paper_trade_summary(request: Request) -> PaperTradeSummaryResponse:
+async def get_paper_trade_summary() -> PaperTradeSummaryResponse:
     """Get summary statistics for paper trading performance.
 
     Returns:
@@ -294,11 +334,39 @@ async def get_paper_trade_summary(request: Request) -> PaperTradeSummaryResponse
                 else 0.0
             )
 
+            # Get paper trading account balances
+            account_row = conn.execute(
+                """
+                SELECT cash_balance, initial_cash
+                FROM portfolio_accounts
+                WHERE id = 'paper_trading'
+                """
+            ).fetchone()
+
+            cash_balance = float(account_row[0]) if account_row else None  # type: ignore[index]
+            starting_balance = float(account_row[1]) if account_row else None  # type: ignore[index]
+
+            # Calculate positions value from open trades
+            positions_value_row = conn.execute(
+                """
+                SELECT COALESCE(SUM(shares * COALESCE(current_price, entry_price)), 0)
+                FROM idea_outcomes
+                WHERE status = 'open' AND shares IS NOT NULL
+                """
+            ).fetchone()
+            positions_value = float(positions_value_row[0]) if positions_value_row else 0.0  # type: ignore[index]
+
+            # Total portfolio value
+            total_portfolio_value = (
+                (cash_balance or 0.0) + positions_value if cash_balance is not None else None
+            )
+
         logger.info(
             "paper_trade_summary_retrieved",
             open=open_count,
             closed=closed_count,
             win_rate=win_rate,
+            cash_balance=cash_balance,
         )
 
         return PaperTradeSummaryResponse(
@@ -309,6 +377,10 @@ async def get_paper_trade_summary(request: Request) -> PaperTradeSummaryResponse
             total_pnl_pct=float(total_return) if total_return else 0.0,
             best_trade_pct=float(best_trade) if best_trade is not None else None,
             worst_trade_pct=float(worst_trade) if worst_trade is not None else None,
+            cash_balance=cash_balance,
+            starting_balance=starting_balance,
+            positions_value=positions_value,
+            total_portfolio_value=total_portfolio_value,
         )
 
     except Exception as e:
@@ -427,7 +499,7 @@ async def close_paper_trade(
             # Get trade info
             trade_row = conn.execute(
                 """
-                SELECT ticker, entry_price, current_price, status
+                SELECT ticker, entry_price, current_price, status, shares
                 FROM idea_outcomes
                 WHERE idea_id = ?
                 """,
@@ -440,7 +512,7 @@ async def close_paper_trade(
                     detail=f"Paper trade {trade_id} not found",
                 )
 
-            ticker, entry_price, current_price, status = trade_row
+            ticker, entry_price, current_price, status, shares = trade_row
 
             if status != "open":
                 raise HTTPException(
@@ -479,6 +551,16 @@ async def close_paper_trade(
             )
             conn.commit()
 
+        # Return proceeds to cash balance
+        if shares and shares > 0:
+            exit_amount = float(shares) * float(exit_price)
+            cash_manager = CashManager(storage)
+            cash_manager.add_cash(
+                "paper_trading",
+                exit_amount,
+                f"Sell {shares} {ticker} @ ${exit_price:.2f}",
+            )
+
         logger.info(
             "paper_trade_closed",
             trade_id=trade_id,
@@ -504,4 +586,173 @@ async def close_paper_trade(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to close trade: {e}",
+        ) from e
+
+
+@router.post("/account/reset", response_model=ResetAccountResponse)
+async def reset_paper_account(request: ResetAccountRequest) -> ResetAccountResponse:
+    """Reset the paper trading account to starting balance.
+
+    This will:
+    1. Optionally close all open trades (at current prices)
+    2. Reset cash balance to initial_cash (or new_starting_balance if provided)
+    3. Optionally update the starting balance
+
+    Request Body:
+        new_starting_balance: Optional new starting balance
+        close_open_trades: Whether to close open trades (default: True)
+
+    Returns:
+        Result of reset operation
+    """
+    try:
+        with storage.connection() as conn:
+            # Get current balance
+            account_row = conn.execute(
+                """
+                SELECT cash_balance, initial_cash
+                FROM portfolio_accounts
+                WHERE id = 'paper_trading'
+                """
+            ).fetchone()
+
+            if not account_row:
+                raise HTTPException(status_code=404, detail="Paper trading account not found")
+
+            previous_balance = float(account_row[0])
+            current_initial = float(account_row[1])
+
+            trades_closed = 0
+
+            # Close open trades if requested
+            if request.close_open_trades:
+                # Count open trades
+                count_row = conn.execute(
+                    "SELECT COUNT(*) FROM idea_outcomes WHERE status = 'open'"
+                ).fetchone()
+                trades_closed = int(count_row[0]) if count_row else 0
+
+                # Close all open trades
+                if trades_closed > 0:
+                    exit_date = date.today().isoformat()
+                    conn.execute(
+                        """
+                        UPDATE idea_outcomes
+                        SET
+                            status = 'closed',
+                            exit_price = COALESCE(current_price, entry_price),
+                            exit_date = ?,
+                            exit_reason = 'account_reset',
+                            realized_return_pct = CASE
+                                WHEN entry_price > 0 THEN
+                                    ((COALESCE(current_price, entry_price) - entry_price) / entry_price) * 100
+                                ELSE 0
+                            END
+                        WHERE status = 'open'
+                        """,
+                        [exit_date],
+                    )
+
+            # Determine new balance
+            new_balance = request.new_starting_balance or current_initial
+
+            # Update account
+            conn.execute(
+                """
+                UPDATE portfolio_accounts
+                SET
+                    cash_balance = ?,
+                    initial_cash = ?,
+                    updated_at = NOW()
+                WHERE id = 'paper_trading'
+                """,
+                [new_balance, new_balance],
+            )
+            conn.commit()
+
+        logger.info(
+            "paper_account_reset",
+            previous_balance=previous_balance,
+            new_balance=new_balance,
+            trades_closed=trades_closed,
+        )
+
+        return ResetAccountResponse(
+            status="reset",
+            previous_balance=previous_balance,
+            new_balance=new_balance,
+            trades_closed=trades_closed,
+            message=f"Account reset to ${new_balance:,.2f}. {trades_closed} trades closed.",
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("failed_to_reset_account", error=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to reset account: {e}",
+        ) from e
+
+
+@router.patch("/account/settings", response_model=UpdateSettingsResponse)
+async def update_paper_settings(request: UpdateSettingsRequest) -> UpdateSettingsResponse:
+    """Update paper trading account settings.
+
+    Currently supports updating the starting balance without resetting.
+
+    Request Body:
+        starting_balance: New starting balance amount
+
+    Returns:
+        Updated settings
+    """
+    try:
+        with storage.connection() as conn:
+            # Get current balance
+            account_row = conn.execute(
+                """
+                SELECT cash_balance
+                FROM portfolio_accounts
+                WHERE id = 'paper_trading'
+                """
+            ).fetchone()
+
+            if not account_row:
+                raise HTTPException(status_code=404, detail="Paper trading account not found")
+
+            current_cash = float(account_row[0])
+
+            # Update initial_cash only (not current balance)
+            conn.execute(
+                """
+                UPDATE portfolio_accounts
+                SET
+                    initial_cash = ?,
+                    updated_at = NOW()
+                WHERE id = 'paper_trading'
+                """,
+                [request.starting_balance],
+            )
+            conn.commit()
+
+        logger.info(
+            "paper_settings_updated",
+            starting_balance=request.starting_balance,
+        )
+
+        return UpdateSettingsResponse(
+            status="updated",
+            starting_balance=request.starting_balance,
+            cash_balance=current_cash,
+            message=f"Starting balance updated to ${request.starting_balance:,.2f}",
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("failed_to_update_settings", error=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to update settings: {e}",
         ) from e

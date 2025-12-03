@@ -1,21 +1,24 @@
 "use client";
 
 import { useState } from "react";
-import { TrendingUp, DollarSign, Target, Plus, Sparkles, ExternalLink } from "lucide-react";
+import { TrendingUp, DollarSign, Target, Plus, Sparkles, ExternalLink, Wallet, PieChart, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { SectionCard } from "@/components/shared/SectionCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { usePaperTrades, usePaperTradeSummary } from "@/lib/hooks/usePaperTrades";
+import { usePaperTrades, usePaperTradeSummary, useResetPaperAccount } from "@/lib/hooks/usePaperTrades";
 import { useGenerateStrategiesBatch } from "@/lib/hooks/useStrategies";
 import { PaperTradesTable } from "@/components/trading/PaperTradesTable";
 import { NewOrderDialog } from "@/components/trading/NewOrderDialog";
+import { PipelineControls } from "@/components/trading/PipelineControls";
+import { ConfirmActionDialog } from "@/components/shared/ConfirmActionDialog";
 
 export default function TradingPage() {
   const [activeTab, setActiveTab] = useState<"open" | "closed">("open");
   const [isNewOrderOpen, setIsNewOrderOpen] = useState(false);
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
 
   // Fetch data with real-time updates
   const { data: openTrades, isLoading: openLoading } = usePaperTrades({
@@ -30,6 +33,7 @@ export default function TradingPage() {
 
   const { data: summary, isLoading: summaryLoading } = usePaperTradeSummary();
   const generateBatch = useGenerateStrategiesBatch();
+  const resetAccount = useResetPaperAccount();
 
   // Calculate color for P&L display
   const getPnlColor = (value: number | undefined) => {
@@ -77,6 +81,71 @@ export default function TradingPage() {
 
         {/* New Order Dialog */}
         <NewOrderDialog open={isNewOrderOpen} onOpenChange={setIsNewOrderOpen} />
+
+        {/* Paper Portfolio Balance */}
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-text-muted">Cash Balance</p>
+                  <p className="text-2xl font-bold">
+                    {summaryLoading ? "-" : `$${(summary?.cash_balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                  </p>
+                </div>
+                <Wallet className="h-8 w-8 text-primary" suppressHydrationWarning />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-text-muted">Positions Value</p>
+                  <p className="text-2xl font-bold">
+                    {summaryLoading ? "-" : `$${(summary?.positions_value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                  </p>
+                </div>
+                <PieChart className="h-8 w-8 text-accent" suppressHydrationWarning />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-text-muted">Total Portfolio</p>
+                  <p className="text-2xl font-bold">
+                    {summaryLoading ? "-" : `$${(summary?.total_portfolio_value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                  </p>
+                  {summary?.starting_balance && (
+                    <p className={`text-sm ${(summary?.total_portfolio_value || 0) >= summary.starting_balance ? "text-gain" : "text-loss"}`}>
+                      {(summary?.total_portfolio_value || 0) >= summary.starting_balance ? "+" : ""}
+                      {(((summary?.total_portfolio_value || 0) - summary.starting_balance) / summary.starting_balance * 100).toFixed(2)}% from start
+                    </p>
+                  )}
+                </div>
+                <div className="flex flex-col items-end gap-2">
+                  <DollarSign className="h-8 w-8 text-gain" suppressHydrationWarning />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsResetDialogOpen(true)}
+                    disabled={resetAccount.isPending}
+                  >
+                    <RotateCcw className="mr-1 h-3 w-3" suppressHydrationWarning />
+                    Reset
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Pipeline Controls */}
+        <PipelineControls />
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
@@ -180,6 +249,22 @@ export default function TradingPage() {
             </TabsContent>
           </Tabs>
         </SectionCard>
+
+        {/* Reset Account Confirmation Dialog */}
+        <ConfirmActionDialog
+          open={isResetDialogOpen}
+          onOpenChange={setIsResetDialogOpen}
+          onConfirm={() => {
+            resetAccount.mutate(
+              { close_open_trades: true },
+              { onSuccess: () => setIsResetDialogOpen(false) }
+            );
+          }}
+          title="Reset Paper Trading Account?"
+          description={`This will close all ${summary?.total_open || 0} open positions at current prices and reset your cash balance to $${(summary?.starting_balance || 100000).toLocaleString()}. This action cannot be undone.`}
+          confirmLabel="Reset Account"
+          tone="destructive"
+        />
       </div>
     </div>
   );

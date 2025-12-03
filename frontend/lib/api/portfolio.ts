@@ -61,10 +61,12 @@ export interface DiversificationScore {
 }
 
 export interface PortfolioAnalytics {
-  total_value: number;
-  total_cost_basis: number;
-  total_gain: number;
-  total_gain_pct: number;
+  portfolio_value: {
+    total_value: number;
+    total_cost_basis: number;
+    total_gain: number;
+    total_gain_pct: number;
+  };
   portfolio_beta: number;
   portfolio_volatility: number;
   sharpe_ratio: number | null;
@@ -79,6 +81,8 @@ export interface PortfolioAnalytics {
   diversification_score: DiversificationScore | null;
   top_performers: PositionPerformance[];
   bottom_performers: PositionPerformance[];
+  num_positions: number;
+  num_symbols: number;
 }
 
 export interface CreateAccountRequest {

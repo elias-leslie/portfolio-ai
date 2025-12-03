@@ -257,14 +257,69 @@ def create_paper_trade_from_strategy_signal(
     """
     import uuid
 
+    from app.analytics.cash_manager import CashManager
     from app.analytics.trade_calculations import calculate_stop_loss
 
     # Generate a unique idea_id for this trade
     idea_id = str(uuid.uuid4())
 
+    # Get cash balance and calculate position size (5% of account)
+    cash_manager = CashManager(storage)
+    account_id = "paper_trading"
+    try:
+        cash_balance = cash_manager.get_cash_balance(account_id)
+    except ValueError:
+        logger.warning("paper_trade_blocked_no_account", strategy_id=strategy_id, symbol=symbol)
+        return None
+
+    max_position_pct = 0.05  # 5% position size
+    max_position_amount = cash_balance * max_position_pct
+
+    # Fetch strategy backtest metrics for the trade record
+    backtest_sharpe = None
+    backtest_win_rate = None
+    backtest_max_drawdown = None
+    try:
+        with storage.connection() as conn:
+            strategy_row = conn.execute(
+                """SELECT expected_sharpe, expected_win_rate, expected_max_drawdown
+                   FROM strategy_definitions WHERE id = %s""",
+                (strategy_id,),
+            ).fetchone()
+            if strategy_row:
+                backtest_sharpe = float(strategy_row[0]) if strategy_row[0] else None
+                backtest_win_rate = float(strategy_row[1]) if strategy_row[1] else None
+                backtest_max_drawdown = float(strategy_row[2]) if strategy_row[2] else None
+    except Exception as e:
+        logger.warning(f"Failed to fetch strategy metrics: {e}")
+
     # Fetch current price
     entry_price = fetch_entry_price(storage, symbol, idea_id)
     if entry_price is None:
+        return None
+
+    # Calculate shares based on position size
+    shares = int(max_position_amount / entry_price)
+    if shares <= 0:
+        logger.warning(
+            "paper_trade_blocked_insufficient_funds",
+            strategy_id=strategy_id,
+            symbol=symbol,
+            cash_balance=cash_balance,
+            entry_price=entry_price,
+        )
+        return None
+
+    entry_amount = shares * entry_price
+
+    # Deduct cash from account
+    if not cash_manager.deduct_cash(account_id, entry_amount, f"Buy {shares} {symbol}"):
+        logger.warning(
+            "paper_trade_blocked_cash_deduction_failed",
+            strategy_id=strategy_id,
+            symbol=symbol,
+            entry_amount=entry_amount,
+        )
         return None
 
     # Calculate stop-loss based on ATR
@@ -307,6 +362,11 @@ def create_paper_trade_from_strategy_signal(
         "created_at": now,
         "updated_at": now,
         "strategy_id": strategy_id,
+        "shares": shares,
+        "entry_amount": entry_amount,
+        "backtest_sharpe": backtest_sharpe,
+        "backtest_win_rate": backtest_win_rate,
+        "backtest_max_drawdown": backtest_max_drawdown,
     }
 
     # Create agent_run record first (required for FK)
