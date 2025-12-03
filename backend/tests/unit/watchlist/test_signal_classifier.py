@@ -9,8 +9,7 @@ Tests the new graded confidence scoring system:
 
 from __future__ import annotations
 
-import pytest
-
+from app.watchlist.models import SignalType
 from app.watchlist.signal_classifier import (
     _calculate_analyst_component_score,
     _calculate_fundamental_component_score,
@@ -18,7 +17,6 @@ from app.watchlist.signal_classifier import (
     _calculate_signal_strength,
     classify_signal,
 )
-from app.watchlist.models import SignalType
 
 
 class TestFundamentalComponentScore:

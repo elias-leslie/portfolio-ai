@@ -621,9 +621,10 @@ class StrategyOptimizer:
         Returns:
             Backtest run ID
         """
-        # Run a final backtest with best params over last 90 days
+        # Run a final backtest with best params over last 2 years (730 calendar days)
+        # This provides meaningful validation across multiple market cycles
         end_date = date.today()
-        start_date = end_date - timedelta(days=90)
+        start_date = end_date - timedelta(days=730)
 
         strategy = SignalStrategy(
             min_signal_strength=params.min_confirmations,

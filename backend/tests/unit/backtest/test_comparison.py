@@ -3,8 +3,6 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-import pytest
-
 from app.backtest.comparison import (
     ComparisonResult,
     NormalizedEquityPoint,

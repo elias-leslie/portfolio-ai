@@ -6,18 +6,15 @@ from datetime import date, timedelta
 from unittest.mock import MagicMock
 
 import polars as pl
-import pytest
 
 from app.analytics.market_breadth import (
     SECTOR_ETFS,
-    BreadthReading,
     BreadthSignal,
     analyze_market_breadth,
     calculate_breadth_reading,
     calculate_breadth_score,
     classify_breadth_signal,
     detect_divergence,
-    get_breadth_history,
     get_spy_returns,
 )
 

@@ -7,8 +7,6 @@ from decimal import Decimal
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from app.analytics.earnings_surprise import (
     EarningsSurprise,
     calculate_earnings_surprise_score,

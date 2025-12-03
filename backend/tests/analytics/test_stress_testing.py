@@ -6,7 +6,6 @@ import pytest
 
 from app.analytics.stress_testing import (
     SCENARIO_DEFINITIONS,
-    PortfolioStressResult,
     ScenarioShocks,
     StressScenario,
     calculate_resilience_score,

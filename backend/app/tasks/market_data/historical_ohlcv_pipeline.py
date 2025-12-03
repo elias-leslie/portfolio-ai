@@ -1,6 +1,6 @@
 """Historical OHLCV pipeline tasks.
 
-Maintains 252 trading days of historical market data for all required indicators and sectors.
+Maintains 1260 trading days (5 years) of historical market data for backtesting and analysis.
 Runs daily to ensure data is current and complete.
 """
 
@@ -39,8 +39,9 @@ ALL_MARKET_SYMBOLS = [
     "XLC",  # Communication Services
 ]
 
-# Target: 252 trading days (approximately 1 year)
-TARGET_DAYS = 252
+# Target: 1260 trading days (approximately 5 years)
+# This provides sufficient data for meaningful backtesting across multiple market cycles
+TARGET_DAYS = 1260
 
 
 def _check_symbol_data(ticker: str) -> tuple[bool, int]:
@@ -79,6 +80,34 @@ def _check_symbol_data(ticker: str) -> tuple[bool, int]:
     return needs_backfill, days_available
 
 
+def _get_all_symbols() -> list[str]:
+    """Get all symbols that need historical data: market symbols + watchlist symbols.
+
+    Returns:
+        Deduplicated list of all symbols requiring historical data
+    """
+    storage = get_storage()
+    with storage.connection() as conn:
+        # Get all watchlist symbols
+        result = conn.execute(
+            "SELECT DISTINCT symbol FROM watchlist_items WHERE symbol IS NOT NULL"
+        ).fetchall()
+
+    watchlist_symbols = [str(row[0]) for row in result] if result else []
+
+    # Combine market symbols + watchlist symbols, deduplicated
+    all_symbols = list(set(ALL_MARKET_SYMBOLS + watchlist_symbols))
+
+    logger.info(
+        "historical_data_symbols_resolved",
+        market_symbols=len(ALL_MARKET_SYMBOLS),
+        watchlist_symbols=len(watchlist_symbols),
+        total_unique=len(all_symbols),
+    )
+
+    return all_symbols
+
+
 @celery_app.task(
     bind=True,
     name="maintain_historical_market_data",
@@ -94,7 +123,7 @@ def maintain_historical_market_data(  # type: ignore[no-untyped-def]
     """Maintain historical market data for all required indicators and sectors.
 
     This task is idempotent and self-healing:
-    - Checks each symbol for sufficient data (252 trading days)
+    - Checks each symbol for sufficient data (1260 trading days / 5 years)
     - Backfills if missing or incomplete (uses ingest_historical_ohlcv)
     - Daily refresh handled by separate refresh-daily-ohlcv task
     - Safe to run repeatedly (scheduled daily at 04:00 UTC)
@@ -114,11 +143,13 @@ def maintain_historical_market_data(  # type: ignore[no-untyped-def]
     task_id = self.request.id
     start_time = dt.datetime.now(dt.UTC)
 
+    # Get all symbols: market symbols + watchlist symbols (dynamically)
+    all_symbols = _get_all_symbols()
+
     logger.info(
         "market_data_maintenance_started",
         task_id=task_id,
-        symbols_count=len(ALL_MARKET_SYMBOLS),
-        symbols=ALL_MARKET_SYMBOLS,
+        symbols_count=len(all_symbols),
     )
 
     try:
@@ -126,7 +157,7 @@ def maintain_historical_market_data(  # type: ignore[no-untyped-def]
         symbols_to_backfill = []
         symbols_ok = 0
 
-        for ticker in ALL_MARKET_SYMBOLS:
+        for ticker in all_symbols:
             needs_backfill, days_available = _check_symbol_data(ticker)
 
             if needs_backfill:
@@ -174,7 +205,7 @@ def maintain_historical_market_data(  # type: ignore[no-untyped-def]
 
         result: dict[str, int | str | float] = {
             "task_id": task_id,
-            "symbols_checked": len(ALL_MARKET_SYMBOLS),
+            "symbols_checked": len(all_symbols),
             "symbols_backfilled": symbols_backfilled,
             "symbols_ok": symbols_ok,
             "duration_seconds": duration,

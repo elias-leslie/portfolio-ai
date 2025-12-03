@@ -1,13 +1,11 @@
 """Tests for earnings proximity filter (GAP-003)."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import polars as pl
-import pytest
 
 from app.analytics.earnings_filter import (
-    MIN_DAYS_BEFORE_EARNINGS,
     check_earnings_proximity,
     get_next_earnings_date,
     should_block_for_earnings,
@@ -58,7 +56,7 @@ class TestCheckEarningsProximity:
         """Trade allowed when far from earnings."""
         storage = MagicMock()
         # Earnings 30 days away
-        future_date = datetime.now(timezone.utc).replace(
+        future_date = datetime.now(UTC).replace(
             hour=0, minute=0, second=0, microsecond=0
         )
         earnings_date = (future_date.replace(tzinfo=None) +
@@ -76,7 +74,7 @@ class TestCheckEarningsProximity:
         """Trade blocked when too close to earnings."""
         storage = MagicMock()
         # Earnings tomorrow
-        future_date = datetime.now(timezone.utc).replace(
+        future_date = datetime.now(UTC).replace(
             hour=0, minute=0, second=0, microsecond=0
         )
         earnings_date = (future_date.replace(tzinfo=None) +
@@ -95,7 +93,7 @@ class TestCheckEarningsProximity:
         """Trade blocked on earnings day."""
         storage = MagicMock()
         # Earnings today
-        today = datetime.now(timezone.utc).replace(
+        today = datetime.now(UTC).replace(
             hour=0, minute=0, second=0, microsecond=0, tzinfo=None
         )
         storage.query.return_value = pl.DataFrame({
@@ -111,7 +109,7 @@ class TestCheckEarningsProximity:
         """Trade allowed after earnings has passed."""
         storage = MagicMock()
         # Earnings 5 days ago
-        past_date = datetime.now(timezone.utc).replace(
+        past_date = datetime.now(UTC).replace(
             hour=0, minute=0, second=0, microsecond=0
         )
         earnings_date = (past_date.replace(tzinfo=None) -
@@ -143,7 +141,7 @@ class TestShouldBlockForEarnings:
         """Returns True (block) when too close to earnings."""
         storage = MagicMock()
         # Earnings tomorrow
-        future_date = datetime.now(timezone.utc).replace(
+        future_date = datetime.now(UTC).replace(
             hour=0, minute=0, second=0, microsecond=0
         )
         earnings_date = (future_date.replace(tzinfo=None) +
@@ -160,7 +158,7 @@ class TestShouldBlockForEarnings:
         """Returns False (allow) when far from earnings."""
         storage = MagicMock()
         # Earnings 30 days away
-        future_date = datetime.now(timezone.utc).replace(
+        future_date = datetime.now(UTC).replace(
             hour=0, minute=0, second=0, microsecond=0
         )
         earnings_date = (future_date.replace(tzinfo=None) +

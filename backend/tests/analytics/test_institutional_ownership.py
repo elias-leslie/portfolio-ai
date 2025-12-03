@@ -6,10 +6,8 @@ import json
 from unittest.mock import MagicMock
 
 import polars as pl
-import pytest
 
 from app.analytics.institutional_ownership import (
-    OwnershipMetrics,
     calculate_ownership_score,
     get_ownership_from_cache,
     get_ownership_metrics_batch,

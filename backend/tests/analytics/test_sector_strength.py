@@ -23,7 +23,6 @@ from app.analytics.sector_strength import (
     calculate_sector_relative_strength,
     calculate_sector_strength_score,
     get_ticker_sector_etf,
-    is_ticker_in_leading_sector,
 )
 
 

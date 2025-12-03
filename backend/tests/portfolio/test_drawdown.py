@@ -10,7 +10,6 @@ Tests cover:
 from __future__ import annotations
 
 from datetime import date, timedelta
-from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -20,17 +19,11 @@ from app.portfolio.drawdown import (
     DRAWDOWN_WARNING_LEVEL_2,
     PORTFOLIO_DRAWDOWN_HALT_PCT,
     DrawdownMetrics,
-    PositionDrawdown,
     calculate_drawdown,
     calculate_drawdown_metrics,
     calculate_position_drawdown,
-    calculate_underwater_days,
     check_portfolio_drawdown_halt,
-    get_drawdown_history,
-    get_peak_equity,
-    get_portfolio_equity,
     get_recovery_estimate,
-    save_portfolio_snapshot,
 )
 
 

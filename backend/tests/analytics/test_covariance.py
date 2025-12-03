@@ -11,7 +11,6 @@ import pytest
 
 from app.analytics.covariance import (
     align_returns,
-    calculate_daily_returns,
     calculate_pairwise_covariance,
     calculate_portfolio_volatility_from_covariance,
     calculate_volatility,

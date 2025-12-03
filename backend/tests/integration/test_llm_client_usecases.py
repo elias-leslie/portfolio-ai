@@ -10,7 +10,6 @@ Tests both Gemini and Claude CLIs with actual data patterns from:
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
 
 import pytest
 

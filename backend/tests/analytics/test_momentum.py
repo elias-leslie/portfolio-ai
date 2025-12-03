@@ -194,7 +194,7 @@ class TestMomentumHorizons:
 
     def test_horizons_ordered(self) -> None:
         """Horizons should be in ascending order."""
-        assert MOMENTUM_HORIZONS == sorted(MOMENTUM_HORIZONS)
+        assert sorted(MOMENTUM_HORIZONS) == MOMENTUM_HORIZONS
 
 
 class TestCalculateMomentum:

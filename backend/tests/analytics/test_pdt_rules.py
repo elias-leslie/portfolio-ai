@@ -3,11 +3,8 @@
 from unittest.mock import MagicMock
 
 import polars as pl
-import pytest
 
 from app.analytics.pdt_rules import (
-    PDT_DAY_TRADE_LIMIT,
-    PDT_EQUITY_THRESHOLD,
     check_pdt_status,
     count_day_trades,
     get_account_equity,

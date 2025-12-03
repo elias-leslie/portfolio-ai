@@ -36,7 +36,7 @@ from app.backtest.storage import (
     list_backtest_runs,
     update_backtest_status,
 )
-from app.middleware.cache import cache_response
+from app.middleware.cache import cache_response, invalidate_endpoint_cache
 from app.storage.connection import get_connection_manager
 from app.tasks.backtest_tasks import run_backtest_task
 
@@ -572,6 +572,9 @@ async def delete_backtest(run_id: str) -> dict[str, str]:
 
         if not deleted:
             raise HTTPException(status_code=404, detail=f"Backtest {run_id} not found")
+
+        # Invalidate the cached runs list so next GET returns fresh data
+        invalidate_endpoint_cache("/api/backtest/runs")
 
         return {"message": f"Backtest {run_id} deleted successfully"}
 

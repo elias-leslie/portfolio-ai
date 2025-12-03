@@ -8,7 +8,6 @@ from app.analytics.position_sizing import (
     DEFAULT_RISK_PERCENT,
     MAX_POSITION_PERCENT,
     MAX_RISK_PERCENT,
-    MIN_POSITION_VALUE,
     MIN_RISK_PERCENT,
     calculate_risk_based_shares,
     calculate_risk_per_share,

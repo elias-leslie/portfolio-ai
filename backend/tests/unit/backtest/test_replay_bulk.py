@@ -1,9 +1,12 @@
-import pytest
-from unittest.mock import MagicMock, patch
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
+from unittest.mock import MagicMock, patch
+
 import pandas as pd
-from app.backtest.replay import replay_backtest, BacktestState
+import pytest
+
+from app.backtest.replay import BacktestState, replay_backtest
+
 
 @pytest.fixture
 def mock_storage():
@@ -22,7 +25,7 @@ def test_replay_backtest_bulk_fetch(mock_calc_indicators, mock_fetch_data, mock_
     # Setup mock data
     start_date = date(2023, 1, 1)
     end_date = date(2023, 1, 5)
-    
+
     # Create a DataFrame covering the period
     dates = pd.date_range(start="2022-12-01", end="2023-01-05")
     data = {
@@ -34,13 +37,13 @@ def test_replay_backtest_bulk_fetch(mock_calc_indicators, mock_fetch_data, mock_
     }
     df = pd.DataFrame(data, index=dates)
     mock_fetch_data.return_value = df
-    
+
     # Mock indicator calculation
     mock_calc_indicators.return_value = {
         "indicators": {"sma_20": 100.0},
         "interpretations": {}
     }
-    
+
     # Run backtest
     state = replay_backtest(
         storage=mock_storage,
@@ -51,18 +54,18 @@ def test_replay_backtest_bulk_fetch(mock_calc_indicators, mock_fetch_data, mock_
         initial_capital=Decimal("10000"),
         strategy=mock_strategy
     )
-    
+
     # Verify fetch was called once with large lookback
     mock_fetch_data.assert_called_once()
     call_args = mock_fetch_data.call_args[0]  # Positional args
     call_kwargs = mock_fetch_data.call_args[1]  # Keyword args
     assert call_args[1] == "AAPL"  # symbol is second positional arg
     assert call_kwargs["lookback_days"] == 10000
-    
+
     # Verify indicators were calculated for each trading day (5 days)
     # 2023-01-01 to 2023-01-05 is 5 days
     assert mock_calc_indicators.call_count == 5
-    
+
     # Verify state
     assert isinstance(state, BacktestState)
     assert len(state.equity_curve) == 5

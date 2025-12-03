@@ -8,8 +8,6 @@ Tests cover:
 
 from __future__ import annotations
 
-import pytest
-
 from app.watchlist.signal_classifier import (
     _calculate_options_flow_score,
     classify_signal,

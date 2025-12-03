@@ -6,7 +6,6 @@ import polars as pl
 import pytest
 
 from app.analytics.liquidity import (
-    MAX_POSITION_PERCENT_ADV,
     apply_liquidity_cap,
     calculate_adv,
     check_position_liquidity,

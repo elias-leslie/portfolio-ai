@@ -6,12 +6,10 @@ from datetime import date, timedelta
 from unittest.mock import MagicMock
 
 import polars as pl
-import pytest
 
 from app.analytics.volatility_regime import (
     REGIME_ADJUSTMENTS,
     VIX_THRESHOLDS,
-    RegimeAnalysis,
     VolatilityRegime,
     analyze_volatility_regime,
     calculate_vix_percentile,

@@ -1,11 +1,13 @@
 "use client";
 
+import { Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SectionCard } from "@/components/shared/SectionCard";
 import { cn } from "@/lib/utils";
 import type { BacktestRun } from "@/lib/api/backtest";
+import { useDeleteBacktest } from "@/lib/hooks/useBacktest";
 
 interface BacktestRunsListProps {
   runs: BacktestRun[];
@@ -26,6 +28,15 @@ export function BacktestRunsList({
   onSelectRun,
   onToggleComparison,
 }: BacktestRunsListProps) {
+  const deleteBacktest = useDeleteBacktest();
+
+  const handleDelete = (e: React.MouseEvent, runId: string, symbol: string) => {
+    e.stopPropagation(); // Prevent selecting the run
+    if (confirm(`Delete backtest for ${symbol}?`)) {
+      deleteBacktest.mutate(runId);
+    }
+  };
+
   // Use standard date formatting from utils (US locale: "Nov 18, 2025")
   const formatDateRange = (dateStr: string) => {
     if (!dateStr) return "-";
@@ -84,11 +95,14 @@ export function BacktestRunsList({
             : selectedRunId === run.id;
 
           return (
-            <button
+            <div
               key={run.id}
+              role="button"
+              tabIndex={0}
               onClick={() => onSelectRun(run.id)}
+              onKeyDown={(e) => e.key === "Enter" && onSelectRun(run.id)}
               className={cn(
-                "w-full rounded-lg border p-3 text-left transition-colors",
+                "w-full rounded-lg border p-3 text-left transition-colors cursor-pointer",
                 isSelected
                   ? "border-primary bg-primary/10"
                   : "border-border bg-surface hover:bg-surface-muted"
@@ -118,11 +132,20 @@ export function BacktestRunsList({
                     )}
                   </div>
                 </div>
-                <Badge variant={getStatusColor(run.status)} className="text-xs">
-                  {run.status}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant={getStatusColor(run.status)} className="text-xs">
+                    {run.status}
+                  </Badge>
+                  <button
+                    onClick={(e) => handleDelete(e, run.id, run.symbol)}
+                    className="p-1 rounded hover:bg-destructive/20 text-text-muted hover:text-destructive transition-colors"
+                    title="Delete backtest"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
-            </button>
+            </div>
           );
         })}
       </div>

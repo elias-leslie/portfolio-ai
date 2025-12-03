@@ -6,10 +6,8 @@ import polars as pl
 import pytest
 
 from app.analytics.kelly import (
-    DEFAULT_KELLY_FRACTION,
     MAX_POSITION_PERCENT,
     MIN_POSITION_PERCENT,
-    MIN_TRADES_FOR_KELLY,
     calculate_kelly_fraction,
     calculate_kelly_position_size,
     get_strategy_stats,

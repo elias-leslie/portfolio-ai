@@ -147,15 +147,9 @@ export function useDeleteBacktest() {
       // Show success toast
       toast.success("Backtest deleted successfully");
 
-      // Invalidate all backtest queries
-      queryClient.invalidateQueries({
-        queryKey: backtestKeys.list(),
-        refetchType: "active",
-      });
-      queryClient.invalidateQueries({
-        queryKey: backtestKeys.detail(runId),
-        refetchType: "active",
-      });
+      // Remove deleted run from cache and force refetch
+      queryClient.removeQueries({ queryKey: backtestKeys.detail(runId) });
+      queryClient.refetchQueries({ queryKey: backtestKeys.list() });
     },
     onError: (error) => {
       // Dismiss loading toast

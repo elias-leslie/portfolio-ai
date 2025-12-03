@@ -236,8 +236,9 @@ def get_beat_schedule() -> dict[str, object]:
             "schedule": crontab(hour=17, minute=0),  # Daily at 17:00 UTC (12:00 PM ET, midday)
             "options": {"expires": 3600},
             # Notes:
-            # - Midday check to catch intraday data updates
-            # - yfinance provides intraday data, so this ensures fresh data during market hours
+            # - Midday check to catch intraday data updates and new watchlist symbols
+            # - Ensures new symbols added during the day get 5-year backfill same day
+            # - Self-healing: Catches any symbols that failed in morning run
         },
         "update-fear-greed-after-close": {
             "task": "populate_fear_greed_inputs",
@@ -263,11 +264,11 @@ def get_beat_schedule() -> dict[str, object]:
             "options": {"expires": 3600},  # Task expires after 1 hour
             # Notes:
             # - Runs daily at 04:15 UTC (after yfinance reference data at 04:00)
-            # - Maintains 252 trading days for all market indicators and sectors
+            # - Maintains 1260 trading days (5 years) for backtesting across market cycles
+            # - DYNAMICALLY includes: market symbols + ALL watchlist symbols
             # - Idempotent: Checks if data exists, backfills if needed, adds new day if current
             # - Self-healing: Automatically fixes missing or stale data
-            # - Symbols: ^GSPC, ^VIX, ^TNX, DX-Y.NYB (indicators)
-            # - Symbols: XLK, XLF, XLE, XLV, XLY, XLP, XLI, XLU, XLRE, XLB, XLC (sectors)
+            # - New watchlist symbols automatically get 5-year backfill on next run
             # - NO MANUAL BACKFILLING NEEDED - task handles all data maintenance
         },
         "refresh-yfinance-reference": {
