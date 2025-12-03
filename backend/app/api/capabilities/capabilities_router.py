@@ -31,6 +31,26 @@ logger = get_logger(__name__)
 
 router = APIRouter()
 
+# System tables that should NEVER be included in cleanup candidates
+# These are infrastructure tables required for the system to function
+SYSTEM_TABLES = {
+    # Capabilities system (this feature!)
+    "capability_insights",
+    "capability_notes",
+    "db_capabilities",
+    "celery_capabilities",
+    "api_capabilities",
+    # Celery infrastructure
+    "celery_taskmeta",
+    "celery_tasksetmeta",
+    # Migration tracking
+    "schema_migrations",
+    "alembic_version",
+    # Infrastructure tables that may be empty but needed
+    "source_credentials",
+    "maintenance_log",
+}
+
 
 # Endpoints
 @router.get("/", response_model=CapabilitiesListResponse)
@@ -469,8 +489,12 @@ async def get_cleanup_candidates() -> dict[str, Any]:
                 },
             }
 
-            # Query orphaned/legacy database tables
-            db_query = """
+            # Query orphaned/legacy database tables (excluding system tables)
+            # Build exclusion list for SQL
+            system_tables_list = list(SYSTEM_TABLES)
+            placeholders = ",".join(["%s"] * len(system_tables_list))
+
+            db_query = f"""
                 SELECT
                     id,
                     table_name,
@@ -482,9 +506,10 @@ async def get_cleanup_candidates() -> dict[str, Any]:
                     completeness_pct
                 FROM db_capabilities
                 WHERE health_status IN ('orphaned', 'legacy')
+                    AND table_name NOT IN ({placeholders})
                 ORDER BY health_status, table_name
             """
-            result = conn.execute(db_query)
+            result = conn.execute(db_query, system_tables_list)
             for row in result.fetchall():
                 item = {
                     "id": row[0],

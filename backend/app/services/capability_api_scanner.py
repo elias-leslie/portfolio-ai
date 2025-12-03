@@ -127,12 +127,16 @@ class APIScanner:
             # Detect table dependencies (basic regex scan)
             depends_on_tables = self._detect_table_dependencies(content, function_name)
 
+            # Detect frontend usage (is this endpoint called from frontend?)
+            frontend_callers = self._detect_frontend_usage(path)
+
             # Categorize endpoint
             category = categorize_by_name(path)
 
             # Calculate health status
             health_status = self._calculate_api_health_status(
                 depends_on_tables=depends_on_tables,
+                frontend_callers=frontend_callers,
             )
 
             endpoints.append(
@@ -143,6 +147,7 @@ class APIScanner:
                     "route_file": str(route_file.name),
                     "function_name": function_name or "unknown",
                     "depends_on_tables": depends_on_tables,
+                    "frontend_callers": frontend_callers,  # NEW: frontend files calling this endpoint
                     "health_status": health_status,
                     # Performance metrics - NULL for Phase 1 (no middleware yet)
                     "avg_response_time_ms": None,
@@ -190,30 +195,103 @@ class APIScanner:
     def _calculate_api_health_status(
         self,
         depends_on_tables: list[str],
+        frontend_callers: list[str] | None = None,
     ) -> str:
         """Calculate health status for API endpoint.
 
         Args:
             depends_on_tables: Tables this endpoint depends on
+            frontend_callers: Frontend files that call this endpoint
 
         Returns:
             Health status: "active", "orphaned", "legacy", or "suspect"
 
         API health logic:
-        - orphaned: No table dependencies (isolated endpoint)
+        - active: Has frontend callers OR has table dependencies
+        - orphaned: No table dependencies AND no frontend callers (isolated endpoint)
         - legacy: Not implemented yet (requires table health cross-reference)
         - suspect: Not implemented yet (requires table health cross-reference)
-        - active: default
 
         NOTE: Full implementation requires querying db_capabilities to check
         if depends_on_tables are orphaned/legacy. This is Phase 2 work.
         """
-        # Orphaned: No dependencies on any tables
+        # If frontend calls this endpoint, it's active (even without table deps)
+        if frontend_callers:
+            return "active"
+
+        # Orphaned: No dependencies on any tables AND no frontend callers
         if not depends_on_tables:
             return "orphaned"
 
         # Default: Active (full logic requires cross-referencing db_capabilities)
         return "active"
+
+    def _detect_frontend_usage(self, endpoint_path: str) -> list[str]:
+        """Detect frontend files that call this API endpoint.
+
+        Searches for API call patterns in frontend code:
+        - fetch('/api/path')
+        - axios.get('/api/path')
+        - api.get('/path')
+        - useSWR('/api/path')
+
+        Args:
+            endpoint_path: API endpoint path (e.g., "/watchlist/items")
+
+        Returns:
+            List of frontend file paths that call this endpoint
+        """
+        try:
+            callers = set()
+
+            # Build search patterns
+            # Remove leading slash for more flexible matching
+            path_no_slash = endpoint_path.lstrip("/")
+
+            # Handle path parameters like {id} or :id
+            # Convert /items/{id} to regex pattern /items/[^/'"]+
+            path_pattern = re.sub(r"\{[^}]+\}", r"[^/'\"]+", path_no_slash)
+            path_pattern = re.sub(r":[a-zA-Z_]+", r"[^/'\"]+", path_pattern)
+
+            patterns = [
+                # Direct API calls
+                rf"['\"`]/api/{path_pattern}['\"`]",
+                rf"['\"`]/{path_pattern}['\"`]",
+                # Template literals with backticks
+                rf"`/api/{path_pattern}`",
+                rf"`/{path_pattern}`",
+                # API client patterns
+                rf"api\.(get|post|put|delete|patch)\s*\(\s*['\"`]/?{path_pattern}",
+            ]
+
+            # Search in frontend directory
+            frontend_dir = Path(__file__).parent.parent.parent.parent / "frontend"
+            if not frontend_dir.exists():
+                return []
+
+            # Search .ts, .tsx, .js, .jsx files
+            for pattern_glob in ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"]:
+                for frontend_file in frontend_dir.glob(pattern_glob):
+                    # Skip node_modules and build directories
+                    if "node_modules" in str(frontend_file) or ".next" in str(frontend_file):
+                        continue
+
+                    try:
+                        content = frontend_file.read_text()
+                        for pattern in patterns:
+                            if re.search(pattern, content, re.IGNORECASE):
+                                # Get relative path from frontend/
+                                rel_path = str(frontend_file.relative_to(frontend_dir))
+                                callers.add(rel_path)
+                                break
+                    except Exception:
+                        continue
+
+            return sorted(callers)
+
+        except Exception as e:
+            logger.debug("failed_to_detect_frontend_usage", endpoint=endpoint_path, error=str(e))
+            return []
 
     def _detect_table_dependencies(self, content: str, function_name: str | None) -> list[str]:
         """Detect which tables an endpoint depends on.

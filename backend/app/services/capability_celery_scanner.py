@@ -130,13 +130,17 @@ class CeleryScanner:
         # Categorize task
         category = categorize_by_name(task_name)
 
-        # Detect dependencies (placeholder for now)
-        depends_on_tasks: list[str] = []  # TODO: Implement dependency detection
+        # Detect task callers (who calls this task via .delay() or send_task())
+        called_by = self._detect_task_callers(task_name, task_path)
+
+        # Detect dependencies (tasks this task calls)
+        depends_on_tasks = self._detect_task_dependencies(task_path)
 
         # Calculate health status
         health_status = self._calculate_celery_health_status(
             populates_tables=populates_tables,
             depends_on_tasks=depends_on_tasks,
+            called_by=called_by,
             last_run_at=last_run_at,
             success_rate_pct=success_rate,
             schedule_interval_seconds=schedule_interval_seconds,
@@ -159,6 +163,7 @@ class CeleryScanner:
             "max_duration_ms": max_duration,
             "populates_tables": populates_tables,
             "depends_on_tasks": depends_on_tasks,
+            "called_by": called_by,  # NEW: files/tasks that call this task
             "health_status": health_status,
         }
 
@@ -300,6 +305,7 @@ class CeleryScanner:
         self,
         populates_tables: list[str],
         depends_on_tasks: list[str],
+        called_by: list[str],
         last_run_at: Any | None,
         success_rate_pct: int | None,
         schedule_interval_seconds: int | None,
@@ -309,6 +315,7 @@ class CeleryScanner:
         Args:
             populates_tables: Tables this task populates
             depends_on_tasks: Tasks this task depends on
+            called_by: Files/tasks that call this task
             last_run_at: Last execution timestamp
             success_rate_pct: Success rate over last 7 days
             schedule_interval_seconds: Schedule interval in seconds
@@ -317,28 +324,29 @@ class CeleryScanner:
             Health status: "active", "orphaned", "legacy", or "suspect"
 
         Celery health logic:
-        - orphaned: Not in schedule (interval=None) AND no populates AND no depends_on
+        - active: Has callers (other code calls this task) OR healthy execution
+        - orphaned: Not in schedule AND no populates AND no depends_on AND no callers
         - legacy: Never run (last_run_at=None) OR success_rate=0% consistently
         - suspect: Low success rate (<50%) OR irregular execution
-        - active: default (healthy task)
         """
-        # Orphaned: Not scheduled and no dependencies
-        if schedule_interval_seconds is None and not populates_tables and not depends_on_tasks:
+        has_zero_success = success_rate_pct is not None and success_rate_pct == 0
+
+        # If other code calls this task, it's active (suspect if failing)
+        if called_by:
+            return "suspect" if has_zero_success else "active"
+
+        # Orphaned: Not scheduled and no dependencies and no callers
+        is_isolated = schedule_interval_seconds is None and not populates_tables and not depends_on_tasks
+        if is_isolated:
             return "orphaned"
 
-        # Legacy: Never executed
-        if last_run_at is None:
+        # Legacy: Never executed OR complete failure (0% success rate)
+        if last_run_at is None or has_zero_success:
             return "legacy"
 
-        # Legacy: Complete failure (0% success rate)
-        if success_rate_pct is not None and success_rate_pct == 0:
-            return "legacy"
-
-        # Suspect: Low success rate
-        if success_rate_pct is not None and success_rate_pct < 50:
-            return "suspect"
-
-        return "active"
+        # Suspect: Low success rate (<50%)
+        has_low_success = success_rate_pct is not None and success_rate_pct < 50
+        return "suspect" if has_low_success else "active"
 
     def _detect_populates_tables(self, task_path: str) -> list[str]:
         """Detect which tables a task populates by scanning task file.
@@ -386,6 +394,113 @@ class CeleryScanner:
 
         except Exception as e:
             logger.debug("failed_to_detect_populated_tables", task=task_path, error=str(e))
+            return []
+
+    def _detect_task_callers(self, task_name: str, task_path: str) -> list[str]:
+        """Detect files/tasks that call this task.
+
+        Searches for patterns like:
+        - task_name.delay()
+        - task_name.apply_async()
+        - send_task('task_path')
+        - celery_app.send_task('task_path')
+
+        Args:
+            task_name: Beat schedule name (e.g., "fetch-market-data-hourly")
+            task_path: Task import path (e.g., "app.tasks.market_data_tasks.fetch_prices")
+
+        Returns:
+            List of file paths that call this task
+        """
+        try:
+            callers = set()
+            function_name = task_path.split(".")[-1] if "." in task_path else task_path
+
+            # Search patterns
+            patterns = [
+                rf"{function_name}\.delay\s*\(",
+                rf"{function_name}\.apply_async\s*\(",
+                rf"send_task\s*\(\s*['\"].*{function_name}['\"]",
+                rf"send_task\s*\(\s*['\"].*{task_path}['\"]",
+            ]
+
+            # Search in backend app directory
+            app_dir = Path(__file__).parent.parent
+            for py_file in app_dir.glob("**/*.py"):
+                # Skip the task's own file
+                if function_name in py_file.name:
+                    continue
+
+                try:
+                    content = py_file.read_text()
+                    for pattern in patterns:
+                        if re.search(pattern, content):
+                            # Get relative path from app/
+                            rel_path = str(py_file.relative_to(app_dir))
+                            callers.add(rel_path)
+                            break
+                except Exception:
+                    continue
+
+            return sorted(callers)
+
+        except Exception as e:
+            logger.debug("failed_to_detect_task_callers", task=task_name, error=str(e))
+            return []
+
+    def _detect_task_dependencies(self, task_path: str) -> list[str]:
+        """Detect tasks that this task calls (dependencies).
+
+        Searches for patterns like:
+        - other_task.delay()
+        - send_task('other_task')
+
+        Args:
+            task_path: Task import path
+
+        Returns:
+            List of task names this task depends on
+        """
+        try:
+            dependencies = set()
+
+            # Convert import path to file path
+            path_parts = task_path.split(".")
+            if len(path_parts) < 2:
+                return []
+
+            module_parts = path_parts[:-1]
+            file_path = Path(__file__).parent.parent / "/".join(module_parts[1:])
+            file_path = file_path.with_suffix(".py")
+
+            if not file_path.exists():
+                return []
+
+            content = file_path.read_text()
+
+            # Find all .delay() and .apply_async() calls
+            delay_pattern = r"(\w+)\.delay\s*\("
+            async_pattern = r"(\w+)\.apply_async\s*\("
+            send_pattern = r"send_task\s*\(\s*['\"]([^'\"]+)['\"]"
+
+            for match in re.finditer(delay_pattern, content):
+                task_var = match.group(1)
+                # Filter out common non-task variables
+                if task_var not in ["self", "cls", "result", "response", "data"]:
+                    dependencies.add(task_var)
+
+            for match in re.finditer(async_pattern, content):
+                task_var = match.group(1)
+                if task_var not in ["self", "cls", "result", "response", "data"]:
+                    dependencies.add(task_var)
+
+            for match in re.finditer(send_pattern, content):
+                dependencies.add(match.group(1))
+
+            return sorted(dependencies)
+
+        except Exception as e:
+            logger.debug("failed_to_detect_task_dependencies", task=task_path, error=str(e))
             return []
 
     def save_capabilities(self, capabilities: list[dict[str, Any]]) -> int:

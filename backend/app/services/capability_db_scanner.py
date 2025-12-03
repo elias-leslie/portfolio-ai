@@ -197,13 +197,17 @@ class DatabaseScanner:
         # Categorize table
         category = categorize_by_name(table_name)
 
-        # Calculate health status
+        # Check for foreign key references (tables that depend on this one)
+        fk_references = self._get_foreign_key_references(table_name, conn)
+
+        # Calculate health status (now considers FK references)
         health_status = self._calculate_health_status(
             row_count=row_count,
             columns_with_data=columns_with_data,
             columns=column_names,
             freshness_status=freshness_status,
             days_since_update=days_since_update,
+            fk_references=fk_references,
         )
 
         return {
@@ -221,6 +225,7 @@ class DatabaseScanner:
             "days_since_update": days_since_update,
             "freshness_status": freshness_status,
             "health_status": health_status,
+            "fk_referenced_by": fk_references,  # NEW: tables that have FK to this table
         }
 
     def _detect_date_range(
@@ -295,6 +300,43 @@ class DatabaseScanner:
             return "stale"
         return "critical"
 
+    def _get_foreign_key_references(
+        self,
+        table_name: str,
+        conn: DatabaseConnection,
+    ) -> list[str]:
+        """Get tables that have foreign keys pointing TO this table.
+
+        This helps identify tables that cannot be safely removed because
+        other tables depend on them.
+
+        Args:
+            table_name: Name of table to check
+            conn: Database connection
+
+        Returns:
+            List of table names that reference this table via FK
+        """
+        try:
+            result = conn.execute(
+                """
+                SELECT DISTINCT tc.table_name
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.key_column_usage kcu
+                    ON tc.constraint_name = kcu.constraint_name
+                JOIN information_schema.constraint_column_usage ccu
+                    ON ccu.constraint_name = tc.constraint_name
+                WHERE tc.constraint_type = 'FOREIGN KEY'
+                    AND ccu.table_name = %s
+                    AND tc.table_name != %s
+                """,
+                [table_name, table_name],
+            )
+            return [str(row[0]) for row in result.fetchall() if row[0]]
+        except Exception as e:
+            logger.debug("fk_reference_check_failed", table=table_name, error=str(e))
+            return []
+
     def _calculate_health_status(
         self,
         row_count: int,
@@ -302,6 +344,7 @@ class DatabaseScanner:
         columns: list[str],
         freshness_status: str,
         days_since_update: int | None,
+        fk_references: list[str] | None = None,
     ) -> str:
         """Calculate health status for database table.
 
@@ -311,44 +354,44 @@ class DatabaseScanner:
             columns: All columns
             freshness_status: Current freshness status
             days_since_update: Days since last update
+            fk_references: Tables that have FK refs to this table
 
         Returns:
             Health status: "active", "orphaned", "legacy", or "suspect"
 
         Database health logic:
-        - orphaned: Very low row count (<100) AND no substantial data
-        - legacy: No data (row_count=0) OR critically stale (>30 days + critical freshness)
+        - active: Has FK references (other tables depend on it) OR healthy data
+        - orphaned: Very low row count (<100) AND no substantial data AND no FK refs
+        - legacy: No data (row_count=0) AND no FK refs OR critically stale (>30 days)
         - suspect: Low data completeness (<20%) OR stale freshness
-        - active: default (healthy table)
         """
-        # Legacy: No data at all
+        # If other tables reference this via FK, it's active (needed for schema)
+        if fk_references:
+            return "active"
+
+        # Legacy: No data at all (and no FK refs)
         if row_count == 0:
             return "legacy"
 
-        # Orphaned: Very low row count and minimal data
-        if row_count < 100:
-            # Calculate data completeness
-            completeness = len(columns_with_data) / len(columns) if columns else 0
-            if completeness < 0.2:  # Less than 20% columns have data
-                return "orphaned"
+        # Calculate completeness once
+        completeness = len(columns_with_data) / len(columns) if columns else 0
 
-        # Legacy: Critically stale data
-        if (
+        # Orphaned: Very low row count and minimal data
+        if row_count < 100 and completeness < 0.2:
+            return "orphaned"
+
+        # Legacy: Critically stale data (>30 days with critical freshness)
+        is_critically_stale = (
             freshness_status == "critical"
             and days_since_update is not None
             and days_since_update > 30
-        ):
+        )
+        if is_critically_stale:
             return "legacy"
 
-        # Suspect: Low completeness or stale
-        completeness = len(columns_with_data) / len(columns) if columns else 0
-        if completeness < 0.3:  # Less than 30% columns have data
-            return "suspect"
-
-        if freshness_status in ["stale", "critical"]:
-            return "suspect"
-
-        return "active"
+        # Suspect: Low completeness (<30%) or stale/critical freshness
+        is_suspect = completeness < 0.3 or freshness_status in ["stale", "critical"]
+        return "suspect" if is_suspect else "active"
 
     def save_capabilities(self, capabilities: list[dict[str, Any]]) -> int:
         """Save scanned capabilities to db_capabilities table.

@@ -14,7 +14,12 @@ from fastapi import APIRouter, HTTPException, Query
 from ...logging_config import get_logger
 from ...storage.connection import get_connection_manager
 from .database import insight_from_row
-from .models import InsightReviewRequest, InsightsListResponse
+from .models import (
+    InsightCreateRequest,
+    InsightCreateResponse,
+    InsightReviewRequest,
+    InsightsListResponse,
+)
 
 logger = get_logger(__name__)
 
@@ -22,6 +27,120 @@ router = APIRouter()
 
 
 # Endpoints
+@router.post("/insights", response_model=InsightCreateResponse)
+async def create_insight(insight: InsightCreateRequest) -> InsightCreateResponse:
+    """Create a new capability insight.
+
+    Used by /scrub_it and other tools to record findings about capabilities
+    that need attention (broken dependencies, missing data, etc.).
+
+    Body:
+        - capability_type: db, celery, or api
+        - capability_id: ID of the related capability (optional)
+        - table_name: Table name for quick reference (optional)
+        - insight_type: broken_dependency, missing_data, data_quality, etc.
+        - severity: low, medium, high, critical
+        - finding: Concise description of the issue
+        - expected_behavior: What should happen (optional)
+        - actual_behavior: What's actually happening (optional)
+        - impact: Why this matters (optional)
+        - suggested_fix: Specific action to take (optional)
+        - reference_data: Related files, tables, URLs (optional)
+        - ai_model: AI model that generated this insight (optional)
+        - ai_confidence: Confidence level 0.0-1.0 (optional)
+    """
+    import json
+
+    conn_mgr = get_connection_manager()
+
+    try:
+        with conn_mgr.connection() as conn:
+            # Validate capability exists if capability_id provided
+            if insight.capability_id is not None:
+                table_map = {
+                    "db": "db_capabilities",
+                    "celery": "celery_capabilities",
+                    "api": "api_capabilities",
+                }
+                cap_table = table_map.get(insight.capability_type)
+                if cap_table:
+                    check_query = f"SELECT id FROM {cap_table} WHERE id = %s"
+                    result = conn.execute(check_query, [insight.capability_id]).fetchone()
+                    if not result:
+                        raise HTTPException(
+                            status_code=404,
+                            detail=f"Capability not found: {insight.capability_type}/{insight.capability_id}",
+                        )
+
+            # Insert insight
+            insert_query = """
+                INSERT INTO capability_insights (
+                    capability_type,
+                    capability_id,
+                    table_name,
+                    insight_type,
+                    severity,
+                    finding,
+                    expected_behavior,
+                    actual_behavior,
+                    impact,
+                    suggested_fix,
+                    reference_data,
+                    ai_model,
+                    ai_confidence,
+                    status,
+                    generated_at,
+                    created_at,
+                    updated_at
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    'pending', NOW(), NOW(), NOW()
+                )
+                RETURNING id
+            """
+            result = conn.execute(
+                insert_query,
+                [
+                    insight.capability_type,
+                    insight.capability_id,
+                    insight.table_name,
+                    insight.insight_type,
+                    insight.severity,
+                    insight.finding,
+                    insight.expected_behavior,
+                    insight.actual_behavior,
+                    insight.impact,
+                    insight.suggested_fix,
+                    json.dumps(insight.reference_data) if insight.reference_data else None,
+                    insight.ai_model,
+                    insight.ai_confidence,
+                ],
+            ).fetchone()
+            conn.commit()
+
+            insight_id = result[0] if result else 0
+
+            logger.info(
+                "insight_created",
+                insight_id=insight_id,
+                capability_type=insight.capability_type,
+                capability_id=insight.capability_id,
+                insight_type=insight.insight_type,
+                severity=insight.severity,
+            )
+
+            return InsightCreateResponse(
+                id=insight_id,
+                message=f"Insight created successfully with ID {insight_id}",
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("insight_create_error", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to create insight: {e}") from e
+
+
 @router.get("/insights", response_model=InsightsListResponse)
 async def get_insights(
     status: str | None = Query(None, description="Filter by status"),

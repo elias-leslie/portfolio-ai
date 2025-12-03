@@ -40,6 +40,36 @@ class CapabilityDetailResponse(BaseModel):
 # Insights Router Models
 
 
+class InsightCreateRequest(BaseModel):
+    """Request for creating a capability insight."""
+
+    capability_type: str = Field(description="Capability type: db, celery, api")
+    capability_id: int | None = Field(default=None, description="Capability ID (optional)")
+    table_name: str | None = Field(default=None, description="Table name for quick reference")
+    insight_type: str = Field(
+        description="Insight type: broken_dependency, missing_data, data_quality, "
+        "missing_capability, performance"
+    )
+    severity: str = Field(description="Severity: low, medium, high, critical")
+    finding: str = Field(description="Concise description of the finding")
+    expected_behavior: str | None = Field(default=None, description="What should happen")
+    actual_behavior: str | None = Field(default=None, description="What's actually happening")
+    impact: str | None = Field(default=None, description="Why this matters")
+    suggested_fix: str | None = Field(default=None, description="Specific action to take")
+    reference_data: dict | None = Field(default=None, description="Related files, tables, etc.")
+    ai_model: str | None = Field(default=None, description="AI model that generated insight")
+    ai_confidence: float | None = Field(
+        default=None, ge=0.0, le=1.0, description="AI confidence 0.0-1.0"
+    )
+
+
+class InsightCreateResponse(BaseModel):
+    """Response for insight creation."""
+
+    id: int
+    message: str
+
+
 class InsightReviewRequest(BaseModel):
     """Request for reviewing an insight."""
 
