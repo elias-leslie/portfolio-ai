@@ -24,6 +24,7 @@ from app.sources.twelvedata_source import TwelveDataSource
 from app.sources.yfinance_source import YFinanceSource
 from app.storage import PortfolioStorage, get_storage
 from app.storage.credential_loader import load_credentials_from_database
+from app.utils.task_locks import generate_task_lock_key, task_lock
 
 logger = get_logger(__name__)
 
@@ -576,6 +577,9 @@ def ingest_historical_ohlcv(  # type: ignore[no-untyped-def]
     Fetches historical daily bars for the specified tickers and lookback period,
     storing results in the day_bars table with source lineage tracking.
 
+    Uses Redis-based task lock to prevent duplicate concurrent executions
+    for the same ticker set.
+
     Args:
         tickers: List of ticker symbols to fetch data for
         days: Number of trading days to backfill (default: 252 = ~1 year)
@@ -588,9 +592,30 @@ def ingest_historical_ohlcv(  # type: ignore[no-untyped-def]
         - rows_inserted: Total rows inserted into day_bars table
         - duration_seconds: Total execution time
         - errors: Number of tickers that failed to fetch
+        - skipped: True if task was skipped due to duplicate lock
 
     Example:
         >>> ingest_historical_ohlcv.delay(["AAPL", "MSFT", "GOOGL"], days=252)
         >>> # Backfills 252 days of OHLCV data for 3 tickers
     """
-    return _ingest_historical_ohlcv_impl(tickers, days, self.request.id)
+    # Use task lock to prevent duplicate concurrent executions
+    # Lock key includes sorted tickers and days for deduplication
+    lock_key = generate_task_lock_key("ingest_historical_ohlcv", tickers, days)
+
+    with task_lock(lock_key, ttl=600) as acquired:  # 10-minute lock (matches task_time_limit)
+        if not acquired:
+            logger.info(
+                "ingest_historical_ohlcv_skipped_duplicate",
+                task_id=self.request.id,
+                tickers=tickers,
+                days=days,
+                reason="duplicate_task_running",
+            )
+            return {
+                "task_id": self.request.id,
+                "skipped": True,
+                "reason": "duplicate_task_running",
+                "tickers_count": len(tickers),
+            }
+
+        return _ingest_historical_ohlcv_impl(tickers, days, self.request.id)

@@ -272,6 +272,66 @@ def get_queue_depth() -> int:
     return len(pending_tasks)
 
 
+# Default threshold for queue backpressure (prevent cascading task explosions)
+QUEUE_BACKPRESSURE_THRESHOLD = 100
+
+
+def should_skip_cascade(threshold: int = QUEUE_BACKPRESSURE_THRESHOLD) -> bool:
+    """Check if queue is too deep to schedule more cascaded tasks.
+
+    Use this before calling .delay() or apply_async() on downstream tasks
+    to prevent queue saturation during high load periods.
+
+    Args:
+        threshold: Maximum queue depth before skipping (default: 100)
+
+    Returns:
+        True if queue depth exceeds threshold (skip scheduling), False otherwise
+    """
+    try:
+        depth = get_queue_depth()
+        return depth >= threshold
+    except Exception:
+        # If we can't check queue depth, allow scheduling (fail open)
+        return False
+
+
+def schedule_with_backpressure(
+    task: Any,
+    args: tuple | None = None,
+    kwargs: dict | None = None,
+    threshold: int = QUEUE_BACKPRESSURE_THRESHOLD,
+    countdown: int | None = None,
+) -> str | None:
+    """Schedule a task only if queue depth is below threshold.
+
+    Provides backpressure mechanism to prevent queue saturation.
+
+    Args:
+        task: Celery task to schedule
+        args: Positional arguments for the task
+        kwargs: Keyword arguments for the task
+        threshold: Maximum queue depth before skipping
+        countdown: Optional delay in seconds before task runs
+
+    Returns:
+        Task ID if scheduled, None if skipped due to backpressure
+    """
+    if should_skip_cascade(threshold):
+        return None
+
+    apply_kwargs: dict[str, Any] = {}
+    if args:
+        apply_kwargs["args"] = args
+    if kwargs:
+        apply_kwargs["kwargs"] = kwargs
+    if countdown:
+        apply_kwargs["countdown"] = countdown
+
+    result = task.apply_async(**apply_kwargs)
+    return result.id
+
+
 def get_unified_task_list(
     status: Literal["all", "active", "pending", "completed", "failed"] = "all",
     limit: int = 50,

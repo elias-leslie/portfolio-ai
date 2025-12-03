@@ -19,7 +19,10 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-(No active tasks)
+1. **Data Architecture Consolidation** 🔄 IN PROGRESS
+   - File: `tasks-0004-data-architecture-consolidation.md`
+   - Started: 2025-12-03
+   - Status: Task 0 - Scope Discovery (--max mode)
 
 ---
 
@@ -28,7 +31,6 @@
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
 (No planned tasks)
-
 
 ---
 

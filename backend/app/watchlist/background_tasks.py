@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from app.logging_config import get_logger
+from app.services.celery_inspector import should_skip_cascade
 from app.tasks import (
     ingest_historical_ohlcv,
     refresh_watchlist_scores_task,
@@ -16,6 +17,7 @@ def schedule_new_ticker_tasks(symbol: str) -> None:
     """Schedule background tasks for a newly added ticker.
 
     Coordinates data ingestion, technical indicators, and score refresh.
+    Uses backpressure check to prevent queue saturation.
 
     Args:
         symbol: Stock ticker symbol
@@ -26,6 +28,18 @@ def schedule_new_ticker_tasks(symbol: str) -> None:
         Watchlist is user-level (not account-specific), so no account_id needed.
     """
     try:
+        # Check queue backpressure before scheduling (except critical data ingestion)
+        if should_skip_cascade():
+            logger.warning(
+                "Skipping cascade tasks due to queue backpressure",
+                symbol=symbol,
+                reason="queue_depth_exceeded",
+            )
+            # Still schedule data ingestion (critical for new ticker), skip the rest
+            ingest_historical_ohlcv.delay(tickers=[symbol], days=1300)
+            logger.info("Triggered historical data ingestion (5 years)", symbol=symbol)
+            return
+
         # Ingest 5 years of historical OHLCV data (~1300 trading days)
         # This ensures sufficient data for backtesting (1-year lookback)
         ingest_historical_ohlcv.delay(tickers=[symbol], days=1300)
@@ -55,6 +69,7 @@ def schedule_refresh_tasks(tickers: list[str]) -> None:
     """Schedule background tasks for refreshing existing watchlist data.
 
     Coordinates data refresh, technical indicators update, and score refresh.
+    Uses backpressure check to prevent queue saturation.
 
     Args:
         tickers: List of ticker symbols to refresh
@@ -65,6 +80,15 @@ def schedule_refresh_tasks(tickers: list[str]) -> None:
         Watchlist is user-level (not account-specific), so no account_id needed.
     """
     try:
+        # Check queue backpressure before scheduling cascade
+        if should_skip_cascade():
+            logger.warning(
+                "Skipping refresh tasks due to queue backpressure",
+                tickers=tickers,
+                reason="queue_depth_exceeded",
+            )
+            return
+
         # Fetch latest OHLCV data (last 5 days to update recent bars)
         ingest_historical_ohlcv.delay(tickers=tickers, days=5)
         logger.info("Triggered OHLCV data refresh", tickers=tickers)

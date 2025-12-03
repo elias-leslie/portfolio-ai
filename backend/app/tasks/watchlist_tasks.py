@@ -17,6 +17,7 @@ from app.logging_config import get_logger
 from app.storage import PortfolioStorage, get_storage
 from app.tasks.types import WatchlistResultDict
 from app.utils.market_hours import is_market_hours
+from app.utils.task_locks import task_lock
 from app.utils.task_logging import log_task_skip, task_logger
 from app.watchlist.service import refresh_watchlist_scores as refresh_watchlist_scores_service
 
@@ -102,11 +103,19 @@ def _get_last_refresh_time(storage: PortfolioStorage) -> dt.datetime | None:
 def _trigger_auto_backfill(storage: PortfolioStorage) -> None:
     """Check for missing historical data and trigger backfill if needed.
 
+    Uses backpressure check to prevent queue saturation during high load.
+
     Args:
         storage: Storage instance for database operations
     """
     try:
+        from ..services.celery_inspector import should_skip_cascade  # noqa: PLC0415
         from ..watchlist.service import detect_missing_historical_data  # noqa: PLC0415
+
+        # Check queue backpressure before scheduling more work
+        if should_skip_cascade():
+            logger.info("auto_backfill_skipped_backpressure", reason="queue_depth_exceeded")
+            return
 
         # Load watchlist items to get symbols
         with storage.connection() as conn:
@@ -186,6 +195,8 @@ def refresh_watchlist_scores_task(self: Task, account_id: str | None = None) -> 
     watchlist_refresh_minutes preference by skipping execution if not enough
     time has passed since the last refresh.
 
+    Uses Redis-based task lock to prevent duplicate concurrent executions.
+
     Note: This task checks market hours for logging, but refreshes 24/7.
     """
     skip_check_start = time.perf_counter()  # For skip duration measurement
@@ -193,6 +204,34 @@ def refresh_watchlist_scores_task(self: Task, account_id: str | None = None) -> 
     task_id = self.request.id
     account_id = account_id or "default"
 
+    # Use task lock to prevent duplicate concurrent executions
+    lock_key = f"refresh_watchlist_scores:{account_id}"
+    with task_lock(lock_key, ttl=300) as acquired:  # 5-minute lock
+        if not acquired:
+            logger.info(
+                "refresh_watchlist_scores_skipped_duplicate",
+                task_id=task_id,
+                account_id=account_id,
+                reason="duplicate_task_running",
+            )
+            return {
+                "task_id": task_id,
+                "skipped": True,
+                "reason": "duplicate_task_running",
+                "duration_seconds": round(time.time() - start_time, 2),
+            }
+
+        return _refresh_watchlist_scores_impl(self, account_id, skip_check_start, start_time, task_id)
+
+
+def _refresh_watchlist_scores_impl(
+    self: Task,
+    account_id: str,
+    skip_check_start: float,
+    start_time: float,
+    task_id: str,
+) -> WatchlistResultDict:
+    """Implementation of watchlist score refresh (extracted for lock context)."""
     try:
         storage = get_storage()
 
@@ -213,10 +252,7 @@ def refresh_watchlist_scores_task(self: Task, account_id: str | None = None) -> 
 
             minutes_since_refresh = (now - last_refresh).total_seconds() / 60.0
 
-            # AUTO-BACKFILL: Check for missing historical data (runs BEFORE interval skip)
-            _trigger_auto_backfill(storage)
-
-            # Skip if not enough time has passed
+            # Skip if not enough time has passed (check BEFORE auto-backfill to avoid cascade spam)
             if minutes_since_refresh < refresh_interval_minutes:
                 skip_duration_ms = (time.perf_counter() - skip_check_start) * 1000
                 log_task_skip(
@@ -236,6 +272,10 @@ def refresh_watchlist_scores_task(self: Task, account_id: str | None = None) -> 
                     refresh_interval_minutes=refresh_interval_minutes,
                     start_time=start_time,
                 )
+
+        # AUTO-BACKFILL: Only trigger when we're actually going to refresh (not skipping)
+        # This prevents cascade spam from 60-second Beat polling
+        _trigger_auto_backfill(storage)
 
         # Proceed with refresh
         markets_open = is_market_hours()
