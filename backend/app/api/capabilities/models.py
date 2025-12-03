@@ -83,9 +83,16 @@ class InsightReviewRequest(BaseModel):
 
 
 class InsightsListResponse(BaseModel):
-    """Response for paginated insights list."""
+    """Response for paginated insights list.
 
-    total: int
+    The `total` field reflects the count matching the current filter.
+    `pending_count` and `fixed_count` always show global counts regardless of filter,
+    so you can see progress at a glance.
+    """
+
+    total: int  # Count matching current filter
+    pending_count: int = 0  # Global count of pending insights (actionable items)
+    fixed_count: int = 0  # Global count of fixed insights (completed items)
     insights: list[InsightDict]
 
 

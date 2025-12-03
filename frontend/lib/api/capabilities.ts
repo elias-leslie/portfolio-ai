@@ -158,6 +158,8 @@ export interface CapabilityDetailResponse {
 
 export interface InsightsListResponse {
   total: number;
+  pending_count: number; // Actionable items (not fixed/dismissed)
+  fixed_count: number; // Completed items
   insights: CapabilityInsight[];
 }
 

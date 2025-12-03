@@ -161,7 +161,8 @@ class GapSummaryResponse(BaseModel):
     """Summary of all gaps across the system."""
 
     timestamp: str
-    total_gaps: int
+    total_gaps: int  # Pending gaps only (excludes resolved)
+    resolved_count: int = 0  # Gaps marked as resolved
     p0_gaps: int
     p1_gaps: int
     p2_gaps: int
@@ -215,10 +216,11 @@ async def get_gap_summary() -> GapSummaryDict:
     """Get system-wide gap summary with coverage % per analysis type.
 
     Returns complete gap analysis including:
-    - Total gaps by criticality (P0/P1/P2/P3)
+    - Total gaps by criticality (P0/P1/P2/P3) - EXCLUDES resolved gaps
     - Coverage % per analysis type
     - TOP 10 priority gaps (ranked by impact x 1/effort)
     - MVP roadmap (4-week plan to achieve trading edge)
+    - Resolved count (gaps marked as done)
 
     Raises:
         HTTPException: 500 if analysis fails
@@ -231,19 +233,49 @@ async def get_gap_summary() -> GapSummaryDict:
 
         result = detector.analyze_gaps()
 
+        # Get resolved gap IDs to exclude from counts
+        resolved_ids = get_resolved_gap_ids(conn_mgr)
+        resolved_count = len(resolved_ids)
+
+        # Collect all gaps from analysis types
+        all_gaps: list[dict[str, Any]] = []
+        for analysis_type_data in result.get("analysis_types", {}).values():
+            gaps_list = analysis_type_data.get("gaps", [])
+            # GapInfo is a TypedDict, cast to dict for type checker
+            all_gaps.extend(cast(list[dict[str, Any]], gaps_list))
+
+        # Filter out resolved gaps from counts
+        def is_pending(gap: dict[str, Any]) -> bool:
+            return gap.get("gap_id", "") not in resolved_ids
+
+        pending_gaps = [g for g in all_gaps if is_pending(g)]
+
+        # Count by criticality
+        p0 = sum(1 for g in pending_gaps if g.get("criticality") == "P0")
+        p1 = sum(1 for g in pending_gaps if g.get("criticality") == "P1")
+        p2 = sum(1 for g in pending_gaps if g.get("criticality") == "P2")
+        p3 = sum(1 for g in pending_gaps if g.get("criticality") == "P3")
+
         # Calculate average coverage across all analysis types
         coverage_values = [at["coverage_pct"] for at in result["analysis_types"].values()]
         avg_coverage = sum(coverage_values) / len(coverage_values) if coverage_values else 0.0
 
         response = {
             **result,
+            "total_gaps": len(pending_gaps),  # Override with pending count
+            "p0_gaps": p0,
+            "p1_gaps": p1,
+            "p2_gaps": p2,
+            "p3_gaps": p3,
+            "resolved_count": resolved_count,  # Add resolved count
             "avg_coverage_pct": round(avg_coverage, 1),
         }
 
         logger.info(
             "gap_summary_returned",
-            total_gaps=result["total_gaps"],
-            p0_gaps=result["p0_gaps"],
+            total_gaps=len(pending_gaps),
+            resolved=resolved_count,
+            p0_gaps=p0,
             avg_coverage=round(avg_coverage, 1),
         )
 
@@ -431,3 +463,125 @@ async def generate_task_list(request: GenerateTaskListRequest) -> TaskListGenera
             status_code=500,
             detail=f"Task list generation failed: {e!s}",
         ) from e
+
+
+# ========================================================================
+# Gap Resolution Tracking (like a checklist - mark gaps as resolved)
+# ========================================================================
+
+
+class ResolveGapRequest(BaseModel):
+    """Request to mark a gap as resolved."""
+
+    resolution_notes: str | None = Field(
+        default=None, description="Notes about how the gap was filled"
+    )
+
+
+class ResolveGapResponse(BaseModel):
+    """Response after resolving a gap."""
+
+    gap_id: str
+    status: str
+    message: str
+
+
+@router.post("/{gap_id}/resolve", response_model=ResolveGapResponse)
+async def resolve_gap(gap_id: str, request: ResolveGapRequest | None = None) -> dict[str, str]:
+    """Mark a gap as resolved (remove from active list).
+
+    Use this after implementing a capability to mark the gap as filled.
+    Resolved gaps won't appear in the gap summary counts.
+
+    Args:
+        gap_id: Gap ID (e.g., GAP-020)
+        request: Optional resolution notes
+
+    Returns:
+        Confirmation of resolution
+
+    Raises:
+        HTTPException: 400 if invalid gap_id format
+        HTTPException: 500 if database operation fails
+    """
+    if not gap_id.startswith("GAP-"):
+        raise HTTPException(status_code=400, detail=f"Invalid gap_id format: {gap_id}")
+
+    notes = request.resolution_notes if request else None
+
+    logger.info("resolve_gap_request", gap_id=gap_id, notes=notes)
+
+    try:
+        conn_mgr = ConnectionManager()
+        with conn_mgr.connection() as conn:
+            # Upsert into trading_gaps (in case it doesn't exist yet)
+            conn.execute(
+                """
+                INSERT INTO trading_gaps (gap_id, capability, analysis_type, criticality,
+                    severity, current_state, desired_state, impact, recommendation, resolved_at, resolution_notes)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW() AT TIME ZONE 'UTC', %s)
+                ON CONFLICT (gap_id) DO UPDATE SET
+                    resolved_at = NOW() AT TIME ZONE 'UTC',
+                    resolution_notes = EXCLUDED.resolution_notes,
+                    updated_at = NOW() AT TIME ZONE 'UTC'
+                """,
+                [gap_id, 'unknown', 'unknown', 'P1', 'limiting', '', '', '', 'Resolved', notes],
+            )
+            conn.commit()
+
+        logger.info("gap_resolved", gap_id=gap_id)
+        return {"gap_id": gap_id, "status": "resolved", "message": f"Gap {gap_id} marked as resolved"}
+
+    except Exception as e:
+        logger.error("resolve_gap_failed", gap_id=gap_id, error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to resolve gap: {e!s}") from e
+
+
+@router.get("/resolutions")
+async def get_gap_resolutions() -> dict[str, Any]:
+    """Get list of resolved gaps.
+
+    Returns:
+        List of gap_ids that have been resolved and their resolution dates
+    """
+    try:
+        conn_mgr = ConnectionManager()
+        with conn_mgr.connection() as conn:
+            result = conn.execute(
+                """
+                SELECT gap_id, resolved_at, resolution_notes
+                FROM trading_gaps
+                WHERE resolved_at IS NOT NULL
+                ORDER BY resolved_at DESC
+                """
+            ).fetchall()
+
+        resolutions = [
+            {
+                "gap_id": row[0],
+                "resolved_at": row[1].isoformat() if hasattr(row[1], "isoformat") else str(row[1]) if row[1] else None,
+                "notes": row[2],
+            }
+            for row in result
+        ]
+
+        return {
+            "resolved_count": len(resolutions),
+            "resolutions": resolutions,
+        }
+
+    except Exception as e:
+        logger.error("get_resolutions_failed", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to get resolutions: {e!s}") from e
+
+
+def get_resolved_gap_ids(conn_mgr: ConnectionManager) -> set[str]:
+    """Helper to get set of resolved gap IDs from database."""
+    try:
+        with conn_mgr.connection() as conn:
+            result = conn.execute(
+                "SELECT gap_id FROM trading_gaps WHERE resolved_at IS NOT NULL"
+            ).fetchall()
+            return {str(row[0]) for row in result if row[0]}
+    except Exception:
+        return set()

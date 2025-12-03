@@ -99,11 +99,12 @@ export function CapabilitiesDashboard() {
     },
   });
 
-  // Fetch recent critical/warning insights only
+  // Fetch recent critical/warning insights - ONLY PENDING (not fixed/dismissed)
   const { data: insightsData, isLoading: insightsLoading } = useQuery({
-    queryKey: ["capability-insights", "dashboard"],
+    queryKey: ["capability-insights", "dashboard", "pending"],
     queryFn: () =>
       fetchInsights({
+        status: "pending",
         limit: 10,
         offset: 0,
       }),

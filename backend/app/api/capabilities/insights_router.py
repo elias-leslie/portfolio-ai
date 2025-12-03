@@ -183,10 +183,21 @@ async def get_insights(
 
             where_sql = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
-            # Count query
+            # Count query (filtered)
             count_query = f"SELECT COUNT(*) FROM capability_insights i{where_sql}"
             count_result = conn.execute(count_query, params).fetchone()
             total: int = int(count_result[0]) if count_result and count_result[0] else 0
+
+            # Global counts (always show pending/fixed counts regardless of filter)
+            global_counts_query = """
+                SELECT
+                    COALESCE(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END), 0) as pending,
+                    COALESCE(SUM(CASE WHEN status = 'fixed' THEN 1 ELSE 0 END), 0) as fixed
+                FROM capability_insights
+            """
+            global_result = conn.execute(global_counts_query).fetchone()
+            pending_count = int(global_result[0]) if global_result else 0
+            fixed_count = int(global_result[1]) if global_result else 0
 
             # Main query with capability info
             query = f"""
@@ -216,7 +227,12 @@ async def get_insights(
                 returned=len(insights),
             )
 
-            return InsightsListResponse(total=total, insights=insights)
+            return InsightsListResponse(
+                total=total,
+                pending_count=pending_count,
+                fixed_count=fixed_count,
+                insights=insights,
+            )
 
     except Exception as e:
         logger.error("insights_list_error", error=str(e))
