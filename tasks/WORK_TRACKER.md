@@ -19,7 +19,17 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-(No active tasks)
+1. **Remaining P0 Gaps** ✅ COMPLETE (2025-12-03)
+   - File: `tasks-0003-remaining-p0-gaps.md` (archived)
+   - Completed: 2025-12-03
+   - Focus: Resolve P0 gaps - position sizing, Kelly, PDT, bid/ask, analyst revisions
+   - Results: P0 gaps 4 → 1 (GAP-005 needs FMP premium), Coverage 48.3% → 60%
+   - Key achievements:
+     - ✅ GAP-043: Equity-based position sizing (already in position_sizing.py)
+     - ✅ GAP-045: Kelly criterion (already in kelly.py)
+     - ✅ GAP-052: PDT tracking (already in pdt_rules.py)
+     - ✅ GAP-029: Bid/ask spreads (migration 064, PriceData model updated)
+     - ⏸️ GAP-005: Analyst revisions (infrastructure ready, needs FMP premium $29/mo)
 
 ---
 

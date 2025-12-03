@@ -302,6 +302,17 @@ def get_beat_schedule() -> dict[str, object]:
             # - Data stored in earnings_surprises table
             # - Used for signal classification (consistent beats = bullish)
         },
+        "refresh-analyst-revisions-daily": {
+            "task": "refresh_analyst_revisions",
+            "schedule": crontab(hour=7, minute=0),  # Daily at 07:00 UTC
+            "options": {"expires": 3600},  # Task expires after 1 hour
+            # Notes:
+            # - Runs daily at 07:00 UTC (GAP-005: analyst estimate revisions)
+            # - Fetches EPS/revenue estimates from FMP API
+            # - Tracks revisions over time (7d, 30d, 90d ago)
+            # - Calculates revision direction and magnitude
+            # - Used for earnings momentum signals (upgrades = bullish)
+        },
         "fetch-options-activity-daily": {
             "task": "fetch_options_activity_metrics",
             "schedule": crontab(hour=21, minute=15),  # Daily at 21:15 UTC (4:15 PM ET)

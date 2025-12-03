@@ -101,7 +101,8 @@ class PriceDataFetcher:
 
         df = self.storage.query(
             f"""
-            SELECT symbol, price, beta, volatility, sector, cached_at, source, error
+            SELECT symbol, price, beta, volatility, sector, bid, ask, bid_size, ask_size,
+                   cached_at, source, error
             FROM price_cache
             WHERE symbol IN ({placeholders})
               AND cached_at >= ?
@@ -168,6 +169,11 @@ class PriceDataFetcher:
                 sector = payload.get("sector")
                 beta = payload.get("beta")
                 volatility = payload.get("volatility")
+                # Bid/ask data (GAP-029) - may be available from some sources
+                bid = payload.get("bid")
+                ask = payload.get("ask")
+                bid_size = payload.get("bidSize") or payload.get("bid_size")
+                ask_size = payload.get("askSize") or payload.get("ask_size")
 
                 if price and price > 0:
                     result[ticker] = PriceData(
@@ -176,6 +182,10 @@ class PriceDataFetcher:
                         beta=float(beta) if beta else None,
                         volatility=float(volatility) if volatility else None,
                         sector=sector,
+                        bid=float(bid) if bid else None,
+                        ask=float(ask) if ask else None,
+                        bid_size=int(bid_size) if bid_size else None,
+                        ask_size=int(ask_size) if ask_size else None,
                         source=source,
                     )
                     logger.info(

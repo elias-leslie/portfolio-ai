@@ -43,9 +43,28 @@ class PriceData(BaseModel):
     beta: float | None = None
     volatility: float | None = None
     sector: str | None = None
+    bid: float | None = None  # Best bid price (GAP-029)
+    ask: float | None = None  # Best ask price (GAP-029)
+    bid_size: int | None = None  # Size at bid
+    ask_size: int | None = None  # Size at ask
     cached_at: datetime = Field(default_factory=datetime.now)
     source: str = "yfinance"
     error: str | None = None
+
+    @property
+    def spread(self) -> float | None:
+        """Calculate bid-ask spread."""
+        if self.bid is not None and self.ask is not None:
+            return self.ask - self.bid
+        return None
+
+    @property
+    def spread_pct(self) -> float | None:
+        """Calculate spread as percentage of mid-price."""
+        if self.bid is not None and self.ask is not None and self.bid > 0:
+            mid = (self.bid + self.ask) / 2
+            return ((self.ask - self.bid) / mid) * 100 if mid > 0 else None
+        return None
 
 
 class PortfolioValue(BaseModel):

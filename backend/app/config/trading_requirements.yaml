@@ -174,14 +174,14 @@ analysis_types:
       - capability: analyst_estimate_revisions
         gap_id: GAP-005
         criticality: P0
-        current_state: "Only static recommendation_mean"
+        status: IMPLEMENTED  # Migration 065, analyst_revisions.py (Finnhub FREE tier)
+        current_state: "Buy score tracking with 1/3/6 month history from Finnhub recommendations"
         desired_state: "EPS estimate trend (upgrades/downgrades), revision magnitude"
         why: "Estimate revisions = leading indicator. Upgrades predict outperformance"
         data_sources:
-          - fmp: "Analyst estimates API"
-          - finnhub: "Recommendation trends API"
+          - finnhub: "Recommendation trends API (FREE tier)"
         tables:
-          - analyst_revisions (new table)
+          - analyst_revisions
         freshness_requirement: "< 1 week"
         coverage_requirement: "60% of watchlist (large caps only)"
 
@@ -481,14 +481,15 @@ analysis_types:
       - capability: bid_ask_spreads
         gap_id: GAP-029
         criticality: P0
-        current_state: "No bid/ask fields in PriceData model"
+        status: IMPLEMENTED  # Migration 064, PriceData model, price_fetcher.py
+        current_state: "bid, ask, bid_size, ask_size columns in price_cache + PriceData model"
         desired_state: "Bid, ask, spread, bid_size, ask_size in price_cache"
         why: "Transaction costs = difference between backtest and reality. Market orders pay the spread"
         data_sources:
           - polygon: "Real-time quotes API"
           - alpaca: "Real-time quotes (free with account)"
         tables:
-          - price_cache (extend)
+          - price_cache
         freshness_requirement: "< 5 minutes"
         coverage_requirement: "All watchlist tickers"
 
@@ -508,13 +509,14 @@ analysis_types:
       - capability: equity_based_position_sizing
         gap_id: GAP-043
         criticality: P0
-        current_state: "Fixed $500 risk (not linked to account equity)"
+        status: IMPLEMENTED  # app/analytics/position_sizing.py
+        current_state: "Risk-based sizing with 1.5% default (configurable 0.5-5%)"
         desired_state: "Risk = 1% of account equity (configurable)"
         why: "$500 on $10k = 5% risk (too aggressive). $500 on $1M = 0.05% (too conservative)"
         data_sources:
           - internal: "Portfolio total value"
         tables:
-          - portfolio_accounts (track equity)
+          - portfolio_accounts
         freshness_requirement: "Real-time"
         coverage_requirement: "All accounts"
 
@@ -534,7 +536,8 @@ analysis_types:
       - capability: kelly_position_sizing
         gap_id: GAP-045
         criticality: P0
-        current_state: "No Kelly criterion"
+        status: IMPLEMENTED  # app/analytics/kelly.py
+        current_state: "Fractional Kelly (0.25 default) with 30-trade minimum"
         desired_state: "Kelly% = (WinRate×AvgWin - LossRate×AvgLoss)/AvgWin, use fractional Kelly (0.25-0.5)"
         why: "Kelly maximizes long-term growth. Optimal bet size for edge"
         data_sources:
@@ -720,16 +723,17 @@ analysis_types:
       - capability: pdt_rule_tracking
         gap_id: GAP-052
         criticality: P0
-        current_state: "No pattern day trader rule tracking"
+        status: IMPLEMENTED  # app/analytics/pdt_rules.py
+        current_state: "5-day rolling window, 4-trade limit, $25k threshold check"
         desired_state: "Track day trades per 5-day window, alert at 3/5"
         why: "Violating PDT locks account for 90 days. Must track if supporting day trading"
         data_sources:
           - internal: "Order history"
         tables:
-          - order_history
+          - idea_outcomes
         freshness_requirement: "Real-time"
         coverage_requirement: "Accounts < $25k only"
-        notes: "Only needed if supporting day trading (intraday entry + exit)"
+        notes: "Implemented with count_day_trades(), check_pdt_status(), should_block_day_trade()"
 
     recommended:  # P1
       - capability: wash_sale_detection

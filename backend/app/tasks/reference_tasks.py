@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, TypedDict
 if TYPE_CHECKING:
     from celery import Task
 
+from app.analytics.analyst_revisions import refresh_analyst_revisions_for_symbols
 from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.sources.alphavantage_source import AlphaVantageSource
@@ -575,6 +576,76 @@ def refresh_alphavantage_reference_backup(self: Task) -> dict[str, int | str]:
     except Exception as e:
         logger.error(
             "alphavantage_backup_refresh_error",
+            task_id=task_id,
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+        raise
+
+
+@celery_app.task(name="refresh_analyst_revisions", bind=True)  # type: ignore[misc]
+def refresh_analyst_revisions(self: Task) -> dict[str, int | str]:
+    """Fetch analyst estimate revisions for watchlist symbols (GAP-005).
+
+    Runs daily at 07:00 UTC (after market close).
+    Fetches EPS and revenue estimate revisions from FMP API.
+
+    Returns:
+        Dict with task results:
+        - task_id: Celery task ID
+        - symbols_processed: Number of symbols attempted
+        - records_saved: Number of revision records saved
+        - duration_seconds: Total execution time
+    """
+    task_id = self.request.id
+    start_time = dt.datetime.now(dt.UTC)
+
+    logger.info("analyst_revisions_refresh_started", task_id=task_id)
+
+    try:
+        storage = get_storage()
+
+        # Get watchlist symbols
+        with storage.connection() as conn:
+            result = conn.execute("SELECT DISTINCT symbol FROM watchlist_items")
+            symbols = [str(row[0]) for row in result.fetchall()]
+
+        if not symbols:
+            logger.info("no_watchlist_symbols_for_analyst_revisions")
+            return {
+                "task_id": task_id,
+                "symbols_processed": 0,
+                "records_saved": 0,
+                "duration_seconds": 0,
+            }
+
+        logger.info("refreshing_analyst_revisions", num_symbols=len(symbols))
+
+        results = refresh_analyst_revisions_for_symbols(storage, symbols)
+        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+
+        logger.info(
+            "analyst_revisions_refresh_completed",
+            task_id=task_id,
+            symbols_processed=len(symbols),
+            success=results["success"],
+            failed=results["failed"],
+            records_saved=results["records_saved"],
+            duration_seconds=duration,
+        )
+
+        return {
+            "task_id": task_id,
+            "symbols_processed": len(symbols),
+            "success": results["success"],
+            "failed": results["failed"],
+            "records_saved": results["records_saved"],
+            "duration_seconds": int(duration),
+        }
+
+    except Exception as e:
+        logger.error(
+            "analyst_revisions_refresh_error",
             task_id=task_id,
             error=str(e),
             error_type=type(e).__name__,
