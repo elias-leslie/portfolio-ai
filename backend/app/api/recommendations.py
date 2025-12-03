@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.logging_config import get_logger
+from app.middleware.cache import invalidate_endpoint_cache
 from app.storage.connection import get_connection_manager
 
 logger = get_logger(__name__)
@@ -450,6 +451,10 @@ async def track_in_portfolio(
             position_type="long",
             strategy_id=strategy_id,
         )
+
+        # Invalidate portfolio cache so new position shows immediately
+        invalidate_endpoint_cache("/api/portfolio/", method="GET")
+        invalidate_endpoint_cache("/api/portfolio/analytics", method="GET")
 
         return {
             "status": "created",
