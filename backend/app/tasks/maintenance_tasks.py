@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any
 
 from app.celery_app import celery_app
 from app.logging_config import get_logger
+from app.sources.sec_cik_fetcher import fetch_and_save as fetch_cik_mapping
 from app.storage.connection import get_connection_manager
 
 if TYPE_CHECKING:
@@ -436,6 +437,54 @@ def get_database_size_task(self: Task) -> dict[str, int | str | float | list[dic
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
         logger.error(
             "get_database_size_failed",
+            task_id=task_id,
+            error=str(e),
+            error_type=type(e).__name__,
+            duration_seconds=round(duration, 2),
+        )
+        return {
+            "task_id": task_id,
+            "error": str(e),
+            "success": False,
+            "duration_seconds": round(duration, 2),
+        }
+
+
+@celery_app.task(name="refresh_sec_cik_cache", bind=True)  # type: ignore[misc]
+def refresh_sec_cik_cache(self: Task) -> dict[str, Any]:
+    """Refresh SEC CIK cache from SEC EDGAR.
+
+    Fetches the latest ticker→CIK mapping from SEC and updates the database.
+    This enables SEC filing lookups for all tracked symbols.
+
+    Returns:
+        Dict with task_id, tickers_updated, duration_seconds, success
+    """
+    task_id = self.request.id
+    start_time = dt.datetime.now(dt.UTC)
+
+    logger.info("refresh_sec_cik_cache_started", task_id=task_id)
+
+    try:
+        storage = get_connection_manager()
+        mapping = fetch_cik_mapping(storage)
+
+        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+
+        result_dict: dict[str, Any] = {
+            "task_id": task_id,
+            "tickers_updated": len(mapping),
+            "duration_seconds": round(duration, 2),
+            "success": True,
+        }
+
+        logger.info("refresh_sec_cik_cache_completed", **result_dict)
+        return result_dict
+
+    except Exception as e:
+        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        logger.error(
+            "refresh_sec_cik_cache_failed",
             task_id=task_id,
             error=str(e),
             error_type=type(e).__name__,

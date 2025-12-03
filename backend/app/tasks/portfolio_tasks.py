@@ -44,7 +44,6 @@ def save_portfolio_snapshots_task(self: Task[[], dict[str, Any]]) -> dict[str, A
         # Get all portfolio accounts
         accounts_query = """
             SELECT id, name FROM portfolio_accounts
-            WHERE is_active = true OR is_active IS NULL
         """
         accounts_result = storage.query(accounts_query, [])
 
@@ -111,4 +110,4 @@ def save_portfolio_snapshots_task(self: Task[[], dict[str, Any]]) -> dict[str, A
 
     except Exception as e:
         logger.error("portfolio_snapshots_task_failed", error=str(e))
-        raise self.retry(exc=e)
+        raise self.retry(exc=e) from e

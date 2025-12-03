@@ -560,6 +560,16 @@ def get_beat_schedule() -> dict[str, object]:
             # - Tracks database growth trends in maintenance_stats table
             # - Helps identify which tables are growing fastest
         },
+        "refresh-sec-cik-cache-weekly": {
+            "task": "refresh_sec_cik_cache",
+            "schedule": crontab(hour=6, minute=0, day_of_week=0),  # Weekly on Sunday at 06:00 UTC
+            "options": {"expires": 3600},
+            # Notes:
+            # - Fetches ticker→CIK mapping from SEC EDGAR
+            # - Enables SEC filing lookups for all symbols
+            # - Weekly is sufficient as CIK mappings rarely change
+            # - Only new IPOs add new entries
+        },
         # NOTE: Removed ghost tasks (functions never implemented):
         # - check-workflow-failures-every-6h
         # - monitor-api-rate-limits-every-6h

@@ -1,6 +1,6 @@
 # Work Tracker
 
-**Last Updated:** 2025-12-03 (Task 0002 complete)
+**Last Updated:** 2025-12-03 (Task 0005 Phase 1 complete)
 
 **Current Status:** 🎯 **VISION.MD ALIGNMENT** | 97% Overall (+25%) | ✅ Strategy Validation Complete
 
@@ -21,7 +21,6 @@
 
 (No active tasks)
 
-
 ---
 
 ## 📋 Planned Tasks
@@ -36,7 +35,19 @@
 
 *Last 5 completed tasks*
 
-1. **Data Architecture Consolidation** ✅ COMPLETE (2025-12-03)
+1. **Capability Improvements Phase 1** ✅ COMPLETE (2025-12-03)
+   - File: `tasks-0005-capability-improvements.md`
+   - Completed: 2025-12-03
+   - Duration: ~45 minutes
+   - Summary: Fix critical data staleness insights
+   - Key achievements:
+     - ✅ Created SEC CIK refresh task (9998 tickers)
+     - ✅ Fixed portfolio_snapshots task (is_active bug)
+     - ✅ Fixed source_registry seeding (9 sources)
+     - ✅ Verified capabilities scan running
+   - Impact: All critical data tables now fresh
+
+2. **Data Architecture Consolidation** ✅ COMPLETE (2025-12-03)
    - File: `tasks-0004-data-architecture-consolidation.md`
    - Completed: 2025-12-03
    - Duration: ~3 hours

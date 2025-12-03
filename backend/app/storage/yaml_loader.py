@@ -154,6 +154,8 @@ def insert_source_to_db(source_config: dict[str, Any], storage: PortfolioStorage
                     ],
                 )
 
+        conn.commit()
+
         logger.info(
             f"Loaded source {source_config['source_id']} (priority {source_config['priority']}, {len(target_tables)} endpoints)"
         )
