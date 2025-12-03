@@ -26,20 +26,22 @@ def schedule_new_ticker_tasks(symbol: str) -> None:
         Watchlist is user-level (not account-specific), so no account_id needed.
     """
     try:
-        # Ingest 200 days of historical OHLCV data
-        ingest_historical_ohlcv.delay(tickers=[symbol], days=200)
-        logger.info("Triggered historical data ingestion", symbol=symbol)
+        # Ingest 5 years of historical OHLCV data (~1300 trading days)
+        # This ensures sufficient data for backtesting (1-year lookback)
+        ingest_historical_ohlcv.delay(tickers=[symbol], days=1300)
+        logger.info("Triggered historical data ingestion (5 years)", symbol=symbol)
 
         # Calculate technical indicators (will run after ingestion completes)
+        # Increased delay to allow 5-year data fetch to complete
         update_technical_indicators.apply_async(
-            args=[[symbol]], countdown=30
-        )  # Wait 30s for ingestion
+            args=[[symbol]], countdown=120
+        )  # Wait 2 min for ingestion
         logger.info("Scheduled technical indicators calculation", symbol=symbol)
 
         # Refresh watchlist scores after data ingestion
         # Note: The refresh logic now safely skips tickers without sufficient historical data,
         # preventing score degradation for existing tickers
-        refresh_watchlist_scores_task.apply_async(countdown=60)  # Wait 60s for everything
+        refresh_watchlist_scores_task.apply_async(countdown=180)  # Wait 3 min for everything
         logger.info("Scheduled watchlist score refresh")
 
     except Exception as bg_error:

@@ -19,10 +19,15 @@ from app.backtest.additional_strategies import (
     TrendFollowingStrategy,
 )
 from app.backtest.enhanced_strategy import EnhancedSignalStrategy
+from app.backtest.replay import InsufficientDataError
 from app.celery_app import celery_app
 from app.storage.facade import get_storage
 
 logger = logging.getLogger(__name__)
+
+# How many days of data to fetch when backfilling (covers 5 years of trading days)
+# 252 trading days/year * 5 years ≈ 1260 trading days, using 1300 to be safe
+BACKFILL_DAYS = 1300
 
 
 def _initialize_strategy(
@@ -152,7 +157,8 @@ def _save_backtest_results(
 
 @celery_app.task(  # type: ignore[misc]
     bind=True,
-    max_retries=0,  # No retries for backtests (user can re-run manually)
+    max_retries=2,  # Retry after data backfill
+    default_retry_delay=120,  # Wait 2 minutes for data to be fetched
     time_limit=600,  # 10 minute timeout (prevent infinite loops)
 )
 def run_backtest_task(  # type: ignore[no-untyped-def]
@@ -173,10 +179,12 @@ def run_backtest_task(  # type: ignore[no-untyped-def]
     """Execute backtest and store results.
 
     This task:
-    1. Runs the backtest replay loop
-    2. Calculates performance metrics
-    3. Saves trades and equity curve to database
-    4. Updates backtest_run with final results
+    1. Checks if sufficient historical data exists
+    2. If not, triggers data backfill and retries after delay
+    3. Runs the backtest replay loop
+    4. Calculates performance metrics
+    5. Saves trades and equity curve to database
+    6. Updates backtest_run with final results
 
     Args:
         run_id: Backtest run ID (UUID)
@@ -201,7 +209,7 @@ def run_backtest_task(  # type: ignore[no-untyped-def]
     logger.info(
         f"Starting backtest task: {run_id} | {symbol} | {start_date} to {end_date} | "
         f"Strategy: {strategy_name} | Stop: {stop_loss_atr_multiplier}x ATR | "
-        f"Max Hold: {max_holding_days}d | Target: {target_profit_pct}%"
+        f"Max Hold: {max_holding_days}d | Target: {target_profit_pct}% | Retry: {self.request.retries}"
     )
 
     storage_mgr = get_storage()
@@ -256,6 +264,32 @@ def run_backtest_task(  # type: ignore[no-untyped-def]
             "num_trades": metrics_dict["num_trades"],
             "profit_factor": float(metrics_dict["profit_factor"]),
         }
+
+    except InsufficientDataError as e:
+        logger.warning(
+            f"Backtest needs more data: {run_id} | {symbol} | "
+            f"Available: {e.available_start} to {e.available_end} | "
+            f"Requested: {e.requested_start} to {e.requested_end}"
+        )
+
+        # Trigger historical data backfill
+        from app.tasks.ingestion.price_ingestion import (  # noqa: PLC0415
+            ingest_historical_ohlcv,
+        )
+
+        logger.info(f"Triggering historical data backfill for {symbol} ({BACKFILL_DAYS} days)")
+        ingest_historical_ohlcv.delay([symbol], days=BACKFILL_DAYS)
+
+        # Update status to show we're waiting for data
+        storage.update_backtest_status(
+            storage=storage_mgr,
+            run_id=run_id,
+            status="running",
+            error_message=f"Fetching historical data... (retry {self.request.retries + 1}/2)",
+        )
+
+        # Retry after delay to allow data to be fetched
+        raise self.retry(exc=e, countdown=120) from e  # Retry in 2 minutes
 
     except Exception as e:
         logger.error(f"Backtest failed: {run_id} | Error: {e}", exc_info=True)

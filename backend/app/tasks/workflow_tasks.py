@@ -22,6 +22,35 @@ from app.utils.git_automation import commit_workflow_results
 logger = get_logger(__name__)
 
 
+def _get_available_data_range(storage: PortfolioStorage, ticker: str) -> tuple[str | None, str | None]:
+    """Get the available date range for a ticker in day_bars.
+
+    Args:
+        storage: Database connection
+        ticker: Stock ticker symbol
+
+    Returns:
+        (min_date, max_date) as ISO strings, or (None, None) if no data
+    """
+    query = """
+        SELECT MIN(date) as min_date, MAX(date) as max_date
+        FROM day_bars
+        WHERE ticker = $1
+    """
+    result = storage.query(query, [ticker])
+    if result.is_empty():
+        return None, None
+
+    row = result.to_dicts()[0]
+    min_date = row.get("min_date")
+    max_date = row.get("max_date")
+
+    if min_date is None or max_date is None:
+        return None, None
+
+    return str(min_date), str(max_date)
+
+
 @celery_app.task(name="app.tasks.workflow_tasks.daily_gap_analysis_workflow")  # type: ignore[misc]
 def daily_gap_analysis_workflow() -> dict[str, object]:
     """Daily multi-agent gap analysis workflow.
@@ -238,11 +267,37 @@ def paper_trade_validation_workflow(  # noqa: PLR0911
             f"Paper trade validation workflow {workflow_id} started for {ticker} ({action})"
         )
 
-        # Calculate 1-year backtest date range
+        # Calculate backtest date range based on available data
         today = datetime.now(UTC).date()
-        # Use 365 days ago for 1-year backtest
-        start_date = (today - timedelta(days=365)).isoformat()
+        requested_start = today - timedelta(days=365)  # Target 1-year backtest
         end_date = today.isoformat()
+
+        # Check available data range
+        data_min, _data_max = _get_available_data_range(storage, ticker)
+        if data_min is None:
+            logger.warning(f"No historical data for {ticker}, triggering backfill")
+            # Trigger historical data fetch
+            from app.tasks.ingestion.price_ingestion import ingest_historical_ohlcv  # noqa: PLC0415
+
+            ingest_historical_ohlcv.delay([ticker], days=1300)  # ~5 years
+            return {
+                "status": "pending_data",
+                "message": f"Triggered historical data fetch for {ticker}. Retry in 5 minutes.",
+                "workflow_id": workflow_id,
+            }
+
+        # Adjust start_date to available data if needed
+        from datetime import date as date_type  # noqa: PLC0415
+
+        data_min_date = date_type.fromisoformat(data_min)
+        if requested_start < data_min_date:
+            logger.info(
+                f"Adjusting backtest start from {requested_start} to {data_min_date} "
+                f"(data only available from {data_min})"
+            )
+            start_date = data_min
+        else:
+            start_date = requested_start.isoformat()
 
         # Execute REAL backtest using AgentTools
         # Check for custom strategy (NEW: Task 4.7)

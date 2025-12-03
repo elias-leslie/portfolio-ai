@@ -345,6 +345,60 @@ def exit_trade(
     return trade
 
 
+class InsufficientDataError(Exception):
+    """Raised when backtest requires more historical data than available."""
+
+    def __init__(
+        self,
+        symbol: str,
+        requested_start: date,
+        requested_end: date,
+        available_start: date | None,
+        available_end: date | None,
+    ):
+        self.symbol = symbol
+        self.requested_start = requested_start
+        self.requested_end = requested_end
+        self.available_start = available_start
+        self.available_end = available_end
+
+        if available_start is None:
+            msg = f"No historical data for {symbol}. Need data from {requested_start} to {requested_end}."
+        else:
+            msg = (
+                f"Insufficient historical data for {symbol}. "
+                f"Requested: {requested_start} to {requested_end}, "
+                f"Available: {available_start} to {available_end}."
+            )
+        super().__init__(msg)
+
+
+def _get_data_range(storage: PortfolioStorage, symbol: str) -> tuple[date | None, date | None]:
+    """Get available date range for a symbol from day_bars.
+
+    Args:
+        storage: Database connection
+        symbol: Stock ticker
+
+    Returns:
+        (min_date, max_date) or (None, None) if no data
+    """
+    query = """
+        SELECT MIN(date) as min_date, MAX(date) as max_date
+        FROM day_bars
+        WHERE ticker = $1
+    """
+    result = storage.query(query, [symbol])
+    if result.is_empty():
+        return None, None
+
+    row = result.to_dicts()[0]
+    if row.get("min_date") is None:
+        return None, None
+
+    return row["min_date"], row["max_date"]
+
+
 def replay_backtest(
     storage: PortfolioStorage,
     run_id: str,
@@ -373,11 +427,53 @@ def replay_backtest(
         Final backtest state with trades and equity curve
 
     Raises:
+        InsufficientDataError: If historical data doesn't cover requested range
         ValueError: If no trading data found or invalid parameters
     """
+    # Check data availability - raise specific error if insufficient
+    data_min, data_max = _get_data_range(storage, symbol)
+
+    if data_min is None or data_max is None:
+        raise InsufficientDataError(symbol, start_date, end_date, None, None)
+
+    # Check if we have data covering the requested range
+    # If start_date is before available data, adjust to earliest available
+    # (handles cases like requesting pre-IPO data)
+    actual_start = start_date
+    actual_end = end_date
+
+    if start_date < data_min:
+        logger.warning(
+            f"Requested start {start_date} is before earliest data {data_min} for {symbol}. "
+            f"Adjusting to {data_min} (possibly pre-IPO request)."
+        )
+        actual_start = data_min
+
+    if end_date > data_max:
+        logger.warning(
+            f"Requested end {end_date} is after latest data {data_max} for {symbol}. "
+            f"Adjusting to {data_max}."
+        )
+        actual_end = data_max
+
+    # Ensure we have a valid date range
+    if actual_start >= actual_end:
+        raise InsufficientDataError(symbol, start_date, end_date, data_min, data_max)
+
+    # If we had to adjust significantly (more than 30 days before requested start),
+    # and we don't have at least 200 days of data, raise error to trigger backfill
+    days_available = (actual_end - actual_start).days
+    if days_available < 200:
+        raise InsufficientDataError(symbol, start_date, end_date, data_min, data_max)
+
     logger.info(
-        f"Starting backtest: {symbol} | {start_date} to {end_date} | Capital: ${initial_capital:.2f}"
+        f"Starting backtest: {symbol} | {actual_start} to {actual_end} | Capital: ${initial_capital:.2f}"
+        + (f" (adjusted from {start_date}-{end_date})" if actual_start != start_date or actual_end != end_date else "")
     )
+
+    # Use adjusted dates for the backtest
+    start_date = actual_start
+    end_date = actual_end
 
     # Initialize state (convert to Decimal for precision)
     initial_capital_dec = Decimal(str(initial_capital))

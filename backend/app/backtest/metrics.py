@@ -106,6 +106,11 @@ def calculate_sharpe_ratio(
     excess_return = mean_return - daily_rf
     sharpe = excess_return * math.sqrt(252) / std_dev if std_dev > 0 else 0.0
 
+    # Guard against NaN/inf values
+    if math.isnan(sharpe) or math.isinf(sharpe):
+        logger.warning(f"Sharpe calculation produced invalid value: {sharpe}")
+        return Decimal("0.0")
+
     return Decimal(str(round(sharpe, 4)))
 
 
