@@ -441,3 +441,171 @@ async def trigger_scan() -> ScanTriggerResponse:
     except Exception as e:
         logger.error("scan_trigger_error", error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to trigger scan: {e}") from e
+
+
+@router.get("/cleanup-candidates")
+async def get_cleanup_candidates() -> dict[str, Any]:
+    """Get all orphaned and legacy capabilities for cleanup review.
+
+    Used by /scrub_it command to identify items that may be safe to remove.
+
+    Returns capabilities grouped by type with health_status in ['orphaned', 'legacy'].
+    Each item includes evidence of why it's a cleanup candidate.
+
+    IMPORTANT: Items returned here have passed initial detection but still require
+    verification before removal. The /scrub_it command performs additional checks.
+    """
+    conn_mgr = get_connection_manager()
+
+    try:
+        with conn_mgr.connection() as conn:
+            candidates: dict[str, Any] = {
+                "database": [],
+                "celery": [],
+                "api": [],
+                "summary": {
+                    "total_candidates": 0,
+                    "by_status": {"orphaned": 0, "legacy": 0},
+                },
+            }
+
+            # Query orphaned/legacy database tables
+            db_query = """
+                SELECT
+                    id,
+                    table_name,
+                    category,
+                    health_status,
+                    row_count,
+                    freshness_status,
+                    days_since_update,
+                    completeness_pct
+                FROM db_capabilities
+                WHERE health_status IN ('orphaned', 'legacy')
+                ORDER BY health_status, table_name
+            """
+            result = conn.execute(db_query)
+            for row in result.fetchall():
+                item = {
+                    "id": row[0],
+                    "name": row[1],
+                    "category": row[2],
+                    "health_status": row[3],
+                    "row_count": row[4],
+                    "freshness_status": row[5],
+                    "days_since_update": float(row[6]) if row[6] else None,
+                    "completeness_pct": row[7],
+                    "evidence": [],
+                }
+                # Build evidence list based on health status
+                if item["health_status"] == "orphaned":
+                    item["evidence"].append("Marked as orphaned (no active usage detected)")
+                if item["health_status"] == "legacy":
+                    item["evidence"].append("Marked as legacy (outdated or inactive)")
+                if item["row_count"] == 0:
+                    item["evidence"].append("Table is empty (0 rows)")
+                if item["days_since_update"] and item["days_since_update"] > 30:
+                    item["evidence"].append(f"No updates in {item['days_since_update']:.0f} days")
+                if item["completeness_pct"] is not None and item["completeness_pct"] < 10:
+                    item["evidence"].append(f"Very low completeness ({item['completeness_pct']}%)")
+
+                candidates["database"].append(item)
+                candidates["summary"]["total_candidates"] += 1
+                candidates["summary"]["by_status"][item["health_status"]] += 1
+
+            # Query orphaned/legacy Celery tasks
+            celery_query = """
+                SELECT
+                    id,
+                    task_name,
+                    category,
+                    health_status,
+                    schedule_description,
+                    schedule_crontab,
+                    schedule_interval_seconds,
+                    success_rate_pct,
+                    populates_tables
+                FROM celery_capabilities
+                WHERE health_status IN ('orphaned', 'legacy')
+                ORDER BY health_status, task_name
+            """
+            result = conn.execute(celery_query)
+            for row in result.fetchall():
+                has_schedule = bool(row[5] or row[6])  # crontab or interval
+                item = {
+                    "id": row[0],
+                    "name": row[1],
+                    "category": row[2],
+                    "health_status": row[3],
+                    "schedule_description": row[4],
+                    "has_schedule": has_schedule,
+                    "success_rate_pct": row[7],
+                    "populates_tables": row[8] or [],
+                    "evidence": [],
+                }
+                if item["health_status"] == "orphaned":
+                    item["evidence"].append("Marked as orphaned (no active usage detected)")
+                if item["health_status"] == "legacy":
+                    item["evidence"].append("Marked as legacy (outdated or inactive)")
+                if not has_schedule:
+                    item["evidence"].append("Not scheduled (no crontab/interval)")
+                if not item["populates_tables"]:
+                    item["evidence"].append("Does not populate any tables")
+                if item["success_rate_pct"] is not None and item["success_rate_pct"] < 50:
+                    item["evidence"].append(f"Low success rate ({item['success_rate_pct']}%)")
+
+                candidates["celery"].append(item)
+                candidates["summary"]["total_candidates"] += 1
+                candidates["summary"]["by_status"][item["health_status"]] += 1
+
+            # Query orphaned/legacy API endpoints
+            api_query = """
+                SELECT
+                    id,
+                    endpoint_path,
+                    category,
+                    health_status,
+                    http_method,
+                    depends_on_tables
+                FROM api_capabilities
+                WHERE health_status IN ('orphaned', 'legacy')
+                ORDER BY health_status, endpoint_path
+            """
+            result = conn.execute(api_query)
+            for row in result.fetchall():
+                item = {
+                    "id": row[0],
+                    "name": row[1],  # endpoint_path as name
+                    "category": row[2],
+                    "health_status": row[3],
+                    "http_method": row[4],
+                    "path": row[1],  # endpoint_path
+                    "depends_on_tables": row[5] or [],
+                    "evidence": [],
+                }
+                if item["health_status"] == "orphaned":
+                    item["evidence"].append("Marked as orphaned (no active usage detected)")
+                if item["health_status"] == "legacy":
+                    item["evidence"].append("Marked as legacy (outdated or inactive)")
+                if not item["depends_on_tables"]:
+                    item["evidence"].append("No table dependencies detected")
+
+                candidates["api"].append(item)
+                candidates["summary"]["total_candidates"] += 1
+                candidates["summary"]["by_status"][item["health_status"]] += 1
+
+            logger.info(
+                "cleanup_candidates_retrieved",
+                total=candidates["summary"]["total_candidates"],
+                database=len(candidates["database"]),
+                celery=len(candidates["celery"]),
+                api=len(candidates["api"]),
+            )
+
+            return candidates
+
+    except Exception as e:
+        logger.error("cleanup_candidates_error", error=str(e))
+        raise HTTPException(
+            status_code=500, detail=f"Failed to retrieve cleanup candidates: {e}"
+        ) from e
