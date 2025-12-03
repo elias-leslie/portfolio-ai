@@ -385,16 +385,25 @@ export function AccountsWithPositions({ onAddAccount, onAddPosition }: AccountsW
                               <TableHead className="text-right">Cost Basis</TableHead>
                               <TableHead className="text-right">Current Price</TableHead>
                               <TableHead className="text-right">Value</TableHead>
-                              <TableHead className="text-right">Gain/Loss</TableHead>
+                              <TableHead className="text-right">P&L $</TableHead>
+                              <TableHead className="text-right">P&L %</TableHead>
                               <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {positions.map((position) => {
-                              const gainLoss = position.current_value
-                                ? ((position.current_value - position.shares * position.cost_basis) /
-                                    (position.shares * position.cost_basis)) * 100
+                              const costBasisTotal = position.shares * position.cost_basis;
+                              const pnlDollars = position.current_value
+                                ? position.current_value - costBasisTotal
                                 : 0;
+                              const pnlPercent = costBasisTotal > 0
+                                ? (pnlDollars / costBasisTotal) * 100
+                                : 0;
+
+                              const formatPnlDollars = (value: number) => {
+                                const prefix = value >= 0 ? "+$" : "-$";
+                                return `${prefix}${Math.abs(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                              };
 
                               return (
                                 <TableRow key={position.id}>
@@ -414,11 +423,18 @@ export function AccountsWithPositions({ onAddAccount, onAddPosition }: AccountsW
                                       : "—"}
                                   </TableCell>
                                   <TableCell
-                                    className={`text-right ${
-                                      gainLoss >= 0 ? "text-profit" : "text-loss"
+                                    className={`text-right font-semibold ${
+                                      pnlDollars >= 0 ? "text-profit" : "text-loss"
                                     }`}
                                   >
-                                    {position.current_value ? formatPercent(gainLoss) : "—"}
+                                    {position.current_value ? formatPnlDollars(pnlDollars) : "—"}
+                                  </TableCell>
+                                  <TableCell
+                                    className={`text-right ${
+                                      pnlPercent >= 0 ? "text-profit" : "text-loss"
+                                    }`}
+                                  >
+                                    {position.current_value ? formatPercent(pnlPercent) : "—"}
                                   </TableCell>
                                   <TableCell className="text-right">
                                     <div className="flex items-center justify-end gap-1">

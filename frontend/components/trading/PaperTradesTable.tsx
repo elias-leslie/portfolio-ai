@@ -78,6 +78,16 @@ export function PaperTradesTable({ trades, type }: PaperTradesTableProps) {
     return value >= 0 ? "text-gain" : "text-loss";
   };
 
+  const formatPnlDollars = (trade: PaperTrade, isClosed: boolean) => {
+    const shares = trade.shares || 0;
+    const entryPrice = trade.entry_price || 0;
+    const exitPrice = isClosed ? (trade.exit_price || 0) : (trade.current_price || 0);
+    if (shares === 0 || entryPrice === 0) return "-";
+    const pnl = (exitPrice - entryPrice) * shares;
+    const prefix = pnl >= 0 ? "+$" : "-$";
+    return `${prefix}${Math.abs(pnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
   const getRiskBadgeVariant = (risk: string | undefined) => {
     if (!risk) return "secondary";
     switch (risk.toLowerCase()) {
@@ -106,6 +116,7 @@ export function PaperTradesTable({ trades, type }: PaperTradesTableProps) {
               {type === "open" && (
                 <>
                   <TableHead className="text-right">Current</TableHead>
+                  <TableHead className="text-right">P&L $</TableHead>
                   <TableHead className="text-right">P&L %</TableHead>
                   <TableHead className="text-right">Target</TableHead>
                   <TableHead className="text-right">Stop</TableHead>
@@ -115,6 +126,7 @@ export function PaperTradesTable({ trades, type }: PaperTradesTableProps) {
               {type === "closed" && (
                 <>
                   <TableHead className="text-right">Exit</TableHead>
+                  <TableHead className="text-right">P&L $</TableHead>
                   <TableHead className="text-right">P&L %</TableHead>
                   <TableHead className="text-center">Days Held</TableHead>
                   <TableHead>Exit Reason</TableHead>
@@ -126,8 +138,14 @@ export function PaperTradesTable({ trades, type }: PaperTradesTableProps) {
           <TableBody>
             {trades.map((trade) => {
               const isExpanded = expandedRows.has(trade.idea_id);
-              const pnl =
+              const pnlPct =
                 type === "open" ? trade.current_return_pct : trade.realized_return_pct;
+              const pnlDollars = (() => {
+                const shares = trade.shares || 0;
+                const entryPrice = trade.entry_price || 0;
+                const exitPrice = type === "closed" ? (trade.exit_price || 0) : (trade.current_price || 0);
+                return shares > 0 && entryPrice > 0 ? (exitPrice - entryPrice) * shares : 0;
+              })();
 
               return (
                 <Fragment key={trade.idea_id}>
@@ -158,8 +176,11 @@ export function PaperTradesTable({ trades, type }: PaperTradesTableProps) {
                         <TableCell className="text-right">
                           {formatPrice(trade.current_price)}
                         </TableCell>
-                        <TableCell className={`text-right font-semibold ${getPnlColor(pnl)}`}>
-                          {formatPct(pnl)}
+                        <TableCell className={`text-right font-semibold ${getPnlColor(pnlDollars)}`}>
+                          {formatPnlDollars(trade, false)}
+                        </TableCell>
+                        <TableCell className={`text-right font-semibold ${getPnlColor(pnlPct)}`}>
+                          {formatPct(pnlPct)}
                         </TableCell>
                         <TableCell className="text-right text-text-muted">
                           {formatPrice(trade.target_price)}
@@ -175,8 +196,11 @@ export function PaperTradesTable({ trades, type }: PaperTradesTableProps) {
                     {type === "closed" && (
                       <>
                         <TableCell className="text-right">{formatPrice(trade.exit_price)}</TableCell>
-                        <TableCell className={`text-right font-semibold ${getPnlColor(pnl)}`}>
-                          {formatPct(pnl)}
+                        <TableCell className={`text-right font-semibold ${getPnlColor(pnlDollars)}`}>
+                          {formatPnlDollars(trade, true)}
+                        </TableCell>
+                        <TableCell className={`text-right font-semibold ${getPnlColor(pnlPct)}`}>
+                          {formatPct(pnlPct)}
                         </TableCell>
                         <TableCell className="text-center text-text-muted">
                           {trade.holding_days || 0}
@@ -207,7 +231,7 @@ export function PaperTradesTable({ trades, type }: PaperTradesTableProps) {
                   {/* Expanded Row Details */}
                   {isExpanded && (
                     <TableRow>
-                      <TableCell colSpan={type === "open" ? 11 : 10} className="bg-surface-muted/30">
+                      <TableCell colSpan={type === "open" ? 12 : 11} className="bg-surface-muted/30">
                         <TradeDetails trade={trade} />
                       </TableCell>
                     </TableRow>
