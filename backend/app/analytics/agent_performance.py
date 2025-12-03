@@ -37,7 +37,7 @@ def _fetch_agent_trades(
     query = """
         SELECT
             io.idea_id,
-            io.ticker,
+            io.symbol as ticker,
             io.idea_type,
             io.entry_price,
             io.entry_date,

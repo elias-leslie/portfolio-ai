@@ -187,7 +187,7 @@ async def list_paper_trades(
             SELECT
                 io.idea_id,
                 io.agent_run_id,
-                io.ticker,
+                io.symbol as ticker,
                 io.idea_type,
                 io.shares,
                 io.entry_price,
@@ -416,7 +416,7 @@ async def get_paper_trade(trade_id: str) -> PaperTradeResponse:
             SELECT
                 io.idea_id,
                 io.agent_run_id,
-                io.ticker,
+                io.symbol as ticker,
                 io.idea_type,
                 io.entry_price,
                 io.entry_date,
