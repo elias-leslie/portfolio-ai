@@ -32,7 +32,7 @@ def fetch_open_trades(storage: PortfolioStorage) -> list[PaperTradeDict]:
     open_trades_query = """
         SELECT
             idea_id,
-            ticker,
+            symbol,
             idea_type,
             entry_price,
             entry_date,
@@ -202,7 +202,7 @@ def close_trade(
     logger.info(
         "paper_trade_closed",
         idea_id=trade["idea_id"],
-        ticker=trade["ticker"],
+        ticker=trade["symbol"],
         entry_price=trade["entry_price"],
         exit_price=current_price,
         realized_return_pct=round(current_return_pct, 2),
@@ -229,7 +229,7 @@ def process_single_trade(
         max_holding_days: Maximum holding period
         stats: Statistics dict to update (modified in-place)
     """
-    ticker = trade["ticker"]
+    ticker = trade["symbol"]
 
     # Skip if price fetch failed
     if ticker not in price_data:
@@ -334,7 +334,7 @@ def update_all_paper_trades(
         }
 
     # Fetch current prices for all tickers
-    tickers = list({trade["ticker"] for trade in trades_list})
+    tickers = list({trade["symbol"] for trade in trades_list})
     price_fetcher = PriceDataFetcher(storage)
     price_data: dict[str, Any] = price_fetcher.fetch_price_data(tickers)
 
