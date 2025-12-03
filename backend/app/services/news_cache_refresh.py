@@ -194,9 +194,9 @@ class NewsCacheRefresher:
             Latest fetch timestamp or None if no data
         """
         query = (
-            "SELECT MAX(fetched_at) FROM news_cache WHERE ticker = %s"
+            "SELECT MAX(fetched_at) FROM news_cache WHERE symbol = %s"
             if market
-            else "SELECT MAX(fetched_at) FROM news_cache WHERE ticker <> %s"
+            else "SELECT MAX(fetched_at) FROM news_cache WHERE symbol <> %s"
         )
         with self.storage.connection() as conn:
             row = conn.execute(query, [MARKET_TICKER]).fetchone()

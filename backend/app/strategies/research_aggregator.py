@@ -163,7 +163,7 @@ class ResearchAggregationService:
                     published_at,
                     headline
                 FROM news_cache
-                WHERE ticker = %s
+                WHERE symbol = %s
                   AND published_at >= %s
                   AND published_at <= %s
                 ORDER BY published_at DESC
@@ -383,7 +383,7 @@ class ResearchAggregationService:
                 """
                 SELECT close
                 FROM day_bars
-                WHERE ticker = %s
+                WHERE symbol = %s
                 ORDER BY date DESC
                 LIMIT 1
                 """,
@@ -419,7 +419,7 @@ class ResearchAggregationService:
                 """
                 SELECT date, close
                 FROM day_bars
-                WHERE ticker = %s
+                WHERE symbol = %s
                 ORDER BY date DESC
                 LIMIT 60
                 """,
@@ -459,7 +459,7 @@ class ResearchAggregationService:
                 """
                 SELECT volume
                 FROM day_bars
-                WHERE ticker = %s
+                WHERE symbol = %s
                 ORDER BY date DESC
                 LIMIT 20
                 """,
@@ -497,7 +497,7 @@ class ResearchAggregationService:
         # Confidence (1.0 if we have 252 days of data)
         with self.conn.connection() as conn:
             result_wrapper = conn.execute(
-                "SELECT COUNT(*) as count FROM day_bars WHERE ticker = %s", [symbol]
+                "SELECT COUNT(*) as count FROM day_bars WHERE symbol = %s", [symbol]
             )
             rows = result_wrapper.fetchall()
             bar_count = _rows_to_dicts(rows, conn)
@@ -561,7 +561,7 @@ class ResearchAggregationService:
                 """
                 SELECT close
                 FROM day_bars
-                WHERE ticker = 'SPY'
+                WHERE symbol = 'SPY'
                 ORDER BY date DESC
                 LIMIT 1
                 """
@@ -573,7 +573,7 @@ class ResearchAggregationService:
                 """
                 SELECT close as vix_close
                 FROM day_bars
-                WHERE ticker = '^VIX'
+                WHERE symbol = '^VIX'
                 ORDER BY date DESC
                 LIMIT 1
                 """
@@ -700,7 +700,7 @@ class ResearchAggregationService:
                 """
                 SELECT close
                 FROM day_bars
-                WHERE ticker = %s
+                WHERE symbol = %s
                 ORDER BY date DESC
                 LIMIT 31
                 """,

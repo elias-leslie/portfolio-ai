@@ -167,7 +167,7 @@ def get_trading_days(
     query = """
         SELECT DISTINCT date
         FROM day_bars
-        WHERE ticker = $1
+        WHERE symbol = $1
           AND date >= $2
           AND date <= $3
         ORDER BY date ASC
@@ -197,7 +197,7 @@ def get_ohlcv(storage: PortfolioStorage, symbol: str, backtest_date: date) -> di
     query = """
         SELECT open, high, low, close, volume, vwap
         FROM day_bars
-        WHERE ticker = $1 AND date = $2
+        WHERE symbol = $1 AND date = $2
         LIMIT 1
     """
 
@@ -386,7 +386,7 @@ def _get_data_range(storage: PortfolioStorage, symbol: str) -> tuple[date | None
     query = """
         SELECT MIN(date) as min_date, MAX(date) as max_date
         FROM day_bars
-        WHERE ticker = $1
+        WHERE symbol = $1
     """
     result = storage.query(query, [symbol])
     if result.is_empty():

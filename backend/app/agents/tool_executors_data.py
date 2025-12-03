@@ -178,7 +178,7 @@ class DataTools:
                     atr_14, stoch_k, stoch_d,
                     date
                 FROM technical_indicators
-                WHERE ticker = ?
+                WHERE symbol = ?
                 ORDER BY date DESC
                 LIMIT 1
                 """,

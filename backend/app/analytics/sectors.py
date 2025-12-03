@@ -50,7 +50,7 @@ def _fetch_sector_mapping(storage: PortfolioStorage) -> pl.DataFrame | None:
                 AND sector != ''
             ORDER BY symbol, cached_at DESC
         )
-        SELECT ticker, sector
+        SELECT symbol, sector
         FROM latest_sectors
     """
     return storage.query(sector_query, [])
@@ -89,23 +89,23 @@ def _fetch_ticker_returns(
     """
     returns_query = """
         WITH price_now AS (
-            SELECT ticker, close as close_now, volume
+            SELECT symbol, close as close_now, volume
             FROM day_bars
             WHERE date = ?
         ),
         price_5d AS (
-            SELECT ticker, close as close_5d
+            SELECT symbol, close as close_5d
             FROM day_bars
             WHERE date >= ?
                 AND date < ?
-            QUALIFY ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY date ASC) = 1
+            QUALIFY ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date ASC) = 1
         ),
         price_20d AS (
-            SELECT ticker, close as close_20d
+            SELECT symbol, close as close_20d
             FROM day_bars
             WHERE date >= ?
                 AND date < ?
-            QUALIFY ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY date ASC) = 1
+            QUALIFY ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date ASC) = 1
         )
         SELECT
             p.ticker,
@@ -278,26 +278,26 @@ def _fetch_sector_performance(
     """
     performance_query = """
         WITH price_now AS (
-            SELECT ticker, close as close_now, volume
+            SELECT symbol, close as close_now, volume
             FROM day_bars
             WHERE date = ?
-                AND ticker IN (SELECT UNNEST(?))
+                AND symbol IN (SELECT UNNEST(?))
         ),
         price_5d AS (
-            SELECT ticker, close as close_5d
+            SELECT symbol, close as close_5d
             FROM day_bars
             WHERE date >= ?
                 AND date < ?
-                AND ticker IN (SELECT UNNEST(?))
-            QUALIFY ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY date ASC) = 1
+                AND symbol IN (SELECT UNNEST(?))
+            QUALIFY ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date ASC) = 1
         ),
         price_20d AS (
-            SELECT ticker, close as close_20d
+            SELECT symbol, close as close_20d
             FROM day_bars
             WHERE date >= ?
                 AND date < ?
-                AND ticker IN (SELECT UNNEST(?))
-            QUALIFY ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY date ASC) = 1
+                AND symbol IN (SELECT UNNEST(?))
+            QUALIFY ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date ASC) = 1
         )
         SELECT
             p.ticker,

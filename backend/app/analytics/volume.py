@@ -58,7 +58,7 @@ def _fetch_current_volume(
     current_volume_query = """
         SELECT volume
         FROM day_bars
-        WHERE ticker = ?
+        WHERE symbol = ?
           AND date = ?
         LIMIT 1
     """
@@ -91,7 +91,7 @@ def _fetch_average_volume(
     avg_volume_query = """
         SELECT AVG(volume) as avg_volume
         FROM day_bars
-        WHERE ticker = ?
+        WHERE symbol = ?
           AND date >= ?
           AND date < ?
           AND volume > 0
@@ -193,7 +193,7 @@ def _fetch_all_tickers(storage: PortfolioStorage, target_date: dt.date) -> list[
         List of ticker symbols
     """
     tickers_query = """
-        SELECT DISTINCT ticker
+        SELECT DISTINCT symbol
         FROM day_bars
         WHERE date = ?
     """

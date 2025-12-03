@@ -39,7 +39,7 @@ def get_next_earnings_date(  # noqa: PLR0911
     query = """
         SELECT payload
         FROM reference_cache
-        WHERE ticker = $1
+        WHERE symbol = $1
           AND source = 'earnings'
           AND as_of_date >= CURRENT_DATE - INTERVAL '30 days'
         ORDER BY as_of_date DESC

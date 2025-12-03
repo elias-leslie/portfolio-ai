@@ -276,7 +276,7 @@ class TransactionLogger:
                 timestamp,
                 notes
             FROM paper_trade_transactions
-            WHERE ticker = $1
+            WHERE symbol = $1
             ORDER BY timestamp DESC
             LIMIT $2
         """

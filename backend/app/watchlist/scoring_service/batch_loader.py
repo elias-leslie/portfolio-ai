@@ -66,8 +66,8 @@ def load_latest_technical(
         f"""
         SELECT *
         FROM technical_indicators
-        WHERE ticker IN ({placeholders})
-        ORDER BY ticker, date DESC
+        WHERE symbol IN ({placeholders})
+        ORDER BY symbol, date DESC
         """,
         symbols,  # type: ignore[arg-type]
     )

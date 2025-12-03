@@ -36,8 +36,8 @@ def load_latest_technical(
         f"""
         SELECT *
         FROM technical_indicators
-        WHERE ticker IN ({placeholders})
-        ORDER BY ticker, date DESC
+        WHERE symbol IN ({placeholders})
+        ORDER BY symbol, date DESC
         """,
         symbols,  # type: ignore[arg-type]
     )
@@ -173,7 +173,7 @@ def calculate_price_change(
         """
         SELECT date, close
         FROM day_bars
-        WHERE ticker = ?
+        WHERE symbol = ?
         ORDER BY date DESC
         LIMIT 6
         """,

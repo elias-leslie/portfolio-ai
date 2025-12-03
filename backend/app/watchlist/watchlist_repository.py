@@ -169,7 +169,7 @@ class WatchlistRepository:
                     impact_summary,
                     actionable_insight
                 FROM news_cache
-                WHERE ticker = %s
+                WHERE symbol = %s
                   AND published_at >= %s
                   AND (is_primary_article = true OR is_primary_article IS NULL)
                 ORDER BY published_at DESC, is_material_event DESC

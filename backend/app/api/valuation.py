@@ -83,7 +83,7 @@ async def get_valuation_metrics(
                     payout_ratio,
                     as_of_date
                 FROM reference_cache
-                WHERE ticker = %s
+                WHERE symbol = %s
                 ORDER BY as_of_date DESC
                 LIMIT 1
                 """,
@@ -209,8 +209,8 @@ async def get_valuation_metrics_batch(
                     payout_ratio,
                     as_of_date
                 FROM reference_cache
-                WHERE ticker IN ({placeholders})
-                ORDER BY ticker, as_of_date DESC
+                WHERE symbol IN ({placeholders})
+                ORDER BY symbol, as_of_date DESC
             """
 
             # Cast list[str] to expected parameter type for type checking

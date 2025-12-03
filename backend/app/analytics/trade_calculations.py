@@ -77,7 +77,7 @@ def get_atr_for_ticker(storage: PortfolioStorage, ticker: str) -> float | None:
         atr_query = """
             SELECT atr_14
             FROM technical_indicators
-            WHERE ticker = $1
+            WHERE symbol = $1
             ORDER BY date DESC
             LIMIT 1
         """

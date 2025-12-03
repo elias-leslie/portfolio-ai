@@ -64,7 +64,7 @@ def _fetch_current_market_data(conn: Any, symbol: str) -> dict[str, Any] | None:
                payload->>'revenue_growth' as revenue_growth,
                payload->>'debt_to_equity' as debt_to_equity
         FROM reference_cache
-        WHERE ticker = %s
+        WHERE symbol = %s
         ORDER BY as_of_date DESC
         LIMIT 1
         """,
@@ -77,7 +77,7 @@ def _fetch_current_market_data(conn: Any, symbol: str) -> dict[str, Any] | None:
         """
         SELECT AVG(sentiment_score) as avg_sentiment
         FROM news_cache
-        WHERE ticker = %s
+        WHERE symbol = %s
         AND published_at >= NOW() - INTERVAL '7 days'
         """,
         (symbol,),

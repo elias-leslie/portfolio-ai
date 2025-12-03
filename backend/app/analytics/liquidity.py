@@ -47,7 +47,7 @@ def calculate_adv(
         FROM (
             SELECT volume
             FROM day_bars
-            WHERE ticker = $1
+            WHERE symbol = $1
             ORDER BY date DESC
             LIMIT $2
         ) recent_volume

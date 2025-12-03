@@ -94,7 +94,7 @@ def _query_new_articles(
 
     conn.execute(
         """
-        SELECT ticker, headline, summary
+        SELECT symbol, headline, summary
         FROM news_cache
         ORDER BY fetched_at DESC
         LIMIT 500

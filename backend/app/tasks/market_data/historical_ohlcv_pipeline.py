@@ -10,6 +10,7 @@ import datetime as dt
 from typing import TYPE_CHECKING
 
 from app.celery_app import celery_app
+from app.constants import ALL_MARKET_SYMBOLS
 from app.logging_config import get_logger
 from app.storage import get_storage
 from app.tasks.ingestion import ingest_historical_ohlcv
@@ -18,26 +19,6 @@ if TYPE_CHECKING:
     pass
 
 logger = get_logger(__name__)
-
-# Target symbols for market intelligence
-ALL_MARKET_SYMBOLS = [
-    "SPY",  # S&P 500 ETF (for RSI calculations)
-    "^GSPC",  # S&P 500 Index
-    "^VIX",  # Volatility Index
-    "^TNX",  # 10-Year Treasury Note Yield
-    "DX-Y.NYB",  # US Dollar Index
-    "XLK",  # Technology
-    "XLF",  # Financials
-    "XLE",  # Energy
-    "XLV",  # Healthcare
-    "XLY",  # Consumer Discretionary
-    "XLP",  # Consumer Staples
-    "XLI",  # Industrials
-    "XLU",  # Utilities
-    "XLRE",  # Real Estate
-    "XLB",  # Materials
-    "XLC",  # Communication Services
-]
 
 # Target: 1260 trading days (approximately 5 years)
 # This provides sufficient data for meaningful backtesting across multiple market cycles
@@ -57,7 +38,7 @@ def _check_symbol_data(ticker: str) -> tuple[bool, int]:
     with storage.connection() as conn:
         # Check both count AND latest date
         result = conn.execute(
-            "SELECT COUNT(*) as days, MAX(date) as latest_date FROM day_bars WHERE ticker = %s",
+            "SELECT COUNT(*) as days, MAX(date) as latest_date FROM day_bars WHERE symbol = %s",
             [ticker],
         ).fetchone()
 

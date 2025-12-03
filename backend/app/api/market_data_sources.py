@@ -31,7 +31,7 @@ def calculate_daily_change_pct(
             """
             SELECT close
             FROM day_bars
-            WHERE ticker = %s
+            WHERE symbol = %s
             ORDER BY date DESC
             LIMIT 1 OFFSET 1
             """,
@@ -71,7 +71,7 @@ def calculate_weekly_change_pct(
             """
             SELECT close, date
             FROM day_bars
-            WHERE ticker = %s
+            WHERE symbol = %s
               AND date < date_trunc('week', CURRENT_DATE)::date
             ORDER BY date DESC
             LIMIT 1
@@ -117,11 +117,11 @@ def fetch_sector_data_with_changes(
 
         result = conn.execute(
             """
-            SELECT ticker, close
+            SELECT symbol, close
             FROM (
-                SELECT ticker, close, ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY date DESC) as rn
+                SELECT symbol, close, ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) as rn
                 FROM day_bars
-                WHERE ticker = ANY(%s)
+                WHERE symbol = ANY(%s)
             ) ranked
             WHERE rn = 2
             """,
@@ -172,7 +172,7 @@ def get_actual_data_dates(
     actual_data_dates: dict[str, dt.datetime] = {}
     with storage.connection() as conn:
         for symbol in symbols:
-            result = conn.execute("SELECT MAX(date) FROM day_bars WHERE ticker = %s", [symbol])
+            result = conn.execute("SELECT MAX(date) FROM day_bars WHERE symbol = %s", [symbol])
             row = result.fetchone()
             if row and row[0]:
                 # Convert date to timestamp at market close (21:00 UTC = 4:00 PM ET)
@@ -317,19 +317,3 @@ def get_options_activity_metrics(
                             "last_updated": source_timestamp_val.isoformat(),
                         }
     return None
-
-
-# Sector ETF constants
-SECTOR_ETFS = {
-    "XLK": "Technology",
-    "XLF": "Financials",
-    "XLE": "Energy",
-    "XLV": "Healthcare",
-    "XLY": "Consumer Discretionary",
-    "XLP": "Consumer Staples",
-    "XLI": "Industrials",
-    "XLU": "Utilities",
-    "XLRE": "Real Estate",
-    "XLB": "Materials",
-    "XLC": "Communication Services",
-}

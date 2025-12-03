@@ -35,7 +35,7 @@ def _get_available_data_range(storage: PortfolioStorage, ticker: str) -> tuple[s
     query = """
         SELECT MIN(date) as min_date, MAX(date) as max_date
         FROM day_bars
-        WHERE ticker = $1
+        WHERE symbol = $1
     """
     result = storage.query(query, [ticker])
     if result.is_empty():

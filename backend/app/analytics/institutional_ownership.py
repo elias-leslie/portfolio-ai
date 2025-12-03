@@ -42,7 +42,7 @@ def get_ownership_from_cache(ticker: str, storage: PortfolioStorage) -> Ownershi
     query = """
         SELECT payload
         FROM reference_cache
-        WHERE ticker = $1
+        WHERE symbol = $1
         ORDER BY as_of_date DESC
         LIMIT 1
     """
@@ -133,8 +133,8 @@ def get_ownership_metrics_batch(
     query = """
         SELECT DISTINCT ON (ticker) ticker, payload
         FROM reference_cache
-        WHERE ticker = ANY($1)
-        ORDER BY ticker, as_of_date DESC
+        WHERE symbol = ANY($1)
+        ORDER BY symbol, as_of_date DESC
     """
 
     ticker_list: list[str | int | float | bool | None] = list(tickers)

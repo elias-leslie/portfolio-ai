@@ -221,10 +221,10 @@ def get_recent_earnings_surprises(
     """
     result = storage.query(
         """
-        SELECT ticker, earnings_date, fiscal_quarter,
+        SELECT symbol, earnings_date, fiscal_quarter,
                eps_estimate, eps_actual, surprise_pct, surprise_direction
         FROM earnings_surprises
-        WHERE ticker = $1
+        WHERE symbol = $1
         ORDER BY earnings_date DESC
         LIMIT $2
         """,

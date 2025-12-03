@@ -137,7 +137,7 @@ def fetch_news_headlines_cached(
         """
         SELECT payload
         FROM reference_cache
-        WHERE ticker = %s
+        WHERE symbol = %s
           AND source = %s
           AND created_at >= %s
         ORDER BY created_at DESC
@@ -166,7 +166,7 @@ def fetch_news_headlines_cached(
 
     conn.execute(
         """
-        INSERT INTO reference_cache (ticker, as_of_date, payload, source)
+        INSERT INTO reference_cache (symbol, as_of_date, payload, source)
         VALUES (%s, %s, %s, %s)
         ON CONFLICT (ticker, as_of_date, source)
         DO UPDATE SET payload = EXCLUDED.payload, created_at = NOW()

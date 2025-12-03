@@ -326,9 +326,9 @@ class PriceDataFetcher:
         start_date = datetime.now(UTC).date() - timedelta(days=self.volatility_lookback_days * 2)
         df = self.storage.query(
             """
-            SELECT ticker, date, close
+            SELECT symbol, date, close
             FROM day_bars
-            WHERE ticker IN (?, ?)
+            WHERE symbol IN (?, ?)
               AND date >= ?
             ORDER BY date ASC
             """,

@@ -249,7 +249,7 @@ class PortfolioBacktest:
             query = """
                 SELECT DISTINCT date
                 FROM day_bars
-                WHERE ticker = $1
+                WHERE symbol = $1
                   AND date >= $2
                   AND date <= $3
             """

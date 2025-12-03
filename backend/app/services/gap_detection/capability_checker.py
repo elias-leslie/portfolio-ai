@@ -171,25 +171,25 @@ class CapabilityChecker:
 
         # Check key tables for ticker-specific data
         tables_to_check = [
-            ("day_bars", "SELECT COUNT(*) FROM day_bars WHERE ticker = %s", [ticker]),
+            ("day_bars", "SELECT COUNT(*) FROM day_bars WHERE symbol = %s", [ticker]),
             (
                 "technical_indicators",
-                "SELECT COUNT(*) FROM technical_indicators WHERE ticker = %s",
+                "SELECT COUNT(*) FROM technical_indicators WHERE symbol = %s",
                 [ticker],
             ),
             (
                 "fundamentals",
-                "SELECT COUNT(*) FROM fundamentals WHERE ticker = %s",
+                "SELECT COUNT(*) FROM fundamentals WHERE symbol = %s",
                 [ticker],
             ),
             (
                 "news_cache",
-                "SELECT COUNT(*) FROM news_cache WHERE ticker = %s",
+                "SELECT COUNT(*) FROM news_cache WHERE symbol = %s",
                 [ticker],
             ),
             (
                 "analyst_ratings",
-                "SELECT COUNT(*) FROM analyst_ratings WHERE ticker = %s",
+                "SELECT COUNT(*) FROM analyst_ratings WHERE symbol = %s",
                 [ticker],
             ),
         ]

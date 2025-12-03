@@ -42,7 +42,7 @@ def _last_market_refresh_at(storage: PortfolioStorage) -> datetime | None:
     with storage.connection() as conn:
         result = conn.execute(
             """
-            SELECT MAX(fetched_at) FROM news_cache WHERE ticker = %s
+            SELECT MAX(fetched_at) FROM news_cache WHERE symbol = %s
             """,
             ["__MARKET__"],
         ).fetchone()

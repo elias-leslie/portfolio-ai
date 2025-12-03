@@ -286,7 +286,7 @@ class OrderExecutor:
         """
         query = """
             SELECT sector FROM price_cache
-            WHERE ticker = $1 AND sector IS NOT NULL AND sector != ''
+            WHERE symbol = $1 AND sector IS NOT NULL AND sector != ''
             ORDER BY cached_at DESC LIMIT 1
         """
         result = self.storage.query(query, [ticker])
@@ -311,7 +311,7 @@ class OrderExecutor:
             FROM portfolio_positions pp
             LEFT JOIN LATERAL (
                 SELECT close FROM day_bars
-                WHERE ticker = pp.symbol
+                WHERE symbol = pp.symbol
                 ORDER BY date DESC LIMIT 1
             ) db ON true
             WHERE pp.account_id = $1

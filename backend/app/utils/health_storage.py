@@ -167,10 +167,10 @@ def get_day_bars_freshness(storage: PortfolioStorage) -> list[DayBarFreshness]:
     try:
         df = storage.query(
             """
-            SELECT ticker, MAX(date) as last_updated
+            SELECT symbol, MAX(date) as last_updated
             FROM day_bars
-            GROUP BY ticker
-            ORDER BY ticker
+            GROUP BY symbol
+            ORDER BY symbol
             """
         )
 

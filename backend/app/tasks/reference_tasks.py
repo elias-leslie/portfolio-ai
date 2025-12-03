@@ -150,7 +150,7 @@ def _update_valuation_metrics(ticker: str, source: str, payload: dict[str, Any])
             """
             SELECT as_of_date
             FROM reference_cache
-            WHERE ticker = %s AND source = %s
+            WHERE symbol = %s AND source = %s
             ORDER BY as_of_date DESC
             LIMIT 1
             """,
@@ -178,7 +178,7 @@ def _update_valuation_metrics(ticker: str, source: str, payload: dict[str, Any])
                 peg_ratio = %s,
                 dividend_yield = %s,
                 payout_ratio = %s
-            WHERE ticker = %s AND source = %s AND as_of_date = %s
+            WHERE symbol = %s AND source = %s AND as_of_date = %s
             """,
             [
                 metrics["pe_ratio_trailing"],
@@ -220,10 +220,10 @@ def _process_cache_entries() -> tuple[int, int]:
         # Get all cache entries with non-null payloads
         results = conn.execute(
             """
-            SELECT ticker, source, payload
+            SELECT symbol, source, payload
             FROM reference_cache
             WHERE payload IS NOT NULL
-            ORDER BY ticker, source, as_of_date DESC
+            ORDER BY symbol, source, as_of_date DESC
             """
         ).fetchall()
 
@@ -415,7 +415,7 @@ def refresh_yfinance_reference_data(self: Task) -> dict[str, int | str]:
             for row in df.iter_rows(named=True):
                 conn.execute(
                     """
-                    INSERT INTO reference_cache (ticker, as_of_date, payload, source)
+                    INSERT INTO reference_cache (symbol, as_of_date, payload, source)
                     VALUES (%s, %s, %s, %s)
                     ON CONFLICT (ticker, as_of_date, source)
                     DO UPDATE SET payload = EXCLUDED.payload
@@ -469,10 +469,10 @@ def _fetch_stale_symbols() -> list[str]:
             SELECT DISTINCT wi.symbol
             FROM watchlist_items wi
             LEFT JOIN (
-                SELECT ticker, MAX(as_of_date) as latest_date
+                SELECT symbol, MAX(as_of_date) as latest_date
                 FROM reference_cache
                 WHERE source = 'yfinance'
-                GROUP BY ticker
+                GROUP BY symbol
             ) rc ON wi.symbol = rc.ticker
             WHERE rc.ticker IS NULL
                OR rc.latest_date < CURRENT_DATE - INTERVAL '7 days'
@@ -509,7 +509,7 @@ def _store_alphavantage_payload(symbols: list[str]) -> int:
         for row in df.iter_rows(named=True):
             conn.execute(
                 """
-                INSERT INTO reference_cache (ticker, as_of_date, payload, source)
+                INSERT INTO reference_cache (symbol, as_of_date, payload, source)
                 VALUES (%s, %s, %s, %s)
                 ON CONFLICT (ticker, as_of_date, source)
                 DO UPDATE SET payload = EXCLUDED.payload

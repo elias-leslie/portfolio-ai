@@ -14,6 +14,7 @@ from datetime import date, timedelta
 from enum import Enum
 from typing import TYPE_CHECKING
 
+from ..constants import SECTOR_ETF_SYMBOLS
 from ..logging_config import get_logger
 
 if TYPE_CHECKING:
@@ -21,20 +22,8 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-# 11 S&P 500 sector ETFs
-SECTOR_ETFS = [
-    "XLK",  # Technology
-    "XLF",  # Financials
-    "XLE",  # Energy
-    "XLV",  # Healthcare
-    "XLY",  # Consumer Discretionary
-    "XLP",  # Consumer Staples
-    "XLI",  # Industrials
-    "XLU",  # Utilities
-    "XLRE",  # Real Estate
-    "XLB",  # Materials
-    "XLC",  # Communication Services
-]
+# Import from centralized constants (DRY principle)
+SECTOR_ETFS = SECTOR_ETF_SYMBOLS
 
 
 class BreadthSignal(Enum):
@@ -96,13 +85,13 @@ def calculate_breadth_reading(
                 ticker,
                 date,
                 close as current_close,
-                LAG(close) OVER (PARTITION BY ticker ORDER BY date) as prev_close
+                LAG(close) OVER (PARTITION BY symbol ORDER BY date) as prev_close
             FROM day_bars
-            WHERE ticker = ANY($1)
+            WHERE symbol = ANY($1)
               AND date <= $2
               AND date >= $2 - INTERVAL '10 days'
         )
-        SELECT ticker, current_close, prev_close
+        SELECT symbol, current_close, prev_close
         FROM price_data
         WHERE date = $2
     """
@@ -215,7 +204,7 @@ def get_spy_returns(
     query = """
         SELECT date, close
         FROM day_bars
-        WHERE ticker = 'SPY'
+        WHERE symbol = 'SPY'
           AND date <= $1
         ORDER BY date DESC
         LIMIT 20
@@ -278,7 +267,7 @@ def analyze_market_breadth(
     """
     if target_date is None:
         # Get latest date from day_bars
-        query = "SELECT MAX(date) FROM day_bars WHERE ticker = 'SPY'"
+        query = "SELECT MAX(date) FROM day_bars WHERE symbol = 'SPY'"
         result = storage.query(query, [])
         if result.is_empty() or result.row(0)[0] is None:
             return None

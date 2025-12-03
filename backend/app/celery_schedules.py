@@ -65,6 +65,8 @@ The system is market-hours aware to prevent thrashing on weekends/holidays:
 
 from celery.schedules import crontab
 
+from app.constants import ALL_MARKET_SYMBOLS
+
 
 def get_beat_schedule() -> dict[str, object]:
     """Get Celery Beat schedule configuration.
@@ -137,33 +139,13 @@ def get_beat_schedule() -> dict[str, object]:
         "refresh-daily-ohlcv": {
             "task": "refresh_daily_ohlcv",
             "schedule": crontab(hour=2, minute=0),  # Daily at 02:00 UTC
-            "args": [
-                [
-                    "SPY",  # S&P 500 (market regime indicators)
-                    # Market indicators for Market Conditions card
-                    "^GSPC",  # S&P 500 Index
-                    "^VIX",  # Volatility Index
-                    "^TNX",  # 10-Year Treasury Note Yield
-                    "DX-Y.NYB",  # US Dollar Index
-                    # Sector ETFs for Market Conditions sector breakdown
-                    "XLK",  # Technology
-                    "XLF",  # Financials
-                    "XLE",  # Energy
-                    "XLV",  # Healthcare
-                    "XLY",  # Consumer Discretionary
-                    "XLP",  # Consumer Staples
-                    "XLI",  # Industrials
-                    "XLU",  # Utilities
-                    "XLRE",  # Real Estate
-                    "XLB",  # Materials
-                    "XLC",  # Communication Services
-                ]
-            ],
+            "args": [ALL_MARKET_SYMBOLS],  # From app.constants - SPY + indices + sector ETFs
             "options": {"expires": 3600},  # Task expires after 1 hour
             # Notes:
             # - Runs daily at 02:00 UTC
             # - Ensures SPY + market indicators + sector ETFs fresh for market intelligence
             # - Fetches last 5 days to account for holidays/weekends
+            # - Symbol list: app.constants.ALL_MARKET_SYMBOLS (DRY principle)
         },
         "refresh-watchlist-ohlcv": {
             "task": "refresh_watchlist_ohlcv",

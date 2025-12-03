@@ -41,7 +41,7 @@ def get_swing_low(conn: DatabaseConnection, symbol: str, days: int = 10) -> floa
         FROM (
             SELECT close
             FROM day_bars
-            WHERE ticker = %s
+            WHERE symbol = %s
             ORDER BY date DESC
             LIMIT %s
         ) recent_bars
@@ -84,7 +84,7 @@ def get_swing_high(conn: DatabaseConnection, symbol: str, days: int = 30) -> flo
         FROM (
             SELECT close
             FROM day_bars
-            WHERE ticker = %s
+            WHERE symbol = %s
             ORDER BY date DESC
             LIMIT %s
         ) recent_bars
@@ -154,7 +154,7 @@ def calculate_stop_loss(conn: DatabaseConnection, symbol: str, entry_price: floa
     atr_query = """
         SELECT atr_14
         FROM technical_indicators
-        WHERE ticker = %s
+        WHERE symbol = %s
         ORDER BY date DESC
         LIMIT 1
     """
@@ -207,7 +207,7 @@ def calculate_profit_target(
     atr_query = """
         SELECT atr_14
         FROM technical_indicators
-        WHERE ticker = %s
+        WHERE symbol = %s
         ORDER BY date DESC
         LIMIT 1
     """

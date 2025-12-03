@@ -62,7 +62,7 @@ def _build_indicators_query(
             stoch_14_3_3_k,
             stoch_14_3_3_d
         FROM technical_indicators
-        WHERE ticker = ?
+        WHERE symbol = ?
     """
     params: list[str | int | float | bool | datetime | None] = [ticker.upper()]
 

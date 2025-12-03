@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import TYPE_CHECKING
 
+from ..constants import BENCHMARK_SPY, SECTOR_ETFS
 from ..logging_config import get_logger
 
 if TYPE_CHECKING:
@@ -23,23 +24,11 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-# SPDR Select Sector ETFs (S&P 500 sector breakdown)
-SECTOR_ETFS: dict[str, str] = {
-    "XLK": "Technology",
-    "XLF": "Financials",
-    "XLE": "Energy",
-    "XLV": "Healthcare",
-    "XLI": "Industrials",
-    "XLP": "Consumer Staples",
-    "XLY": "Consumer Discretionary",
-    "XLB": "Materials",
-    "XLU": "Utilities",
-    "XLRE": "Real Estate",
-    "XLC": "Communication Services",
-}
+# Import from centralized constants (DRY principle)
+# SECTOR_ETFS and BENCHMARK_SPY now imported from app.constants
 
 # Benchmark for relative strength
-BENCHMARK = "SPY"
+BENCHMARK = BENCHMARK_SPY
 
 # Lookback periods for relative strength
 RS_HORIZONS = [20, 60, 252]  # 20-day, 60-day, 252-day
@@ -207,9 +196,9 @@ def calculate_sector_relative_strength(
     placeholders = ", ".join(f"${i + 1}" for i in range(len(tickers)))
 
     query = f"""
-        SELECT ticker, date, close
+        SELECT symbol, date, close
         FROM day_bars
-        WHERE ticker IN ({placeholders})
+        WHERE symbol IN ({placeholders})
           AND date <= ${len(tickers) + 1}
         ORDER BY date DESC
     """

@@ -10,6 +10,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from app.constants import SECTOR_ETFS
 from app.storage import get_storage
 
 
@@ -97,7 +98,7 @@ def calculate_sp500_score(sp500_price: float, timestamp: str | None) -> Componen
                 WITH recent_prices AS (
                     SELECT close
                     FROM day_bars
-                    WHERE ticker = '^GSPC'
+                    WHERE symbol = '^GSPC'
                     ORDER BY date DESC
                     LIMIT 252
                 )
@@ -191,20 +192,8 @@ def calculate_sector_scores(
     sector_data: dict[str, tuple[float | None, float | None, str | None]],
 ) -> list[SectorScore]:
     """Calculate sector rotation scores with relative performance signals."""
-    # Sector ETF mapping
-    sector_names = {
-        "XLK": "Technology",
-        "XLF": "Financials",
-        "XLE": "Energy",
-        "XLV": "Healthcare",
-        "XLY": "Consumer Discretionary",
-        "XLP": "Consumer Staples",
-        "XLI": "Industrials",
-        "XLU": "Utilities",
-        "XLRE": "Real Estate",
-        "XLB": "Materials",
-        "XLC": "Communication Services",
-    }
+    # Use centralized constants (DRY principle)
+    sector_names = SECTOR_ETFS
 
     # Collect all valid change_pct values for relative comparison
     changes = [

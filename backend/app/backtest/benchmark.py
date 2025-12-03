@@ -163,7 +163,7 @@ class BenchmarkComparisonEngine:
             """
             SELECT date, close
             FROM day_bars
-            WHERE ticker = ?
+            WHERE symbol = ?
               AND date >= ?
               AND date <= ?
             ORDER BY date ASC

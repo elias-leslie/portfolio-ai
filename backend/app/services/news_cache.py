@@ -69,7 +69,7 @@ class NewsCacheManager:
                     quality_prediction,
                     quality_confidence
                 FROM news_cache
-                WHERE ticker = %s
+                WHERE symbol = %s
                 ORDER BY fetched_at DESC, published_at DESC NULLS LAST
                 LIMIT %s
                 """,
@@ -120,7 +120,7 @@ class NewsCacheManager:
                     quality_prediction,
                     quality_confidence
                 FROM news_cache
-                WHERE ticker = %s
+                WHERE symbol = %s
                   AND fetched_at >= %s
                   AND fetched_at < %s
                 ORDER BY fetched_at DESC, published_at DESC NULLS LAST

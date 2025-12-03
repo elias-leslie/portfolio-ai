@@ -58,10 +58,10 @@ def calculate_daily_returns(
                 ticker,
                 date,
                 close,
-                LAG(close) OVER (PARTITION BY ticker ORDER BY date) as prev_close
+                LAG(close) OVER (PARTITION BY symbol ORDER BY date) as prev_close
             FROM day_bars
-            WHERE ticker IN ({placeholders})
-            ORDER BY ticker, date DESC
+            WHERE symbol IN ({placeholders})
+            ORDER BY symbol, date DESC
             LIMIT ${len(tickers) + 1}
         )
         SELECT
@@ -70,7 +70,7 @@ def calculate_daily_returns(
             (close - prev_close) / NULLIF(prev_close, 0) as daily_return
         FROM ordered_prices
         WHERE prev_close IS NOT NULL
-        ORDER BY ticker, date
+        ORDER BY symbol, date
     """
 
     # Use a simpler query that works correctly
@@ -80,9 +80,9 @@ def calculate_daily_returns(
             date,
             close
         FROM day_bars
-        WHERE ticker IN ({placeholders})
+        WHERE symbol IN ({placeholders})
           AND date >= CURRENT_DATE - INTERVAL '{lookback_days} days'
-        ORDER BY ticker, date
+        ORDER BY symbol, date
     """
 
     result = storage.query(query, list(tickers))
@@ -255,8 +255,8 @@ def update_covariance_matrix(
             if len(aligned1) < MIN_OBSERVATIONS:
                 logger.debug(
                     "covariance_skip_pair",
-                    ticker1=ticker1,
-                    ticker2=ticker2,
+                    symbol1=ticker1,
+                    symbol2=ticker2,
                     observations=len(aligned1),
                     min_required=MIN_OBSERVATIONS,
                 )
@@ -272,10 +272,10 @@ def update_covariance_matrix(
             # Store in database (both directions for easy lookup)
             upsert_query = """
                 INSERT INTO portfolio_covariance
-                    (ticker1, ticker2, covariance, correlation, volatility1, volatility2,
+                    (symbol1, symbol2, covariance, correlation, volatility1, volatility2,
                      observation_count, lookback_days, calculated_at)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-                ON CONFLICT (ticker1, ticker2)
+                ON CONFLICT (symbol1, symbol2)
                 DO UPDATE SET
                     covariance = EXCLUDED.covariance,
                     correlation = EXCLUDED.correlation,
@@ -332,10 +332,10 @@ def get_covariance_matrix(
     cutoff_time = datetime.now(UTC) - timedelta(hours=max_age_hours)
 
     query = f"""
-        SELECT ticker1, ticker2, covariance
+        SELECT symbol1, symbol2, covariance
         FROM portfolio_covariance
-        WHERE ticker1 IN ({placeholders})
-          AND ticker2 IN ({placeholders})
+        WHERE symbol1 IN ({placeholders})
+          AND symbol2 IN ({placeholders})
           AND calculated_at >= ${len(tickers) + 1}
     """
 
@@ -346,7 +346,7 @@ def get_covariance_matrix(
 
     matrix: dict[tuple[str, str], float] = {}
     for row in result.iter_rows(named=True):
-        matrix[(row["ticker1"], row["ticker2"])] = row["covariance"]
+        matrix[(row["symbol1"], row["symbol2"])] = row["covariance"]
 
     # Check if we have all pairs
     expected_pairs = len(tickers) * len(tickers)

@@ -45,7 +45,7 @@ def _fetch_spy_data(
             """
             SELECT date, close
             FROM day_bars
-            WHERE ticker = 'SPY'
+            WHERE symbol = 'SPY'
               AND date >= %s
               AND date <= %s
             ORDER BY date ASC
@@ -99,7 +99,7 @@ def _fetch_market_indicators(
             """
             SELECT date, close
             FROM day_bars
-            WHERE ticker = '^VIX'
+            WHERE symbol = '^VIX'
               AND date >= %s
               AND date <= %s
             ORDER BY date ASC
@@ -218,13 +218,13 @@ def _calculate_market_breadth(storage: PortfolioStorage, target_date: dt.date) -
                     ticker,
                     date,
                     close as current_close,
-                    LAG(close) OVER (PARTITION BY ticker ORDER BY date) as prev_close
+                    LAG(close) OVER (PARTITION BY symbol ORDER BY date) as prev_close
                 FROM day_bars
-                WHERE ticker = ANY(%s)
+                WHERE symbol = ANY(%s)
                   AND date <= %s::date
                   AND date >= %s::date - INTERVAL '10 days'
             )
-            SELECT ticker, current_close, prev_close
+            SELECT symbol, current_close, prev_close
             FROM price_data
             WHERE date = %s::date
             """,

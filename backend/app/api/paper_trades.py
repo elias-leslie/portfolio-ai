@@ -509,7 +509,7 @@ async def close_paper_trade(
             # Get trade info
             trade_row = conn.execute(
                 """
-                SELECT ticker, entry_price, current_price, status, shares
+                SELECT symbol, entry_price, current_price, status, shares
                 FROM idea_outcomes
                 WHERE idea_id = ?
                 """,

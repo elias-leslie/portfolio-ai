@@ -8,7 +8,6 @@ from typing import Any
 from fastapi import APIRouter, Query, Request
 
 from app.api.market_data_sources import (
-    SECTOR_ETFS,
     calculate_daily_change_pct,
     calculate_weekly_change_pct,
     fetch_sector_data_with_changes,
@@ -34,6 +33,7 @@ from app.api.market_transformers import (
     get_sector_symbols,
     sort_sectors_by_performance,
 )
+from app.constants import SECTOR_ETFS
 from app.market import intelligence, narrative_generator
 from app.market.fear_greed_stub import get_fear_greed_score
 from app.market.sentiment import calculate_market_health
@@ -529,7 +529,7 @@ async def get_indicator_history(
                 """
                 SELECT date, close
                 FROM day_bars
-                WHERE ticker = %s AND date >= CURRENT_DATE - %s
+                WHERE symbol = %s AND date >= CURRENT_DATE - %s
                 ORDER BY date ASC
                 """,
                 [ticker, days],
@@ -568,7 +568,7 @@ async def get_sector_history(
                 """
                 SELECT date, close
                 FROM day_bars
-                WHERE ticker = %s AND date >= CURRENT_DATE - %s
+                WHERE symbol = %s AND date >= CURRENT_DATE - %s
                 ORDER BY date ASC
                 """,
                 [symbol, days],

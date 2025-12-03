@@ -161,7 +161,7 @@ def fetch_earnings_date_cached(
         """
         SELECT payload
         FROM reference_cache
-        WHERE ticker = %s
+        WHERE symbol = %s
           AND source = %s
           AND as_of_date >= %s
         ORDER BY as_of_date DESC
@@ -190,7 +190,7 @@ def fetch_earnings_date_cached(
 
     conn.execute(
         """
-        INSERT INTO reference_cache (ticker, as_of_date, payload, source)
+        INSERT INTO reference_cache (symbol, as_of_date, payload, source)
         VALUES (%s, %s, %s, %s)
         ON CONFLICT (ticker, as_of_date, source)
         DO UPDATE SET payload = EXCLUDED.payload

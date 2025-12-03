@@ -274,7 +274,7 @@ def load_from_database(storage: PortfolioStorage) -> dict[str, str]:
     logger.info("cik_db_load_start")
 
     with storage.connection() as conn:
-        rows = conn.execute("SELECT ticker, cik FROM sec_cik_cache").fetchall()
+        rows = conn.execute("SELECT symbol, cik FROM sec_cik_cache").fetchall()
 
     # Cast row values to strings (they are returned as Union types from database)
     mapping = {str(row[0]): str(row[1]) for row in rows}
@@ -300,7 +300,7 @@ def get_cik(ticker: str, storage: PortfolioStorage | None = None) -> str | None:
         try:
             with storage.connection() as conn:
                 row = conn.execute(
-                    "SELECT cik FROM sec_cik_cache WHERE ticker = ?", (ticker,)
+                    "SELECT cik FROM sec_cik_cache WHERE symbol = ?", (ticker,)
                 ).fetchone()
                 # Cast to string (database returns Union type)
                 return str(row[0]) if row else None

@@ -165,7 +165,7 @@ def get_portfolio_equity(
         FROM portfolio_positions pp
         LEFT JOIN LATERAL (
             SELECT close FROM day_bars
-            WHERE ticker = pp.symbol
+            WHERE symbol = pp.symbol
             ORDER BY date DESC LIMIT 1
         ) db ON true
         WHERE pp.account_id = $1

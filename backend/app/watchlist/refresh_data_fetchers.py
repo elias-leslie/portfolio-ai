@@ -62,7 +62,7 @@ def calculate_price_change(
         """
         SELECT close
         FROM day_bars
-        WHERE ticker = ?
+        WHERE symbol = ?
         ORDER BY date DESC
         LIMIT 2
         """,
@@ -130,8 +130,8 @@ def detect_missing_historical_data(
                     MAX(date) as latest_date,
                     CURRENT_DATE - MAX(date) as days_since_latest
                 FROM day_bars
-                WHERE ticker = ANY(?)
-                GROUP BY ticker
+                WHERE symbol = ANY(?)
+                GROUP BY symbol
             )
             SELECT ticker
             FROM UNNEST(?) as t(ticker)
@@ -228,7 +228,7 @@ def fetch_volume_data(
         """
         SELECT volume
         FROM day_bars
-        WHERE ticker = ?
+        WHERE symbol = ?
         ORDER BY date DESC
         LIMIT 20
         """,
@@ -264,7 +264,7 @@ def fetch_previous_sma5(
         prev_date = (datetime.now(UTC) - timedelta(days=1)).date()
         sma_5_prev_query = """
             SELECT sma_5 FROM technical_indicators
-            WHERE ticker = %s AND DATE(calculated_at) = %s
+            WHERE symbol = %s AND DATE(calculated_at) = %s
             ORDER BY calculated_at DESC LIMIT 1
         """
         result = conn.execute(sma_5_prev_query, (symbol, str(prev_date))).fetchone()

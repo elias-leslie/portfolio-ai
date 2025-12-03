@@ -321,7 +321,7 @@ def _fetch_ohlcv_data(
         query = """
             SELECT date, open, high, low, close, volume
             FROM day_bars
-            WHERE ticker = $1
+            WHERE symbol = $1
             ORDER BY date DESC
             LIMIT $2
         """
@@ -334,7 +334,7 @@ def _fetch_ohlcv_data(
         query = """
             SELECT date, open, high, low, close, volume
             FROM day_bars
-            WHERE ticker = $1 AND date <= $2
+            WHERE symbol = $1 AND date <= $2
             ORDER BY date DESC
             LIMIT $3
         """

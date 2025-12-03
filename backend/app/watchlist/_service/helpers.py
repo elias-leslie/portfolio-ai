@@ -30,7 +30,7 @@ def _calculate_price_change(
         """
         SELECT close
         FROM day_bars
-        WHERE ticker = ?
+        WHERE symbol = ?
         ORDER BY date DESC
         LIMIT 2
         """,
