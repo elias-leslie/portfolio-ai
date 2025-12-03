@@ -34,7 +34,7 @@ router = APIRouter(prefix="/api/paper-trading", tags=["paper-trading"])
 class CreateTradeRequest(BaseModel):
     """Request model for creating a manual paper trade."""
 
-    ticker: str = Field(..., description="Stock ticker symbol")
+    symbol: str = Field(..., description="Stock symbol")
     action: str = Field(..., description="Trade action: 'buy' or 'sell'")
     thesis: str = Field(..., description="Investment thesis for this trade")
     target_price: float | None = Field(None, description="Optional target exit price")
@@ -46,7 +46,7 @@ class CreateTradeResponse(BaseModel):
 
     status: str
     trade_id: str | None = None
-    ticker: str | None = None
+    symbol: str | None = None
     action: str | None = None
     shares: int | None = None
     entry_price: float | None = None
@@ -64,7 +64,7 @@ class TransactionResponse(BaseModel):
     id: str
     trade_id: str
     transaction_type: str
-    ticker: str
+    symbol: str
     shares: int
     price: float
     amount: float
@@ -101,7 +101,7 @@ async def create_paper_trade(request: CreateTradeRequest) -> CreateTradeResponse
     order_executor = OrderExecutor(storage)
 
     # Validate inputs
-    ticker = request.ticker.upper()
+    ticker = request.symbol.upper()
     action = request.action.lower()
 
     if action not in ["buy", "sell"]:
@@ -132,7 +132,7 @@ async def create_paper_trade(request: CreateTradeRequest) -> CreateTradeResponse
             "title": f"{action.capitalize()} {ticker}",
             "thesis": request.thesis,
             "action": f"{action.capitalize()} {max_shares} shares of {ticker}",
-            "confidence_score": 70,  # Default confidence for manual trades
+            "confidence_score": 0.7,  # Default confidence for manual trades (0-1 scale)
             "risk_level": "medium",  # Default risk
             "status": "pending",
             "created_at": datetime.now(UTC).isoformat(),
@@ -222,7 +222,7 @@ async def create_paper_trade(request: CreateTradeRequest) -> CreateTradeResponse
     return CreateTradeResponse(
         status="created",
         trade_id=idea_id,
-        ticker=ticker,
+        symbol=ticker,
         action=action,
         shares=max_shares,
         entry_price=entry_price,
