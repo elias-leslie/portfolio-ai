@@ -85,8 +85,8 @@ def fetch_peer_returns(
                 ELSE NULL
             END as return_20d
         FROM price_now p
-        LEFT JOIN price_5d p5 ON p.ticker = p5.ticker
-        LEFT JOIN price_20d p20 ON p.ticker = p20.ticker
+        LEFT JOIN price_5d p5 ON p.symbol = p5.symbol
+        LEFT JOIN price_20d p20 ON p.symbol = p20.symbol
     """
     # Cast list[str] to expected parameter type for UNNEST compatibility
     params: list[

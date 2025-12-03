@@ -33,7 +33,7 @@ def parse_news_article(
         Tuple of (article_dict, sentiment_score)
     """
     (
-        ticker,
+        symbol,
         headline,
         url,
         summary_text,
@@ -60,7 +60,7 @@ def parse_news_article(
 
     # Build article dict
     article = {
-        "ticker": ticker,
+        "symbol": symbol,
         "headline": headline,
         "url": url,
         "summary": summary_text,

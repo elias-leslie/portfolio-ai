@@ -50,7 +50,7 @@ def _fetch_sector_mapping(storage: PortfolioStorage) -> pl.DataFrame | None:
                 AND sector != ''
             ORDER BY symbol, cached_at DESC
         )
-        SELECT ticker, sector
+        SELECT symbol, sector
         FROM latest_sectors
     """
     return storage.query(sector_query, [])
@@ -313,8 +313,8 @@ def _fetch_sector_performance(
                 ELSE NULL
             END as return_20d
         FROM price_now p
-        LEFT JOIN price_5d p5 ON p.ticker = p5.ticker
-        LEFT JOIN price_20d p20 ON p.ticker = p20.ticker
+        LEFT JOIN price_5d p5 ON p.symbol = p5.symbol
+        LEFT JOIN price_20d p20 ON p.symbol = p20.symbol
         ORDER BY return_20d DESC NULLS LAST
     """
     # Cast list[str] to expected parameter type for UNNEST compatibility

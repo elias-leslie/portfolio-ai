@@ -166,12 +166,12 @@ def save_earnings_surprises(
                 conn.execute(
                     """
                     INSERT INTO earnings_surprises (
-                        ticker, earnings_date, fiscal_quarter,
+                        symbol, earnings_date, fiscal_quarter,
                         eps_estimate, eps_actual, surprise_pct, surprise_direction,
                         revenue_estimate, revenue_actual, updated_at
                     )
                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
-                    ON CONFLICT (ticker, earnings_date) DO UPDATE SET
+                    ON CONFLICT (symbol, earnings_date) DO UPDATE SET
                         fiscal_quarter = EXCLUDED.fiscal_quarter,
                         eps_estimate = EXCLUDED.eps_estimate,
                         eps_actual = EXCLUDED.eps_actual,

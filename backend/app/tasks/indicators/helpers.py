@@ -91,7 +91,7 @@ def upsert_indicators(storage: PortfolioStorage, indicator_data: IndicatorDataDi
         conn.execute(
             """
             INSERT INTO technical_indicators (
-                ticker, date, rsi_14, macd, macd_signal, macd_histogram,
+                symbol, date, rsi_14, macd, macd_signal, macd_histogram,
                 bb_upper, bb_middle, bb_lower,
                 sma_5, sma_20, sma_50, sma_200,
                 ema_20, ema_50, ema_200,
@@ -105,7 +105,7 @@ def upsert_indicators(storage: PortfolioStorage, indicator_data: IndicatorDataDi
                 ?, ?, ?,
                 ?
             )
-            ON CONFLICT (ticker, date) DO UPDATE SET
+            ON CONFLICT (symbol, date) DO UPDATE SET
                 rsi_14 = EXCLUDED.rsi_14,
                 macd = EXCLUDED.macd,
                 macd_signal = EXCLUDED.macd_signal,

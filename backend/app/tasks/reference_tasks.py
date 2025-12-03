@@ -417,7 +417,7 @@ def refresh_yfinance_reference_data(self: Task) -> dict[str, int | str]:
                     """
                     INSERT INTO reference_cache (symbol, as_of_date, payload, source)
                     VALUES (%s, %s, %s, %s)
-                    ON CONFLICT (ticker, as_of_date, source)
+                    ON CONFLICT (symbol, as_of_date, source)
                     DO UPDATE SET payload = EXCLUDED.payload
                     """,
                     [row["ticker"], row["as_of_date"], row["payload"], "yfinance"],
@@ -473,8 +473,8 @@ def _fetch_stale_symbols() -> list[str]:
                 FROM reference_cache
                 WHERE source = 'yfinance'
                 GROUP BY symbol
-            ) rc ON wi.symbol = rc.ticker
-            WHERE rc.ticker IS NULL
+            ) rc ON wi.symbol = rc.symbol
+            WHERE rc.symbol IS NULL
                OR rc.latest_date < CURRENT_DATE - INTERVAL '7 days'
             """
         )
@@ -511,7 +511,7 @@ def _store_alphavantage_payload(symbols: list[str]) -> int:
                 """
                 INSERT INTO reference_cache (symbol, as_of_date, payload, source)
                 VALUES (%s, %s, %s, %s)
-                ON CONFLICT (ticker, as_of_date, source)
+                ON CONFLICT (symbol, as_of_date, source)
                 DO UPDATE SET payload = EXCLUDED.payload
                 """,
                 [row["ticker"], row["as_of_date"], row["payload"], "alphavantage"],

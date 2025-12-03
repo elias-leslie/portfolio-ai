@@ -83,10 +83,10 @@ def check_orphaned_price_cache(conn: DatabaseConnection) -> dict[str, Any]:
         SELECT COUNT(*) as orphaned_count
         FROM price_cache pc
         WHERE NOT EXISTS (
-            SELECT 1 FROM portfolio_positions pp WHERE pp.ticker = pc.ticker
+            SELECT 1 FROM portfolio_positions pp WHERE pp.symbol = pc.symbol
         )
         AND NOT EXISTS (
-            SELECT 1 FROM watchlist_items wi WHERE wi.symbol = pc.ticker
+            SELECT 1 FROM watchlist_items wi WHERE wi.symbol = pc.symbol
         )
         """
     ).fetchone()
@@ -123,7 +123,7 @@ def check_missing_reference_cache(conn: DatabaseConnection) -> dict[str, Any]:
         FROM watchlist_items wi
         WHERE NOT EXISTS (
             SELECT 1 FROM reference_cache rc
-            WHERE rc.ticker = wi.symbol
+            WHERE rc.symbol = wi.symbol
         )
         """
     ).fetchone()

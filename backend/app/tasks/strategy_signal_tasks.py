@@ -42,8 +42,8 @@ def _fetch_current_market_data(conn: Any, symbol: str) -> dict[str, Any] | None:
             ti.atr_14 as volume_avg_20,
             db.date as data_date
         FROM day_bars db
-        LEFT JOIN technical_indicators ti ON db.ticker = ti.ticker AND db.date = ti.date
-        WHERE db.ticker = %s
+        LEFT JOIN technical_indicators ti ON db.symbol = ti.symbol AND db.date = ti.date
+        WHERE db.symbol = %s
         ORDER BY db.date DESC
         LIMIT 2
         """,

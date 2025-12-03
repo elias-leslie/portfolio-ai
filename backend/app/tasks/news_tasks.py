@@ -66,7 +66,7 @@ def _record_summary(
         conn.execute(
             """
             INSERT INTO news_summary_log (
-                ticker,
+                symbol,
                 window_start,
                 window_end,
                 sentiment_score,

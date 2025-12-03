@@ -42,7 +42,7 @@ class NewsCacheManager:
             rows = conn.execute(
                 """
                 SELECT
-                    ticker,
+                    symbol,
                     headline,
                     url,
                     summary,
@@ -93,7 +93,7 @@ class NewsCacheManager:
             rows = conn.execute(
                 """
                 SELECT
-                    ticker,
+                    symbol,
                     headline,
                     url,
                     summary,
@@ -134,7 +134,7 @@ class NewsCacheManager:
     def _row_to_article(self, row: Sequence[Any]) -> NewsArticle:
         """Convert database row to NewsArticle object."""
         (
-            ticker,
+            symbol,
             headline,
             url,
             summary,
@@ -191,7 +191,7 @@ class NewsCacheManager:
                 vendor = inner_raw.get("vendor")
 
         return NewsArticle(
-            ticker=ticker,
+            ticker=symbol,
             headline=headline,
             url=url,
             summary=summary,
@@ -243,7 +243,7 @@ class NewsCacheManager:
             payload.setdefault("vendor", article.vendor)
 
         return {
-            "ticker": article.ticker,
+            "symbol": article.ticker,
             "headline": article.headline,
             "url": article.url,
             "summary": article.summary,
@@ -284,7 +284,7 @@ class NewsCacheManager:
                 conn.execute(
                     """
                     INSERT INTO news_cache (
-                        ticker,
+                        symbol,
                         headline,
                         url,
                         summary,
@@ -312,7 +312,7 @@ class NewsCacheManager:
                         quality_prediction,
                         quality_confidence
                     ) VALUES (
-                        %(ticker)s,
+                        %(symbol)s,
                         %(headline)s,
                         %(url)s,
                         %(summary)s,
@@ -340,7 +340,7 @@ class NewsCacheManager:
                         %(quality_prediction)s,
                         %(quality_confidence)s
                     )
-                    ON CONFLICT (ticker, content_hash) DO UPDATE SET
+                    ON CONFLICT (symbol, content_hash) DO UPDATE SET
                         url = EXCLUDED.url,
                         summary = EXCLUDED.summary,
                         news_source_name = EXCLUDED.news_source_name,

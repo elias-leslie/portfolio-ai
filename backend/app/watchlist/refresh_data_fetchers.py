@@ -133,11 +133,11 @@ def detect_missing_historical_data(
                 WHERE symbol = ANY(?)
                 GROUP BY symbol
             )
-            SELECT ticker
-            FROM UNNEST(?) as t(ticker)
-            LEFT JOIN ticker_stats USING (ticker)
+            SELECT symbol
+            FROM UNNEST(?) as t(symbol)
+            LEFT JOIN ticker_stats USING (symbol)
             WHERE
-                ticker_stats.ticker IS NULL  -- No data at all
+                ticker_stats.symbol IS NULL  -- No data at all
                 OR bar_count < ?  -- Insufficient data
                 OR days_since_latest > ?  -- Stale data
         """

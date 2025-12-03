@@ -168,7 +168,7 @@ def fetch_news_headlines_cached(
         """
         INSERT INTO reference_cache (symbol, as_of_date, payload, source)
         VALUES (%s, %s, %s, %s)
-        ON CONFLICT (ticker, as_of_date, source)
+        ON CONFLICT (symbol, as_of_date, source)
         DO UPDATE SET payload = EXCLUDED.payload, created_at = NOW()
         """,
         [

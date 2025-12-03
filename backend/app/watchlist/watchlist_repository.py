@@ -145,7 +145,7 @@ class WatchlistRepository:
             rows: list[tuple[Any, ...]] = conn.execute(
                 """
                 SELECT
-                    ticker,
+                    symbol,
                     headline,
                     url,
                     summary,

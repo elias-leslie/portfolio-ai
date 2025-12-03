@@ -131,7 +131,7 @@ def get_ownership_metrics_batch(
 
     # Query all tickers at once with DISTINCT ON for latest
     query = """
-        SELECT DISTINCT ON (ticker) ticker, payload
+        SELECT DISTINCT ON (symbol) symbol, payload
         FROM reference_cache
         WHERE symbol = ANY($1)
         ORDER BY symbol, as_of_date DESC

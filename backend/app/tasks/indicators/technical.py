@@ -184,9 +184,9 @@ def backfill_technical_indicators(  # type: ignore[no-untyped-def]
                 SELECT DISTINCT db.date
                 FROM day_bars db
                 LEFT JOIN technical_indicators ti
-                    ON db.ticker = ti.ticker AND db.date = ti.date
-                WHERE db.ticker = $1
-                  AND ti.ticker IS NULL
+                    ON db.symbol = ti.symbol AND db.date = ti.date
+                WHERE db.symbol = $1
+                  AND ti.symbol IS NULL
                 ORDER BY db.date ASC
             """
             missing_dates_df = storage.query(query, [ticker])
