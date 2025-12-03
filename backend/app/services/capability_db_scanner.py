@@ -202,6 +202,7 @@ class DatabaseScanner:
 
         # Calculate health status (now considers FK references)
         health_status = self._calculate_health_status(
+            table_name=table_name,
             row_count=row_count,
             columns_with_data=columns_with_data,
             columns=column_names,
@@ -337,8 +338,30 @@ class DatabaseScanner:
             logger.debug("fk_reference_check_failed", table=table_name, error=str(e))
             return []
 
+    # Infrastructure tables that should NOT be marked legacy/suspect based on freshness
+    # These tables don't need frequent updates to be considered healthy
+    FRESHNESS_EXEMPT_TABLES = {
+        # API credentials - only updated when credentials change
+        "source_credentials",
+        # Capabilities system - only updated during scans
+        "capability_insights",
+        "capability_notes",
+        "db_capabilities",
+        "celery_capabilities",
+        "api_capabilities",
+        # Celery infrastructure - managed by Celery
+        "celery_taskmeta",
+        "celery_tasksetmeta",
+        # Migration tracking - only updated during migrations
+        "schema_migrations",
+        "alembic_version",
+        # Maintenance tracking
+        "maintenance_log",
+    }
+
     def _calculate_health_status(
         self,
+        table_name: str,
         row_count: int,
         columns_with_data: list[str],
         columns: list[str],
@@ -349,6 +372,7 @@ class DatabaseScanner:
         """Calculate health status for database table.
 
         Args:
+            table_name: Name of the table
             row_count: Number of rows in table
             columns_with_data: Columns with non-NULL values
             columns: All columns
@@ -364,9 +388,16 @@ class DatabaseScanner:
         - orphaned: Very low row count (<100) AND no substantial data AND no FK refs
         - legacy: No data (row_count=0) AND no FK refs OR critically stale (>30 days)
         - suspect: Low data completeness (<20%) OR stale freshness
+
+        Note: Infrastructure tables (FRESHNESS_EXEMPT_TABLES) are exempt from
+        freshness-based degradation since they don't need frequent updates.
         """
         # If other tables reference this via FK, it's active (needed for schema)
         if fk_references:
+            return "active"
+
+        # Infrastructure tables with data are always active (exempt from freshness checks)
+        if table_name in self.FRESHNESS_EXEMPT_TABLES and row_count > 0:
             return "active"
 
         # Legacy: No data at all (and no FK refs)
@@ -381,16 +412,22 @@ class DatabaseScanner:
             return "orphaned"
 
         # Legacy: Critically stale data (>30 days with critical freshness)
-        is_critically_stale = (
-            freshness_status == "critical"
-            and days_since_update is not None
-            and days_since_update > 30
-        )
-        if is_critically_stale:
-            return "legacy"
+        # Skip for infrastructure tables
+        if table_name not in self.FRESHNESS_EXEMPT_TABLES:
+            is_critically_stale = (
+                freshness_status == "critical"
+                and days_since_update is not None
+                and days_since_update > 30
+            )
+            if is_critically_stale:
+                return "legacy"
 
         # Suspect: Low completeness (<30%) or stale/critical freshness
-        is_suspect = completeness < 0.3 or freshness_status in ["stale", "critical"]
+        # Skip freshness check for infrastructure tables
+        if table_name in self.FRESHNESS_EXEMPT_TABLES:
+            is_suspect = completeness < 0.3
+        else:
+            is_suspect = completeness < 0.3 or freshness_status in ["stale", "critical"]
         return "suspect" if is_suspect else "active"
 
     def save_capabilities(self, capabilities: list[dict[str, Any]]) -> int:
