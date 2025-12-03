@@ -125,7 +125,7 @@ class PlainLanguageTranslationDict(TypedDict, total=False):
 class ArticleDbRowDict(TypedDict, total=False):
     """Database insert row for news articles."""
 
-    ticker: str
+    symbol: str
     headline: str
     url: str | None
     summary: str | None

@@ -180,7 +180,7 @@ def get_day_bars_freshness(storage: PortfolioStorage) -> list[DayBarFreshness]:
 
         now = datetime.now(UTC)
         for row in df.iter_rows(named=True):
-            ticker = row["ticker"]
+            symbol = row["symbol"]
             last_updated = row.get("last_updated")
 
             age_days = None
@@ -203,7 +203,7 @@ def get_day_bars_freshness(storage: PortfolioStorage) -> list[DayBarFreshness]:
                 age_days = age_delta.days
 
             freshness_list.append(
-                DayBarFreshness(ticker=ticker, last_updated=last_updated, age_days=age_days)
+                DayBarFreshness(ticker=symbol, last_updated=last_updated, age_days=age_days)
             )
 
         logger.info("get_day_bars_freshness_success", ticker_count=len(freshness_list))

@@ -75,13 +75,13 @@ def load_latest_technical(
     if df.is_empty():
         return {}
 
-    grouped = df.group_by("ticker").agg(pl.all().first())
+    grouped = df.group_by("symbol").agg(pl.all().first())
     snapshots: dict[str, TechnicalSnapshot] = {}
     for row in grouped.iter_rows(named=True):
         calculated_at = row.get("calculated_at")
         if isinstance(calculated_at, datetime) and calculated_at.tzinfo is None:
             calculated_at = calculated_at.replace(tzinfo=UTC)
-        snapshots[row["ticker"]] = TechnicalSnapshot(
+        snapshots[row["symbol"]] = TechnicalSnapshot(
             rsi_14=row.get("rsi_14"),
             sma_20=row.get("sma_20"),
             sma_5=row.get("sma_5"),

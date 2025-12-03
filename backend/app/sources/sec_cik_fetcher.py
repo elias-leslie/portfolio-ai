@@ -241,9 +241,9 @@ def save_to_database(storage: PortfolioStorage, mapping: dict[str, str]) -> None
             for ticker, cik in batch:
                 conn.execute(
                     """
-                    INSERT INTO sec_cik_cache (ticker, cik, last_updated)
+                    INSERT INTO sec_cik_cache (symbol, cik, last_updated)
                     VALUES (%s, %s, %s)
-                    ON CONFLICT (ticker) DO UPDATE SET
+                    ON CONFLICT (symbol) DO UPDATE SET
                         cik = EXCLUDED.cik,
                         last_updated = EXCLUDED.last_updated
                     """,

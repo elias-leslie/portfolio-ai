@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any
 from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.sources.sec_cik_fetcher import fetch_and_save as fetch_cik_mapping
+from app.storage import get_storage
 from app.storage.connection import get_connection_manager
 
 if TYPE_CHECKING:
@@ -466,7 +467,7 @@ def refresh_sec_cik_cache(self: Task) -> dict[str, Any]:
     logger.info("refresh_sec_cik_cache_started", task_id=task_id)
 
     try:
-        storage = get_connection_manager()
+        storage = get_storage()
         mapping = fetch_cik_mapping(storage)
 
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()

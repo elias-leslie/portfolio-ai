@@ -123,9 +123,9 @@ def detect_missing_historical_data(
     with storage.connection() as conn:
         # Check each ticker's historical data status
         query = """
-            WITH ticker_stats AS (
+            WITH symbol_stats AS (
                 SELECT
-                    ticker,
+                    symbol,
                     COUNT(*) as bar_count,
                     MAX(date) as latest_date,
                     CURRENT_DATE - MAX(date) as days_since_latest
@@ -135,9 +135,9 @@ def detect_missing_historical_data(
             )
             SELECT symbol
             FROM UNNEST(?) as t(symbol)
-            LEFT JOIN ticker_stats USING (symbol)
+            LEFT JOIN symbol_stats USING (symbol)
             WHERE
-                ticker_stats.symbol IS NULL  -- No data at all
+                symbol_stats.symbol IS NULL  -- No data at all
                 OR bar_count < ?  -- Insufficient data
                 OR days_since_latest > ?  -- Stale data
         """
