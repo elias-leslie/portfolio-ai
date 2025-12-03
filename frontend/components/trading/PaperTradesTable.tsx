@@ -109,7 +109,7 @@ export function PaperTradesTable({ trades, type }: PaperTradesTableProps) {
           <TableHeader>
             <TableRow>
               <TableHead className="w-12"></TableHead>
-              <TableHead>Ticker</TableHead>
+              <TableHead>Symbol</TableHead>
               <TableHead>Type</TableHead>
               <TableHead className="text-right">Shares</TableHead>
               <TableHead className="text-right">Entry</TableHead>

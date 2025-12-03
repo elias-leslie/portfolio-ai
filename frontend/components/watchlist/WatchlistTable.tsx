@@ -174,7 +174,7 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
     setPendingDelete({ id: itemId, symbol });
   };
 
-  const confirmDeleteTicker = async () => {
+  const confirmDeleteSymbol = async () => {
     if (!pendingDelete) return;
     try {
       await deleteMutation.mutateAsync(pendingDelete.id);
@@ -204,7 +204,7 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
       description="Removing a symbol clears its saved scores and expansions."
       confirmLabel="Remove"
       isPending={deleteMutation.isPending}
-      onConfirm={confirmDeleteTicker}
+      onConfirm={confirmDeleteSymbol}
     />
   );
 

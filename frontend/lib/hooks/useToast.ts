@@ -16,7 +16,7 @@
  *
  * // Async operations with loading state
  * toast.promise(
- *   addTicker({ symbol: "AAPL" }),
+ *   addSymbol({ symbol: "AAPL" }),
  *   {
  *     loading: "Adding AAPL to watchlist...",
  *     success: "AAPL added to watchlist",

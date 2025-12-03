@@ -49,7 +49,7 @@ interface NewsArticle {
 }
 
 // Data structure types
-interface TickerNewsIntelligence {
+interface SymbolNewsIntelligence {
   headline: string;
   sentiment_score: number;
   sentiment_label: string;
@@ -86,7 +86,7 @@ interface UnifiedNewsIntelligenceCardProps {
   symbol?: string | null;
 
   // Data: One of these three structures
-  newsIntelligence?: TickerNewsIntelligence | null;
+  newsIntelligence?: SymbolNewsIntelligence | null;
   marketNewsData?: MarketNewsData | null;
   recentNews?: RecentNewsPayload | null;
 
