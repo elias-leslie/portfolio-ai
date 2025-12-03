@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Target, TrendingUp, TrendingDown, AlertCircle, DollarSign } from "lucide-react";
+import { Target, TrendingUp, TrendingDown, AlertCircle, DollarSign, Briefcase, LineChart } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
-import { useRecommendations, useTrackRecommendation } from "@/lib/hooks/useRecommendations";
+import { useRecommendations, usePaperTrade } from "@/lib/hooks/useRecommendations";
 import type { TradeRecommendation } from "@/lib/api/recommendations";
 
 function SignalBadge({ type, strength }: { type: string; strength: number }) {
@@ -37,12 +37,12 @@ function SignalBadge({ type, strength }: { type: string; strength: number }) {
 
 function RecommendationCard({
   rec,
-  onTrack,
-  isTracking,
+  onPaperTrade,
+  isPaperTrading,
 }: {
   rec: TradeRecommendation;
-  onTrack: () => void;
-  isTracking: boolean;
+  onPaperTrade: () => void;
+  isPaperTrading: boolean;
 }) {
   const riskReward = rec.risk_reward_ratio;
   const potentialGain = rec.target_price - rec.entry_price;
@@ -127,16 +127,29 @@ function RecommendationCard({
           </div>
         </div>
 
-        {/* Action Button */}
-        <Button
-          onClick={onTrack}
-          disabled={isTracking}
-          className="w-full"
-          variant={rec.signal_type === "BUY" ? "default" : "outline"}
-        >
-          <DollarSign className="mr-2 h-4 w-4" />
-          {isTracking ? "Creating Position..." : "Track in Portfolio"}
-        </Button>
+        {/* Action Buttons */}
+        <div className="flex gap-2">
+          <Button
+            onClick={onPaperTrade}
+            disabled={isPaperTrading}
+            className="flex-1"
+            variant={rec.signal_type === "BUY" ? "default" : "outline"}
+          >
+            <LineChart className="mr-2 h-4 w-4" />
+            {isPaperTrading ? "Trading..." : "Paper Trade"}
+          </Button>
+          <Button
+            variant="outline"
+            className="flex-1"
+            onClick={() => {
+              // TODO: Open modal to select account and shares
+              alert("Track in Portfolio: Coming soon!\nFor now, use Paper Trade to test the strategy.");
+            }}
+          >
+            <Briefcase className="mr-2 h-4 w-4" />
+            Track in Portfolio
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
@@ -154,7 +167,7 @@ export default function RecommendationsPage() {
     position_pct: 0.05,
   });
 
-  const trackMutation = useTrackRecommendation();
+  const paperTradeMutation = usePaperTrade();
 
   const recommendations = data?.recommendations || [];
   const summary = data?.summary;
@@ -292,14 +305,13 @@ export default function RecommendationsPage() {
               <RecommendationCard
                 key={`${rec.strategy_id}-${rec.symbol}`}
                 rec={rec}
-                onTrack={() =>
-                  trackMutation.mutate({
+                onPaperTrade={() =>
+                  paperTradeMutation.mutate({
                     symbol: rec.symbol,
                     strategyId: rec.strategy_id,
-                    positionSize: rec.position_size_dollars,
                   })
                 }
-                isTracking={trackMutation.isPending}
+                isPaperTrading={paperTradeMutation.isPending}
               />
             ))}
           </div>

@@ -53,14 +53,26 @@ export interface RecommendedSymbolsResponse {
   count: number;
 }
 
-export interface TrackRecommendationResponse {
+export interface PaperTradeResponse {
+  status: string;
+  trade: {
+    symbol: string;
+    shares: number;
+    entry_price: number;
+    total_cost: number;
+    strategy_name: string;
+  };
+  message: string;
+}
+
+export interface TrackPortfolioResponse {
   status: string;
   position: {
-    id: number;
+    id: string;
     symbol: string;
     shares: number;
     cost_basis: number;
-    strategy_id: string;
+    account_name: string;
     strategy_name: string;
   };
   message: string;
@@ -96,16 +108,31 @@ export async function getRecommendedSymbols(
   );
 }
 
-export async function trackRecommendation(
+export async function paperTradeRecommendation(
   symbol: string,
-  strategyId: string,
-  positionSize?: number
-): Promise<TrackRecommendationResponse> {
+  strategyId: string
+): Promise<PaperTradeResponse> {
   const params = new URLSearchParams();
   params.set("strategy_id", strategyId);
-  if (positionSize) params.set("position_size", positionSize.toString());
 
-  return apiRequest<TrackRecommendationResponse>(
+  return apiRequest<PaperTradeResponse>(
+    `/api/recommendations/paper-trade/${symbol}?${params.toString()}`,
+    { method: "POST" }
+  );
+}
+
+export async function trackInPortfolio(
+  symbol: string,
+  strategyId: string,
+  accountId: string,
+  shares: number
+): Promise<TrackPortfolioResponse> {
+  const params = new URLSearchParams();
+  params.set("strategy_id", strategyId);
+  params.set("account_id", accountId);
+  params.set("shares", shares.toString());
+
+  return apiRequest<TrackPortfolioResponse>(
     `/api/recommendations/track/${symbol}?${params.toString()}`,
     { method: "POST" }
   );

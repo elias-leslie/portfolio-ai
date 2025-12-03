@@ -7,7 +7,8 @@ import { toast } from "sonner";
 import {
   getRecommendations,
   getRecommendedSymbols,
-  trackRecommendation,
+  paperTradeRecommendation,
+  trackInPortfolio,
 } from "@/lib/api/recommendations";
 
 // ============================================================================
@@ -60,22 +61,58 @@ export function useRecommendedSymbols(minStrength = 5) {
 // Mutation Hooks
 // ============================================================================
 
-export function useTrackRecommendation() {
+export function usePaperTrade() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: ({
       symbol,
       strategyId,
-      positionSize,
     }: {
       symbol: string;
       strategyId: string;
-      positionSize?: number;
-    }) => trackRecommendation(symbol, strategyId, positionSize),
+    }) => paperTradeRecommendation(symbol, strategyId),
 
     onMutate: ({ symbol }) => {
-      toast.loading(`Creating position for ${symbol}...`, { id: `track-${symbol}` });
+      toast.loading(`Creating paper trade for ${symbol}...`, { id: `paper-${symbol}` });
+    },
+
+    onSuccess: (data, { symbol }) => {
+      toast.dismiss(`paper-${symbol}`);
+      toast.success(data.message);
+
+      // Invalidate relevant queries
+      queryClient.invalidateQueries({ queryKey: recommendationKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: ["paper-trades"] });
+    },
+
+    onError: (error, { symbol }) => {
+      toast.dismiss(`paper-${symbol}`);
+      toast.error(
+        `Failed to paper trade ${symbol}: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+    },
+  });
+}
+
+export function useTrackInPortfolio() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      symbol,
+      strategyId,
+      accountId,
+      shares,
+    }: {
+      symbol: string;
+      strategyId: string;
+      accountId: string;
+      shares: number;
+    }) => trackInPortfolio(symbol, strategyId, accountId, shares),
+
+    onMutate: ({ symbol }) => {
+      toast.loading(`Adding ${symbol} to portfolio...`, { id: `track-${symbol}` });
     },
 
     onSuccess: (data, { symbol }) => {
@@ -90,7 +127,7 @@ export function useTrackRecommendation() {
     onError: (error, { symbol }) => {
       toast.dismiss(`track-${symbol}`);
       toast.error(
-        `Failed to track ${symbol}: ${error instanceof Error ? error.message : "Unknown error"}`
+        `Failed to add ${symbol}: ${error instanceof Error ? error.message : "Unknown error"}`
       );
     },
   });

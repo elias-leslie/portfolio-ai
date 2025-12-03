@@ -300,20 +300,99 @@ async def get_recommended_symbols(
         raise HTTPException(status_code=500, detail=f"Failed to get symbols: {e!s}") from e
 
 
-@router.post("/track/{symbol}", response_model=dict[str, Any])
-async def track_recommendation(
+@router.post("/paper-trade/{symbol}", response_model=dict[str, Any])
+async def paper_trade_recommendation(
     symbol: str,
     strategy_id: str = Query(..., description="Strategy ID to link"),
-    position_size: float = Query(DEFAULT_PORTFOLIO_SIZE * DEFAULT_POSITION_PCT, description="Position size in dollars"),
 ) -> dict[str, Any]:
-    """Create a portfolio position from a recommendation.
+    """Create a paper trade from a recommendation.
 
-    Links the position to the strategy for performance tracking.
+    Uses the paper trading system on /trading page.
 
     Args:
         symbol: Stock symbol
         strategy_id: Strategy UUID to link
-        position_size: Position size in dollars
+
+    Returns:
+        Paper trade details
+    """
+    from app.analytics.order_executor import OrderExecutor
+    from app.storage import get_storage
+
+    try:
+        conn_mgr = get_connection_manager()
+        storage = get_storage()
+
+        with conn_mgr.connection() as conn:
+            # Get strategy details
+            strategy = conn.execute(
+                "SELECT name, symbol FROM strategy_definitions WHERE id = %s AND status = 'active'",
+                (strategy_id,),
+            ).fetchone()
+
+            if not strategy:
+                raise HTTPException(status_code=404, detail=f"Active strategy {strategy_id} not found")
+
+        # Use OrderExecutor to create paper trade
+        order_executor = OrderExecutor(storage)
+        account_id = "paper_trading"
+
+        # Calculate position size (5% of account)
+        max_shares = order_executor.calculate_max_shares(symbol, account_id, max_position_pct=0.05)
+
+        if max_shares == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Insufficient cash or failed to calculate position size",
+            )
+
+        # Execute buy order
+        result = order_executor.execute_buy(
+            ticker=symbol,
+            shares=max_shares,
+            account_id=account_id,
+            idea_id=None,  # Manual trade
+            thesis=f"Strategy recommendation: {strategy[0]}",
+        )
+
+        if not result.get("success"):
+            raise HTTPException(status_code=400, detail=result.get("error", "Trade execution failed"))
+
+        return {
+            "status": "created",
+            "trade": {
+                "symbol": symbol,
+                "shares": result.get("shares"),
+                "entry_price": result.get("price"),
+                "total_cost": result.get("amount"),
+                "strategy_name": strategy[0],
+            },
+            "message": f"Paper trade: bought {result.get('shares')} shares of {symbol} at ${result.get('price'):.2f}",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Failed to create paper trade", symbol=symbol, error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to paper trade: {e!s}") from e
+
+
+@router.post("/track/{symbol}", response_model=dict[str, Any])
+async def track_in_portfolio(
+    symbol: str,
+    strategy_id: str = Query(..., description="Strategy ID to link"),
+    account_id: str = Query(..., description="Portfolio account ID"),
+    shares: int = Query(..., ge=1, description="Number of shares"),
+) -> dict[str, Any]:
+    """Add recommendation to real portfolio.
+
+    Creates a position in the specified portfolio account.
+
+    Args:
+        symbol: Stock symbol
+        strategy_id: Strategy UUID to link
+        account_id: Portfolio account to add to
+        shares: Number of shares to track
 
     Returns:
         Created position details
@@ -326,19 +405,28 @@ async def track_recommendation(
         storage = get_storage()
 
         with conn_mgr.connection() as conn:
-            # Verify strategy exists and is active
+            # Verify strategy
             strategy = conn.execute(
-                "SELECT name, symbol FROM strategy_definitions WHERE id = %s AND status = 'active'",
+                "SELECT name, symbol FROM strategy_definitions WHERE id = %s",
                 (strategy_id,),
             ).fetchone()
 
             if not strategy:
-                raise HTTPException(status_code=404, detail=f"Active strategy {strategy_id} not found")
+                raise HTTPException(status_code=404, detail=f"Strategy {strategy_id} not found")
 
-            if strategy[1] != symbol:
+            # Verify account exists and is NOT paper
+            account = conn.execute(
+                "SELECT id, name, account_type FROM portfolio_accounts WHERE id = %s",
+                (account_id,),
+            ).fetchone()
+
+            if not account:
+                raise HTTPException(status_code=404, detail=f"Account {account_id} not found")
+
+            if account[2] == "paper":
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Symbol mismatch: strategy is for {strategy[1]}, not {symbol}",
+                    detail="Use 'Paper Trade' for paper accounts, not 'Track in Portfolio'",
                 )
 
             # Get current price
@@ -351,22 +439,8 @@ async def track_recommendation(
                 raise HTTPException(status_code=404, detail=f"No price data for {symbol}")
 
             entry_price = float(price_row[0])
-            shares = int(position_size / entry_price)
 
-            # Get first account (or create paper account if none exist)
-            account_row = conn.execute(
-                "SELECT id FROM portfolio_accounts ORDER BY created_at LIMIT 1"
-            ).fetchone()
-
-            if not account_row:
-                raise HTTPException(
-                    status_code=400,
-                    detail="No portfolio account exists. Create an account first.",
-                )
-
-            account_id = account_row[0]
-
-        # Use PortfolioManager for proper position creation
+        # Create position
         manager = PortfolioManager(storage)
         position = manager.add_position(
             account_id=account_id,
@@ -384,14 +458,14 @@ async def track_recommendation(
                 "symbol": position.symbol,
                 "shares": position.shares,
                 "cost_basis": position.cost_basis,
-                "strategy_id": strategy_id,
+                "account_name": account[1],
                 "strategy_name": strategy[0],
             },
-            "message": f"Position created for {shares} shares of {symbol} at ${entry_price:.2f}",
+            "message": f"Added {shares} shares of {symbol} to {account[1]} at ${entry_price:.2f}",
         }
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception("Failed to track recommendation", symbol=symbol, error=str(e))
+        logger.exception("Failed to track in portfolio", symbol=symbol, error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to track: {e!s}") from e
