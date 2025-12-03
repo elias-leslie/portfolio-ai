@@ -379,12 +379,17 @@ async def get_paper_trade_summary() -> PaperTradeSummaryResponse:
             cash_balance=cash_balance,
         )
 
+        # Calculate actual portfolio P&L percentage (not sum of individual trade %)
+        actual_pnl_pct = 0.0
+        if starting_balance and starting_balance > 0 and total_portfolio_value is not None:
+            actual_pnl_pct = ((total_portfolio_value - starting_balance) / starting_balance) * 100
+
         return PaperTradeSummaryResponse(
             total_open=int(open_count) if open_count else 0,
             total_closed=int(closed_count) if closed_count else 0,
             win_rate=float(win_rate) if win_rate else 0.0,
             avg_return_pct=float(avg_return) if avg_return else 0.0,
-            total_pnl_pct=float(total_return) if total_return else 0.0,
+            total_pnl_pct=actual_pnl_pct,
             best_trade_pct=float(best_trade) if best_trade is not None else None,
             worst_trade_pct=float(worst_trade) if worst_trade is not None else None,
             cash_balance=cash_balance,
