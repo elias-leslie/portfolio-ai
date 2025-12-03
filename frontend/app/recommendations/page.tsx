@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Target, TrendingUp, TrendingDown, AlertCircle, DollarSign, Briefcase, LineChart } from "lucide-react";
+import { Target, TrendingUp, TrendingDown, AlertCircle, DollarSign, Briefcase, LineChart, Sparkles, AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +52,27 @@ function SignalBadge({ type, strength }: { type: string; strength: number }) {
   );
 }
 
+function SignalStatusBadge({ status }: { status: string }) {
+  switch (status) {
+    case "better_entry":
+      return (
+        <Badge className="bg-emerald-500/90 text-white">
+          <Sparkles className="mr-1 h-3 w-3" />
+          Better Entry
+        </Badge>
+      );
+    case "caution":
+      return (
+        <Badge className="bg-amber-500/90 text-white">
+          <AlertTriangle className="mr-1 h-3 w-3" />
+          Caution
+        </Badge>
+      );
+    default:
+      return null; // Don't show badge for "valid" status
+  }
+}
+
 function RecommendationCard({
   rec,
   onPaperTrade,
@@ -72,13 +93,14 @@ function RecommendationCard({
   const priceChangePct = (priceChange / rec.entry_price) * 100;
 
   return (
-    <Card className="transition-shadow hover:shadow-lg">
+    <Card className={`transition-shadow hover:shadow-lg ${rec.signal_status === "caution" ? "border-amber-300 dark:border-amber-700" : ""}`}>
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div>
-            <CardTitle className="flex items-center gap-2 text-xl">
+            <CardTitle className="flex flex-wrap items-center gap-2 text-xl">
               {rec.symbol}
               <SignalBadge type={rec.signal_type} strength={rec.signal_strength} />
+              <SignalStatusBadge status={rec.signal_status} />
             </CardTitle>
             <p className="mt-1 text-sm text-text-muted">
               {rec.strategy_name} ({rec.strategy_type})

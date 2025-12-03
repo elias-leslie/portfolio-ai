@@ -54,6 +54,8 @@ class TradeRecommendation(BaseModel):
     signal_reasons: list[str]
     entry_price: float  # Price when signal was generated
     current_price: float  # Real-time current price
+    price_change_pct: float  # % change since signal
+    signal_status: Literal["valid", "better_entry", "caution", "invalidated"]
     stop_loss: float
     target_price: float
     position_size_dollars: float
@@ -114,6 +116,51 @@ def _calculate_risk_reward(entry: float, stop: float, target: float) -> float:
     if risk <= 0:
         return 0.0
     return round(reward / risk, 2)
+
+
+def _calculate_signal_status(
+    signal_type: str, entry_price: float, current_price: float
+) -> tuple[float, Literal["valid", "better_entry", "caution", "invalidated"]]:
+    """Calculate signal status based on price movement since signal.
+
+    For BUY signals:
+    - Price dropped 0-5%: "better_entry" (more attractive)
+    - Price within ±5%: "valid"
+    - Price rose >5%: "caution" (may have missed entry)
+    - Price dropped >15% or rose >15%: "invalidated" (something changed)
+
+    For SELL signals: Opposite logic.
+
+    Returns:
+        Tuple of (price_change_pct, status)
+    """
+    if entry_price <= 0:
+        return 0.0, "valid"
+
+    price_change_pct = ((current_price - entry_price) / entry_price) * 100
+
+    if signal_type == "BUY":
+        if price_change_pct < -15 or price_change_pct > 15:
+            return price_change_pct, "invalidated"
+        elif price_change_pct < -5:
+            return price_change_pct, "better_entry"  # Significant drop = better buy
+        elif price_change_pct > 5:
+            return price_change_pct, "caution"  # Rose too much, may have missed
+        elif price_change_pct < 0:
+            return price_change_pct, "better_entry"  # Small drop = slightly better
+        else:
+            return price_change_pct, "valid"
+    else:  # SELL
+        if price_change_pct < -15 or price_change_pct > 15:
+            return price_change_pct, "invalidated"
+        elif price_change_pct > 5:
+            return price_change_pct, "better_entry"  # Rose = better sell price
+        elif price_change_pct < -5:
+            return price_change_pct, "caution"  # Dropped, may have missed
+        elif price_change_pct > 0:
+            return price_change_pct, "better_entry"
+        else:
+            return price_change_pct, "valid"
 
 
 # ============================================================================
@@ -225,6 +272,16 @@ async def get_recommendations(
             # Get current real-time price
             current_price = current_prices.get(symbol, entry_price)
 
+            # Calculate signal status based on price movement
+            price_change_pct, signal_status = _calculate_signal_status(
+                sig_type, entry_price, current_price
+            )
+
+            # Skip invalidated signals
+            if signal_status == "invalidated":
+                logger.info(f"Skipping {symbol}: signal invalidated (price change: {price_change_pct:.1f}%)")
+                continue
+
             # Calculate position sizing based on CURRENT price
             dollars, shares = _calculate_position_size(current_price, portfolio_size, position_pct)
             stop_loss = _calculate_stop_loss(current_price)
@@ -242,6 +299,8 @@ async def get_recommendations(
                     signal_reasons=reasons,
                     entry_price=entry_price,
                     current_price=current_price,
+                    price_change_pct=round(price_change_pct, 2),
+                    signal_status=signal_status,
                     stop_loss=stop_loss,
                     target_price=target_price,
                     position_size_dollars=dollars,
