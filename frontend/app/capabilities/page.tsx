@@ -163,14 +163,14 @@ function CapabilitiesPageContent() {
     enabled: activeTab === "insights",
   });
 
-  // Fetch gaps (trading intelligence gaps)
+  // Fetch gaps (trading intelligence gaps) - always fetch for tab badge count
   const {
     data: gapsData,
     isLoading: gapsLoading,
   } = useQuery({
     queryKey: ["gaps-summary"],
     queryFn: fetchGapSummary,
-    enabled: activeTab === "gaps",
+    staleTime: 60000, // Cache for 1 minute
   });
 
   // Trigger scan mutation

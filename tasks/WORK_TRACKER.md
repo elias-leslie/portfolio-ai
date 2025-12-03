@@ -19,9 +19,7 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-- [ ] **Capability Improvements (capability_it 2025-12-03)** - tasks/tasks-0001-capability-improvements.md
-  - Focus: Fix broken Celery tasks, populate empty tables, implement P0 gaps
-  - Critical: 11 insights, 11 P0 gaps (26.8% coverage)
+(No active tasks)
 
 ---
 
@@ -37,7 +35,19 @@
 
 *Last 5 completed tasks*
 
-1. **Capability Improvements Phase 1** ✅ COMPLETE (2025-12-03)
+1. **Capability Improvements v2** ✅ COMPLETE (2025-12-03)
+   - File: `tasks-0002-capability-improvements.md`
+   - Completed: 2025-12-03
+   - Duration: ~15 minutes
+   - Summary: Resolved all critical/high insights via /capability_it
+   - Key achievements:
+     - ✅ Triggered SEC CIK refresh (9998 tickers updated)
+     - ✅ Discovered P0 risk gaps ALREADY IMPLEMENTED (covariance, drawdown, Kelly, position sizing)
+     - ✅ Marked 6 insights as fixed (data freshness confirmed)
+     - ✅ Marked 3 insights as acknowledged (acceptable state)
+   - Results: 0 critical, 0 high pending insights (was 1 critical, 5 high)
+
+2. **Capability Improvements Phase 1** ✅ COMPLETE (2025-12-03)
    - File: `tasks-0005-capability-improvements.md`
    - Completed: 2025-12-03
    - Duration: ~45 minutes

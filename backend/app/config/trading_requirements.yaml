@@ -361,7 +361,7 @@ analysis_types:
         data_sources:
           - internal: day_bars (252-day returns)
         tables:
-          - portfolio_covariance (new table)
+          - portfolio_covariance
         freshness_requirement: "< 1 day"
         coverage_requirement: "All portfolio holdings"
 
@@ -375,7 +375,7 @@ analysis_types:
           - kenneth_french: "Free factor data"
           - internal: "Calculate from reference_cache"
         tables:
-          - portfolio_factors (new table)
+          - reference_cache
         freshness_requirement: "< 1 week"
         coverage_requirement: "Portfolio level (all holdings aggregated)"
 
@@ -388,7 +388,7 @@ analysis_types:
         data_sources:
           - internal: portfolio_snapshots
         tables:
-          - portfolio_drawdowns (new table)
+          - portfolio_snapshots
         freshness_requirement: "Real-time (updated on portfolio value change)"
         coverage_requirement: "Portfolio level"
 
@@ -401,7 +401,7 @@ analysis_types:
         data_sources:
           - internal: day_bars
         tables:
-          - portfolio_covariance (extend with rolling calcs)
+          - portfolio_covariance
         freshness_requirement: "< 1 day"
         coverage_requirement: "All portfolio holdings"
 
@@ -540,7 +540,7 @@ analysis_types:
         data_sources:
           - internal: "Strategy historical performance (win rate, avg win/loss)"
         tables:
-          - strategy_performance (new table)
+          - backtest_trades
         freshness_requirement: "< 1 week (recalculate after each trade)"
         coverage_requirement: "Per strategy (momentum, value, etc.)"
 
@@ -553,8 +553,8 @@ analysis_types:
         data_sources:
           - internal: "Bid/ask spread + volatility + ADV"
         tables:
-          - price_cache (for spread)
-          - day_bars (for vol, ADV)
+          - price_cache
+          - day_bars
         freshness_requirement: "< 1 day"
         coverage_requirement: "All tradable tickers"
 
@@ -691,7 +691,7 @@ analysis_types:
         data_sources:
           - internal: "day_bars, technical_indicators, watchlist_scores"
         tables:
-          - backtest_results (new table)
+          - backtest_runs
         freshness_requirement: "N/A (historical simulation)"
         coverage_requirement: "2020-2024 data minimum"
         notes: "HIGH effort (2-3 weeks) but FOUNDATIONAL. Must validate gap fills"
