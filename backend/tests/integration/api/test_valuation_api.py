@@ -30,7 +30,6 @@ def clean_before_test() -> Iterator[None]:
         "portfolio_accounts",
         "watchlist_snapshots",
         "watchlist_items",
-        "minute_bars",
         "day_bars",
         "technical_indicators",
         "price_cache",

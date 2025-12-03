@@ -96,7 +96,6 @@ def test_ensure_schema_creates_all_tables(schema_mgr: SchemaManager) -> None:
             "reference_cache",
             "price_cache",
             "day_bars",
-            "minute_bars",
             "technical_indicators",
             "watchlist_items",
             "watchlist_snapshots",

@@ -72,7 +72,6 @@ categorization:
       - "ticker"
       - "ohlcv"
       - "day_bars"
-      - "minute_bars"
       - "price_cache"
       - "options_market"
 

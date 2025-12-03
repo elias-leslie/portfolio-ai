@@ -60,7 +60,6 @@ TABLES_TO_CLEAN = [
     "watchlist_snapshots",
     "watchlist_items",
     # Price and market data
-    "minute_bars",
     "day_bars",
     "technical_indicators",
     "price_cache",

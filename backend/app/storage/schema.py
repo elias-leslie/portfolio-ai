@@ -115,7 +115,7 @@ class SchemaManager:
             ("reference_cache", "config", "Cached reference metadata for watchlist tickers"),
             ("price_cache", "timeseries", "Cached price and analytics data"),
             ("day_bars", "timeseries", "Historical daily OHLCV data"),
-            ("minute_bars", "timeseries", "Intraday minute-level OHLCV data"),
+            # minute_bars removed by /scrub_it 2025-12-02 (never implemented)
             ("technical_indicators", "timeseries", "Cached technical indicator values"),
             ("watchlist_items", "watchlist", "User watchlist items and notes"),
             ("watchlist_snapshots", "watchlist", "Cached watchlist scoring snapshots"),
