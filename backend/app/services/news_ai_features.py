@@ -55,7 +55,7 @@ class NewsAIFeatures:
                 # Generate unique ID for clustering (use content_hash)
                 clusterer_article = ClustererArticle(
                     id=article.content_hash,
-                    ticker=article.ticker,
+                    symbol=article.symbol,
                     headline=article.headline,
                     summary=article.summary,
                     vendor=article.vendor or "unknown",
@@ -135,7 +135,7 @@ class NewsAIFeatures:
                         summary=article.summary,
                         filing_type=article.filing_type,
                         sentiment_score=article.sentiment.score,
-                        ticker=article.ticker,
+                        symbol=article.symbol,
                     )
                     article.plain_language_headline = translation_result["plain_language_headline"]
 
@@ -150,7 +150,7 @@ class NewsAIFeatures:
                 article.actionable_insight = generate_actionable_insight(
                     category=event_category,
                     sentiment_score=article.sentiment.score,
-                    ticker=article.ticker,
+                    symbol=article.symbol,
                     in_watchlist=in_watchlist,
                 )
 

@@ -47,7 +47,7 @@ export interface SentimentScoreMeta {
 }
 
 export interface SentimentArticle {
-    ticker: string;
+    symbol: string;
     headline: string;
     url?: string | null;
     summary?: string | null;
@@ -142,7 +142,7 @@ export interface WatchlistItemUpdate {
     note?: string;
 }
 
-export interface FailedTickerInfo {
+export interface FailedSymbolInfo {
     symbol: string;
     reason: string;
 }
@@ -152,7 +152,7 @@ export interface RefreshResponse {
     message: string;
     refreshed_count: number;
     failed_count?: number;
-    failed?: FailedTickerInfo[];
+    failed?: FailedSymbolInfo[];
 }
 
 export interface ScoreHistory {
@@ -197,7 +197,7 @@ export async function fetchWatchlistItem(
 }
 
 /**
- * Add a ticker to the watchlist
+ * Add a symbol to the watchlist
  */
 export async function createWatchlistItem(
     data: WatchlistItemCreate,

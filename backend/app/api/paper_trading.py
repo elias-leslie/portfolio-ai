@@ -148,7 +148,7 @@ async def create_paper_trade(request: CreateTradeRequest) -> CreateTradeResponse
         {
             "idea_id": idea_id,
             "agent_run_id": "manual",
-            "ticker": ticker,
+            "symbol": ticker,
             "idea_type": action,
             "entry_price": 0.0,  # Placeholder, will update after execution
             "entry_date": datetime.now(UTC).date().isoformat(),

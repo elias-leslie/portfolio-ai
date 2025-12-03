@@ -111,7 +111,7 @@ function MarketNewsSection() {
       {!showSkeleton && !error && (
         <UnifiedNewsIntelligenceCard
           marketNewsData={newsData}
-          ticker={null}
+          symbol={null}
           onRequestExpanded={
             articleLimit < MARKET_NEWS_EXPANDED_LIMIT ? handleExpandRequest : undefined
           }

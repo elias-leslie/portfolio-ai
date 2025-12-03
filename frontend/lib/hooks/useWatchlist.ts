@@ -92,9 +92,9 @@ export function useScoreHistory(itemId: string) {
 }
 
 /**
- * Hook to add a ticker to the watchlist
+ * Hook to add a symbol to the watchlist
  */
-export function useAddTicker() {
+export function useAddSymbol() {
   const queryClient = useQueryClient();
 
   return useMutation<WatchlistItem, Error, WatchlistItemCreate>({
@@ -104,7 +104,7 @@ export function useAddTicker() {
         loading: `Adding ${data.symbol.toUpperCase()} to watchlist...`,
         success: (item) => `${item.symbol} added to watchlist`,
         error: (error) => {
-          const errorMsg = error instanceof Error ? error.message : "Failed to add ticker";
+          const errorMsg = error instanceof Error ? error.message : "Failed to add symbol";
           return `Failed to add ${data.symbol.toUpperCase()}: ${errorMsg}`;
         },
       });
@@ -161,14 +161,14 @@ export function useDeleteWatchlistItem() {
         watchlistKeys.list()
       );
       const item = previousData?.items.find((i) => i.id === itemId);
-      const symbol = item?.symbol || "ticker";
+      const symbol = item?.symbol || "symbol";
 
       const promise = deleteWatchlistItem(itemId);
       toast.promise(promise, {
         loading: `Removing ${symbol} from watchlist...`,
         success: `${symbol} removed from watchlist`,
         error: (error) => {
-          const errorMsg = error instanceof Error ? error.message : "Failed to delete ticker";
+          const errorMsg = error instanceof Error ? error.message : "Failed to delete symbol";
           return `Failed to remove ${symbol}: ${errorMsg}`;
         },
       });

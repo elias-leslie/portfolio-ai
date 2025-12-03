@@ -85,12 +85,12 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
     updatedAt: item.current_score?.price?.updated_at ?? item.updated_at,
   });
 
-  // Scroll to ticker from query parameter
+  // Scroll to symbol from query parameter
   useEffect(() => {
-    const ticker = searchParams?.get("ticker");
-    if (ticker && items.length > 0) {
+    const symbol = searchParams?.get("symbol");
+    if (symbol && items.length > 0) {
       const targetItem = items.find(
-        (item) => item.symbol.toUpperCase() === ticker.toUpperCase()
+        (item) => item.symbol.toUpperCase() === symbol.toUpperCase()
       );
       if (targetItem) {
         const rowElement = rowRefs.current.get(targetItem.id);
@@ -199,9 +199,9 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
         }
       }}
       title={
-        pendingDelete ? `Remove ${pendingDelete.symbol}` : "Remove ticker"
+        pendingDelete ? `Remove ${pendingDelete.symbol}` : "Remove symbol"
       }
-      description="Removing a ticker clears its saved scores and expansions."
+      description="Removing a symbol clears its saved scores and expansions."
       confirmLabel="Remove"
       isPending={deleteMutation.isPending}
       onConfirm={confirmDeleteTicker}
@@ -365,7 +365,7 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
     return (
       <div className="rounded-md border border-border bg-surface p-8 text-center">
         <p className="text-text-muted">
-          No tickers in your watchlist yet. Click &quot;Add Ticker&quot; to get
+          No symbols in your watchlist yet. Click &quot;Add Symbol&quot; to get
           started.
         </p>
       </div>

@@ -108,14 +108,14 @@ def _calculate_best_worst_trades(
     worst_trade_data = min(closed_trades, key=lambda t: t["realized_return_pct"] or 0.0)
 
     best_trade: dict[str, object] = {
-        "ticker": best_trade_data["ticker"],
+        "symbol": best_trade_data["ticker"],
         "entry_date": str(best_trade_data["entry_date"]) if best_trade_data["entry_date"] else None,
         "exit_date": str(best_trade_data["exit_date"]) if best_trade_data["exit_date"] else None,
         "holding_days": best_trade_data["holding_days"],
     }
 
     worst_trade: dict[str, object] = {
-        "ticker": worst_trade_data["ticker"],
+        "symbol": worst_trade_data["ticker"],
         "entry_date": str(worst_trade_data["entry_date"])
         if worst_trade_data["entry_date"]
         else None,

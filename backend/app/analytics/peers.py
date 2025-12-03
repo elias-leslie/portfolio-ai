@@ -64,7 +64,7 @@ def _build_comparison_result(
     """
     return pl.DataFrame(
         {
-            "ticker": [ticker],
+            "symbol": [ticker],
             group_by: [group_name],
             "return_5d": [ticker_metrics["return_5d"]],
             "return_20d": [ticker_metrics["return_20d"]],

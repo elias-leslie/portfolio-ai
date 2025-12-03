@@ -189,7 +189,7 @@ class NewsProcessor:
             }
             logger.warning(
                 "FinBERT unavailable, falling back to VADER",
-                ticker=ticker,
+                symbol=ticker,
                 latency_ms=fallback_details["latency_ms"],
             )
             sentiments = self.fallback_analyzer.score_batch(texts)
@@ -204,7 +204,7 @@ class NewsProcessor:
             logger.error(
                 "FinBERT scoring failed; falling back to VADER",
                 error=str(exc),
-                ticker=ticker,
+                symbol=ticker,
                 latency_ms=fallback_details["latency_ms"],
             )
             sentiments = self.fallback_analyzer.score_batch(texts)
@@ -240,7 +240,7 @@ class NewsProcessor:
 
             articles.append(
                 NewsArticle(
-                    ticker=ticker,
+                    symbol=ticker,
                     headline=headline,
                     url=entry.get("link") or entry.get("url"),
                     summary=summary,
@@ -280,7 +280,7 @@ class NewsProcessor:
 
             logger.info(
                 "news_sentiment_fallback_used",
-                ticker=ticker,
+                symbol=ticker,
                 analyzer=analyzer_used,
                 articles=len(articles),
                 fallback_rate=round(fallback_rate, 4),
@@ -302,7 +302,7 @@ class NewsProcessor:
         """Build aggregated sentiment summary."""
         if not articles:
             return NewsSummary(
-                ticker=ticker,
+                symbol=ticker,
                 score=None,
                 score_change=None,
                 positive_count=0,
@@ -350,7 +350,7 @@ class NewsProcessor:
         top_negative = min(articles, key=lambda a: a.sentiment.score, default=None)
 
         return NewsSummary(
-            ticker=ticker,
+            symbol=ticker,
             score=aggregated_score,
             score_change=score_change,
             positive_count=counts["positive"],

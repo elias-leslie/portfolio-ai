@@ -34,7 +34,7 @@ class SentimentScoreResponse(BaseModel):
 class NewsArticleResponse(BaseModel):
     """Serialized news article."""
 
-    ticker: str
+    symbol: str
     headline: str
     url: str | None = None
     summary: str | None = None
@@ -60,7 +60,7 @@ class NewsArticleResponse(BaseModel):
 class NewsSummaryResponse(BaseModel):
     """Aggregated sentiment summary."""
 
-    ticker: str
+    symbol: str
     score: float | None
     score_change: float | None
     positive_count: int
@@ -76,7 +76,7 @@ class NewsSummaryResponse(BaseModel):
 class NewsBundleResponse(BaseModel):
     """Bundle of news articles with sentiment summary."""
 
-    ticker: str
+    symbol: str
     summary: NewsSummaryResponse
     articles: list[NewsArticleResponse]
 
@@ -145,7 +145,7 @@ def _serialize_article(article: object) -> NewsArticleResponse:
     )
 
     return NewsArticleResponse(
-        ticker=article.ticker,  # type: ignore
+        symbol=article.symbol,  # type: ignore
         headline=article.headline,  # type: ignore
         url=article.url,  # type: ignore
         summary=article.summary,  # type: ignore
@@ -173,7 +173,7 @@ def _serialize_summary(summary: object) -> NewsSummaryResponse:
         else None
     )
     return NewsSummaryResponse(
-        ticker=summary.ticker,  # type: ignore
+        symbol=summary.symbol,  # type: ignore
         score=summary.score,  # type: ignore
         score_change=summary.score_change,  # type: ignore
         positive_count=summary.positive_count,  # type: ignore
@@ -194,7 +194,7 @@ def _serialize_summary(summary: object) -> NewsSummaryResponse:
 def _serialize_bundle(bundle: object, *, limit: int) -> NewsBundleResponse:
     articles = [_serialize_article(article) for article in bundle.articles[:limit]]  # type: ignore
     return NewsBundleResponse(
-        ticker=bundle.ticker,  # type: ignore
+        symbol=bundle.symbol,  # type: ignore
         summary=_serialize_summary(bundle.summary),  # type: ignore
         articles=articles,
     )
@@ -204,9 +204,9 @@ def _serialize_bundle(bundle: object, *, limit: int) -> NewsBundleResponse:
 @cache_response(ttl=120)  # 2 minutes cache for news (frequently accessed)
 async def get_news_intelligence(
     request: Request,
-    ticker: str | None = Query(
+    symbol: str | None = Query(
         None,
-        description="Optional ticker symbol. If omitted, returns market-wide news. If provided, returns ticker-specific news.",
+        description="Optional symbol. If omitted, returns market-wide news. If provided, returns symbol-specific news.",
     ),
     limit: int = Query(
         50,
@@ -219,12 +219,12 @@ async def get_news_intelligence(
         description="Force refresh of cached headlines before returning results",
     ),
 ) -> NewsBundleResponse:
-    """Get unified news intelligence for market or specific ticker.
+    """Get unified news intelligence for market or specific symbol.
 
-    This endpoint consolidates market-level and ticker-specific news into a single API.
-    Use the optional ticker parameter to switch between modes:
-    - No ticker parameter: Returns broad market news
-    - ticker=AAPL: Returns Apple-specific news
+    This endpoint consolidates market-level and symbol-specific news into a single API.
+    Use the optional symbol parameter to switch between modes:
+    - No symbol parameter: Returns broad market news
+    - symbol=AAPL: Returns Apple-specific news
 
     The response includes sentiment summary and scored articles with AI insights.
     """
@@ -233,7 +233,7 @@ async def get_news_intelligence(
     final_limit = min(limit, pref_limit) if limit else pref_limit
 
     bundle = news_service.get_news_intelligence(
-        ticker=ticker,
+        ticker=symbol,
         max_articles=final_limit,
         force_refresh=force_refresh,
     )

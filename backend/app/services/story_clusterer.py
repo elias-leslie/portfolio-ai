@@ -46,7 +46,7 @@ class NewsArticle:
     """News article for clustering."""
 
     id: str
-    ticker: str
+    symbol: str
     headline: str
     summary: str | None
     vendor: str

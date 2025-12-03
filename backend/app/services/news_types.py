@@ -82,7 +82,7 @@ class NormalizedArticleEntryDict(TypedDict, total=False):
     published: str | None
     published_at: str | None
     vendor: str
-    ticker: str
+    symbol: str
     vendor_payload: dict[str, object] | None
 
 

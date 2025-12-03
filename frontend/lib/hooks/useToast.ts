@@ -10,7 +10,7 @@
  *
  * // Simple notifications
  * toast.success("Position added successfully!");
- * toast.error("Failed to delete ticker");
+ * toast.error("Failed to delete symbol");
  * toast.info("Refreshing data...");
  * toast.warning("Price data may be delayed");
  *

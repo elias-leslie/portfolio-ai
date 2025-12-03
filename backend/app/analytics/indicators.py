@@ -291,7 +291,7 @@ def calculate_indicators_from_df(
     interpretations = _interpret_indicators(indicator_values, df["close"].iloc[-1])
 
     return {
-        "ticker": ticker,
+        "symbol": ticker,
         "date": latest_date.strftime("%Y-%m-%d"),
         "indicators": indicator_values,
         "interpretations": interpretations,
@@ -358,7 +358,7 @@ def _fetch_ohlcv_data(
     logger.info(
         f"Fetched {len(pandas_df)} days of OHLCV data for {ticker}",
         extra={
-            "ticker": ticker,
+            "symbol": ticker,
             "days": len(pandas_df),
             "start_date": pandas_df.index[0].strftime("%Y-%m-%d"),
             "end_date": pandas_df.index[-1].strftime("%Y-%m-%d"),

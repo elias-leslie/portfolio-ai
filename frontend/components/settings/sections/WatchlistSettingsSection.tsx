@@ -124,9 +124,9 @@ export function WatchlistSettingsSection({
             </p>
           </div>
 
-          {/* Max Headlines Per Ticker */}
+          {/* Max Headlines Per Symbol */}
           <div className="space-y-3">
-            <Label>Max Headlines Per Ticker</Label>
+            <Label>Max Headlines Per Symbol</Label>
             <RadioGroup
               value={String(newsMaxArticles)}
               onValueChange={(value) => onNewsMaxArticlesChange(Number(value))}
@@ -145,7 +145,7 @@ export function WatchlistSettingsSection({
               ))}
             </RadioGroup>
             <p className="text-xs text-text-muted">
-              Sets the default number of headlines returned for each ticker and the
+              Sets the default number of headlines returned for each symbol and the
               Market view.
             </p>
           </div>
@@ -163,7 +163,7 @@ export function WatchlistSettingsSection({
               </Label>
             </div>
             <p className="text-xs text-text-muted">
-              Disable this to hide the news expansion section for each ticker.
+              Disable this to hide the news expansion section for each symbol.
             </p>
           </div>
 

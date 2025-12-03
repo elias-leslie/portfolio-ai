@@ -75,7 +75,7 @@ export function ExpandedRowNotes({ item }: ExpandedRowNotesProps) {
                         <Input
                             value={noteValue}
                             onChange={(e) => setNoteValue(e.target.value)}
-                            placeholder="Add a note about this ticker..."
+                            placeholder="Add a note about this symbol..."
                             maxLength={200}
                             className="w-full"
                             autoFocus

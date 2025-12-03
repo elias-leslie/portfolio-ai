@@ -43,7 +43,7 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
     };
 
     const handleRunBacktest = () => {
-        window.location.href = `/backtest?ticker=${item.symbol}`;
+        window.location.href = `/backtest?symbol=${item.symbol}`;
     };
 
     return (
@@ -90,7 +90,7 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
 
             {/* News Intelligence */}
             <UnifiedNewsIntelligenceCard
-                ticker={item.symbol}
+                symbol={item.symbol}
                 marketNewsData={fullNewsData ?? undefined}
                 newsHidden={newsHidden}
                 showSentimentBreakdown

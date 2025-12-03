@@ -11,7 +11,7 @@ test.describe('Watchlist Page', () => {
     await page.waitForTimeout(2000) // Give React Query time to fetch data
 
     const table = page.locator('table')
-    const emptyMessage = page.getByText(/showing all 0 tickers/i)
+    const emptyMessage = page.getByText(/showing all 0 symbols/i)
 
     // Check if either table or empty message appears
     const hasTable = await table.isVisible().catch(() => false)
@@ -39,7 +39,7 @@ test.describe('Watchlist Page', () => {
       await expect(table.getByText('Score').first()).toBeVisible()
     } else {
       // If no table, verify we're in empty state
-      await expect(page.getByText(/showing all 0 tickers/i)).toBeVisible()
+      await expect(page.getByText(/showing all 0 symbols/i)).toBeVisible()
     }
   })
 

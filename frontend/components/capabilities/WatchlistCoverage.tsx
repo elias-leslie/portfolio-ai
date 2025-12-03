@@ -1,14 +1,14 @@
 /**
- * WatchlistCoverage component for displaying per-ticker gap coverage
+ * WatchlistCoverage component for displaying per-symbol gap coverage
  *
  * Shows a matrix view:
- * - Rows: Watchlist tickers
+ * - Rows: Watchlist symbols
  * - Columns: Analysis types (Technical, Fundamental, Sentiment, Risk, etc.)
  * - Cells: Coverage % with color coding
  *
  * Features:
- * - Highlight tickers with poor coverage
- * - Show missing capabilities per ticker
+ * - Highlight symbols with poor coverage
+ * - Show missing capabilities per symbol
  * - Color-coded heat map (green >80%, yellow 50-80%, red <50%)
  */
 
@@ -50,10 +50,10 @@ function formatAnalysisType(type: string): string {
 }
 
 /**
- * Ticker coverage data from API
+ * Symbol coverage data from API
  */
-interface TickerCoverageData {
-  ticker: string;
+interface SymbolCoverageData {
+  symbol: string;
   readiness_score: number;
   confidence_level: "LOW" | "MEDIUM" | "HIGH";
   coverage_by_analysis: Record<string, number>;
@@ -62,11 +62,11 @@ interface TickerCoverageData {
 }
 
 /**
- * Calculate average coverage for a ticker from coverage_by_analysis
+ * Calculate average coverage for a symbol from coverage_by_analysis
  */
-function getAverageCoverage(tickerData: TickerCoverageData | undefined): number {
-  if (!tickerData?.coverage_by_analysis) return 0;
-  const coverages = Object.values(tickerData.coverage_by_analysis);
+function getAverageCoverage(symbolData: SymbolCoverageData | undefined): number {
+  if (!symbolData?.coverage_by_analysis) return 0;
+  const coverages = Object.values(symbolData.coverage_by_analysis);
   if (coverages.length === 0) return 0;
   return coverages.reduce((sum, val) => sum + val, 0) / coverages.length;
 }
@@ -81,25 +81,25 @@ function getConfidenceColor(level: string): string {
 }
 
 /**
- * Individual ticker row component
+ * Individual symbol row component
  */
-function TickerRow({
-  ticker,
-  tickerData,
+function SymbolRow({
+  symbol,
+  symbolData,
   analysisTypes,
   isExpanded,
   onToggle,
 }: {
-  ticker: string;
-  tickerData: TickerCoverageData | undefined;
+  symbol: string;
+  symbolData: SymbolCoverageData | undefined;
   analysisTypes: string[];
   isExpanded: boolean;
   onToggle: () => void;
 }) {
-  const coverageByAnalysis = tickerData?.coverage_by_analysis || {};
-  const missingCapabilities = tickerData?.missing_capabilities || [];
-  const readinessScore = tickerData?.readiness_score || 0;
-  const confidenceLevel = tickerData?.confidence_level || "LOW";
+  const coverageByAnalysis = symbolData?.coverage_by_analysis || {};
+  const missingCapabilities = symbolData?.missing_capabilities || [];
+  const readinessScore = symbolData?.readiness_score || 0;
+  const confidenceLevel = symbolData?.confidence_level || "LOW";
 
   return (
     <div className="border-b border-border last:border-0">
@@ -121,9 +121,9 @@ function TickerRow({
             )}
           </div>
 
-          {/* Ticker symbol */}
+          {/* Symbol */}
           <div className="flex items-center">
-            <span className="font-mono font-semibold text-text">{ticker}</span>
+            <span className="font-mono font-semibold text-text">{symbol}</span>
           </div>
 
           {/* Confidence level */}
@@ -163,7 +163,7 @@ function TickerRow({
           onClick={(e) => e.stopPropagation()}
         >
           <p className="text-xs uppercase tracking-wide text-muted-foreground mb-3">
-            Missing Capabilities for {ticker} ({missingCapabilities.length} total)
+            Missing Capabilities for {symbol} ({missingCapabilities.length} total)
           </p>
 
           {missingCapabilities.length > 0 ? (
@@ -196,40 +196,40 @@ function TickerRow({
  * Main WatchlistCoverage component
  */
 export function WatchlistCoverage({ data }: WatchlistCoverageProps) {
-  const [expandedTicker, setExpandedTicker] = useState<string | null>(null);
+  const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
 
-  const toggleExpand = (ticker: string) => {
-    setExpandedTicker(expandedTicker === ticker ? null : ticker);
+  const toggleExpand = (symbol: string) => {
+    setExpandedSymbol(expandedSymbol === symbol ? null : symbol);
   };
 
-  // Get unique analysis types from coverage_by_analysis of all tickers
+  // Get unique analysis types from coverage_by_analysis of all symbols
   const analysisTypes = Array.from(
     new Set(
-      Object.values(data.ticker_coverage || {}).flatMap((tickerData) =>
-        Object.keys((tickerData as TickerCoverageData)?.coverage_by_analysis || {})
+      Object.values(data.symbol_coverage || {}).flatMap((symbolData) =>
+        Object.keys((symbolData as SymbolCoverageData)?.coverage_by_analysis || {})
       )
     )
   ).sort();
 
-  const tickers = data.watchlist_tickers || [];
+  const symbols = data.watchlist_symbols || [];
 
-  if (tickers.length === 0) {
+  if (symbols.length === 0) {
     return (
       <div className="rounded-lg border border-border bg-surface p-8 text-center">
         <AlertTriangle className="mx-auto h-12 w-12 text-accent opacity-50" />
-        <p className="mt-4 text-sm font-medium text-text">No watchlist tickers found</p>
+        <p className="mt-4 text-sm font-medium text-text">No watchlist symbols found</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Add tickers to your watchlist to see coverage analysis
+          Add symbols to your watchlist to see coverage analysis
         </p>
       </div>
     );
   }
 
-  // Calculate average readiness across all tickers
-  const avgReadiness = tickers.reduce((sum, ticker) => {
-    const tickerData = data.ticker_coverage?.[ticker] as TickerCoverageData | undefined;
-    return sum + (tickerData?.readiness_score || 0);
-  }, 0) / (tickers.length || 1);
+  // Calculate average readiness across all symbols
+  const avgReadiness = symbols.reduce((sum, symbol) => {
+    const symbolData = data.symbol_coverage?.[symbol] as SymbolCoverageData | undefined;
+    return sum + (symbolData?.readiness_score || 0);
+  }, 0) / (symbols.length || 1);
 
   return (
     <div className="space-y-4">
@@ -274,7 +274,7 @@ export function WatchlistCoverage({ data }: WatchlistCoverageProps) {
           }}
         >
           <div></div>
-          <div>Ticker</div>
+          <div>Symbol</div>
           <div className="text-center">Confidence</div>
           {analysisTypes.map((type) => (
             <div key={type} className="text-center text-[10px]">
@@ -284,16 +284,16 @@ export function WatchlistCoverage({ data }: WatchlistCoverageProps) {
           <div className="text-center">Ready</div>
         </div>
 
-        {/* Ticker rows */}
+        {/* Symbol rows */}
         <div className="divide-y divide-border">
-          {tickers.map((ticker) => (
-            <TickerRow
-              key={ticker}
-              ticker={ticker}
-              tickerData={data.ticker_coverage?.[ticker] as TickerCoverageData | undefined}
+          {symbols.map((symbol) => (
+            <SymbolRow
+              key={symbol}
+              symbol={symbol}
+              symbolData={data.symbol_coverage?.[symbol] as SymbolCoverageData | undefined}
               analysisTypes={analysisTypes}
-              isExpanded={expandedTicker === ticker}
-              onToggle={() => toggleExpand(ticker)}
+              isExpanded={expandedSymbol === symbol}
+              onToggle={() => toggleExpand(symbol)}
             />
           ))}
         </div>
@@ -304,8 +304,8 @@ export function WatchlistCoverage({ data }: WatchlistCoverageProps) {
         <p className="text-xs uppercase tracking-wide text-muted-foreground mb-3">Summary</p>
         <div className="grid gap-4 md:grid-cols-3">
           <div>
-            <p className="text-2xl font-semibold text-text">{tickers.length}</p>
-            <p className="text-xs text-muted-foreground">Tickers Analyzed</p>
+            <p className="text-2xl font-semibold text-text">{symbols.length}</p>
+            <p className="text-xs text-muted-foreground">Symbols Analyzed</p>
           </div>
           <div>
             <p className="text-2xl font-semibold text-text">{analysisTypes.length}</p>

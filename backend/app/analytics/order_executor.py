@@ -86,7 +86,7 @@ class OrderExecutor:
             Dictionary with execution results:
                 {
                     "filled": bool,
-                    "ticker": str,
+                    "symbol": str,
                     "action": str,
                     "shares": int,
                     "price": float,
@@ -129,7 +129,7 @@ class OrderExecutor:
             if not can_trade:
                 return {
                     "filled": False,
-                    "ticker": ticker,
+                    "symbol": ticker,
                     "action": action,
                     "shares": shares,
                     "price": current_price,
@@ -142,7 +142,7 @@ class OrderExecutor:
             if not self.cash_manager.check_sufficient_cash(account_id, amount):
                 return {
                     "filled": False,
-                    "ticker": ticker,
+                    "symbol": ticker,
                     "action": action,
                     "shares": shares,
                     "price": current_price,
@@ -157,7 +157,7 @@ class OrderExecutor:
                 logger.warning(f"Position limits exceeded for {ticker}: {limit_error}")
                 return {
                     "filled": False,
-                    "ticker": ticker,
+                    "symbol": ticker,
                     "action": action,
                     "shares": shares,
                     "price": current_price,
@@ -173,7 +173,7 @@ class OrderExecutor:
             if not success:
                 return {
                     "filled": False,
-                    "ticker": ticker,
+                    "symbol": ticker,
                     "action": action,
                     "error": "Failed to deduct cash",
                 }
@@ -186,7 +186,7 @@ class OrderExecutor:
             if not success:
                 return {
                     "filled": False,
-                    "ticker": ticker,
+                    "symbol": ticker,
                     "action": action,
                     "error": "Failed to add cash",
                 }
@@ -230,7 +230,7 @@ class OrderExecutor:
 
         return {
             "filled": True,
-            "ticker": ticker,
+            "symbol": ticker,
             "action": action,
             "shares": shares,
             "price": current_price,
@@ -421,7 +421,7 @@ class OrderExecutor:
         from app.analytics.trade_calculations import calculate_stop_loss  # noqa: PLC0415
 
         details: dict[str, float | str | None] = {
-            "ticker": ticker,
+            "symbol": ticker,
             "account_id": account_id,
             "equity": None,
             "entry_price": None,

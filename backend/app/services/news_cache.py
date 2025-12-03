@@ -191,7 +191,7 @@ class NewsCacheManager:
                 vendor = inner_raw.get("vendor")
 
         return NewsArticle(
-            ticker=symbol,
+            symbol=symbol,
             headline=headline,
             url=url,
             summary=summary,
@@ -231,7 +231,7 @@ class NewsCacheManager:
         if not isinstance(payload, dict):
             logger.warning(
                 "article_raw_not_dict",
-                ticker=article.ticker,
+                symbol=article.symbol,
                 headline=article.headline[:50] if article.headline else "",
                 raw_type=type(payload).__name__,
             )

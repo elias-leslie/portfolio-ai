@@ -111,7 +111,7 @@ def build_paper_trade_record(
         {
             "idea_id": idea["id"],
             "agent_run_id": idea["agent_run_id"],
-            "ticker": ticker,
+            "symbol": ticker,
             "idea_type": idea_type,
             "entry_price": entry_price,
             "entry_date": entry_date,
@@ -385,7 +385,7 @@ def create_paper_trade_from_strategy_signal(
     insert_data: PaperTradeDict = {
         "idea_id": idea_id,
         "agent_run_id": f"strategy:{strategy_id}",
-        "ticker": symbol,
+        "symbol": symbol,
         "idea_type": "buy",
         "entry_price": entry_price,
         "entry_date": entry_date,

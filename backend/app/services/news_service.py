@@ -215,9 +215,9 @@ class NewsService:
         if self.multi_source_fetcher is None:
             logger.warning("get_custom_news_no_sources", query=query)
             return NewsBundle(
-                ticker=query,
+                symbol=query,
                 summary=NewsSummary(
-                    ticker=query,
+                    symbol=query,
                     score=None,
                     score_change=None,
                     positive_count=0,
@@ -253,7 +253,7 @@ class NewsService:
             as_of=now,
             ttl=self.ttl,
         )
-        return NewsBundle(ticker=query, summary=summary, articles=articles)
+        return NewsBundle(symbol=query, summary=summary, articles=articles)
 
     # ------------------------------------------------------------------ #
     # Internal helpers
@@ -312,7 +312,7 @@ class NewsService:
             ttl=self.ttl,
         )
 
-        return NewsBundle(ticker=ticker, summary=summary, articles=recent_articles)
+        return NewsBundle(symbol=ticker, summary=summary, articles=recent_articles)
 
     def get_health(self) -> dict[str, Any]:
         """Return lightweight health metrics for the news pipeline."""

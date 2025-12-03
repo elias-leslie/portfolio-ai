@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, PlusCircle, Filter, Search } from "lucide-react";
 import { WatchlistTable } from "@/components/watchlist/WatchlistTable";
-import { AddTickerModal } from "@/components/watchlist/AddTickerModal";
+import { AddSymbolModal } from "@/components/watchlist/AddSymbolModal";
 import { useWatchlist, useRefreshWatchlist } from "@/lib/hooks/useWatchlist";
 import { toast } from "sonner";
 import {
@@ -22,7 +22,7 @@ type SignalFilter = "all" | "BUY" | "HOLD" | "AVOID";
 type RiskFilter = "all" | "Low" | "Medium-Low" | "Medium" | "High";
 
 export default function WatchlistPage() {
-  const [addTickerOpen, setAddTickerOpen] = useState(false);
+  const [addSymbolOpen, setAddSymbolOpen] = useState(false);
   const [styleFilter, setStyleFilter] = useState<StyleFilter>("all");
   const [signalFilter, setSignalFilter] = useState<SignalFilter>("all");
   const [riskFilter, setRiskFilter] = useState<RiskFilter>("all");
@@ -68,9 +68,9 @@ export default function WatchlistPage() {
         // Handle different statuses
         if (data.status === "success") {
           // All success
-          toast.success(data.message || `Refreshed ${data.refreshed_count} tickers`);
+          toast.success(data.message || `Refreshed ${data.refreshed_count} symbols`);
         } else if (data.status === "partial_success") {
-          // Partial success - show warning with failed tickers
+          // Partial success - show warning with failed symbols
           const failedSymbols = data.failed?.slice(0, 3).map((f) => f.symbol).join(", ") || "";
           const moreCount = (data.failed_count || 0) - 3;
           const failedMsg = moreCount > 0 ? `${failedSymbols} and ${moreCount} more` : failedSymbols;
@@ -148,9 +148,9 @@ export default function WatchlistPage() {
           title="Watchlist Intelligence Hub"
           description={
             searchQuery.trim()
-              ? `Found ${filteredItems.length} ${filteredItems.length === 1 ? "ticker" : "tickers"} matching "${searchQuery}"`
+              ? `Found ${filteredItems.length} ${filteredItems.length === 1 ? "symbol" : "symbols"} matching "${searchQuery}"`
               : styleFilter === "all"
-              ? `Showing all ${watchlistData?.items.length || 0} tickers`
+              ? `Showing all ${watchlistData?.items.length || 0} symbols`
               : `Showing ${filteredItems.length} ${styleFilter} ${filteredItems.length === 1 ? "play" : "plays"}`
           }
           size="md"
@@ -166,9 +166,9 @@ export default function WatchlistPage() {
                 />
                 Refresh
               </Button>
-              <Button onClick={() => setAddTickerOpen(true)}>
+              <Button onClick={() => setAddSymbolOpen(true)}>
                 <PlusCircle className="mr-2 h-4 w-4" />
-                Add Ticker
+                Add Symbol
               </Button>
             </div>
           }
@@ -262,10 +262,10 @@ export default function WatchlistPage() {
           />
         )}
 
-        {/* Add Ticker Modal */}
-        <AddTickerModal
-          open={addTickerOpen}
-          onOpenChange={setAddTickerOpen}
+        {/* Add Symbol Modal */}
+        <AddSymbolModal
+          open={addSymbolOpen}
+          onOpenChange={setAddSymbolOpen}
           currentCount={watchlistData?.items.length || 0}
         />
       </div>

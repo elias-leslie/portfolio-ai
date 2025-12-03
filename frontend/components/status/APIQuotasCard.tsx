@@ -54,7 +54,7 @@ export function APIQuotasCard({ health }: APIQuotasCardProps) {
                     {quota.daily_limit && <div>Daily limit: {quota.daily_limit}</div>}
                     {quota.estimated_capacity !== null &&
                       quota.estimated_capacity !== undefined && (
-                        <div>Estimated capacity: ~{quota.estimated_capacity} tickers</div>
+                        <div>Estimated capacity: ~{quota.estimated_capacity} symbols</div>
                       )}
                   </div>
                 </div>

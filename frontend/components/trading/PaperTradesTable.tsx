@@ -163,7 +163,7 @@ export function PaperTradesTable({ trades, type }: PaperTradesTableProps) {
                         )}
                       </Button>
                     </TableCell>
-                    <TableCell className="font-semibold">{trade.ticker}</TableCell>
+                    <TableCell className="font-semibold">{trade.symbol}</TableCell>
                     <TableCell>
                       <Badge variant={trade.idea_type === "buy" ? "default" : "secondary"}>
                         {trade.idea_type.toUpperCase()}
@@ -248,8 +248,8 @@ export function PaperTradesTable({ trades, type }: PaperTradesTableProps) {
         open={closeDialogOpen}
         onOpenChange={setCloseDialogOpen}
         onConfirm={confirmCloseTrade}
-        title={`Close ${selectedTrade?.ticker} Trade?`}
-        description={`This will close your ${selectedTrade?.idea_type} position in ${selectedTrade?.ticker} at the current market price. Current P&L: ${formatPct(selectedTrade?.current_return_pct)}`}
+        title={`Close ${selectedTrade?.symbol} Trade?`}
+        description={`This will close your ${selectedTrade?.idea_type} position in ${selectedTrade?.symbol} at the current market price. Current P&L: ${formatPct(selectedTrade?.current_return_pct)}`}
         confirmLabel="Close Position"
         tone="default"
       />

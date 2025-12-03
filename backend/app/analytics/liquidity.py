@@ -163,7 +163,7 @@ def check_position_liquidity(
             False,
             "Insufficient volume data",
             {
-                "ticker": ticker,
+                "symbol": ticker,
                 "reason": "no_adv_available",
             },
         )
@@ -172,7 +172,7 @@ def check_position_liquidity(
     position_percent_adv = (proposed_shares / adv) * 100 if adv > 0 else 100
 
     details: dict[str, float | int | str] = {
-        "ticker": ticker,
+        "symbol": ticker,
         "proposed_shares": proposed_shares,
         "proposed_value": proposed_shares * entry_price,
         "adv": adv,

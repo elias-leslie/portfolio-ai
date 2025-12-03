@@ -6,7 +6,7 @@ import type {
 } from "./watchlist";
 
 export interface NewsBundle {
-    ticker: string;
+    symbol: string;
     summary: NewsSentimentDetail;
     articles: SentimentArticle[];
 }
@@ -63,14 +63,14 @@ function buildQuery(params: QueryParams): string {
 }
 
 export async function fetchNewsIntelligence(
-    ticker?: string,
+    symbol?: string,
     options?: {
         limit?: number;
         forceRefresh?: boolean;
     },
 ): Promise<NewsBundle> {
     const query = buildQuery({
-        ticker,
+        symbol,
         limit: options?.limit,
         force_refresh: options?.forceRefresh,
     });

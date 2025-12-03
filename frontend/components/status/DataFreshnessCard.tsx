@@ -80,15 +80,15 @@ export function DataFreshnessCard({ freshness }: DataFreshnessCardProps) {
         }
     };
 
-    const renderTickerRow = (item: DayBarFreshnessInfo) => (
+    const renderSymbolRow = (item: DayBarFreshnessInfo) => (
         <div
-            key={item.ticker}
+            key={item.symbol}
             className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
         >
             <div className="flex items-center gap-3 flex-1">
                 {getStatusIcon(item.age_days)}
                 <div className="flex-1">
-                    <div className="font-medium font-mono">{item.ticker}</div>
+                    <div className="font-medium font-mono">{item.symbol}</div>
                     <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
                         <div>Last updated: {formatDate(item.last_updated)}</div>
                         {item.age_days !== undefined && item.age_days !== null && (
@@ -137,7 +137,7 @@ export function DataFreshnessCard({ freshness }: DataFreshnessCardProps) {
                                     <ChevronRight className="h-4 w-4" />
                                 )}
                                 <span className="font-semibold">
-                                    All Tickers ({freshness.length})
+                                    All Symbols ({freshness.length})
                                 </span>
                             </div>
                         </Button>
@@ -151,8 +151,8 @@ export function DataFreshnessCard({ freshness }: DataFreshnessCardProps) {
                                         Very Stale (&gt;7 days)
                                     </div>
                                     {veryStale
-                                        .sort((a, b) => a.ticker.localeCompare(b.ticker))
-                                        .map(renderTickerRow)}
+                                        .sort((a, b) => a.symbol.localeCompare(b.symbol))
+                                        .map(renderSymbolRow)}
                                 </>
                             )}
 
@@ -163,8 +163,8 @@ export function DataFreshnessCard({ freshness }: DataFreshnessCardProps) {
                                         Stale (1-7 days)
                                     </div>
                                     {stale
-                                        .sort((a, b) => a.ticker.localeCompare(b.ticker))
-                                        .map(renderTickerRow)}
+                                        .sort((a, b) => a.symbol.localeCompare(b.symbol))
+                                        .map(renderSymbolRow)}
                                 </>
                             )}
 
@@ -175,8 +175,8 @@ export function DataFreshnessCard({ freshness }: DataFreshnessCardProps) {
                                         Fresh (≤1 day)
                                     </div>
                                     {fresh
-                                        .sort((a, b) => a.ticker.localeCompare(b.ticker))
-                                        .map(renderTickerRow)}
+                                        .sort((a, b) => a.symbol.localeCompare(b.symbol))
+                                        .map(renderSymbolRow)}
                                 </>
                             )}
                         </div>
@@ -186,7 +186,7 @@ export function DataFreshnessCard({ freshness }: DataFreshnessCardProps) {
                 <div className="mt-4 p-3 bg-muted/50 rounded-lg text-xs text-muted-foreground">
                     <p className="font-medium mb-1">Note:</p>
                     <p>
-                        Data freshness indicates how recent the last day_bars entry is for each ticker.
+                        Data freshness indicates how recent the last day_bars entry is for each symbol.
                         Fresh data (&lt;1 day) is normal. Stale data may indicate ingestion issues or
                         market holidays.
                     </p>

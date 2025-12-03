@@ -26,7 +26,7 @@ interface KeyEvent {
 }
 
 interface NewsArticle {
-  ticker?: string;
+  symbol?: string;
   headline: string;
   url?: string | null;
   source?: string | null;
@@ -82,8 +82,8 @@ interface RecentNewsPayload {
 
 // Unified props interface
 interface UnifiedNewsIntelligenceCardProps {
-  // Context: If ticker provided, shows ticker-specific sections (header, scores)
-  ticker?: string | null;
+  // Context: If symbol provided, shows symbol-specific sections (header, scores)
+  symbol?: string | null;
 
   // Data: One of these three structures
   newsIntelligence?: TickerNewsIntelligence | null;
@@ -91,7 +91,7 @@ interface UnifiedNewsIntelligenceCardProps {
   recentNews?: RecentNewsPayload | null;
 
   // Display options
-  showHeader?: boolean;  // Show headline summary section (ticker-specific)
+  showHeader?: boolean;  // Show headline summary section (symbol-specific)
   showSentimentBreakdown?: boolean;  // Show sentiment counts and model coverage
   newsHidden?: boolean;  // Legacy from watchlist - hide entire card
 
@@ -107,33 +107,33 @@ interface UnifiedNewsIntelligenceCardProps {
  * Unified News Intelligence Card
  *
  * Supports two modes:
- * 1. Market News (dashboard): ticker=null, marketNewsData provided
+ * 1. Market News (dashboard): symbol=null, marketNewsData provided
  *    - Shows: Articles list, sorting, Show All, AI insights
  *    - Hides: Headline summary, key events, sentiment breakdown
  *
- * 2. Ticker News (watchlist): ticker="NVDA", newsIntelligence OR recentNews provided
+ * 2. Symbol News (watchlist): symbol="NVDA", newsIntelligence OR recentNews provided
  *    - Shows: All sections including headline summary, key events (if available), sentiment breakdown
  *    - Conditional: Header and scores based on props
  *
- * 3. Ticker Recent News (watchlist simple): ticker="NVDA", recentNews provided
+ * 3. Symbol Recent News (watchlist simple): symbol="NVDA", recentNews provided
  *    - Shows: Sentiment breakdown, articles with Show All
  *    - No key events (simpler data structure)
  *
- * @param ticker - If provided, enables ticker-specific sections
- * @param newsIntelligence - Ticker-specific news data structure (rich with key events)
+ * @param symbol - If provided, enables symbol-specific sections
+ * @param newsIntelligence - Symbol-specific news data structure (rich with key events)
  * @param marketNewsData - Market-wide news data structure
  * @param recentNews - Watchlist recent news structure (simpler, no key events)
- * @param showHeader - Show headline summary section (default: true for ticker, false for market)
+ * @param showHeader - Show headline summary section (default: true for symbol, false for market)
  * @param showSentimentBreakdown - Show sentiment counts and model coverage (default: true for recentNews)
  * @param newsHidden - Hide the entire card (legacy from watchlist)
  * @param title - Custom title (default: context-based)
  */
 export function UnifiedNewsIntelligenceCard({
-  ticker,
+  symbol,
   newsIntelligence,
   marketNewsData,
   recentNews,
-  showHeader = !!ticker,
+  showHeader = !!symbol,
   showSentimentBreakdown = true,  // Always show sentiment breakdown when available
   newsHidden = false,
   title,
@@ -221,10 +221,10 @@ export function UnifiedNewsIntelligenceCard({
     Boolean(onRequestExpanded) || sortedArticles.length > DEFAULT_DISPLAY_COUNT;
 
   // Determine title
-  const cardTitle = title || (ticker ? "📰 News Intelligence" : "Market News");
+  const cardTitle = title || (symbol ? "📰 News Intelligence" : "Market News");
 
-  // Determine if we should show gradient styling (market news) or standard (ticker news)
-  const isMarketNews = !ticker;
+  // Determine if we should show gradient styling (market news) or standard (symbol news)
+  const isMarketNews = !symbol;
 
   const handleToggleShowAll = () => {
     if (!showAll) {
@@ -267,8 +267,8 @@ export function UnifiedNewsIntelligenceCard({
       </CardHeader>
 
       <CardContent className={isMarketNews ? "p-0" : "space-y-4"}>
-        {/* Headline Summary (ticker-specific only, when showHeader=true) */}
-        {ticker && showHeader && newsIntelligence && (
+        {/* Headline Summary (symbol-specific only, when showHeader=true) */}
+        {symbol && showHeader && newsIntelligence && (
           <div>
             <h4 className="text-sm font-semibold text-text mb-2">
               {newsIntelligence.headline}
@@ -288,8 +288,8 @@ export function UnifiedNewsIntelligenceCard({
           </div>
         )}
 
-        {/* Key Events (ticker-specific only) */}
-        {ticker && newsIntelligence && newsIntelligence.key_events && newsIntelligence.key_events.length > 0 && (
+        {/* Key Events (symbol-specific only) */}
+        {symbol && newsIntelligence && newsIntelligence.key_events && newsIntelligence.key_events.length > 0 && (
           <div>
             <h5 className="text-xs font-semibold text-text mb-2">Key Events:</h5>
             <div className="space-y-2">
@@ -381,7 +381,7 @@ export function UnifiedNewsIntelligenceCard({
         {/* Recent Articles (always shown) */}
         {articles.length === 0 ? (
           <div className="text-sm text-text-muted py-4">
-            {ticker ? "No recent articles available" : "No recent market news available"}
+            {symbol ? "No recent articles available" : "No recent market news available"}
           </div>
         ) : (
           <>
@@ -417,8 +417,7 @@ export function UnifiedNewsIntelligenceCard({
                 // Generate unique key
                 const articleKey = article.content_hash || article.url || `article-${idx}-${article.headline.substring(0, 30)}`;
 
-                // Watchlist-style detailed layout (when recentNews provided)
-                // Unified detailed layout for all news (market and ticker)
+                // Unified detailed layout for all news (market and symbol)
                   return (
                     <div
                       key={articleKey}

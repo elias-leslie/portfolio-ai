@@ -11,7 +11,7 @@ import { apiRequest } from "./client";
 export interface PaperTrade {
   idea_id: string;
   agent_run_id: string;
-  ticker: string;
+  symbol: string;
   idea_type: "buy" | "sell";
   shares?: number;
   entry_price?: number;
@@ -70,7 +70,7 @@ export interface CloseTradeRequest {
 export interface CloseTradeResponse {
   status: string;
   trade_id: string;
-  ticker: string;
+  symbol: string;
   exit_price: number;
   exit_date: string;
   realized_return_pct: number;
@@ -78,7 +78,7 @@ export interface CloseTradeResponse {
 }
 
 export interface CreateTradeRequest {
-  ticker: string;
+  symbol: string;
   action: "buy" | "sell";
   thesis: string;
   target_price?: number;
@@ -88,7 +88,7 @@ export interface CreateTradeRequest {
 export interface CreateTradeResponse {
   status: string;
   trade_id?: string;
-  ticker?: string;
+  symbol?: string;
   action?: string;
   shares?: number;
   entry_price?: number;

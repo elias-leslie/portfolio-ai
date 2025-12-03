@@ -78,7 +78,7 @@ class DataTools:
 
             return {
                 "query": normalized_query,
-                "ticker": bundle.ticker,
+                "symbol": bundle.symbol,
                 "summary": bundle.summary.model_dump(),
                 "articles": [article.model_dump() for article in bundle.articles[:limit]],
                 "count": len(bundle.articles),

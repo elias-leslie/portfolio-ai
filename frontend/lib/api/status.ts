@@ -80,7 +80,7 @@ export interface APIQuotaInfo {
 }
 
 export interface DayBarFreshnessInfo {
-  ticker: string;
+  symbol: string;
   last_updated?: string;
   age_days?: number;
 }

@@ -103,7 +103,7 @@ export function NewBacktestDialog({
   open,
   onOpenChange,
 }: NewBacktestDialogProps) {
-  const [ticker, setTicker] = useState("");
+  const [symbol, setSymbol] = useState("");
   const [strategy, setStrategy] = useState("enhanced");
   const [isProcessing, setIsProcessing] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -135,14 +135,14 @@ export function NewBacktestDialog({
    * Validate form inputs
    */
   const getValidationError = (): string | null => {
-    if (!ticker.trim()) {
-      return "Please enter a ticker symbol";
+    if (!symbol.trim()) {
+      return "Please enter a symbol";
     }
-    if (ticker.length > 10) {
-      return "Ticker must be 10 characters or less";
+    if (symbol.length > 10) {
+      return "Symbol must be 10 characters or less";
     }
-    if (!/^[A-Z0-9.-]+$/.test(ticker.toUpperCase())) {
-      return "Ticker must contain only letters, numbers, dots, and dashes";
+    if (!/^[A-Z0-9.-]+$/.test(symbol.toUpperCase())) {
+      return "Symbol must contain only letters, numbers, dots, and dashes";
     }
     if (!startDate) {
       return "Please select a start date";
@@ -163,7 +163,7 @@ export function NewBacktestDialog({
    * Reset form to defaults
    */
   const resetForm = () => {
-    setTicker("");
+    setSymbol("");
     setStrategy("enhanced");
     setStartDate(defaultDates.start);
     setEndDate(defaultDates.end);
@@ -183,7 +183,7 @@ export function NewBacktestDialog({
     setIsProcessing(true);
     try {
       await startBacktest.mutateAsync({
-        symbol: ticker.toUpperCase(),
+        symbol: symbol.toUpperCase(),
         strategy,
         start_date: startDate,
         end_date: endDate,
@@ -227,14 +227,14 @@ export function NewBacktestDialog({
         </DialogHeader>
 
         <div className="grid gap-4 py-4">
-          {/* Ticker Input */}
+          {/* Symbol Input */}
           <div className="grid gap-2">
-            <Label htmlFor="ticker">Ticker Symbol</Label>
+            <Label htmlFor="symbol">Symbol</Label>
             <Input
-              id="ticker"
+              id="symbol"
               placeholder="e.g., AAPL, TSLA"
-              value={ticker}
-              onChange={(e) => setTicker(e.target.value.toUpperCase())}
+              value={symbol}
+              onChange={(e) => setSymbol(e.target.value.toUpperCase())}
               disabled={isProcessing}
               autoFocus
               className="font-mono uppercase"

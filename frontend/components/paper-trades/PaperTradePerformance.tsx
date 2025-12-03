@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 
 interface PaperTrade {
   id: string;
-  ticker: string;
+  symbol: string;
   entry_price: number;
   current_price?: number;
   exit_price?: number;

@@ -216,7 +216,7 @@ def get_risk_adjusted_position_size(
     from app.analytics.trade_calculations import calculate_stop_loss  # noqa: PLC0415
 
     details: dict[str, float | str | None] = {
-        "ticker": ticker,
+        "symbol": ticker,
         "equity": equity,
         "entry_price": entry_price,
         "stop_loss": None,

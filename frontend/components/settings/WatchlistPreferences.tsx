@@ -321,7 +321,7 @@ export function WatchlistPreferences({
                     </div>
 
                     <div className="space-y-3">
-                        <Label>Max Headlines Per Ticker</Label>
+                        <Label>Max Headlines Per Symbol</Label>
                         <RadioGroup
                             value={String(newsMaxArticles)}
                             onValueChange={(value) =>
@@ -349,7 +349,7 @@ export function WatchlistPreferences({
                         </RadioGroup>
                         <p className="text-xs text-text-muted">
                             Sets the default number of headlines returned for
-                            each ticker and the Market view. API calls can still
+                            each symbol and the Market view. API calls can still
                             request fewer or more (up to 20).
                         </p>
                     </div>
@@ -386,7 +386,7 @@ export function WatchlistPreferences({
                         </div>
                         <p className="text-xs text-text-muted">
                             Disable this to hide the news expansion section for
-                            each ticker.
+                            each symbol.
                         </p>
                     </div>
                 </div>

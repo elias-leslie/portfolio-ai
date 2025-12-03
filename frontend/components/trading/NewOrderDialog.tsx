@@ -29,7 +29,7 @@ interface NewOrderDialogProps {
 }
 
 export function NewOrderDialog({ open, onOpenChange }: NewOrderDialogProps) {
-  const [ticker, setTicker] = useState("");
+  const [symbol, setSymbol] = useState("");
   const [action, setAction] = useState<"buy" | "sell">("buy");
   const [thesis, setThesis] = useState("");
   const [targetPrice, setTargetPrice] = useState("");
@@ -38,11 +38,11 @@ export function NewOrderDialog({ open, onOpenChange }: NewOrderDialogProps) {
   const createTrade = useCreatePaperTrade();
 
   const handleSubmit = async () => {
-    if (!ticker || !thesis) return;
+    if (!symbol || !thesis) return;
 
     createTrade.mutate(
       {
-        ticker,
+        symbol,
         action,
         thesis,
         target_price: targetPrice ? Number.parseFloat(targetPrice) : undefined,
@@ -50,7 +50,7 @@ export function NewOrderDialog({ open, onOpenChange }: NewOrderDialogProps) {
       },
       {
         onSuccess: () => {
-          setTicker("");
+          setSymbol("");
           setAction("buy");
           setThesis("");
           setTargetPrice("");
@@ -61,7 +61,7 @@ export function NewOrderDialog({ open, onOpenChange }: NewOrderDialogProps) {
     );
   };
 
-  const isFormValid = ticker.length > 0 && thesis.length > 0;
+  const isFormValid = symbol.length > 0 && thesis.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -76,12 +76,12 @@ export function NewOrderDialog({ open, onOpenChange }: NewOrderDialogProps) {
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="ticker">Ticker Symbol</Label>
+              <Label htmlFor="symbol">Symbol</Label>
               <Input
-                id="ticker"
+                id="symbol"
                 placeholder="AAPL"
-                value={ticker}
-                onChange={(e) => setTicker(e.target.value.toUpperCase())}
+                value={symbol}
+                onChange={(e) => setSymbol(e.target.value.toUpperCase())}
                 className="font-mono uppercase"
               />
             </div>

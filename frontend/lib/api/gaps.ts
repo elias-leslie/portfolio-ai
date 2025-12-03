@@ -4,7 +4,7 @@
  * Endpoints:
  * - GET /api/gaps/summary - System-wide gap summary
  * - GET /api/gaps/by-analysis - Gaps grouped by analysis type
- * - GET /api/gaps/by-ticker/:ticker - Per-ticker gap analysis
+ * - GET /api/gaps/by-symbol/:symbol - Per-symbol gap analysis
  * - GET /api/gaps/watchlist - Watchlist gaps
  * - POST /api/gaps/generate-task-list - Generate task list for gaps
  */
@@ -58,14 +58,14 @@ export interface GapsByAnalysis {
   analysis_types: Record<string, CoverageResult>;
 }
 
-export interface TickerGaps {
-  ticker: string;
+export interface SymbolGaps {
+  symbol: string;
   analysis_types: Record<string, any>;
 }
 
 export interface WatchlistGaps {
-  watchlist_tickers: string[];
-  ticker_coverage: Record<string, any>;
+  watchlist_symbols: string[];
+  symbol_coverage: Record<string, any>;
   aggregate_gaps: GapInfo[];
 }
 
@@ -116,10 +116,10 @@ export async function fetchGapsByAnalysis(): Promise<GapsByAnalysis> {
 }
 
 /**
- * Fetch per-ticker gap analysis
+ * Fetch per-symbol gap analysis
  */
-export async function fetchTickerGaps(ticker: string): Promise<TickerGaps> {
-  const response = await fetch(`${API_BASE}/api/gaps/by-ticker/${ticker}`, {
+export async function fetchSymbolGaps(symbol: string): Promise<SymbolGaps> {
+  const response = await fetch(`${API_BASE}/api/gaps/by-symbol/${symbol}`, {
     headers: {
       "Content-Type": "application/json",
     },
@@ -127,7 +127,7 @@ export async function fetchTickerGaps(ticker: string): Promise<TickerGaps> {
 
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.detail || "Failed to fetch ticker gaps");
+    throw new Error(error.detail || "Failed to fetch symbol gaps");
   }
 
   return response.json();

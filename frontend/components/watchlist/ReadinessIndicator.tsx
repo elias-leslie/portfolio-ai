@@ -1,21 +1,21 @@
 /**
  * Analysis Readiness Indicator - Task 5.3
  *
- * Displays data coverage readiness score for a ticker to indicate
+ * Displays data coverage readiness score for a symbol to indicate
  * how complete the analysis is based on available data capabilities.
  */
 
 interface ReadinessIndicatorProps {
   readinessScore: number | null | undefined;
   confidenceLevel: string | null | undefined;
-  ticker: string;
+  symbol: string;
   compact?: boolean;
 }
 
 export function ReadinessIndicator({
   readinessScore,
   confidenceLevel,
-  ticker,
+  symbol,
   compact = false,
 }: ReadinessIndicatorProps) {
   // Don't show if no data

@@ -23,7 +23,7 @@ class SentimentScore(BaseModel):
 class NewsArticle(BaseModel):
     """Processed and scored news article."""
 
-    ticker: str
+    symbol: str
     headline: str
     url: str | None = None
     summary: str | None = None
@@ -55,7 +55,7 @@ class NewsArticle(BaseModel):
 class NewsSummary(BaseModel):
     """Aggregated sentiment summary for a set of articles."""
 
-    ticker: str
+    symbol: str
     score: float | None
     score_change: float | None
     positive_count: int
@@ -71,6 +71,6 @@ class NewsSummary(BaseModel):
 class NewsBundle(BaseModel):
     """Bundle of articles with aggregated summary."""
 
-    ticker: str
+    symbol: str
     summary: NewsSummary
     articles: list[NewsArticle]

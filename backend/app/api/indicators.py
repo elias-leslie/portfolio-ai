@@ -303,7 +303,7 @@ def get_indicators_for_ticker(
 
         # Transform the result to match our response model
         response_data: dict[str, Any] = {
-            "ticker": result["ticker"],
+            "ticker": result["symbol"],
             "date": result["date"],
             "close_price": result.get("close_price"),
             "indicators": result["indicators"],

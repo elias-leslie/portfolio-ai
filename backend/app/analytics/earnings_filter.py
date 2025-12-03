@@ -110,7 +110,7 @@ def check_earnings_proximity(
             True,
             "Earnings date unknown - trade allowed",
             {
-                "ticker": ticker,
+                "symbol": ticker,
                 "earnings_date": None,
                 "days_away": None,
             },
@@ -126,7 +126,7 @@ def check_earnings_proximity(
     days_away = (earnings_date_normalized - now_normalized).days
 
     details: dict[str, str | int | None] = {
-        "ticker": ticker,
+        "symbol": ticker,
         "earnings_date": earnings_date.isoformat(),
         "days_away": days_away,
         "min_days_required": min_days,

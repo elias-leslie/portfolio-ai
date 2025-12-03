@@ -29,7 +29,7 @@ export interface MockPortfolioPosition {
 
 export interface MockNewsArticle {
   id: string
-  ticker: string
+  symbol: string
   headline: string
   summary: string
   url: string
@@ -98,7 +98,7 @@ export function mockPortfolioPosition(
 export function mockNewsArticle(overrides?: Partial<MockNewsArticle>): MockNewsArticle {
   return {
     id: 'test-news-id',
-    ticker: 'AAPL',
+    symbol: 'AAPL',
     headline: 'Test News Headline',
     summary: 'This is a test news article summary.',
     url: 'https://example.com/news',

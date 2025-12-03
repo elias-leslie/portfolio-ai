@@ -91,7 +91,7 @@ class TradingTools:
                 "idea_id": idea_id,
                 "status": "stored",
                 "paper_trade_created": True,
-                "ticker": paper_trade["ticker"],
+                "symbol": paper_trade["ticker"],
             }
         logger.warning(f"Failed to create paper trade for idea {idea_id}")
         return {"idea_id": idea_id, "status": "stored", "paper_trade_created": False}
@@ -127,7 +127,7 @@ class TradingTools:
             added_by = existing.get_column("added_by")[0]
             return {
                 "status": "exists",
-                "ticker": ticker,
+                "symbol": ticker,
                 "added_by": added_by,
                 "message": f"{ticker} already in watchlist (added by {added_by})",
             }
@@ -161,7 +161,7 @@ class TradingTools:
 
             return {
                 "status": "added",
-                "ticker": ticker,
+                "symbol": ticker,
                 "item_id": item_id,
                 "message": f"Added {ticker} to watchlist (expected {expected_return_pct}% in {time_horizon_days} days)",
             }
@@ -170,7 +170,7 @@ class TradingTools:
             logger.error(f"Failed to add {ticker} to watchlist: {e}")
             return {
                 "status": "error",
-                "ticker": ticker,
+                "symbol": ticker,
                 "error": str(e),
             }
 
@@ -200,7 +200,7 @@ class TradingTools:
         if existing.is_empty():
             return {
                 "status": "not_found",
-                "ticker": ticker,
+                "symbol": ticker,
                 "message": f"{ticker} not in watchlist",
             }
 
@@ -213,13 +213,13 @@ class TradingTools:
             if added_by == "user":
                 return {
                     "status": "forbidden",
-                    "ticker": ticker,
+                    "symbol": ticker,
                     "added_by": added_by,
                     "message": f"Cannot remove {ticker} - user-added tickers can only be removed by users",
                 }
             return {
                 "status": "forbidden",
-                "ticker": ticker,
+                "symbol": ticker,
                 "added_by": added_by,
                 "message": f"Cannot remove {ticker} - added by different agent ({added_by})",
             }
@@ -229,7 +229,7 @@ class TradingTools:
         if days_since_added < 30:
             return {
                 "status": "too_soon",
-                "ticker": ticker,
+                "symbol": ticker,
                 "days_since_added": days_since_added,
                 "message": f"Cannot remove {ticker} - only {days_since_added} days since added (need 30+)",
             }
@@ -245,7 +245,7 @@ class TradingTools:
 
             return {
                 "status": "removed",
-                "ticker": ticker,
+                "symbol": ticker,
                 "days_held": days_since_added,
                 "message": f"Removed {ticker} from watchlist (held {days_since_added} days): {reason}",
             }
@@ -254,7 +254,7 @@ class TradingTools:
             logger.error(f"Failed to remove {ticker}: {e}")
             return {
                 "status": "error",
-                "ticker": ticker,
+                "symbol": ticker,
                 "error": str(e),
             }
 
@@ -303,7 +303,7 @@ class TradingTools:
         if max_shares == 0:
             return {
                 "status": "error",
-                "ticker": ticker,
+                "symbol": ticker,
                 "error": "Insufficient cash or failed to calculate position size",
             }
 
@@ -348,7 +348,7 @@ class TradingTools:
             logger.error(f"Failed to execute paper trade for {ticker}: {error_msg}")
             return {
                 "status": "error",
-                "ticker": ticker,
+                "symbol": ticker,
                 "error": error_msg,
             }
 
@@ -369,7 +369,7 @@ class TradingTools:
             {
                 "idea_id": idea_id,
                 "agent_run_id": agent_run_id,
-                "ticker": ticker,
+                "symbol": ticker,
                 "idea_type": action,
                 "entry_price": entry_price,
                 "entry_date": now.date().isoformat(),
@@ -393,7 +393,7 @@ class TradingTools:
         return {
             "status": "created",
             "trade_id": idea_id,
-            "ticker": ticker,
+            "symbol": ticker,
             "action": action,
             "shares": max_shares,
             "entry_price": entry_price,
@@ -519,7 +519,7 @@ class TradingTools:
                     return {
                         "status": "completed",
                         "backtest_run_id": run_id,
-                        "ticker": ticker,
+                        "symbol": ticker,
                         "sharpe_ratio": float(run.sharpe_ratio) if run.sharpe_ratio else 0.0,
                         "win_rate": float(run.win_rate) if run.win_rate else 0.0,
                         "max_drawdown_pct": (
@@ -541,7 +541,7 @@ class TradingTools:
                     return {
                         "status": "error",
                         "backtest_run_id": run_id,
-                        "ticker": ticker,
+                        "symbol": ticker,
                         "error": f"Backtest failed: {error_msg}",
                     }
 
@@ -550,7 +550,7 @@ class TradingTools:
             return {
                 "status": "timeout",
                 "backtest_run_id": run_id,
-                "ticker": ticker,
+                "symbol": ticker,
                 "error": f"Backtest timed out after {max_wait_seconds}s",
             }
 
@@ -558,7 +558,7 @@ class TradingTools:
             logger.error(f"Failed to execute backtest for {ticker}: {e}")
             return {
                 "status": "error",
-                "ticker": ticker,
+                "symbol": ticker,
                 "error": str(e),
             }
 

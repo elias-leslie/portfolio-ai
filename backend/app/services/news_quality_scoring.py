@@ -55,7 +55,7 @@ class NewsQualityScorer:
             except Exception as e:
                 logger.error(
                     "quality_prediction_failed",
-                    ticker=article.ticker,
+                    symbol=article.symbol,
                     headline=article.headline[:50],
                     error=str(e),
                 )

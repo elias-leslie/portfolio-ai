@@ -232,7 +232,7 @@ def _build_rvol_entry(
     avg_volume = _fetch_average_volume(storage, ticker, lookback_start, target_date)
 
     return {
-        "ticker": ticker,
+        "symbol": ticker,
         "rvol": round(rvol, 2),
         "current_volume": int(current_volume) if current_volume else 0,
         "avg_volume": int(avg_volume) if avg_volume else 0,

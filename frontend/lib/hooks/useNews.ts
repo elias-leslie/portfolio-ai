@@ -10,8 +10,8 @@ import { usePortfolio } from "./usePortfolio";
 
 export const newsKeys = {
   all: ["news"] as const,
-  intelligence: (ticker?: string, limit?: number) =>
-    [...newsKeys.all, "intelligence", ticker ?? "market", limit ?? "default"] as const,
+  intelligence: (symbol?: string, limit?: number) =>
+    [...newsKeys.all, "intelligence", symbol ?? "market", limit ?? "default"] as const,
   market: () => [...newsKeys.all, "market"] as const,
   symbol: (symbol: string) => [...newsKeys.all, "symbol", symbol] as const,
   watchlist: (accountId: string) => [...newsKeys.all, "watchlist", accountId] as const,
@@ -20,12 +20,12 @@ export const newsKeys = {
 };
 
 export function useNewsIntelligence(
-  ticker?: string,
+  symbol?: string,
   options?: { limit?: number; forceRefresh?: boolean; enabled?: boolean },
 ) {
   return useQuery<NewsBundle, Error>({
-    queryKey: newsKeys.intelligence(ticker, options?.limit),
-    queryFn: () => fetchNewsIntelligence(ticker, options),
+    queryKey: newsKeys.intelligence(symbol, options?.limit),
+    queryFn: () => fetchNewsIntelligence(symbol, options),
     staleTime: 1000 * 60 * 5,
     enabled: options?.enabled !== false,
     refetchOnWindowFocus: false,
