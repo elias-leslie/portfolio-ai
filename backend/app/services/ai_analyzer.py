@@ -380,6 +380,8 @@ Return ONLY the JSON array, no additional text.
                     ai_confidence = insight.get("ai_confidence")
 
                     # UPSERT: ON CONFLICT preserve status field
+                    # Uses (capability_type, table_name, insight_type) constraint
+                    # instead of capability_id which changes on rescan
                     conn.execute(
                         """
                         INSERT INTO capability_insights (
@@ -390,9 +392,9 @@ Return ONLY the JSON array, no additional text.
                         ) VALUES (
                             %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s
                         )
-                        ON CONFLICT (capability_type, capability_id, insight_type)
+                        ON CONFLICT (capability_type, table_name, insight_type)
                         DO UPDATE SET
-                            table_name = EXCLUDED.table_name,
+                            capability_id = EXCLUDED.capability_id,
                             severity = EXCLUDED.severity,
                             finding = EXCLUDED.finding,
                             expected_behavior = EXCLUDED.expected_behavior,
@@ -404,7 +406,8 @@ Return ONLY the JSON array, no additional text.
                             ai_confidence = EXCLUDED.ai_confidence,
                             generated_at = EXCLUDED.generated_at,
                             updated_at = NOW()
-                            -- status preserved (don't overwrite if confirmed/dismissed)
+                        WHERE capability_insights.status = 'pending'
+                        -- Only update pending insights; fixed/auto_resolved/dismissed are preserved
                         """,
                         [
                             capability_type,
