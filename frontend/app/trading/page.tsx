@@ -47,6 +47,28 @@ export default function TradingPage() {
     return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
   };
 
+  // Format currency
+  const formatCurrency = (value: number | undefined) => {
+    if (value === undefined || value === null) return "$0.00";
+    const prefix = value >= 0 ? "+$" : "-$";
+    return `${prefix}${Math.abs(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
+  // Calculate unrealized P&L from open trades
+  const unrealizedPnl = openTrades?.trades.reduce((sum, trade) => {
+    const shares = trade.shares || 0;
+    const entry = trade.entry_price || 0;
+    const current = trade.current_price || entry;
+    return sum + (current - entry) * shares;
+  }, 0) || 0;
+
+  // Calculate total realized P&L (from closed trades)
+  const realizedPnl = summary ? (summary.total_portfolio_value || 0) - (summary.starting_balance || 100000) - unrealizedPnl : 0;
+
+  // Calculate wins and losses count
+  const winsCount = Math.round((summary?.win_rate || 0) / 100 * (summary?.total_closed || 0));
+  const lossesCount = (summary?.total_closed || 0) - winsCount;
+
   return (
     <div className="bg-bg">
       <div className="mx-auto max-w-7xl space-y-10 px-4 py-10 sm:px-6 lg:px-8">
@@ -149,7 +171,7 @@ export default function TradingPage() {
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
-          {/* Open Positions */}
+          {/* Open Positions with Unrealized P&L */}
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
@@ -158,13 +180,18 @@ export default function TradingPage() {
                   <p className="text-3xl font-bold">
                     {summaryLoading ? "-" : summary?.total_open || 0}
                   </p>
+                  {!summaryLoading && !openLoading && (
+                    <p className={`text-sm ${getPnlColor(unrealizedPnl)}`}>
+                      {formatCurrency(unrealizedPnl)} unrealized
+                    </p>
+                  )}
                 </div>
                 <TrendingUp className="h-8 w-8 text-primary" suppressHydrationWarning />
               </div>
             </CardContent>
           </Card>
 
-          {/* Win Rate */}
+          {/* Win Rate with Wins/Losses */}
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
@@ -173,13 +200,21 @@ export default function TradingPage() {
                   <p className="text-3xl font-bold">
                     {summaryLoading ? "-" : `${(summary?.win_rate || 0).toFixed(1)}%`}
                   </p>
+                  {!summaryLoading && (summary?.total_closed || 0) > 0 && (
+                    <p className="text-sm text-text-muted">
+                      <span className="text-gain">{winsCount}W</span>
+                      {" / "}
+                      <span className="text-loss">{lossesCount}L</span>
+                      {" of "}{summary?.total_closed} trades
+                    </p>
+                  )}
                 </div>
                 <Target className="h-8 w-8 text-gain" suppressHydrationWarning />
               </div>
             </CardContent>
           </Card>
 
-          {/* Total P&L */}
+          {/* Total P&L with Dollar Amount */}
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
@@ -188,21 +223,31 @@ export default function TradingPage() {
                   <p className={`text-3xl font-bold ${getPnlColor(summary?.total_pnl_pct)}`}>
                     {summaryLoading ? "-" : formatPct(summary?.total_pnl_pct)}
                   </p>
+                  {!summaryLoading && summary && (
+                    <p className={`text-sm ${getPnlColor((summary.total_portfolio_value || 0) - (summary.starting_balance || 100000))}`}>
+                      {formatCurrency((summary.total_portfolio_value || 0) - (summary.starting_balance || 100000))}
+                    </p>
+                  )}
                 </div>
                 <DollarSign className={`h-8 w-8 ${getPnlColor(summary?.total_pnl_pct)}`} suppressHydrationWarning />
               </div>
             </CardContent>
           </Card>
 
-          {/* Best Trade */}
+          {/* Best/Worst Trade */}
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-text-muted">Best Trade</p>
+                  <p className="text-sm font-medium text-text-muted">Best / Worst Trade</p>
                   <p className="text-3xl font-bold text-gain">
                     {summaryLoading ? "-" : formatPct(summary?.best_trade_pct)}
                   </p>
+                  {!summaryLoading && summary?.worst_trade_pct !== undefined && (
+                    <p className="text-sm text-loss">
+                      Worst: {formatPct(summary.worst_trade_pct)}
+                    </p>
+                  )}
                 </div>
                 <TrendingUp className="h-8 w-8 text-gain" suppressHydrationWarning />
               </div>
