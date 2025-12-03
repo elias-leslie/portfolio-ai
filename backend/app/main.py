@@ -19,6 +19,7 @@ from app.api import (
     backtest,
     capabilities,
     celery_endpoints,
+    disagreements,
     gaps,
     health,
     ideas,
@@ -166,6 +167,7 @@ app.include_router(recommendations.router)  # Task 0087: Trade recommendations
 app.include_router(layouts.router)  # Task 0042: Customizable dashboard layouts
 app.include_router(agents.router)  # Task 0077: Agent telemetry dashboard
 app.include_router(automation.router)  # Manual pipeline triggers
+app.include_router(disagreements.router)  # Task 0003: Multi-LLM disagreement detection
 
 
 @app.get("/")

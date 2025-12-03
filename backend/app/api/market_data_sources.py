@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 from datetime import date, datetime
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from app.portfolio.models import PriceData

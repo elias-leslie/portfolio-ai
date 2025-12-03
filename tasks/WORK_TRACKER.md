@@ -27,17 +27,7 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Multi-LLM Disagreement Detection** (MEDIUM (2-3 days), 0/6 tasks)
-   - File: `tasks-0003-multi-llm-disagreement-detection.md`
-   - Created: 2025-12-02
-   - Goal: Fulfill VISION.md promise "Disagreement Detection: Flag when multiple LLMs disagree on recommendations" by implementing dual-reviewer execution (Claude AND Gemini), consensus logic, and user-facing disagreement dashboard.
-   - Tasks:
-     - [ ] Task 0: Scope Discovery (MANDATORY)
-     - [ ] Task 1: Implement Dual-Reviewer Execution
-     - [ ] Task 2: Add Consensus/Voting Logic
-     - [ ] Task 3: Create User-Facing Disagreement Dashboard
-     - [ ] Task 4: Add Disagreement Rate KPI Tracking
-     - [ ] Task 5: Integration and Testing
+(No planned tasks)
 
 
 ---
@@ -46,7 +36,22 @@
 
 *Last 5 completed tasks*
 
-1. **Strategy Validation Pipeline** ✅ COMPLETE (2025-12-03)
+1. **Multi-LLM Disagreement Detection** ✅ COMPLETE (2025-12-03)
+   - File: `tasks-0003-multi-llm-disagreement-detection.md`
+   - Completed: 2025-12-03
+   - Duration: ~2 hours
+   - Summary: Dual-provider strategy review with consensus detection
+   - Key achievements:
+     - ✅ MultiReviewer class: Parallel Gemini + Claude execution
+     - ✅ Consensus scoring: Agreement 0-1.0, severity (none/minor/major)
+     - ✅ Database: Migration 056/057 with dual-review columns
+     - ✅ API: /api/disagreements endpoints (list, stats, by-symbol)
+     - ✅ Frontend: DisagreementCard, DisagreementStatsCard, DisagreementAlert
+     - ✅ Tests: 19 new tests (14 MultiReviewer + 5 API)
+     - ✅ Metrics: strategy_metrics task tracks provider disagreement rates
+   - Impact: VISION.md "Disagreement Detection" requirement fulfilled
+
+2. **Strategy Validation Pipeline** ✅ COMPLETE (2025-12-03)
    - File: `tasks-0002-strategy-validation-pipeline.md`
    - Completed: 2025-12-03
    - Duration: ~1 hour

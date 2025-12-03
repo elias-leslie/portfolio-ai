@@ -34,12 +34,12 @@ from .agent_tasks import (
     run_portfolio_analyzer,
     update_paper_trades_task,
 )
-from .ingestion import ingest_historical_ohlcv
 from .indicators import (
     backfill_technical_indicators,
     calculate_fear_greed,
     update_technical_indicators,
 )
+from .ingestion import ingest_historical_ohlcv
 from .watchlist_tasks import refresh_watchlist_scores_task
 
 __all__ = [

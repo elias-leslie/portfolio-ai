@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import datetime as dt
 from datetime import date, datetime
 from typing import Any
 
 from fastapi import APIRouter, Query, Request
-from pydantic import BaseModel, Field
 
 from app.api.market_data_sources import (
     SECTOR_ETFS,
@@ -38,7 +36,7 @@ from app.api.market_transformers import (
 )
 from app.market import intelligence, narrative_generator
 from app.market.fear_greed_stub import get_fear_greed_score
-from app.market.sentiment import MarketHealthScore, calculate_market_health
+from app.market.sentiment import calculate_market_health
 from app.middleware.cache import cache_response
 from app.models.market_intelligence import (
     FearGreedScore,
@@ -54,7 +52,6 @@ from app.portfolio.price_fetcher import PriceDataFetcher
 from app.storage import get_storage
 from app.utils.market_hours import (
     NY_TZ,
-    MarketStatus,
     get_last_trading_day,
     get_market_status,
     get_next_trading_day,

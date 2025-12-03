@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
+from app.agents.multi_reviewer import DualReviewResult, MultiReviewer, ProviderReview
 from app.agents.strategy_reviewer import StrategyReviewer
 from app.logging_config import get_logger
 from app.middleware.cache import cache_response, invalidate_endpoint_cache
@@ -48,6 +49,7 @@ router = APIRouter(prefix="/api/watchlist", tags=["watchlist"])
 storage = get_storage()
 watchlist_service = WatchlistService(storage)
 strategy_reviewer = StrategyReviewer(primary_provider="gemini")
+multi_reviewer = MultiReviewer()
 
 
 # Endpoints
@@ -523,13 +525,27 @@ async def refresh_watchlist_scores(data: RefreshRequest) -> RefreshResponse:
 
 
 @router.post("/{item_id}/review")
-async def review_strategy_signal(item_id: str) -> dict[str, object]:
+async def review_strategy_signal(item_id: str, dual: bool = True) -> dict[str, object]:
     """Get LLM review of trading signal for a watchlist item.
 
     Args:
         item_id: Watchlist item ID
+        dual: If True (default), use both Gemini and Claude for review.
+              If False, use single provider with failover.
 
     Returns:
+        For dual=True:
+        {
+            "symbol": str,
+            "review_pair_id": str,
+            "gemini_review": {...},
+            "claude_review": {...},
+            "agreement_score": float,
+            "disagreement_severity": str,
+            "provider_disagreement": bool,
+            "consensus_summary": str
+        }
+        For dual=False (legacy):
         {
             "symbol": str,
             "review": str,
@@ -580,7 +596,104 @@ async def review_strategy_signal(item_id: str) -> dict[str, object]:
             "news_sentiment_score": snapshot_row.get("news_sentiment_score"),
         }
 
-        # Get LLM review
+        if dual:
+            # Get dual-provider LLM review (both Gemini and Claude)
+            dual_result: DualReviewResult = await multi_reviewer.review_signal_dual(signal_data)
+
+            # Store both reviews in database
+            def _store_provider_review(
+                review: ProviderReview | None,
+                pair_id: str,
+                severity: str,
+                agreement: float,
+                provider_disagreement: bool,
+            ) -> str | None:
+                if review is None or review.error:
+                    return None
+                review_id = str(uuid.uuid4())
+                with storage.connection() as conn:
+                    conn.execute(
+                        """
+                        INSERT INTO strategy_reviews (
+                            id, watchlist_item_id, snapshot_id, symbol, review_text,
+                            provider, is_valid, disagreement, token_usage, created_at,
+                            review_pair_id, disagreement_severity, provider_disagreement, agreement_score
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        [
+                            review_id,
+                            item_id,
+                            snapshot_row.get("id"),
+                            dual_result.symbol,
+                            review.review_text,
+                            review.provider,
+                            review.is_valid,
+                            review.disagreement,
+                            json.dumps(review.usage),
+                            datetime.now(UTC),
+                            pair_id,
+                            severity,
+                            provider_disagreement,
+                            agreement,
+                        ],
+                    )
+                    conn.commit()
+                return review_id
+
+            # Store Gemini review
+            _store_provider_review(
+                dual_result.gemini_review,
+                dual_result.review_pair_id,
+                dual_result.disagreement_severity.value,
+                dual_result.agreement_score,
+                dual_result.provider_disagreement,
+            )
+
+            # Store Claude review
+            _store_provider_review(
+                dual_result.claude_review,
+                dual_result.review_pair_id,
+                dual_result.disagreement_severity.value,
+                dual_result.agreement_score,
+                dual_result.provider_disagreement,
+            )
+
+            logger.info(
+                f"Dual strategy review logged for {dual_result.symbol}",
+                extra={
+                    "symbol": dual_result.symbol,
+                    "review_pair_id": dual_result.review_pair_id,
+                    "agreement_score": dual_result.agreement_score,
+                    "disagreement_severity": dual_result.disagreement_severity.value,
+                    "provider_disagreement": dual_result.provider_disagreement,
+                },
+            )
+
+            # Return structured response
+            def _review_to_dict(review: ProviderReview | None) -> dict[str, object] | None:
+                if review is None:
+                    return None
+                return {
+                    "provider": review.provider,
+                    "review_text": review.review_text,
+                    "is_valid": review.is_valid,
+                    "disagreement": review.disagreement,
+                    "usage": review.usage,
+                    "error": review.error,
+                }
+
+            return {
+                "symbol": dual_result.symbol,
+                "review_pair_id": dual_result.review_pair_id,
+                "gemini_review": _review_to_dict(dual_result.gemini_review),
+                "claude_review": _review_to_dict(dual_result.claude_review),
+                "agreement_score": dual_result.agreement_score,
+                "disagreement_severity": dual_result.disagreement_severity.value,
+                "provider_disagreement": dual_result.provider_disagreement,
+                "consensus_summary": dual_result.consensus_summary,
+            }
+
+        # Legacy single-provider path
         review_result = await strategy_reviewer.review_signal(signal_data)
 
         # Log review to database

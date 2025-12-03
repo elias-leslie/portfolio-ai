@@ -98,28 +98,49 @@ def collect_daily_strategy_metrics() -> dict[str, object]:
             (trades_stats["wins"] / trades_stats["total"]) * 100 if trades_stats["total"] > 0 else 0
         )
 
-        # 3. LLM reviewer disagreement rate
+        # 3. LLM reviewer disagreement rate (rules vs LLM + provider vs provider)
         reviews_df = storage.query(
             """
             SELECT
                 COUNT(*) as total,
-                SUM(CASE WHEN disagreement = true THEN 1 ELSE 0 END) as disagreements
+                SUM(CASE WHEN disagreement = true THEN 1 ELSE 0 END) as disagreements,
+                SUM(CASE WHEN provider_disagreement = true THEN 1 ELSE 0 END) as provider_disagreements,
+                SUM(CASE WHEN disagreement_severity = 'major' THEN 1 ELSE 0 END) as major_disagreements,
+                SUM(CASE WHEN disagreement_severity = 'minor' THEN 1 ELSE 0 END) as minor_disagreements,
+                AVG(agreement_score) as avg_agreement
             FROM strategy_reviews
             WHERE DATE(created_at) = ?
             """,
             [str(yesterday)],
         )
 
-        reviews_stats = {"total": 0, "disagreements": 0}
+        reviews_stats = {
+            "total": 0,
+            "disagreements": 0,
+            "provider_disagreements": 0,
+            "major_disagreements": 0,
+            "minor_disagreements": 0,
+            "avg_agreement": 0,
+        }
         if not reviews_df.is_empty():
             row = reviews_df.to_dicts()[0]
             reviews_stats = {
-                "total": row.get("total", 0),
-                "disagreements": row.get("disagreements", 0),
+                "total": row.get("total", 0) or 0,
+                "disagreements": row.get("disagreements", 0) or 0,
+                "provider_disagreements": row.get("provider_disagreements", 0) or 0,
+                "major_disagreements": row.get("major_disagreements", 0) or 0,
+                "minor_disagreements": row.get("minor_disagreements", 0) or 0,
+                "avg_agreement": row.get("avg_agreement", 0) or 0,
             }
 
         disagreement_rate = (
             (reviews_stats["disagreements"] / reviews_stats["total"]) * 100
+            if reviews_stats["total"] > 0
+            else 0
+        )
+
+        provider_disagreement_rate = (
+            (reviews_stats["provider_disagreements"] / reviews_stats["total"]) * 100
             if reviews_stats["total"] > 0
             else 0
         )
@@ -151,8 +172,10 @@ def collect_daily_strategy_metrics() -> dict[str, object]:
                     avg_return_pct, best_return_pct, worst_return_pct, cumulative_return_pct,
                     avg_overall_score, avg_technical_score, avg_fundamental_score, score_stdev,
                     reviews_count, disagreements_count, disagreement_rate_pct,
+                    provider_disagreements_count, provider_disagreement_rate_pct,
+                    avg_agreement_score, major_disagreements_count, minor_disagreements_count,
                     created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     metric_id,
@@ -177,6 +200,11 @@ def collect_daily_strategy_metrics() -> dict[str, object]:
                     reviews_stats["total"],
                     reviews_stats["disagreements"],
                     disagreement_rate,
+                    reviews_stats["provider_disagreements"],
+                    provider_disagreement_rate,
+                    reviews_stats["avg_agreement"],
+                    reviews_stats["major_disagreements"],
+                    reviews_stats["minor_disagreements"],
                     datetime.now(UTC),
                 ],
             )
@@ -189,6 +217,7 @@ def collect_daily_strategy_metrics() -> dict[str, object]:
                 "signals": sum(signal_counts.values()),
                 "win_rate": win_rate,
                 "disagreement_rate": disagreement_rate,
+                "provider_disagreement_rate": provider_disagreement_rate,
             },
         )
 
@@ -201,6 +230,8 @@ def collect_daily_strategy_metrics() -> dict[str, object]:
                 "reviews": reviews_stats,
                 "win_rate_pct": win_rate,
                 "disagreement_rate_pct": disagreement_rate,
+                "provider_disagreement_rate_pct": provider_disagreement_rate,
+                "avg_agreement_score": reviews_stats["avg_agreement"],
             },
         }
 
