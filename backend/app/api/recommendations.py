@@ -430,16 +430,15 @@ async def track_in_portfolio(
                     detail="Use 'Paper Trade' for paper accounts, not 'Track in Portfolio'",
                 )
 
-            # Get current price
-            price_row = conn.execute(
-                "SELECT close FROM day_bars WHERE ticker = %s ORDER BY date DESC LIMIT 1",
-                (symbol,),
-            ).fetchone()
+        # Get real-time price for cost basis
+        from app.portfolio.price_fetcher import PriceDataFetcher
 
-            if not price_row:
-                raise HTTPException(status_code=404, detail=f"No price data for {symbol}")
-
-            entry_price = float(price_row[0])
+        price_fetcher = PriceDataFetcher(storage)
+        try:
+            price_data = price_fetcher.fetch_price_data([symbol])
+            entry_price = price_data[symbol].price
+        except Exception as e:
+            raise HTTPException(status_code=404, detail=f"No price data for {symbol}: {e}") from e
 
         # Create position
         manager = PortfolioManager(storage)
