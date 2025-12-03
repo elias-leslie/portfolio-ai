@@ -585,5 +585,46 @@ class CeleryScanner:
                 )
                 conn.commit()
 
+            # Clean up removed tasks (inside the with block)
+            removed_count = self._cleanup_removed_capabilities(
+                conn, [cap["task_name"] for cap in capabilities]
+            )
+            if removed_count > 0:
+                logger.info("celery_capabilities_removed", count=removed_count)
+
         logger.info("celery_capabilities_saved", count=len(capabilities))
         return len(capabilities)
+
+    def _cleanup_removed_capabilities(
+        self,
+        conn: Any,
+        current_task_names: list[str],
+    ) -> int:
+        """Remove capabilities for tasks no longer in beat schedule.
+
+        Args:
+            conn: Database connection
+            current_task_names: List of task names currently in beat schedule
+
+        Returns:
+            Number of rows deleted
+        """
+        if not current_task_names:
+            return 0
+
+        # Find and delete tasks that are in DB but not in current schedule
+        result = conn.execute(
+            """
+            DELETE FROM celery_capabilities
+            WHERE task_name NOT IN %s
+            RETURNING task_name
+            """,
+            [tuple(current_task_names)],
+        )
+        deleted = result.fetchall()
+        conn.commit()
+
+        for row in deleted:
+            logger.info("celery_capability_removed", task_name=row[0])
+
+        return len(deleted)

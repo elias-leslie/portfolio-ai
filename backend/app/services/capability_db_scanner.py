@@ -505,5 +505,46 @@ class DatabaseScanner:
                 )
                 conn.commit()
 
+            # Clean up removed tables (inside the with block)
+            removed_count = self._cleanup_removed_capabilities(
+                conn, [cap["table_name"] for cap in capabilities]
+            )
+            if removed_count > 0:
+                logger.info("db_capabilities_removed", count=removed_count)
+
         logger.info("db_capabilities_saved", count=len(capabilities))
         return len(capabilities)
+
+    def _cleanup_removed_capabilities(
+        self,
+        conn: Any,
+        current_table_names: list[str],
+    ) -> int:
+        """Remove capabilities for tables that no longer exist.
+
+        Args:
+            conn: Database connection
+            current_table_names: List of table names currently in database
+
+        Returns:
+            Number of rows deleted
+        """
+        if not current_table_names:
+            return 0
+
+        # Find and delete tables that are in db_capabilities but no longer exist
+        result = conn.execute(
+            """
+            DELETE FROM db_capabilities
+            WHERE table_name NOT IN %s
+            RETURNING table_name
+            """,
+            [tuple(current_table_names)],
+        )
+        deleted = result.fetchall()
+        conn.commit()
+
+        for row in deleted:
+            logger.info("db_capability_removed", table_name=row[0])
+
+        return len(deleted)
