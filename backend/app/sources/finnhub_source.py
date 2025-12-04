@@ -242,7 +242,7 @@ class FinnhubSource(BaseSource):
                         records.append(
                             {
                                 "date": bar_date,
-                                "ticker": ticker,
+                                "symbol": symbol,
                                 "open": float(opens[i]),
                                 "high": float(highs[i]),
                                 "low": float(lows[i]),
@@ -339,7 +339,7 @@ class FinnhubSource(BaseSource):
 
                 records.append(
                     {
-                        "ticker": ticker,
+                        "symbol": symbol,
                         "as_of_date": as_of,
                         "payload": payload_json,
                         "source": "finnhub",
@@ -424,7 +424,7 @@ class FinnhubSource(BaseSource):
 
                 records.append(
                     {
-                        "ticker": "__MARKET__" if is_market else ticker,
+                        "symbol": "__MARKET__" if is_market else ticker,
                         "headline": headline,
                         "url": item.get("url"),
                         "summary": item.get("summary"),

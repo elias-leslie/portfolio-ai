@@ -264,7 +264,7 @@ class SECEdgarSource(BaseSource):
 
         # Build record with ALL standard news fields (for schema compatibility)
         record = {
-            "ticker": ticker,
+            "symbol": symbol,
             "headline": headline,
             "url": filing_url,
             "summary": f"{form} filed on {filing_date}",

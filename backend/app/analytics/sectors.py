@@ -300,7 +300,7 @@ def _fetch_sector_performance(
             QUALIFY ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date ASC) = 1
         )
         SELECT
-            p.ticker,
+            p.symbol,
             ? as sector,
             p.close_now as close,
             p.volume,

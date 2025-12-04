@@ -275,11 +275,11 @@ class OrderExecutor:
             logger.error(f"Failed to calculate max shares for {ticker}: {e}")
             return 0
 
-    def get_ticker_sector(self, ticker: str) -> str | None:
-        """Get the sector for a given ticker from price_cache.
+    def get_symbol_sector(self, symbol: str) -> str | None:
+        """Get the sector for a given symbol from price_cache.
 
         Args:
-            ticker: Stock symbol
+            symbol: Stock symbol
 
         Returns:
             Sector name or None if not found
@@ -289,7 +289,7 @@ class OrderExecutor:
             WHERE symbol = $1 AND sector IS NOT NULL AND sector != ''
             ORDER BY cached_at DESC LIMIT 1
         """
-        result = self.storage.query(query, [ticker])
+        result = self.storage.query(query, [symbol])
         if result.is_empty():
             return None
         return str(result.get_column("sector")[0])
@@ -306,7 +306,7 @@ class OrderExecutor:
         """
         # Get all positions for this account with current prices from day_bars
         positions_query = """
-            SELECT pp.symbol as ticker, pp.shares,
+            SELECT pp.symbol, pp.shares,
                    COALESCE(db.close, pp.cost_basis) as price
             FROM portfolio_positions pp
             LEFT JOIN LATERAL (
@@ -327,14 +327,14 @@ class OrderExecutor:
         sector_value = 0.0
 
         for row in positions.iter_rows(named=True):
-            ticker = row["ticker"]
+            symbol = row["symbol"]
             shares = row["shares"] or 0
             price = row["price"] or 0.0
             position_value = shares * price
             total_position_value += position_value
 
             # Check if this position is in the target sector
-            pos_sector = self.get_ticker_sector(ticker)
+            pos_sector = self.get_symbol_sector(symbol)
             if pos_sector and pos_sector.lower() == sector.lower():
                 sector_value += position_value
 

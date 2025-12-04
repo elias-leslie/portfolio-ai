@@ -419,7 +419,7 @@ def auto_paper_trade_from_signals(min_signal_strength: int = 5) -> dict[str, Any
                     SELECT idea_id
                     FROM idea_outcomes
                     WHERE strategy_id = %s
-                      AND ticker = %s
+                      AND symbol = %s
                       AND status = 'open'
                     LIMIT 1
                     """,

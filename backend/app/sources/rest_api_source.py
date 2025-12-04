@@ -314,7 +314,7 @@ class RestApiSource(BaseSource):
 
                 records.append(
                     {
-                        "ticker": ticker,
+                        "symbol": symbol,
                         "as_of_date": as_of,
                         "payload": payload_json,
                         "source": self.name,
@@ -408,7 +408,7 @@ class RestApiSource(BaseSource):
 
                 records.append(
                     {
-                        "ticker": ticker,
+                        "symbol": symbol,
                         "date_utc": pub_date,
                         "payload": article_records,
                         "source": self.name,

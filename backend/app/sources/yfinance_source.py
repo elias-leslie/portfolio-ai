@@ -230,7 +230,7 @@ class YFinanceSource(BaseSource):
                 payload_dict = self._build_reference_payload(ticker, info)
                 records.append(
                     {
-                        "ticker": ticker,
+                        "symbol": symbol,
                         "as_of_date": as_of,
                         "payload": json.dumps(payload_dict),
                         "source": "yfinance",
@@ -334,7 +334,7 @@ class YFinanceSource(BaseSource):
 
                 records.append(
                     {
-                        "ticker": "__MARKET__" if is_market else ticker,
+                        "symbol": "__MARKET__" if is_market else ticker,
                         "headline": headline,
                         "url": url,
                         "summary": summary,

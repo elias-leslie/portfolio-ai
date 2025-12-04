@@ -127,7 +127,7 @@ class RssNewsSource(BaseSource):
             return self.feeds
         if self.ticker_feed_template:
             template_kwargs = {
-                "ticker": ticker,
+                "symbol": symbol,
                 "symbol": ticker,
                 "lower": ticker.lower(),
             }
@@ -187,7 +187,7 @@ class RssNewsSource(BaseSource):
         }
 
         return {
-            "ticker": ticker,
+            "symbol": symbol,
             "headline": title,
             "summary": summary,
             "url": link,

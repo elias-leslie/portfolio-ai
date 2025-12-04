@@ -74,18 +74,18 @@ class PeerComparisonResponse(BaseModel):
 class PeerDetailItem(BaseModel):
     """Individual peer performance data."""
 
-    ticker: str = Field(..., description="Stock ticker symbol")
+    symbol: str = Field(..., description="Stock symbol")
     sector: str = Field(..., description="Sector name")
     return_5d: float | None = Field(..., description="5-day return (%)")
     return_20d: float | None = Field(..., description="20-day return (%)")
     rank: int = Field(..., description="Rank within peer group")
-    is_target: bool = Field(..., description="Whether this is the target ticker")
+    is_target: bool = Field(..., description="Whether this is the target symbol")
 
 
 class PeerGroupDetailResponse(BaseModel):
     """Response model for peer group detail."""
 
-    ticker: str = Field(..., description="Target ticker symbol")
+    symbol: str = Field(..., description="Target stock symbol")
     sector: str = Field(..., description="Sector name")
     date: str = Field(..., description="Date for peer comparison (YYYY-MM-DD)")
     peers: list[PeerDetailItem] = Field(..., description="All peers ranked by performance")
@@ -398,7 +398,7 @@ async def get_peer_group_det(
     for row in peers.iter_rows(named=True):
         peer_items.append(
             PeerDetailItem(
-                ticker=row["ticker"],
+                symbol=row["symbol"],
                 sector=row[group_by],
                 return_5d=round(row["return_5d"], 2) if row["return_5d"] else None,
                 return_20d=round(row["return_20d"], 2) if row["return_20d"] else None,
@@ -408,7 +408,7 @@ async def get_peer_group_det(
         )
 
     return PeerGroupDetailResponse(
-        ticker=ticker.upper(),
+        symbol=ticker.upper(),  # ticker is the function param, model field is symbol
         sector=sector_name,
         date=target_date.isoformat(),
         peers=peer_items,

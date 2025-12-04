@@ -79,7 +79,7 @@ def _record_summary(
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             [
-                summary.ticker,
+                summary.symbol,
                 window_start,
                 as_of,
                 summary.score,

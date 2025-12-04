@@ -202,7 +202,7 @@ def _fetch_all_tickers(storage: PortfolioStorage, target_date: dt.date) -> list[
     if tickers_result is None or len(tickers_result) == 0:
         return []
 
-    return tickers_result["ticker"].to_list()
+    return tickers_result["symbol"].to_list()
 
 
 def _build_rvol_entry(

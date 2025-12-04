@@ -155,9 +155,9 @@ class PriceDataFetcher:
         if df is not None and len(df) > 0:
             # Convert DataFrame to PriceData dict
             # Expected columns from YFinanceSource/PolygonSource reference data:
-            # ticker, as_of_date, payload (JSON with price, sector, etc.), source
+            # symbol, as_of_date, payload (JSON with price, sector, etc.), source
             for row in df.iter_rows(named=True):
-                ticker = row["ticker"]
+                symbol = row["symbol"]
                 source = row.get("source", "unknown")
                 payload = row.get("payload", {})
 
@@ -176,8 +176,8 @@ class PriceDataFetcher:
                 ask_size = payload.get("askSize") or payload.get("ask_size")
 
                 if price and price > 0:
-                    result[ticker] = PriceData(
-                        symbol=ticker,
+                    result[symbol] = PriceData(
+                        symbol=symbol,
                         price=float(price),
                         beta=float(beta) if beta else None,
                         volatility=float(volatility) if volatility else None,
@@ -190,7 +190,7 @@ class PriceDataFetcher:
                     )
                     logger.info(
                         "price_fetch_success",
-                        symbol=ticker,
+                        symbol=symbol,
                         price=float(price),
                         source=source,
                         has_beta=beta is not None,

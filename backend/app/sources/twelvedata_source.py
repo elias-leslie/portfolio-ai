@@ -245,7 +245,7 @@ class TwelveDataSource(BaseSource):
                         records.append(
                             {
                                 "date": dt.date.fromisoformat(bar["datetime"]),
-                                "ticker": ticker,
+                                "symbol": symbol,
                                 "open": float(bar["open"]),
                                 "high": float(bar["high"]),
                                 "low": float(bar["low"]),
@@ -351,7 +351,7 @@ class TwelveDataSource(BaseSource):
 
                 records.append(
                     {
-                        "ticker": ticker,
+                        "symbol": symbol,
                         "as_of_date": as_of,
                         "payload": payload_json,
                         "source": "twelvedata",

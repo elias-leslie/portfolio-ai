@@ -457,7 +457,7 @@ def refresh_yfinance_reference_data(self: Task) -> dict[str, int | str]:
                     ON CONFLICT (symbol, as_of_date, source)
                     DO UPDATE SET payload = EXCLUDED.payload
                     """,
-                    [row["ticker"], row["as_of_date"], row["payload"], "yfinance"],
+                    [row["symbol"], row["as_of_date"], row["payload"], "yfinance"],
                 )
             conn.commit()
 
@@ -551,7 +551,7 @@ def _store_alphavantage_payload(symbols: list[str]) -> int:
                 ON CONFLICT (symbol, as_of_date, source)
                 DO UPDATE SET payload = EXCLUDED.payload
                 """,
-                [row["ticker"], row["as_of_date"], row["payload"], "alphavantage"],
+                [row["symbol"], row["as_of_date"], row["payload"], "alphavantage"],
             )
         conn.commit()
 

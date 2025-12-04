@@ -146,7 +146,7 @@ class NewsAIFeatures:
                 )
 
                 # Generate actionable insight
-                in_watchlist = article.ticker in watchlist_tickers if watchlist_tickers else False
+                in_watchlist = article.symbol in watchlist_tickers if watchlist_tickers else False
                 article.actionable_insight = generate_actionable_insight(
                     category=event_category,
                     sentiment_score=article.sentiment.score,

@@ -107,13 +107,13 @@ def _query_new_articles(
     new_articles = []
     for row in all_articles:
         # Cast database row values to proper types
-        ticker = str(row[0]) if row[0] is not None else ""
+        symbol = str(row[0]) if row[0] is not None else ""
         headline = str(row[1]) if row[1] is not None else ""
         summary = str(row[2]) if row[2] is not None else ""
 
-        hash_key = f"{ticker}_{headline[:50]}"
+        hash_key = f"{symbol}_{headline[:50]}"
         if hash_key not in labeled_hashes:
-            new_articles.append({"ticker": ticker, "headline": headline, "summary": summary})
+            new_articles.append({"symbol": symbol, "headline": headline, "summary": summary})
 
     print(f"   {len(new_articles)} are NEW (not yet labeled)")
 
@@ -130,16 +130,16 @@ def _label_articles_with_gemini(new_articles: list[dict[str, Any]]) -> list[dict
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as tmp:
         for article in new_articles:
-            line = f"{article['ticker']}|{article['headline']}|{article['summary']}\n"
+            line = f"{article['symbol']}|{article['headline']}|{article['summary']}\n"
             tmp.write(line)
         tmp_path = tmp.name
 
-    gemini_prompt = """You are a financial news quality analyst. Review these news articles (pipe-delimited: ticker|headline|summary) and for EACH article, determine if it's USEFUL for stock investors.
+    gemini_prompt = """You are a financial news quality analyst. Review these news articles (pipe-delimited: symbol|headline|summary) and for EACH article, determine if it's USEFUL for stock investors.
 
 USEFUL: Specific numbers, regulatory filings, material events, analyst actions with targets, objective data.
 NOT USEFUL: Clickbait, listicles, vague speculation, opinion without data, generic commentary, marketing.
 
-Return ONLY a JSON array: [{"ticker": "...", "headline": "first 60 chars", "is_useful": true/false, "reasons": ["reason1"], "confidence": "high/medium/low", "explanation": "brief"}]
+Return ONLY a JSON array: [{"symbol": "...", "headline": "first 60 chars", "is_useful": true/false, "reasons": ["reason1"], "confidence": "high/medium/low", "explanation": "brief"}]
 
 Reason codes: specific_data, regulatory_filing, material_event, analyst_action, clickbait, listicle, too_vague, opinion_fluff, generic_commentary, marketing, duplicate"""
 
@@ -182,12 +182,12 @@ def _merge_gemini_labels(
     for gemini in gemini_labels:
         for article in new_articles:
             if (
-                gemini["ticker"] == article["ticker"]
+                gemini["symbol"] == article["symbol"]
                 and gemini["headline"][:40].lower() == article["headline"][:40].lower()
             ):
                 newly_labeled.append(
                     {
-                        "ticker": article["ticker"],
+                        "symbol": article["symbol"],
                         "headline": article["headline"],
                         "summary": article["summary"],
                         "is_useful": gemini["is_useful"],

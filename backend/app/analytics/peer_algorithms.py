@@ -75,7 +75,7 @@ def fetch_peer_returns(
             QUALIFY ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date ASC) = 1
         )
         SELECT
-            p.ticker,
+            p.symbol,
             CASE
                 WHEN p5.close_5d > 0 THEN ((p.close_now - p5.close_5d) / p5.close_5d) * 100
                 ELSE NULL

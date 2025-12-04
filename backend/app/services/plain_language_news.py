@@ -224,7 +224,7 @@ def classify_event_category(  # noqa: PLR0911
 def generate_actionable_insight(  # noqa: PLR0911
     category: EventCategory,
     sentiment_score: float | None,
-    ticker: str,
+    symbol: str,
     in_watchlist: bool = False,
 ) -> str:
     """Generate actionable insight answering 'What should I do?'
@@ -232,8 +232,8 @@ def generate_actionable_insight(  # noqa: PLR0911
     Args:
         category: Event category
         sentiment_score: Sentiment score (-1 to 1, or None)
-        ticker: Stock ticker symbol
-        in_watchlist: Whether ticker is in user's watchlist
+        symbol: Stock symbol
+        in_watchlist: Whether symbol is in user's watchlist
 
     Returns:
         Plain-language actionable recommendation
@@ -383,7 +383,7 @@ def translate_to_plain_language(
     summary: str | None = None,
     filing_type: str | None = None,
     sentiment_score: float | None = None,
-    ticker: str | None = None,
+    symbol: str | None = None,
     in_watchlist: bool = False,
 ) -> PlainLanguageTranslationDict:
     """Translate financial news to plain language with insights.
@@ -393,8 +393,8 @@ def translate_to_plain_language(
         summary: Optional news summary
         filing_type: Optional SEC filing type
         sentiment_score: Optional sentiment score (-1 to 1)
-        ticker: Optional stock ticker
-        in_watchlist: Whether ticker is in user's watchlist
+        symbol: Optional stock symbol
+        in_watchlist: Whether symbol is in user's watchlist
 
     Returns:
         Dict with plain_language_headline, event_category, actionable_insight, impact_summary
@@ -408,15 +408,15 @@ def translate_to_plain_language(
         plain_headline = None
     else:
         event_template = EVENT_TEMPLATES.get(category, headline)
-        # Add ticker context if available
-        if ticker:
-            plain_headline = f"{ticker}: {event_template}"
+        # Add symbol context if available
+        if symbol:
+            plain_headline = f"{symbol}: {event_template}"
         else:
             plain_headline = event_template
 
     # Generate actionable insight
     actionable_insight = generate_actionable_insight(
-        category, sentiment_score, ticker or "Stock", in_watchlist
+        category, sentiment_score, symbol or "Stock", in_watchlist
     )
 
     # Generate impact summary

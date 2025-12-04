@@ -102,7 +102,7 @@ class MultiSourceFetcher:
         # Define expected schema for standard news columns
         # All nullable columns must be explicitly cast to Utf8 (not Null type)
         standard_casts = {
-            "ticker": pl.Utf8,
+            "symbol": pl.Utf8,
             "headline": pl.Utf8,
             "url": pl.Utf8,
             "summary": pl.Utf8,

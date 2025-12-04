@@ -42,7 +42,7 @@ def _build_indicators_query(
     """
     query = """
         SELECT
-            ticker,
+            symbol,
             date,
             close_price,
             rsi_14,
@@ -242,7 +242,7 @@ class IndicatorInterpretations(BaseModel):
 class IndicatorsResponse(BaseModel):
     """Response model for technical indicators."""
 
-    ticker: str = Field(..., description="Stock ticker symbol")
+    symbol: str = Field(..., description="Stock symbol")
     date: str = Field(..., description="Date for indicator values (YYYY-MM-DD)")
     close_price: float | None = Field(None, description="Closing price on the date")
     indicators: IndicatorValues = Field(..., description="Calculated indicator values")
@@ -391,7 +391,7 @@ def get_indicators_history(
 
             # Build response
             response = IndicatorsResponse(
-                ticker=row["ticker"],
+                symbol=row["symbol"],
                 date=str(row["date"]),
                 close_price=row.get("close_price"),
                 indicators=IndicatorValues(

@@ -212,7 +212,7 @@ def calculate_sector_relative_strength(
     prices: dict[str, dict[date, float]] = {t: {} for t in tickers}
 
     for row in result.iter_rows(named=True):
-        ticker = row["ticker"]
+        ticker = row["symbol"]
         row_date = row["date"]
         if isinstance(row_date, str):
             from datetime import datetime

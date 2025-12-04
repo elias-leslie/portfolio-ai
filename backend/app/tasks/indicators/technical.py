@@ -170,7 +170,7 @@ def backfill_technical_indicators(  # type: ignore[no-untyped-def]
     if tickers is None:
         query = "SELECT DISTINCT symbol FROM day_bars ORDER BY symbol"
         result_df = storage.query(query, [])
-        tickers = [row["ticker"] for row in result_df.to_dicts()]
+        tickers = [row["symbol"] for row in result_df.to_dicts()]
         logger.info("backfill_auto_discovered_tickers", num_tickers=len(tickers))
 
     tickers_processed = 0

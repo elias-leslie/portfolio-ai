@@ -242,7 +242,7 @@ class AlphaVantageSource(BaseSource):
                         records.append(
                             {
                                 "date": bar_date,
-                                "ticker": ticker,
+                                "symbol": symbol,
                                 "open": float(bar["1. open"]),
                                 "high": float(bar["2. high"]),
                                 "low": float(bar["3. low"]),
@@ -350,7 +350,7 @@ class AlphaVantageSource(BaseSource):
                 payload_json = json.dumps(response)
 
                 record = {
-                    "ticker": ticker,
+                    "symbol": symbol,
                     "as_of_date": as_of,
                     "payload": payload_json,
                     "source": "alphavantage",

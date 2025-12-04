@@ -151,7 +151,7 @@ class PolygonSource(BaseSource):
 
                 records.append(
                     {
-                        "ticker": ticker,
+                        "symbol": symbol,
                         "as_of_date": as_of,
                         "payload": payload_json,
                         "source": "polygon",
@@ -225,7 +225,7 @@ class PolygonSource(BaseSource):
 
                     records.append(
                         {
-                            "ticker": ticker if not is_market_request else "__MARKET__",
+                            "symbol": symbol if not is_market_request else "__MARKET__",
                             "headline": item.get("title"),
                             "url": item.get("article_url"),
                             "summary": item.get("description"),
@@ -304,7 +304,7 @@ class PolygonSource(BaseSource):
                 timestamp_ms = bar.get("t", 0)
                 bar_time = dt.datetime.fromtimestamp(timestamp_ms / 1000, tz=dt.UTC)
                 records.append({
-                    "ticker": ticker,
+                    "symbol": symbol,
                     "timestamp": bar_time,
                     "open": bar.get("o"),
                     "high": bar.get("h"),
@@ -371,7 +371,7 @@ class PolygonSource(BaseSource):
                 timestamp_ns = trade.get("sip_timestamp", 0)
                 trade_time = dt.datetime.fromtimestamp(timestamp_ns / 1e9, tz=dt.UTC)
                 records.append({
-                    "ticker": ticker,
+                    "symbol": symbol,
                     "timestamp": trade_time,
                     "price": trade.get("price"),
                     "size": trade.get("size"),

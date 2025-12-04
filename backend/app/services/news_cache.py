@@ -243,7 +243,7 @@ class NewsCacheManager:
             payload.setdefault("vendor", article.vendor)
 
         return {
-            "symbol": article.ticker,
+            "symbol": article.symbol,
             "headline": article.headline,
             "url": article.url,
             "summary": article.summary,

@@ -117,13 +117,13 @@ def get_news_mentions(
     """Find tickers with high news mention count."""
     sql = """
         SELECT
-            ticker as symbol,
+            symbol,
             COUNT(*) as article_count,
             AVG(sentiment_score) as avg_sentiment
         FROM news_cache
         WHERE published_at >= NOW() - make_interval(hours => $1)
-          AND ticker IS NOT NULL
-        GROUP BY ticker
+          AND symbol IS NOT NULL
+        GROUP BY symbol
         HAVING COUNT(*) >= $2
         ORDER BY article_count DESC
         LIMIT $3

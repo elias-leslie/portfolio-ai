@@ -29,34 +29,48 @@
 
 ## Tasks
 
-### 0.0 Scope Discovery (MANDATORY)
+### 0.0 Scope Discovery (MANDATORY) - COMPLETE
 
-- [ ] 0.1 Analyze existing walk-forward implementation
+- [x] 0.1 Analyze existing walk-forward implementation
   - File: backend/app/strategies/optimizer.py lines 325-360
-  - Current: 6-month train, 2-month val, 2-month roll
-  - Missing: Separate test period, 10-day gap
-- [ ] 0.2 Document strategy evolution requirements
-  - What rules need to be evolvable?
-  - What metrics trigger evolution?
-  - What's the MAS (Minimum Acceptable Score)?
-- [ ] 0.3 Checkpoint: Confirm architecture
-  - Walk-forward fold structure: [TBD]
-  - Evolution trigger criteria: [TBD]
-  - Lineage tracking approach: [TBD]
+  - Current: 180d train, 60d val, 60d roll step
+  - `_create_walk_forward_windows()` creates ValidationWindow dataclass
+  - `_test_params_across_windows()` runs backtest on val windows only
+  - `_aggregate_window_metrics()` uses simple arithmetic mean
+  - GAPS: 1-day gap (should be 10), no test period, no statistical significance
+- [x] 0.2 Document strategy evolution requirements
+  - Strategy versioning: `strategy_definitions.version INT` exists, NO parent_id
+  - Rules YAML: All 100+ thresholds in rules.yaml are evolvable (position sizing, technical, scoring, fees)
+  - Evolution trigger: `live_sharpe < 0.7 * expected_sharpe` archives after 30 days
+  - MAS proposal: parent_sharpe * 0.9 OR must beat B&H
+- [x] 0.3 Checkpoint: Architecture confirmed
+  - Walk-forward: Extend ValidationWindow with test_start, test_end, gap_days=10
+  - Evolution: Add strategy_lineage table (child_id, parent_id, changes_description)
+  - Lineage: Foreign key from new version to parent version
+  - B&H baseline: ✅ Already integrated (alpha, beta, IR, excess_return)
 
-**DO NOT PROCEED TO TASK 1 UNTIL SCOPE CONFIRMED**
+**SCOPE CONFIRMED - PROCEEDING TO TASK 1**
 
 ---
 
-### 1.0 Expose Walk-Forward Testing in Backtest API (Section 3.1)
+### 1.0 Expose Walk-Forward Testing in Backtest API (Section 3.1) - COMPLETE
 
-**Current State**: Walk-forward exists in optimizer, not in main API
+**Status**: ✅ Complete - API working, returns per-fold and aggregate metrics
 
-- [ ] 1.1 Design 3-fold validation structure
-  - Train: Fit strategy parameters
-  - Validation: Evaluate during optimization
-  - Test: Final out-of-sample evaluation (NEW)
-  - Gap: 10 days between val and test (prevents lookahead)
+- [x] 1.1 Design 3-fold validation structure
+  - Implemented: TRAIN → GAP (10d) → VAL → GAP (10d) → TEST
+  - WalkForwardWindow dataclass with all period dates
+- [x] 1.2 Update ValidationWindow model - Done in walk_forward.py
+- [x] 1.3 Create walk-forward backtest endpoint - POST /api/backtest/walk-forward
+- [x] 1.4 Create WalkForwardResult model - FoldMetrics, WalkForwardResult dataclasses
+- [x] 1.5 Implement walk-forward execution - WalkForwardEngine class
+- [x] 1.6 Add B&H comparison per fold - Using BenchmarkComparisonEngine
+- [x] 1.7 Add statistical significance test - Wilcoxon signed-rank test
+- [x] 1.8 Test walk-forward API - Verified with AAPL 3-year test
+
+**Files created:**
+- backend/app/backtest/walk_forward.py (NEW)
+- backend/app/api/backtest.py (updated with endpoint)
 - [ ] 1.2 Update ValidationWindow model
   - Edit optimizer.py ValidationWindow dataclass
   - Add: test_start, test_end fields
