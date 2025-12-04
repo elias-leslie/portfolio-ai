@@ -17,8 +17,8 @@ export function useFearGreed(
   return useQuery({
     queryKey: ["market", "fear-greed", date, includeComponents],
     queryFn: () => fetchFearGreed(date, includeComponents),
-    staleTime: 1000 * 60 * 60, // 1 hour (data updates daily)
-    refetchInterval: 1000 * 60 * 60 * 4, // Refetch every 4 hours
+    staleTime: 1000 * 60 * 30, // 30 minutes (reduced from 1hr for fresher data)
+    refetchInterval: 1000 * 60 * 60, // Refetch every hour (reduced from 4hrs)
     retry: 2,
   });
 }

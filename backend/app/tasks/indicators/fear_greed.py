@@ -294,6 +294,21 @@ def _invalidate_redis_cache() -> None:
             error=str(cache_error),
         )
 
+    # Also invalidate FastAPI response cache for market endpoints
+    try:
+        from app.middleware.cache import invalidate_fear_greed_cache  # noqa: PLC0415
+
+        invalidated = invalidate_fear_greed_cache()
+        logger.info(
+            "fear_greed_response_cache_invalidated",
+            entries_cleared=invalidated,
+        )
+    except Exception as cache_error:
+        logger.warning(
+            "fear_greed_response_cache_invalidation_failed",
+            error=str(cache_error),
+        )
+
 
 @celery_app.task(
     bind=True,

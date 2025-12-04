@@ -26,8 +26,8 @@ export function usePortfolio(options?: { enabled?: boolean }) {
     queryKey: ["portfolio"],
     queryFn: fetchPortfolio,
     enabled: options?.enabled !== false, // Default to true
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    refetchInterval: 1000 * 60 * 15, // Refetch every 15 minutes for price updates
+    staleTime: 1000 * 60 * 2, // 2 minutes (reduced from 5min for fresher data)
+    refetchInterval: 1000 * 60 * 5, // Refetch every 5 minutes (reduced from 15min)
   });
 }
 
@@ -39,8 +39,8 @@ export function usePortfolioAnalytics() {
   return useQuery({
     queryKey: ["portfolio", "analytics"],
     queryFn: fetchAnalytics,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    refetchInterval: 1000 * 60 * 15, // Refetch every 15 minutes for price updates
+    staleTime: 1000 * 60 * 2, // 2 minutes (reduced from 5min for fresher data)
+    refetchInterval: 1000 * 60 * 5, // Refetch every 5 minutes (reduced from 15min)
   });
 }
 

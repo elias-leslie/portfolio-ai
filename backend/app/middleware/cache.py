@@ -310,3 +310,43 @@ def invalidate_endpoint_cache(endpoint: str, method: str = "GET") -> int:
     """
     pattern = f"{method}:{endpoint}:*"
     return invalidate_cache_pattern(pattern)
+
+
+def invalidate_market_data_cache() -> int:
+    """Invalidate all market-related cache entries.
+
+    Call this after Celery tasks update market data (OHLCV, F&G, indicators).
+
+    Returns:
+        Number of cache entries invalidated
+    """
+    patterns = [
+        "GET:/api/market/*",
+        "GET:/api/watchlist/*",
+        "GET:/api/portfolio/*",
+    ]
+    total = 0
+    for pattern in patterns:
+        total += invalidate_cache_pattern(pattern)
+    logger.info(f"Invalidated {total} market data cache entries")
+    return total
+
+
+def invalidate_fear_greed_cache() -> int:
+    """Invalidate Fear & Greed specific caches.
+
+    Call this after calculate_fear_greed task completes.
+
+    Returns:
+        Number of cache entries invalidated
+    """
+    patterns = [
+        "GET:/api/market/intelligence:*",
+        "GET:/api/market/fear-greed*",
+        "GET:/api/market/conditions:*",
+    ]
+    total = 0
+    for pattern in patterns:
+        total += invalidate_cache_pattern(pattern)
+    logger.info(f"Invalidated {total} Fear & Greed cache entries")
+    return total

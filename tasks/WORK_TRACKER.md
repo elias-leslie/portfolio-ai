@@ -20,20 +20,25 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Data Freshness Investigation** (HIGH, MEDIUM effort, 0/3 tasks)
+1. **Data Freshness Investigation** (0% - 0/0 complete)
    - File: `tasks-0100-data-freshness-investigation.md`
-   - Created: 2025-12-04
-   - Goal: Fix data not showing as fresh on UI despite backend fixes
-   - Status: PENDING (scheduled from pause)
-   - Context: 80% used when paused
+   - Started: 2025-12-04 (today)
+   - Last updated: PENDING (scheduled from pause)
    - Next: Task 0.1 - Very thorough Explore agents
-   - Resume: `/do_it --max tasks/tasks-0100-data-freshness-investigation.md`
+   - Tasks:
+     - (No tasks defined yet)
 
-2. **Tier 3: Validation & Evolution** (VERY HIGH, 1/4 tasks, PAUSED)
+2. **Tier 3: Validation & Evolution** (25% - 1/4 complete)
    - File: `tasks-0099-tier3-validation-evolution.md`
-   - Created: 2025-12-04
-   - Status: PAUSED (2025-12-04) - Task 1 complete, Tasks 2-3 pending
-   - Next: Task 2 - Strategy Evolution Loop
+   - Started: 2025-12-04 (today)
+   - Last updated: ✅ Complete - API working, returns per-fold and aggregate metrics
+   - Next: Task 1 - Expose Walk-Forward Testing in Backtest API (Section 3.1) - COMPLETE
+   - Tasks:
+     - [x] Task 0: Scope Discovery (MANDATORY) - COMPLETE
+     - [ ] Task 1: Expose Walk-Forward Testing in Backtest API (Section 3.1) - COMPLETE
+     - [ ] Task 2: Implement Strategy Evolution Loop (Section 3.2)
+     - [ ] Task 3: AI Rules Validation Agent (Section 3.3)
+
 
 ---
 
@@ -41,30 +46,48 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Tier 0: Foundations - B&H Integration + Rules Engine** ✅ COMPLETE
+1. **Tier 0: Foundations - B&H Integration + Rules Engine** (HIGH, 2/5 tasks (today))
    - File: `tasks-0096-tier0-foundations-bh-rules-engine.md`
-   - Completed: 2025-12-04
-   - Tasks: 4/5 (Task 4 deferred - optional UI)
+   - Created: 2025-12-04
+   - Goal: Complete the two CRITICAL foundation tasks that enable all other improvements - integrate the existing B&H benchmark engine and create a centralized trading rules YAML config.
+   - Tasks:
+     - [x] Task 0: Scope Discovery for Rules Engine (MANDATORY) - COMPLETE
+     - [x] Task 1: Integrate B&H Benchmark into Backtest Pipeline (Section 0.1) - COMPLETE
+     - [ ] Task 2: Create Centralized Trading Rules Engine (Section 0.2) - COMPLETE
+     - [ ] Task 3: Fix Risk Management Thresholds (From Second Pass) - COMPLETE
+     - [ ] Task 4: Rules Engine UI (Optional Enhancement) - DEFERRED
 
-2. **Tier 1: Quick Wins - Prompts & Feedback** ✅ COMPLETE
+2. **Tier 1: Quick Wins - Prompts & Feedback** (LOW, 2/4 tasks (today))
    - File: `tasks-0097-tier1-quick-wins-prompts.md`
-   - Completed: 2025-12-04
-   - Tasks: 3/4 (Task 4 deferred - optional fixes)
+   - Created: 2025-12-04
+   - Goal: Add performance metrics, fee awareness, and confidence-based position sizing to LLM agent prompts. These are "quick wins" that improve agent decision-making with minimal effort.
+   - Tasks:
+     - [x] Task 1: Add Performance Feedback to Trading Prompts (Section 1.1) - COMPLETE
+     - [ ] Task 2: Implement Confidence → Leverage Enforcement (Section 1.2) - COMPLETE
+     - [x] Task 3: Add Fee Awareness to System Prompts (Section 1.3) - COMPLETE
+     - [ ] Task 4: Fix Additional Issues (From Second Pass)
 
-3. **Tier 2: Intelligence - Catalyst Scoring + Watchlist** ✅ COMPLETE
+3. **Tier 2: Intelligence - Catalyst Scoring + Watchlist** (HIGH, 5/6 tasks (today))
    - File: `tasks-0098-tier2-intelligence-catalyst-watchlist.md`
-   - Completed: 2025-12-04
-   - Tasks: 5/6 (Task 4 optional - daily report)
+   - Created: 2025-12-04
+   - Goal: Complete the catalyst detection system (add impact scoring) and implement automated watchlist discovery/trimming.
+   - Status: PAUSED (2025-12-04)
+   - Tasks:
+     - [x] Task 0: Scope Discovery for Watchlist Automation (MANDATORY) - COMPLETE
+     - [x] Task 1: Complete Catalyst Detection System (Section 2.1) - COMPLETE
+     - [x] Task 2: Implement Watchlist Discovery (Section 2.2) - COMPLETE
+     - [x] Task 3: Implement Watchlist Trimming (Section 2.2) - COMPLETE
+     - [ ] Task 4: Daily Watchlist Report (Optional)
+     - [x] Task 5: Agent Telemetry Dashboard (From Second Pass) - ALREADY COMPLETE
 
 4. **Tier 3: Validation & Evolution** (VERY HIGH, 1/4 tasks (today))
    - File: `tasks-0099-tier3-validation-evolution.md`
    - Created: 2025-12-04
-   - Status: IN PROGRESS - Task 1 complete
    - Goal: Expose walk-forward backtesting in main API and implement LLM-based strategy evolution loop.
    - Tasks:
-     - [x] Task 0: Scope Discovery - COMPLETE
-     - [x] Task 1: Walk-Forward API - COMPLETE (POST /api/backtest/walk-forward)
-     - [ ] Task 2: Strategy Evolution Loop (Section 3.2)
+     - [x] Task 0: Scope Discovery (MANDATORY) - COMPLETE
+     - [ ] Task 1: Expose Walk-Forward Testing in Backtest API (Section 3.1) - COMPLETE
+     - [ ] Task 2: Implement Strategy Evolution Loop (Section 3.2)
      - [ ] Task 3: AI Rules Validation Agent (Section 3.3)
 
 

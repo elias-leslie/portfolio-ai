@@ -85,13 +85,29 @@ class FearGreedReading:
         )
 
 
+def invalidate_fear_greed_redis_cache() -> bool:
+    """Invalidate Fear & Greed Redis cache.
+
+    Call this after calculate_fear_greed task writes new data.
+
+    Returns:
+        True if cache was invalidated, False if Redis unavailable
+    """
+    try:
+        redis_client = _get_redis_client()
+        redis_client.delete("fear_greed:latest")
+        return True
+    except Exception:
+        return False
+
+
 def get_fear_greed_score() -> FearGreedReading:
     """Get current Fear & Greed Index score from database with Redis caching.
 
     Queries the fear_greed_daily table for the most recent score.
     Falls back to neutral (50) if no data is available.
 
-    Caching: Uses Redis with 1-hour TTL since F&G updates once daily at 03:00 UTC.
+    Caching: Uses Redis with 30-minute TTL (reduced from 1hr for fresher data).
 
     Data is considered stale if >2 days old (trading days, not calendar days).
 
@@ -99,7 +115,7 @@ def get_fear_greed_score() -> FearGreedReading:
         FearGreedReading with score, label, staleness info, and metadata
     """
     cache_key = "fear_greed:latest"
-    cache_ttl = 3600  # 1 hour
+    cache_ttl = 1800  # 30 minutes (reduced from 1 hour for fresher data)
 
     # Try Redis cache first
     try:
