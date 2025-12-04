@@ -132,15 +132,17 @@
 
 ---
 
-### 4.0 Rules Engine UI (Optional Enhancement)
+### 4.0 Rules Engine UI (Optional Enhancement) - DEFERRED
 
-- [ ] 4.1 Add /api/rules endpoint
+- [ ] 4.1 Add /api/rules endpoint (Future)
   - GET /api/rules - Return current rules version + all values
   - GET /api/rules/history - Return version history
-- [ ] 4.2 Add rules viewer to frontend
+- [ ] 4.2 Add rules viewer to frontend (Future)
   - New page or section in /capabilities
   - Display all active rules in readable format
   - Show version history with diff capability
+
+**Note**: Core functionality complete. UI enhancement deferred to future iteration.
 
 ---
 

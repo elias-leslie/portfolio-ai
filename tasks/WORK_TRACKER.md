@@ -20,9 +20,7 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Tier 0: Foundations - B&H Integration + Rules Engine** (HIGH, in progress)
-   - File: `tasks-0096-tier0-foundations-bh-rules-engine.md`
-   - Started: 2025-12-04
+(No active tasks)
 
 ---
 
@@ -30,16 +28,17 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Tier 0: Foundations - B&H Integration + Rules Engine** (HIGH, 0/5 tasks (today))
+1. **Tier 0: Foundations - B&H Integration + Rules Engine** ✅ COMPLETE (2025-12-04)
    - File: `tasks-0096-tier0-foundations-bh-rules-engine.md`
-   - Created: 2025-12-04
-   - Goal: Complete the two CRITICAL foundation tasks that enable all other improvements - integrate the existing B&H benchmark engine and create a centralized trading rules YAML config.
-   - Tasks:
-     - [ ] Task 0: Scope Discovery for Rules Engine (MANDATORY)
-     - [ ] Task 1: Integrate B&H Benchmark into Backtest Pipeline (Section 0.1)
-     - [ ] Task 2: Create Centralized Trading Rules Engine (Section 0.2)
-     - [ ] Task 3: Fix Risk Management Thresholds (From Second Pass)
-     - [ ] Task 4: Rules Engine UI (Optional Enhancement)
+   - Completed: 2025-12-04
+   - Summary: B&H benchmark integration + centralized rules engine
+   - Key achievements:
+     - ✅ Migration 072: Benchmark fields in backtest_runs
+     - ✅ Rules YAML (280+ lines) with 10 sections
+     - ✅ Rules loader with typed dataclasses + 5-min cache
+     - ✅ Fixed drawdown thresholds (25% halt, 10%/15% warnings)
+     - ✅ Threshold inventory (150+ constants documented)
+   - Commit: 82b2d3e
 
 2. **Tier 1: Quick Wins - Prompts & Feedback** (LOW, 0/4 tasks (today))
    - File: `tasks-0097-tier1-quick-wins-prompts.md`

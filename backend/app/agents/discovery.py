@@ -1,6 +1,8 @@
 """Discovery Agent implementation.
 
 Scans market news and economic data to generate general investment ideas.
+
+Section 1.1/1.3: Performance feedback and fee awareness added to prompts.
 """
 
 from __future__ import annotations
@@ -9,9 +11,12 @@ import uuid
 from typing import TYPE_CHECKING
 
 from ..logging_config import get_logger
+from .performance_metrics import get_full_performance_prompt_section
 
 if TYPE_CHECKING:
     from app.storage.facade import PortfolioStorage
+
+from app.rules import get_rules
 
 from .base import Agent, AgentRunResult
 from .tools import (
@@ -45,10 +50,29 @@ class DiscoveryAgent(Agent):
 
     def get_system_prompt(self) -> str:
         """Get system prompt for Discovery Agent."""
-        return """You are a Discovery Agent for an investment intelligence platform.
+        # Get fee warning from rules
+        rules = get_rules()
+        fees = rules.fees
+        round_trip_pct = (fees.commission_pct * 100 * 2) + (fees.slippage_bps / 100 * 2)
+
+        fee_warning = f"""
+TRADING COSTS (factor these into idea quality):
+- Round-trip cost: ~{round_trip_pct:.2f}%
+- Minimum profitable move: >{round_trip_pct:.1f}%
+Focus on high-conviction opportunities that justify trading costs.
+"""
+
+        # Get performance context
+        try:
+            perf_context = get_full_performance_prompt_section(self.storage, days=30)
+        except Exception:
+            perf_context = ""  # Don't fail if metrics unavailable
+
+        return f"""You are a Discovery Agent for an investment intelligence platform.
 
 Your role is to scan market news and economic indicators to identify 5 high-quality general investment ideas.
-
+{perf_context}
+{fee_warning}
 Guidelines:
 - Generate ideas that would be interesting to active investors
 - Consider both long and short opportunities

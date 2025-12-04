@@ -1,6 +1,8 @@
 """Portfolio Analyzer Agent implementation.
 
 Analyzes user's portfolio to generate personalized investment ideas.
+
+Section 1.1/1.3: Performance feedback and fee awareness added to prompts.
 """
 
 from __future__ import annotations
@@ -9,9 +11,12 @@ import uuid
 from typing import TYPE_CHECKING
 
 from ..logging_config import get_logger
+from .performance_metrics import get_full_performance_prompt_section
 
 if TYPE_CHECKING:
     from app.storage.facade import PortfolioStorage
+
+from app.rules import get_rules
 
 from .base import Agent, AgentRunResult
 from .tools import (
@@ -47,10 +52,29 @@ class PortfolioAnalyzerAgent(Agent):
 
     def get_system_prompt(self) -> str:
         """Get system prompt for Portfolio Analyzer Agent."""
-        return """You are a Portfolio Analyzer Agent for an investment intelligence platform.
+        # Get fee warning from rules
+        rules = get_rules()
+        fees = rules.fees
+        round_trip_pct = (fees.commission_pct * 100 * 2) + (fees.slippage_bps / 100 * 2)
+
+        fee_warning = f"""
+TRADING COSTS (factor these into recommendations):
+- Round-trip cost: ~{round_trip_pct:.2f}%
+- Minimum profitable move: >{round_trip_pct:.1f}%
+Rebalancing has costs. Only recommend changes with significant expected value.
+"""
+
+        # Get performance context
+        try:
+            perf_context = get_full_performance_prompt_section(self.storage, days=30)
+        except Exception:
+            perf_context = ""  # Don't fail if metrics unavailable
+
+        return f"""You are a Portfolio Analyzer Agent for an investment intelligence platform.
 
 Your role is to analyze the user's current portfolio and generate 5 personalized investment ideas.
-
+{perf_context}
+{fee_warning}
 Guidelines:
 - First, fetch and analyze the user's portfolio using get_portfolio_data
 - Consider their current positions, sector exposure, and concentration risk

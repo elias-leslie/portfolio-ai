@@ -6,6 +6,8 @@ This module provides execution logic for trading tools:
 - remove_ticker: Remove tickers from watchlist
 - create_paper_trade: Create paper trades
 - run_backtest: Execute backtests for strategy validation
+
+Section 1.2: Confidence → Leverage enforcement added.
 """
 
 from __future__ import annotations
@@ -25,6 +27,53 @@ from app.backtest.storage import create_backtest_run, get_backtest_run, update_b
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
+
+# Confidence tier → position size multiplier mapping (Section 1.2)
+# Higher confidence = larger positions, lower confidence = smaller positions
+CONFIDENCE_LEVERAGE_MAP = {
+    "very_low": {"min": 0.0, "max": 0.2, "multiplier": 0.25, "max_position_pct": 0.0125},
+    "low": {"min": 0.2, "max": 0.4, "multiplier": 0.5, "max_position_pct": 0.025},
+    "medium": {"min": 0.4, "max": 0.6, "multiplier": 1.0, "max_position_pct": 0.05},
+    "high": {"min": 0.6, "max": 0.8, "multiplier": 1.5, "max_position_pct": 0.075},
+    "very_high": {"min": 0.8, "max": 1.0, "multiplier": 2.0, "max_position_pct": 0.10},
+}
+
+
+def get_confidence_tier(confidence: float) -> str:
+    """Get confidence tier from confidence score.
+
+    Args:
+        confidence: Confidence score (0.0-1.0)
+
+    Returns:
+        Tier name: very_low, low, medium, high, very_high
+    """
+    if confidence >= 0.8:
+        return "very_high"
+    if confidence >= 0.6:
+        return "high"
+    if confidence >= 0.4:
+        return "medium"
+    if confidence >= 0.2:
+        return "low"
+    return "very_low"
+
+
+def calculate_confidence_adjusted_position(
+    confidence: float, base_max_position_pct: float = 0.05
+) -> float:
+    """Calculate position size adjusted for confidence level.
+
+    Args:
+        confidence: Confidence score (0.0-1.0)
+        base_max_position_pct: Base position size (default 5%)
+
+    Returns:
+        Adjusted max_position_pct
+    """
+    tier = get_confidence_tier(confidence)
+    tier_config = CONFIDENCE_LEVERAGE_MAP[tier]
+    return tier_config["max_position_pct"]
 
 
 class TradingTools:
@@ -271,7 +320,11 @@ class TradingTools:
         """Execute create_paper_trade tool for autonomous paper trading.
 
         Creates a paper trade with automatic cash management and position sizing.
-        Uses 5% of account balance for position sizing (simple equal-weight).
+        Position size is now confidence-adjusted (Section 1.2):
+        - Low confidence (0-0.4): 1.25-2.5% position
+        - Medium confidence (0.4-0.6): 5% position (base)
+        - High confidence (0.6-0.8): 7.5% position
+        - Very high confidence (0.8-1.0): 10% position
 
         Args:
             agent_run_id: ID of the agent run
@@ -280,6 +333,7 @@ class TradingTools:
             thesis: Investment thesis
             target_price: Optional target exit price
             stop_loss_pct: Optional stop loss percentage
+            confidence_score: Confidence score (0.0-1.0) for position sizing
 
         Returns:
             Result dictionary with trade details or error
@@ -294,10 +348,24 @@ class TradingTools:
                 "error": f"Invalid action '{action}' (must be 'buy' or 'sell')",
             }
 
-        # Calculate max affordable shares (5% of account)
+        # Normalize confidence score (handle 0-100 vs 0-1)
+        normalized_confidence = (
+            confidence_score / 100.0 if confidence_score > 1.0 else confidence_score
+        )
+
+        # Calculate confidence-adjusted position size (Section 1.2)
+        adjusted_position_pct = calculate_confidence_adjusted_position(normalized_confidence)
+        confidence_tier = get_confidence_tier(normalized_confidence)
+
+        logger.info(
+            f"Position sizing: confidence={normalized_confidence:.2f} ({confidence_tier}) "
+            f"→ position_pct={adjusted_position_pct:.2%}"
+        )
+
+        # Calculate max affordable shares using confidence-adjusted sizing
         account_id = "paper_trading"
         max_shares = self.order_executor.calculate_max_shares(
-            ticker, account_id, max_position_pct=0.05
+            ticker, account_id, max_position_pct=adjusted_position_pct
         )
 
         if max_shares == 0:
