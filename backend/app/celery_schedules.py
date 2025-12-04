@@ -729,4 +729,31 @@ def get_beat_schedule() -> dict[str, object]:
             # - Historical snapshots enable equity curve visualization
             # - Fixes GAP-023: No drawdown tracking
         },
+        # ============================================================================
+        # WATCHLIST AUTOMATION (Tasks 0098)
+        # ============================================================================
+        # Discovery and trimming of watchlist based on market signals
+        # ============================================================================
+        "discover-watchlist-candidates-daily": {
+            "task": "discover_watchlist_candidates",
+            "schedule": crontab(hour=8, minute=0),  # Daily at 08:00 UTC (3 AM ET)
+            "options": {"expires": 1800},
+            # Notes:
+            # - Discovers high-potential tickers from top gainers, volume spikes, news
+            # - Scoring: gainers (0-4), volume (0-4), news mentions (0-4) = 0-12
+            # - Threshold: discovery_score >= 6.0 (from rules.yaml)
+            # - Limits: Max 5 additions per day, respects max watchlist size (50)
+            # - Source tracking: source="discovery", auto_added=true
+        },
+        "trim-underperforming-watchlist-daily": {
+            "task": "trim_underperforming_watchlist",
+            "schedule": crontab(hour=8, minute=30),  # Daily at 08:30 UTC (30 min after discovery)
+            "options": {"expires": 1800},
+            # Notes:
+            # - Removes underperforming tickers after minimum hold period
+            # - Criteria: avg_score < 4.0 AND days_watched >= 7
+            # - Excludes tickers owned in portfolio positions
+            # - Limits: Max 3 removals per day to prevent mass deletion
+            # - Can be disabled via rules.yaml: auto_trim_enabled: false
+        },
     }

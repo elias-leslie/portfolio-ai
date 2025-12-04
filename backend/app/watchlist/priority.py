@@ -1,14 +1,15 @@
 """Priority indicator calculation for watchlist items.
 
-This module provides 8 priority indicator checks:
+This module provides 9 priority indicator checks:
 1. 🔥 Hot Opportunity - Top 3 BUY signals
 2. 📋 Earnings Alert - Earnings within 7 days
 3. 📰 Breaking News - 10+ articles in 24h
 4. 📈 Insider Buying - Recent insider purchases
-5. 📉 Negative Catalyst - News sentiment < -0.3
-6. 💎 Value Play - Strong fundamentals, weak price
-7. ⚡ Momentum - Strong price AND technical
-8. ⚠️ Caution - Score misalignment
+5. 📉 Negative Catalyst - News sentiment < -0.3 OR negative event
+6. 🚀 Positive Catalyst - High-impact positive event (FDA approval, earnings beat, etc.)
+7. 💎 Value Play - Strong fundamentals, weak price
+8. ⚡ Momentum - Strong price AND technical
+9. ⚠️ Caution - Score misalignment
 
 NO ARBITRARY CAP - All relevant indicators are returned.
 """
@@ -37,11 +38,30 @@ PRIORITY_ORDER = {
     "hot_opportunity": 1,
     "earnings_alert": 2,
     "breaking_news": 3,
-    "insider_buying": 4,
-    "negative_catalyst": 5,
-    "value_play": 6,
-    "momentum": 7,
-    "caution": 8,
+    "positive_catalyst": 4,  # NEW: High-impact positive events
+    "insider_buying": 5,
+    "negative_catalyst": 6,
+    "value_play": 7,
+    "momentum": 8,
+    "caution": 9,
+}
+
+# High-impact catalyst events (score >= 2.0)
+HIGH_IMPACT_POSITIVE_EVENTS = {
+    "fda_approval",
+    "guidance_raised",
+    "earnings_beat",
+    "insider_buy_large",
+    "m_and_a_announced",
+    "regulatory_win",
+}
+
+HIGH_IMPACT_NEGATIVE_EVENTS = {
+    "fda_rejection",
+    "guidance_lowered",
+    "earnings_miss",
+    "sec_investigation",
+    "insider_sell_large",
 }
 
 
@@ -139,14 +159,31 @@ def check_insider_buying(item: WatchlistItemDict) -> PriorityIndicator | None:
 
 
 def check_negative_catalyst(item: WatchlistItemDict) -> PriorityIndicator | None:
-    """Check if news sentiment is very negative (<-0.3).
+    """Check if negative catalyst detected (sentiment < -0.3 OR negative event).
 
     Args:
-        item: Watchlist item dict with news_sentiment_score
+        item: Watchlist item dict with news_sentiment_score and news_intelligence
 
     Returns:
-        PriorityIndicator if bearish news, else None
+        PriorityIndicator if bearish catalyst, else None
     """
+    # Check for high-impact negative events from news
+    news_intel = item.get("news_intelligence")
+    if news_intel and isinstance(news_intel, dict):
+        key_events = news_intel.get("key_events", [])
+        for event in key_events:
+            event_category = event.get("event_category", "")
+            if event_category in HIGH_IMPACT_NEGATIVE_EVENTS:
+                event_label = event_category.replace("_", " ").title()
+                return PriorityIndicator(
+                    icon="📉",
+                    label="Negative Catalyst",
+                    tooltip=f"High-impact event: {event_label}. Increased downside risk.",
+                    priority=PRIORITY_ORDER["negative_catalyst"],
+                    category="risk",
+                )
+
+    # Fallback to sentiment check
     sentiment = item.get("news_sentiment_score")
     if sentiment is not None and sentiment < -0.3:
         return PriorityIndicator(
@@ -156,6 +193,35 @@ def check_negative_catalyst(item: WatchlistItemDict) -> PriorityIndicator | None
             priority=PRIORITY_ORDER["negative_catalyst"],
             category="risk",
         )
+    return None
+
+
+def check_positive_catalyst(item: WatchlistItemDict) -> PriorityIndicator | None:
+    """Check if high-impact positive catalyst detected.
+
+    Args:
+        item: Watchlist item dict with news_intelligence.key_events
+
+    Returns:
+        PriorityIndicator if bullish catalyst, else None
+    """
+    news_intel = item.get("news_intelligence")
+    if not news_intel or not isinstance(news_intel, dict):
+        return None
+
+    key_events = news_intel.get("key_events", [])
+    for event in key_events:
+        event_category = event.get("event_category", "")
+        if event_category in HIGH_IMPACT_POSITIVE_EVENTS:
+            event_label = event_category.replace("_", " ").title()
+            return PriorityIndicator(
+                icon="🚀",
+                label="Positive Catalyst",
+                tooltip=f"High-impact event: {event_label}. Bullish momentum driver.",
+                priority=PRIORITY_ORDER["positive_catalyst"],
+                category="opportunity",
+            )
+
     return None
 
 
@@ -299,11 +365,12 @@ def calculate_priority_indicators(
     )
     rank = sorted_items.index(current_item) + 1 if current_item in sorted_items else 999
 
-    # Run all 8 indicator checks
+    # Run all 9 indicator checks
     checks = [
         check_hot_opportunity(current_item, rank),
         check_earnings_alert(current_item),
         check_breaking_news(current_item),
+        check_positive_catalyst(current_item),  # NEW: High-impact positive events
         check_insider_buying(current_item),
         check_negative_catalyst(current_item),
         check_value_play(current_item),

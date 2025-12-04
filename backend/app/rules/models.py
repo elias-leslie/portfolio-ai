@@ -247,6 +247,36 @@ class PaperTradingRules:
     default_position_pct: float = 0.05
 
 
+@dataclass(frozen=True)
+class CatalystImpact:
+    """Single catalyst event impact configuration."""
+
+    impact: float = 0.0  # -5 to +5 scale
+    duration_days: int = 3
+
+
+@dataclass(frozen=True)
+class WatchlistManagementRules:
+    """Watchlist automation configuration."""
+
+    # Size limits
+    max_watchlist_size: int = 50
+    max_daily_additions: int = 5
+    max_daily_removals: int = 3
+
+    # Discovery thresholds
+    discovery_score_threshold: float = 6.0
+    gainers_threshold_pct: float = 5.0
+    volume_spike_ratio: float = 2.0
+    news_mention_threshold: int = 3
+
+    # Trimming rules
+    auto_trim_enabled: bool = True
+    min_days_watched: int = 7
+    min_score_threshold: float = 4.0
+    exclude_portfolio_holdings: bool = True
+
+
 @dataclass
 class TradingRules:
     """Root configuration containing all trading rules."""
@@ -265,3 +295,7 @@ class TradingRules:
     compliance: ComplianceRules = field(default_factory=ComplianceRules)
     market: MarketConditionRules = field(default_factory=MarketConditionRules)
     paper_trading: PaperTradingRules = field(default_factory=PaperTradingRules)
+    catalyst_impacts: dict[str, CatalystImpact] = field(default_factory=dict)
+    watchlist_management: WatchlistManagementRules = field(
+        default_factory=WatchlistManagementRules
+    )

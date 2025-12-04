@@ -28,29 +28,26 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Tier 0: Foundations - B&H Integration + Rules Engine** ✅ COMPLETE (2025-12-04)
+1. **Tier 0: Foundations - B&H Integration + Rules Engine** (HIGH, 4/5 tasks ✅)
    - File: `tasks-0096-tier0-foundations-bh-rules-engine.md`
-   - Completed: 2025-12-04
-   - Summary: B&H benchmark integration + centralized rules engine
-   - Key achievements:
-     - ✅ Migration 072: Benchmark fields in backtest_runs
-     - ✅ Rules YAML (280+ lines) with 10 sections
-     - ✅ Rules loader with typed dataclasses + 5-min cache
-     - ✅ Fixed drawdown thresholds (25% halt, 10%/15% warnings)
-     - ✅ Threshold inventory (150+ constants documented)
-   - Commit: 82b2d3e
+   - Created: 2025-12-04
+   - Goal: Complete the two CRITICAL foundation tasks that enable all other improvements - integrate the existing B&H benchmark engine and create a centralized trading rules YAML config.
+   - Tasks:
+     - [x] Task 0: Scope Discovery for Rules Engine (MANDATORY) - COMPLETE
+     - [x] Task 1: Integrate B&H Benchmark into Backtest Pipeline (Section 0.1) - COMPLETE
+     - [x] Task 2: Create Centralized Trading Rules Engine (Section 0.2) - COMPLETE
+     - [x] Task 3: Fix Risk Management Thresholds (From Second Pass) - COMPLETE
+     - [ ] Task 4: Rules Engine UI (Optional Enhancement) - DEFERRED
 
-2. **Tier 1: Quick Wins - Prompts & Feedback** ✅ COMPLETE (2025-12-04)
+2. **Tier 1: Quick Wins - Prompts & Feedback** (LOW, 3/4 tasks ✅)
    - File: `tasks-0097-tier1-quick-wins-prompts.md`
-   - Completed: 2025-12-04
-   - Summary: Performance feedback, fee awareness, confidence-based sizing
-   - Key achievements:
-     - ✅ Performance metrics collector (240 lines)
-     - ✅ Fee warnings in all 3 agent prompts
-     - ✅ Confidence → leverage mapping (5 tiers)
-     - ✅ Behavioral calibration guidance
-   - Task 4 (Additional Issues) deferred
-   - Commit: 66c85ce
+   - Created: 2025-12-04
+   - Goal: Add performance metrics, fee awareness, and confidence-based position sizing to LLM agent prompts. These are "quick wins" that improve agent decision-making with minimal effort.
+   - Tasks:
+     - [x] Task 1: Add Performance Feedback to Trading Prompts (Section 1.1) - COMPLETE
+     - [x] Task 2: Implement Confidence → Leverage Enforcement (Section 1.2) - COMPLETE
+     - [x] Task 3: Add Fee Awareness to System Prompts (Section 1.3) - COMPLETE
+     - [ ] Task 4: Fix Additional Issues (From Second Pass)
 
 3. **Tier 2: Intelligence - Catalyst Scoring + Watchlist** (HIGH, 0/6 tasks (today))
    - File: `tasks-0098-tier2-intelligence-catalyst-watchlist.md`

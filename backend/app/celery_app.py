@@ -78,6 +78,7 @@ from app.tasks import (  # noqa: E402, F401
     strategy_metrics_tasks,
     strategy_monitoring_tasks,
     strategy_signal_tasks,
+    watchlist_discovery,  # NEW: Watchlist auto-discovery and trimming
     watchlist_tasks,
     workflow_tasks,
 )

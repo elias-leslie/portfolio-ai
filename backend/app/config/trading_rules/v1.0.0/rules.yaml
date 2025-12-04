@@ -251,3 +251,85 @@ market:
 paper_trading:
   max_holding_days: 60           # Default 60-day max hold
   default_position_pct: 0.05     # 5% position size
+
+# =============================================================================
+# CATALYST IMPACT SCORING
+# Source: services/plain_language_news.py (EventCategory), watchlist/scoring.py
+# Impact: -5 to +5 scale, duration_days: how long the impact lasts
+# =============================================================================
+catalyst_impacts:
+  # Earnings events
+  earnings_beat: { impact: 1.5, duration_days: 3 }
+  earnings_miss: { impact: -2.0, duration_days: 3 }
+  earnings_mixed: { impact: 0.0, duration_days: 2 }
+
+  # Guidance events (more impactful than earnings)
+  guidance_raised: { impact: 2.5, duration_days: 5 }
+  guidance_lowered: { impact: -3.0, duration_days: 5 }
+
+  # FDA/Regulatory (highest impact for pharma)
+  fda_approval: { impact: 4.0, duration_days: 7 }
+  fda_rejection: { impact: -5.0, duration_days: 7 }
+  regulatory_win: { impact: 2.0, duration_days: 5 }
+  regulatory_loss: { impact: -2.5, duration_days: 5 }
+  sec_investigation: { impact: -3.5, duration_days: 14 }
+
+  # M&A events
+  m_and_a_announced: { impact: 2.0, duration_days: 7 }
+  m_and_a_completed: { impact: 1.0, duration_days: 3 }
+
+  # Executive changes
+  exec_change_ceo: { impact: -1.0, duration_days: 5 }  # Uncertainty
+  exec_change_cfo: { impact: -0.5, duration_days: 3 }
+
+  # Analyst events
+  analyst_upgrade: { impact: 1.5, duration_days: 3 }
+  analyst_downgrade: { impact: -1.5, duration_days: 3 }
+  analyst_initiate: { impact: 0.5, duration_days: 2 }
+
+  # Insider trading
+  insider_buy_large: { impact: 2.0, duration_days: 5 }
+  insider_buy_small: { impact: 0.5, duration_days: 3 }
+  insider_sell_large: { impact: -1.5, duration_days: 5 }
+  insider_sell_small: { impact: -0.3, duration_days: 2 }
+
+  # Product/partnership
+  product_launch: { impact: 1.5, duration_days: 5 }
+  partnership: { impact: 1.0, duration_days: 3 }
+
+  # Legal events
+  lawsuit_filed: { impact: -1.5, duration_days: 7 }
+  lawsuit_settled: { impact: 0.5, duration_days: 3 }
+
+  # Dividend/buyback
+  dividend_increase: { impact: 1.0, duration_days: 5 }
+  dividend_cut: { impact: -2.0, duration_days: 5 }
+  buyback_announced: { impact: 1.0, duration_days: 5 }
+
+  # Other
+  split_announced: { impact: 0.0, duration_days: 1 }  # Cosmetic
+  market_share_gain: { impact: 1.5, duration_days: 7 }
+  market_share_loss: { impact: -1.5, duration_days: 7 }
+  unknown: { impact: 0.0, duration_days: 1 }
+
+# =============================================================================
+# WATCHLIST MANAGEMENT
+# Source: tasks/watchlist_discovery.py, tasks/watchlist_trimming.py
+# =============================================================================
+watchlist_management:
+  # Size limits
+  max_watchlist_size: 50
+  max_daily_additions: 5
+  max_daily_removals: 3
+
+  # Discovery thresholds
+  discovery_score_threshold: 6.0    # Minimum score to auto-add
+  gainers_threshold_pct: 5.0        # 5%+ daily gain
+  volume_spike_ratio: 2.0           # 2x average volume
+  news_mention_threshold: 3         # 3+ headlines today
+
+  # Trimming rules
+  auto_trim_enabled: true
+  min_days_watched: 7               # Minimum 7 days before removal
+  min_score_threshold: 4.0          # Below 4.0 = underperformer
+  exclude_portfolio_holdings: true  # Don't trim owned tickers

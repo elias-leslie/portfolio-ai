@@ -13,6 +13,7 @@ from typing import Any
 import yaml
 
 from app.rules.models import (
+    CatalystImpact,
     ComplianceRules,
     FeeRules,
     FundamentalThresholds,
@@ -24,6 +25,7 @@ from app.rules.models import (
     SignalThresholds,
     TechnicalThresholds,
     TradingRules,
+    WatchlistManagementRules,
 )
 
 logger = logging.getLogger(__name__)
@@ -241,6 +243,37 @@ def _load_paper_trading(data: dict[str, Any]) -> PaperTradingRules:
     )
 
 
+def _load_catalyst_impacts(data: dict[str, Any]) -> dict[str, CatalystImpact]:
+    """Parse catalyst_impacts section."""
+    section = data.get("catalyst_impacts", {})
+    result: dict[str, CatalystImpact] = {}
+    for event_type, config in section.items():
+        if isinstance(config, dict):
+            result[event_type] = CatalystImpact(
+                impact=config.get("impact", 0.0),
+                duration_days=config.get("duration_days", 3),
+            )
+    return result
+
+
+def _load_watchlist_management(data: dict[str, Any]) -> WatchlistManagementRules:
+    """Parse watchlist_management section."""
+    section = data.get("watchlist_management", {})
+    return WatchlistManagementRules(
+        max_watchlist_size=section.get("max_watchlist_size", 50),
+        max_daily_additions=section.get("max_daily_additions", 5),
+        max_daily_removals=section.get("max_daily_removals", 3),
+        discovery_score_threshold=section.get("discovery_score_threshold", 6.0),
+        gainers_threshold_pct=section.get("gainers_threshold_pct", 5.0),
+        volume_spike_ratio=section.get("volume_spike_ratio", 2.0),
+        news_mention_threshold=section.get("news_mention_threshold", 3),
+        auto_trim_enabled=section.get("auto_trim_enabled", True),
+        min_days_watched=section.get("min_days_watched", 7),
+        min_score_threshold=section.get("min_score_threshold", 4.0),
+        exclude_portfolio_holdings=section.get("exclude_portfolio_holdings", True),
+    )
+
+
 def _load_rules_from_yaml(path: Path) -> TradingRules:
     """Load and parse trading rules from YAML file."""
     if not path.exists():
@@ -268,6 +301,8 @@ def _load_rules_from_yaml(path: Path) -> TradingRules:
         compliance=_load_compliance(data),
         market=_load_market(data),
         paper_trading=_load_paper_trading(data),
+        catalyst_impacts=_load_catalyst_impacts(data),
+        watchlist_management=_load_watchlist_management(data),
     )
 
 
