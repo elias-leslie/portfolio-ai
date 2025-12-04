@@ -49,17 +49,17 @@
      - [x] Task 3: Add Fee Awareness to System Prompts (Section 1.3) - COMPLETE
      - [ ] Task 4: Fix Additional Issues (From Second Pass)
 
-3. **Tier 2: Intelligence - Catalyst Scoring + Watchlist** (HIGH, 0/6 tasks (today))
+3. **Tier 2: Intelligence - Catalyst Scoring + Watchlist** (HIGH, 5/6 tasks ✅)
    - File: `tasks-0098-tier2-intelligence-catalyst-watchlist.md`
    - Created: 2025-12-04
    - Goal: Complete the catalyst detection system (add impact scoring) and implement automated watchlist discovery/trimming.
    - Tasks:
-     - [ ] Task 0: Scope Discovery for Watchlist Automation (MANDATORY)
-     - [ ] Task 1: Complete Catalyst Detection System (Section 2.1)
-     - [ ] Task 2: Implement Watchlist Discovery (Section 2.2)
-     - [ ] Task 3: Implement Watchlist Trimming (Section 2.2)
-     - [ ] Task 4: Daily Watchlist Report (Optional)
-     - [ ] Task 5: Agent Telemetry Dashboard (From Second Pass)
+     - [x] Task 0: Scope Discovery for Watchlist Automation (MANDATORY) - COMPLETE
+     - [x] Task 1: Complete Catalyst Detection System (Section 2.1) - COMPLETE
+     - [x] Task 2: Implement Watchlist Discovery (Section 2.2) - COMPLETE
+     - [x] Task 3: Implement Watchlist Trimming (Section 2.2) - COMPLETE
+     - [ ] Task 4: Daily Watchlist Report (Optional) - DEFERRED
+     - [x] Task 5: Agent Telemetry Dashboard (From Second Pass) - ALREADY EXISTED
 
 4. **Tier 3: Validation & Evolution** (VERY HIGH, 0/4 tasks (today))
    - File: `tasks-0099-tier3-validation-evolution.md`
