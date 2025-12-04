@@ -217,7 +217,7 @@ async def get_gap_summary() -> GapSummaryDict:
 
     Returns complete gap analysis including:
     - Total gaps by criticality (P0/P1/P2/P3) - EXCLUDES resolved gaps
-    - Coverage % per analysis type
+    - Coverage % per analysis type (recalculated excluding resolved)
     - TOP 10 priority gaps (ranked by impact x 1/effort)
     - MVP roadmap (4-week plan to achieve trading edge)
     - Resolved count (gaps marked as done)
@@ -237,43 +237,79 @@ async def get_gap_summary() -> GapSummaryDict:
         resolved_ids = get_resolved_gap_ids(conn_mgr)
         resolved_count = len(resolved_ids)
 
-        # Collect all gaps from analysis types
-        all_gaps: list[dict[str, Any]] = []
-        for analysis_type_data in result.get("analysis_types", {}).values():
-            gaps_list = analysis_type_data.get("gaps", [])
-            # GapInfo is a TypedDict, cast to dict for type checker
-            all_gaps.extend(cast(list[dict[str, Any]], gaps_list))
+        # Weight mapping for coverage calculation
+        weights = {"P0": 4.0, "P1": 2.0, "P2": 1.0, "P3": 0.5}
 
-        # Filter out resolved gaps from counts
-        def is_pending(gap: dict[str, Any]) -> bool:
-            return gap.get("gap_id", "") not in resolved_ids
+        # Filter resolved gaps from analysis_types and recalculate coverage
+        filtered_analysis_types: dict[str, Any] = {}
+        all_pending_gaps: list[dict[str, Any]] = []
 
-        pending_gaps = [g for g in all_gaps if is_pending(g)]
+        for analysis_type, type_data in result.get("analysis_types", {}).items():
+            gaps_list = type_data.get("gaps", [])
+            total_caps = type_data.get("total_capabilities", 0)
+
+            # Filter to pending gaps only
+            pending_gaps = [g for g in gaps_list if g.get("gap_id", "") not in resolved_ids]
+
+            # Recalculate coverage % excluding resolved gaps
+            # resolved gaps count as "available" now
+            if total_caps > 0:
+                # Calculate weighted points
+                total_points = 0.0
+                missing_points = 0.0
+                for gap in gaps_list:
+                    w = weights.get(gap.get("criticality", "P2"), 1.0)
+                    total_points += w
+                    if gap.get("gap_id", "") not in resolved_ids:
+                        missing_points += w
+
+                # Available = total - missing (resolved counts as available)
+                available_points = total_points - missing_points
+                new_coverage = (available_points / total_points) * 100 if total_points > 0 else 0.0
+            else:
+                new_coverage = type_data.get("coverage_pct", 0.0)
+
+            # Update the analysis type data with filtered gaps
+            filtered_type = {
+                **type_data,
+                "gaps": pending_gaps,
+                "missing_capabilities": len(pending_gaps),
+                "available_capabilities": total_caps - len(pending_gaps),
+                "coverage_pct": round(new_coverage, 1),
+            }
+            filtered_analysis_types[analysis_type] = filtered_type
+            all_pending_gaps.extend(pending_gaps)
 
         # Count by criticality
-        p0 = sum(1 for g in pending_gaps if g.get("criticality") == "P0")
-        p1 = sum(1 for g in pending_gaps if g.get("criticality") == "P1")
-        p2 = sum(1 for g in pending_gaps if g.get("criticality") == "P2")
-        p3 = sum(1 for g in pending_gaps if g.get("criticality") == "P3")
+        p0 = sum(1 for g in all_pending_gaps if g.get("criticality") == "P0")
+        p1 = sum(1 for g in all_pending_gaps if g.get("criticality") == "P1")
+        p2 = sum(1 for g in all_pending_gaps if g.get("criticality") == "P2")
+        p3 = sum(1 for g in all_pending_gaps if g.get("criticality") == "P3")
 
-        # Calculate average coverage across all analysis types
-        coverage_values = [at["coverage_pct"] for at in result["analysis_types"].values()]
+        # Calculate average coverage across all analysis types (now using filtered data)
+        coverage_values = [at["coverage_pct"] for at in filtered_analysis_types.values()]
         avg_coverage = sum(coverage_values) / len(coverage_values) if coverage_values else 0.0
+
+        # Filter top 10 priorities to only include pending gaps
+        top_10 = result.get("top_10_priorities", [])
+        filtered_top_10 = [g for g in top_10 if g.get("gap_id", "") not in resolved_ids][:10]
 
         response = {
             **result,
-            "total_gaps": len(pending_gaps),  # Override with pending count
+            "analysis_types": filtered_analysis_types,  # Use filtered version
+            "total_gaps": len(all_pending_gaps),
             "p0_gaps": p0,
             "p1_gaps": p1,
             "p2_gaps": p2,
             "p3_gaps": p3,
-            "resolved_count": resolved_count,  # Add resolved count
+            "resolved_count": resolved_count,
             "avg_coverage_pct": round(avg_coverage, 1),
+            "top_10_priorities": filtered_top_10,
         }
 
         logger.info(
             "gap_summary_returned",
-            total_gaps=len(pending_gaps),
+            total_gaps=len(all_pending_gaps),
             resolved=resolved_count,
             p0_gaps=p0,
             avg_coverage=round(avg_coverage, 1),
@@ -291,7 +327,7 @@ async def get_gap_summary() -> GapSummaryDict:
 
 @router.get("/by-analysis", response_model=GapsByAnalysisResponse)
 async def get_gaps_by_analysis() -> GapsByAnalysisDict:
-    """Get gaps grouped by analysis type.
+    """Get gaps grouped by analysis type (excludes resolved gaps).
 
     Returns detailed breakdown per analysis type:
     - Technical Analysis: coverage %, gaps, maturity level
@@ -314,13 +350,47 @@ async def get_gaps_by_analysis() -> GapsByAnalysisDict:
 
         result = detector.analyze_gaps()
 
+        # Get resolved gap IDs to exclude
+        resolved_ids = get_resolved_gap_ids(conn_mgr)
+        weights = {"P0": 4.0, "P1": 2.0, "P2": 1.0, "P3": 0.5}
+
+        # Filter resolved gaps from each analysis type
+        filtered_analysis_types: dict[str, Any] = {}
+        for analysis_type, type_data in result.get("analysis_types", {}).items():
+            gaps_list = type_data.get("gaps", [])
+            total_caps = type_data.get("total_capabilities", 0)
+
+            # Filter to pending gaps only
+            pending_gaps = [g for g in gaps_list if g.get("gap_id", "") not in resolved_ids]
+
+            # Recalculate coverage
+            if total_caps > 0 and gaps_list:
+                total_points = sum(weights.get(g.get("criticality", "P2"), 1.0) for g in gaps_list)
+                missing_points = sum(
+                    weights.get(g.get("criticality", "P2"), 1.0)
+                    for g in gaps_list
+                    if g.get("gap_id", "") not in resolved_ids
+                )
+                new_coverage = ((total_points - missing_points) / total_points) * 100
+            else:
+                new_coverage = type_data.get("coverage_pct", 0.0)
+
+            filtered_type = {
+                **type_data,
+                "gaps": pending_gaps,
+                "missing_capabilities": len(pending_gaps),
+                "available_capabilities": total_caps - len(pending_gaps),
+                "coverage_pct": round(new_coverage, 1),
+            }
+            filtered_analysis_types[analysis_type] = filtered_type
+
         response = {
-            "analysis_types": result["analysis_types"],
+            "analysis_types": filtered_analysis_types,
         }
 
         logger.info(
             "gaps_by_analysis_returned",
-            analysis_types=len(result["analysis_types"]),
+            analysis_types=len(filtered_analysis_types),
         )
 
         return cast(GapsByAnalysisDict, response)
