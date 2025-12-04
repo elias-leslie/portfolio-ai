@@ -27,7 +27,7 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-(No planned tasks)
+- [ ] Capability Improvements (capability_it 2025-12-04) - tasks/tasks-0090-capability-improvements.md
 
 ---
 
