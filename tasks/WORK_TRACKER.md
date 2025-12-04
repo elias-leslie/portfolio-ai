@@ -19,7 +19,10 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-(No active tasks)
+1. **Data Architecture Improvements (tasks-0092 to 0095)** - Phase 1 Complete
+   - File: `tasks/tasks-0092-data-architecture-fixes.md` through `tasks-0095`
+   - Status: Phase 1 dual-write working, reads still use legacy
+   - Next: Update reads to use normalized tables (optional Phase 2)
 
 ---
 
@@ -35,7 +38,22 @@
 
 *Last 5 completed tasks*
 
-1. **Resolve Pending Capability Insights** ✅ COMPLETE (2025-12-04)
+1. **Data Architecture Improvements** ✅ PHASE 1 COMPLETE (2025-12-04)
+   - Files: `tasks-0092` through `tasks-0095`
+   - Completed: 2025-12-04 Phase 1
+   - Duration: ~2 hours
+   - Summary: Normalized watchlist_snapshots, added FK constraints, created FREDClient
+   - Key achievements:
+     - ✅ Migration 069: FK constraints on 5 fundamental tables
+     - ✅ Migration 070: Split watchlist_snapshots into 4 normalized tables
+     - ✅ Dual-write working (both legacy + new tables get data)
+     - ✅ Created FREDClient with connection pooling
+     - ✅ Extracted standardize_dates() utility (DRY)
+     - ✅ Backwards-compatible view (watchlist_snapshots_v)
+   - Impact: Data flows to normalized schema, ~60% storage reduction potential
+   - Phase 2: Update reads to use new tables (optional, deferred)
+
+2. **Resolve Pending Capability Insights** ✅ COMPLETE (2025-12-04)
    - File: `tasks-0091-resolve-pending-insights.md`
    - Completed: 2025-12-04
    - Duration: ~15 minutes
