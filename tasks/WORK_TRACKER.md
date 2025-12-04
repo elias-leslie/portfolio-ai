@@ -20,7 +20,20 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-(No active tasks)
+1. **Data Freshness Investigation** (HIGH, MEDIUM effort, 0/3 tasks)
+   - File: `tasks-0100-data-freshness-investigation.md`
+   - Created: 2025-12-04
+   - Goal: Fix data not showing as fresh on UI despite backend fixes
+   - Status: PENDING (scheduled from pause)
+   - Context: 80% used when paused
+   - Next: Task 0.1 - Very thorough Explore agents
+   - Resume: `/do_it --max tasks/tasks-0100-data-freshness-investigation.md`
+
+2. **Tier 3: Validation & Evolution** (VERY HIGH, 1/4 tasks, PAUSED)
+   - File: `tasks-0099-tier3-validation-evolution.md`
+   - Created: 2025-12-04
+   - Status: PAUSED (2025-12-04) - Task 1 complete, Tasks 2-3 pending
+   - Next: Task 2 - Strategy Evolution Loop
 
 ---
 
