@@ -20,23 +20,7 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Complete ticker→symbol Standardization** (0% - 0/9 complete)
-   - File: `tasks-0101-ticker-to-symbol-standardization.md`
-   - Started: 2025-12-04 (today)
-   - Last updated: Unknown
-   - Next: Task 0 - Scope Discovery (MANDATORY)
-   - Tasks:
-     - [ ] Task 0: Scope Discovery (MANDATORY)
-     - [ ] Task 1: Fix Remaining Variable Names
-     - [ ] Task 2: Fix yfinance Object Variable Names
-     - [ ] Task 3: Fix Comments and Docstrings
-     - [ ] Task 4: Fix Function and Class Names
-     - [ ] Task 5: Fix Remaining String Literals and Dict Keys
-     - [ ] Task 6: Database Verification
-     - [ ] Task 7: Frontend Verification
-     - [ ] Task 8: Final Verification
-
-2. **Tier 3: Validation & Evolution** (25% - 1/4 complete)
+1. **Tier 3: Validation & Evolution** (25% - 1/4 complete)
    - File: `tasks-0099-tier3-validation-evolution.md`
    - Started: 2025-12-04 (today)
    - Last updated: ✅ Complete - API working, returns per-fold and aggregate metrics
@@ -105,7 +89,20 @@
 
 *Last 5 completed tasks*
 
-1. **Data Freshness Investigation** ✅ COMPLETE (2025-12-04)
+1. **Complete ticker→symbol Standardization** ✅ COMPLETE (2025-12-04)
+   - File: `tasks-0101-ticker-to-symbol-standardization.md`
+   - Completed: 2025-12-04
+   - Duration: ~45 minutes
+   - Summary: Standardized all ticker→symbol across codebase (839 instances)
+   - Key achievements:
+     - ✅ Fixed 839 ticker references → 0 (excluding legitimate yf.Ticker API calls)
+     - ✅ Fixed 5+ critical bugs where parameter was 'symbol' but code used 'ticker'
+     - ✅ Updated function parameters, loop variables, logger kwargs, docstrings
+     - ✅ Frontend types updated to match backend API
+     - ✅ 132 files changed, comprehensive refactor
+   - Impact: Codebase now fully standardized on 'symbol' terminology
+
+2. **Data Freshness Investigation** ✅ COMPLETE (2025-12-04)
    - File: `tasks-0100-data-freshness-investigation.md`
    - Completed: 2025-12-04
    - Duration: ~1 hour
