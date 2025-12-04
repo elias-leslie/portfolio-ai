@@ -43,14 +43,15 @@
    - Completed: 2025-12-04
    - Tasks: 5/6 (Task 4 optional - daily report)
 
-4. **Tier 3: Validation & Evolution** (VERY HIGH, 0/4 tasks (today))
+4. **Tier 3: Validation & Evolution** (VERY HIGH, 1/4 tasks (today))
    - File: `tasks-0099-tier3-validation-evolution.md`
    - Created: 2025-12-04
+   - Status: IN PROGRESS - Task 1 complete
    - Goal: Expose walk-forward backtesting in main API and implement LLM-based strategy evolution loop.
    - Tasks:
-     - [ ] Task 0: Scope Discovery (MANDATORY)
-     - [ ] Task 1: Expose Walk-Forward Testing in Backtest API (Section 3.1)
-     - [ ] Task 2: Implement Strategy Evolution Loop (Section 3.2)
+     - [x] Task 0: Scope Discovery - COMPLETE
+     - [x] Task 1: Walk-Forward API - COMPLETE (POST /api/backtest/walk-forward)
+     - [ ] Task 2: Strategy Evolution Loop (Section 3.2)
      - [ ] Task 3: AI Rules Validation Agent (Section 3.3)
 
 
