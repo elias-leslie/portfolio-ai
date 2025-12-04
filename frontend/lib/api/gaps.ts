@@ -64,9 +64,19 @@ export interface SymbolGaps {
 }
 
 export interface WatchlistGaps {
-  watchlist_symbols: string[];
-  symbol_coverage: Record<string, any>;
-  aggregate_gaps: GapInfo[];
+  watchlist_tickers: string[];
+  ticker_coverage: Record<string, any>;
+  aggregate_gaps: Array<{
+    capability: string;
+    description: string;
+    affected_tickers: number;
+    total_tickers: number;
+    affected_pct: number;
+    tickers: string[];
+  }>;
+  // Aliases for backwards compatibility
+  watchlist_symbols?: string[];
+  symbol_coverage?: Record<string, any>;
 }
 
 export interface TaskListGenerated {

@@ -203,15 +203,17 @@ export function WatchlistCoverage({ data }: WatchlistCoverageProps) {
   };
 
   // Get unique analysis types from coverage_by_analysis of all symbols
+  // Support both API field names (watchlist_tickers/ticker_coverage and watchlist_symbols/symbol_coverage)
+  const symbolCoverage = data.ticker_coverage || data.symbol_coverage || {};
   const analysisTypes = Array.from(
     new Set(
-      Object.values(data.symbol_coverage || {}).flatMap((symbolData) =>
+      Object.values(symbolCoverage).flatMap((symbolData) =>
         Object.keys((symbolData as SymbolCoverageData)?.coverage_by_analysis || {})
       )
     )
   ).sort();
 
-  const symbols = data.watchlist_symbols || [];
+  const symbols = data.watchlist_tickers || data.watchlist_symbols || [];
 
   if (symbols.length === 0) {
     return (
@@ -227,7 +229,7 @@ export function WatchlistCoverage({ data }: WatchlistCoverageProps) {
 
   // Calculate average readiness across all symbols
   const avgReadiness = symbols.reduce((sum, symbol) => {
-    const symbolData = data.symbol_coverage?.[symbol] as SymbolCoverageData | undefined;
+    const symbolData = symbolCoverage[symbol] as SymbolCoverageData | undefined;
     return sum + (symbolData?.readiness_score || 0);
   }, 0) / (symbols.length || 1);
 
@@ -290,7 +292,7 @@ export function WatchlistCoverage({ data }: WatchlistCoverageProps) {
             <SymbolRow
               key={symbol}
               symbol={symbol}
-              symbolData={data.symbol_coverage?.[symbol] as SymbolCoverageData | undefined}
+              symbolData={symbolCoverage[symbol] as SymbolCoverageData | undefined}
               analysisTypes={analysisTypes}
               isExpanded={expandedSymbol === symbol}
               onToggle={() => toggleExpand(symbol)}
