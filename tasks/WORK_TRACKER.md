@@ -40,15 +40,17 @@
      - ✅ Threshold inventory (150+ constants documented)
    - Commit: 82b2d3e
 
-2. **Tier 1: Quick Wins - Prompts & Feedback** (LOW, 0/4 tasks (today))
+2. **Tier 1: Quick Wins - Prompts & Feedback** ✅ COMPLETE (2025-12-04)
    - File: `tasks-0097-tier1-quick-wins-prompts.md`
-   - Created: 2025-12-04
-   - Goal: Add performance metrics, fee awareness, and confidence-based position sizing to LLM agent prompts. These are "quick wins" that improve agent decision-making with minimal effort.
-   - Tasks:
-     - [ ] Task 1: Add Performance Feedback to Trading Prompts (Section 1.1)
-     - [ ] Task 2: Implement Confidence → Leverage Enforcement (Section 1.2)
-     - [ ] Task 3: Add Fee Awareness to System Prompts (Section 1.3)
-     - [ ] Task 4: Fix Additional Issues (From Second Pass)
+   - Completed: 2025-12-04
+   - Summary: Performance feedback, fee awareness, confidence-based sizing
+   - Key achievements:
+     - ✅ Performance metrics collector (240 lines)
+     - ✅ Fee warnings in all 3 agent prompts
+     - ✅ Confidence → leverage mapping (5 tiers)
+     - ✅ Behavioral calibration guidance
+   - Task 4 (Additional Issues) deferred
+   - Commit: 66c85ce
 
 3. **Tier 2: Intelligence - Catalyst Scoring + Watchlist** (HIGH, 0/6 tasks (today))
    - File: `tasks-0098-tier2-intelligence-catalyst-watchlist.md`
