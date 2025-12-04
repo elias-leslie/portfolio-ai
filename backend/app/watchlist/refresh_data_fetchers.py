@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+from ..analytics.news_sentiment_aggregator import get_ticker_sentiment
 from ..logging_config import get_logger
 from ..services import NewsService
 from ..services.news_models import NewsBundle
@@ -181,7 +182,19 @@ def fetch_fundamentals_and_earnings(
         try:
             fundamentals_data = fetch_fundamentals_cached(conn, symbol, ttl_days=1)
             if fundamentals_data:
-                # Calculate 4-pillar fundamental scores
+                # Fetch news sentiment for blended score (GAP-015)
+                try:
+                    news_sentiment = get_ticker_sentiment(storage, symbol)
+                    if news_sentiment.sentiment_score is not None:
+                        fundamentals_data.news_sentiment_score = news_sentiment.sentiment_score
+                except Exception as news_error:
+                    logger.debug(
+                        "news_sentiment_fetch_skipped",
+                        symbol=symbol,
+                        error=str(news_error),
+                    )
+
+                # Calculate 4-pillar fundamental scores (sentiment now includes news)
                 fundamentals_data.valuation_score = calculate_valuation_score(fundamentals_data)
                 fundamentals_data.growth_score = calculate_growth_score(fundamentals_data)
                 fundamentals_data.health_score = calculate_health_score(fundamentals_data)

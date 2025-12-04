@@ -313,6 +313,30 @@ def get_beat_schedule() -> dict[str, object]:
             # - Calculates revision direction and magnitude
             # - Used for earnings momentum signals (upgrades = bullish)
         },
+        "refresh-financial-health-scores-weekly": {
+            "task": "refresh_financial_health_scores",
+            "schedule": crontab(hour=5, minute=0, day_of_week=0),  # Sundays at 05:00 UTC
+            "options": {"expires": 7200},  # Task expires after 2 hours
+            # Notes:
+            # - Runs weekly on Sundays at 05:00 UTC (GAP-008, GAP-009)
+            # - Calculates Piotroski F-Score (9-point quality metric)
+            # - Calculates Altman Z-Score (bankruptcy prediction)
+            # - Uses yfinance balance sheet and income statement data
+            # - Scores stored in reference_cache (f_score, z_score columns)
+            # - Weekly is sufficient since financials update quarterly
+        },
+        "refresh-risk-metrics-daily": {
+            "task": "refresh_risk_metrics",
+            "schedule": crontab(hour=5, minute=30),  # Daily at 05:30 UTC
+            "options": {"expires": 3600},  # Task expires after 1 hour
+            # Notes:
+            # - Runs daily at 05:30 UTC (GAP-027, GAP-022)
+            # - Calculates VaR/CVaR (historical simulation method)
+            # - Calculates multi-window betas (90d, 1y, 2y)
+            # - Requires day_bars data for historical returns
+            # - Stores in symbol_risk_metrics table
+            # - Uses SPY as market proxy for beta calculation
+        },
         "fetch-options-activity-daily": {
             "task": "fetch_options_activity_metrics",
             "schedule": crontab(hour=21, minute=15),  # Daily at 21:15 UTC (4:15 PM ET)

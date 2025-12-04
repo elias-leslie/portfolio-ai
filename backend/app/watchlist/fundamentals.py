@@ -50,7 +50,10 @@ class FundamentalData(BaseModel):
     valuation_score: float | None = None  # 0-100
     growth_score: float | None = None  # 0-100
     health_score: float | None = None  # 0-100
-    sentiment_score: float | None = None  # 0-100
+    sentiment_score: float | None = None  # 0-100 (blended analyst + news)
+
+    # News sentiment (GAP-015)
+    news_sentiment_score: float | None = None  # 0-100 from news_cache aggregation
 
 
 class BaseFundamentalSource(ABC):
@@ -404,22 +407,12 @@ def calculate_health_score(data: FundamentalData) -> float:
     return (debt_score + margin_score) / 2.0
 
 
-def calculate_sentiment_score(data: FundamentalData) -> float:
-    """Calculate analyst sentiment score (0-100) based on recommendations.
-
-    Weight: 10% of fundamental score
+def _calculate_analyst_sentiment(rec_mean: float) -> float:
+    """Calculate analyst sentiment score (0-100) from recommendation mean.
 
     Scoring based on recommendation_mean (1=strong buy, 5=sell):
     - 1.0-1.5 = 100, 1.5-2.0 = 80, 2.0-2.5 = 60, 2.5-3.5 = 40, 3.5-4.5 = 20, >4.5 = 0
-
-    Args:
-        data: FundamentalData with company metrics
-
-    Returns:
-        Sentiment score 0-100 (higher = more bullish)
     """
-    rec_mean = data.recommendation_mean or 3.0
-
     if rec_mean < 1.5:
         return 100.0
     if rec_mean < 2.0:
@@ -433,14 +426,49 @@ def calculate_sentiment_score(data: FundamentalData) -> float:
     return 0.0
 
 
+def calculate_sentiment_score(data: FundamentalData) -> float:
+    """Calculate blended sentiment score (0-100) combining analyst + news sentiment.
+
+    GAP-015: News sentiment as a dedicated pillar component.
+
+    Blending (when both available):
+    - Analyst sentiment: 50% weight (institutional view)
+    - News sentiment: 50% weight (market narrative)
+
+    If only one is available, use 100% of that source.
+
+    Weight: 15% of fundamental score (increased from 10%)
+
+    Args:
+        data: FundamentalData with company metrics
+
+    Returns:
+        Sentiment score 0-100 (higher = more bullish)
+    """
+    # Analyst sentiment
+    rec_mean = data.recommendation_mean or 3.0
+    analyst_score = _calculate_analyst_sentiment(rec_mean)
+
+    # News sentiment (GAP-015)
+    news_score = data.news_sentiment_score
+
+    # Blend if both available
+    if news_score is not None:
+        # 50/50 blend of analyst and news sentiment
+        return analyst_score * 0.5 + news_score * 0.5
+
+    # Fallback to analyst only
+    return analyst_score
+
+
 def calculate_fundamental_score(data: FundamentalData) -> float:
     """Calculate overall fundamental score (0-100) using 4-pillar system.
 
-    Pillars:
-    - Valuation: 30% (P/E, P/B, profit margin)
+    Pillars (GAP-015 update: increased sentiment weight):
+    - Valuation: 25% (P/E, P/B, profit margin)
     - Growth: 35% (revenue, earnings)
     - Health: 25% (debt, margins)
-    - Sentiment: 10% (analyst ratings)
+    - Sentiment: 15% (analyst + news, blended)
 
     Args:
         data: FundamentalData with company metrics
@@ -453,8 +481,8 @@ def calculate_fundamental_score(data: FundamentalData) -> float:
     health = calculate_health_score(data)
     sentiment = calculate_sentiment_score(data)
 
-    # Weighted average (30/35/25/10)
-    overall = valuation * 0.30 + growth * 0.35 + health * 0.25 + sentiment * 0.10
+    # Weighted average (25/35/25/15) - sentiment increased for GAP-015
+    overall = valuation * 0.25 + growth * 0.35 + health * 0.25 + sentiment * 0.15
 
     return overall
 

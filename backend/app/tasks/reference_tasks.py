@@ -15,6 +15,8 @@ if TYPE_CHECKING:
     from celery import Task
 
 from app.analytics.analyst_revisions import refresh_analyst_revisions_for_symbols
+from app.analytics.financial_health_scores import get_financial_health_scores
+from app.analytics.risk_metrics import calculate_symbol_beta, calculate_symbol_var
 from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.sources.alphavantage_source import AlphaVantageSource
@@ -646,6 +648,261 @@ def refresh_analyst_revisions(self: Task) -> dict[str, int | str]:
     except Exception as e:
         logger.error(
             "analyst_revisions_refresh_error",
+            task_id=task_id,
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+        raise
+
+
+@celery_app.task(name="refresh_financial_health_scores", bind=True)  # type: ignore[misc]
+def refresh_financial_health_scores(self: Task) -> dict[str, int | str]:
+    """Calculate Piotroski F-Score and Altman Z-Score for watchlist symbols.
+
+    GAP-008: Piotroski F-Score (9-point fundamental quality score)
+    GAP-009: Altman Z-Score (bankruptcy prediction model)
+
+    Runs weekly on Sundays at 05:00 UTC (after market close).
+    Uses yfinance to fetch balance sheet and income statement data.
+
+    Returns:
+        Dict with task results:
+        - task_id: Celery task ID
+        - symbols_processed: Number of symbols attempted
+        - symbols_updated: Number of symbols with scores calculated
+        - duration_seconds: Total execution time
+    """
+    task_id = self.request.id
+    start_time = dt.datetime.now(dt.UTC)
+
+    logger.info("financial_health_scores_refresh_started", task_id=task_id)
+
+    try:
+        storage = get_storage()
+
+        # Get watchlist symbols
+        with storage.connection() as conn:
+            result = conn.execute("SELECT DISTINCT symbol FROM watchlist_items")
+            symbols = [str(row[0]) for row in result.fetchall()]
+
+        if not symbols:
+            logger.info("no_watchlist_symbols_for_health_scores")
+            return {
+                "task_id": task_id,
+                "symbols_processed": 0,
+                "symbols_updated": 0,
+                "duration_seconds": 0,
+            }
+
+        logger.info("calculating_financial_health_scores", num_symbols=len(symbols))
+
+        symbols_updated = 0
+
+        with storage.connection() as conn:
+            for symbol in symbols:
+                try:
+                    scores = get_financial_health_scores(symbol)
+
+                    if scores.f_score is not None or scores.z_score is not None:
+                        # Update reference_cache with scores
+                        conn.execute(
+                            """
+                            UPDATE reference_cache
+                            SET f_score = %s,
+                                f_score_components = %s,
+                                z_score = %s,
+                                z_score_zone = %s
+                            WHERE symbol = %s
+                              AND as_of_date = (
+                                  SELECT MAX(as_of_date) FROM reference_cache WHERE symbol = %s
+                              )
+                            """,
+                            [
+                                scores.f_score,
+                                json.dumps(scores.f_score_components)
+                                if scores.f_score_components
+                                else None,
+                                scores.z_score,
+                                scores.z_score_zone,
+                                symbol,
+                                symbol,
+                            ],
+                        )
+                        symbols_updated += 1
+                        logger.debug(
+                            "financial_health_scores_calculated",
+                            symbol=symbol,
+                            f_score=scores.f_score,
+                            z_score=scores.z_score,
+                        )
+                except Exception as e:
+                    logger.warning(
+                        "financial_health_scores_symbol_error",
+                        symbol=symbol,
+                        error=str(e),
+                    )
+                    continue
+
+            conn.commit()
+
+        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+
+        logger.info(
+            "financial_health_scores_refresh_completed",
+            task_id=task_id,
+            symbols_processed=len(symbols),
+            symbols_updated=symbols_updated,
+            duration_seconds=duration,
+        )
+
+        return {
+            "task_id": task_id,
+            "symbols_processed": len(symbols),
+            "symbols_updated": symbols_updated,
+            "duration_seconds": int(duration),
+        }
+
+    except Exception as e:
+        logger.error(
+            "financial_health_scores_refresh_error",
+            task_id=task_id,
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+        raise
+
+
+@celery_app.task(name="refresh_risk_metrics", bind=True)  # type: ignore[misc]
+def refresh_risk_metrics(self: Task) -> dict[str, int | str]:
+    """Calculate VaR, CVaR, and extended betas for watchlist symbols.
+
+    GAP-027: VaR/CVaR (Value at Risk, Conditional VaR)
+    GAP-022: Long-window beta estimation (90d, 1y, 2y)
+
+    Runs daily at 05:30 UTC (after market close and day_bars update).
+    Uses historical simulation for VaR, OLS regression for beta.
+
+    Returns:
+        Dict with task results:
+        - task_id: Celery task ID
+        - symbols_processed: Number of symbols attempted
+        - symbols_updated: Number of symbols with metrics calculated
+        - duration_seconds: Total execution time
+    """
+    task_id = self.request.id
+    start_time = dt.datetime.now(dt.UTC)
+
+    logger.info("risk_metrics_refresh_started", task_id=task_id)
+
+    try:
+        storage = get_storage()
+
+        # Get watchlist symbols
+        with storage.connection() as conn:
+            result = conn.execute("SELECT DISTINCT symbol FROM watchlist_items")
+            symbols = [str(row[0]) for row in result.fetchall()]
+
+        if not symbols:
+            logger.info("no_watchlist_symbols_for_risk_metrics")
+            return {
+                "task_id": task_id,
+                "symbols_processed": 0,
+                "symbols_updated": 0,
+                "duration_seconds": 0,
+            }
+
+        logger.info("calculating_risk_metrics", num_symbols=len(symbols))
+
+        symbols_updated = 0
+        as_of_date = dt.date.today()
+
+        with storage.connection() as conn:
+            for symbol in symbols:
+                try:
+                    # Calculate VaR/CVaR
+                    var_result = calculate_symbol_var(storage, symbol)
+
+                    # Calculate multi-window betas
+                    beta_result = calculate_symbol_beta(storage, symbol)
+
+                    # Skip if no valid metrics
+                    if var_result.var_95 is None and beta_result.beta_90d is None:
+                        continue
+
+                    # Upsert into symbol_risk_metrics
+                    conn.execute(
+                        """
+                        INSERT INTO symbol_risk_metrics (
+                            symbol, as_of_date,
+                            var_95, var_99, cvar_95, cvar_99,
+                            beta_90d, beta_1y, beta_2y, r_squared_1y,
+                            observations
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (symbol, as_of_date)
+                        DO UPDATE SET
+                            var_95 = EXCLUDED.var_95,
+                            var_99 = EXCLUDED.var_99,
+                            cvar_95 = EXCLUDED.cvar_95,
+                            cvar_99 = EXCLUDED.cvar_99,
+                            beta_90d = EXCLUDED.beta_90d,
+                            beta_1y = EXCLUDED.beta_1y,
+                            beta_2y = EXCLUDED.beta_2y,
+                            r_squared_1y = EXCLUDED.r_squared_1y,
+                            observations = EXCLUDED.observations
+                        """,
+                        [
+                            symbol,
+                            as_of_date,
+                            var_result.var_95,
+                            var_result.var_99,
+                            var_result.cvar_95,
+                            var_result.cvar_99,
+                            beta_result.beta_90d,
+                            beta_result.beta_1y,
+                            beta_result.beta_2y,
+                            beta_result.r_squared_1y,
+                            var_result.observations,
+                        ],
+                    )
+                    symbols_updated += 1
+
+                    logger.debug(
+                        "risk_metrics_calculated",
+                        symbol=symbol,
+                        var_95=var_result.var_95,
+                        beta_1y=beta_result.beta_1y,
+                    )
+
+                except Exception as e:
+                    logger.warning(
+                        "risk_metrics_symbol_error",
+                        symbol=symbol,
+                        error=str(e),
+                    )
+                    continue
+
+            conn.commit()
+
+        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+
+        logger.info(
+            "risk_metrics_refresh_completed",
+            task_id=task_id,
+            symbols_processed=len(symbols),
+            symbols_updated=symbols_updated,
+            duration_seconds=duration,
+        )
+
+        return {
+            "task_id": task_id,
+            "symbols_processed": len(symbols),
+            "symbols_updated": symbols_updated,
+            "duration_seconds": int(duration),
+        }
+
+    except Exception as e:
+        logger.error(
+            "risk_metrics_refresh_error",
             task_id=task_id,
             error=str(e),
             error_type=type(e).__name__,
