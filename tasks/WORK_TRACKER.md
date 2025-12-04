@@ -28,41 +28,49 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Tier 0: Foundations - B&H Integration + Rules Engine** ⏳ PLANNED
+1. **Tier 0: Foundations - B&H Integration + Rules Engine** (HIGH, 0/5 tasks (today))
    - File: `tasks-0096-tier0-foundations-bh-rules-engine.md`
-   - Effort: HIGH
-   - Summary: Buy & Hold benchmark, centralized rules engine for position sizing/risk
-   - Key deliverables:
-     - [ ] B&H benchmark integration with automatic comparison
-     - [ ] Centralized rules engine (position sizing, stop-loss, sector limits)
-     - [ ] Rules API endpoint for UI configuration
+   - Created: 2025-12-04
+   - Goal: Complete the two CRITICAL foundation tasks that enable all other improvements - integrate the existing B&H benchmark engine and create a centralized trading rules YAML config.
+   - Tasks:
+     - [ ] Task 0: Scope Discovery for Rules Engine (MANDATORY)
+     - [ ] Task 1: Integrate B&H Benchmark into Backtest Pipeline (Section 0.1)
+     - [ ] Task 2: Create Centralized Trading Rules Engine (Section 0.2)
+     - [ ] Task 3: Fix Risk Management Thresholds (From Second Pass)
+     - [ ] Task 4: Rules Engine UI (Optional Enhancement)
 
-2. **Tier 1: Quick Wins - Prompts & Feedback** ⏳ PLANNED
+2. **Tier 1: Quick Wins - Prompts & Feedback** (LOW, 0/4 tasks (today))
    - File: `tasks-0097-tier1-quick-wins-prompts.md`
-   - Effort: LOW
-   - Summary: Performance feedback loops, confidence leverage, fee awareness
-   - Key deliverables:
-     - [ ] Inject historical accuracy into prompts
-     - [ ] Confidence-weighted position sizing
-     - [ ] Fee/slippage awareness in trade decisions
+   - Created: 2025-12-04
+   - Goal: Add performance metrics, fee awareness, and confidence-based position sizing to LLM agent prompts. These are "quick wins" that improve agent decision-making with minimal effort.
+   - Tasks:
+     - [ ] Task 1: Add Performance Feedback to Trading Prompts (Section 1.1)
+     - [ ] Task 2: Implement Confidence → Leverage Enforcement (Section 1.2)
+     - [ ] Task 3: Add Fee Awareness to System Prompts (Section 1.3)
+     - [ ] Task 4: Fix Additional Issues (From Second Pass)
 
-3. **Tier 2: Intelligence - Catalyst Scoring + Watchlist** ⏳ PLANNED
+3. **Tier 2: Intelligence - Catalyst Scoring + Watchlist** (HIGH, 0/6 tasks (today))
    - File: `tasks-0098-tier2-intelligence-catalyst-watchlist.md`
-   - Effort: HIGH
-   - Summary: Event-driven catalyst scoring, automated watchlist management
-   - Key deliverables:
-     - [ ] Catalyst scoring system (earnings, FDA, macro events)
-     - [ ] Automated watchlist additions from news/signals
-     - [ ] Catalyst calendar integration
+   - Created: 2025-12-04
+   - Goal: Complete the catalyst detection system (add impact scoring) and implement automated watchlist discovery/trimming.
+   - Tasks:
+     - [ ] Task 0: Scope Discovery for Watchlist Automation (MANDATORY)
+     - [ ] Task 1: Complete Catalyst Detection System (Section 2.1)
+     - [ ] Task 2: Implement Watchlist Discovery (Section 2.2)
+     - [ ] Task 3: Implement Watchlist Trimming (Section 2.2)
+     - [ ] Task 4: Daily Watchlist Report (Optional)
+     - [ ] Task 5: Agent Telemetry Dashboard (From Second Pass)
 
-4. **Tier 3: Validation & Evolution** ⏳ PLANNED
+4. **Tier 3: Validation & Evolution** (VERY HIGH, 0/4 tasks (today))
    - File: `tasks-0099-tier3-validation-evolution.md`
-   - Effort: VERY HIGH
-   - Summary: Walk-forward validation API, strategy evolution/retirement
-   - Key deliverables:
-     - [ ] Walk-forward validation endpoint
-     - [ ] Strategy lifecycle management (promote/demote/retire)
-     - [ ] Automated strategy parameter evolution
+   - Created: 2025-12-04
+   - Goal: Expose walk-forward backtesting in main API and implement LLM-based strategy evolution loop.
+   - Tasks:
+     - [ ] Task 0: Scope Discovery (MANDATORY)
+     - [ ] Task 1: Expose Walk-Forward Testing in Backtest API (Section 3.1)
+     - [ ] Task 2: Implement Strategy Evolution Loop (Section 3.2)
+     - [ ] Task 3: AI Rules Validation Agent (Section 3.3)
+
 
 ---
 
