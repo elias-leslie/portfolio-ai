@@ -1,17 +1,18 @@
 # Work Tracker
 
-**Last Updated:** 2025-12-04 (Insights resolved - 0 pending)
+**Last Updated:** 2025-12-04 (Trading Platform Improvements Refactor)
 
-**Current Status:** 🎯 **VISION.MD ALIGNMENT** | 97% Overall (+25%) | ✅ Strategy Validation Complete
+**Current Status:** 🔧 **MAJOR REFACTOR** | Trading Platform Improvements v2
 
-**Priority**: **Multi-LLM Disagreement Detection** (Next: flag when Claude & Gemini disagree)
+**Priority**: **Tiered Implementation** - Foundations → Quick Wins → Intelligence → Validation
 
-**Execution Plan**: Final VISION Priority
-- **Priority #1 (2-3 days)**: Task 0003 - Multi-LLM Disagreement Detection (+8% compliance)
+**Execution Plan**: 4-Tier Refactor (tasks-0096 through 0099)
+- **Tier 0** (HIGH effort): B&H Integration + Centralized Rules Engine
+- **Tier 1** (LOW effort): Quick Wins - Performance Feedback, Confidence, Fees
+- **Tier 2** (HIGH effort): Intelligence Layer - Catalyst Scoring, Watchlist Automation
+- **Tier 3** (VERY HIGH effort): Validation & Evolution - Walk-Forward, Strategy Evolution
 
-**Impact**: 97% → 105% VISION alignment projected (some stretch goals)
-
-**Gap Analysis Report**: `docs/reference/vision-gap-analysis-2025-12-02.md`
+**Reference**: `docs/core/trading_platform_improvements_v2.md`
 
 ---
 
@@ -27,7 +28,41 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-(No planned tasks)
+1. **Tier 0: Foundations - B&H Integration + Rules Engine** ⏳ PLANNED
+   - File: `tasks-0096-tier0-foundations-bh-rules-engine.md`
+   - Effort: HIGH
+   - Summary: Buy & Hold benchmark, centralized rules engine for position sizing/risk
+   - Key deliverables:
+     - [ ] B&H benchmark integration with automatic comparison
+     - [ ] Centralized rules engine (position sizing, stop-loss, sector limits)
+     - [ ] Rules API endpoint for UI configuration
+
+2. **Tier 1: Quick Wins - Prompts & Feedback** ⏳ PLANNED
+   - File: `tasks-0097-tier1-quick-wins-prompts.md`
+   - Effort: LOW
+   - Summary: Performance feedback loops, confidence leverage, fee awareness
+   - Key deliverables:
+     - [ ] Inject historical accuracy into prompts
+     - [ ] Confidence-weighted position sizing
+     - [ ] Fee/slippage awareness in trade decisions
+
+3. **Tier 2: Intelligence - Catalyst Scoring + Watchlist** ⏳ PLANNED
+   - File: `tasks-0098-tier2-intelligence-catalyst-watchlist.md`
+   - Effort: HIGH
+   - Summary: Event-driven catalyst scoring, automated watchlist management
+   - Key deliverables:
+     - [ ] Catalyst scoring system (earnings, FDA, macro events)
+     - [ ] Automated watchlist additions from news/signals
+     - [ ] Catalyst calendar integration
+
+4. **Tier 3: Validation & Evolution** ⏳ PLANNED
+   - File: `tasks-0099-tier3-validation-evolution.md`
+   - Effort: VERY HIGH
+   - Summary: Walk-forward validation API, strategy evolution/retirement
+   - Key deliverables:
+     - [ ] Walk-forward validation endpoint
+     - [ ] Strategy lifecycle management (promote/demote/retire)
+     - [ ] Automated strategy parameter evolution
 
 ---
 
