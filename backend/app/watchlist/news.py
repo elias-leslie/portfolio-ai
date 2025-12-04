@@ -35,7 +35,7 @@ def fetch_news_headlines(symbol: str, max_results: int = 10) -> list[NewsHeadlin
     """Fetch recent news headlines from Google News RSS.
 
     Args:
-        symbol: Stock ticker symbol
+        symbol: Stock symbol
         max_results: Maximum number of headlines to return (default: 10)
 
     Returns:
@@ -113,7 +113,7 @@ def fetch_news_headlines_cached(
 
     Args:
         conn: Database connection
-        symbol: Stock ticker symbol
+        symbol: Stock symbol
         max_results: Maximum number of headlines to return (default: 10)
         ttl_hours: Cache TTL in hours (default: 6 hours)
 

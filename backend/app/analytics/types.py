@@ -12,7 +12,7 @@ class TradeRecordDict(TypedDict, total=False):
     """Database trade record from idea_outcomes table."""
 
     idea_id: str
-    ticker: str
+    symbol: str
     idea_type: str
     entry_price: float
     entry_date: date | None
@@ -41,7 +41,7 @@ class PaperTradeDict(TypedDict, total=False):
 
     idea_id: str
     agent_run_id: str
-    ticker: str
+    symbol: str
     idea_type: str
     entry_price: float
     entry_date: date
@@ -73,7 +73,7 @@ class PaperTradeDict(TypedDict, total=False):
 class TradeDict(TypedDict, total=False):
     """Trade summary with key details (for best/worst trade display)."""
 
-    ticker: str
+    symbol: str
     entry_date: str | None
     exit_date: str | None
     holding_days: int
@@ -128,7 +128,7 @@ class TransactionDict(TypedDict, total=False):
     id: str | int
     trade_id: str
     transaction_type: str
-    ticker: str
+    symbol: str
     shares: int
     price: float
     amount: float

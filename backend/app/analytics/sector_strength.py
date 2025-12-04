@@ -56,8 +56,8 @@ class SectorRotationSignals:
 
     as_of_date: date
     sectors: list[SectorStrength]
-    leaders: list[str]  # ETF tickers of top 3 sectors
-    laggards: list[str]  # ETF tickers of bottom 3 sectors
+    leaders: list[str]  # ETF symbols of top 3 sectors
+    laggards: list[str]  # ETF symbols of bottom 3 sectors
 
 
 # Ticker -> Sector mapping for individual stocks
@@ -192,33 +192,33 @@ def calculate_sector_relative_strength(
     lookback = max(RS_HORIZONS) + 10
 
     # Fetch all sector ETFs and SPY
-    tickers = list(SECTOR_ETFS.keys()) + [BENCHMARK]
-    placeholders = ", ".join(f"${i + 1}" for i in range(len(tickers)))
+    symbols = list(SECTOR_ETFS.keys()) + [BENCHMARK]
+    placeholders = ", ".join(f"${i + 1}" for i in range(len(symbols)))
 
     query = f"""
         SELECT symbol, date, close
         FROM day_bars
         WHERE symbol IN ({placeholders})
-          AND date <= ${len(tickers) + 1}
+          AND date <= ${len(symbols) + 1}
         ORDER BY date DESC
     """
-    result = storage.query(query, [*tickers, str(target_date)])
+    result = storage.query(query, [*symbols, str(target_date)])
 
     if result.is_empty():
         logger.warning("sector_strength_no_data")
         return None
 
-    # Build price dict: ticker -> date -> close
-    prices: dict[str, dict[date, float]] = {t: {} for t in tickers}
+    # Build price dict: symbol -> date -> close
+    prices: dict[str, dict[date, float]] = {t: {} for t in symbols}
 
     for row in result.iter_rows(named=True):
-        ticker = row["symbol"]
+        symbol = row["symbol"]
         row_date = row["date"]
         if isinstance(row_date, str):
             from datetime import datetime
 
             row_date = datetime.strptime(row_date, "%Y-%m-%d").date()
-        prices[ticker][row_date] = float(row["close"])
+        prices[symbol][row_date] = float(row["close"])
 
     # Get SPY returns for each horizon
     spy_returns = _calculate_returns(prices[BENCHMARK], RS_HORIZONS)
@@ -326,32 +326,32 @@ def _safe_subtract(a: float | None, b: float | None) -> float | None:
     return a - b
 
 
-def get_ticker_sector_etf(ticker: str) -> str | None:
-    """Get sector ETF for a stock ticker.
+def get_symbol_sector_etf(symbol: str) -> str | None:
+    """Get sector ETF for a stock symbol.
 
     Args:
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
 
     Returns:
-        Sector ETF ticker or None if unknown
+        Sector ETF symbol or None if unknown
     """
-    return TICKER_SECTOR_MAP.get(ticker.upper())
+    return TICKER_SECTOR_MAP.get(symbol.upper())
 
 
-def is_ticker_in_leading_sector(
+def is_symbol_in_leading_sector(
     storage: PortfolioStorage,
-    ticker: str,
+    symbol: str,
 ) -> tuple[bool, str | None]:
-    """Check if ticker's sector is among the leaders.
+    """Check if symbol's sector is among the leaders.
 
     Args:
         storage: Database storage
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
 
     Returns:
         (is_leader, sector_etf) tuple
     """
-    sector_etf = get_ticker_sector_etf(ticker)
+    sector_etf = get_symbol_sector_etf(symbol)
     if sector_etf is None:
         return False, None
 
@@ -364,24 +364,24 @@ def is_ticker_in_leading_sector(
 
 def calculate_sector_strength_score(
     storage: PortfolioStorage,
-    ticker: str,
+    symbol: str,
 ) -> tuple[int, list[str]]:
     """Calculate 0-4 point sector strength score for signal classification.
 
     Scoring:
-    - +2 if ticker's sector is #1 rank
-    - +1 if ticker's sector is top 3 (leader)
+    - +2 if symbol's sector is #1 rank
+    - +1 if symbol's sector is top 3 (leader)
     - +0 if middle sector (rank 4-8)
     - -1 if bottom 3 sector (laggard)
 
     Args:
         storage: Database storage
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
 
     Returns:
         (score, reasons) where score is -1 to +2
     """
-    sector_etf = get_ticker_sector_etf(ticker)
+    sector_etf = get_symbol_sector_etf(symbol)
     if sector_etf is None:
         return 0, []
 
@@ -420,18 +420,18 @@ def calculate_sector_strength_score(
 
 def get_sector_strength_inputs(
     storage: PortfolioStorage,
-    ticker: str,
+    symbol: str,
 ) -> dict[str, int | bool | str | None]:
     """Get sector strength inputs for signal classification.
 
     Args:
         storage: Database storage
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
 
     Returns:
         Dict with sector_rank, sector_is_leader, sector_etf
     """
-    sector_etf = get_ticker_sector_etf(ticker)
+    sector_etf = get_symbol_sector_etf(symbol)
     if sector_etf is None:
         return {
             "sector_rank": None,

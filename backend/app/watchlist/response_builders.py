@@ -20,13 +20,13 @@ class WatchlistItemCreate(BaseModel):
     """Request model for creating a watchlist item."""
 
     symbol: str = Field(..., description="Stock symbol (e.g., AAPL)")
-    note: str | None = Field(None, description="Optional notes about this ticker")
+    note: str | None = Field(None, description="Optional notes about this symbol")
 
 
 class WatchlistItemUpdate(BaseModel):
     """Request model for updating a watchlist item."""
 
-    note: str | None = Field(None, description="Optional notes about this ticker")
+    note: str | None = Field(None, description="Optional notes about this symbol")
 
 
 class RefreshRequest(BaseModel):
@@ -227,7 +227,7 @@ class WatchlistListResponse(BaseModel):
 
 
 class FailedTickerInfo(BaseModel):
-    """Information about a failed ticker refresh."""
+    """Information about a failed symbol refresh."""
 
     symbol: str
     reason: str

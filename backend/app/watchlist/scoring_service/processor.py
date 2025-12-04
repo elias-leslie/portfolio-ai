@@ -1,7 +1,7 @@
-"""Single ticker processing for watchlist scoring.
+"""Single symbol processing for watchlist scoring.
 
 This module handles:
-- Individual ticker snapshot processing
+- Individual symbol snapshot processing
 - Price data validation
 - Score calculation via refresh_processor
 - Snapshot persistence to database
@@ -16,12 +16,12 @@ from ...logging_config import get_logger
 from ...services import NewsService
 from ...storage import PortfolioStorage
 from ..models import ScoreWeights, TechnicalSnapshot
-from ..refresh_processor import ProcessorConfig, TickerInputData, process_ticker_snapshot
+from ..refresh_processor import ProcessorConfig, TickerInputData, process_symbol_snapshot
 
 logger = get_logger(__name__)
 
 
-def process_single_ticker(
+def process_single_symbol(
     storage: PortfolioStorage,
     symbol: str,
     item_id: str,
@@ -35,7 +35,7 @@ def process_single_ticker(
     news_max_articles: int,
     news_bundles: dict[str, Any],
 ) -> tuple[str, str, list[str], list[dict[str, str]]]:
-    """Process a single ticker and persist its snapshot.
+    """Process a single symbol and persist its snapshot.
 
     Args:
         storage: Database storage instance
@@ -72,9 +72,9 @@ def process_single_ticker(
         )
         return symbol, item_id, success_list, failed_list
 
-    # Process ticker and generate snapshot (extracted to refresh_processor.py)
+    # Process symbol and generate snapshot (extracted to refresh_processor.py)
     # Pass pre-fetched news bundle (Issue #2 fix)
-    snapshot = process_ticker_snapshot(
+    snapshot = process_symbol_snapshot(
         storage=storage,
         symbol=symbol,
         item_id=item_id,

@@ -64,7 +64,7 @@ class BaseFundamentalSource(ABC):
         """Fetch fundamental data for a symbol.
 
         Args:
-            symbol: Stock ticker symbol
+            symbol: Stock symbol
 
         Returns:
             FundamentalData if successful, None if failed
@@ -79,7 +79,7 @@ class YFinanceSource(BaseFundamentalSource):
         """Fetch fundamentals from YFinance.
 
         Args:
-            symbol: Stock ticker symbol
+            symbol: Stock symbol
 
         Returns:
             FundamentalData if successful, None if failed
@@ -88,7 +88,7 @@ class YFinanceSource(BaseFundamentalSource):
             return None
 
         try:
-            ticker = yf.Ticker(symbol)
+            symbol = yf.Ticker(symbol)
             info = ticker.info
 
             # Extract and convert fields
@@ -132,7 +132,7 @@ class FinnhubSource(BaseFundamentalSource):
         """Fetch fundamentals from Finnhub.
 
         Args:
-            symbol: Stock ticker symbol
+            symbol: Stock symbol
 
         Returns:
             FundamentalData if successful, None if failed
@@ -189,7 +189,7 @@ class FMPSource(BaseFundamentalSource):
         """Fetch fundamentals from FMP.
 
         Args:
-            symbol: Stock ticker symbol
+            symbol: Stock symbol
 
         Returns:
             FundamentalData if successful, None if failed
@@ -233,7 +233,7 @@ def fetch_fundamentals(symbol: str) -> FundamentalData | None:
     3. FMP (if API key available)
 
     Args:
-        symbol: Stock ticker symbol
+        symbol: Stock symbol
 
     Returns:
         FundamentalData if any source succeeds, None if all fail
@@ -498,7 +498,7 @@ def fetch_fundamentals_cached(
 
     Args:
         conn: Database connection
-        symbol: Stock ticker symbol
+        symbol: Stock symbol
         ttl_days: Cache TTL in days (default: 1 day = 24 hours)
 
     Returns:

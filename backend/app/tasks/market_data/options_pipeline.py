@@ -47,14 +47,14 @@ def _calculate_putcall_from_yfinance() -> dict[str, Any] | None:
 
         for symbol in PUTCALL_SYMBOLS:
             try:
-                ticker = yf.Ticker(symbol)
-                expirations = ticker.options[:PUTCALL_EXPIRATIONS]
+                yf_obj = yf.Ticker(symbol)
+                expirations = yf_obj.options[:PUTCALL_EXPIRATIONS]
 
                 sym_call_vol = 0
                 sym_put_vol = 0
 
                 for exp in expirations:
-                    chain = ticker.option_chain(exp)
+                    chain = yf_obj.option_chain(exp)
                     sym_call_vol += chain.calls["volume"].fillna(0).sum()
                     sym_put_vol += chain.puts["volume"].fillna(0).sum()
 

@@ -109,7 +109,7 @@ class CloseTradeResponse(BaseModel):
 
     status: str
     trade_id: str
-    ticker: str
+    symbol: str
     exit_price: float
     exit_date: str
     realized_return_pct: float
@@ -457,7 +457,7 @@ async def get_paper_trade(trade_id: str) -> PaperTradeResponse:
         trade = PaperTradeResponse(
             idea_id=str(row[0]) if row[0] else "",
             agent_run_id=str(row[1]) if row[1] else "",
-            ticker=str(row[2]) if row[2] else "",
+            symbol=str(row[2]) if row[2] else "",
             idea_type=str(row[3]) if row[3] in ["buy", "sell"] else "buy",  # type: ignore[arg-type]
             entry_price=float(row[4]) if row[4] is not None else None,
             entry_date=str(row[5]) if row[5] else None,
@@ -478,7 +478,7 @@ async def get_paper_trade(trade_id: str) -> PaperTradeResponse:
             risk_level=str(row[20]) if row[20] else None,
         )
 
-        logger.info("paper_trade_retrieved", trade_id=trade_id, ticker=trade.ticker)
+        logger.info("paper_trade_retrieved", trade_id=trade_id, symbol=trade.symbol)
 
         return trade
 
@@ -527,7 +527,7 @@ async def close_paper_trade(
                     detail=f"Paper trade {trade_id} not found",
                 )
 
-            ticker, entry_price, current_price, status, shares = trade_row
+            symbol, entry_price, current_price, status, shares = trade_row
 
             if status != "open":
                 raise HTTPException(
@@ -574,13 +574,13 @@ async def close_paper_trade(
             cash_manager.add_cash(
                 "paper_trading",
                 exit_amount,
-                f"Sell {shares} {ticker} @ ${exit_price:.2f}",
+                f"Sell {shares} {symbol} @ ${exit_price:.2f}",
             )
 
         logger.info(
             "paper_trade_closed",
             trade_id=trade_id,
-            ticker=ticker,
+            symbol=symbol,
             exit_price=exit_price,
             realized_return_pct=realized_return_pct,
         )
@@ -588,11 +588,11 @@ async def close_paper_trade(
         return CloseTradeResponse(
             status="closed",
             trade_id=trade_id,
-            ticker=str(ticker),
+            symbol=str(symbol),
             exit_price=float(exit_price),
             exit_date=str(exit_date),
             realized_return_pct=float(realized_return_pct),
-            message=f"Successfully closed {ticker} trade with {realized_return_pct:+.2f}% return",
+            message=f"Successfully closed {symbol} trade with {realized_return_pct:+.2f}% return",
         )
 
     except HTTPException:

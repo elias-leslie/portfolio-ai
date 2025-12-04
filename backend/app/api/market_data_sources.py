@@ -13,14 +13,14 @@ if TYPE_CHECKING:
 
 def calculate_daily_change_pct(
     storage: Storage,
-    ticker: str,
+    symbol: str,
     current_price: float,
 ) -> float | None:
     """Calculate daily change percentage from day_bars historical data.
 
     Args:
         storage: Storage instance for database access
-        ticker: Symbol to calculate change for
+        symbol: Symbol to calculate change for
         current_price: Current price
 
     Returns:
@@ -35,7 +35,7 @@ def calculate_daily_change_pct(
             ORDER BY date DESC
             LIMIT 1 OFFSET 1
             """,
-            [ticker],
+            [symbol],
         )
         row = result.fetchone()
         if row and row[0]:
@@ -46,7 +46,7 @@ def calculate_daily_change_pct(
 
 def calculate_weekly_change_pct(
     storage: Storage,
-    ticker: str,
+    symbol: str,
     current_price: float,
 ) -> float | None:
     """Calculate week-over-week change: current price vs last week's close.
@@ -58,7 +58,7 @@ def calculate_weekly_change_pct(
 
     Args:
         storage: Storage instance for database access
-        ticker: Symbol to calculate change for
+        symbol: Symbol to calculate change for
         current_price: Current price
 
     Returns:
@@ -76,7 +76,7 @@ def calculate_weekly_change_pct(
             ORDER BY date DESC
             LIMIT 1
             """,
-            [ticker],
+            [symbol],
         )
         row = result.fetchone()
         if row and row[0]:
@@ -107,7 +107,7 @@ def fetch_sector_data_with_changes(
     sector_data: dict[str, tuple[float | None, float | None, str | None]] = {}
 
     # Get previous closes in a single batch query (avoiding N+1 query problem)
-    # Using window function to get second-most-recent close for each ticker
+    # Using window function to get second-most-recent close for each symbol
     # This ensures we calculate change from actual market closes, not cache timestamps
     with storage.connection() as conn:
         # Cast list[str] to expected parameter type for ANY operator compatibility
@@ -129,10 +129,10 @@ def fetch_sector_data_with_changes(
         )
         prev_closes: dict[str, float] = {}
         for row in result.fetchall():
-            ticker_val = row[0]
+            symbol_val = row[0]
             close_val = row[1]
-            if isinstance(ticker_val, str) and isinstance(close_val, (int, float)):
-                prev_closes[ticker_val] = float(close_val)
+            if isinstance(symbol_val, str) and isinstance(close_val, (int, float)):
+                prev_closes[symbol_val] = float(close_val)
 
     # Calculate change percentages
     for symbol in sector_symbols:

@@ -284,7 +284,7 @@ def generate_features_for_symbol(
 
     Args:
         storage: Database storage instance
-        symbol: Stock ticker
+        symbol: Stock symbol
         as_of_date: Date to calculate features for (default: today)
 
     Returns:
@@ -375,7 +375,7 @@ def generate_feature_matrix(
 
     Args:
         storage: Database storage instance
-        symbols: List of tickers
+        symbols: List of symbols
         as_of_date: Date to calculate features for
 
     Returns:

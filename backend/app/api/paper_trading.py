@@ -88,7 +88,7 @@ async def create_paper_trade(request: CreateTradeRequest) -> CreateTradeResponse
     the trade using the same flow as agent-created trades.
 
     Args:
-        request: Trade creation request with ticker, action, thesis, and optional
+        request: Trade creation request with symbol, action, thesis, and optional
                 target/stop loss
 
     Returns:
@@ -101,7 +101,7 @@ async def create_paper_trade(request: CreateTradeRequest) -> CreateTradeResponse
     order_executor = OrderExecutor(storage)
 
     # Validate inputs
-    ticker = request.symbol.upper()
+    symbol = request.symbol.upper()
     action = request.action.lower()
 
     if action not in ["buy", "sell"]:
@@ -112,7 +112,7 @@ async def create_paper_trade(request: CreateTradeRequest) -> CreateTradeResponse
 
     # Calculate max affordable shares (5% of account)
     account_id = "paper_trading"
-    max_shares = order_executor.calculate_max_shares(ticker, account_id, max_position_pct=0.05)
+    max_shares = order_executor.calculate_max_shares(symbol, account_id, max_position_pct=0.05)
 
     if max_shares == 0:
         raise HTTPException(
@@ -129,9 +129,9 @@ async def create_paper_trade(request: CreateTradeRequest) -> CreateTradeResponse
             "id": idea_id,
             "agent_run_id": "manual",  # Special ID for manual trades
             "idea_type": action,
-            "title": f"{action.capitalize()} {ticker}",
+            "title": f"{action.capitalize()} {symbol}",
             "thesis": request.thesis,
-            "action": f"{action.capitalize()} {max_shares} shares of {ticker}",
+            "action": f"{action.capitalize()} {max_shares} shares of {symbol}",
             "confidence_score": 0.7,  # Default confidence for manual trades (0-1 scale)
             "risk_level": "medium",  # Default risk
             "status": "pending",
@@ -148,7 +148,7 @@ async def create_paper_trade(request: CreateTradeRequest) -> CreateTradeResponse
         {
             "idea_id": idea_id,
             "agent_run_id": "manual",
-            "symbol": ticker,
+            "symbol": symbol,
             "idea_type": action,
             "entry_price": 0.0,  # Placeholder, will update after execution
             "entry_date": datetime.now(UTC).date().isoformat(),
@@ -169,7 +169,7 @@ async def create_paper_trade(request: CreateTradeRequest) -> CreateTradeResponse
     action_typed = cast(Literal["buy", "sell"], action)
 
     order_result = order_executor.execute_market_order(
-        ticker=ticker,
+        symbol=symbol,
         action=action_typed,
         shares=max_shares,
         account_id=account_id,
@@ -179,7 +179,7 @@ async def create_paper_trade(request: CreateTradeRequest) -> CreateTradeResponse
 
     if not order_result.get("filled"):
         error_msg = order_result.get("error", "Unknown error")
-        logger.error(f"Failed to execute manual paper trade for {ticker}: {error_msg}")
+        logger.error(f"Failed to execute manual paper trade for {symbol}: {error_msg}")
         raise HTTPException(status_code=500, detail=error_msg)
 
     # Calculate stop loss price if provided
@@ -215,14 +215,14 @@ async def create_paper_trade(request: CreateTradeRequest) -> CreateTradeResponse
         conn.commit()  # Commit UPDATE to database
 
     logger.info(
-        f"Manual paper trade created: {action.upper()} {max_shares} {ticker} "
+        f"Manual paper trade created: {action.upper()} {max_shares} {symbol} "
         f"@ ${entry_price:.2f} (${order_result['amount']:.2f})"
     )
 
     return CreateTradeResponse(
         status="created",
         trade_id=idea_id,
-        symbol=ticker,
+        symbol=symbol,
         action=action,
         shares=max_shares,
         entry_price=entry_price,
@@ -230,7 +230,7 @@ async def create_paper_trade(request: CreateTradeRequest) -> CreateTradeResponse
         target_price=request.target_price,
         stop_loss_price=stop_loss_price,
         cash_remaining=order_result["cash_after"],
-        message=f"Created paper trade: {action.upper()} {max_shares} {ticker} @ ${entry_price:.2f}",
+        message=f"Created paper trade: {action.upper()} {max_shares} {symbol} @ ${entry_price:.2f}",
     )
 
 
@@ -239,7 +239,7 @@ async def get_transactions(limit: int = 100) -> list[TransactionDict]:
     """Get recent paper trade transactions.
 
     Returns a list of all transaction records (entries and exits) ordered by
-    timestamp (newest first). Each transaction includes ticker, shares, price,
+    timestamp (newest first). Each transaction includes symbol, shares, price,
     cash balances, and notes.
 
     Args:

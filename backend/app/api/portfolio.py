@@ -162,7 +162,7 @@ async def get_portfolio(request: Request, include_paper: bool = False) -> Portfo
     # Get current prices
     symbols = list({p.symbol for p in positions})
 
-    # Sync portfolio tickers to watchlist
+    # Sync portfolio symbols to watchlist
     try:
         portfolio_mgr.sync_portfolio_to_watchlist(symbols)
     except Exception as e:

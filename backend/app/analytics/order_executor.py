@@ -36,7 +36,7 @@ class OrderExecutionResult(TypedDict, total=False):
     """Result of executing a market order."""
 
     filled: bool
-    ticker: str
+    symbol: str
     action: str
     shares: int
     price: float
@@ -62,7 +62,7 @@ class OrderExecutor:
 
     def execute_market_order(  # noqa: PLR0911
         self,
-        ticker: str,
+        symbol: str,
         action: Literal["buy", "sell"],
         shares: int,
         account_id: str,
@@ -75,7 +75,7 @@ class OrderExecutor:
         Phase B: Add fill simulation with slippage and spread.
 
         Args:
-            ticker: Stock symbol
+            symbol: Stock symbol
             action: "buy" or "sell"
             shares: Number of shares to trade
             account_id: Portfolio account ID
@@ -104,13 +104,13 @@ class OrderExecutor:
 
         # Fetch current price
         try:
-            price_data_dict = self.price_fetcher.fetch_price_data([ticker])
-            current_price = price_data_dict[ticker].price
+            price_data_dict = self.price_fetcher.fetch_price_data([symbol])
+            current_price = price_data_dict[symbol].price
         except Exception as e:
-            logger.error(f"Failed to fetch price for {ticker}: {e}")
+            logger.error(f"Failed to fetch price for {symbol}: {e}")
             return {
                 "filled": False,
-                "error": f"Failed to fetch price for {ticker}: {e}",
+                "error": f"Failed to fetch price for {symbol}: {e}",
             }
 
         # Calculate order amount
@@ -129,7 +129,7 @@ class OrderExecutor:
             if not can_trade:
                 return {
                     "filled": False,
-                    "symbol": ticker,
+                    "symbol": symbol,
                     "action": action,
                     "shares": shares,
                     "price": current_price,
@@ -142,7 +142,7 @@ class OrderExecutor:
             if not self.cash_manager.check_sufficient_cash(account_id, amount):
                 return {
                     "filled": False,
-                    "symbol": ticker,
+                    "symbol": symbol,
                     "action": action,
                     "shares": shares,
                     "price": current_price,
@@ -152,12 +152,12 @@ class OrderExecutor:
                 }
 
             # P2: Check position size and sector exposure limits
-            valid, limit_error = self.validate_position_limits(ticker, amount, account_id)
+            valid, limit_error = self.validate_position_limits(symbol, amount, account_id)
             if not valid:
-                logger.warning(f"Position limits exceeded for {ticker}: {limit_error}")
+                logger.warning(f"Position limits exceeded for {symbol}: {limit_error}")
                 return {
                     "filled": False,
-                    "symbol": ticker,
+                    "symbol": symbol,
                     "action": action,
                     "shares": shares,
                     "price": current_price,
@@ -167,26 +167,26 @@ class OrderExecutor:
                 }
 
             # Deduct cash
-            reason = notes or f"Buy {shares} shares of {ticker} @ ${current_price:.2f}"
+            reason = notes or f"Buy {shares} shares of {symbol} @ ${current_price:.2f}"
             success = self.cash_manager.deduct_cash(account_id, amount, reason)
 
             if not success:
                 return {
                     "filled": False,
-                    "symbol": ticker,
+                    "symbol": symbol,
                     "action": action,
                     "error": "Failed to deduct cash",
                 }
 
         elif action == "sell":
             # Add cash
-            reason = notes or f"Sell {shares} shares of {ticker} @ ${current_price:.2f}"
+            reason = notes or f"Sell {shares} shares of {symbol} @ ${current_price:.2f}"
             success = self.cash_manager.add_cash(account_id, amount, reason)
 
             if not success:
                 return {
                     "filled": False,
-                    "symbol": ticker,
+                    "symbol": symbol,
                     "action": action,
                     "error": "Failed to add cash",
                 }
@@ -202,7 +202,7 @@ class OrderExecutor:
             if action == "buy":
                 self.transaction_logger.log_entry(
                     trade_id=trade_id,
-                    ticker=ticker,
+                    symbol=symbol,
                     shares=shares,
                     price=current_price,
                     cash_before=cash_before,
@@ -214,7 +214,7 @@ class OrderExecutor:
                 pnl = 0.0  # Will be calculated by caller with entry price
                 self.transaction_logger.log_exit(
                     trade_id=trade_id,
-                    ticker=ticker,
+                    symbol=symbol,
                     shares=shares,
                     price=current_price,
                     cash_before=cash_before,
@@ -224,13 +224,13 @@ class OrderExecutor:
                 )
 
         logger.info(
-            f"Market order filled: {action.upper()} {shares} {ticker} @ ${current_price:.2f} "
+            f"Market order filled: {action.upper()} {shares} {symbol} @ ${current_price:.2f} "
             f"(${amount:.2f}, cash: ${cash_before:.2f} → ${cash_after:.2f})"
         )
 
         return {
             "filled": True,
-            "symbol": ticker,
+            "symbol": symbol,
             "action": action,
             "shares": shares,
             "price": current_price,
@@ -241,14 +241,14 @@ class OrderExecutor:
         }
 
     def calculate_max_shares(
-        self, ticker: str, account_id: str, max_position_pct: float = MAX_POSITION_PCT
+        self, symbol: str, account_id: str, max_position_pct: float = MAX_POSITION_PCT
     ) -> int:
         """Calculate maximum shares affordable for a position.
 
         Uses simple equal-weight position sizing (5% of account by default per P2).
 
         Args:
-            ticker: Stock symbol
+            symbol: Stock symbol
             account_id: Portfolio account ID
             max_position_pct: Maximum position size as % of account (default 5%)
 
@@ -263,8 +263,8 @@ class OrderExecutor:
             max_position_amount = cash_balance * max_position_pct
 
             # Get current price
-            price_data_dict = self.price_fetcher.fetch_price_data([ticker])
-            current_price = price_data_dict[ticker].price
+            price_data_dict = self.price_fetcher.fetch_price_data([symbol])
+            current_price = price_data_dict[symbol].price
 
             # Calculate max shares
             max_shares = int(max_position_amount / current_price)
@@ -272,7 +272,7 @@ class OrderExecutor:
             return max_shares
 
         except Exception as e:
-            logger.error(f"Failed to calculate max shares for {ticker}: {e}")
+            logger.error(f"Failed to calculate max shares for {symbol}: {e}")
             return 0
 
     def get_symbol_sector(self, symbol: str) -> str | None:
@@ -345,12 +345,12 @@ class OrderExecutor:
         return sector_value / portfolio_value
 
     def validate_position_limits(
-        self, ticker: str, amount: float, account_id: str
+        self, symbol: str, amount: float, account_id: str
     ) -> tuple[bool, str | None]:
         """Validate position against P2 limits (5% position, 20% sector).
 
         Args:
-            ticker: Stock symbol
+            symbol: Stock symbol
             amount: Dollar amount of proposed position
             account_id: Portfolio account ID
 
@@ -377,7 +377,7 @@ class OrderExecutor:
                 )
 
             # Check sector exposure limit (20%)
-            sector = self.get_ticker_sector(ticker)
+            sector = self.get_symbol_sector(symbol)
             if sector:
                 current_exposure = self.get_sector_exposure(account_id, sector)
                 new_exposure = current_exposure + (amount / portfolio_value)
@@ -390,12 +390,12 @@ class OrderExecutor:
             return True, None
 
         except Exception as e:
-            logger.error(f"Failed to validate position limits for {ticker}: {e}")
+            logger.error(f"Failed to validate position limits for {symbol}: {e}")
             return True, None  # Allow trade if validation fails (fail-open)
 
     def calculate_risk_based_shares(
         self,
-        ticker: str,
+        symbol: str,
         account_id: str,
         stop_loss: float | None = None,
         risk_percent: float = 0.015,
@@ -406,7 +406,7 @@ class OrderExecutor:
         Formula: shares = (risk_percent * equity) / (entry_price - stop_loss)
 
         Args:
-            ticker: Stock symbol
+            symbol: Stock symbol
             account_id: Portfolio account ID
             stop_loss: Stop-loss price. If None, calculates ATR-based stop.
             risk_percent: Risk per trade as fraction (0.015 = 1.5%)
@@ -421,7 +421,7 @@ class OrderExecutor:
         from app.analytics.trade_calculations import calculate_stop_loss  # noqa: PLC0415
 
         details: dict[str, float | str | None] = {
-            "symbol": ticker,
+            "symbol": symbol,
             "account_id": account_id,
             "equity": None,
             "entry_price": None,
@@ -435,8 +435,8 @@ class OrderExecutor:
 
         try:
             # Get current price (entry price)
-            price_data_dict = self.price_fetcher.fetch_price_data([ticker])
-            entry_price = price_data_dict[ticker].price
+            price_data_dict = self.price_fetcher.fetch_price_data([symbol])
+            entry_price = price_data_dict[symbol].price
             details["entry_price"] = entry_price
 
             # Get portfolio equity
@@ -448,7 +448,7 @@ class OrderExecutor:
 
             # Get or calculate stop loss
             if stop_loss is None:
-                stop_loss = calculate_stop_loss(self.storage, ticker, entry_price)
+                stop_loss = calculate_stop_loss(self.storage, symbol, entry_price)
                 if stop_loss is None:
                     details["error"] = "Cannot calculate ATR-based stop loss"
                     return 0, details
@@ -477,6 +477,6 @@ class OrderExecutor:
             return shares, details
 
         except Exception as e:
-            logger.error(f"Failed to calculate risk-based shares for {ticker}: {e}")
+            logger.error(f"Failed to calculate risk-based shares for {symbol}: {e}")
             details["error"] = str(e)
             return 0, details

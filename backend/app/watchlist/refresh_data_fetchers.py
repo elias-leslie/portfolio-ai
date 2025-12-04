@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from ..analytics.news_sentiment_aggregator import get_ticker_sentiment
+from ..analytics.news_sentiment_aggregator import get_symbol_sentiment
 from ..logging_config import get_logger
 from ..services import NewsService
 from ..services.news_models import NewsBundle
@@ -102,27 +102,27 @@ def detect_missing_historical_data(
     min_days: int = 30,
     stale_threshold_days: int = 7,
 ) -> list[str]:
-    """Detect tickers that need historical data backfill.
+    """Detect symbols that need historical data backfill.
 
-    Checks day_bars table to find tickers with:
+    Checks day_bars table to find symbols with:
     - No historical data at all
     - Insufficient data (< min_days of trading days)
     - Stale data (most recent bar > stale_threshold_days old)
 
     Args:
         storage: Database storage instance
-        symbols: List of ticker symbols to check
+        symbols: List of symbols to check
         min_days: Minimum number of trading days required (default: 30)
         stale_threshold_days: Days threshold to consider data stale (default: 7)
 
     Returns:
-        List of ticker symbols that need backfill
+        List of symbols that need backfill
     """
     if not symbols:
         return []
 
     with storage.connection() as conn:
-        # Check each ticker's historical data status
+        # Check each symbol's historical data status
         query = """
             WITH symbol_stats AS (
                 SELECT
@@ -148,18 +148,18 @@ def detect_missing_historical_data(
             [symbols, symbols, min_days, stale_threshold_days],  # type: ignore[list-item]
         ).fetchall()
 
-        tickers_needing_backfill = [str(row[0]) for row in result]
+        symbols_needing_backfill = [str(row[0]) for row in result]
 
-        if tickers_needing_backfill:
+        if symbols_needing_backfill:
             logger.info(
-                "detected_tickers_needing_backfill",
-                count=len(tickers_needing_backfill),
-                tickers=tickers_needing_backfill,
+                "detected_symbols_needing_backfill",
+                count=len(symbols_needing_backfill),
+                symbols=symbols_needing_backfill,
                 min_days=min_days,
                 stale_threshold_days=stale_threshold_days,
             )
 
-        return tickers_needing_backfill
+        return symbols_needing_backfill
 
 
 def fetch_fundamentals_and_earnings(
@@ -184,7 +184,7 @@ def fetch_fundamentals_and_earnings(
             if fundamentals_data:
                 # Fetch news sentiment for blended score (GAP-015)
                 try:
-                    news_sentiment = get_ticker_sentiment(storage, symbol)
+                    news_sentiment = get_symbol_sentiment(storage, symbol)
                     if news_sentiment.sentiment_score is not None:
                         fundamentals_data.news_sentiment_score = news_sentiment.sentiment_score
                 except Exception as news_error:

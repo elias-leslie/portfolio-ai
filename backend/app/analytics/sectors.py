@@ -32,18 +32,18 @@ def _parse_target_date(date: dt.date | str) -> dt.date:
 
 
 def _fetch_sector_mapping(storage: PortfolioStorage) -> pl.DataFrame | None:
-    """Fetch latest sector mapping for all tickers.
+    """Fetch latest sector mapping for all symbols.
 
     Args:
         storage: PortfolioStorage instance
 
     Returns:
-        DataFrame with ticker and sector columns, or None if no data
+        DataFrame with symbol and sector columns, or None if no data
     """
     sector_query = """
         WITH latest_sectors AS (
             SELECT DISTINCT ON (symbol)
-                symbol as ticker,
+                symbol,
                 sector
             FROM price_cache
             WHERE sector IS NOT NULL
@@ -70,13 +70,13 @@ def _calculate_momentum_dates(target_date: dt.date) -> tuple[dt.date, dt.date]:
     return date_5d, date_20d
 
 
-def _fetch_ticker_returns(
+def _fetch_symbol_returns(
     storage: PortfolioStorage,
     target_date: dt.date,
     date_5d: dt.date,
     date_20d: dt.date,
 ) -> pl.DataFrame | None:
-    """Fetch price returns for all tickers across multiple periods.
+    """Fetch price returns for all symbols across multiple periods.
 
     Args:
         storage: PortfolioStorage instance
@@ -85,7 +85,7 @@ def _fetch_ticker_returns(
         date_20d: Start date for 20-day returns
 
     Returns:
-        DataFrame with ticker, returns, and volume data, or None if no data
+        DataFrame with symbol, returns, and volume data, or None if no data
     """
     returns_query = """
         WITH price_now AS (
@@ -108,7 +108,7 @@ def _fetch_ticker_returns(
             QUALIFY ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date ASC) = 1
         )
         SELECT
-            p.symbol as ticker,
+            p.symbol,
             p.close_now,
             p.volume,
             p5.close_5d,
@@ -138,10 +138,10 @@ def _fetch_ticker_returns(
 
 
 def _aggregate_sector_stats(combined: pl.DataFrame) -> pl.DataFrame:
-    """Aggregate ticker data by sector and calculate sector-level metrics.
+    """Aggregate symbol data by sector and calculate sector-level metrics.
 
     Args:
-        combined: DataFrame with ticker-level returns and sector information
+        combined: DataFrame with symbol-level returns and sector information
 
     Returns:
         DataFrame with sector-level aggregated statistics
@@ -152,7 +152,7 @@ def _aggregate_sector_stats(combined: pl.DataFrame) -> pl.DataFrame:
             [
                 pl.col("return_5d").mean().alias("momentum_5d"),
                 pl.col("return_20d").mean().alias("momentum_20d"),
-                pl.col("ticker").count().alias("num_stocks"),
+                pl.col("symbol").count().alias("num_stocks"),
                 pl.col("volume").mean().alias("avg_volume"),
             ]
         )
@@ -202,7 +202,7 @@ def get_sector_rotation(
         lookback_days=lookback_days,
     )
 
-    # Get sector mapping for all tickers
+    # Get sector mapping for all symbols
     sector_data = _fetch_sector_mapping(storage)
     if sector_data is None or len(sector_data) == 0:
         logger.warning("get_sector_rotation_no_sector_data", date=str(target_date))
@@ -211,14 +211,14 @@ def get_sector_rotation(
     # Calculate momentum period dates
     date_5d, date_20d = _calculate_momentum_dates(target_date)
 
-    # Fetch returns data for all tickers
-    returns_data = _fetch_ticker_returns(storage, target_date, date_5d, date_20d)
+    # Fetch returns data for all symbols
+    returns_data = _fetch_symbol_returns(storage, target_date, date_5d, date_20d)
     if returns_data is None or len(returns_data) == 0:
         logger.warning("get_sector_rotation_no_returns_data", date=str(target_date))
         return None
 
     # Join sector information with returns data
-    combined = returns_data.join(sector_data, on="ticker", how="inner")
+    combined = returns_data.join(sector_data, on="symbol", how="inner")
     if len(combined) == 0:
         logger.warning("get_sector_rotation_no_joined_data", date=str(target_date))
         return None
@@ -236,45 +236,45 @@ def get_sector_rotation(
     return sector_stats
 
 
-def _fetch_sector_tickers(storage: PortfolioStorage, sector: str) -> pl.DataFrame | None:
-    """Fetch all tickers in a specific sector.
+def _fetch_sector_symbols(storage: PortfolioStorage, sector: str) -> pl.DataFrame | None:
+    """Fetch all symbols in a specific sector.
 
     Args:
         storage: PortfolioStorage instance
         sector: Sector name to filter by
 
     Returns:
-        DataFrame with ticker column, or None if no tickers found
+        DataFrame with symbol column, or None if no symbols found
     """
-    sector_tickers_query = """
+    sector_symbols_query = """
         SELECT DISTINCT ON (symbol)
-            symbol as ticker
+            symbol
         FROM price_cache
         WHERE sector = ?
         ORDER BY symbol, cached_at DESC
     """
-    return storage.query(sector_tickers_query, [sector])
+    return storage.query(sector_symbols_query, [sector])
 
 
 def _fetch_sector_performance(
     storage: PortfolioStorage,
-    tickers_list: list[str],
+    symbols_list: list[str],
     sector: str,
     target_date: dt.date,
     date_5d: dt.date,
     date_20d: dt.date,
 ) -> pl.DataFrame | None:
-    """Fetch performance metrics for tickers in a sector.
+    """Fetch performance metrics for symbols in a sector.
 
     Args:
         storage: PortfolioStorage instance
-        tickers_list: List of ticker symbols to fetch
+        symbols_list: List of symbols to fetch
         sector: Sector name for labeling
         target_date: Current date for performance calculation
         date_5d: Start date for 5-day returns
         date_20d: Start date for 20-day returns
     Returns:
-        DataFrame with performance metrics per ticker, or None if no data
+        DataFrame with performance metrics per symbol, or None if no data
     """
     performance_query = """
         WITH price_now AS (
@@ -322,13 +322,13 @@ def _fetch_sector_performance(
         str | int | float | bool | dt.datetime | list[str | int | float | bool | None] | None
     ] = [
         target_date.isoformat(),
-        cast(list[str | int | float | bool | None], tickers_list),
+        cast(list[str | int | float | bool | None], symbols_list),
         date_5d.isoformat(),
         target_date.isoformat(),
-        cast(list[str | int | float | bool | None], tickers_list),
+        cast(list[str | int | float | bool | None], symbols_list),
         date_20d.isoformat(),
         target_date.isoformat(),
-        cast(list[str | int | float | bool | None], tickers_list),
+        cast(list[str | int | float | bool | None], symbols_list),
         sector,
     ]
 
@@ -351,7 +351,7 @@ def get_sector_performance_detail(
 
     Returns:
         Polars DataFrame with columns:
-            - ticker: Stock ticker symbol
+            - symbol: Stock symbol
             - sector: Sector name
             - return_5d: 5-day return (%)
             - return_20d: 20-day return (%)
@@ -364,7 +364,7 @@ def get_sector_performance_detail(
         >>> storage = get_storage()
         >>> tech_detail = get_sector_performance_detail(storage, "Technology", "2025-01-15")
         >>> if tech_detail is not None:
-        ...     print(f"Top tech stock: {tech_detail['ticker'][0]}")
+        ...     print(f"Top tech stock: {tech_detail['symbol'][0]}")
     """
     target_date = _parse_target_date(date)
 
@@ -375,11 +375,11 @@ def get_sector_performance_detail(
         lookback_days=lookback_days,
     )
 
-    # Get tickers in this sector
-    tickers_data = _fetch_sector_tickers(storage, sector)
-    if tickers_data is None or len(tickers_data) == 0:
+    # Get symbols in this sector
+    symbols_data = _fetch_sector_symbols(storage, sector)
+    if symbols_data is None or len(symbols_data) == 0:
         logger.warning(
-            "get_sector_performance_detail_no_tickers",
+            "get_sector_performance_detail_no_symbols",
             sector=sector,
             date=str(target_date),
         )
@@ -388,10 +388,10 @@ def get_sector_performance_detail(
     # Calculate date ranges
     date_5d, date_20d = _calculate_momentum_dates(target_date)
 
-    # Get performance for these tickers
-    tickers_list = tickers_data["ticker"].to_list()
+    # Get performance for these symbols
+    symbols_list = symbols_data["symbol"].to_list()
     performance_data = _fetch_sector_performance(
-        storage, tickers_list, sector, target_date, date_5d, date_20d
+        storage, symbols_list, sector, target_date, date_5d, date_20d
     )
 
     if performance_data is None or len(performance_data) == 0:

@@ -105,23 +105,23 @@ class SECEdgarSource(BaseSource):
         return None
 
     def fetch_reference_payload(
-        self, tickers: Iterable[str], as_of: dt.date
+        self, symbols: Iterable[str], as_of: dt.date
     ) -> pl.DataFrame | None:
         """Not implemented - SEC EDGAR only provides news/filings."""
         return None
 
     def fetch_news_payload(
-        self, tickers: Iterable[str], start: dt.datetime, end: dt.datetime
+        self, symbols: Iterable[str], start: dt.datetime, end: dt.datetime
     ) -> pl.DataFrame | None:
         """Fetch SEC filings as news articles.
 
         Args:
-            tickers: List of ticker symbols
+            symbols: List of symbols
             start: Start datetime (UTC)
             end: End datetime (UTC)
 
         Returns:
-            DataFrame with columns: ticker, headline, url, published_at, source, summary,
+            DataFrame with columns: symbol, headline, url, published_at, source, summary,
                                    filing_type, filing_items, is_material_event
         """
         edgar = _get_edgar()
@@ -131,31 +131,31 @@ class SECEdgarSource(BaseSource):
         start_date = start.date()
         end_date = end.date()
 
-        ticker_list = list(tickers) or ["__MARKET__"]
+        symbol_list = list(symbols) or ["__MARKET__"]
 
         logger.info(
             "sec_edgar_fetch_start",
-            num_tickers=len(ticker_list),
+            num_symbols=len(symbol_list),
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
         )
 
-        for ticker in ticker_list:
-            # Skip market-level requests (SEC is ticker-specific)
-            if ticker in (None, "__MARKET__"):
+        for symbol in symbol_list:
+            # Skip market-level requests (SEC is symbol-specific)
+            if symbol in (None, "__MARKET__"):
                 continue
 
             try:
-                # Get CIK from local cache (bypasses SEC API ticker lookup)
+                # Get CIK from local cache (bypasses SEC API symbol lookup)
                 if self._storage is None:
                     # Lazy import to avoid circular dependency
                     from ..storage import PortfolioStorage  # noqa: PLC0415
 
                     self._storage = PortfolioStorage()
 
-                cik = get_cik(ticker, self._storage)
+                cik = get_cik(symbol, self._storage)
                 if not cik:
-                    logger.warning("sec_edgar_cik_not_found", ticker=ticker)
+                    logger.warning("sec_edgar_cik_not_found", symbol=symbol)
                     continue
 
                 # Get company by CIK (bypasses ticker lookup, works despite IP block)
@@ -167,35 +167,35 @@ class SECEdgarSource(BaseSource):
                 )
 
                 if len(filings) == 0:
-                    logger.debug("sec_edgar_no_filings", ticker=ticker)
+                    logger.debug("sec_edgar_no_filings", symbol=symbol)
                     continue
 
                 # Process each filing
                 # Work around pyarrow version issue by accessing data directly
                 for i in range(len(filings.data)):
                     try:
-                        filing_record = self._process_filing(filings, i, ticker)
+                        filing_record = self._process_filing(filings, i, symbol)
                         if filing_record:
                             records.append(filing_record)
                     except Exception as filing_error:
                         logger.warning(
                             "sec_edgar_filing_parse_error",
-                            ticker=ticker,
+                            symbol=symbol,
                             index=i,
                             error=str(filing_error),
                         )
                         continue
 
                 logger.debug(
-                    "sec_edgar_ticker_complete",
-                    ticker=ticker,
+                    "sec_edgar_symbol_complete",
+                    symbol=symbol,
                     filings_found=len(filings.data),
                 )
 
             except Exception as exc:
                 logger.warning(
                     "sec_edgar_fetch_error",
-                    ticker=ticker,
+                    symbol=symbol,
                     error=str(exc),
                     error_type=type(exc).__name__,
                 )
@@ -208,7 +208,7 @@ class SECEdgarSource(BaseSource):
         logger.info(
             "sec_edgar_fetch_complete",
             total_filings=len(records),
-            unique_tickers=len({r["ticker"] for r in records}),
+            unique_symbols=len({r["symbol"] for r in records}),
         )
 
         # Create dataframe with explicit schema to avoid type inference issues during concat
@@ -227,13 +227,13 @@ class SECEdgarSource(BaseSource):
 
         return df
 
-    def _process_filing(self, filings: Any, index: int, ticker: str) -> dict[str, Any] | None:
+    def _process_filing(self, filings: Any, index: int, symbol: str) -> dict[str, Any] | None:
         """Process a single filing into a news record.
 
         Args:
             filings: Filings object from edgartools
             index: Index of filing to process
-            ticker: Ticker symbol
+            symbol: Stock symbol
 
         Returns:
             Dictionary with filing data, or None if processing fails
@@ -247,7 +247,7 @@ class SECEdgarSource(BaseSource):
             return None
 
         # Generate plain language headline
-        headline = self._generate_headline(form, ticker)
+        headline = self._generate_headline(form, symbol)
 
         # Build filing URL
         # Format: https://www.sec.gov/cgi-bin/viewer?action=view&cik={cik}&accession_number={accession}&xbrl_type=v
@@ -260,7 +260,7 @@ class SECEdgarSource(BaseSource):
         # TODO: Extract 8-K items if applicable (future enhancement)
 
         # Plain language headline for plain_language_headline field
-        plain_language = self._generate_headline(form, ticker)
+        plain_language = self._generate_headline(form, symbol)
 
         # Build record with ALL standard news fields (for schema compatibility)
         record = {
@@ -296,12 +296,12 @@ class SECEdgarSource(BaseSource):
             return value.as_py()
         return value
 
-    def _generate_headline(self, form: str, ticker: str) -> str:
+    def _generate_headline(self, form: str, symbol: str) -> str:
         """Generate plain-language headline for filing.
 
         Args:
             form: Filing type (8-K, 10-Q, etc.)
-            ticker: Ticker symbol
+            symbol: Stock symbol
 
         Returns:
             Plain language headline

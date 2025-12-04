@@ -28,7 +28,7 @@ def create_paper_trade(storage: PortfolioStorage, idea_id: str) -> PaperTradeDic
 
     Returns:
         Dict with paper trade details if successful, None if failed
-        - ticker: Stock ticker symbol
+        - symbol: Stock symbol
         - entry_price: Current market price
         - stop_loss_price: Calculated stop loss (entry - 2xATR)
         - target_price: From agent idea (if available)
@@ -37,7 +37,7 @@ def create_paper_trade(storage: PortfolioStorage, idea_id: str) -> PaperTradeDic
     Example:
         >>> storage = get_storage()
         >>> trade = create_paper_trade(storage, "idea-123")
-        >>> print(f"Created paper trade for {trade['ticker']} at ${trade['entry_price']}")
+        >>> print(f"Created paper trade for {trade['symbol']} at ${trade['entry_price']}")
     """
     return create_paper_trade_from_idea(storage, idea_id)
 

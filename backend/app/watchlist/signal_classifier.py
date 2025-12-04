@@ -36,7 +36,7 @@ def classify_trading_style(
     5. Value: Default fallback
 
     Args:
-        symbol: Stock ticker symbol
+        symbol: Stock symbol
         signal_strength: Signal strength (0-10)
         signal_type: Signal type (BUY, HOLD, AVOID)
         rsi_14: 14-day RSI indicator
@@ -125,7 +125,7 @@ def _extract_signal_inputs(inputs: SignalInputsDict) -> NormalizedSignalInputsDi
         # Options flow fields (GAP-031)
         "options_call_pct": inputs.get("options_call_pct"),
         "options_near_term_pct": inputs.get("options_near_term_pct"),
-        "ticker_in_active_sector": inputs.get("ticker_in_active_sector"),
+        "symbol_in_active_sector": inputs.get("symbol_in_active_sector"),
         # Earnings surprise fields (GAP-003)
         "earnings_surprise_score": inputs.get("earnings_surprise_score"),
         "earnings_surprise_reasons": inputs.get("earnings_surprise_reasons"),
@@ -257,7 +257,7 @@ def _calculate_news_sentiment_score(news_sentiment: float) -> tuple[int, list[st
 def _calculate_options_flow_score(
     options_call_pct: float | None,
     options_near_term_pct: float | None,
-    ticker_in_active_sector: bool | None,
+    symbol_in_active_sector: bool | None,
 ) -> tuple[int, list[str]]:
     """Calculate 0-4 point options flow sentiment score (GAP-031).
 
@@ -269,7 +269,7 @@ def _calculate_options_flow_score(
     Args:
         options_call_pct: Percentage of call volume (0.0-1.0)
         options_near_term_pct: Percentage of near-term options (0.0-1.0)
-        ticker_in_active_sector: True if ticker's sector has high options volume
+        symbol_in_active_sector: True if ticker's sector has high options volume
 
     Returns:
         (score, reasons) where score is 0-4 based on options sentiment
@@ -300,7 +300,7 @@ def _calculate_options_flow_score(
 
     # Sector activity bonus (0-1 point)
     # Ticker in active sector gets a conviction boost
-    if ticker_in_active_sector:
+    if symbol_in_active_sector:
         score += 1
         reasons.append("Sector has high options activity")
 
@@ -504,7 +504,7 @@ def classify_signal(inputs: SignalInputsDict) -> SignalClassification:
     options_score, options_reasons = _calculate_options_flow_score(
         options_call_pct=data["options_call_pct"],
         options_near_term_pct=data["options_near_term_pct"],
-        ticker_in_active_sector=data["ticker_in_active_sector"],
+        symbol_in_active_sector=data["symbol_in_active_sector"],
     )
     confirmations += options_score
     buy_reasons.extend(options_reasons)

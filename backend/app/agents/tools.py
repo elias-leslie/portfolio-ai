@@ -24,14 +24,14 @@ if TYPE_CHECKING:
 
 # Import all tool definitions for re-export
 from .tool_definitions import (
-    get_add_ticker_tool_definition,
+    get_add_symbol_tool_definition,
     get_create_paper_trade_tool_definition,
     get_economic_data_tool_definition,
     get_news_tool_definition,
     get_portfolio_data_tool_definition,
     get_price_data_tool_definition,
     get_query_memory_tool_definition,
-    get_remove_ticker_tool_definition,
+    get_remove_symbol_tool_definition,
     get_run_backtest_tool_definition,
     get_send_message_tool_definition,
     get_store_idea_tool_definition,
@@ -47,14 +47,14 @@ from .tool_executors_trading import TradingTools
 # Re-export everything for backward compatibility
 __all__ = [
     "AgentTools",
-    "get_add_ticker_tool_definition",
+    "get_add_symbol_tool_definition",
     "get_create_paper_trade_tool_definition",
     "get_economic_data_tool_definition",
     "get_news_tool_definition",
     "get_portfolio_data_tool_definition",
     "get_price_data_tool_definition",
     "get_query_memory_tool_definition",
-    "get_remove_ticker_tool_definition",
+    "get_remove_symbol_tool_definition",
     "get_run_backtest_tool_definition",
     "get_send_message_tool_definition",
     "get_store_idea_tool_definition",
@@ -126,29 +126,29 @@ class AgentTools:
         """Execute store_idea tool."""
         return self.trading.execute_store_idea(agent_run_id, **idea_data)
 
-    def execute_add_ticker(
+    def execute_add_symbol(
         self,
         agent_run_id: str,
-        ticker: str,
+        symbol: str,
         reason: str,
         expected_return_pct: float,
         time_horizon_days: int,
     ) -> dict[str, object]:
-        """Execute add_ticker tool."""
-        return self.trading.execute_add_ticker(
-            agent_run_id, ticker, reason, expected_return_pct, time_horizon_days
+        """Execute add_symbol tool."""
+        return self.trading.execute_add_symbol(
+            agent_run_id, symbol, reason, expected_return_pct, time_horizon_days
         )
 
-    def execute_remove_ticker(
-        self, agent_run_id: str, ticker: str, reason: str
+    def execute_remove_symbol(
+        self, agent_run_id: str, symbol: str, reason: str
     ) -> dict[str, object]:
-        """Execute remove_ticker tool."""
-        return self.trading.execute_remove_ticker(agent_run_id, ticker, reason)
+        """Execute remove_symbol tool."""
+        return self.trading.execute_remove_symbol(agent_run_id, symbol, reason)
 
     def execute_create_paper_trade(
         self,
         agent_run_id: str,
-        ticker: str,
+        symbol: str,
         action: str,
         thesis: str,
         target_price: float | None = None,
@@ -156,13 +156,13 @@ class AgentTools:
     ) -> dict[str, object]:
         """Execute create_paper_trade tool."""
         return self.trading.execute_create_paper_trade(
-            agent_run_id, ticker, action, thesis, target_price, stop_loss_pct
+            agent_run_id, symbol, action, thesis, target_price, stop_loss_pct
         )
 
     def execute_run_backtest(
         self,
         agent_run_id: str,
-        ticker: str,
+        symbol: str,
         start_date: str,
         end_date: str,
         initial_capital: float = 100000.0,
@@ -175,7 +175,7 @@ class AgentTools:
         """Execute run_backtest tool."""
         return self.trading.execute_run_backtest(
             agent_run_id,
-            ticker,
+            symbol,
             start_date,
             end_date,
             initial_capital,

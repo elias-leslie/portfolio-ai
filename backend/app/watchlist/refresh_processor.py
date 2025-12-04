@@ -1,6 +1,6 @@
-"""Per-ticker processing logic for watchlist refresh.
+"""Per-symbol processing logic for watchlist refresh.
 
-This module handles the per-ticker data gathering and snapshot creation
+This module handles the per-symbol data gathering and snapshot creation
 during watchlist refresh operations.
 
 Extracted from scoring_service.py to reduce file size and improve modularity.
@@ -38,13 +38,13 @@ logger = get_logger(__name__)
 
 
 class ProcessorConfig(TypedDict):
-    """Configuration parameters for ticker processing.
+    """Configuration parameters for symbol processing.
 
     Attributes:
         default_weights: Score weights from user preferences
         stale_ttl_minutes: Staleness threshold in minutes
         risk_budget: Risk budget for position sizing (0.0-1.0)
-        max_news_articles: Maximum articles to fetch per ticker
+        max_news_articles: Maximum articles to fetch per symbol
         now: Current timestamp (UTC) for consistency
     """
 
@@ -56,7 +56,7 @@ class ProcessorConfig(TypedDict):
 
 
 class TickerInputData(TypedDict):
-    """Input data for ticker processing.
+    """Input data for symbol processing.
 
     Attributes:
         price_data: Price data object from PriceDataFetcher
@@ -69,7 +69,7 @@ class TickerInputData(TypedDict):
     news_bundle: NewsBundle | None
 
 
-def process_ticker_snapshot(
+def process_symbol_snapshot(
     storage: PortfolioStorage,
     symbol: str,
     item_id: str,

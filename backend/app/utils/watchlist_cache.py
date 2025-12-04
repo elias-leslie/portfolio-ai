@@ -67,7 +67,7 @@ def get_watchlist_symbols_cached(
         ttl_seconds: Cache TTL in seconds (default: 60s)
 
     Returns:
-        List of ticker symbols from watchlist
+        List of symbols from watchlist
 
     Cache Strategy:
         - Key format: "watchlist:symbols:{account_id}"
@@ -139,7 +139,7 @@ def _fetch_symbols_from_db(
         account_id: Optional account ID filter (None = all items, user-level)
 
     Returns:
-        List of ticker symbols
+        List of symbols
     """
     # Note: Watchlist is user-level (no account_id FK anymore)
     # account_id parameter kept for backward compatibility

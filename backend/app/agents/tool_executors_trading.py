@@ -2,8 +2,8 @@
 
 This module provides execution logic for trading tools:
 - store_idea: Store investment ideas
-- add_ticker: Add tickers to watchlist
-- remove_ticker: Remove tickers from watchlist
+- add_symbol: Add symbols to watchlist
+- remove_symbol: Remove symbols from watchlist
 - create_paper_trade: Create paper trades
 - run_backtest: Execute backtests for strategy validation
 
@@ -134,51 +134,51 @@ class TradingTools:
         if paper_trade:
             logger.info(
                 f"Created paper trade for idea {idea_id}: "
-                f"{paper_trade['ticker']} @ ${paper_trade['entry_price']}"
+                f"{paper_trade['symbol']} @ ${paper_trade['entry_price']}"
             )
             return {
                 "idea_id": idea_id,
                 "status": "stored",
                 "paper_trade_created": True,
-                "symbol": paper_trade["ticker"],
+                "symbol": paper_trade["symbol"],
             }
         logger.warning(f"Failed to create paper trade for idea {idea_id}")
         return {"idea_id": idea_id, "status": "stored", "paper_trade_created": False}
 
-    def execute_add_ticker(
+    def execute_add_symbol(
         self,
         agent_run_id: str,
-        ticker: str,
+        symbol: str,
         reason: str,
         expected_return_pct: float,
         time_horizon_days: int,
     ) -> dict[str, object]:
-        """Execute add_ticker tool to autonomously add tickers to watchlist.
+        """Execute add_symbol tool to autonomously add symbols to watchlist.
 
         Args:
             agent_run_id: ID of the agent run (for ownership tracking)
-            ticker: Stock ticker symbol
-            reason: Why adding this ticker
+            symbol: Stock symbol
+            reason: Why adding this symbol
             expected_return_pct: Expected return percentage
             time_horizon_days: Time horizon in days
 
         Returns:
             Result dictionary with status and details
         """
-        ticker = ticker.upper()
+        symbol = symbol.upper()
 
-        # Check if ticker already exists
+        # Check if symbol already exists
         existing = self.storage.query(
-            "SELECT id, added_by FROM watchlist_items WHERE symbol = $1", [ticker]
+            "SELECT id, added_by FROM watchlist_items WHERE symbol = $1", [symbol]
         )
 
         if not existing.is_empty():
             added_by = existing.get_column("added_by")[0]
             return {
                 "status": "exists",
-                "symbol": ticker,
+                "symbol": symbol,
                 "added_by": added_by,
-                "message": f"{ticker} already in watchlist (added by {added_by})",
+                "message": f"{symbol} already in watchlist (added by {added_by})",
             }
 
         # Create watchlist item with ownership tracking
@@ -197,7 +197,7 @@ class TradingTools:
                 "watchlist_items",
                 {
                     "id": item_id,
-                    "symbol": ticker,
+                    "symbol": symbol,
                     "metadata": str(metadata),
                     "added_by": agent_run_id,
                     "added_at": now.isoformat(),
@@ -206,51 +206,51 @@ class TradingTools:
                 },
             )
 
-            logger.info(f"Agent {agent_run_id} added {ticker} to watchlist: {reason}")
+            logger.info(f"Agent {agent_run_id} added {symbol} to watchlist: {reason}")
 
             return {
                 "status": "added",
-                "symbol": ticker,
+                "symbol": symbol,
                 "item_id": item_id,
-                "message": f"Added {ticker} to watchlist (expected {expected_return_pct}% in {time_horizon_days} days)",
+                "message": f"Added {symbol} to watchlist (expected {expected_return_pct}% in {time_horizon_days} days)",
             }
 
         except Exception as e:
-            logger.error(f"Failed to add {ticker} to watchlist: {e}")
+            logger.error(f"Failed to add {symbol} to watchlist: {e}")
             return {
                 "status": "error",
-                "symbol": ticker,
+                "symbol": symbol,
                 "error": str(e),
             }
 
-    def execute_remove_ticker(
-        self, agent_run_id: str, ticker: str, reason: str
+    def execute_remove_symbol(
+        self, agent_run_id: str, symbol: str, reason: str
     ) -> dict[str, object]:
-        """Execute remove_ticker tool with ownership validation.
+        """Execute remove_symbol tool with ownership validation.
 
-        Agents can ONLY remove tickers they added. This prevents agents from
-        removing user-added tickers or tickers added by other agents.
+        Agents can ONLY remove symbols they added. This prevents agents from
+        removing user-added symbols or symbols added by other agents.
 
         Args:
             agent_run_id: ID of the agent run
-            ticker: Stock ticker symbol to remove
-            reason: Why removing this ticker
+            symbol: Stock symbol to remove
+            reason: Why removing this symbol
 
         Returns:
             Result dictionary with status and details
         """
-        ticker = ticker.upper()
+        symbol = symbol.upper()
 
-        # Check if ticker exists and get ownership
+        # Check if symbol exists and get ownership
         existing = self.storage.query(
-            "SELECT id, added_by, added_at FROM watchlist_items WHERE symbol = $1", [ticker]
+            "SELECT id, added_by, added_at FROM watchlist_items WHERE symbol = $1", [symbol]
         )
 
         if existing.is_empty():
             return {
                 "status": "not_found",
-                "symbol": ticker,
-                "message": f"{ticker} not in watchlist",
+                "symbol": symbol,
+                "message": f"{symbol} not in watchlist",
             }
 
         item_id = existing.get_column("id")[0]
@@ -262,15 +262,15 @@ class TradingTools:
             if added_by == "user":
                 return {
                     "status": "forbidden",
-                    "symbol": ticker,
+                    "symbol": symbol,
                     "added_by": added_by,
-                    "message": f"Cannot remove {ticker} - user-added tickers can only be removed by users",
+                    "message": f"Cannot remove {symbol} - user-added symbols can only be removed by users",
                 }
             return {
                 "status": "forbidden",
-                "symbol": ticker,
+                "symbol": symbol,
                 "added_by": added_by,
-                "message": f"Cannot remove {ticker} - added by different agent ({added_by})",
+                "message": f"Cannot remove {symbol} - added by different agent ({added_by})",
             }
 
         # Time threshold check (30 days minimum)
@@ -278,39 +278,39 @@ class TradingTools:
         if days_since_added < 30:
             return {
                 "status": "too_soon",
-                "symbol": ticker,
+                "symbol": symbol,
                 "days_since_added": days_since_added,
-                "message": f"Cannot remove {ticker} - only {days_since_added} days since added (need 30+)",
+                "message": f"Cannot remove {symbol} - only {days_since_added} days since added (need 30+)",
             }
 
-        # Remove ticker
+        # Remove symbol
         try:
             with self.storage.connection() as conn:
                 conn.execute("DELETE FROM watchlist_items WHERE id = $1", [item_id])
 
             logger.info(
-                f"Agent {agent_run_id} removed {ticker} from watchlist after {days_since_added} days: {reason}"
+                f"Agent {agent_run_id} removed {symbol} from watchlist after {days_since_added} days: {reason}"
             )
 
             return {
                 "status": "removed",
-                "symbol": ticker,
+                "symbol": symbol,
                 "days_held": days_since_added,
-                "message": f"Removed {ticker} from watchlist (held {days_since_added} days): {reason}",
+                "message": f"Removed {symbol} from watchlist (held {days_since_added} days): {reason}",
             }
 
         except Exception as e:
-            logger.error(f"Failed to remove {ticker}: {e}")
+            logger.error(f"Failed to remove {symbol}: {e}")
             return {
                 "status": "error",
-                "symbol": ticker,
+                "symbol": symbol,
                 "error": str(e),
             }
 
     def execute_create_paper_trade(
         self,
         agent_run_id: str,
-        ticker: str,
+        symbol: str,
         action: str,
         thesis: str,
         target_price: float | None = None,
@@ -328,7 +328,7 @@ class TradingTools:
 
         Args:
             agent_run_id: ID of the agent run
-            ticker: Stock ticker symbol
+            symbol: Stock symbol
             action: 'buy' or 'sell'
             thesis: Investment thesis
             target_price: Optional target exit price
@@ -338,7 +338,7 @@ class TradingTools:
         Returns:
             Result dictionary with trade details or error
         """
-        ticker = ticker.upper()
+        symbol = symbol.upper()
         action = action.lower()
 
         # Validate action
@@ -365,13 +365,13 @@ class TradingTools:
         # Calculate max affordable shares using confidence-adjusted sizing
         account_id = "paper_trading"
         max_shares = self.order_executor.calculate_max_shares(
-            ticker, account_id, max_position_pct=adjusted_position_pct
+            symbol, account_id, max_position_pct=adjusted_position_pct
         )
 
         if max_shares == 0:
             return {
                 "status": "error",
-                "symbol": ticker,
+                "symbol": symbol,
                 "error": "Insufficient cash or failed to calculate position size",
             }
 
@@ -385,9 +385,9 @@ class TradingTools:
                 "id": idea_id,
                 "agent_run_id": agent_run_id,
                 "idea_type": action,  # "buy" or "sell"
-                "title": f"{action.capitalize()} {ticker}",
+                "title": f"{action.capitalize()} {symbol}",
                 "thesis": thesis,
-                "action": f"{action.capitalize()} {max_shares} shares of {ticker}",
+                "action": f"{action.capitalize()} {max_shares} shares of {symbol}",
                 "confidence_score": (
                     confidence_score / 100.0 if confidence_score > 1.0 else confidence_score
                 ),
@@ -403,7 +403,7 @@ class TradingTools:
         action_typed = cast(Literal["buy", "sell"], action)
 
         order_result = self.order_executor.execute_market_order(
-            ticker=ticker,
+            symbol=symbol,
             action=action_typed,
             shares=max_shares,
             account_id=account_id,
@@ -413,10 +413,10 @@ class TradingTools:
 
         if not order_result.get("filled"):
             error_msg = order_result.get("error", "Unknown error")
-            logger.error(f"Failed to execute paper trade for {ticker}: {error_msg}")
+            logger.error(f"Failed to execute paper trade for {symbol}: {error_msg}")
             return {
                 "status": "error",
-                "symbol": ticker,
+                "symbol": symbol,
                 "error": error_msg,
             }
 
@@ -437,7 +437,7 @@ class TradingTools:
             {
                 "idea_id": idea_id,
                 "agent_run_id": agent_run_id,
-                "symbol": ticker,
+                "symbol": symbol,
                 "idea_type": action,
                 "entry_price": entry_price,
                 "entry_date": now.date().isoformat(),
@@ -454,14 +454,14 @@ class TradingTools:
         )
 
         logger.info(
-            f"Agent {agent_run_id} created paper trade: {action.upper()} {max_shares} {ticker} "
+            f"Agent {agent_run_id} created paper trade: {action.upper()} {max_shares} {symbol} "
             f"@ ${entry_price:.2f} (${order_result['amount']:.2f})"
         )
 
         return {
             "status": "created",
             "trade_id": idea_id,
-            "symbol": ticker,
+            "symbol": symbol,
             "action": action,
             "shares": max_shares,
             "entry_price": entry_price,
@@ -469,13 +469,13 @@ class TradingTools:
             "target_price": target_price,
             "stop_loss_price": stop_loss_price,
             "cash_remaining": order_result["cash_after"],
-            "message": f"Created paper trade: {action.upper()} {max_shares} {ticker} @ ${entry_price:.2f}",
+            "message": f"Created paper trade: {action.upper()} {max_shares} {symbol} @ ${entry_price:.2f}",
         }
 
     def execute_run_backtest(
         self,
         agent_run_id: str,
-        ticker: str,
+        symbol: str,
         start_date: str,
         end_date: str,
         initial_capital: float = 100000.0,
@@ -492,7 +492,7 @@ class TradingTools:
 
         Args:
             agent_run_id: ID of the agent run
-            ticker: Stock ticker symbol
+            symbol: Stock symbol
             start_date: Backtest start date (ISO format: YYYY-MM-DD)
             end_date: Backtest end date (ISO format: YYYY-MM-DD)
             initial_capital: Starting capital (default: 100000.0)
@@ -505,7 +505,7 @@ class TradingTools:
         Returns:
             Result dictionary with backtest metrics or error
         """
-        ticker = ticker.upper()
+        symbol = symbol.upper()
 
         # Validate date format and parse
         try:
@@ -528,14 +528,14 @@ class TradingTools:
             run_id = create_backtest_run(
                 storage=self.storage,
                 strategy_name=strategy_name,
-                symbol=ticker,
+                symbol=symbol,
                 start_date=start,
                 end_date=end,
                 initial_capital=Decimal(str(initial_capital)),
             )
 
             logger.info(
-                f"Agent {agent_run_id} started backtest {run_id}: {ticker} "
+                f"Agent {agent_run_id} started backtest {run_id}: {symbol} "
                 f"({start_date} to {end_date})"
             )
 
@@ -547,7 +547,7 @@ class TradingTools:
 
             run_backtest_task.delay(
                 run_id=run_id,
-                symbol=ticker,
+                symbol=symbol,
                 start_date=start_date,
                 end_date=end_date,
                 initial_capital=initial_capital,
@@ -587,7 +587,7 @@ class TradingTools:
                     return {
                         "status": "completed",
                         "backtest_run_id": run_id,
-                        "symbol": ticker,
+                        "symbol": symbol,
                         "sharpe_ratio": float(run.sharpe_ratio) if run.sharpe_ratio else 0.0,
                         "win_rate": float(run.win_rate) if run.win_rate else 0.0,
                         "max_drawdown_pct": (
@@ -609,7 +609,7 @@ class TradingTools:
                     return {
                         "status": "error",
                         "backtest_run_id": run_id,
-                        "symbol": ticker,
+                        "symbol": symbol,
                         "error": f"Backtest failed: {error_msg}",
                     }
 
@@ -618,15 +618,15 @@ class TradingTools:
             return {
                 "status": "timeout",
                 "backtest_run_id": run_id,
-                "symbol": ticker,
+                "symbol": symbol,
                 "error": f"Backtest timed out after {max_wait_seconds}s",
             }
 
         except Exception as e:
-            logger.error(f"Failed to execute backtest for {ticker}: {e}")
+            logger.error(f"Failed to execute backtest for {symbol}: {e}")
             return {
                 "status": "error",
-                "symbol": ticker,
+                "symbol": symbol,
                 "error": str(e),
             }
 

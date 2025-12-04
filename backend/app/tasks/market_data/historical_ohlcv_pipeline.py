@@ -25,11 +25,11 @@ logger = get_logger(__name__)
 TARGET_DAYS = 1260
 
 
-def _check_symbol_data(ticker: str) -> tuple[bool, int]:
+def _check_symbol_data(symbol: str) -> tuple[bool, int]:
     """Check if symbol has sufficient historical data AND is current.
 
     Args:
-        ticker: Symbol to check
+        symbol: Symbol to check
 
     Returns:
         Tuple of (needs_backfill, days_available)
@@ -39,7 +39,7 @@ def _check_symbol_data(ticker: str) -> tuple[bool, int]:
         # Check both count AND latest date
         result = conn.execute(
             "SELECT COUNT(*) as days, MAX(date) as latest_date FROM day_bars WHERE symbol = %s",
-            [ticker],
+            [symbol],
         ).fetchone()
 
     days_available_raw = result[0] if result else 0
@@ -138,14 +138,14 @@ def maintain_historical_market_data(  # type: ignore[no-untyped-def]
         symbols_to_backfill = []
         symbols_ok = 0
 
-        for ticker in all_symbols:
-            needs_backfill, days_available = _check_symbol_data(ticker)
+        for symbol in all_symbols:
+            needs_backfill, days_available = _check_symbol_data(symbol)
 
             if needs_backfill:
-                symbols_to_backfill.append(ticker)
+                symbols_to_backfill.append(symbol)
                 logger.info(
                     "market_data_maintenance_needs_backfill",
-                    ticker=ticker,
+                    symbol=symbol,
                     days_available=days_available,
                     target_days=TARGET_DAYS,
                 )
@@ -153,7 +153,7 @@ def maintain_historical_market_data(  # type: ignore[no-untyped-def]
                 symbols_ok += 1
                 logger.info(
                     "market_data_maintenance_ok",
-                    ticker=ticker,
+                    symbol=symbol,
                     days_available=days_available,
                 )
 
@@ -169,7 +169,7 @@ def maintain_historical_market_data(  # type: ignore[no-untyped-def]
             # Call the existing ingest_historical_ohlcv task
             # Note: This is a bound task so self is automatically provided
             backfill_result = ingest_historical_ohlcv(
-                tickers=symbols_to_backfill,
+                symbols=symbols_to_backfill,
                 days=TARGET_DAYS,
             )
 

@@ -281,7 +281,7 @@ async def detailed_health_check(response: Response) -> DetailedHealthCheckRespon
 
     Returns detailed health status including:
     - All standard health checks (database, sources, services, etc.)
-    - Day bars data freshness per ticker
+    - Day bars data freshness per symbol
     - Celery worker active status and pool information
     - API key configuration status
     - Disk usage statistics
@@ -303,7 +303,7 @@ async def detailed_health_check(response: Response) -> DetailedHealthCheckRespon
     logger.info(
         "detailed_health_check_endpoint",
         status=result["status"],
-        day_bars_tickers=len(result["day_bars_freshness"]),
+        day_bars_symbols=len(result["day_bars_freshness"]),
         celery_active=result["celery_worker"].active if result["celery_worker"] else False,
         api_keys_configured=sum(1 for k in result["api_keys"] if k.configured),
         freshness_status=result["data_freshness_status"].get("status"),

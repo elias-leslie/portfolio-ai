@@ -3,7 +3,7 @@
 Endpoints:
 - GET /api/gaps/summary - System-wide gap summary with coverage %
 - GET /api/gaps/by-analysis - Gaps grouped by analysis type
-- GET /api/gaps/by-ticker/{ticker} - Per-ticker gap analysis
+- GET /api/gaps/by-symbol/{symbol} - Per-symbol gap analysis
 - GET /api/gaps/watchlist - Gaps affecting current watchlist
 - POST /api/gaps/generate-task-list - Generate task list to fill specific gaps
 """
@@ -65,7 +65,7 @@ class DataAvailability(TypedDict):
 
 
 class TickerCoverageByAnalysis(TypedDict):
-    """Coverage percentage by analysis type for a ticker."""
+    """Coverage percentage by analysis type for a symbol."""
 
     technical: float
     fundamental: float
@@ -78,11 +78,11 @@ class TickerCoverageByAnalysis(TypedDict):
 
 
 class AggregateGap(TypedDict):
-    """Gap affecting multiple tickers."""
+    """Gap affecting multiple symbols."""
 
     gap_id: str
     description: str
-    affected_tickers: int
+    affected_symbols: int
     priority: str
 
 
@@ -107,9 +107,9 @@ class GapsByAnalysisDict(TypedDict):
 
 
 class TickerGapsDict(TypedDict):
-    """Per-ticker gap analysis response."""
+    """Per-symbol gap analysis response."""
 
-    ticker: str
+    symbol: str
     readiness_score: float
     confidence_level: str
     coverage_by_analysis: TickerCoverageByAnalysis
@@ -120,8 +120,8 @@ class TickerGapsDict(TypedDict):
 class WatchlistGapsDict(TypedDict):
     """Watchlist gap analysis response."""
 
-    watchlist_tickers: list[str]
-    ticker_coverage: dict[str, TickerGapsDict]
+    watchlist_symbols: list[str]
+    symbol_coverage: dict[str, TickerGapsDict]
     aggregate_gaps: list[AggregateGap]
 
 
@@ -180,9 +180,9 @@ class GapsByAnalysisResponse(BaseModel):
 
 
 class TickerGapsResponse(BaseModel):
-    """Per-ticker gap analysis."""
+    """Per-symbol gap analysis."""
 
-    ticker: str
+    symbol: str
     readiness_score: float  # 0-100% overall readiness
     confidence_level: str  # LOW/MEDIUM/HIGH
     coverage_by_analysis: dict[str, float]  # analysis_type → coverage %
@@ -193,9 +193,9 @@ class TickerGapsResponse(BaseModel):
 class WatchlistGapsResponse(BaseModel):
     """Gaps affecting current watchlist."""
 
-    watchlist_tickers: list[str]
-    ticker_coverage: dict[str, Any]  # ticker → full coverage analysis
-    aggregate_gaps: list[dict[str, Any]]  # Gaps affecting multiple tickers
+    watchlist_symbols: list[str]
+    symbol_coverage: dict[str, Any]  # symbol → full coverage analysis
+    aggregate_gaps: list[dict[str, Any]]  # Gaps affecting multiple symbols
 
 
 class TaskListGeneratedResponse(BaseModel):
@@ -403,42 +403,42 @@ async def get_gaps_by_analysis() -> GapsByAnalysisDict:
         ) from e
 
 
-@router.get("/by-ticker/{ticker}", response_model=TickerGapsResponse)
-async def get_ticker_gaps(ticker: str) -> TickerGapsDict:
-    """Get per-ticker gap analysis.
+@router.get("/by-symbol/{symbol}", response_model=TickerGapsResponse)
+async def get_symbol_gaps(symbol: str) -> TickerGapsDict:
+    """Get per-symbol gap analysis.
 
-    Analyzes data availability for a specific ticker across all analysis types.
+    Analyzes data availability for a specific symbol across all analysis types.
     Useful for understanding: "Can I analyze NVDA fundamentally? What's missing?"
 
     Args:
-        ticker: Stock ticker symbol (e.g., "NVDA", "AAPL")
+        symbol: Stock symbol (e.g., "NVDA", "AAPL")
 
     Returns:
-        Ticker-specific coverage % and missing capabilities per analysis type
+        Symbol-specific coverage % and missing capabilities per analysis type
 
     Raises:
         HTTPException: 500 if analysis fails
     """
-    logger.info("get_ticker_gaps_request", ticker=ticker)
+    logger.info("get_symbol_gaps_request", symbol=symbol)
 
     try:
         conn_mgr = ConnectionManager()
         detector = GapDetector(conn_mgr)
 
-        result = detector.analyze_ticker_gaps(ticker.upper())
+        result = detector.analyze_symbol_gaps(symbol.upper())
 
         logger.info(
-            "ticker_gaps_returned",
-            ticker=ticker,
+            "symbol_gaps_returned",
+            symbol=symbol,
         )
 
         return cast(TickerGapsDict, result)
 
     except Exception as e:
-        logger.error("ticker_gaps_failed", ticker=ticker, error=str(e))
+        logger.error("symbol_gaps_failed", symbol=symbol, error=str(e))
         raise HTTPException(
             status_code=500,
-            detail=f"Ticker gap analysis failed: {e!s}",
+            detail=f"Symbol gap analysis failed: {e!s}",
         ) from e
 
 
@@ -446,13 +446,13 @@ async def get_ticker_gaps(ticker: str) -> TickerGapsDict:
 async def get_watchlist_gaps() -> WatchlistGapsDict:
     """Get gaps affecting current watchlist.
 
-    Analyzes data coverage for all tickers in the active watchlist.
-    Identifies gaps that affect multiple tickers:
-    - "8/12 watchlist tickers missing earnings data"
-    - "All watchlist tickers missing options flow data"
+    Analyzes data coverage for all symbols in the active watchlist.
+    Identifies gaps that affect multiple symbols:
+    - "8/12 watchlist symbols missing earnings data"
+    - "All watchlist symbols missing options flow data"
 
     Returns:
-        Per-ticker coverage matrix and aggregate gaps
+        Per-symbol coverage matrix and aggregate gaps
 
     Raises:
         HTTPException: 500 if analysis fails

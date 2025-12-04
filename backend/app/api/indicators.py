@@ -24,7 +24,7 @@ storage = get_storage()
 
 
 def _build_indicators_query(
-    ticker: str,
+    symbol: str,
     start_date: str | None,
     end_date: str | None,
     limit: int,
@@ -32,7 +32,7 @@ def _build_indicators_query(
     """Build SQL query for fetching indicator history.
 
     Args:
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
         start_date: Optional start date filter
         end_date: Optional end date filter
         limit: Maximum number of records
@@ -64,7 +64,7 @@ def _build_indicators_query(
         FROM technical_indicators
         WHERE symbol = ?
     """
-    params: list[str | int | float | bool | datetime | None] = [ticker.upper()]
+    params: list[str | int | float | bool | datetime | None] = [symbol.upper()]
 
     if start_date:
         query += " AND date >= ?"
@@ -252,9 +252,9 @@ class IndicatorsResponse(BaseModel):
 
 
 # API Endpoints
-@router.get("/{ticker}", response_model=IndicatorsResponse)
-def get_indicators_for_ticker(
-    ticker: Annotated[str, Path(description="Stock ticker symbol (e.g., AAPL)")],
+@router.get("/{symbol}", response_model=IndicatorsResponse)
+def get_indicators_for_symbol(
+    symbol: Annotated[str, Path(description="Stock symbol (e.g., AAPL)")],
     date: Annotated[
         str | None,
         Query(
@@ -270,13 +270,13 @@ def get_indicators_for_ticker(
         ),
     ] = None,
 ) -> IndicatorsResponse:
-    """Get technical indicators for a ticker.
+    """Get technical indicators for a symbol.
 
     Calculates requested technical indicators using OHLCV data from the day_bars table.
     If no date is specified, returns indicators for the latest available date.
 
     Args:
-        ticker: Stock ticker symbol (e.g., "AAPL")
+        symbol: Stock symbol (e.g., "AAPL")
         date: Optional date for indicator calculation (YYYY-MM-DD)
         indicators: Optional comma-separated list of specific indicators to calculate
 
@@ -284,7 +284,7 @@ def get_indicators_for_ticker(
         IndicatorsResponse with indicator values and interpretations
 
     Raises:
-        HTTPException 404: If ticker has insufficient data
+        HTTPException 404: If symbol has insufficient data
         HTTPException 400: If invalid date format or indicator name
     """
     try:
@@ -296,14 +296,14 @@ def get_indicators_for_ticker(
         # Calculate indicators
         result = calculate_indicators(
             storage=storage,
-            ticker=ticker.upper(),
+            symbol=symbol.upper(),
             indicators=indicator_list,
             as_of_date=date,
         )
 
         # Transform the result to match our response model
         response_data: dict[str, Any] = {
-            "ticker": result["symbol"],
+            "symbol": result["symbol"],
             "date": result["date"],
             "close_price": result.get("close_price"),
             "indicators": result["indicators"],
@@ -320,9 +320,9 @@ def get_indicators_for_ticker(
         raise HTTPException(status_code=500, detail=f"Error calculating indicators: {e!s}") from e
 
 
-@router.get("/{ticker}/history", response_model=list[IndicatorsResponse])
+@router.get("/{symbol}/history", response_model=list[IndicatorsResponse])
 def get_indicators_history(
-    ticker: Annotated[str, Path(description="Stock ticker symbol (e.g., AAPL)")],
+    symbol: Annotated[str, Path(description="Stock symbol (e.g., AAPL)")],
     start_date: Annotated[
         str | None,
         Query(
@@ -346,12 +346,12 @@ def get_indicators_history(
         ),
     ] = 30,
 ) -> list[IndicatorsResponse]:
-    """Get historical technical indicators for a ticker.
+    """Get historical technical indicators for a symbol.
 
     Returns indicator values for multiple dates, useful for charting trends.
 
     Args:
-        ticker: Stock ticker symbol (e.g., "AAPL")
+        symbol: Stock symbol (e.g., "AAPL")
         start_date: Optional start date (YYYY-MM-DD)
         end_date: Optional end date (YYYY-MM-DD)
         limit: Maximum number of records to return (default: 30, max: 365)
@@ -360,17 +360,17 @@ def get_indicators_history(
         List of IndicatorsResponse, one per date, sorted by date descending
 
     Raises:
-        HTTPException 404: If ticker has insufficient data
+        HTTPException 404: If symbol has insufficient data
         HTTPException 400: If invalid date format
     """
     try:
         # Build and execute query for indicator history
-        query, params = _build_indicators_query(ticker, start_date, end_date, limit)
+        query, params = _build_indicators_query(symbol, start_date, end_date, limit)
         df = storage.query(query, cast(list[ParameterValue], params))
 
         if df.is_empty():
             raise ValueError(
-                f"No indicator data found for ticker {ticker}. "
+                f"No indicator data found for symbol {symbol}. "
                 "Run the update_technical_indicators Celery task first."
             )
 

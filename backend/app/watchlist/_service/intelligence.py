@@ -137,7 +137,7 @@ def generate_news_headline(
 
 
 def build_news_intelligence(repo: WatchlistRepository, symbol: str) -> NewsIntelligence | None:
-    """Build news intelligence summary for a ticker.
+    """Build news intelligence summary for a symbol.
 
     Args:
         repo: Watchlist repository instance

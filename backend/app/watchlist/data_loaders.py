@@ -23,10 +23,10 @@ def load_latest_technical(
 
     Args:
         storage: PortfolioStorage instance
-        symbols: List of ticker symbols
+        symbols: List of symbols
 
     Returns:
-        Dict mapping ticker symbol to TechnicalSnapshot
+        Dict mapping symbol to TechnicalSnapshot
     """
     if not symbols:
         return {}

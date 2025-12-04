@@ -1,6 +1,6 @@
-"""News sentiment aggregation for ticker-level scoring (GAP-015).
+"""News sentiment aggregation for symbol-level scoring (GAP-015).
 
-Aggregates news_cache sentiment_score into a daily ticker-level score
+Aggregates news_cache sentiment_score into a daily symbol-level score
 that can be used as a dedicated scoring pillar (15-20% weight).
 
 Based on Tetlock (2007): Positive news clusters predict outperformance.
@@ -31,7 +31,7 @@ MIN_ARTICLES_MEDIUM = 5
 
 @dataclass
 class NewsSentimentScore:
-    """Aggregated news sentiment score for a ticker."""
+    """Aggregated news sentiment score for a symbol."""
 
     symbol: str
     sentiment_score: float | None = None  # 0-100 score (50 = neutral)
@@ -98,19 +98,19 @@ def _calculate_confidence(article_count: int) -> float:
     return 0.95
 
 
-def get_ticker_sentiment(
+def get_symbol_sentiment(
     storage: PortfolioStorage,
     symbol: str,
     as_of_date: date | None = None,
 ) -> NewsSentimentScore:
-    """Get aggregated news sentiment score for a ticker.
+    """Get aggregated news sentiment score for a symbol.
 
     Combines short-term (7d) and medium-term (30d) sentiment with
     recency weighting. More recent articles have higher weight.
 
     Args:
         storage: Database storage instance
-        symbol: Stock ticker symbol
+        symbol: Stock symbol
         as_of_date: Date to calculate sentiment for (default: today)
 
     Returns:
@@ -205,11 +205,11 @@ def get_batch_sentiment(
     symbols: list[str],
     as_of_date: date | None = None,
 ) -> dict[str, NewsSentimentScore]:
-    """Get sentiment scores for multiple tickers efficiently.
+    """Get sentiment scores for multiple symbols efficiently.
 
     Args:
         storage: Database storage instance
-        symbols: List of stock ticker symbols
+        symbols: List of stock symbols
         as_of_date: Date to calculate sentiment for
 
     Returns:

@@ -68,15 +68,15 @@ class PolygonClient(BaseHTTPClient):
 
     def get_day_bars(
         self,
-        ticker: str,
+        symbol: str,
         from_date: str,
         to_date: str,
         adjusted: bool = True,
     ) -> dict[str, Any]:
-        """Fetch daily OHLCV bars for a ticker.
+        """Fetch daily OHLCV bars for a symbol.
 
         Args:
-            ticker: Stock symbol (e.g., "AAPL")
+            symbol: Stock symbol (e.g., "AAPL")
             from_date: Start date (ISO format: "2024-01-01")
             to_date: End date (ISO format: "2024-12-31")
             adjusted: Whether to adjust for splits/dividends
@@ -88,7 +88,7 @@ class PolygonClient(BaseHTTPClient):
             >>> client.get_day_bars("AAPL", "2024-01-01", "2024-01-31")
             {"results": [{"t": 1704067200000, "o": 184.35, ...}], "resultsCount": 20}
         """
-        path = f"/v2/aggs/ticker/{ticker}/range/1/day/{from_date}/{to_date}"
+        path = f"/v2/aggs/ticker/{symbol}/range/1/day/{from_date}/{to_date}"
         params = {
             "adjusted": "true" if adjusted else "false",
             "sort": "asc",
@@ -96,20 +96,20 @@ class PolygonClient(BaseHTTPClient):
         }
         return self.get(path, params)
 
-    def get_ticker_details(self, ticker: str) -> dict[str, Any]:
+    def get_symbol_details(self, symbol: str) -> dict[str, Any]:
         """Fetch company details and metadata.
 
         Args:
-            ticker: Stock symbol (e.g., "AAPL")
+            symbol: Stock symbol (e.g., "AAPL")
 
         Returns:
             Dict with "results" key containing company info
 
         Example:
-            >>> client.get_ticker_details("AAPL")
-            {"results": {"ticker": "AAPL", "name": "Apple Inc.", ...}}
+            >>> client.get_symbol_details("AAPL")
+            {"results": {"symbol": "AAPL", "name": "Apple Inc.", ...}}
         """
-        path = f"/v3/reference/tickers/{ticker}"
+        path = f"/v3/reference/symbols/{symbol}"
         return self.get(path)
 
     def __del__(self) -> None:

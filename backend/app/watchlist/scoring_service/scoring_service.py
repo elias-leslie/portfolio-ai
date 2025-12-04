@@ -5,7 +5,7 @@ This module handles:
 - Background scoring tasks
 - Batch processing with rate limiting
 
-Per-ticker processing logic extracted to refresh_processor.py for modularity.
+Per-symbol processing logic extracted to refresh_processor.py for modularity.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from ...logging_config import get_logger
 from ...portfolio.price_fetcher import PriceDataFetcher
 from ...storage import PortfolioStorage
 from ...utils.watchlist_cache import get_watchlist_symbols_cached
-from .aggregator import aggregate_results, process_all_tickers
+from .aggregator import aggregate_results, process_all_symbols
 from .context import initialize_scoring_context
 from .redis_tracker import complete_refresh
 
@@ -86,8 +86,8 @@ def refresh_watchlist_scores(
         storage, symbols, account_id, price_fetcher, batch_size, batch_delay_seconds
     )
 
-    # Process all tickers
-    processed, processed_symbols, success_list, failed_list = process_all_tickers(
+    # Process all symbols
+    processed, processed_symbols, success_list, failed_list = process_all_symbols(
         storage=storage,
         items_df=items_df,
         redis_key=redis_key,

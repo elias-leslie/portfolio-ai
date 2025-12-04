@@ -21,19 +21,19 @@ logger = get_logger(__name__)
 
 @dataclass
 class OwnershipMetrics:
-    """Ownership metrics for a ticker."""
+    """Ownership metrics for a symbol."""
 
-    ticker: str
+    symbol: str
     institutional_pct: float | None  # 0-1 range (e.g., 0.64 = 64%)
     insider_pct: float | None  # 0-1 range (e.g., 0.02 = 2%)
     ownership_score: int  # 0-5 points
 
 
-def get_ownership_from_cache(ticker: str, storage: PortfolioStorage) -> OwnershipMetrics | None:
+def get_ownership_from_cache(symbol: str, storage: PortfolioStorage) -> OwnershipMetrics | None:
     """Get ownership metrics from reference_cache.
 
     Args:
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
         storage: Database storage instance
 
     Returns:
@@ -47,7 +47,7 @@ def get_ownership_from_cache(ticker: str, storage: PortfolioStorage) -> Ownershi
         LIMIT 1
     """
 
-    result = storage.query(query, [ticker])
+    result = storage.query(query, [symbol])
     if result.is_empty():
         return None
 
@@ -61,7 +61,7 @@ def get_ownership_from_cache(ticker: str, storage: PortfolioStorage) -> Ownershi
         score = calculate_ownership_score(inst_pct, insider_pct)
 
         return OwnershipMetrics(
-            ticker=ticker,
+            symbol=symbol,
             institutional_pct=inst_pct,
             insider_pct=insider_pct,
             ownership_score=score,
@@ -69,7 +69,7 @@ def get_ownership_from_cache(ticker: str, storage: PortfolioStorage) -> Ownershi
     except (json.JSONDecodeError, KeyError, TypeError) as e:
         logger.warning(
             "ownership_parse_error",
-            ticker=ticker,
+            symbol=symbol,
             error=str(e),
         )
         return None
@@ -115,21 +115,21 @@ def calculate_ownership_score(institutional_pct: float | None, insider_pct: floa
 
 
 def get_ownership_metrics_batch(
-    tickers: list[str], storage: PortfolioStorage
+    symbols: list[str], storage: PortfolioStorage
 ) -> dict[str, OwnershipMetrics]:
-    """Get ownership metrics for multiple tickers.
+    """Get ownership metrics for multiple symbols.
 
     Args:
-        tickers: List of ticker symbols
+        symbols: List of symbols
         storage: Database storage instance
 
     Returns:
-        Dictionary mapping ticker to OwnershipMetrics
+        Dictionary mapping symbol to OwnershipMetrics
     """
-    if not tickers:
+    if not symbols:
         return {}
 
-    # Query all tickers at once with DISTINCT ON for latest
+    # Query all symbols at once with DISTINCT ON for latest
     query = """
         SELECT DISTINCT ON (symbol) symbol, payload
         FROM reference_cache
@@ -137,26 +137,26 @@ def get_ownership_metrics_batch(
         ORDER BY symbol, as_of_date DESC
     """
 
-    ticker_list: list[str | int | float | bool | None] = list(tickers)
-    result = storage.query(query, [ticker_list])
+    symbol_list: list[str | int | float | bool | None] = list(symbols)
+    result = storage.query(query, [symbol_list])
     metrics: dict[str, OwnershipMetrics] = {}
 
     for row in result.iter_rows():
-        ticker = row[0]
+        symbol = row[0]
         try:
             payload = json.loads(row[1]) if isinstance(row[1], str) else row[1]
             inst_pct = payload.get("heldPercentInstitutions")
             insider_pct = payload.get("heldPercentInsiders")
             score = calculate_ownership_score(inst_pct, insider_pct)
 
-            metrics[str(ticker)] = OwnershipMetrics(
-                ticker=str(ticker),
+            metrics[str(symbol)] = OwnershipMetrics(
+                symbol=str(symbol),
                 institutional_pct=inst_pct,
                 insider_pct=insider_pct,
                 ownership_score=score,
             )
         except (json.JSONDecodeError, KeyError, TypeError) as e:
-            logger.warning("ownership_batch_parse_error", ticker=ticker, error=str(e))
+            logger.warning("ownership_batch_parse_error", symbol=symbol, error=str(e))
             continue
 
     return metrics

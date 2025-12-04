@@ -49,9 +49,9 @@ def _parse_datetime(value: str | None) -> datetime | None:
     return None
 
 
-def _hash_content(ticker: str, headline: str, source: str | None) -> str:
+def _hash_content(symbol: str, headline: str, source: str | None) -> str:
     """Generate content hash for deduplication."""
-    base = f"{ticker}::{headline.strip()}::{source or ''}"
+    base = f"{symbol}::{headline.strip()}::{source or ''}"
     return hashlib.sha256(base.encode("utf-8")).hexdigest()
 
 
@@ -78,7 +78,7 @@ class NewsProcessor:
     def merge_entries(
         self,
         *,
-        ticker: str,
+        symbol: str,
         vendor_entries: Sequence[dict[str, Any]],
         max_entries: int,
     ) -> tuple[list[dict[str, Any]], dict[str, int]]:
@@ -104,7 +104,7 @@ class NewsProcessor:
                 continue
             seen.add(key)
             normalized = dict(entry)
-            normalized.setdefault("ticker", ticker)
+            normalized.setdefault("symbol", symbol)
             merged.append(normalized)
             if len(merged) >= max_entries:
                 break
@@ -164,7 +164,7 @@ class NewsProcessor:
     def score_entries(
         self,
         *,
-        ticker: str,
+        symbol: str,
         entries: Sequence[dict[str, Any]],
         now: datetime,
     ) -> list[NewsArticle]:
@@ -189,7 +189,7 @@ class NewsProcessor:
             }
             logger.warning(
                 "FinBERT unavailable, falling back to VADER",
-                symbol=ticker,
+                symbol=symbol,
                 latency_ms=fallback_details["latency_ms"],
             )
             sentiments = self.fallback_analyzer.score_batch(texts)
@@ -204,7 +204,7 @@ class NewsProcessor:
             logger.error(
                 "FinBERT scoring failed; falling back to VADER",
                 error=str(exc),
-                symbol=ticker,
+                symbol=symbol,
                 latency_ms=fallback_details["latency_ms"],
             )
             sentiments = self.fallback_analyzer.score_batch(texts)
@@ -223,7 +223,7 @@ class NewsProcessor:
             )
             summary = entry.get("summary") or entry.get("description")
             published = _parse_datetime(entry.get("published") or entry.get("published_at"))
-            content_hash = _hash_content(ticker, headline, source_name)
+            content_hash = _hash_content(symbol, headline, source_name)
             vendor = entry.get("vendor")
             if vendor is None:
                 raw_entry = entry.get("raw")
@@ -240,7 +240,7 @@ class NewsProcessor:
 
             articles.append(
                 NewsArticle(
-                    symbol=ticker,
+                    symbol=symbol,
                     headline=headline,
                     url=entry.get("link") or entry.get("url"),
                     summary=summary,
@@ -280,7 +280,7 @@ class NewsProcessor:
 
             logger.info(
                 "news_sentiment_fallback_used",
-                symbol=ticker,
+                symbol=symbol,
                 analyzer=analyzer_used,
                 articles=len(articles),
                 fallback_rate=round(fallback_rate, 4),
@@ -293,7 +293,7 @@ class NewsProcessor:
     def build_summary(
         self,
         *,
-        ticker: str,
+        symbol: str,
         articles: Sequence[NewsArticle],
         previous_articles: Sequence[NewsArticle],
         as_of: datetime,
@@ -302,7 +302,7 @@ class NewsProcessor:
         """Build aggregated sentiment summary."""
         if not articles:
             return NewsSummary(
-                symbol=ticker,
+                symbol=symbol,
                 score=None,
                 score_change=None,
                 positive_count=0,
@@ -350,7 +350,7 @@ class NewsProcessor:
         top_negative = min(articles, key=lambda a: a.sentiment.score, default=None)
 
         return NewsSummary(
-            symbol=ticker,
+            symbol=symbol,
             score=aggregated_score,
             score_change=score_change,
             positive_count=counts["positive"],

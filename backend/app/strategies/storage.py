@@ -57,7 +57,7 @@ class StrategyStorage:
         """Store new strategy in database.
 
         Args:
-            symbol: Stock ticker
+            symbol: Stock symbol
             strategy_type: Strategy type (momentum, value, etc.)
             parameters: StrategyParameters as dict
             research_summary: ResearchInsights as dict
@@ -147,7 +147,7 @@ class StrategyStorage:
         """Get active strategy for symbol.
 
         Args:
-            symbol: Stock ticker
+            symbol: Stock symbol
 
         Returns:
             Active StrategyDefinition or None if no active strategy
@@ -405,7 +405,7 @@ class StrategyStorage:
         """Generate strategy name.
 
         Args:
-            symbol: Stock ticker
+            symbol: Stock symbol
             strategy_type: Strategy type
 
         Returns:
@@ -420,7 +420,7 @@ class StrategyStorage:
         """Get next version number for strategy.
 
         Args:
-            symbol: Stock ticker
+            symbol: Stock symbol
             name: Strategy name
 
         Returns:

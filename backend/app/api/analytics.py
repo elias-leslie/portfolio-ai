@@ -26,7 +26,7 @@ storage = get_storage()
 class RVOLResponse(BaseModel):
     """Response model for RVOL (Relative Volume) data."""
 
-    ticker: str = Field(..., description="Stock ticker symbol")
+    symbol: str = Field(..., description="Stock symbol")
     date: str = Field(..., description="Date for RVOL calculation (YYYY-MM-DD)")
     rvol: float = Field(..., description="Relative volume ratio (1.0 = normal volume)")
     interpretation: str = Field(..., description="Human-readable interpretation of RVOL value")
@@ -53,7 +53,7 @@ class SectorRotationResponse(BaseModel):
 class PeerComparisonResponse(BaseModel):
     """Response model for peer comparison analysis."""
 
-    ticker: str = Field(..., description="Stock ticker symbol")
+    symbol: str = Field(..., description="Stock symbol")
     sector: str = Field(..., description="Sector name")
     date: str = Field(..., description="Date for peer comparison (YYYY-MM-DD)")
     return_5d: float | None = Field(..., description="5-day return (%)")
@@ -95,9 +95,9 @@ class PeerGroupDetailResponse(BaseModel):
 # Endpoints
 
 
-@router.get("/rvol/{ticker}", response_model=RVOLResponse)
+@router.get("/rvol/{symbol}", response_model=RVOLResponse)
 async def get_rvol(
-    ticker: Annotated[str, Path(description="Stock ticker symbol (e.g., AAPL)")],
+    symbol: Annotated[str, Path(description="Stock symbol (e.g., AAPL)")],
     date: Annotated[
         str | None,
         Query(description="Date for RVOL calculation (YYYY-MM-DD). Defaults to today."),
@@ -106,13 +106,13 @@ async def get_rvol(
         int, Query(description="Lookback period for RVOL calculation", ge=5, le=60)
     ] = 20,
 ) -> RVOLResponse:
-    """Get Relative Volume (RVOL) for a ticker.
+    """Get Relative Volume (RVOL) for a symbol.
 
     RVOL measures current trading volume relative to the average volume
     over a lookback period. Values > 1.0 indicate above-average volume.
 
     Args:
-        ticker: Stock ticker symbol (e.g., "AAPL")
+        symbol: Stock symbol (e.g., "AAPL")
         date: Date for RVOL calculation (YYYY-MM-DD). Defaults to today.
         lookback_days: Number of trading days to average (default: 20)
 
@@ -120,7 +120,7 @@ async def get_rvol(
         RVOLResponse with RVOL value and interpretation
 
     Raises:
-        HTTPException: If ticker not found or insufficient data
+        HTTPException: If symbol not found or insufficient data
     """
     # Default to today's date if not provided
     if date is None:
@@ -135,12 +135,12 @@ async def get_rvol(
             ) from None
 
     # Calculate RVOL
-    rvol = calculate_rvol(storage, ticker.upper(), target_date, lookback_days)
+    rvol = calculate_rvol(storage, symbol.upper(), target_date, lookback_days)
 
     if rvol is None:
         raise HTTPException(
             status_code=404,
-            detail=f"Could not calculate RVOL for {ticker} on {target_date}. "
+            detail=f"Could not calculate RVOL for {symbol} on {target_date}. "
             "Insufficient data available.",
         )
 
@@ -157,7 +157,7 @@ async def get_rvol(
         interpretation = "Very low volume (<0.5x normal)"
 
     return RVOLResponse(
-        ticker=ticker.upper(),
+        symbol=symbol.upper(),
         date=target_date.isoformat(),
         rvol=round(rvol, 2),
         interpretation=interpretation,
@@ -231,9 +231,9 @@ async def get_sectors_rotation(
     )
 
 
-@router.get("/peers/{ticker}", response_model=PeerComparisonResponse)
+@router.get("/peers/{symbol}", response_model=PeerComparisonResponse)
 async def get_peer_comp(
-    ticker: Annotated[str, Path(description="Stock ticker symbol (e.g., AAPL)")],
+    symbol: Annotated[str, Path(description="Stock symbol (e.g., AAPL)")],
     date: Annotated[
         str | None,
         Query(description="Date for peer comparison (YYYY-MM-DD). Defaults to today."),
@@ -245,13 +245,13 @@ async def get_peer_comp(
         int, Query(description="Lookback period for momentum calculation", ge=10, le=60)
     ] = 20,
 ) -> PeerComparisonResponse:
-    """Get peer comparison analysis for a ticker.
+    """Get peer comparison analysis for a symbol.
 
-    Compares a ticker's performance against its sector or industry peers
+    Compares a symbol's performance against its sector or industry peers
     to identify relative strength and positioning.
 
     Args:
-        ticker: Stock ticker symbol (e.g., "AAPL")
+        symbol: Stock symbol (e.g., "AAPL")
         date: Date for peer comparison (YYYY-MM-DD). Defaults to today.
         group_by: Grouping method - "sector" or "industry" (default: "sector")
         lookback_days: Lookback period for momentum calculation (default: 20)
@@ -260,7 +260,7 @@ async def get_peer_comp(
         PeerComparisonResponse with peer rank and relative performance
 
     Raises:
-        HTTPException: If ticker not found or insufficient data
+        HTTPException: If symbol not found or insufficient data
     """
     # Default to today's date if not provided
     if date is None:
@@ -282,18 +282,18 @@ async def get_peer_comp(
         )
 
     # Get peer comparison data
-    comparison = get_peer_comparison(storage, ticker.upper(), target_date, lookback_days, group_by)
+    comparison = get_peer_comparison(storage, symbol.upper(), target_date, lookback_days, group_by)
 
     if comparison is None or len(comparison) == 0:
         raise HTTPException(
             status_code=404,
-            detail=f"Could not calculate peer comparison for {ticker} on {target_date}. "
-            "Ticker not found or insufficient data available.",
+            detail=f"Could not calculate peer comparison for {symbol} on {target_date}. "
+            "Symbol not found or insufficient data available.",
         )
 
     # Extract data from DataFrame - access scalars directly
     return PeerComparisonResponse(
-        ticker=ticker.upper(),
+        symbol=symbol.upper(),
         sector=comparison[group_by][0],
         date=target_date.isoformat(),
         return_5d=(
@@ -330,9 +330,9 @@ async def get_peer_comp(
     )
 
 
-@router.get("/peers/{ticker}/detail", response_model=PeerGroupDetailResponse)
+@router.get("/peers/{symbol}/detail", response_model=PeerGroupDetailResponse)
 async def get_peer_group_det(
-    ticker: Annotated[str, Path(description="Stock ticker symbol (e.g., AAPL)")],
+    symbol: Annotated[str, Path(description="Stock symbol (e.g., AAPL)")],
     date: Annotated[
         str | None,
         Query(description="Date for peer comparison (YYYY-MM-DD). Defaults to today."),
@@ -344,13 +344,13 @@ async def get_peer_group_det(
         int, Query(description="Lookback period for momentum calculation", ge=10, le=60)
     ] = 20,
 ) -> PeerGroupDetailResponse:
-    """Get detailed peer group rankings for a ticker.
+    """Get detailed peer group rankings for a symbol.
 
     Returns ranked list of all stocks in the same sector or industry as the
-    target ticker, showing their relative performance.
+    target symbol, showing their relative performance.
 
     Args:
-        ticker: Stock ticker symbol (e.g., "AAPL")
+        symbol: Stock symbol (e.g., "AAPL")
         date: Date for peer comparison (YYYY-MM-DD). Defaults to today.
         group_by: Grouping method - "sector" or "industry" (default: "sector")
         lookback_days: Lookback period for momentum calculation (default: 20)
@@ -359,7 +359,7 @@ async def get_peer_group_det(
         PeerGroupDetailResponse with all peers ranked by performance
 
     Raises:
-        HTTPException: If ticker not found or insufficient data
+        HTTPException: If symbol not found or insufficient data
     """
     # Default to today's date if not provided
     if date is None:
@@ -381,13 +381,13 @@ async def get_peer_group_det(
         )
 
     # Get peer group detail
-    peers = get_peer_group_detail(storage, ticker.upper(), target_date, lookback_days, group_by)
+    peers = get_peer_group_detail(storage, symbol.upper(), target_date, lookback_days, group_by)
 
     if peers is None or len(peers) == 0:
         raise HTTPException(
             status_code=404,
-            detail=f"Could not get peer group detail for {ticker} on {target_date}. "
-            "Ticker not found or insufficient data available.",
+            detail=f"Could not get peer group detail for {symbol} on {target_date}. "
+            "Symbol not found or insufficient data available.",
         )
 
     # Get sector/industry name from first row
@@ -408,7 +408,7 @@ async def get_peer_group_det(
         )
 
     return PeerGroupDetailResponse(
-        symbol=ticker.upper(),  # ticker is the function param, model field is symbol
+        symbol=symbol.upper(),
         sector=sector_name,
         date=target_date.isoformat(),
         peers=peer_items,

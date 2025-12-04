@@ -135,7 +135,7 @@ class WatchlistService:
         try:
             conn_mgr = ConnectionManager()
             gap_detector = GapDetector(conn_mgr)
-            gap_result = gap_detector.analyze_ticker_gaps(row["symbol"])
+            gap_result = gap_detector.analyze_symbol_gaps(row["symbol"])
 
             item_data["readiness_score"] = gap_result.get("readiness_score")
             item_data["confidence_level"] = gap_result.get("confidence_level")

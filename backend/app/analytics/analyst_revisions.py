@@ -62,7 +62,7 @@ def fetch_analyst_recommendations(
     """Fetch analyst recommendations from Finnhub (FREE tier).
 
     Args:
-        symbol: Stock ticker symbol
+        symbol: Stock symbol
         api_key: Finnhub API key
 
     Returns:
@@ -124,7 +124,7 @@ def parse_recommendation_response(
     Revisions track changes in this score over time.
 
     Args:
-        symbol: Stock ticker
+        symbol: Stock symbol
         recommendations: Raw Finnhub API response (newest first)
 
     Returns:
@@ -270,7 +270,7 @@ def refresh_analyst_revisions_for_symbols(
 
     Args:
         storage: Database storage instance
-        symbols: List of stock tickers
+        symbols: List of stock symbols
 
     Returns:
         Dict with success/failure counts

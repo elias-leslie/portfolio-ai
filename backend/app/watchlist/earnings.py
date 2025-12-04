@@ -34,7 +34,7 @@ def fetch_earnings_date(symbol: str) -> datetime | None:
     2. Finnhub (if API key available)
 
     Args:
-        symbol: Stock ticker symbol
+        symbol: Stock symbol
 
     Returns:
         datetime object for next earnings date, or None if not found
@@ -42,7 +42,7 @@ def fetch_earnings_date(symbol: str) -> datetime | None:
     # Try YFinance first
     if YFINANCE_AVAILABLE:
         try:
-            ticker = yf.Ticker(symbol)
+            symbol = yf.Ticker(symbol)
             calendar = ticker.calendar
 
             if calendar and "Earnings Date" in calendar:
@@ -140,7 +140,7 @@ def fetch_earnings_date_cached(
 
     Args:
         conn: Database connection
-        symbol: Stock ticker symbol
+        symbol: Stock symbol
         ttl_days: Cache TTL in days (default: 30 days)
 
     Returns:

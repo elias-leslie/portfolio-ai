@@ -27,16 +27,16 @@ MIN_VOLUME_DAYS = 20
 
 def calculate_adv(
     storage: PortfolioStorage,
-    ticker: str,
+    symbol: str,
     lookback_days: int = 20,
 ) -> float | None:
-    """Calculate Average Daily Volume for a ticker.
+    """Calculate Average Daily Volume for a symbol.
 
     Uses 20-day average by default (standard institutional metric).
 
     Args:
         storage: Database storage instance
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
         lookback_days: Number of trading days for average
 
     Returns:
@@ -53,12 +53,12 @@ def calculate_adv(
         ) recent_volume
     """
 
-    result = storage.query(query, [ticker, lookback_days])
+    result = storage.query(query, [symbol, lookback_days])
 
     if result.is_empty():
         logger.warning(
             "adv_no_data",
-            ticker=ticker,
+            symbol=symbol,
             lookback_days=lookback_days,
         )
         return None
@@ -70,7 +70,7 @@ def calculate_adv(
     if days_count < MIN_VOLUME_DAYS:
         logger.warning(
             "adv_insufficient_data",
-            ticker=ticker,
+            symbol=symbol,
             days_count=days_count,
             min_required=MIN_VOLUME_DAYS,
         )
@@ -79,7 +79,7 @@ def calculate_adv(
     if adv is None or adv <= 0:
         logger.warning(
             "adv_invalid",
-            ticker=ticker,
+            symbol=symbol,
             adv=adv,
         )
         return None
@@ -89,7 +89,7 @@ def calculate_adv(
 
 def get_max_position_shares(
     storage: PortfolioStorage,
-    ticker: str,
+    symbol: str,
     entry_price: float,
     max_percent_adv: float = MAX_POSITION_PERCENT_ADV,
 ) -> tuple[int, float | None]:
@@ -99,7 +99,7 @@ def get_max_position_shares(
 
     Args:
         storage: Database storage instance
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
         entry_price: Entry price per share
         max_percent_adv: Maximum position as % of ADV (default: 1%)
 
@@ -108,12 +108,12 @@ def get_max_position_shares(
         - max_shares: Maximum shares that can be traded without market impact
         - adv: Average daily volume (None if unavailable)
     """
-    adv = calculate_adv(storage, ticker)
+    adv = calculate_adv(storage, symbol)
 
     if adv is None:
         logger.warning(
             "liquidity_check_blocked",
-            ticker=ticker,
+            symbol=symbol,
             reason="no_adv_available",
         )
         return 0, None
@@ -126,7 +126,7 @@ def get_max_position_shares(
 
     logger.debug(
         "max_position_calculated",
-        ticker=ticker,
+        symbol=symbol,
         adv=adv,
         max_percent_adv=max_percent_adv,
         max_shares=max_shares,
@@ -138,7 +138,7 @@ def get_max_position_shares(
 
 def check_position_liquidity(
     storage: PortfolioStorage,
-    ticker: str,
+    symbol: str,
     proposed_shares: int,
     entry_price: float,
 ) -> tuple[bool, str, dict[str, float | int | str]]:
@@ -146,7 +146,7 @@ def check_position_liquidity(
 
     Args:
         storage: Database storage instance
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
         proposed_shares: Number of shares to trade
         entry_price: Entry price per share
 
@@ -156,14 +156,14 @@ def check_position_liquidity(
         - message: Human-readable status message
         - details: Dict with adv, max_shares, position_percent_adv
     """
-    adv = calculate_adv(storage, ticker)
+    adv = calculate_adv(storage, symbol)
 
     if adv is None:
         return (
             False,
             "Insufficient volume data",
             {
-                "symbol": ticker,
+                "symbol": symbol,
                 "reason": "no_adv_available",
             },
         )
@@ -172,7 +172,7 @@ def check_position_liquidity(
     position_percent_adv = (proposed_shares / adv) * 100 if adv > 0 else 100
 
     details: dict[str, float | int | str] = {
-        "symbol": ticker,
+        "symbol": symbol,
         "proposed_shares": proposed_shares,
         "proposed_value": proposed_shares * entry_price,
         "adv": adv,
@@ -203,7 +203,7 @@ def check_position_liquidity(
 
 def apply_liquidity_cap(
     storage: PortfolioStorage,
-    ticker: str,
+    symbol: str,
     desired_shares: int,
     entry_price: float,
 ) -> tuple[int, str]:
@@ -213,7 +213,7 @@ def apply_liquidity_cap(
 
     Args:
         storage: Database storage instance
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
         desired_shares: Number of shares originally desired
         entry_price: Entry price per share
 
@@ -222,11 +222,11 @@ def apply_liquidity_cap(
         - final_shares: Shares to actually trade (may be reduced)
         - message: Explanation of any reduction
     """
-    max_shares, adv = get_max_position_shares(storage, ticker, entry_price)
+    max_shares, adv = get_max_position_shares(storage, symbol, entry_price)
 
     if adv is None:
         # No volume data - block the trade entirely
-        return 0, f"Trade blocked: No volume data for {ticker}"
+        return 0, f"Trade blocked: No volume data for {symbol}"
 
     if desired_shares <= max_shares:
         return (
@@ -237,7 +237,7 @@ def apply_liquidity_cap(
     # Reduce to max allowed
     logger.info(
         "liquidity_cap_applied",
-        ticker=ticker,
+        symbol=symbol,
         desired_shares=desired_shares,
         max_shares=max_shares,
         reduction_percent=((desired_shares - max_shares) / desired_shares) * 100,

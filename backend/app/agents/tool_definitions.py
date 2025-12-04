@@ -139,22 +139,22 @@ def get_store_idea_tool_definition() -> dict[str, object]:
     }
 
 
-def get_add_ticker_tool_definition() -> dict[str, object]:
-    """Get add_ticker tool definition for autonomous watchlist management."""
+def get_add_symbol_tool_definition() -> dict[str, object]:
+    """Get add_symbol tool definition for autonomous watchlist management."""
     return {
-        "name": "add_ticker",
-        "description": "Add a ticker to the watchlist for monitoring. Use when you discover an interesting "
-        "opportunity. Ownership is tracked so you can remove tickers you added later.",
+        "name": "add_symbol",
+        "description": "Add a symbol to the watchlist for monitoring. Use when you discover an interesting "
+        "opportunity. Ownership is tracked so you can remove symbols you added later.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "ticker": {
+                "symbol": {
                     "type": "string",
-                    "description": "Stock ticker symbol (e.g., 'AAPL', 'TSLA')",
+                    "description": "Stock symbol (e.g., 'AAPL', 'TSLA')",
                 },
                 "reason": {
                     "type": "string",
-                    "description": "Why you're adding this ticker (your thesis)",
+                    "description": "Why you're adding this symbol (your thesis)",
                 },
                 "expected_return_pct": {
                     "type": "number",
@@ -165,31 +165,31 @@ def get_add_ticker_tool_definition() -> dict[str, object]:
                     "description": "Time horizon in days (e.g., 30 for 1 month)",
                 },
             },
-            "required": ["ticker", "reason", "expected_return_pct", "time_horizon_days"],
+            "required": ["symbol", "reason", "expected_return_pct", "time_horizon_days"],
         },
     }
 
 
-def get_remove_ticker_tool_definition() -> dict[str, object]:
-    """Get remove_ticker tool definition for autonomous watchlist management."""
+def get_remove_symbol_tool_definition() -> dict[str, object]:
+    """Get remove_symbol tool definition for autonomous watchlist management."""
     return {
-        "name": "remove_ticker",
-        "description": "Remove a ticker you previously added from the watchlist after your idea was "
-        "invalidated. You can ONLY remove tickers YOU added (ownership validation enforced). "
+        "name": "remove_symbol",
+        "description": "Remove a symbol you previously added from the watchlist after your idea was "
+        "invalidated. You can ONLY remove symbols YOU added (ownership validation enforced). "
         "Use when: (1) time threshold met (30+ days) AND (2) thesis invalidated.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "ticker": {
+                "symbol": {
                     "type": "string",
-                    "description": "Stock ticker symbol to remove",
+                    "description": "Stock symbol to remove",
                 },
                 "reason": {
                     "type": "string",
-                    "description": "Why you're removing this ticker (why thesis invalidated)",
+                    "description": "Why you're removing this symbol (why thesis invalidated)",
                 },
             },
-            "required": ["ticker", "reason"],
+            "required": ["symbol", "reason"],
         },
     }
 
@@ -203,9 +203,9 @@ def get_create_paper_trade_tool_definition() -> dict[str, object]:
         "input_schema": {
             "type": "object",
             "properties": {
-                "ticker": {
+                "symbol": {
                     "type": "string",
-                    "description": "Stock ticker symbol",
+                    "description": "Stock symbol",
                 },
                 "action": {
                     "type": "string",
@@ -224,7 +224,7 @@ def get_create_paper_trade_tool_definition() -> dict[str, object]:
                     "description": "Stop loss percentage (optional, default 2xATR)",
                 },
             },
-            "required": ["ticker", "action", "thesis"],
+            "required": ["symbol", "action", "thesis"],
         },
     }
 
@@ -351,9 +351,9 @@ def get_run_backtest_tool_definition() -> dict[str, object]:
         "input_schema": {
             "type": "object",
             "properties": {
-                "ticker": {
+                "symbol": {
                     "type": "string",
-                    "description": "Stock ticker symbol (e.g., 'AAPL', 'NVDA')",
+                    "description": "Stock symbol (e.g., 'AAPL', 'NVDA')",
                 },
                 "start_date": {
                     "type": "string",
@@ -389,20 +389,20 @@ def get_run_backtest_tool_definition() -> dict[str, object]:
                     "default": 10000.00,
                 },
             },
-            "required": ["ticker", "start_date", "end_date"],
+            "required": ["symbol", "start_date", "end_date"],
         },
     }
 
 
 __all__ = [
-    "get_add_ticker_tool_definition",
+    "get_add_symbol_tool_definition",
     "get_create_paper_trade_tool_definition",
     "get_economic_data_tool_definition",
     "get_news_tool_definition",
     "get_portfolio_data_tool_definition",
     "get_price_data_tool_definition",
     "get_query_memory_tool_definition",
-    "get_remove_ticker_tool_definition",
+    "get_remove_symbol_tool_definition",
     "get_run_backtest_tool_definition",
     "get_send_message_tool_definition",
     "get_store_idea_tool_definition",

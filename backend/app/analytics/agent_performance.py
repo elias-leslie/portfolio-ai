@@ -37,7 +37,7 @@ def _fetch_agent_trades(
     query = """
         SELECT
             io.idea_id,
-            io.symbol as ticker,
+            io.symbol,
             io.idea_type,
             io.entry_price,
             io.entry_date,
@@ -108,14 +108,14 @@ def _calculate_best_worst_trades(
     worst_trade_data = min(closed_trades, key=lambda t: t["realized_return_pct"] or 0.0)
 
     best_trade: dict[str, object] = {
-        "symbol": best_trade_data["ticker"],
+        "symbol": best_trade_data["symbol"],
         "entry_date": str(best_trade_data["entry_date"]) if best_trade_data["entry_date"] else None,
         "exit_date": str(best_trade_data["exit_date"]) if best_trade_data["exit_date"] else None,
         "holding_days": best_trade_data["holding_days"],
     }
 
     worst_trade: dict[str, object] = {
-        "symbol": worst_trade_data["ticker"],
+        "symbol": worst_trade_data["symbol"],
         "entry_date": str(worst_trade_data["entry_date"])
         if worst_trade_data["entry_date"]
         else None,
@@ -220,8 +220,8 @@ def get_agent_performance(
             - total_ideas: Total number of ideas generated
             - open_ideas: Number of currently open trades
             - closed_ideas: Number of closed trades
-            - best_trade: Dict with ticker and return of best trade
-            - worst_trade: Dict with ticker and return of worst trade
+            - best_trade: Dict with symbol and return of best trade
+            - worst_trade: Dict with symbol and return of worst trade
 
     Example:
         >>> storage = get_storage()

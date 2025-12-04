@@ -99,35 +99,35 @@ def load_latest_technical(
 
 
 def trigger_auto_backfill(storage: PortfolioStorage, symbols: list[str]) -> None:
-    """Trigger automatic backfill for tickers with missing or stale data.
+    """Trigger automatic backfill for symbols with missing or stale data.
 
     Args:
         storage: Database storage instance
         symbols: List of symbols to check for missing data
     """
-    tickers_needing_backfill = detect_missing_historical_data(
+    symbols_needing_backfill = detect_missing_historical_data(
         storage=storage,
         symbols=symbols,
         min_days=30,
         stale_threshold_days=7,
     )
 
-    if tickers_needing_backfill:
+    if symbols_needing_backfill:
         try:
             from ...tasks.ingestion import ingest_historical_ohlcv  # noqa: PLC0415
 
             logger.info(
                 "auto_backfill_triggered",
-                ticker_count=len(tickers_needing_backfill),
-                tickers=tickers_needing_backfill,
+                symbol_count=len(symbols_needing_backfill),
+                symbols=symbols_needing_backfill,
             )
 
             # Trigger async backfill task (non-blocking)
-            ingest_historical_ohlcv.delay(tickers_needing_backfill, days=252)
+            ingest_historical_ohlcv.delay(symbols_needing_backfill, days=252)
 
             logger.info(
                 "auto_backfill_task_dispatched",
-                ticker_count=len(tickers_needing_backfill),
+                symbol_count=len(symbols_needing_backfill),
                 message="Historical data will be backfilled in background",
             )
         except Exception as e:

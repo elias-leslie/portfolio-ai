@@ -57,15 +57,15 @@ def build_request_kwargs(
     return kwargs
 
 
-def build_ticker_params(
-    ticker: str,
+def build_symbol_params(
+    symbol: str,
     endpoint: dict[str, object],
     date_range: tuple[dt.date, dt.date] | None = None,
 ) -> tuple[dict[str, str], dict[str, str]]:
-    """Build path and query params for a ticker request.
+    """Build path and query params for a symbol request.
 
     Args:
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
         endpoint: Endpoint configuration dictionary
         date_range: Optional (start_date, end_date) tuple
 
@@ -75,11 +75,11 @@ def build_ticker_params(
     path_params: dict[str, str] = {}
     query_params: dict[str, str] = {}
 
-    # Check for ticker in path template
+    # Check for symbol in path template
     path_template = str(endpoint.get("path_template", ""))
     if "{ticker}" in path_template or "{symbol}" in path_template:
-        path_params["ticker"] = ticker
-        path_params["symbol"] = ticker
+        path_params["ticker"] = symbol
+        path_params["symbol"] = symbol
 
     # Add date range if path template uses it
     if date_range and "{from}" in path_template:
@@ -87,7 +87,7 @@ def build_ticker_params(
         path_params["to"] = date_range[1].isoformat()
 
     # Add symbol to query params
-    query_params["symbol"] = ticker
-    query_params["ticker"] = ticker
+    query_params["ticker"] = symbol
+    query_params["symbol"] = symbol
 
     return path_params, query_params

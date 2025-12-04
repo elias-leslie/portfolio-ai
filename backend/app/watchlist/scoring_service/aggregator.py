@@ -1,4 +1,4 @@
-"""Multi-ticker processing and result aggregation for watchlist scoring.
+"""Multi-symbol processing and result aggregation for watchlist scoring.
 
 This module handles:
 - Processing all watchlist items in sequence
@@ -18,13 +18,13 @@ from ...logging_config import get_logger
 from ...services import NewsService
 from ...storage import PortfolioStorage
 from ..models import ScoreWeights, TechnicalSnapshot
-from .processor import process_single_ticker
+from .processor import process_single_symbol
 from .redis_tracker import update_progress
 
 logger = get_logger(__name__)
 
 
-def process_all_tickers(
+def process_all_symbols(
     storage: PortfolioStorage,
     items_df: pl.DataFrame,
     redis_key: str,
@@ -70,7 +70,7 @@ def process_all_tickers(
 
         try:
             # Process ticker and collect results
-            _, _, ticker_success, ticker_failed = process_single_ticker(
+            _, _, symbol_success, symbol_failed = process_single_symbol(
                 storage=storage,
                 symbol=symbol,
                 item_id=item_id,
@@ -86,17 +86,17 @@ def process_all_tickers(
             )
 
             # Aggregate results
-            if ticker_success:
+            if symbol_success:
                 processed += 1
                 processed_symbols.append(symbol)
-                success_list.extend(ticker_success)
-            if ticker_failed:
-                failed_list.extend(ticker_failed)
+                success_list.extend(symbol_success)
+            if symbol_failed:
+                failed_list.extend(symbol_failed)
 
         except Exception as e:
-            # Log error and continue processing remaining tickers
+            # Log error and continue processing remaining symbols
             logger.warning(
-                "watchlist_refresh_ticker_failed",
+                "watchlist_refresh_symbol_failed",
                 symbol=symbol,
                 item_id=item_id,
                 error=str(e),

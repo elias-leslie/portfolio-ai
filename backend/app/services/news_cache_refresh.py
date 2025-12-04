@@ -114,16 +114,16 @@ class NewsCacheRefresher:
         self.set_ttl_hours(hours)
         return self.lookback_hours
 
-    def refresh_cache(self, *, ticker: str, query: str, max_articles: int, now: datetime) -> None:
+    def refresh_cache(self, *, symbol: str, query: str, max_articles: int, now: datetime) -> None:
         """Refresh cache with new articles from vendors.
 
         Args:
-            ticker: Ticker symbol (or MARKET_TICKER for market news)
+            symbol: Symbol (or MARKET_TICKER for market news)
             query: Search query for vendors
             max_articles: Maximum number of articles to fetch
             now: Current timestamp
         """
-        logger.info("Refreshing news cache", ticker=ticker, query=query, max_articles=max_articles)
+        logger.info("Refreshing news cache", symbol=symbol, query=query, max_articles=max_articles)
 
         fetch_limit = max(
             max_articles, min(max_articles * self.selection_overfetch, ARTICLE_OVERFETCH_CAP)
@@ -131,7 +131,7 @@ class NewsCacheRefresher:
 
         # Fetch from vendors
         vendor_entries, vendor_metadata = self.vendor_manager.fetch_vendor_entries(
-            ticker=ticker,
+            symbol=symbol,
             ttl=self.ttl,
             now=now,
             max_entries=fetch_limit,
@@ -144,18 +144,18 @@ class NewsCacheRefresher:
 
         # Merge and deduplicate entries
         combined_entries, post_counts = self.processor.merge_entries(
-            ticker=ticker,
+            symbol=symbol,
             vendor_entries=vendor_entries,
             max_entries=fetch_limit,
         )
 
         if not combined_entries:
-            logger.info("No headlines returned from sources", ticker=ticker)
+            logger.info("No headlines returned from sources", symbol=symbol)
             return
 
         # Update mix summary
         self.vendor_manager.update_recent_mix_summary(
-            ticker,
+            symbol,
             timestamp=now,
             pre_counts=pre_counts,
             post_counts=post_counts,
@@ -163,7 +163,7 @@ class NewsCacheRefresher:
         )
 
         # Score sentiment
-        articles = self.processor.score_entries(ticker=ticker, entries=combined_entries, now=now)
+        articles = self.processor.score_entries(symbol=symbol, entries=combined_entries, now=now)
 
         # Score article quality (ML predictions)
         articles = self.quality_scorer.score_articles(articles)
@@ -171,7 +171,7 @@ class NewsCacheRefresher:
         # Apply AI features
         articles = self.ai_features.apply_story_clustering(articles)
         articles = self.ai_features.apply_plain_language_translation(
-            articles, watchlist_tickers=None
+            articles, watchlist_symbols=None
         )
 
         # Save to cache
@@ -179,7 +179,7 @@ class NewsCacheRefresher:
 
         logger.info(
             "news_cache_refreshed",
-            ticker=ticker,
+            symbol=symbol,
             articles=len(articles),
             vendor_counts=vendor_metadata.get("counts", {}),
         )

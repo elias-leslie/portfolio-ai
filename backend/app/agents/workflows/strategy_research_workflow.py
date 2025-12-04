@@ -40,7 +40,7 @@ async def strategy_research_workflow(
     6. Commit to git with research summary
 
     Args:
-        symbol: Stock ticker
+        symbol: Stock symbol
         force_regenerate: Regenerate even if active strategy exists
 
     Returns:

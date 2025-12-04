@@ -40,10 +40,10 @@ class APIQuotaInfo:
 
 
 class DayBarFreshness:
-    """Freshness data for a ticker's day_bars."""
+    """Freshness data for a symbol's day_bars."""
 
-    def __init__(self, ticker: str, last_updated: datetime | None, age_days: int | None):
-        self.ticker = ticker
+    def __init__(self, symbol: str, last_updated: datetime | None, age_days: int | None):
+        self.symbol = symbol
         self.last_updated = last_updated
         self.age_days = age_days
 
@@ -154,13 +154,13 @@ def get_api_quotas(storage: PortfolioStorage) -> list[APIQuotaInfo]:
 
 
 def get_day_bars_freshness(storage: PortfolioStorage) -> list[DayBarFreshness]:
-    """Get data freshness for each ticker in day_bars table.
+    """Get data freshness for each symbol in day_bars table.
 
     Args:
         storage: PortfolioStorage instance
 
     Returns:
-        List of DayBarFreshness with last updated date per ticker
+        List of DayBarFreshness with last updated date per symbol
     """
     freshness_list: list[DayBarFreshness] = []
 
@@ -203,10 +203,10 @@ def get_day_bars_freshness(storage: PortfolioStorage) -> list[DayBarFreshness]:
                 age_days = age_delta.days
 
             freshness_list.append(
-                DayBarFreshness(ticker=symbol, last_updated=last_updated, age_days=age_days)
+                DayBarFreshness(symbol=symbol, last_updated=last_updated, age_days=age_days)
             )
 
-        logger.info("get_day_bars_freshness_success", ticker_count=len(freshness_list))
+        logger.info("get_day_bars_freshness_success", symbol_count=len(freshness_list))
 
     except Exception as e:
         logger.error("get_day_bars_freshness_failed", error=str(e))

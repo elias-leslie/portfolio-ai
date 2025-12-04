@@ -82,15 +82,15 @@ class FinnhubClient(BaseHTTPClient):
 
     def get_candles(
         self,
-        ticker: str,
+        symbol: str,
         resolution: str = "D",
         from_timestamp: int | None = None,
         to_timestamp: int | None = None,
     ) -> dict[str, Any]:
-        """Fetch historical candles (OHLCV) for a ticker.
+        """Fetch historical candles (OHLCV) for a symbol.
 
         Args:
-            ticker: Stock symbol (e.g., "AAPL")
+            symbol: Stock symbol (e.g., "AAPL")
             resolution: Time resolution (D = daily)
             from_timestamp: Start timestamp (Unix seconds)
             to_timestamp: End timestamp (Unix seconds)
@@ -103,7 +103,7 @@ class FinnhubClient(BaseHTTPClient):
             {"c": [184.35, ...], "h": [186.5, ...], "l": [183.8, ...], ...}
         """
         params: dict[str, Any] = {
-            "symbol": ticker,
+            "symbol": symbol,
             "resolution": resolution,
         }
         if from_timestamp:
@@ -114,20 +114,20 @@ class FinnhubClient(BaseHTTPClient):
         result: dict[str, Any] = self.get("/stock/candle", params)
         return result
 
-    def get_company_profile(self, ticker: str) -> dict[str, Any]:
+    def get_company_profile(self, symbol: str) -> dict[str, Any]:
         """Fetch company profile and metadata.
 
         Args:
-            ticker: Stock symbol (e.g., "AAPL")
+            symbol: Stock symbol (e.g., "AAPL")
 
         Returns:
             Dict with company profile information
 
         Example:
             >>> client.get_company_profile("AAPL")
-            {"name": "Apple Inc", "ticker": "AAPL", "country": "US", ...}
+            {"name": "Apple Inc", "symbol": "AAPL", "country": "US", ...}
         """
-        params = {"symbol": ticker}
+        params = {"symbol": symbol}
         result: dict[str, object] = self.get("/stock/profile2", params)
         return result
 
@@ -185,7 +185,7 @@ class FinnhubSource(BaseSource):
         """Fetch daily OHLCV bars from Finnhub.
 
         Args:
-            request: DatasetRequest with tickers, start, end dates
+            request: DatasetRequest with symbols, start, end dates
 
         Returns:
             Polars DataFrame with OHLCV data, or None if fetch fails
@@ -201,16 +201,16 @@ class FinnhubSource(BaseSource):
 
         logger.info(
             "finnhub_fetch_day_bars_start",
-            num_tickers=len(list(request.tickers)),
+            num_symbols=len(list(request.symbols)),
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
         )
 
-        for ticker in request.tickers:
+        for symbol in request.symbols:
             try:
                 # Fetch candle data
                 response = self.client.get_candles(
-                    ticker=ticker,
+                    symbol=symbol,
                     resolution="D",
                     from_timestamp=from_ts,
                     to_timestamp=to_ts,
@@ -218,7 +218,7 @@ class FinnhubSource(BaseSource):
 
                 # Check for error response
                 if response.get("s") == "no_data":
-                    logger.debug("finnhub_no_data", ticker=ticker)
+                    logger.debug("finnhub_no_data", symbol=symbol)
                     continue
 
                 # Extract OHLCV arrays
@@ -230,7 +230,7 @@ class FinnhubSource(BaseSource):
                 volumes = response.get("v", [])
 
                 if not closes or len(closes) == 0:
-                    logger.debug("finnhub_empty_data", ticker=ticker)
+                    logger.debug("finnhub_empty_data", symbol=symbol)
                     continue
 
                 # Parse OHLCV data
@@ -255,14 +255,14 @@ class FinnhubSource(BaseSource):
                     except (IndexError, ValueError) as e:
                         logger.warning(
                             "finnhub_bar_parse_error",
-                            ticker=ticker,
+                            symbol=symbol,
                             index=i,
                             error=str(e),
                         )
                         continue
 
                 if not records:
-                    logger.debug("finnhub_no_valid_bars", ticker=ticker)
+                    logger.debug("finnhub_no_valid_bars", symbol=symbol)
                     continue
 
                 # Create DataFrame
@@ -276,42 +276,42 @@ class FinnhubSource(BaseSource):
 
                 logger.debug(
                     "finnhub_fetch_success",
-                    ticker=ticker,
+                    symbol=symbol,
                     rows=len(df),
                 )
 
             except Exception as e:
                 logger.warning(
                     "finnhub_fetch_error",
-                    ticker=ticker,
+                    symbol=symbol,
                     error=str(e),
                     error_type=type(e).__name__,
                 )
-                # Continue to next ticker
+                # Continue to next symbol
                 continue
 
         if not frames:
             logger.warning("finnhub_no_data_fetched")
             return None
 
-        # Combine all tickers
+        # Combine all symbols
         combined = pl.concat(frames, how="vertical_relaxed")
 
         logger.info(
             "finnhub_fetch_day_bars_complete",
             total_rows=len(combined),
-            unique_tickers=combined["ticker"].n_unique(),
+            unique_symbols=combined["symbol"].n_unique(),
         )
 
         return combined
 
     def fetch_reference_payload(
-        self, tickers: Iterable[str], as_of: dt.date
+        self, symbols: Iterable[str], as_of: dt.date
     ) -> pl.DataFrame | None:
         """Fetch company profile data from Finnhub.
 
         Args:
-            tickers: List of ticker symbols
+            symbols: List of symbols
             as_of: As-of date for reference data
 
         Returns:
@@ -321,17 +321,17 @@ class FinnhubSource(BaseSource):
 
         logger.info(
             "finnhub_fetch_reference_start",
-            num_tickers=len(list(tickers)),
+            num_symbols=len(list(symbols)),
             as_of_date=as_of.isoformat(),
         )
 
-        for ticker in tickers:
+        for symbol in symbols:
             try:
-                response = self.client.get_company_profile(ticker)
+                response = self.client.get_company_profile(symbol)
 
                 # Check for empty response
                 if not response or not response.get("name"):
-                    logger.debug("finnhub_no_reference_data", ticker=ticker)
+                    logger.debug("finnhub_no_reference_data", symbol=symbol)
                     continue
 
                 # Store profile as JSON string
@@ -346,12 +346,12 @@ class FinnhubSource(BaseSource):
                     }
                 )
 
-                logger.debug("finnhub_reference_fetched", ticker=ticker)
+                logger.debug("finnhub_reference_fetched", symbol=symbol)
 
             except Exception as e:
                 logger.warning(
                     "finnhub_reference_error",
-                    ticker=ticker,
+                    symbol=symbol,
                     error=str(e),
                     error_type=type(e).__name__,
                 )
@@ -363,35 +363,35 @@ class FinnhubSource(BaseSource):
 
         logger.info(
             "finnhub_reference_complete",
-            num_tickers=len(records),
+            num_symbols=len(records),
         )
 
         return pl.DataFrame(records)
 
     def fetch_news_payload(
-        self, tickers: Iterable[str], start: dt.datetime, end: dt.datetime
+        self, symbols: Iterable[str], start: dt.datetime, end: dt.datetime
     ) -> pl.DataFrame | None:
         """Fetch news articles from Finnhub company-news and general news endpoints."""
         records: list[dict[str, Any]] = []
         start_date = start.astimezone(dt.UTC).date().isoformat()
         end_date = end.astimezone(dt.UTC).date().isoformat()
 
-        ticker_list = list(tickers) or ["__MARKET__"]
+        symbol_list = list(symbols) or ["__MARKET__"]
 
-        for ticker in ticker_list:
-            is_market = ticker in (None, "__MARKET__")
+        for symbol in symbol_list:
+            is_market = symbol in (None, "__MARKET__")
             try:
                 if is_market:
                     response = self.client.get("/news", {"category": "general"})
                 else:
                     response = self.client.get(
                         "/company-news",
-                        {"symbol": ticker, "from": start_date, "to": end_date},
+                        {"symbol": symbol, "from": start_date, "to": end_date},
                     )
             except Exception as exc:
                 logger.warning(
                     "finnhub_news_error",
-                    ticker="__MARKET__" if is_market else ticker,
+                    symbol="__MARKET__" if is_market else symbol,
                     error=str(exc),
                     error_type=type(exc).__name__,
                 )
@@ -401,7 +401,7 @@ class FinnhubSource(BaseSource):
             if not items:
                 logger.debug(
                     "finnhub_news_empty",
-                    ticker="__MARKET__" if is_market else ticker,
+                    symbol="__MARKET__" if is_market else symbol,
                 )
                 continue
 
@@ -424,7 +424,7 @@ class FinnhubSource(BaseSource):
 
                 records.append(
                     {
-                        "symbol": "__MARKET__" if is_market else ticker,
+                        "symbol": "__MARKET__" if is_market else symbol,
                         "headline": headline,
                         "url": item.get("url"),
                         "summary": item.get("summary"),
@@ -439,12 +439,12 @@ class FinnhubSource(BaseSource):
 
             logger.debug(
                 "finnhub_news_fetched",
-                ticker="__MARKET__" if is_market else ticker,
+                symbol="__MARKET__" if is_market else symbol,
                 articles=len(items),
             )
 
         if not records:
-            logger.info("finnhub_news_no_articles", tickers=list(ticker_list))
+            logger.info("finnhub_news_no_articles", symbols=list(symbol_list))
             return None
 
         return pl.DataFrame(records)

@@ -10,7 +10,7 @@ Key Functions:
 - Calculate coverage % per analysis type (weighted by criticality)
 - Identify gaps (missing/stale/low-coverage capabilities)
 - Generate actionable recommendations to fill gaps
-- Support per-ticker gap analysis (watchlist coverage)
+- Support per-symbol gap analysis (watchlist coverage)
 """
 
 from __future__ import annotations
@@ -60,73 +60,73 @@ class GapDetector:
         """
         return self.analyzer.analyze_gaps()
 
-    def analyze_ticker_gaps(self, ticker: str) -> dict[str, Any]:
-        """Analyze gaps for a specific ticker.
+    def analyze_symbol_gaps(self, symbol: str) -> dict[str, Any]:
+        """Analyze gaps for a specific symbol.
 
         Args:
-            ticker: Stock ticker symbol
+            symbol: Stock symbol
 
         Returns:
-            Dict with ticker-specific gap analysis including:
+            Dict with symbol-specific gap analysis including:
             - readiness_score: 0-100% overall readiness
             - coverage_by_analysis: Coverage % per analysis type
             - missing_capabilities: List of missing capabilities
             - confidence_level: LOW/MEDIUM/HIGH based on readiness
         """
-        return self.analyzer.analyze_ticker_gaps(ticker)
+        return self.analyzer.analyze_symbol_gaps(symbol)
 
     def analyze_watchlist_gaps(self) -> dict[str, Any]:
         """Analyze gaps affecting current watchlist.
 
         Returns:
             Dict with watchlist gap analysis including:
-            - watchlist_tickers: List of ticker symbols
-            - ticker_coverage: Per-ticker coverage analysis
-            - aggregate_gaps: Gaps affecting multiple tickers
+            - watchlist_symbols: List of symbols
+            - symbol_coverage: Per-symbol coverage analysis
+            - aggregate_gaps: Gaps affecting multiple symbols
         """
         logger.info("analyzing_watchlist_gaps")
 
-        # Get watchlist tickers from database
+        # Get watchlist symbols from database
         try:
             with self.conn_mgr.connection() as conn:
                 result = conn.execute(
                     "SELECT DISTINCT symbol FROM watchlist_items ORDER BY symbol"
                 ).fetchall()
-                tickers = [str(row[0]) for row in result if row[0] is not None]
+                symbols = [str(row[0]) for row in result if row[0] is not None]
         except Exception as e:
-            logger.error("failed_to_fetch_watchlist_tickers", error=str(e))
-            tickers = []
+            logger.error("failed_to_fetch_watchlist_symbols", error=str(e))
+            symbols = []
 
-        if not tickers:
-            logger.info("no_watchlist_tickers_found")
+        if not symbols:
+            logger.info("no_watchlist_symbols_found")
             return {
-                "watchlist_tickers": [],
-                "ticker_coverage": {},
+                "watchlist_symbols": [],
+                "symbol_coverage": {},
                 "aggregate_gaps": [],
             }
 
-        logger.info("analyzing_watchlist_gaps", ticker_count=len(tickers))
+        logger.info("analyzing_watchlist_gaps", symbol_count=len(symbols))
 
-        # Analyze each ticker
-        ticker_coverage: dict[str, dict[str, Any]] = {}
-        all_missing_capabilities: dict[str, list[str]] = {}  # capability → tickers missing it
+        # Analyze each symbol
+        symbol_coverage: dict[str, dict[str, Any]] = {}
+        all_missing_capabilities: dict[str, list[str]] = {}  # capability → symbols missing it
 
-        for ticker in tickers:
+        for symbol in symbols:
             try:
-                analysis = self.analyzer.analyze_ticker_gaps(ticker)
-                ticker_coverage[ticker] = analysis
+                analysis = self.analyzer.analyze_symbol_gaps(symbol)
+                symbol_coverage[symbol] = analysis
 
-                # Track which capabilities are missing per ticker
+                # Track which capabilities are missing per symbol
                 for cap in analysis.get("missing_capabilities", []):
                     # cap format: "capability_name (analysis_type)"
                     cap_name = cap.split(" (")[0] if " (" in cap else cap
                     if cap_name not in all_missing_capabilities:
                         all_missing_capabilities[cap_name] = []
-                    all_missing_capabilities[cap_name].append(ticker)
+                    all_missing_capabilities[cap_name].append(symbol)
             except Exception as e:
-                logger.warning("ticker_analysis_failed", ticker=ticker, error=str(e))
-                ticker_coverage[ticker] = {
-                    "ticker": ticker,
+                logger.warning("symbol_analysis_failed", symbol=symbol, error=str(e))
+                symbol_coverage[symbol] = {
+                    "symbol": symbol,
                     "readiness_score": 0.0,
                     "confidence_level": "LOW",
                     "coverage_by_analysis": {},
@@ -135,34 +135,34 @@ class GapDetector:
                     "error": str(e),
                 }
 
-        # Aggregate gaps affecting multiple tickers
+        # Aggregate gaps affecting multiple symbols
         aggregate_gaps: list[dict[str, Any]] = []
-        for capability, affected_tickers in sorted(
+        for capability, affected_symbols in sorted(
             all_missing_capabilities.items(),
             key=lambda x: len(x[1]),
             reverse=True,
         ):
-            if len(affected_tickers) > 1:  # Only include if affects 2+ tickers
+            if len(affected_symbols) > 1:  # Only include if affects 2+ symbols
                 aggregate_gaps.append(
                     {
                         "capability": capability,
                         "description": f"Missing {capability}",
-                        "affected_tickers": len(affected_tickers),
-                        "total_tickers": len(tickers),
-                        "affected_pct": round(len(affected_tickers) / len(tickers) * 100, 1),
-                        "tickers": affected_tickers,
+                        "affected_symbols": len(affected_symbols),
+                        "total_symbols": len(symbols),
+                        "affected_pct": round(len(affected_symbols) / len(symbols) * 100, 1),
+                        "symbols": affected_symbols,
                     }
                 )
 
         logger.info(
             "watchlist_gaps_analyzed",
-            ticker_count=len(tickers),
+            symbol_count=len(symbols),
             aggregate_gap_count=len(aggregate_gaps),
         )
 
         return {
-            "watchlist_tickers": tickers,
-            "ticker_coverage": ticker_coverage,
+            "watchlist_symbols": symbols,
+            "symbol_coverage": symbol_coverage,
             "aggregate_gaps": aggregate_gaps[:20],  # Top 20 aggregate gaps
         }
 

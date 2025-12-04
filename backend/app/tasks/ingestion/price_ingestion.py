@@ -60,13 +60,13 @@ def _prepare_dataframe(result_df: Any, ingest_run_id: str) -> tuple[Any, list[st
         ingest_run_id: Unique ID for this ingestion run
 
     Returns:
-        Tuple of (prepared_df, unique_tickers)
+        Tuple of (prepared_df, unique_symbols)
 
     Raises:
         ValueError: If required columns are missing
     """
     # Ensure required columns exist
-    required_cols = ["ticker", "date", "open", "high", "low", "close", "volume", "source"]
+    required_cols = ["symbol", "date", "open", "high", "low", "close", "volume", "source"]
     missing_cols = [col for col in required_cols if col not in result_df.columns]
     if missing_cols:
         logger.error(
@@ -85,9 +85,9 @@ def _prepare_dataframe(result_df: Any, ingest_run_id: str) -> tuple[Any, list[st
         result_df = result_df.with_columns(ingest_run_id=ingest_run_id)
 
     # Reorder columns to match day_bars table schema
-    # Table expects: ticker, date, open, high, low, close, volume, vwap, source, ingest_run_id
+    # Table expects: symbol, date, open, high, low, close, volume, vwap, source, ingest_run_id
     column_order = [
-        "ticker",
+        "symbol",
         "date",
         "open",
         "high",
@@ -100,10 +100,10 @@ def _prepare_dataframe(result_df: Any, ingest_run_id: str) -> tuple[Any, list[st
     ]
     result_df = result_df.select(column_order)
 
-    # Get unique tickers for database cleanup
-    unique_tickers = result_df["ticker"].unique().to_list()
+    # Get unique symbols for database cleanup
+    unique_symbols = result_df["symbol"].unique().to_list()
 
-    return result_df, unique_tickers
+    return result_df, unique_symbols
 
 
 def _fetch_ohlcv_data(
@@ -115,7 +115,7 @@ def _fetch_ohlcv_data(
 
     Args:
         fetcher: Multi-source fetcher instance
-        request: Dataset request with tickers and date range
+        request: Dataset request with symbols and date range
         ingest_run_id: Unique ID for this ingestion run
 
     Returns:
@@ -150,15 +150,15 @@ def _insert_ohlcv_data(storage: PortfolioStorage, result_df: Any, ingest_run_id:
     Returns:
         Number of rows upserted
     """
-    # Prepare DataFrame and get unique tickers
-    result_df, unique_tickers = _prepare_dataframe(result_df, ingest_run_id)
+    # Prepare DataFrame and get unique symbols
+    result_df, unique_symbols = _prepare_dataframe(result_df, ingest_run_id)
 
     # Log insertion start
     logger.info(
         "ingest_upserting_data",
         ingest_run_id=ingest_run_id,
         rows=len(result_df),
-        tickers=unique_tickers,
+        symbols=unique_symbols,
     )
 
     # Use UPSERT mode to prevent deadlocks and preserve historical data
@@ -180,7 +180,7 @@ def _insert_ohlcv_data(storage: PortfolioStorage, result_df: Any, ingest_run_id:
 def _build_ingestion_result(
     task_id: str,
     ingest_run_id: str,
-    tickers: list[str],
+    symbols: list[str],
     rows_inserted: int,
     error_count: int,
     start_time: dt.datetime,
@@ -190,7 +190,7 @@ def _build_ingestion_result(
     Args:
         task_id: Celery task ID
         ingest_run_id: Unique ID for this ingestion run
-        tickers: List of tickers processed
+        symbols: List of symbols processed
         rows_inserted: Number of rows inserted
         error_count: Number of errors encountered
         start_time: Task start time
@@ -204,7 +204,7 @@ def _build_ingestion_result(
     result: dict[str, int | str | float] = {
         "task_id": task_id,
         "ingest_run_id": ingest_run_id,
-        "tickers_count": len(tickers),
+        "symbols_count": len(symbols),
         "rows_inserted": rows_inserted,
         "duration_seconds": duration,
         "errors": error_count,
@@ -216,7 +216,7 @@ def _build_ingestion_result(
 
 
 def _ingest_historical_ohlcv_impl(
-    tickers: list[str], days: int = 252, task_id: str | None = None
+    symbols: list[str], days: int = 252, task_id: str | None = None
 ) -> dict[str, int | str | float]:
     """Implementation of OHLCV ingestion logic (shared by task and direct calls).
 
@@ -224,7 +224,7 @@ def _ingest_historical_ohlcv_impl(
     and directly from other tasks (like refresh_daily_ohlcv).
 
     Args:
-        tickers: List of ticker symbols to fetch data for
+        symbols: List of symbols to fetch data for
         days: Number of trading days to backfill (default: 252 = ~1 year)
         task_id: Optional Celery task ID (for logging)
 
@@ -238,7 +238,7 @@ def _ingest_historical_ohlcv_impl(
         "ingest_historical_ohlcv_started",
         task_id=task_id,
         ingest_run_id=ingest_run_id,
-        tickers_count=len(tickers),
+        symbols_count=len(symbols),
         days=days,
     )
 
@@ -258,7 +258,7 @@ def _ingest_historical_ohlcv_impl(
         request = DatasetRequest(
             dataset="day",
             profile=None,
-            tickers=tickers,
+            symbols=symbols,
             start=start_date,
             end=end_date,
             timezone="UTC",
@@ -283,7 +283,7 @@ def _ingest_historical_ohlcv_impl(
         return _build_ingestion_result(
             task_id=task_id or "direct",
             ingest_run_id=ingest_run_id,
-            tickers=tickers,
+            symbols=symbols,
             rows_inserted=rows_inserted,
             error_count=error_count,
             start_time=start_time,
@@ -310,37 +310,37 @@ def _ingest_historical_ohlcv_impl(
     retry_jitter=True,
 )  # type: ignore[misc]
 def refresh_daily_ohlcv(  # type: ignore[no-untyped-def]
-    self, tickers: list[str] | None = None
+    self, symbols: list[str] | None = None
 ) -> dict[str, int | str | float]:
-    """Refresh latest OHLCV data for critical tickers (SPY by default).
+    """Refresh latest OHLCV data for critical symbols (SPY by default).
 
     Fetches the most recent 5 trading days to ensure fresh data,
     scheduled to run daily to keep day_bars table current.
 
     Args:
-        tickers: List of ticker symbols (default: ["SPY"])
+        symbols: List of symbols (default: ["SPY"])
 
     Returns:
         Dict with task results:
         - task_id: Celery task ID
         - ingest_run_id: Unique ID for this ingestion run
-        - tickers_count: Number of tickers processed
+        - symbols_count: Number of symbols processed
         - rows_inserted: Total rows inserted into day_bars table
-        - errors: Number of tickers that failed to fetch
+        - errors: Number of symbols that failed to fetch
 
     Example:
         >>> refresh_daily_ohlcv.delay()  # Refreshes SPY
         >>> refresh_daily_ohlcv.delay(["SPY", "QQQ", "IWM"])  # Custom list
     """
-    if tickers is None:
-        tickers = ["SPY"]  # Default to SPY for Fear & Greed calculations
+    if symbols is None:
+        symbols = ["SPY"]  # Default to SPY for Fear & Greed calculations
 
     task_id = self.request.id
 
     logger.info(
         "refresh_daily_ohlcv_started",
         task_id=task_id,
-        tickers=tickers,
+        symbols=symbols,
     )
 
     try:
@@ -348,7 +348,7 @@ def refresh_daily_ohlcv(  # type: ignore[no-untyped-def]
         # (accounts for holidays, weekends, and delayed data feeds)
         # Call the implementation function directly (not as a task) to avoid Celery's
         # synchronous subtask prohibition. This runs within the refresh_daily_ohlcv task context.
-        result = _ingest_historical_ohlcv_impl(tickers, days=5, task_id=task_id)
+        result = _ingest_historical_ohlcv_impl(symbols, days=5, task_id=task_id)
         return result
 
     except Exception as e:
@@ -373,7 +373,7 @@ def refresh_daily_ohlcv(  # type: ignore[no-untyped-def]
 def refresh_watchlist_ohlcv(  # type: ignore[no-untyped-def]
     self,
 ) -> dict[str, int | str | float]:
-    """Refresh latest OHLCV data for all watchlist tickers.
+    """Refresh latest OHLCV data for all watchlist symbols.
 
     Fetches the most recent 5 trading days to ensure fresh data.
     Uses UPSERT to preserve existing historical data while updating recent bars.
@@ -383,35 +383,35 @@ def refresh_watchlist_ohlcv(  # type: ignore[no-untyped-def]
         Dict with task results:
         - task_id: Celery task ID
         - ingest_run_id: Unique ID for this ingestion run
-        - tickers_count: Number of tickers processed
+        - symbols_count: Number of symbols processed
         - rows_inserted: Total rows upserted into day_bars table
-        - errors: Number of tickers that failed to fetch
+        - errors: Number of symbols that failed to fetch
 
     Example:
-        >>> refresh_watchlist_ohlcv.delay()  # Refreshes all watchlist tickers
+        >>> refresh_watchlist_ohlcv.delay()  # Refreshes all watchlist symbols
     """
     task_id = self.request.id
     ingest_run_id = str(uuid.uuid4())
     start_time = dt.datetime.now(dt.UTC)
 
     try:
-        # Get all watchlist tickers from database
+        # Get all watchlist symbols from database
         storage = get_storage()
         with storage.connection() as conn:
             result = conn.execute(
                 "SELECT DISTINCT symbol FROM watchlist_items ORDER BY symbol"
             ).fetchall()
-            tickers = [str(row[0]) for row in result if row[0] is not None]
+            symbols = [str(row[0]) for row in result if row[0] is not None]
 
-        if not tickers:
+        if not symbols:
             logger.info(
-                "refresh_watchlist_ohlcv_no_tickers",
+                "refresh_watchlist_ohlcv_no_symbols",
                 task_id=task_id,
             )
             return {
                 "task_id": task_id,
                 "ingest_run_id": ingest_run_id,
-                "tickers_count": 0,
+                "symbols_count": 0,
                 "rows_inserted": 0,
                 "errors": 0,
             }
@@ -420,8 +420,8 @@ def refresh_watchlist_ohlcv(  # type: ignore[no-untyped-def]
             "refresh_watchlist_ohlcv_started",
             task_id=task_id,
             ingest_run_id=ingest_run_id,
-            tickers=tickers,
-            tickers_count=len(tickers),
+            symbols=symbols,
+            symbols_count=len(symbols),
         )
 
         # Initialize all available sources
@@ -437,7 +437,7 @@ def refresh_watchlist_ohlcv(  # type: ignore[no-untyped-def]
         request = DatasetRequest(
             dataset="day",
             profile=None,
-            tickers=tickers,
+            symbols=symbols,
             start=start_date,
             end=end_date,
             timezone="UTC",
@@ -451,7 +451,7 @@ def refresh_watchlist_ohlcv(  # type: ignore[no-untyped-def]
         rows_inserted = 0
         if result_df is not None and len(result_df) > 0:
             # Prepare DataFrame (add ingest_run_id, vwap, etc.)
-            result_df, _unique_tickers = _prepare_dataframe(result_df, ingest_run_id)
+            result_df, _unique_symbols = _prepare_dataframe(result_df, ingest_run_id)
 
             logger.info(
                 "refresh_watchlist_ohlcv_upserting",
@@ -483,7 +483,7 @@ def refresh_watchlist_ohlcv(  # type: ignore[no-untyped-def]
         result_dict: dict[str, int | str | float] = {
             "task_id": task_id,
             "ingest_run_id": ingest_run_id,
-            "tickers_count": len(tickers),
+            "symbols_count": len(symbols),
             "rows_inserted": rows_inserted,
             "duration_seconds": duration,
             "errors": error_count,
@@ -514,44 +514,44 @@ def refresh_watchlist_ohlcv(  # type: ignore[no-untyped-def]
     retry_jitter=True,
 )  # type: ignore[misc]
 def ingest_historical_ohlcv(  # type: ignore[no-untyped-def]
-    self, tickers: list[str], days: int = 252
+    self, symbols: list[str], days: int = 252
 ) -> dict[str, int | str | float]:
     """Backfill historical OHLCV data using multi-source fetcher.
 
-    Fetches historical daily bars for the specified tickers and lookback period,
+    Fetches historical daily bars for the specified symbols and lookback period,
     storing results in the day_bars table with source lineage tracking.
 
     Uses Redis-based task lock to prevent duplicate concurrent executions
-    for the same ticker set.
+    for the same symbol set.
 
     Args:
-        tickers: List of ticker symbols to fetch data for
+        symbols: List of symbols to fetch data for
         days: Number of trading days to backfill (default: 252 = ~1 year)
 
     Returns:
         Dict with task results:
         - task_id: Celery task ID
         - ingest_run_id: Unique ID for this ingestion run
-        - tickers_count: Number of tickers processed
+        - symbols_count: Number of symbols processed
         - rows_inserted: Total rows inserted into day_bars table
         - duration_seconds: Total execution time
-        - errors: Number of tickers that failed to fetch
+        - errors: Number of symbols that failed to fetch
         - skipped: True if task was skipped due to duplicate lock
 
     Example:
         >>> ingest_historical_ohlcv.delay(["AAPL", "MSFT", "GOOGL"], days=252)
-        >>> # Backfills 252 days of OHLCV data for 3 tickers
+        >>> # Backfills 252 days of OHLCV data for 3 symbols
     """
     # Use task lock to prevent duplicate concurrent executions
-    # Lock key includes sorted tickers and days for deduplication
-    lock_key = generate_task_lock_key("ingest_historical_ohlcv", tickers, days)
+    # Lock key includes sorted symbols and days for deduplication
+    lock_key = generate_task_lock_key("ingest_historical_ohlcv", symbols, days)
 
     with task_lock(lock_key, ttl=600) as acquired:  # 10-minute lock (matches task_time_limit)
         if not acquired:
             logger.info(
                 "ingest_historical_ohlcv_skipped_duplicate",
                 task_id=self.request.id,
-                tickers=tickers,
+                symbols=symbols,
                 days=days,
                 reason="duplicate_task_running",
             )
@@ -559,7 +559,7 @@ def ingest_historical_ohlcv(  # type: ignore[no-untyped-def]
                 "task_id": self.request.id,
                 "skipped": True,
                 "reason": "duplicate_task_running",
-                "tickers_count": len(tickers),
+                "symbols_count": len(symbols),
             }
 
-        return _ingest_historical_ohlcv_impl(tickers, days, self.request.id)
+        return _ingest_historical_ohlcv_impl(symbols, days, self.request.id)

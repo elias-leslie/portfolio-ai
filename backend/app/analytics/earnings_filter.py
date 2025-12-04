@@ -24,13 +24,13 @@ MIN_DAYS_BEFORE_EARNINGS = 2
 
 def get_next_earnings_date(  # noqa: PLR0911
     storage: PortfolioStorage,
-    ticker: str,
+    symbol: str,
 ) -> datetime | None:
-    """Get next earnings date for a ticker from cache.
+    """Get next earnings date for a symbol from cache.
 
     Args:
         storage: Database storage instance
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
 
     Returns:
         Next earnings datetime, or None if unknown
@@ -46,7 +46,7 @@ def get_next_earnings_date(  # noqa: PLR0911
         LIMIT 1
     """
 
-    result = storage.query(query, [ticker])
+    result = storage.query(query, [symbol])
 
     if result.is_empty():
         return None
@@ -81,14 +81,14 @@ def get_next_earnings_date(  # noqa: PLR0911
 
 def check_earnings_proximity(
     storage: PortfolioStorage,
-    ticker: str,
+    symbol: str,
     min_days: int = MIN_DAYS_BEFORE_EARNINGS,
 ) -> tuple[bool, str, dict[str, str | int | None]]:
-    """Check if a ticker is too close to earnings for a new entry.
+    """Check if a symbol is too close to earnings for a new entry.
 
     Args:
         storage: Database storage instance
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
         min_days: Minimum days before earnings to allow trade
 
     Returns:
@@ -97,20 +97,20 @@ def check_earnings_proximity(
         - message: Human-readable status
         - details: Dict with earnings_date, days_away
     """
-    earnings_date = get_next_earnings_date(storage, ticker)
+    earnings_date = get_next_earnings_date(storage, symbol)
 
     if earnings_date is None:
         # No earnings date known - allow trade but log warning
         logger.warning(
             "earnings_date_unknown",
-            ticker=ticker,
+            symbol=symbol,
             action="allowing_trade",
         )
         return (
             True,
             "Earnings date unknown - trade allowed",
             {
-                "symbol": ticker,
+                "symbol": symbol,
                 "earnings_date": None,
                 "days_away": None,
             },
@@ -126,7 +126,7 @@ def check_earnings_proximity(
     days_away = (earnings_date_normalized - now_normalized).days
 
     details: dict[str, str | int | None] = {
-        "symbol": ticker,
+        "symbol": symbol,
         "earnings_date": earnings_date.isoformat(),
         "days_away": days_away,
         "min_days_required": min_days,
@@ -136,7 +136,7 @@ def check_earnings_proximity(
     if days_away < 0:
         logger.debug(
             "earnings_passed",
-            ticker=ticker,
+            symbol=symbol,
             days_ago=abs(days_away),
         )
         return True, f"Earnings passed {abs(days_away)} days ago", details
@@ -146,7 +146,7 @@ def check_earnings_proximity(
         message = f"BLOCKED: Earnings in {days_away} days (min {min_days} required)"
         logger.warning(
             "earnings_proximity_blocked",
-            ticker=ticker,
+            symbol=symbol,
             days_away=days_away,
             min_days=min_days,
         )
@@ -156,7 +156,7 @@ def check_earnings_proximity(
     message = f"OK: Earnings in {days_away} days (min {min_days} required)"
     logger.debug(
         "earnings_proximity_passed",
-        ticker=ticker,
+        symbol=symbol,
         days_away=days_away,
     )
     return True, message, details
@@ -164,16 +164,16 @@ def check_earnings_proximity(
 
 def should_block_for_earnings(
     storage: PortfolioStorage,
-    ticker: str,
+    symbol: str,
 ) -> bool:
     """Quick check if trade should be blocked due to earnings proximity.
 
     Args:
         storage: Database storage instance
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
 
     Returns:
         True if trade should be blocked (too close to earnings)
     """
-    is_ok, _, _ = check_earnings_proximity(storage, ticker)
+    is_ok, _, _ = check_earnings_proximity(storage, symbol)
     return not is_ok

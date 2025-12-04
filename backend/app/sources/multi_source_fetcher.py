@@ -161,20 +161,20 @@ class MultiSourceFetcher:
         return False
 
     def _fetch_from_source(
-        self, source: BaseSource, request: DatasetRequest, tickers: set[str]
+        self, source: BaseSource, request: DatasetRequest, symbols: set[str]
     ) -> pl.DataFrame | None:
         """Fetch data from a specific source based on dataset type.
 
         Args:
             source: Source to fetch from
             request: Original request with dataset type and date range
-            tickers: Tickers to fetch
+            symbols: Tickers to fetch
 
         Returns:
             DataFrame with fetched data, or None if no data
         """
         if request.dataset == DATASET_DAY:
-            remaining_request = dataclasses.replace(request, tickers=list(tickers))
+            remaining_request = dataclasses.replace(request, symbols=list(symbols))
             return source.fetch_day_bars(remaining_request)
 
         if request.dataset == DATASET_REFERENCE:
@@ -182,7 +182,7 @@ class MultiSourceFetcher:
             as_of_date: dt.date = (
                 request.start.date() if isinstance(request.start, dt.datetime) else request.start
             )
-            return source.fetch_reference_payload(list(tickers), as_of_date)
+            return source.fetch_reference_payload(list(symbols), as_of_date)
 
         if request.dataset == DATASET_NEWS:
             # Ensure start/end are datetime for news
@@ -196,7 +196,7 @@ class MultiSourceFetcher:
                 if isinstance(request.end, dt.datetime)
                 else dt.datetime.combine(request.end, dt.time.max)
             )
-            return source.fetch_news_payload(list(tickers), start_dt, end_dt)
+            return source.fetch_news_payload(list(symbols), start_dt, end_dt)
 
         return None
 
@@ -205,7 +205,7 @@ class MultiSourceFetcher:
         data: pl.DataFrame | None,
         source: BaseSource,
         fetch_duration_ms: int,
-        tickers_remaining: set[str],
+        symbols_remaining: set[str],
         news_dataset: bool,
         verbose: bool,
     ) -> bool:
@@ -215,7 +215,7 @@ class MultiSourceFetcher:
             data: Fetched data (or None)
             source: Source that fetched the data
             fetch_duration_ms: Fetch duration in milliseconds
-            tickers_remaining: Set of tickers still needing data
+            symbols_remaining: Set of symbols still needing data
             news_dataset: Whether this is a news dataset
             verbose: Whether to log info messages
 
@@ -223,25 +223,25 @@ class MultiSourceFetcher:
             True if data was fetched, False otherwise
         """
         if data is not None and len(data) > 0:
-            # Track which tickers were successfully fetched
-            if "ticker" in data.columns and not news_dataset:
-                fetched_tickers = set(data["ticker"].unique().to_list())
-                tickers_remaining -= fetched_tickers
+            # Track which symbols were successfully fetched
+            if "symbol" in data.columns and not news_dataset:
+                fetched_symbols = set(data["symbol"].unique().to_list())
+                symbols_remaining -= fetched_symbols
 
                 if verbose:
                     logger.info(
                         "source_fetched_partial",
                         source=source.name,
-                        tickers_fetched=len(fetched_tickers),
-                        tickers_remaining=len(tickers_remaining),
+                        symbols_fetched=len(fetched_symbols),
+                        symbols_remaining=len(symbols_remaining),
                         rows=len(data),
                     )
             else:
-                # Assume all tickers fetched if no ticker column
+                # Assume all symbols fetched if no ticker column
                 if verbose:
                     logger.info("source_fetched_all", source=source.name, rows=len(data))
                 if not news_dataset:
-                    tickers_remaining.clear()
+                    symbols_remaining.clear()
 
             self.metrics_manager.record_success(source.name, fetch_duration_ms)
             return True
@@ -290,7 +290,7 @@ class MultiSourceFetcher:
         Tries sources in priority order with rate limit awareness.
 
         Args:
-            request: DatasetRequest with dataset type, tickers, dates
+            request: DatasetRequest with dataset type, symbols, dates
             verbose: Log fallback messages (default: True)
 
         Returns:
@@ -309,7 +309,7 @@ class MultiSourceFetcher:
             logger.info(
                 "fetch_started",
                 dataset=request.dataset,
-                num_tickers=len(list(request.tickers)),
+                num_symbols=len(list(request.symbols)),
                 available_sources=available_sources,
                 total_sources=len(available_sources),
                 sources_in_cooldown=sources_in_cooldown,
@@ -317,12 +317,12 @@ class MultiSourceFetcher:
 
         all_data = []
         errors_by_source: dict[str, list[str]] = {}
-        tickers_remaining = set(request.tickers)
+        symbols_remaining = set(request.symbols)
         news_dataset = request.dataset == DATASET_NEWS
 
         for source in sources:
-            # Stop if all tickers fetched (non-news datasets)
-            if not news_dataset and not tickers_remaining:
+            # Stop if all symbols fetched (non-news datasets)
+            if not news_dataset and not symbols_remaining:
                 break
 
             # Skip sources in cooldown
@@ -335,19 +335,19 @@ class MultiSourceFetcher:
                         "source_trying",
                         source=source.name,
                         priority=source.priority,
-                        num_tickers=len(tickers_remaining),
+                        num_symbols=len(symbols_remaining),
                         dataset=request.dataset,
                     )
 
                 # Fetch data
                 start_time = time.time()
-                data = self._fetch_from_source(source, request, tickers_remaining)
+                data = self._fetch_from_source(source, request, symbols_remaining)
                 fetch_duration_ms = int((time.time() - start_time) * 1000)
 
                 # Process result
                 if (
                     self._process_fetch_result(
-                        data, source, fetch_duration_ms, tickers_remaining, news_dataset, verbose
+                        data, source, fetch_duration_ms, symbols_remaining, news_dataset, verbose
                     )
                     and data is not None
                 ):  # Narrow type for mypy
@@ -385,7 +385,7 @@ class MultiSourceFetcher:
             logger.error(
                 "fetch_all_sources_failed",
                 dataset=request.dataset,
-                num_tickers_requested=len(list(request.tickers)),
+                num_symbols_requested=len(list(request.symbols)),
                 sources_tried=len(sources),
                 sources_in_cooldown=len(sources_in_cooldown),
                 errors=errors_by_source,

@@ -158,39 +158,39 @@ class CapabilityChecker:
         # All required tables exist, have data, and are fresh
         return (True, "available")
 
-    def check_ticker_data_availability(self, ticker: str) -> dict[str, Any]:
-        """Check what data exists for a specific ticker.
+    def check_symbol_data_availability(self, symbol: str) -> dict[str, Any]:
+        """Check what data exists for a specific symbol.
 
         Args:
-            ticker: Stock ticker symbol
+            symbol: Stock symbol
 
         Returns:
             Dict mapping table names to availability status
         """
         availability: dict[str, Any] = {}
 
-        # Check key tables for ticker-specific data
+        # Check key tables for symbol-specific data
         tables_to_check = [
-            ("day_bars", "SELECT COUNT(*) FROM day_bars WHERE symbol = %s", [ticker]),
+            ("day_bars", "SELECT COUNT(*) FROM day_bars WHERE symbol = %s", [symbol]),
             (
                 "technical_indicators",
                 "SELECT COUNT(*) FROM technical_indicators WHERE symbol = %s",
-                [ticker],
+                [symbol],
             ),
             (
                 "fundamentals",
                 "SELECT COUNT(*) FROM fundamentals WHERE symbol = %s",
-                [ticker],
+                [symbol],
             ),
             (
                 "news_cache",
                 "SELECT COUNT(*) FROM news_cache WHERE symbol = %s",
-                [ticker],
+                [symbol],
             ),
             (
                 "analyst_ratings",
                 "SELECT COUNT(*) FROM analyst_ratings WHERE symbol = %s",
-                [ticker],
+                [symbol],
             ),
         ]
 
@@ -209,9 +209,9 @@ class CapabilityChecker:
                     }
             except Exception as e:
                 logger.warning(
-                    f"Failed to check {table_name} for {ticker}: {e}",
+                    f"Failed to check {table_name} for {symbol}: {e}",
                     table=table_name,
-                    ticker=ticker,
+                    symbol=symbol,
                 )
                 availability[table_name] = {
                     "exists": False,
@@ -221,21 +221,21 @@ class CapabilityChecker:
 
         return availability
 
-    def ticker_has_capability(
+    def symbol_has_capability(
         self,
-        ticker: str,
+        symbol: str,
         requirement: CapabilityRequirement,
-        ticker_data_availability: dict[str, Any],
+        symbol_data_availability: dict[str, Any],
     ) -> bool:
-        """Check if a ticker has data for a specific capability.
+        """Check if a symbol has data for a specific capability.
 
         Args:
-            ticker: Stock ticker symbol
+            symbol: Stock symbol
             requirement: Capability requirement from trading_requirements.yaml
-            ticker_data_availability: Pre-fetched data availability for ticker
+            symbol_data_availability: Pre-fetched data availability for symbol
 
         Returns:
-            True if ticker has data for this capability
+            True if symbol has data for this capability
         """
         required_tables = requirement.get("tables", [])
 
@@ -243,9 +243,9 @@ class CapabilityChecker:
             # No specific tables required - assume available
             return True
 
-        # Check if ticker has data in ALL required tables
+        # Check if symbol has data in ALL required tables
         for table_name in required_tables:
-            table_avail = ticker_data_availability.get(table_name, {})
+            table_avail = symbol_data_availability.get(table_name, {})
             if not table_avail.get("has_data", False):
                 return False
 

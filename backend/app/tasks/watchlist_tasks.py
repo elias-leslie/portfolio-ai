@@ -128,29 +128,29 @@ def _trigger_auto_backfill(storage: PortfolioStorage) -> None:
             symbols = [str(row[0]) for row in items_result if row[0] is not None]
 
         if symbols:
-            tickers_needing_backfill = detect_missing_historical_data(
+            symbols_needing_backfill = detect_missing_historical_data(
                 storage=storage,
                 symbols=symbols,
                 min_days=30,
                 stale_threshold_days=7,
             )
 
-            if tickers_needing_backfill:
+            if symbols_needing_backfill:
                 logger.info(
                     "auto_backfill_triggered_from_task",
-                    ticker_count=len(tickers_needing_backfill),
-                    tickers=tickers_needing_backfill,
+                    symbol_count=len(symbols_needing_backfill),
+                    symbols=symbols_needing_backfill,
                 )
 
                 # Import here to avoid circular dependency
                 from .ingestion import ingest_historical_ohlcv  # noqa: PLC0415
 
                 # Trigger async backfill (non-blocking)
-                ingest_historical_ohlcv.delay(tickers_needing_backfill, days=252)
+                ingest_historical_ohlcv.delay(symbols_needing_backfill, days=252)
 
                 logger.info(
                     "auto_backfill_task_dispatched_from_task",
-                    ticker_count=len(tickers_needing_backfill),
+                    symbol_count=len(symbols_needing_backfill),
                 )
     except Exception as e:
         logger.error(

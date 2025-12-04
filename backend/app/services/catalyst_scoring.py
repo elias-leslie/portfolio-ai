@@ -182,12 +182,12 @@ def aggregate_catalyst_scores(
     return max(max_negative, min(max_positive, aggregate))
 
 
-def get_active_catalysts_for_ticker(
-    ticker: str,
+def get_active_catalysts_for_symbol(
+    symbol: str,
     news_articles: list[dict[str, str | datetime | float | None]],
     current_date: datetime | None = None,
 ) -> list[CatalystScore]:
-    """Get all active (non-expired) catalysts for a ticker.
+    """Get all active (non-expired) catalysts for a symbol.
 
     Args:
         ticker: Stock symbol

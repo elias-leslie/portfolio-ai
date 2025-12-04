@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-# Sector mappings for ticker classification
+# Sector mappings for symbol classification
 SECTOR_MAPPING: dict[str, str] = {
     # Technology
     "AAPL": "Technology",
@@ -106,37 +106,37 @@ def get_latest_options_flow(storage: PortfolioStorage) -> OptionsFlowData | None
     )
 
 
-def get_ticker_sector(ticker: str) -> str | None:
-    """Get sector for a ticker symbol.
+def get_symbol_sector(symbol: str) -> str | None:
+    """Get sector for a symbol.
 
     Args:
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
 
     Returns:
         Sector name or None if unknown
     """
-    return SECTOR_MAPPING.get(ticker.upper())
+    return SECTOR_MAPPING.get(symbol.upper())
 
 
-def is_ticker_in_active_sector(
-    ticker: str,
+def is_symbol_in_active_sector(
+    symbol: str,
     options_data: OptionsFlowData | None,
     threshold_pct: float = 15.0,
 ) -> bool:
-    """Check if ticker's sector has high options activity.
+    """Check if symbol's sector has high options activity.
 
     Args:
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
         options_data: Latest options flow data
         threshold_pct: Minimum sector weight to be considered "active"
 
     Returns:
-        True if ticker's sector has >= threshold_pct of options volume
+        True if symbol's sector has >= threshold_pct of options volume
     """
     if options_data is None:
         return False
 
-    sector = get_ticker_sector(ticker)
+    sector = get_symbol_sector(symbol)
     if sector is None:
         return False
 
@@ -146,16 +146,16 @@ def is_ticker_in_active_sector(
 
 def get_options_flow_inputs(
     storage: PortfolioStorage,
-    ticker: str,
+    symbol: str,
 ) -> dict[str, float | bool | None]:
     """Get options flow inputs for signal classification.
 
     Args:
         storage: Database storage
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
 
     Returns:
-        Dict with options_call_pct, options_near_term_pct, ticker_in_active_sector
+        Dict with options_call_pct, options_near_term_pct, symbol_in_active_sector
     """
     options_data = get_latest_options_flow(storage)
 
@@ -163,11 +163,11 @@ def get_options_flow_inputs(
         return {
             "options_call_pct": None,
             "options_near_term_pct": None,
-            "ticker_in_active_sector": None,
+            "symbol_in_active_sector": None,
         }
 
     return {
         "options_call_pct": options_data.call_pct,
         "options_near_term_pct": options_data.near_term_pct,
-        "ticker_in_active_sector": is_ticker_in_active_sector(ticker, options_data),
+        "symbol_in_active_sector": is_symbol_in_active_sector(symbol, options_data),
     }

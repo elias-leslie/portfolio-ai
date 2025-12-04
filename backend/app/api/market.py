@@ -523,7 +523,7 @@ async def get_indicator_history(
     period_start = ""
     period_end = ""
 
-    for key, ticker in indicators.items():
+    for key, symbol in indicators.items():
         with storage.connection() as conn:
             query_result = conn.execute(
                 """
@@ -532,7 +532,7 @@ async def get_indicator_history(
                 WHERE symbol = %s AND date >= CURRENT_DATE - %s
                 ORDER BY date ASC
                 """,
-                [ticker, days],
+                [symbol, days],
             )
             rows = query_result.fetchall()
 

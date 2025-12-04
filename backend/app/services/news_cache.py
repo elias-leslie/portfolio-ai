@@ -36,8 +36,8 @@ class NewsCacheManager:
     def __init__(self, storage: PortfolioStorage) -> None:
         self.storage = storage
 
-    def load_cached_articles(self, ticker: str, limit: int) -> CachedArticles:
-        """Load cached articles from database for a given ticker."""
+    def load_cached_articles(self, symbol: str, limit: int) -> CachedArticles:
+        """Load cached articles from database for a given symbol."""
         with self.storage.connection() as conn:
             rows = conn.execute(
                 """
@@ -73,7 +73,7 @@ class NewsCacheManager:
                 ORDER BY fetched_at DESC, published_at DESC NULLS LAST
                 LIMIT %s
                 """,
-                [ticker, limit],
+                [symbol, limit],
             ).fetchall()
 
         articles = [self._row_to_article(row) for row in rows]
@@ -83,7 +83,7 @@ class NewsCacheManager:
     def load_articles_in_window(
         self,
         *,
-        ticker: str,
+        symbol: str,
         start: datetime,
         end: datetime,
         limit: int,
@@ -126,7 +126,7 @@ class NewsCacheManager:
                 ORDER BY fetched_at DESC, published_at DESC NULLS LAST
                 LIMIT %s
                 """,
-                [ticker, start, end, limit],
+                [symbol, start, end, limit],
             ).fetchall()
 
         return [self._row_to_article(row) for row in rows]

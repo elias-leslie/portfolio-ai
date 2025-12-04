@@ -1,6 +1,6 @@
 """Celery task for automated data freshness monitoring and refresh.
 
-VISION.md requirement: <24 hour data freshness for all monitored tickers
+VISION.md requirement: <24 hour data freshness for all monitored symbols
 """
 
 from __future__ import annotations
@@ -23,10 +23,10 @@ logger = get_logger(__name__)
 
 
 def _check_data_freshness_impl() -> dict[str, Any]:
-    """Check watchlist data freshness and identify stale tickers.
+    """Check watchlist data freshness and identify stale symbols.
 
     Returns:
-        Dict with tickers_checked, stale_found, details list
+        Dict with symbols_checked, stale_found, details list
     """
     storage = get_storage()
     now = dt.datetime.now(dt.UTC)
@@ -46,13 +46,13 @@ def _check_data_freshness_impl() -> dict[str, Any]:
 
     if len(rows) == 0:
         return {
-            "tickers_checked": 0,
+            "symbols_checked": 0,
             "stale_found": 0,
-            "stale_tickers": [],
+            "stale_symbols": [],
         }
 
     # Calculate staleness from raw rows (symbol, last_fetched)
-    stale_tickers: list[str] = []
+    stale_symbols: list[str] = []
     for row in rows:
         symbol = str(row[0]) if row[0] is not None else ""
         last_fetched = row[1]
@@ -61,21 +61,21 @@ def _check_data_freshness_impl() -> dict[str, Any]:
             continue
 
         if last_fetched is None:
-            # No snapshot data yet - ticker is stale
-            stale_tickers.append(symbol)
+            # No snapshot data yet - symbol is stale
+            stale_symbols.append(symbol)
         elif isinstance(last_fetched, dt.datetime):
             # Check if older than 24 hours
             age = now - last_fetched
             if age.total_seconds() > 24 * 3600:
-                stale_tickers.append(symbol)
+                stale_symbols.append(symbol)
         else:
             # Unknown type - consider stale
-            stale_tickers.append(symbol)
+            stale_symbols.append(symbol)
 
     return {
-        "tickers_checked": len(rows),
-        "stale_found": len(stale_tickers),
-        "stale_tickers": stale_tickers,
+        "symbols_checked": len(rows),
+        "stale_found": len(stale_symbols),
+        "stale_symbols": stale_symbols,
     }
 
 
@@ -89,19 +89,19 @@ def _check_data_freshness_impl() -> dict[str, Any]:
     retry_jitter=True,
 )  # type: ignore[misc]
 def maintain_data_freshness(self: Task) -> dict[str, Any]:
-    """Check all watchlist tickers for freshness and auto-refresh stale data.
+    """Check all watchlist symbols for freshness and auto-refresh stale data.
 
     VISION.md requirement: <24 hour data freshness for all monitored tables
 
     Process:
     1. Query all watchlist items for last fetched_at timestamp
-    2. Identify tickers with >24 hour stale data
-    3. Auto-refresh stale tickers using existing refresh mechanism
+    2. Identify symbols with >24 hour stale data
+    3. Auto-refresh stale symbols using existing refresh mechanism
     4. Log freshness violations for monitoring
     5. Return summary metrics
 
     Returns:
-        Dict with status, tickers_checked, stale_found, refreshed, failed counts
+        Dict with status, symbols_checked, stale_found, refreshed, failed counts
     """
     task_id = self.request.id
     start_time = dt.datetime.now(dt.UTC)
@@ -110,13 +110,13 @@ def maintain_data_freshness(self: Task) -> dict[str, Any]:
     try:
         # Check freshness
         freshness_result = _check_data_freshness_impl()
-        stale_tickers = freshness_result["stale_tickers"]
+        stale_symbols = freshness_result["stale_symbols"]
 
-        if not stale_tickers:
+        if not stale_symbols:
             duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
             result = {
                 "status": "success",
-                "tickers_checked": freshness_result["tickers_checked"],
+                "symbols_checked": freshness_result["symbols_checked"],
                 "stale_found": 0,
                 "refreshed": 0,
                 "failed": 0,
@@ -125,23 +125,23 @@ def maintain_data_freshness(self: Task) -> dict[str, Any]:
             logger.info("maintain_data_freshness_completed_no_stale", **result)
             return result
 
-        # Refresh stale tickers by triggering full watchlist refresh
-        # Note: refresh_watchlist_scores_task refreshes all tickers
+        # Refresh stale symbols by triggering full watchlist refresh
+        # Note: refresh_watchlist_scores_task refreshes all symbols
         try:
             refresh_watchlist_scores_task.apply(args=["default"])
-            refreshed = len(stale_tickers)
+            refreshed = len(stale_symbols)
             failed = 0
-            logger.info("watchlist_refreshed", stale_count=len(stale_tickers))
+            logger.info("watchlist_refreshed", stale_count=len(stale_symbols))
         except Exception as e:
             refreshed = 0
-            failed = len(stale_tickers)
+            failed = len(stale_symbols)
             logger.error("watchlist_refresh_failed", error=str(e))
 
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
         result = {
             "status": "success",
-            "tickers_checked": freshness_result["tickers_checked"],
-            "stale_found": len(stale_tickers),
+            "symbols_checked": freshness_result["symbols_checked"],
+            "stale_found": len(stale_symbols),
             "refreshed": refreshed,
             "failed": failed,
             "execution_time_sec": round(duration, 2),

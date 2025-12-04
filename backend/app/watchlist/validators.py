@@ -6,7 +6,7 @@ from fastapi import HTTPException
 
 
 def validate_symbol(symbol: str | None) -> str:
-    """Validate and normalize a stock ticker symbol.
+    """Validate and normalize a stock symbol.
 
     Args:
         symbol: Raw symbol string from user input

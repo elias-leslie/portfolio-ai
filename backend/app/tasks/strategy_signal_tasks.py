@@ -137,7 +137,7 @@ def _build_signal_inputs(
         analyst_buy_pct=None,
         options_call_pct=None,
         options_near_term_pct=None,
-        ticker_in_active_sector=False,
+        symbol_in_active_sector=False,
         earnings_surprise_score=None,
         earnings_surprise_reasons=None,
     )

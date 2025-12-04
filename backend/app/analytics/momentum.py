@@ -36,9 +36,9 @@ WEAK_DOWNTREND = -20.0  # -20% to -5% = weak downtrend
 
 @dataclass
 class MomentumMetrics:
-    """Multi-horizon momentum metrics for a ticker."""
+    """Multi-horizon momentum metrics for a symbol."""
 
-    ticker: str
+    symbol: str
     as_of_date: date
     momentum_5d: float | None  # 5-day return %
     momentum_20d: float | None  # 20-day return %
@@ -50,14 +50,14 @@ class MomentumMetrics:
 
 def calculate_momentum(
     storage: PortfolioStorage,
-    ticker: str,
+    symbol: str,
     target_date: date | None = None,
 ) -> MomentumMetrics | None:
-    """Calculate multi-horizon momentum for a ticker.
+    """Calculate multi-horizon momentum for a symbol.
 
     Args:
         storage: Database storage
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
         target_date: Date to calculate momentum for (default: most recent)
 
     Returns:
@@ -76,10 +76,10 @@ def calculate_momentum(
         ORDER BY date DESC
         LIMIT $3
     """
-    result = storage.query(query, [ticker, str(target_date), lookback])
+    result = storage.query(query, [symbol, str(target_date), lookback])
 
     if result.is_empty():
-        logger.warning("momentum_no_data", ticker=ticker)
+        logger.warning("momentum_no_data", symbol=symbol)
         return None
 
     # Convert to dict: date -> close
@@ -120,7 +120,7 @@ def calculate_momentum(
     trend_alignment = _check_trend_alignment(momentum_values)
 
     return MomentumMetrics(
-        ticker=ticker,
+        symbol=symbol,
         as_of_date=latest_date,
         momentum_5d=momentum_values.get(5),
         momentum_20d=momentum_values.get(20),
@@ -264,19 +264,19 @@ def calculate_momentum_score(
 
 def get_momentum_inputs(
     storage: PortfolioStorage,
-    ticker: str,
+    symbol: str,
 ) -> dict[str, float | bool | str | None]:
     """Get momentum inputs for signal classification.
 
     Args:
         storage: Database storage
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
 
     Returns:
         Dict with momentum_5d, momentum_20d, momentum_60d, momentum_252d,
         momentum_regime, momentum_aligned
     """
-    momentum = calculate_momentum(storage, ticker)
+    momentum = calculate_momentum(storage, symbol)
 
     if momentum is None:
         return {

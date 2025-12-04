@@ -4,8 +4,8 @@ This package contains the refactored scoring service split into focused modules:
 - redis_tracker: Redis-based progress tracking
 - batch_loader: Batch data loading operations
 - context: Scoring context initialization
-- processor: Single ticker processing
-- aggregator: Multi-ticker processing and result aggregation
+- processor: Single symbol processing
+- aggregator: Multi-symbol processing and result aggregation
 
 Main entry point:
 - refresh_watchlist_scores: Public API for scoring watchlist items
@@ -19,7 +19,7 @@ from ..scoring import (
     _is_stale,
     calculate_watchlist_scores,
 )
-from .aggregator import aggregate_results, process_all_tickers
+from .aggregator import aggregate_results, process_all_symbols
 from .batch_loader import (
     fetch_news_batch,
     fetch_prices_in_batches,
@@ -28,7 +28,7 @@ from .batch_loader import (
     trigger_auto_backfill,
 )
 from .context import initialize_scoring_context
-from .processor import process_single_ticker
+from .processor import process_single_symbol
 from .redis_tracker import complete_refresh, get_redis_client, init_refresh_status, update_progress
 from .scoring_service import refresh_watchlist_scores
 
@@ -48,9 +48,9 @@ __all__ = [
     "load_latest_technical",
     # Batch loading
     "load_watchlist_items",
-    "process_all_tickers",
+    "process_all_symbols",
     # Processing
-    "process_single_ticker",
+    "process_single_symbol",
     # Main API
     "refresh_watchlist_scores",
     "trigger_auto_backfill",

@@ -102,13 +102,13 @@ def calculate_marginal_var(
             error="No positions",
         )
 
-    tickers = list(weights.keys())
+    symbols = list(weights.keys())
 
     # Get covariance matrix
-    cov_matrix = get_covariance_matrix(storage, tickers)
+    cov_matrix = get_covariance_matrix(storage, symbols)
     if cov_matrix is None:
-        update_covariance_matrix(storage, tickers)
-        cov_matrix = get_covariance_matrix(storage, tickers, max_age_hours=1)
+        update_covariance_matrix(storage, symbols)
+        cov_matrix = get_covariance_matrix(storage, symbols, max_age_hours=1)
 
     if cov_matrix is None:
         return PortfolioMarginalVaR(
@@ -121,8 +121,8 @@ def calculate_marginal_var(
 
     # Calculate portfolio variance (daily)
     port_variance = 0.0
-    for t1 in tickers:
-        for t2 in tickers:
+    for t1 in symbols:
+        for t2 in symbols:
             cov = cov_matrix.get((t1, t2), 0.0)
             port_variance += weights[t1] * weights[t2] * cov
 
@@ -148,12 +148,12 @@ def calculate_marginal_var(
     total_component_var = 0.0
     z_alpha = 1.645  # 95% confidence
 
-    for symbol in tickers:
+    for symbol in symbols:
         weight = weights[symbol]
 
         # Cov(asset_i, portfolio) = sum_j(w_j * Cov(i,j))
         cov_with_portfolio = sum(
-            weights.get(t2, 0) * cov_matrix.get((symbol, t2), 0.0) for t2 in tickers
+            weights.get(t2, 0) * cov_matrix.get((symbol, t2), 0.0) for t2 in symbols
         )
 
         # Marginal VaR = (Cov(i, P) / sigma_P) * z

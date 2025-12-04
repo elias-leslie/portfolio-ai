@@ -55,7 +55,7 @@ def calculate_piotroski_f_score(symbol: str) -> tuple[int | None, dict | None, s
     9. Asset turnover increasing
 
     Args:
-        symbol: Stock ticker symbol
+        symbol: Stock symbol
 
     Returns:
         Tuple of (f_score, components_dict, error_message)
@@ -184,7 +184,7 @@ def calculate_altman_z_score(symbol: str) -> tuple[float | None, str | None, str
     - Z < 1.81: "Distress Zone" - high bankruptcy risk
 
     Args:
-        symbol: Stock ticker symbol
+        symbol: Stock symbol
 
     Returns:
         Tuple of (z_score, zone, error_message)
@@ -257,7 +257,7 @@ def get_financial_health_scores(symbol: str) -> FinancialHealthScores:
     """Get both F-Score and Z-Score for a symbol.
 
     Args:
-        symbol: Stock ticker symbol
+        symbol: Stock symbol
 
     Returns:
         FinancialHealthScores with both scores

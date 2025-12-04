@@ -25,9 +25,9 @@ storage = get_storage()
 
 # Response models
 class ValuationMetrics(BaseModel):
-    """Valuation metrics for a single ticker."""
+    """Valuation metrics for a single symbol."""
 
-    ticker: str = Field(..., description="Stock ticker symbol")
+    symbol: str = Field(..., description="Stock symbol")
     pe_ratio_trailing: float | None = Field(None, description="Trailing P/E ratio")
     pe_ratio_forward: float | None = Field(None, description="Forward P/E ratio")
     ps_ratio: float | None = Field(None, description="Price-to-Sales ratio (TTM)")
@@ -39,20 +39,20 @@ class ValuationMetrics(BaseModel):
 
 
 class ValuationMetricsListResponse(BaseModel):
-    """Response containing valuation metrics for multiple tickers."""
+    """Response containing valuation metrics for multiple symbols."""
 
-    tickers: list[ValuationMetrics] = Field(..., description="Valuation metrics for each ticker")
-    count: int = Field(..., description="Number of tickers returned")
+    symbols: list[ValuationMetrics] = Field(..., description="Valuation metrics for each symbol")
+    count: int = Field(..., description="Number of symbols returned")
 
 
 # Endpoints
 
 
-@router.get("/{ticker}", response_model=ValuationMetrics)
+@router.get("/{symbol}", response_model=ValuationMetrics)
 async def get_valuation_metrics(
-    ticker: Annotated[str, Path(description="Stock ticker symbol (e.g., AAPL)")],
+    symbol: Annotated[str, Path(description="Stock symbol (e.g., AAPL)")],
 ) -> ValuationMetrics:
-    """Get valuation metrics for a single ticker.
+    """Get valuation metrics for a single symbol.
 
     Retrieves the most recent cached valuation metrics including:
     - Trailing and forward P/E ratios
@@ -60,20 +60,20 @@ async def get_valuation_metrics(
     - PEG ratio, dividend yield, and payout ratio
 
     Args:
-        ticker: Stock ticker symbol (e.g., AAPL, NVDA, TSLA)
+        symbol: Stock symbol (e.g., AAPL, NVDA, TSLA)
 
     Returns:
         ValuationMetrics with all available metrics
 
     Raises:
-        HTTPException: 404 if ticker not found in cache
+        HTTPException: 404 if symbol not found in cache
     """
     try:
         with storage.connection() as conn:
             result = conn.execute(
                 """
                 SELECT
-                    ticker,
+                    symbol,
                     pe_ratio_trailing,
                     pe_ratio_forward,
                     ps_ratio,
@@ -87,17 +87,17 @@ async def get_valuation_metrics(
                 ORDER BY as_of_date DESC
                 LIMIT 1
                 """,
-                [ticker.upper()],
+                [symbol.upper()],
             ).fetchone()
 
             if result is None:
                 raise HTTPException(
                     status_code=404,
-                    detail=f"No valuation metrics found for ticker {ticker}",
+                    detail=f"No valuation metrics found for symbol {symbol}",
                 )
 
             # Type narrowing for database result tuple
-            ticker_val = result[0]
+            symbol_val = result[0]
             pe_trailing = result[1]
             pe_forward = result[2]
             ps = result[3]
@@ -107,11 +107,11 @@ async def get_valuation_metrics(
             payout = result[7]
             as_of = result[8]
 
-            # Validate ticker is a string
-            if not isinstance(ticker_val, str):
+            # Validate symbol is a string
+            if not isinstance(symbol_val, str):
                 raise HTTPException(
                     status_code=500,
-                    detail="Invalid ticker data type from database",
+                    detail="Invalid symbol data type from database",
                 )
 
             # Validate and convert float fields (allowing None for optional fields)
@@ -135,7 +135,7 @@ async def get_valuation_metrics(
                 raise HTTPException(status_code=500, detail="Invalid as_of_date")
 
             return ValuationMetrics(
-                ticker=ticker_val,
+                symbol=symbol_val,
                 pe_ratio_trailing=pe_trailing if isinstance(pe_trailing, (int, float)) else None,
                 pe_ratio_forward=pe_forward if isinstance(pe_forward, (int, float)) else None,
                 ps_ratio=ps if isinstance(ps, (int, float)) else None,
@@ -149,7 +149,7 @@ async def get_valuation_metrics(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("Failed to get valuation metrics", ticker=ticker, error=str(e))
+        logger.error("Failed to get valuation metrics", symbol=symbol, error=str(e))
         raise HTTPException(
             status_code=500,
             detail=f"Failed to fetch valuation metrics: {e}",
@@ -158,48 +158,48 @@ async def get_valuation_metrics(
 
 @router.get("", response_model=ValuationMetricsListResponse)
 async def get_valuation_metrics_batch(
-    tickers: Annotated[
+    symbols: Annotated[
         str,
         Query(
-            description="Comma-separated list of ticker symbols (e.g., AAPL,NVDA,TSLA)",
+            description="Comma-separated list of symbols (e.g., AAPL,NVDA,TSLA)",
         ),
     ] = "",
 ) -> ValuationMetricsListResponse:
-    """Get valuation metrics for multiple tickers.
+    """Get valuation metrics for multiple symbols.
 
-    Retrieves the most recent cached valuation metrics for a list of tickers.
+    Retrieves the most recent cached valuation metrics for a list of symbols.
 
     Args:
-        tickers: Comma-separated list of ticker symbols
+        symbols: Comma-separated list of symbols
 
     Returns:
-        List of ValuationMetrics for requested tickers
+        List of ValuationMetrics for requested symbols
 
     Raises:
-        HTTPException: 400 if no tickers provided or 500 on database error
+        HTTPException: 400 if no symbols provided or 500 on database error
     """
     try:
-        if not tickers.strip():
+        if not symbols.strip():
             raise HTTPException(
                 status_code=400,
-                detail="No tickers provided. Use ?tickers=AAPL,NVDA,TSLA",
+                detail="No symbols provided. Use ?symbols=AAPL,NVDA,TSLA",
             )
 
-        # Parse and normalize tickers
-        ticker_list = [t.strip().upper() for t in tickers.split(",") if t.strip()]
+        # Parse and normalize symbols
+        symbol_list = [t.strip().upper() for t in symbols.split(",") if t.strip()]
 
-        if not ticker_list:
+        if not symbol_list:
             raise HTTPException(
                 status_code=400,
-                detail="No valid tickers provided",
+                detail="No valid symbols provided",
             )
 
         with storage.connection() as conn:
-            # Build IN clause for multiple tickers
-            placeholders = ",".join(["%s"] * len(ticker_list))
+            # Build IN clause for multiple symbols
+            placeholders = ",".join(["%s"] * len(symbol_list))
             query = f"""
                 SELECT
-                    ticker,
+                    symbol,
                     pe_ratio_trailing,
                     pe_ratio_forward,
                     ps_ratio,
@@ -217,32 +217,32 @@ async def get_valuation_metrics_batch(
             # This is safe since str is a valid ParameterValue
             params: list[
                 str | int | float | bool | datetime | list[str | int | float | bool | None] | None
-            ] = list(ticker_list)
+            ] = list(symbol_list)
 
             results = conn.execute(query, params).fetchall()
 
             if not results:
                 raise HTTPException(
                     status_code=404,
-                    detail=f"No valuation metrics found for tickers: {tickers}",
+                    detail=f"No valuation metrics found for symbols: {symbols}",
                 )
 
-            # Build response, taking only the most recent per ticker
-            metrics_by_ticker: dict[str, ValuationMetrics] = {}
+            # Build response, taking only the most recent per symbol
+            metrics_by_symbol: dict[str, ValuationMetrics] = {}
 
             for result in results:
-                ticker_symbol = result[0]
+                symbol_symbol = result[0]
 
-                # Type narrowing for ticker_symbol
-                if not isinstance(ticker_symbol, str):
+                # Type narrowing for symbol_symbol
+                if not isinstance(symbol_symbol, str):
                     logger.warning(
-                        "Skipping result with non-string ticker",
-                        ticker_type=type(ticker_symbol),
+                        "Skipping result with non-string symbol",
+                        symbol_type=type(symbol_symbol),
                     )
                     continue
 
-                # Skip if we already have a (more recent) entry for this ticker
-                if ticker_symbol in metrics_by_ticker:
+                # Skip if we already have a (more recent) entry for this symbol
+                if symbol_symbol in metrics_by_symbol:
                     continue
 
                 # Type narrowing and validation for result fields
@@ -259,7 +259,7 @@ async def get_valuation_metrics_batch(
                 if not isinstance(as_of, str):
                     logger.warning(
                         "Skipping result with non-string as_of_date",
-                        ticker=ticker_symbol,
+                        symbol=symbol_symbol,
                         as_of_type=type(as_of),
                     )
                     continue
@@ -268,8 +268,8 @@ async def get_valuation_metrics_batch(
                 def to_float_or_none(val: object) -> float | None:
                     return val if isinstance(val, (int, float)) else None
 
-                metrics_by_ticker[ticker_symbol] = ValuationMetrics(
-                    ticker=ticker_symbol,
+                metrics_by_symbol[symbol_symbol] = ValuationMetrics(
+                    symbol=symbol_symbol,
                     pe_ratio_trailing=to_float_or_none(pe_trailing),
                     pe_ratio_forward=to_float_or_none(pe_forward),
                     ps_ratio=to_float_or_none(ps),
@@ -281,8 +281,8 @@ async def get_valuation_metrics_batch(
                 )
 
             return ValuationMetricsListResponse(
-                tickers=list(metrics_by_ticker.values()),
-                count=len(metrics_by_ticker),
+                symbols=list(metrics_by_symbol.values()),
+                count=len(metrics_by_symbol),
             )
 
     except HTTPException:

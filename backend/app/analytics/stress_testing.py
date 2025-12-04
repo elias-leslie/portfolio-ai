@@ -168,7 +168,7 @@ SCENARIO_DEFINITIONS: dict[StressScenario, ScenarioShocks] = {
 class PositionStressResult:
     """Stress test results for a single position."""
 
-    ticker: str
+    symbol: str
     sector: str
     current_value: float
     stressed_value: float
@@ -200,7 +200,7 @@ def run_stress_test(
 
     Args:
         positions: List of position dicts with keys:
-            - ticker: str
+            - symbol: str
             - sector: str
             - current_value: float
         scenario: StressScenario to apply
@@ -214,7 +214,7 @@ def run_stress_test(
     total_stressed = 0.0
 
     for pos in positions:
-        ticker = pos["ticker"]
+        symbol = pos["symbol"]
         sector = pos.get("sector", "Unknown")
         current_value = pos["current_value"]
 

@@ -89,9 +89,9 @@ class APIQuotaInfo(BaseModel):
 
 
 class DayBarFreshnessInfo(BaseModel):
-    """Data freshness for a ticker's day_bars."""
+    """Data freshness for a symbol's day_bars."""
 
-    ticker: str
+    symbol: str
     last_updated: datetime | None = None
     age_days: int | None = None
 
@@ -287,7 +287,7 @@ class HealthCheckService:
         logger.info(
             "detailed_health_check_performed",
             status=base_health["status"],
-            day_bars_tickers=len(day_bars_freshness_model),
+            day_bars_symbols=len(day_bars_freshness_model),
             celery_active=celery_worker_model.active,
             api_keys_configured=sum(1 for k in api_keys_model if k.configured),
             disk_percent_used=disk_usage_model.percent_used,

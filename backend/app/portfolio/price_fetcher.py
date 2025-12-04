@@ -144,7 +144,7 @@ class PriceDataFetcher:
         request = DatasetRequest(
             dataset=DATASET_REFERENCE,
             profile=None,
-            tickers=symbols,
+            symbols=symbols,
             start=dt.date.today(),
             end=dt.date.today(),
             timezone="UTC",
@@ -200,15 +200,15 @@ class PriceDataFetcher:
                 else:
                     # No valid price data
                     error_msg = "No price data available"
-                    result[ticker] = PriceData(
-                        symbol=ticker,
+                    result[symbol] = PriceData(
+                        symbol=symbol,
                         price=0.0,
                         source=source,
                         error=error_msg,
                     )
                     logger.warning(
                         "price_fetch_no_data",
-                        symbol=ticker,
+                        symbol=symbol,
                         error=error_msg,
                         source=source,
                     )

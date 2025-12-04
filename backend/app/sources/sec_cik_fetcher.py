@@ -41,7 +41,7 @@ class CIKSource(TypedDict):
 CIK_SOURCES: list[CIKSource] = [
     {
         "name": "SEC Official",
-        "url": "https://www.sec.gov/files/company_tickers.json",
+        "url": "https://www.sec.gov/files/company_symbols.json",
         "headers": {
             "User-Agent": "Portfolio AI https://github.com/kasadis/portfolio-ai contact@example.com"
         },
@@ -49,7 +49,7 @@ CIK_SOURCES: list[CIKSource] = [
     },
     {
         "name": "SEC Exchange Data",
-        "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+        "url": "https://www.sec.gov/files/company_symbols_exchange.json",
         "headers": {
             "User-Agent": "Portfolio AI https://github.com/kasadis/portfolio-ai contact@example.com"
         },
@@ -57,13 +57,13 @@ CIK_SOURCES: list[CIKSource] = [
     },
     {
         "name": "GitHub Mirror (team-headstart)",
-        "url": "https://raw.githubusercontent.com/team-headstart/Financial-Analysis-and-Automation-with-LLMs/main/company_tickers.json",
+        "url": "https://raw.githubusercontent.com/team-headstart/Financial-Analysis-and-Automation-with-LLMs/main/company_symbols.json",
         "headers": {},
         "priority": 3,
     },
     {
         "name": "GitHub Mirror (pChitral)",
-        "url": "https://raw.githubusercontent.com/pChitral/ETL-SEC-EDGAR-10-k-Filings/main/company_tickers.json",
+        "url": "https://raw.githubusercontent.com/pChitral/ETL-SEC-EDGAR-10-k-Filings/main/company_symbols.json",
         "headers": {},
         "priority": 4,
     },
@@ -79,7 +79,7 @@ def fetch_cik_mapping(timeout: int = 30) -> dict[str, str]:
         timeout: Request timeout in seconds
 
     Returns:
-        Dictionary mapping ticker symbols to CIK numbers (zero-padded to 10 digits)
+        Dictionary mapping symbols to CIK numbers (zero-padded to 10 digits)
 
     Raises:
         Exception: If all sources fail
@@ -123,7 +123,7 @@ def fetch_cik_mapping(timeout: int = 30) -> dict[str, str]:
             logger.info(
                 "cik_fetch_success",
                 source=source["name"],
-                total_tickers=len(mapping),
+                total_symbols=len(mapping),
             )
 
             return mapping
@@ -148,9 +148,9 @@ def _parse_cik_data(data: dict[str, Any] | list[Any], source_name: str) -> dict[
     """Parse CIK data from various formats.
 
     SEC data can come in different formats:
-    - Dict with numeric keys: {"0": {"cik_str": 123, "ticker": "AAPL", ...}, ...}
+    - Dict with numeric keys: {"0": {"cik_str": 123, "symbol": "AAPL", ...}, ...}
     - Dict with "data" key: {"data": [...]}
-    - List of objects: [{"cik_str": 123, "ticker": "AAPL", ...}, ...]
+    - List of objects: [{"cik_str": 123, "symbol": "AAPL", ...}, ...]
 
     Args:
         data: JSON data from source
@@ -165,43 +165,43 @@ def _parse_cik_data(data: dict[str, Any] | list[Any], source_name: str) -> dict[
         # Format 1: Dict with numeric string keys
         if isinstance(data, dict) and all(k.isdigit() for k in list(data.keys())[:5]):
             for entry in data.values():
-                ticker = entry.get("ticker", "").strip().upper()
+                symbol = entry.get("symbol", "").strip().upper()
                 cik = entry.get("cik_str") or entry.get("cik")
-                if ticker and cik:
-                    mapping[ticker] = str(cik).zfill(10)
+                if symbol and cik:
+                    mapping[symbol] = str(cik).zfill(10)
 
         # Format 2: Dict with "data" key
         elif isinstance(data, dict) and "data" in data:
             for entry in data["data"]:
                 if isinstance(entry, dict):
-                    ticker = entry.get("ticker", "").strip().upper()
+                    symbol = entry.get("symbol", "").strip().upper()
                     cik = entry.get("cik_str") or entry.get("cik")
-                    if ticker and cik:
-                        mapping[ticker] = str(cik).zfill(10)
+                    if symbol and cik:
+                        mapping[symbol] = str(cik).zfill(10)
                 elif isinstance(entry, list) and len(entry) >= 3:
-                    # Some formats use arrays: [ticker, cik, name]
-                    ticker = str(entry[0]).strip().upper()
+                    # Some formats use arrays: [symbol, cik, name]
+                    symbol = str(entry[0]).strip().upper()
                     cik = entry[1]
-                    if ticker and cik:
-                        mapping[ticker] = str(cik).zfill(10)
+                    if symbol and cik:
+                        mapping[symbol] = str(cik).zfill(10)
 
         # Format 3: List of dicts
         elif isinstance(data, list):
             for entry in data:
-                ticker = entry.get("ticker", "").strip().upper()
+                symbol = entry.get("symbol", "").strip().upper()
                 cik = entry.get("cik_str") or entry.get("cik")
-                if ticker and cik:
-                    mapping[ticker] = str(cik).zfill(10)
+                if symbol and cik:
+                    mapping[symbol] = str(cik).zfill(10)
 
-        # Format 4: Direct ticker→CIK dict
+        # Format 4: Direct symbol→CIK dict
         elif isinstance(data, dict):
-            for ticker, value in data.items():
+            for symbol, value in data.items():
                 if isinstance(value, (int, str)):
-                    mapping[ticker.strip().upper()] = str(value).zfill(10)
+                    mapping[symbol.strip().upper()] = str(value).zfill(10)
                 elif isinstance(value, dict):
                     cik = value.get("cik_str") or value.get("cik")
                     if cik:
-                        mapping[ticker.strip().upper()] = str(cik).zfill(10)
+                        mapping[symbol.strip().upper()] = str(cik).zfill(10)
 
     except Exception as exc:
         logger.error(
@@ -226,7 +226,7 @@ def save_to_database(storage: PortfolioStorage, mapping: dict[str, str]) -> None
 
     Args:
         storage: PortfolioStorage instance
-        mapping: Ticker→CIK mapping dictionary
+        mapping: Symbol→CIK mapping dictionary
     """
     logger.info("cik_db_save_start", total_entries=len(mapping))
 
@@ -238,7 +238,7 @@ def save_to_database(storage: PortfolioStorage, mapping: dict[str, str]) -> None
         for i in range(0, len(items), batch_size):
             batch = items[i : i + batch_size]
 
-            for ticker, cik in batch:
+            for symbol, cik in batch:
                 conn.execute(
                     """
                     INSERT INTO sec_cik_cache (symbol, cik, last_updated)
@@ -247,7 +247,7 @@ def save_to_database(storage: PortfolioStorage, mapping: dict[str, str]) -> None
                         cik = EXCLUDED.cik,
                         last_updated = EXCLUDED.last_updated
                     """,
-                    (ticker, cik, datetime.now(UTC)),
+                    (symbol, cik, datetime.now(UTC)),
                 )
 
             logger.debug(
@@ -269,7 +269,7 @@ def load_from_database(storage: PortfolioStorage) -> dict[str, str]:
         storage: PortfolioStorage instance
 
     Returns:
-        Dictionary mapping ticker→CIK
+        Dictionary mapping symbol→CIK
     """
     logger.info("cik_db_load_start")
 
@@ -284,28 +284,28 @@ def load_from_database(storage: PortfolioStorage) -> dict[str, str]:
     return mapping
 
 
-def get_cik(ticker: str, storage: PortfolioStorage | None = None) -> str | None:
-    """Get CIK for a ticker symbol.
+def get_cik(symbol: str, storage: PortfolioStorage | None = None) -> str | None:
+    """Get CIK for a symbol.
 
     Args:
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
         storage: Optional PortfolioStorage instance (loads from DB if provided)
 
     Returns:
         CIK number (10-digit string) or None if not found
     """
-    ticker = ticker.strip().upper()
+    symbol = symbol.strip().upper()
 
     if storage:
         try:
             with storage.connection() as conn:
                 row = conn.execute(
-                    "SELECT cik FROM sec_cik_cache WHERE symbol = ?", (ticker,)
+                    "SELECT cik FROM sec_cik_cache WHERE symbol = ?", (symbol,)
                 ).fetchone()
                 # Cast to string (database returns Union type)
                 return str(row[0]) if row else None
         except Exception as exc:
-            logger.warning("cik_lookup_error", ticker=ticker, error=str(exc))
+            logger.warning("cik_lookup_error", symbol=symbol, error=str(exc))
             return None
 
     return None
@@ -320,7 +320,7 @@ def fetch_and_save(storage: PortfolioStorage) -> dict[str, str]:
         storage: PortfolioStorage instance
 
     Returns:
-        Ticker→CIK mapping dictionary
+        Symbol→CIK mapping dictionary
     """
     logger.info("cik_fetch_and_save_start")
 
@@ -332,7 +332,7 @@ def fetch_and_save(storage: PortfolioStorage) -> dict[str, str]:
 
     logger.info(
         "cik_fetch_and_save_complete",
-        total_tickers=len(mapping),
+        total_symbols=len(mapping),
     )
 
     return mapping
@@ -353,7 +353,7 @@ def main() -> None:
         print("Commands:")
         print("  fetch   - Fetch CIK mapping and save to database")
         print("  stats   - Show cache statistics")
-        print("  test    - Test with sample tickers")
+        print("  test    - Test with sample symbols")
         sys.exit(1)
 
     command = sys.argv[1]
@@ -362,17 +362,17 @@ def main() -> None:
     if command == "fetch":
         print("Fetching CIK mapping from SEC sources...")
         mapping = fetch_and_save(storage)
-        print(f"✅ Successfully cached {len(mapping):,} ticker→CIK mappings")
+        print(f"✅ Successfully cached {len(mapping):,} symbol→CIK mappings")
 
         # Show sample
         print("\nSample mappings:")
-        for ticker, cik in list(mapping.items())[:10]:
-            print(f"  {ticker:8} → {cik}")
+        for symbol, cik in list(mapping.items())[:10]:
+            print(f"  {symbol:8} → {cik}")
 
     elif command == "stats":
         print("Loading CIK cache statistics...")
         mapping = load_from_database(storage)
-        print(f"📊 Total tickers in cache: {len(mapping):,}")
+        print(f"📊 Total symbols in cache: {len(mapping):,}")
 
         # Show last update time
         with storage.connection() as conn:
@@ -382,12 +382,12 @@ def main() -> None:
 
     elif command == "test":
         print("Testing CIK lookups...")
-        test_tickers = ["NVDA", "AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "META"]
+        test_symbols = ["NVDA", "AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "META"]
 
-        for ticker in test_tickers:
-            result = get_cik(ticker, storage)
+        for symbol in test_symbols:
+            result = get_cik(symbol, storage)
             status = "✅" if result else "❌"
-            print(f"  {status} {ticker:8} → {result or 'NOT FOUND'}")
+            print(f"  {status} {symbol:8} → {result or 'NOT FOUND'}")
 
     else:
         print(f"Unknown command: {command}")

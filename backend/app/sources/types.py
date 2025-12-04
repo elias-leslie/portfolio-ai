@@ -137,7 +137,7 @@ class NewsRecordDict(TypedDict, total=False):
     Uses total=False for flexibility across different sources.
     """
 
-    ticker: str
+    symbol: str
     headline: str
     url: str
     summary: str
@@ -155,7 +155,7 @@ class SECFilingDict(TypedDict):
     Filing data with material event classification.
     """
 
-    ticker: str
+    symbol: str
     filing_type: str
     filing_date: str
     accession_number: str

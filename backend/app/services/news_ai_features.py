@@ -97,13 +97,13 @@ class NewsAIFeatures:
         return articles
 
     def apply_plain_language_translation(
-        self, articles: list[NewsArticle], watchlist_tickers: list[str] | None = None
+        self, articles: list[NewsArticle], watchlist_symbols: list[str] | None = None
     ) -> list[NewsArticle]:
         """Apply plain language translation to articles.
 
         Args:
             articles: List of scored NewsArticle objects
-            watchlist_tickers: Optional list of tickers in user's watchlist for context-aware insights
+            watchlist_symbols: Optional list of symbols in user's watchlist for context-aware insights
 
         Returns:
             List of NewsArticle objects with impact_summary and actionable_insight set
@@ -146,7 +146,7 @@ class NewsAIFeatures:
                 )
 
                 # Generate actionable insight
-                in_watchlist = article.symbol in watchlist_tickers if watchlist_tickers else False
+                in_watchlist = article.symbol in watchlist_symbols if watchlist_symbols else False
                 article.actionable_insight = generate_actionable_insight(
                     category=event_category,
                     sentiment_score=article.sentiment.score,

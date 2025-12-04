@@ -71,7 +71,7 @@ def check_data_source_health(self: Task) -> dict[str, Any]:
             request = DatasetRequest(
                 dataset=DATASET_DAY,
                 profile=None,
-                tickers=[test_symbol],
+                symbols=[test_symbol],
                 start=test_date_start,
                 end=test_date_end,
             )

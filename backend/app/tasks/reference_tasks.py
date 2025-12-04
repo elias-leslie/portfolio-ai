@@ -127,11 +127,11 @@ def _extract_valuation_metrics(payload: dict[str, Any]) -> ValuationMetricsDict:
     }
 
 
-def _update_valuation_metrics(ticker: str, source: str, payload: dict[str, Any]) -> None:
-    """Update valuation metrics for a single ticker/source combination.
+def _update_valuation_metrics(symbol: str, source: str, payload: dict[str, Any]) -> None:
+    """Update valuation metrics for a single symbol/source combination.
 
     Args:
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
         source: Data source (e.g., "fundamentals")
         payload: JSON payload dict containing valuation data
     """
@@ -141,14 +141,14 @@ def _update_valuation_metrics(ticker: str, source: str, payload: dict[str, Any])
     if not any(v is not None for v in metrics.values()):
         logger.debug(
             "no_valuation_metrics_found",
-            ticker=ticker,
+            symbol=symbol,
             source=source,
         )
         return
 
     storage = get_storage()
     with storage.connection() as conn:
-        # Find the most recent cache entry for this ticker/source
+        # Find the most recent cache entry for this symbol/source
         result = conn.execute(
             """
             SELECT as_of_date
@@ -157,13 +157,13 @@ def _update_valuation_metrics(ticker: str, source: str, payload: dict[str, Any])
             ORDER BY as_of_date DESC
             LIMIT 1
             """,
-            [ticker, source],
+            [symbol, source],
         ).fetchone()
 
         if result is None:
             logger.debug(
                 "no_cache_entry_found",
-                ticker=ticker,
+                symbol=symbol,
                 source=source,
             )
             return
@@ -191,7 +191,7 @@ def _update_valuation_metrics(ticker: str, source: str, payload: dict[str, Any])
                 metrics["peg_ratio"],
                 metrics["dividend_yield"],
                 metrics["payout_ratio"],
-                ticker,
+                symbol,
                 source,
                 as_of_date,
             ],
@@ -218,7 +218,7 @@ def _update_valuation_metrics(ticker: str, source: str, payload: dict[str, Any])
                 updated_at = NOW()
             """,
             [
-                ticker,
+                symbol,
                 as_of_date,
                 metrics["pe_ratio_trailing"],
                 metrics["pe_ratio_forward"],
@@ -234,7 +234,7 @@ def _update_valuation_metrics(ticker: str, source: str, payload: dict[str, Any])
 
         logger.info(
             "valuation_metrics_updated",
-            ticker=ticker,
+            symbol=symbol,
             source=source,
             metrics_count=sum(1 for v in metrics.values() if v is not None),
         )
@@ -269,18 +269,18 @@ def _process_cache_entries() -> tuple[int, int]:
             total_entries=len(results),
         )
 
-        # Track which ticker/source combinations we've processed
+        # Track which symbol/source combinations we've processed
         # (only process most recent for each pair)
         processed_pairs: set[tuple[str, str]] = set()
 
-        for ticker, source, payload_json in results:
-            # Type guard: ensure ticker and source are strings
-            if not isinstance(ticker, str) or not isinstance(source, str):
+        for symbol, source, payload_json in results:
+            # Type guard: ensure symbol and source are strings
+            if not isinstance(symbol, str) or not isinstance(source, str):
                 continue
 
-            pair = (ticker, source)
+            pair = (symbol, source)
 
-            # Skip if we've already processed this ticker/source combo
+            # Skip if we've already processed this symbol/source combo
             if pair in processed_pairs:
                 continue
 
@@ -296,7 +296,7 @@ def _process_cache_entries() -> tuple[int, int]:
             except json.JSONDecodeError:
                 logger.warning(
                     "invalid_json_payload",
-                    ticker=ticker,
+                    symbol=symbol,
                     source=source,
                 )
                 continue
@@ -307,10 +307,10 @@ def _process_cache_entries() -> tuple[int, int]:
             # Only count as "updated" if we found at least one metric
             if any(v is not None for v in metrics.values()):
                 entries_updated += 1
-                # Ensure ticker and source are strings before passing
-                ticker_str = str(ticker) if ticker is not None else ""
+                # Ensure symbol and source are strings before passing
+                symbol_str = str(symbol) if symbol is not None else ""
                 source_str = str(source) if source is not None else ""
-                _update_valuation_metrics(ticker_str, source_str, payload)
+                _update_valuation_metrics(symbol_str, source_str, payload)
 
     return entries_processed, entries_updated
 
@@ -446,7 +446,7 @@ def refresh_yfinance_reference_data(self: Task) -> dict[str, int | str]:
         # Store in reference_cache table
         symbols_updated = len(df)
 
-        # DataFrame should have: ticker, as_of_date, payload, source
+        # DataFrame should have: symbol, as_of_date, payload, source
         # Insert into reference_cache
         with storage.connection() as conn:
             for row in df.iter_rows(named=True):
@@ -496,7 +496,7 @@ def _fetch_stale_symbols() -> list[str]:
     - yfinance data older than 7 days
 
     Returns:
-        List of ticker symbols needing backup data
+        List of symbols needing backup data
     """
     storage = get_storage()
 
@@ -525,7 +525,7 @@ def _store_alphavantage_payload(symbols: list[str]) -> int:
     cache entries.
 
     Args:
-        symbols: List of ticker symbols to fetch
+        symbols: List of symbols to fetch
 
     Returns:
         Number of symbols successfully stored

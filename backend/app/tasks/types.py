@@ -92,7 +92,7 @@ class TechnicalIndicatorResultDict(TaskResultDict, total=False):
 
     success: int
     failed: int
-    tickers_processed: int
+    symbols_processed: int
 
 
 class CapabilityResultDict(TaskResultDict, total=False):

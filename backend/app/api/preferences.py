@@ -50,7 +50,7 @@ class PreferencesResponse(BaseModel):
         ..., description="Lookback window (hours) used for news aggregation and summaries"
     )
     news_max_articles: int = Field(
-        ..., description="Default maximum number of headlines per ticker/market view"
+        ..., description="Default maximum number of headlines per symbol/market view"
     )
     frontend_poll_interval: int = Field(..., description="Frontend polling interval in seconds")
     # Legacy watchlist fields (kept for backward compatibility)
@@ -104,7 +104,7 @@ class PreferencesUpdate(BaseModel):
     )
     news_max_articles: int | None = Field(
         None,
-        description="Maximum headlines returned per ticker bundle (allowed: 5, 10, 15, 20)",
+        description="Maximum headlines returned per symbol bundle (allowed: 5, 10, 15, 20)",
     )
     frontend_poll_interval: int | None = Field(
         None, ge=10, le=300, description="Frontend polling interval (10-300 seconds)"

@@ -76,7 +76,7 @@ def _load_training_data(training_data_path: Path) -> tuple[list[dict[str, Any]],
 
         labeled_hashes = set()
         for article in existing_data:
-            hash_key = f"{article['ticker']}_{article['headline'][:50]}"
+            hash_key = f"{article['symbol']}_{article['headline'][:50]}"
             labeled_hashes.add(hash_key)
     else:
         existing_data = []

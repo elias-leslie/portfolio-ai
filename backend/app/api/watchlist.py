@@ -16,7 +16,7 @@ from app.logging_config import get_logger
 from app.middleware.cache import cache_response, invalidate_endpoint_cache
 from app.storage import get_storage
 from app.utils.watchlist_cache import invalidate_watchlist_cache
-from app.watchlist.background_tasks import schedule_new_ticker_tasks, schedule_refresh_tasks
+from app.watchlist.background_tasks import schedule_new_symbol_tasks, schedule_refresh_tasks
 from app.watchlist.history import build_score_timeline
 from app.watchlist.models import WatchlistSnapshot
 from app.watchlist.response_builders import (
@@ -79,7 +79,7 @@ async def list_watchlist_items(request: Request) -> WatchlistListResponse:
 @router.post("", response_model=WatchlistItemResponse, status_code=201)
 async def create_watchlist_item(data: WatchlistItemCreate) -> WatchlistItemResponse:
     """
-    Add a ticker to the watchlist.
+    Add a symbol to the watchlist.
 
     Args:
         data: Watchlist item creation data
@@ -124,8 +124,8 @@ async def create_watchlist_item(data: WatchlistItemCreate) -> WatchlistItemRespo
 
         logger.info("Watchlist item created", item_id=item_id, symbol=symbol)
 
-        # Trigger background data population for the new ticker
-        schedule_new_ticker_tasks(symbol)
+        # Trigger background data population for the new symbol
+        schedule_new_symbol_tasks(symbol)
 
         return WatchlistItemResponse(
             id=item_id,
@@ -472,11 +472,11 @@ async def refresh_watchlist_scores(data: RefreshRequest) -> RefreshResponse:
             )
 
         items = items_df.to_dicts()
-        tickers = [item["symbol"] for item in items]
-        logger.info("Refreshing tickers", tickers=tickers, count=len(tickers))
+        symbols = [item["symbol"] for item in items]
+        logger.info("Refreshing symbols", symbols=symbols, count=len(symbols))
 
-        # Trigger background data refresh for ALL tickers
-        schedule_refresh_tasks(tickers)
+        # Trigger background data refresh for ALL symbols
+        schedule_refresh_tasks(symbols)
 
         # Do immediate synchronous refresh with Redis progress tracking
         result = refresh_watchlist_scores_service(storage)

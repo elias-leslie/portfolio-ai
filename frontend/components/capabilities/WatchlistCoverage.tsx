@@ -203,8 +203,7 @@ export function WatchlistCoverage({ data }: WatchlistCoverageProps) {
   };
 
   // Get unique analysis types from coverage_by_analysis of all symbols
-  // Support both API field names (watchlist_tickers/ticker_coverage and watchlist_symbols/symbol_coverage)
-  const symbolCoverage = data.ticker_coverage || data.symbol_coverage || {};
+  const symbolCoverage = data.symbol_coverage || {};
   const analysisTypes = Array.from(
     new Set(
       Object.values(symbolCoverage).flatMap((symbolData) =>
@@ -213,7 +212,7 @@ export function WatchlistCoverage({ data }: WatchlistCoverageProps) {
     )
   ).sort();
 
-  const symbols = data.watchlist_tickers || data.watchlist_symbols || [];
+  const symbols = data.watchlist_symbols || [];
 
   if (symbols.length === 0) {
     return (

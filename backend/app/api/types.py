@@ -148,7 +148,7 @@ class SentimentDict(TypedDict, total=False):
 class NewsArticleDict(TypedDict, total=False):
     """News article record."""
 
-    ticker: str
+    symbol: str
     headline: str
     url: str | None
     summary: str | None
@@ -171,7 +171,7 @@ class NewsArticleDict(TypedDict, total=False):
 class NewsSummaryDict(TypedDict, total=False):
     """Aggregated news sentiment summary."""
 
-    ticker: str
+    symbol: str
     score: float | None
     score_change: float | None
     positive_count: int
@@ -224,7 +224,7 @@ class SystemStatusDict(TypedDict):
 class ArticleRowDict(TypedDict, total=False):
     """Row dict from database query for article."""
 
-    ticker: str
+    symbol: str
     headline: str
     url: str | None
     summary: str | None
@@ -247,7 +247,7 @@ class ArticleRowDict(TypedDict, total=False):
 class IndicatorRowDict(TypedDict, total=False):
     """Row dict from technical_indicators table."""
 
-    ticker: str
+    symbol: str
     date: str
     close_price: float | None
     rsi_14: float | None

@@ -24,7 +24,7 @@ class SectorLabel(TypedDict):
     description: str  # What companies: "Apple, Microsoft, NVIDIA, software companies"
 
 
-# Indicator mappings: ticker symbol → plain language + tooltip
+# Indicator mappings: symbol → plain language + tooltip
 INDICATOR_LABELS: dict[str, IndicatorLabel] = {
     "vix": {
         "label": "Market Volatility",

@@ -37,7 +37,7 @@ LARGE_MISS_PCT = -10.0  # <-10% miss = very bearish
 class EarningsSurprise:
     """Single earnings surprise record."""
 
-    ticker: str
+    symbol: str
     earnings_date: date
     fiscal_quarter: str | None
     eps_estimate: Decimal | None
@@ -49,13 +49,13 @@ class EarningsSurprise:
 
 
 def fetch_earnings_surprises_from_finnhub(
-    ticker: str,
+    symbol: str,
     limit: int = 4,
 ) -> list[EarningsSurprise]:
     """Fetch earnings surprises from Finnhub API.
 
     Args:
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
         limit: Maximum number of recent earnings to fetch
 
     Returns:
@@ -63,14 +63,14 @@ def fetch_earnings_surprises_from_finnhub(
     """
     api_key = os.environ.get("FINNHUB_API_KEY")
     if not api_key:
-        logger.warning("finnhub_api_key_missing", ticker=ticker)
+        logger.warning("finnhub_api_key_missing", symbol=symbol)
         return []
 
     try:
         # Finnhub earnings calendar endpoint returns historical and future earnings
         # We need to filter for past earnings with actuals
         url = "https://finnhub.io/api/v1/stock/earnings"
-        params = {"symbol": ticker, "token": api_key}
+        params = {"symbol": symbol, "token": api_key}
 
         response = requests.get(url, params=params, timeout=10)
         response.raise_for_status()
@@ -114,7 +114,7 @@ def fetch_earnings_surprises_from_finnhub(
 
             surprises.append(
                 EarningsSurprise(
-                    ticker=ticker,
+                    symbol=symbol,
                     earnings_date=datetime.strptime(period, "%Y-%m-%d").date()
                     if period
                     else date.today(),
@@ -128,16 +128,16 @@ def fetch_earnings_surprises_from_finnhub(
 
         logger.debug(
             "finnhub_earnings_fetched",
-            ticker=ticker,
+            symbol=symbol,
             count=len(surprises),
         )
         return surprises
 
     except requests.RequestException as e:
-        logger.warning("finnhub_earnings_fetch_failed", ticker=ticker, error=str(e))
+        logger.warning("finnhub_earnings_fetch_failed", symbol=symbol, error=str(e))
         return []
     except (KeyError, ValueError, TypeError) as e:
-        logger.warning("finnhub_earnings_parse_failed", ticker=ticker, error=str(e))
+        logger.warning("finnhub_earnings_parse_failed", symbol=symbol, error=str(e))
         return []
 
 
@@ -182,7 +182,7 @@ def save_earnings_surprises(
                         updated_at = NOW()
                     """,
                     [
-                        surprise.ticker,
+                        surprise.symbol,
                         surprise.earnings_date.isoformat(),
                         surprise.fiscal_quarter,
                         float(surprise.eps_estimate) if surprise.eps_estimate else None,
@@ -197,7 +197,7 @@ def save_earnings_surprises(
             except Exception as e:
                 logger.warning(
                     "earnings_surprise_save_failed",
-                    ticker=surprise.ticker,
+                    symbol=surprise.symbol,
                     error=str(e),
                 )
         conn.commit()
@@ -206,14 +206,14 @@ def save_earnings_surprises(
 
 def get_recent_earnings_surprises(
     storage: PortfolioStorage,
-    ticker: str,
+    symbol: str,
     quarters: int = 4,
 ) -> list[dict[str, str | float | None]]:
-    """Get recent earnings surprises for a ticker from database.
+    """Get recent earnings surprises for a symbol from database.
 
     Args:
         storage: Database storage instance
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
         quarters: Number of recent quarters to fetch
 
     Returns:
@@ -228,7 +228,7 @@ def get_recent_earnings_surprises(
         ORDER BY earnings_date DESC
         LIMIT $2
         """,
-        [ticker, quarters],
+        [symbol, quarters],
     )
 
     if result.is_empty():
@@ -239,7 +239,7 @@ def get_recent_earnings_surprises(
 
 def calculate_earnings_surprise_score(
     storage: PortfolioStorage,
-    ticker: str,
+    symbol: str,
     quarters: int = 4,
 ) -> tuple[int, list[str]]:
     """Calculate 0-4 point earnings surprise score for signal classification.
@@ -253,13 +253,13 @@ def calculate_earnings_surprise_score(
 
     Args:
         storage: Database storage instance
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
         quarters: Number of quarters to analyze
 
     Returns:
         (score, reasons) tuple
     """
-    surprises = get_recent_earnings_surprises(storage, ticker, quarters)
+    surprises = get_recent_earnings_surprises(storage, symbol, quarters)
 
     if not surprises:
         return 0, []  # No data = no score
@@ -308,18 +308,18 @@ def calculate_earnings_surprise_score(
 
 def fetch_and_store_earnings_surprises(
     storage: PortfolioStorage,
-    ticker: str,
+    symbol: str,
 ) -> int:
     """Convenience function to fetch and store earnings surprises.
 
     Args:
         storage: Database storage instance
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
 
     Returns:
         Number of records saved
     """
-    surprises = fetch_earnings_surprises_from_finnhub(ticker)
+    surprises = fetch_earnings_surprises_from_finnhub(symbol)
     if surprises:
         return save_earnings_surprises(storage, surprises)
     return 0

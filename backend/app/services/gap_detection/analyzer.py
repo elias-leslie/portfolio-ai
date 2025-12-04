@@ -126,23 +126,23 @@ class GapAnalyzer:
 
         return result
 
-    def analyze_ticker_gaps(self, ticker: str) -> dict[str, Any]:
-        """Analyze gaps for a specific ticker.
+    def analyze_symbol_gaps(self, symbol: str) -> dict[str, Any]:
+        """Analyze gaps for a specific symbol.
 
         Args:
-            ticker: Stock ticker symbol
+            symbol: Stock symbol
 
         Returns:
-            Dict with ticker-specific gap analysis including:
+            Dict with symbol-specific gap analysis including:
             - readiness_score: 0-100% overall readiness
             - coverage_by_analysis: Coverage % per analysis type
             - missing_capabilities: List of missing capabilities
             - confidence_level: LOW/MEDIUM/HIGH based on readiness
         """
-        logger.info("analyzing_ticker_gaps", ticker=ticker)
+        logger.info("analyzing_symbol_gaps", symbol=symbol)
 
-        # Check what data exists for this ticker
-        ticker_data_availability = self.capability_checker.check_ticker_data_availability(ticker)
+        # Check what data exists for this symbol
+        symbol_data_availability = self.capability_checker.check_symbol_data_availability(symbol)
 
         # Calculate coverage per analysis type
         coverage_by_analysis: dict[str, float] = {}
@@ -157,15 +157,15 @@ class GapAnalyzer:
             available_required = sum(
                 1
                 for req in required_caps
-                if self.capability_checker.ticker_has_capability(
-                    ticker, req, ticker_data_availability
+                if self.capability_checker.symbol_has_capability(
+                    symbol, req, symbol_data_availability
                 )
             )
             available_recommended = sum(
                 1
                 for req in recommended_caps
-                if self.capability_checker.ticker_has_capability(
-                    ticker, req, ticker_data_availability
+                if self.capability_checker.symbol_has_capability(
+                    symbol, req, symbol_data_availability
                 )
             )
 
@@ -182,8 +182,8 @@ class GapAnalyzer:
 
             # Track missing capabilities
             for req in required_caps:
-                if not self.capability_checker.ticker_has_capability(
-                    ticker, req, ticker_data_availability
+                if not self.capability_checker.symbol_has_capability(
+                    symbol, req, symbol_data_availability
                 ):
                     all_missing.append(f"{req['capability']} ({analysis_type})")
 
@@ -202,12 +202,12 @@ class GapAnalyzer:
             confidence_level = "LOW"
 
         return {
-            "ticker": ticker,
+            "symbol": symbol,
             "readiness_score": round(readiness_score, 1),
             "confidence_level": confidence_level,
             "coverage_by_analysis": {k: round(v, 1) for k, v in coverage_by_analysis.items()},
             "missing_capabilities": all_missing[:10],  # Top 10 most critical
-            "data_availability": ticker_data_availability,
+            "data_availability": symbol_data_availability,
         }
 
     def _calculate_coverage(

@@ -168,7 +168,7 @@ def generate_narrative_texts(
     """Generate all narrative text components.
 
     Args:
-        symbol: Stock ticker symbol
+        symbol: Stock symbol
         signal_type: BUY/HOLD/AVOID signal
         signal_strength: Signal strength (0-10)
         entry_price: Calculated entry price
@@ -394,7 +394,7 @@ def generate_narrative_and_trade_levels(
         try:
             conn_mgr = ConnectionManager()
             gap_detector = GapDetector(conn_mgr)
-            gap_result = gap_detector.analyze_ticker_gaps(symbol)
+            gap_result = gap_detector.analyze_symbol_gaps(symbol)
         except Exception as e:
             logger.warning("gap_analysis_failed", symbol=symbol, error=str(e))
 

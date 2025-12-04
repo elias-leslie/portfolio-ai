@@ -143,21 +143,21 @@ class NewsService:
     # --------------------------------------------------------------------- #
     def get_news_intelligence(
         self,
-        ticker: str | None = None,
+        symbol: str | None = None,
         *,
         max_articles: int = DEFAULT_MAX_ARTICLES,
         force_refresh: bool = False,
     ) -> NewsBundle:
-        """Get unified news intelligence bundle for market or specific ticker.
+        """Get unified news intelligence bundle for market or specific symbol.
 
-        This method unifies market-level and ticker-specific news fetching
+        This method unifies market-level and symbol-specific news fetching
         into a single interface, supporting both use cases:
-        - Market news: ticker=None returns broad market news
-        - Ticker news: ticker="AAPL" returns symbol-specific news
+        - Market news: symbol=None returns broad market news
+        - Symbol news: symbol="AAPL" returns symbol-specific news
 
         Args:
-            ticker: Optional ticker symbol. If None, returns market-level news.
-                   If provided, returns ticker-specific news.
+            symbol: Optional symbol. If None, returns market-level news.
+                   If provided, returns symbol-specific news.
             max_articles: Maximum number of articles to return
             force_refresh: If True, bypass cache and fetch fresh data
 
@@ -169,18 +169,18 @@ class NewsService:
             >>> market_news = service.get_news_intelligence(None)
             >>> aapl_news = service.get_news_intelligence("AAPL")
         """
-        if ticker is None:
+        if symbol is None:
             # Market-level news
             return self._get_bundle(
-                ticker=MARKET_TICKER,
+                symbol=MARKET_TICKER,
                 query="stock market",
                 max_articles=max_articles,
                 force_refresh=force_refresh,
             )
-        # Ticker-specific news
-        query = f"{ticker} stock"
+        # Symbol-specific news
+        query = f"{symbol} stock"
         return self._get_bundle(
-            ticker=ticker.upper(),
+            symbol=symbol.upper(),
             query=query,
             max_articles=max_articles,
             force_refresh=force_refresh,
@@ -233,7 +233,7 @@ class NewsService:
         request = DatasetRequest(
             dataset=DATASET_NEWS,
             profile=None,
-            tickers=[query],
+            symbols=[query],
             start=now - self.ttl,
             end=now,
             timezone="UTC",
@@ -245,9 +245,9 @@ class NewsService:
         else:
             raw_entries = dataframe.to_dicts()
 
-        articles = self.processor.score_entries(ticker=query, entries=raw_entries, now=now)
+        articles = self.processor.score_entries(symbol=query, entries=raw_entries, now=now)
         summary = self.processor.build_summary(
-            ticker=query,
+            symbol=query,
             articles=articles,
             previous_articles=[],
             as_of=now,
@@ -261,7 +261,7 @@ class NewsService:
     def _get_bundle(
         self,
         *,
-        ticker: str,
+        symbol: str,
         query: str,
         max_articles: int,
         force_refresh: bool,
@@ -273,23 +273,23 @@ class NewsService:
         else:
             overfetch_limit = max_articles
 
-        cached = self.cache_manager.load_cached_articles(ticker, limit=overfetch_limit)
+        cached = self.cache_manager.load_cached_articles(symbol, limit=overfetch_limit)
         is_stale = cached.is_stale(self.ttl, now)
 
         if force_refresh or is_stale:
             try:
                 self.cache_refresher.refresh_cache(
-                    ticker=ticker, query=query, max_articles=max_articles, now=now
+                    symbol=symbol, query=query, max_articles=max_articles, now=now
                 )
             except Exception as exc:  # pragma: no cover - network/API failure
                 logger.warning(
                     "news_refresh_failed",
-                    ticker=ticker,
+                    symbol=symbol,
                     error=str(exc),
                 )
 
             # Reload after refresh attempt
-            cached = self.cache_manager.load_cached_articles(ticker, limit=overfetch_limit)
+            cached = self.cache_manager.load_cached_articles(symbol, limit=overfetch_limit)
 
         recent_articles = self.processor.select_recent_articles(
             cached.articles,
@@ -298,21 +298,21 @@ class NewsService:
             ttl=self.ttl,
         )
         previous_window_articles = self.cache_manager.load_articles_in_window(
-            ticker=ticker,
+            symbol=symbol,
             start=now - (self.ttl * 2),
             end=now - self.ttl,
             limit=max_articles,
         )
 
         summary = self.processor.build_summary(
-            ticker=ticker,
+            symbol=symbol,
             articles=recent_articles,
             previous_articles=previous_window_articles,
             as_of=now,
             ttl=self.ttl,
         )
 
-        return NewsBundle(symbol=ticker, summary=summary, articles=recent_articles)
+        return NewsBundle(symbol=symbol, summary=summary, articles=recent_articles)
 
     def get_health(self) -> dict[str, Any]:
         """Return lightweight health metrics for the news pipeline."""

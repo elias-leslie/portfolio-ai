@@ -455,11 +455,11 @@ def get_database_size_task(self: Task) -> dict[str, int | str | float | list[dic
 def refresh_sec_cik_cache(self: Task) -> dict[str, Any]:
     """Refresh SEC CIK cache from SEC EDGAR.
 
-    Fetches the latest ticker→CIK mapping from SEC and updates the database.
+    Fetches the latest symbol→CIK mapping from SEC and updates the database.
     This enables SEC filing lookups for all tracked symbols.
 
     Returns:
-        Dict with task_id, tickers_updated, duration_seconds, success
+        Dict with task_id, symbols_updated, duration_seconds, success
     """
     task_id = self.request.id
     start_time = dt.datetime.now(dt.UTC)
@@ -474,7 +474,7 @@ def refresh_sec_cik_cache(self: Task) -> dict[str, Any]:
 
         result_dict: dict[str, Any] = {
             "task_id": task_id,
-            "tickers_updated": len(mapping),
+            "symbols_updated": len(mapping),
             "duration_seconds": round(duration, 2),
             "success": True,
         }

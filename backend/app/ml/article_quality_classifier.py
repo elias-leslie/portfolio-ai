@@ -20,7 +20,7 @@ from sklearn.model_selection import train_test_split
 class ArticleFeatures(TypedDict):
     """Feature vector for an article."""
 
-    ticker: str
+    symbol: str
     headline: str
     summary: str
     sentiment_score: float

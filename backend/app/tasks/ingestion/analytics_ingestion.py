@@ -30,7 +30,7 @@ logger = get_logger(__name__)
 )  # type: ignore[misc]
 def update_portfolio_covariance(  # type: ignore[no-untyped-def]
     self,
-    tickers: list[str] | None = None,
+    symbols: list[str] | None = None,
     lookback_days: int = 252,
 ) -> dict[str, int | str]:
     """Update portfolio covariance matrix for proper risk calculation (GAP-020).
@@ -39,18 +39,18 @@ def update_portfolio_covariance(  # type: ignore[no-untyped-def]
     Uses the formula: sigma_portfolio = sqrt(w' * Cov * w)
 
     Args:
-        tickers: Optional list of tickers. If None, uses all watchlist + portfolio tickers.
+        symbols: Optional list of symbols. If None, uses all watchlist + portfolio symbols.
         lookback_days: Number of trading days for calculation (default: 252 = 1 year)
 
     Returns:
         Dict with task results:
         - task_id: Celery task ID
-        - tickers_count: Number of unique tickers processed
+        - symbols_count: Number of unique symbols processed
         - pairs_updated: Number of covariance pairs calculated
         - status: 'success' or 'error'
 
     Example:
-        >>> update_portfolio_covariance.delay()  # Updates all watchlist/portfolio tickers
+        >>> update_portfolio_covariance.delay()  # Updates all watchlist/portfolio symbols
         >>> update_portfolio_covariance.delay(["AAPL", "MSFT", "GOOGL"])  # Custom list
     """
     from app.analytics.covariance import update_covariance_matrix  # noqa: PLC0415
@@ -59,48 +59,48 @@ def update_portfolio_covariance(  # type: ignore[no-untyped-def]
     logger.info(
         "update_portfolio_covariance_started",
         task_id=task_id,
-        tickers=tickers,
+        symbols=symbols,
         lookback_days=lookback_days,
     )
 
     try:
         storage = get_storage()
 
-        # If no tickers specified, get all watchlist + portfolio tickers
-        if tickers is None:
-            # Get watchlist tickers
+        # If no symbols specified, get all watchlist + portfolio symbols
+        if symbols is None:
+            # Get watchlist symbols
             watchlist_result = storage.query("SELECT DISTINCT symbol FROM watchlist_items")
-            watchlist_tickers = (
+            watchlist_symbols = (
                 watchlist_result.get_column("symbol").to_list()
                 if not watchlist_result.is_empty()
                 else []
             )
 
-            # Get portfolio tickers
+            # Get portfolio symbols
             portfolio_result = storage.query("SELECT DISTINCT symbol FROM portfolio_positions")
-            portfolio_tickers = (
+            portfolio_symbols = (
                 portfolio_result.get_column("symbol").to_list()
                 if not portfolio_result.is_empty()
                 else []
             )
 
             # Combine and deduplicate
-            all_tickers = list(set(watchlist_tickers + portfolio_tickers))
-            tickers = all_tickers if all_tickers else ["SPY"]
+            all_symbols = list(set(watchlist_symbols + portfolio_symbols))
+            symbols = all_symbols if all_symbols else ["SPY"]
 
         # Update covariance matrix
-        pairs_updated = update_covariance_matrix(storage, tickers, lookback_days)
+        pairs_updated = update_covariance_matrix(storage, symbols, lookback_days)
 
         logger.info(
             "update_portfolio_covariance_completed",
             task_id=task_id,
-            tickers_count=len(tickers),
+            symbols_count=len(symbols),
             pairs_updated=pairs_updated,
         )
 
         return {
             "task_id": str(task_id),
-            "tickers_count": len(tickers),
+            "symbols_count": len(symbols),
             "pairs_updated": pairs_updated,
             "status": "success",
         }
@@ -126,9 +126,9 @@ def update_portfolio_covariance(  # type: ignore[no-untyped-def]
 )  # type: ignore[misc]
 def update_earnings_surprises(  # type: ignore[no-untyped-def]
     self,
-    tickers: list[str] | None = None,
+    symbols: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Update earnings surprise data for watchlist/portfolio tickers (GAP-003).
+    """Update earnings surprise data for watchlist/portfolio symbols (GAP-003).
 
     Fetches historical earnings surprise data (EPS estimate vs actual)
     from Finnhub API and stores in earnings_surprises table.
@@ -136,12 +136,12 @@ def update_earnings_surprises(  # type: ignore[no-untyped-def]
     Scheduled to run weekly (earnings are quarterly events).
 
     Args:
-        tickers: Optional list of tickers. If None, uses watchlist + portfolio tickers.
+        symbols: Optional list of symbols. If None, uses watchlist + portfolio symbols.
 
     Returns:
         Dict with:
         - task_id: Celery task ID
-        - tickers_count: Number of tickers processed
+        - symbols_count: Number of symbols processed
         - records_saved: Number of earnings records saved
         - status: success or error
     """
@@ -152,65 +152,65 @@ def update_earnings_surprises(  # type: ignore[no-untyped-def]
     logger.info(
         "update_earnings_surprises_started",
         task_id=task_id,
-        tickers=tickers[:5] if tickers else None,
+        symbols=symbols[:5] if symbols else None,
     )
 
     try:
         storage = get_storage()
 
-        # Auto-discover tickers if not provided
-        if not tickers:
-            # Get watchlist tickers
+        # Auto-discover symbols if not provided
+        if not symbols:
+            # Get watchlist symbols
             watchlist_result = storage.query("SELECT DISTINCT symbol FROM watchlist_items")
-            watchlist_tickers = (
+            watchlist_symbols = (
                 watchlist_result.get_column("symbol").to_list()
                 if not watchlist_result.is_empty()
                 else []
             )
 
-            # Get portfolio tickers
+            # Get portfolio symbols
             portfolio_result = storage.query("SELECT DISTINCT symbol FROM portfolio_positions")
-            portfolio_tickers = (
+            portfolio_symbols = (
                 portfolio_result.get_column("symbol").to_list()
                 if not portfolio_result.is_empty()
                 else []
             )
 
             # Combine and deduplicate
-            all_tickers = list(set(watchlist_tickers + portfolio_tickers))
-            tickers = all_tickers if all_tickers else []
+            all_symbols = list(set(watchlist_symbols + portfolio_symbols))
+            symbols = all_symbols if all_symbols else []
 
-        if not tickers:
-            logger.info("update_earnings_surprises_no_tickers", task_id=task_id)
+        if not symbols:
+            logger.info("update_earnings_surprises_no_symbols", task_id=task_id)
             return {
                 "task_id": str(task_id),
-                "tickers_count": 0,
+                "symbols_count": 0,
                 "records_saved": 0,
                 "status": "success",
             }
 
         total_records = 0
-        for ticker in tickers:
+        for symbol in symbols:
             try:
-                records = fetch_and_store_earnings_surprises(storage, ticker)
+                records = fetch_and_store_earnings_surprises(storage, symbol)
                 total_records += records
             except Exception as e:
                 logger.warning(
-                    "earnings_surprise_ticker_failed",
-                    ticker=ticker,
+                    "earnings_surprise_symbol_failed",
+                    symbol=symbol,
                     error=str(e),
                 )
 
         logger.info(
             "update_earnings_surprises_completed",
             task_id=task_id,
-            tickers_count=len(tickers),
+            symbols_count=len(symbols),
             records_saved=total_records,
         )
 
         return {
             "task_id": str(task_id),
-            "tickers_count": len(tickers),
+            "symbols_count": len(symbols),
             "records_saved": total_records,
             "status": "success",
         }

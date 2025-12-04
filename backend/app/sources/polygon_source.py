@@ -42,8 +42,8 @@ class PolygonSource(BaseSource):
     def fetch_day_bars(self, request: DatasetRequest) -> pl.DataFrame | None:
         """Fetch daily OHLCV bars using Polygon grouped_daily endpoint.
 
-        Strategy: Fetch all tickers for each date, then filter to requested tickers.
-        This is more efficient than per-ticker requests for multiple tickers.
+        Strategy: Fetch all symbols for each date, then filter to requested symbols.
+        This is more efficient than per-symbol requests for multiple symbols.
         """
         frames: list[pl.DataFrame] = []
         dates = _iterate_dates(request.start, request.end)
@@ -51,12 +51,12 @@ class PolygonSource(BaseSource):
         logger.info(
             "polygon_fetch_day_bars_start",
             num_dates=len(dates),
-            num_tickers=len(list(request.tickers)),
+            num_symbols=len(list(request.symbols)),
         )
 
         for iso_date in dates:
             try:
-                # Use grouped_daily endpoint: get all tickers for a date
+                # Use grouped_daily endpoint: get all symbols for a date
                 # Polygon API path: /v2/aggs/grouped/locale/us/market/stocks/{date}
                 path = f"/v2/aggs/grouped/locale/us/market/stocks/{iso_date}"
                 params = {
@@ -69,7 +69,7 @@ class PolygonSource(BaseSource):
                 # Map response to schema
                 mapping_config = {
                     "field_mapping": {
-                        "T": "ticker",
+                        "T": "symbol",
                         "o": "open",
                         "h": "high",
                         "l": "low",
@@ -112,38 +112,38 @@ class PolygonSource(BaseSource):
         # Combine all dates
         df_all = pl.concat(frames, how="vertical_relaxed")
 
-        # Filter to requested tickers
-        if request.tickers:
-            ticker_list = list(request.tickers)
-            df_all = df_all.filter(pl.col("ticker").is_in(ticker_list))
+        # Filter to requested symbols
+        if request.symbols:
+            symbol_list = list(request.symbols)
+            df_all = df_all.filter(pl.col("symbol").is_in(symbol_list))
 
         logger.info(
             "polygon_fetch_day_bars_complete",
             total_rows=len(df_all),
-            unique_tickers=df_all["ticker"].n_unique(),
+            unique_symbols=df_all["symbol"].n_unique(),
         )
 
         return df_all
 
     def fetch_reference_payload(
-        self, tickers: Iterable[str], as_of: dt.date
+        self, symbols: Iterable[str], as_of: dt.date
     ) -> pl.DataFrame | None:
-        """Fetch company reference data (ticker details) from Polygon.
+        """Fetch company reference data (symbol details) from Polygon.
 
         Returns:
-            DataFrame with columns: ticker, as_of_date, payload (JSON string), source
+            DataFrame with columns: symbol, as_of_date, payload (JSON string), source
         """
         records = []
 
-        for ticker in tickers:
+        for symbol in symbols:
             try:
-                # Use ticker details endpoint
-                response = self.client.get_ticker_details(ticker)
+                # Use symbol details endpoint
+                response = self.client.get_symbol_details(symbol)
 
                 # Extract the results payload
                 payload_dict = response.get("results", {})
                 if not payload_dict:
-                    logger.debug("polygon_no_reference_data", ticker=ticker)
+                    logger.debug("polygon_no_reference_data", symbol=symbol)
                     continue
 
                 # Convert to JSON string for storage
@@ -158,12 +158,12 @@ class PolygonSource(BaseSource):
                     }
                 )
 
-                logger.debug("polygon_reference_fetched", ticker=ticker)
+                logger.debug("polygon_reference_fetched", symbol=symbol)
 
             except Exception as e:
                 logger.warning(
                     "polygon_reference_error",
-                    ticker=ticker,
+                    symbol=symbol,
                     error=str(e),
                     error_type=type(e).__name__,
                 )
@@ -175,23 +175,23 @@ class PolygonSource(BaseSource):
 
         logger.info(
             "polygon_reference_complete",
-            num_tickers=len(records),
+            num_symbols=len(records),
         )
 
         return pl.DataFrame(records)
 
     def fetch_news_payload(
-        self, tickers: Iterable[str], start: dt.datetime, end: dt.datetime
+        self, symbols: Iterable[str], start: dt.datetime, end: dt.datetime
     ) -> pl.DataFrame | None:
         """Fetch news articles from Polygon reference news endpoint."""
         records: list[dict[str, Any]] = []
         start_iso = start.astimezone(dt.UTC).isoformat()
         end_iso = end.astimezone(dt.UTC).isoformat()
 
-        ticker_list = list(tickers) or ["__MARKET__"]
+        symbol_list = list(symbols) or ["__MARKET__"]
 
-        for ticker in ticker_list:
-            is_market_request = ticker in (None, "__MARKET__")
+        for symbol in symbol_list:
+            is_market_request = symbol in (None, "__MARKET__")
             try:
                 params = {
                     "published_utc.gte": start_iso,
@@ -201,14 +201,14 @@ class PolygonSource(BaseSource):
                     "limit": 50,
                 }
                 if not is_market_request:
-                    params["ticker"] = ticker
+                    params["symbol"] = symbol
 
                 response = self.client.get("/v2/reference/news", params)
                 results = response.get("results", [])
                 if not results:
                     logger.debug(
                         "polygon_news_empty",
-                        ticker="__MARKET__" if is_market_request else ticker,
+                        symbol="__MARKET__" if is_market_request else symbol,
                     )
                     continue
 
@@ -240,27 +240,27 @@ class PolygonSource(BaseSource):
 
                 logger.debug(
                     "polygon_news_fetched",
-                    ticker="__MARKET__" if is_market_request else ticker,
+                    symbol="__MARKET__" if is_market_request else symbol,
                     articles=len(results),
                 )
 
             except Exception as exc:
                 logger.warning(
                     "polygon_news_error",
-                    ticker="__MARKET__" if is_market_request else ticker,
+                    symbol="__MARKET__" if is_market_request else symbol,
                     error=str(exc),
                     error_type=type(exc).__name__,
                 )
                 continue
 
         if not records:
-            logger.info("polygon_news_no_articles", tickers=list(tickers))
+            logger.info("polygon_news_no_articles", symbols=list(symbols))
             return None
 
         logger.info(
             "polygon_news_complete",
             total_articles=len(records),
-            tickers=len({record["ticker"] for record in records}),
+            symbols=len({record["symbol"] for record in records}),
         )
 
         return pl.DataFrame(records)
@@ -271,15 +271,15 @@ class PolygonSource(BaseSource):
     # ============================================
     def fetch_intraday_bars(
         self,
-        ticker: str,
+        symbol: str,
         date: dt.date,
         timespan: str = "minute",
         multiplier: int = 1,
     ) -> pl.DataFrame | None:
-        """Fetch intraday bars for a ticker.
+        """Fetch intraday bars for a symbol.
 
         Args:
-            ticker: Stock symbol
+            symbol: Stock symbol
             date: Date to fetch
             timespan: Bar size ('minute', 'hour')
             multiplier: Multiplier for timespan (e.g., 5 for 5-minute bars)
@@ -289,14 +289,14 @@ class PolygonSource(BaseSource):
         """
         try:
             date_str = date.isoformat()
-            path = f"/v2/aggs/ticker/{ticker}/range/{multiplier}/{timespan}/{date_str}/{date_str}"
+            path = f"/v2/aggs/ticker/{symbol}/range/{multiplier}/{timespan}/{date_str}/{date_str}"
             params = {"adjusted": "true", "sort": "asc", "limit": 50000}
 
             response = self.client.get(path, params)
             results = response.get("results", [])
 
             if not results:
-                logger.debug("polygon_no_intraday_data", ticker=ticker, date=date_str)
+                logger.debug("polygon_no_intraday_data", symbol=symbol, date=date_str)
                 return None
 
             records = []
@@ -319,7 +319,7 @@ class PolygonSource(BaseSource):
             df = pl.DataFrame(records)
             logger.info(
                 "polygon_intraday_fetched",
-                ticker=ticker,
+                symbol=symbol,
                 date=date_str,
                 bars=len(df),
                 timespan=f"{multiplier}{timespan}",
@@ -327,7 +327,7 @@ class PolygonSource(BaseSource):
             return df
 
         except Exception as e:
-            logger.warning(f"Failed to fetch intraday for {ticker}: {e}")
+            logger.warning(f"Failed to fetch intraday for {symbol}: {e}")
             return None
 
     # ============================================
@@ -335,14 +335,14 @@ class PolygonSource(BaseSource):
     # ============================================
     def fetch_trades(
         self,
-        ticker: str,
+        symbol: str,
         date: dt.date,
         limit: int = 50000,
     ) -> pl.DataFrame | None:
-        """Fetch individual trades (tick data) for a ticker.
+        """Fetch individual trades (tick data) for a symbol.
 
         Args:
-            ticker: Stock symbol
+            symbol: Stock symbol
             date: Date to fetch
             limit: Max trades to return
 
@@ -351,7 +351,7 @@ class PolygonSource(BaseSource):
         """
         try:
             date_str = date.isoformat()
-            path = f"/v3/trades/{ticker}"
+            path = f"/v3/trades/{symbol}"
             params = {
                 "timestamp.gte": f"{date_str}T00:00:00Z",
                 "timestamp.lte": f"{date_str}T23:59:59Z",
@@ -363,7 +363,7 @@ class PolygonSource(BaseSource):
             results = response.get("results", [])
 
             if not results:
-                logger.debug("polygon_no_trades", ticker=ticker, date=date_str)
+                logger.debug("polygon_no_trades", symbol=symbol, date=date_str)
                 return None
 
             records = []
@@ -383,14 +383,14 @@ class PolygonSource(BaseSource):
             df = pl.DataFrame(records)
             logger.info(
                 "polygon_trades_fetched",
-                ticker=ticker,
+                symbol=symbol,
                 date=date_str,
                 trades=len(df),
             )
             return df
 
         except Exception as e:
-            logger.warning(f"Failed to fetch trades for {ticker}: {e}")
+            logger.warning(f"Failed to fetch trades for {symbol}: {e}")
             return None
 
     # ============================================
@@ -398,7 +398,7 @@ class PolygonSource(BaseSource):
     # ============================================
     def fetch_extended_hours(
         self,
-        ticker: str,
+        symbol: str,
         date: dt.date,
     ) -> dict[str, pl.DataFrame | None]:
         """Fetch pre-market and after-hours data.
@@ -407,14 +407,14 @@ class PolygonSource(BaseSource):
         After-hours: 16:00 - 20:00 ET
 
         Args:
-            ticker: Stock symbol
+            symbol: Stock symbol
             date: Date to fetch
 
         Returns:
             Dict with 'premarket' and 'afterhours' DataFrames
         """
         # Fetch full day of minute bars
-        full_day = self.fetch_intraday_bars(ticker, date, "minute", 1)
+        full_day = self.fetch_intraday_bars(symbol, date, "minute", 1)
 
         if full_day is None:
             return {"premarket": None, "afterhours": None}
@@ -436,7 +436,7 @@ class PolygonSource(BaseSource):
 
         logger.info(
             "polygon_extended_hours_fetched",
-            ticker=ticker,
+            symbol=symbol,
             date=str(date),
             premarket_bars=len(premarket) if premarket is not None else 0,
             afterhours_bars=len(afterhours) if afterhours is not None else 0,

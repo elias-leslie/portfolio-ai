@@ -60,7 +60,7 @@ class ResearchAggregationService:
         """Aggregate market research for a symbol.
 
         Args:
-            symbol: Stock ticker symbol
+            symbol: Stock symbol
             lookback_days: Days of historical data to analyze (default 30)
 
         Returns:
@@ -147,7 +147,7 @@ class ResearchAggregationService:
         """Aggregate news sentiment and events.
 
         Args:
-            symbol: Stock ticker
+            symbol: Stock symbol
             start_date: Start of lookback period
             end_date: End of lookback period (today)
 
@@ -262,7 +262,7 @@ class ResearchAggregationService:
         """Aggregate fundamental metrics and company health.
 
         Args:
-            symbol: Stock ticker
+            symbol: Stock symbol
 
         Returns:
             Dict with fundamental analysis fields
@@ -354,7 +354,7 @@ class ResearchAggregationService:
         """Aggregate technical indicators and trends.
 
         Args:
-            symbol: Stock ticker
+            symbol: Stock symbol
             as_of_date: Date to analyze
 
         Returns:
@@ -616,7 +616,7 @@ class ResearchAggregationService:
         """Aggregate sector relative strength vs SPY.
 
         Args:
-            symbol: Stock ticker
+            symbol: Stock symbol
             as_of_date: Date to analyze
 
         Returns:
@@ -690,7 +690,7 @@ class ResearchAggregationService:
         """Calculate 30-day return for a symbol.
 
         Args:
-            symbol: Stock ticker
+            symbol: Stock symbol
 
         Returns:
             30-day return percentage

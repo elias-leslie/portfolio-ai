@@ -20,7 +20,23 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Tier 3: Validation & Evolution** (25% - 1/4 complete)
+1. **Complete ticker→symbol Standardization** (0% - 0/9 complete)
+   - File: `tasks-0101-ticker-to-symbol-standardization.md`
+   - Started: 2025-12-04 (today)
+   - Last updated: Unknown
+   - Next: Task 0 - Scope Discovery (MANDATORY)
+   - Tasks:
+     - [ ] Task 0: Scope Discovery (MANDATORY)
+     - [ ] Task 1: Fix Remaining Variable Names
+     - [ ] Task 2: Fix yfinance Object Variable Names
+     - [ ] Task 3: Fix Comments and Docstrings
+     - [ ] Task 4: Fix Function and Class Names
+     - [ ] Task 5: Fix Remaining String Literals and Dict Keys
+     - [ ] Task 6: Database Verification
+     - [ ] Task 7: Frontend Verification
+     - [ ] Task 8: Final Verification
+
+2. **Tier 3: Validation & Evolution** (25% - 1/4 complete)
    - File: `tasks-0099-tier3-validation-evolution.md`
    - Started: 2025-12-04 (today)
    - Last updated: ✅ Complete - API working, returns per-fold and aggregate metrics

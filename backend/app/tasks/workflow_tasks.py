@@ -23,13 +23,13 @@ logger = get_logger(__name__)
 
 
 def _get_available_data_range(
-    storage: PortfolioStorage, ticker: str
+    storage: PortfolioStorage, symbol: str
 ) -> tuple[str | None, str | None]:
-    """Get the available date range for a ticker in day_bars.
+    """Get the available date range for a symbol in day_bars.
 
     Args:
         storage: Database connection
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
 
     Returns:
         (min_date, max_date) as ISO strings, or (None, None) if no data
@@ -39,7 +39,7 @@ def _get_available_data_range(
         FROM day_bars
         WHERE symbol = $1
     """
-    result = storage.query(query, [ticker])
+    result = storage.query(query, [symbol])
     if result.is_empty():
         return None, None
 
@@ -217,7 +217,7 @@ Validate gaps, add missed insights, refine priorities, provide final recommendat
 
 @celery_app.task(name="app.tasks.workflow_tasks.paper_trade_validation_workflow")  # type: ignore[misc]
 def paper_trade_validation_workflow(  # noqa: PLR0911
-    strategy_id: str, ticker: str, action: str, thesis: str
+    strategy_id: str, symbol: str, action: str, thesis: str
 ) -> dict[str, object]:
     """Multi-agent paper trade validation workflow.
 
@@ -229,7 +229,7 @@ def paper_trade_validation_workflow(  # noqa: PLR0911
 
     Args:
         strategy_id: ID of the strategy to validate
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
         action: Trade action ('buy' or 'sell')
         thesis: Investment thesis
 
@@ -245,7 +245,7 @@ def paper_trade_validation_workflow(  # noqa: PLR0911
             workflow_type="paper_trade_validation",
             config={
                 "strategy_id": strategy_id,
-                "ticker": ticker,
+                "symbol": symbol,
                 "action": action,
                 "thesis": thesis,
                 "timestamp": datetime.now(UTC).isoformat(),
@@ -266,7 +266,7 @@ def paper_trade_validation_workflow(  # noqa: PLR0911
         )
 
         logger.info(
-            f"Paper trade validation workflow {workflow_id} started for {ticker} ({action})"
+            f"Paper trade validation workflow {workflow_id} started for {symbol} ({action})"
         )
 
         # Calculate backtest date range based on available data
@@ -275,16 +275,16 @@ def paper_trade_validation_workflow(  # noqa: PLR0911
         end_date = today.isoformat()
 
         # Check available data range
-        data_min, _data_max = _get_available_data_range(storage, ticker)
+        data_min, _data_max = _get_available_data_range(storage, symbol)
         if data_min is None:
-            logger.warning(f"No historical data for {ticker}, triggering backfill")
+            logger.warning(f"No historical data for {symbol}, triggering backfill")
             # Trigger historical data fetch
             from app.tasks.ingestion.price_ingestion import ingest_historical_ohlcv  # noqa: PLC0415
 
-            ingest_historical_ohlcv.delay([ticker], days=1300)  # ~5 years
+            ingest_historical_ohlcv.delay([symbol], days=1300)  # ~5 years
             return {
                 "status": "pending_data",
-                "message": f"Triggered historical data fetch for {ticker}. Retry in 5 minutes.",
+                "message": f"Triggered historical data fetch for {symbol}. Retry in 5 minutes.",
                 "workflow_id": workflow_id,
             }
 
@@ -309,7 +309,7 @@ def paper_trade_validation_workflow(  # noqa: PLR0911
         backtest_metrics: dict[str, object] | None = None
         try:
             strategy_storage = get_strategy_storage()
-            custom_strategy = strategy_storage.get_active_strategy(ticker)
+            custom_strategy = strategy_storage.get_active_strategy(symbol)
 
             # Determine backtest parameters (custom or default)
             if custom_strategy:
@@ -332,7 +332,7 @@ def paper_trade_validation_workflow(  # noqa: PLR0911
                 max_holding_days = 60
                 position_sizing_method = "fixed_dollars"
                 position_size_value = 10000.0
-                logger.info(f"Using default SignalStrategy (no custom strategy found for {ticker})")
+                logger.info(f"Using default SignalStrategy (no custom strategy found for {symbol})")
 
             # Initialize tools to execute backtest
             portfolio_mgr = PortfolioManager(storage)
@@ -345,12 +345,12 @@ def paper_trade_validation_workflow(  # noqa: PLR0911
                 analytics=PortfolioAnalytics(),
             )
 
-            logger.info(f"Executing 1-year backtest for {ticker} ({start_date} to {end_date})")
+            logger.info(f"Executing 1-year backtest for {symbol} ({start_date} to {end_date})")
 
             # Execute backtest tool directly
             backtest_result = tools.execute_run_backtest(
                 agent_run_id=workflow_id,
-                ticker=ticker,
+                symbol=symbol,
                 start_date=start_date,
                 end_date=end_date,
                 strategy=strategy_name,
@@ -389,11 +389,11 @@ def paper_trade_validation_workflow(  # noqa: PLR0911
 
                 if gating_failures:
                     gating_reason = "; ".join(gating_failures)
-                    logger.warning(f"Backtest gating FAILED for {ticker}: {gating_reason}")
+                    logger.warning(f"Backtest gating FAILED for {symbol}: {gating_reason}")
                     orchestrator.complete_workflow(
                         workflow_id,
                         result={
-                            "ticker": ticker,
+                            "symbol": symbol,
                             "action": action,
                             "approved": False,
                             "trade_id": None,
@@ -435,7 +435,7 @@ def paper_trade_validation_workflow(  # noqa: PLR0911
             }
 
         # Strategy Agent: Analyze REAL backtest results
-        strategy_prompt = f"""Validate {ticker} {action.upper()} trade using 1-year backtest results.
+        strategy_prompt = f"""Validate {symbol} {action.upper()} trade using 1-year backtest results.
 
 Thesis: {thesis}
 
@@ -466,7 +466,7 @@ Respond with JSON: {{"decision": "APPROVE|REJECT", "confidence": <0-100>, "reaso
             logger.error(f"Strategy agent failed: {e}")
 
         # Risk Agent: Independent evaluation of REAL backtest metrics
-        risk_prompt = f"""Independent risk evaluation for {ticker} {action.upper()} trade.
+        risk_prompt = f"""Independent risk evaluation for {symbol} {action.upper()} trade.
 
 Thesis: {thesis}
 
@@ -567,7 +567,7 @@ Respond with JSON: {{"decision": "APPROVE|REJECT", "confidence": <0-100>, "reaso
         agents_disagree = strategy_approved != risk_approved
         if agents_disagree:
             logger.warning(
-                f"AGENT DISAGREEMENT on {ticker} {action}: "
+                f"AGENT DISAGREEMENT on {symbol} {action}: "
                 f"Strategy={strategy_approved} (conf={strategy_confidence}%), "
                 f"Risk={risk_approved} (conf={risk_confidence}%). "
                 f"Weighted score: {weighted_score:.2f}. "
@@ -575,7 +575,7 @@ Respond with JSON: {{"decision": "APPROVE|REJECT", "confidence": <0-100>, "reaso
             )
 
         logger.info(
-            f"Trade validation: {ticker} {action} - "
+            f"Trade validation: {symbol} {action} - "
             f"Strategy: {'APPROVE' if strategy_approved else 'REJECT'}, "
             f"Risk: {'APPROVE' if risk_approved else 'REJECT'} = "
             f"{'APPROVED' if approved else 'REJECTED'}"
@@ -597,14 +597,14 @@ Respond with JSON: {{"decision": "APPROVE|REJECT", "confidence": <0-100>, "reaso
 
             trade_result = tools.execute_create_paper_trade(
                 agent_run_id=workflow_id,
-                ticker=ticker,
+                symbol=symbol,
                 action=action,
                 thesis=thesis,
             )
 
             if trade_result.get("status") == "created":
                 trade_id = trade_result.get("trade_id")
-                logger.info(f"Created paper trade {trade_id} for {ticker} {action}")
+                logger.info(f"Created paper trade {trade_id} for {symbol} {action}")
             else:
                 logger.error(f"Failed to create paper trade: {trade_result}")
 
@@ -612,7 +612,7 @@ Respond with JSON: {{"decision": "APPROVE|REJECT", "confidence": <0-100>, "reaso
         orchestrator.complete_workflow(
             workflow_id,
             result={
-                "ticker": ticker,
+                "symbol": symbol,
                 "action": action,
                 "approved": approved,
                 "agents_disagree": agents_disagree,  # A1: Track disagreements
@@ -636,7 +636,7 @@ Respond with JSON: {{"decision": "APPROVE|REJECT", "confidence": <0-100>, "reaso
         # Commit results to git
         try:
             decision = "APPROVED" if approved else "REJECTED"
-            trade_summary = f"{ticker} {action} {decision}"
+            trade_summary = f"{symbol} {action} {decision}"
 
             if backtest_metrics:
                 sharpe_raw = backtest_metrics.get("sharpe_ratio", 0)
@@ -654,7 +654,7 @@ Respond with JSON: {{"decision": "APPROVE|REJECT", "confidence": <0-100>, "reaso
                 result_summary=trade_summary,
                 snapshot_data={
                     "workflow_id": workflow_id,
-                    "ticker": ticker,
+                    "symbol": symbol,
                     "action": action,
                     "thesis": thesis,
                     "approved": approved,

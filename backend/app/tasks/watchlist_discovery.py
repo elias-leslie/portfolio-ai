@@ -1,8 +1,8 @@
 """Watchlist Discovery and Trimming Tasks.
 
 Automated watchlist management:
-1. Discovery: Find high-potential tickers from top gainers, volume spikes, news mentions
-2. Trimming: Remove underperforming tickers after minimum hold period
+1. Discovery: Find high-potential symbols from top gainers, volume spikes, news mentions
+2. Trimming: Remove underperforming symbols after minimum hold period
 
 Scheduled via Celery Beat:
 - discover_watchlist_candidates: Daily 08:00 UTC
@@ -35,7 +35,7 @@ def get_top_gainers(
     threshold_pct: float = 5.0,
     limit: int = 20,
 ) -> list[dict[str, Any]]:
-    """Find tickers with daily price gain above threshold."""
+    """Find symbols with daily price gain above threshold."""
     sql = """
         WITH latest_bars AS (
             SELECT DISTINCT ON (symbol)
@@ -73,7 +73,7 @@ def get_volume_spikes(
     spike_ratio: float = 2.0,
     limit: int = 20,
 ) -> list[dict[str, Any]]:
-    """Find tickers with volume spike above average."""
+    """Find symbols with volume spike above average."""
     sql = """
         WITH volume_stats AS (
             SELECT
@@ -114,7 +114,7 @@ def get_news_mentions(
     hours: int = 24,
     limit: int = 20,
 ) -> list[dict[str, Any]]:
-    """Find tickers with high news mention count."""
+    """Find symbols with high news mention count."""
     sql = """
         SELECT
             symbol,
@@ -145,7 +145,7 @@ def calculate_discovery_score(
     volume_data: list[dict[str, Any]],
     news_data: list[dict[str, Any]],
 ) -> float:
-    """Calculate combined discovery score for a ticker (0-12 scale)."""
+    """Calculate combined discovery score for a symbol (0-12 scale)."""
     score = 0.0
 
     # Gainers score (0-4)
@@ -204,13 +204,13 @@ def get_watchlist_size(storage: PortfolioStorage) -> int:
     return 0
 
 
-def add_ticker_to_watchlist(
+def add_symbol_to_watchlist(
     storage: PortfolioStorage,
     symbol: str,
     discovery_score: float,
     source: str = "discovery",
 ) -> str | None:
-    """Add ticker to watchlist with discovery metadata."""
+    """Add symbol to watchlist with discovery metadata."""
     item_id = str(uuid4())
     now = datetime.now(UTC)
     metadata = {
@@ -308,13 +308,13 @@ def get_trim_candidates(
     ]
 
 
-def remove_ticker_from_watchlist(
+def remove_symbol_from_watchlist(
     storage: PortfolioStorage,
     item_id: str,
     symbol: str,
     reason: str,
 ) -> bool:
-    """Remove ticker from watchlist."""
+    """Remove symbol from watchlist."""
     try:
         with storage.connection() as conn:
             cursor = conn.cursor()
@@ -348,7 +348,7 @@ def remove_ticker_from_watchlist(
 def discover_watchlist_candidates_task(
     self: Any,
 ) -> dict[str, Any]:
-    """Discover and add high-potential tickers to watchlist.
+    """Discover and add high-potential symbols to watchlist.
 
     Scheduled: Daily 08:00 UTC
     Limits: Max 5 additions per day, respects max watchlist size
@@ -411,7 +411,7 @@ def discover_watchlist_candidates_task(
         # Add to watchlist
         added: list[dict[str, Any]] = []
         for candidate in to_add:
-            item_id = add_ticker_to_watchlist(
+            item_id = add_symbol_to_watchlist(
                 storage,
                 candidate["symbol"],
                 float(candidate["score"]),
@@ -445,7 +445,7 @@ def discover_watchlist_candidates_task(
 def trim_underperforming_watchlist_task(
     self: Any,
 ) -> dict[str, Any]:
-    """Remove underperforming tickers from watchlist.
+    """Remove underperforming symbols from watchlist.
 
     Scheduled: Daily 08:30 UTC
     Limits: Max 3 removals per day
@@ -474,7 +474,7 @@ def trim_underperforming_watchlist_task(
         removed: list[dict[str, Any]] = []
         for candidate in to_remove:
             reason = f"avg_score={candidate['avg_score']:.1f} < {wm.min_score_threshold}"
-            success = remove_ticker_from_watchlist(
+            success = remove_symbol_from_watchlist(
                 storage,
                 candidate["id"],
                 candidate["symbol"],

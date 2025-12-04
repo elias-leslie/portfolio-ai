@@ -40,14 +40,14 @@ class RssNewsSource(BaseSource):
         feeds: Iterable[str],
         *,
         priority: int = 60,
-        ticker_feed_template: str | None = None,
+        symbol_feed_template: str | None = None,
         user_agent: str | None = None,
     ) -> None:
         self.name = name
         self.display_name = display_name
         self.priority = priority
         self.feeds = list(feeds)
-        self.ticker_feed_template = ticker_feed_template
+        self.symbol_feed_template = symbol_feed_template
         self.user_agent = user_agent or self.DEFAULT_USER_AGENT
         self.request_timeout = 10.0
         self.rate_limit_delay = 0.25
@@ -59,24 +59,24 @@ class RssNewsSource(BaseSource):
         return None
 
     def fetch_reference_payload(
-        self, tickers: Iterable[str], as_of: dt.date
+        self, symbols: Iterable[str], as_of: dt.date
     ) -> pl.DataFrame | None:
         return None
 
     # News fetching -------------------------------------------------------
     def fetch_news_payload(
-        self, tickers: Iterable[str], start: dt.datetime, end: dt.datetime
+        self, symbols: Iterable[str], start: dt.datetime, end: dt.datetime
     ) -> pl.DataFrame | None:
         start_utc = start.astimezone(dt.UTC)
         end_utc = end.astimezone(dt.UTC)
         records: list[dict[str, Any]] = []
         seen_keys: set[tuple[str, str]] = set()
         fetched_urls: set[str] = set()
-        ticker_list = list(tickers) or ["__MARKET__"]
+        symbol_list = list(symbols) or ["__MARKET__"]
 
-        for ticker in ticker_list:
-            normalized_ticker = self._normalize_ticker(ticker)
-            urls = self._urls_for_ticker(normalized_ticker)
+        for symbol in symbol_list:
+            normalized_symbol = self._normalize_symbol(symbol)
+            urls = self._urls_for_symbol(normalized_symbol)
             if not urls:
                 continue
 
@@ -85,7 +85,7 @@ class RssNewsSource(BaseSource):
                     continue
                 fetched_urls.add(url)
                 for entry in self._fetch_feed_entries(url):
-                    record = self._entry_to_record(entry, normalized_ticker)
+                    record = self._entry_to_record(entry, normalized_symbol)
                     if record is None:
                         continue
 
@@ -95,7 +95,7 @@ class RssNewsSource(BaseSource):
                     ):
                         continue
 
-                    dedupe_key = (record["ticker"], record.get("url") or record["headline"])
+                    dedupe_key = (record["symbol"], record.get("url") or record["headline"])
                     if dedupe_key in seen_keys:
                         continue
                     seen_keys.add(dedupe_key)
@@ -115,28 +115,28 @@ class RssNewsSource(BaseSource):
         return pl.from_dicts(records)
 
     # Helpers -------------------------------------------------------------
-    def _normalize_ticker(self, ticker: str) -> str:
-        if not ticker:
+    def _normalize_symbol(self, symbol: str) -> str:
+        if not symbol:
             return "__MARKET__"
-        if ticker.startswith("__"):
-            return ticker
-        return ticker.upper()
+        if symbol.startswith("__"):
+            return symbol
+        return symbol.upper()
 
-    def _urls_for_ticker(self, ticker: str) -> list[str]:
-        if ticker == "__MARKET__":
+    def _urls_for_symbol(self, symbol: str) -> list[str]:
+        if symbol == "__MARKET__":
             return self.feeds
-        if self.ticker_feed_template:
+        if self.symbol_feed_template:
             template_kwargs = {
                 "symbol": symbol,
-                "symbol": ticker,
-                "lower": ticker.lower(),
+                "ticker": symbol,
+                "lower": symbol.lower(),
             }
             try:
-                return [self.ticker_feed_template.format(**template_kwargs)]
+                return [self.symbol_feed_template.format(**template_kwargs)]
             except Exception as exc:
-                logger.debug("%s_ticker_template_failed", self.name, ticker=ticker, error=str(exc))
+                logger.debug("%s_symbol_template_failed", self.name, symbol=symbol, error=str(exc))
                 return []
-        # No ticker-specific feed configured; skip to avoid mislabeling.
+        # No symbol-specific feed configured; skip to avoid mislabeling.
         return []
 
     def _rate_limit_wait(self) -> None:
@@ -167,7 +167,7 @@ class RssNewsSource(BaseSource):
         parsed = parse_feed(data)
         return parsed.entries or []
 
-    def _entry_to_record(self, entry: Any, ticker: str) -> dict[str, Any] | None:
+    def _entry_to_record(self, entry: Any, symbol: str) -> dict[str, Any] | None:
         title = (entry.get("title") or "").strip()
         link = entry.get("link") or entry.get("id") or ""
         if not title or not link:
@@ -271,7 +271,7 @@ class NasdaqRssSource(RssNewsSource):
             display_name="Nasdaq",
             feeds=feeds,
             priority=60,
-            ticker_feed_template="https://www.nasdaq.com/feed/rssoutbound?symbol={ticker}",
+            symbol_feed_template="https://www.nasdaq.com/feed/rssoutbound?symbol={ticker}",
         )
 
 
@@ -316,7 +316,7 @@ class SeekingAlphaRssSource(RssNewsSource):
             display_name="Seeking Alpha",
             feeds=feeds,
             priority=65,
-            ticker_feed_template="https://seekingalpha.com/api/sa/combined/{lower}.xml",
+            symbol_feed_template="https://seekingalpha.com/api/sa/combined/{lower}.xml",
         )
 
 
@@ -329,5 +329,5 @@ class GoogleNewsRssSource(RssNewsSource):
             display_name="Google News",
             feeds=feeds,
             priority=70,  # Lower priority (higher number) due to aggregation nature
-            ticker_feed_template="https://news.google.com/rss/search?q={ticker}+stock&hl=en-US&gl=US&ceid=US:en",
+            symbol_feed_template="https://news.google.com/rss/search?q={ticker}+stock&hl=en-US&gl=US&ceid=US:en",
         )

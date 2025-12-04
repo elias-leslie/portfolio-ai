@@ -209,24 +209,24 @@ def _calculate_sma_prev(
 
 def calculate_indicators(
     storage: PortfolioStorage,
-    ticker: str,
+    symbol: str,
     indicators: list[str] | None = None,
     as_of_date: dt.date | str | None = None,
 ) -> dict[str, Any]:
-    """Calculate technical indicators for a ticker.
+    """Calculate technical indicators for a symbol.
 
     Args:
         storage: PortfolioStorage instance for database access
-        ticker: Stock ticker symbol (e.g., "AAPL")
+        symbol: Stock symbol (e.g., "AAPL")
         indicators: List of indicator names to calculate. If None, uses DEFAULT_INDICATORS.
         as_of_date: Calculate indicators as of this date (default: latest available)
 
     Returns:
-        Dict with ticker, date, indicators dict, and interpretations dict.
+        Dict with symbol, date, indicators dict, and interpretations dict.
         See module docstring for detailed return structure.
 
     Raises:
-        ValueError: If ticker has insufficient historical data (need 200+ days for SMA-200)
+        ValueError: If symbol has insufficient historical data (need 200+ days for SMA-200)
 
     Example:
         >>> storage = get_storage()
@@ -239,30 +239,30 @@ def calculate_indicators(
         indicators = DEFAULT_INDICATORS
 
     # Fetch OHLCV data (need at least 200 days for SMA-200)
-    df = _fetch_ohlcv_data(storage, ticker, lookback_days=250, as_of_date=as_of_date)
+    df = _fetch_ohlcv_data(storage, symbol, lookback_days=250, as_of_date=as_of_date)
 
     if df.empty:
         raise ValueError(
-            f"Insufficient data for ticker {ticker}. Need at least 200 days of OHLCV data."
+            f"Insufficient data for symbol {symbol}. Need at least 200 days of OHLCV data."
         )
 
-    return calculate_indicators_from_df(df, ticker, indicators)
+    return calculate_indicators_from_df(df, symbol, indicators)
 
 
 def calculate_indicators_from_df(
     df: pd.DataFrame,
-    ticker: str,
+    symbol: str,
     indicators: list[str] | None = None,
 ) -> dict[str, Any]:
     """Calculate technical indicators from an existing DataFrame.
 
     Args:
         df: pandas DataFrame with OHLCV data (must be indexed by date)
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
         indicators: List of indicator names to calculate. If None, uses DEFAULT_INDICATORS.
 
     Returns:
-        Dict with ticker, date, indicators dict, and interpretations dict.
+        Dict with symbol, date, indicators dict, and interpretations dict.
     """
     # Use default indicators if none specified
     if indicators is None:
@@ -291,7 +291,7 @@ def calculate_indicators_from_df(
     interpretations = _interpret_indicators(indicator_values, df["close"].iloc[-1])
 
     return {
-        "symbol": ticker,
+        "symbol": symbol,
         "date": latest_date.strftime("%Y-%m-%d"),
         "indicators": indicator_values,
         "interpretations": interpretations,
@@ -300,7 +300,7 @@ def calculate_indicators_from_df(
 
 def _fetch_ohlcv_data(
     storage: PortfolioStorage,
-    ticker: str,
+    symbol: str,
     lookback_days: int = 250,
     as_of_date: dt.date | str | None = None,
 ) -> Any:
@@ -308,7 +308,7 @@ def _fetch_ohlcv_data(
 
     Args:
         storage: PortfolioStorage instance
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
         lookback_days: Number of days to fetch (default: 250 for 200+ trading days)
         as_of_date: Fetch data up to this date (default: latest available)
 
@@ -325,7 +325,7 @@ def _fetch_ohlcv_data(
             ORDER BY date DESC
             LIMIT $2
         """
-        params: list[object] = [ticker, lookback_days]
+        params: list[object] = [symbol, lookback_days]
     else:
         # Convert string to date if needed
         if isinstance(as_of_date, str):
@@ -338,13 +338,13 @@ def _fetch_ohlcv_data(
             ORDER BY date DESC
             LIMIT $3
         """
-        params = [ticker, str(as_of_date), lookback_days]
+        params = [symbol, str(as_of_date), lookback_days]
 
     # Execute query - PortfolioStorage.query() returns Polars DataFrame
     result_df = storage.query(query, params)  # type: ignore[arg-type]
 
     if result_df.is_empty():
-        logger.warning(f"No OHLCV data found for ticker {ticker}")
+        logger.warning(f"No OHLCV data found for symbol {symbol}")
         return pd.DataFrame()
 
     # Convert Polars to pandas and set date index
@@ -356,9 +356,9 @@ def _fetch_ohlcv_data(
     pandas_df = pandas_df.sort_index()
 
     logger.info(
-        f"Fetched {len(pandas_df)} days of OHLCV data for {ticker}",
+        f"Fetched {len(pandas_df)} days of OHLCV data for {symbol}",
         extra={
-            "symbol": ticker,
+            "symbol": symbol,
             "days": len(pandas_df),
             "start_date": pandas_df.index[0].strftime("%Y-%m-%d"),
             "end_date": pandas_df.index[-1].strftime("%Y-%m-%d"),
@@ -453,15 +453,15 @@ def calculate_indicators_for_symbol(
     and calls calculate_indicators.
 
     Args:
-        symbol: Stock ticker symbol (e.g., "AAPL")
+        symbol: Stock symbol (e.g., "AAPL")
         indicators: List of indicator names to calculate. If None, uses DEFAULT_INDICATORS.
         as_of_date: Calculate indicators as of this date (default: latest available)
 
     Returns:
-        Dict with ticker, date, indicators dict, and interpretations dict.
+        Dict with symbol, date, indicators dict, and interpretations dict.
 
     Raises:
-        ValueError: If ticker not found or insufficient data
+        ValueError: If symbol not found or insufficient data
     """
     storage = PortfolioStorage()
     return calculate_indicators(storage, symbol, indicators, as_of_date)

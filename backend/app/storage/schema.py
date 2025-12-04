@@ -112,7 +112,7 @@ class SchemaManager:
             ("portfolio_accounts", "config", "Portfolio account definitions"),
             ("portfolio_positions", "config", "Portfolio position holdings"),
             ("user_preferences", "config", "User risk tolerance and trade preferences"),
-            ("reference_cache", "config", "Cached reference metadata for watchlist tickers"),
+            ("reference_cache", "config", "Cached reference metadata for watchlist symbols"),
             ("price_cache", "timeseries", "Cached price and analytics data"),
             ("day_bars", "timeseries", "Historical daily OHLCV data"),
             # minute_bars removed by /scrub_it 2025-12-02 (never implemented)

@@ -23,7 +23,7 @@ from ..logging_config import get_logger
 from .auth_resolver import resolve_auth_credentials
 from .base import BaseSource, DatasetRequest
 from .jsonpath_mapper import extract_with_path, map_response_to_schema
-from .request_builders import build_request_kwargs, build_ticker_params
+from .request_builders import build_request_kwargs, build_symbol_params
 
 logger = get_logger(__name__)
 
@@ -175,15 +175,15 @@ class RestApiSource(BaseSource):
         logger.info(
             "fetch_day_bars_start",
             source=self.name,
-            num_tickers=len(list(request.tickers)),
+            num_symbols=len(list(request.symbols)),
             date_range=f"{request.start} to {request.end}",
         )
 
-        for ticker in request.tickers:
+        for symbol in request.symbols:
             try:
-                # Build params for this ticker
-                path_params, query_params = build_ticker_params(
-                    ticker, endpoint, (request.start, request.end)
+                # Build params for this symbol
+                path_params, query_params = build_symbol_params(
+                    symbol, endpoint, (request.start, request.end)
                 )
 
                 # Call API
@@ -199,9 +199,9 @@ class RestApiSource(BaseSource):
                 if df is None or len(df) == 0:
                     continue
 
-                # Add ticker column if not present
-                if "ticker" not in df.columns:
-                    df = df.with_columns(pl.lit(ticker).alias("ticker"))
+                # Add symbol column if not present
+                if "symbol" not in df.columns:
+                    df = df.with_columns(pl.lit(symbol).alias("symbol"))
 
                 # Add source lineage
                 df = df.with_columns(pl.lit(self.name).alias("source"))
@@ -213,9 +213,9 @@ class RestApiSource(BaseSource):
                 frames.append(df)
 
                 logger.debug(
-                    "fetch_day_bars_ticker_success",
+                    "fetch_day_bars_symbol_success",
                     source=self.name,
-                    ticker=ticker,
+                    symbol=symbol,
                     rows=len(df),
                 )
 
@@ -223,7 +223,7 @@ class RestApiSource(BaseSource):
                 logger.warning(
                     "fetch_day_bars_http_error",
                     source=self.name,
-                    ticker=ticker,
+                    symbol=symbol,
                     status_code=e.response.status_code,
                     error=str(e),
                 )
@@ -233,7 +233,7 @@ class RestApiSource(BaseSource):
                 logger.warning(
                     "fetch_day_bars_error",
                     source=self.name,
-                    ticker=ticker,
+                    symbol=symbol,
                     error=str(e),
                     error_type=type(e).__name__,
                 )
@@ -247,13 +247,13 @@ class RestApiSource(BaseSource):
             "fetch_day_bars_complete",
             source=self.name,
             total_rows=len(combined),
-            tickers_fetched=len(frames),
+            symbols_fetched=len(frames),
         )
 
         return combined
 
     def fetch_reference_payload(
-        self, tickers: Iterable[str], as_of: dt.date
+        self, symbols: Iterable[str], as_of: dt.date
     ) -> pl.DataFrame | None:
         """Fetch reference data (company info, sector, etc.)."""
         if not self.supports_reference:
@@ -263,10 +263,10 @@ class RestApiSource(BaseSource):
         endpoint_key = str(endpoint["endpoint_key"])
         records = []
 
-        for ticker in tickers:
+        for symbol in symbols:
             try:
-                # Build params for this ticker
-                path_params, query_params = build_ticker_params(ticker, endpoint)
+                # Build params for this symbol
+                path_params, query_params = build_symbol_params(symbol, endpoint)
 
                 # Call API
                 response = self._call_endpoint(endpoint_key, path_params, query_params)
@@ -327,7 +327,7 @@ class RestApiSource(BaseSource):
                 logger.warning(
                     "fetch_reference_error",
                     source=self.name,
-                    ticker=ticker,
+                    symbol=symbol,
                     error=str(e),
                 )
                 continue
@@ -338,7 +338,7 @@ class RestApiSource(BaseSource):
         return pl.DataFrame(records)
 
     def fetch_news_payload(
-        self, tickers: Iterable[str], start: dt.datetime, end: dt.datetime
+        self, symbols: Iterable[str], start: dt.datetime, end: dt.datetime
     ) -> pl.DataFrame | None:
         """Fetch news articles."""
         if not self.supports_news:
@@ -348,9 +348,9 @@ class RestApiSource(BaseSource):
         endpoint_key = str(endpoint["endpoint_key"])
         records = []
 
-        for ticker in tickers:
+        for symbol in symbols:
             try:
-                query_params: dict[str, str] = {"q": ticker}
+                query_params: dict[str, str] = {"q": symbol}
 
                 # Add date range if supported
                 if start:
@@ -419,7 +419,7 @@ class RestApiSource(BaseSource):
                 logger.warning(
                     "fetch_news_error",
                     source=self.name,
-                    ticker=ticker,
+                    symbol=symbol,
                     error=str(e),
                 )
                 continue

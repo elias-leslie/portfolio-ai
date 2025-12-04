@@ -384,7 +384,7 @@ async def update_idea_status(idea_id: str, request: UpdateIdeaStatusRequest) -> 
 class BestWorstTradeModel(BaseModel):
     """Model for best/worst trade information."""
 
-    ticker: str
+    symbol: str
     return_: float = Field(..., alias="return")
     entry_date: str | None
     exit_date: str | None

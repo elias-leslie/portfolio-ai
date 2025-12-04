@@ -84,13 +84,13 @@ class AlphaVantageClient(BaseHTTPClient):
 
     def get_daily_time_series(
         self,
-        ticker: str,
+        symbol: str,
         outputsize: str = "compact",
     ) -> dict[str, Any]:
-        """Fetch daily time series data for a ticker.
+        """Fetch daily time series data for a symbol.
 
         Args:
-            ticker: Stock symbol (e.g., "AAPL")
+            symbol: Stock symbol (e.g., "AAPL")
             outputsize: "compact" (100 days) or "full" (20+ years)
 
         Returns:
@@ -102,17 +102,17 @@ class AlphaVantageClient(BaseHTTPClient):
         """
         params = {
             "function": "TIME_SERIES_DAILY",
-            "symbol": ticker,
+            "symbol": symbol,
             "outputsize": outputsize,
         }
         result: dict[str, Any] = self.get(params)
         return result
 
-    def get_company_overview(self, ticker: str) -> dict[str, Any]:
+    def get_company_overview(self, symbol: str) -> dict[str, Any]:
         """Fetch company overview and fundamental data.
 
         Args:
-            ticker: Stock symbol (e.g., "AAPL")
+            symbol: Stock symbol (e.g., "AAPL")
 
         Returns:
             Dict with company info, valuation metrics, and fundamentals
@@ -123,7 +123,7 @@ class AlphaVantageClient(BaseHTTPClient):
         """
         params = {
             "function": "OVERVIEW",
-            "symbol": ticker,
+            "symbol": symbol,
         }
         result: dict[str, object] = self.get(params)
         return result
@@ -183,7 +183,7 @@ class AlphaVantageSource(BaseSource):
         """Fetch daily OHLCV bars from Alpha Vantage.
 
         Args:
-            request: DatasetRequest with tickers, start, end dates
+            request: DatasetRequest with symbols, start, end dates
 
         Returns:
             Polars DataFrame with OHLCV data, or None if fetch fails
@@ -195,21 +195,21 @@ class AlphaVantageSource(BaseSource):
 
         logger.info(
             "alphavantage_fetch_day_bars_start",
-            num_tickers=len(list(request.tickers)),
+            num_symbols=len(list(request.symbols)),
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
         )
 
-        for ticker in request.tickers:
+        for symbol in request.symbols:
             try:
                 # Fetch time series data (compact = 100 days)
-                response = self.client.get_daily_time_series(ticker, outputsize="compact")
+                response = self.client.get_daily_time_series(symbol, outputsize="compact")
 
                 # Check for error messages
                 if "Error Message" in response:
                     logger.warning(
                         "alphavantage_api_error",
-                        ticker=ticker,
+                        symbol=symbol,
                         error=response["Error Message"],
                     )
                     continue
@@ -218,7 +218,7 @@ class AlphaVantageSource(BaseSource):
                     # API rate limit message
                     logger.warning(
                         "alphavantage_rate_limit_message",
-                        ticker=ticker,
+                        symbol=symbol,
                         note=response["Note"],
                     )
                     continue
@@ -226,7 +226,7 @@ class AlphaVantageSource(BaseSource):
                 # Extract time series data
                 time_series = response.get("Time Series (Daily)", {})
                 if not time_series:
-                    logger.debug("alphavantage_no_data", ticker=ticker)
+                    logger.debug("alphavantage_no_data", symbol=symbol)
                     continue
 
                 # Parse OHLCV data
@@ -255,14 +255,14 @@ class AlphaVantageSource(BaseSource):
                     except (KeyError, ValueError) as e:
                         logger.warning(
                             "alphavantage_bar_parse_error",
-                            ticker=ticker,
+                            symbol=symbol,
                             date=date_str,
                             error=str(e),
                         )
                         continue
 
                 if not records:
-                    logger.debug("alphavantage_no_valid_bars", ticker=ticker)
+                    logger.debug("alphavantage_no_valid_bars", symbol=symbol)
                     continue
 
                 # Create DataFrame
@@ -276,42 +276,42 @@ class AlphaVantageSource(BaseSource):
 
                 logger.debug(
                     "alphavantage_fetch_success",
-                    ticker=ticker,
+                    symbol=symbol,
                     rows=len(df),
                 )
 
             except Exception as e:
                 logger.warning(
                     "alphavantage_fetch_error",
-                    ticker=ticker,
+                    symbol=symbol,
                     error=str(e),
                     error_type=type(e).__name__,
                 )
-                # Continue to next ticker
+                # Continue to next symbol
                 continue
 
         if not frames:
             logger.warning("alphavantage_no_data_fetched")
             return None
 
-        # Combine all tickers
+        # Combine all symbols
         combined = pl.concat(frames, how="vertical_relaxed")
 
         logger.info(
             "alphavantage_fetch_day_bars_complete",
             total_rows=len(combined),
-            unique_tickers=combined["ticker"].n_unique(),
+            unique_symbols=combined["symbol"].n_unique(),
         )
 
         return combined
 
     def fetch_reference_payload(
-        self, tickers: Iterable[str], as_of: dt.date
+        self, symbols: Iterable[str], as_of: dt.date
     ) -> pl.DataFrame | None:
         """Fetch company reference and fundamental data from Alpha Vantage.
 
         Args:
-            tickers: Stock symbols to fetch
+            symbols: Stock symbols to fetch
             as_of: Reference date (used for logging; API returns latest data)
 
         Returns:
@@ -321,19 +321,19 @@ class AlphaVantageSource(BaseSource):
 
         logger.info(
             "alphavantage_fetch_reference_start",
-            num_tickers=len(list(tickers)),
+            num_symbols=len(list(symbols)),
             as_of=as_of.isoformat(),
         )
 
-        for ticker in tickers:
+        for symbol in symbols:
             try:
-                response = self.client.get_company_overview(ticker)
+                response = self.client.get_company_overview(symbol)
 
                 # Check for error messages
                 if "Error Message" in response:
                     logger.warning(
                         "alphavantage_api_error",
-                        ticker=ticker,
+                        symbol=symbol,
                         error=response["Error Message"],
                     )
                     continue
@@ -341,7 +341,7 @@ class AlphaVantageSource(BaseSource):
                 if "Note" in response:
                     logger.warning(
                         "alphavantage_rate_limit",
-                        ticker=ticker,
+                        symbol=symbol,
                         note=response["Note"],
                     )
                     continue
@@ -358,12 +358,12 @@ class AlphaVantageSource(BaseSource):
 
                 records.append(record)
 
-                logger.debug("alphavantage_reference_fetched", ticker=ticker)
+                logger.debug("alphavantage_reference_fetched", symbol=symbol)
 
             except Exception as e:
                 logger.warning(
                     "alphavantage_reference_error",
-                    ticker=ticker,
+                    symbol=symbol,
                     error=str(e),
                     error_type=type(e).__name__,
                 )
@@ -383,7 +383,7 @@ class AlphaVantageSource(BaseSource):
         return df
 
     def fetch_news_payload(
-        self, tickers: Iterable[str], start: dt.datetime, end: dt.datetime
+        self, symbols: Iterable[str], start: dt.datetime, end: dt.datetime
     ) -> pl.DataFrame | None:
         """Fetch news articles from Alpha Vantage (not implemented)."""
         logger.warning("alphavantage_news_not_implemented")

@@ -19,7 +19,7 @@ USAGE:
     from app.utils.task_locks import task_lock, is_task_locked
 
     @celery_app.task
-    def my_task(ticker: str):
+    def my_task(symbol: str):
         lock_key = f"my_task:{ticker}"
         with task_lock(lock_key, ttl=300) as acquired:
             if not acquired:

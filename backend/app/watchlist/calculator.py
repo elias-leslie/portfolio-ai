@@ -23,7 +23,7 @@ def get_swing_low(conn: DatabaseConnection, symbol: str, days: int = 10) -> floa
 
     Args:
         conn: Database connection
-        symbol: Stock ticker symbol
+        symbol: Stock symbol
         days: Number of trading days to look back (default: 10)
 
     Returns:
@@ -66,7 +66,7 @@ def get_swing_high(conn: DatabaseConnection, symbol: str, days: int = 30) -> flo
 
     Args:
         conn: Database connection
-        symbol: Stock ticker symbol
+        symbol: Stock symbol
         days: Number of trading days to look back (default: 30)
 
     Returns:
@@ -137,7 +137,7 @@ def calculate_stop_loss(conn: DatabaseConnection, symbol: str, entry_price: floa
 
     Args:
         conn: Database connection
-        symbol: Stock ticker symbol
+        symbol: Stock symbol
         entry_price: Entry price for the trade
 
     Returns:
@@ -190,7 +190,7 @@ def calculate_profit_target(
 
     Args:
         conn: Database connection
-        symbol: Stock ticker symbol
+        symbol: Stock symbol
         entry_price: Entry price for the trade
 
     Returns:

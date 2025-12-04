@@ -65,7 +65,7 @@ class DrawdownMetrics:
 class PositionDrawdown:
     """Position-level drawdown tracking."""
 
-    ticker: str
+    symbol: str
     entry_price: float
     current_price: float
     peak_price: float  # Highest price since entry
@@ -472,7 +472,7 @@ def calculate_position_drawdown(
     """
     if entry_price <= 0:
         return PositionDrawdown(
-            ticker="",
+            symbol="",
             entry_price=0.0,
             current_price=0.0,
             peak_price=0.0,
@@ -486,7 +486,7 @@ def calculate_position_drawdown(
     max_adverse = min(0.0, current_pnl_pct)  # Worst loss from entry
 
     return PositionDrawdown(
-        ticker="",  # Caller should set
+        symbol="",  # Caller should set
         entry_price=entry_price,
         current_price=current_price,
         peak_price=peak_price,

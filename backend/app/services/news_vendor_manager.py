@@ -213,7 +213,7 @@ class NewsVendorManager:
             (
                 "nasdaq_rss",
                 NasdaqRssSource,
-                "Nasdaq original & ticker RSS feeds",
+                "Nasdaq original & symbol RSS feeds",
                 "NASDAQ_RSS_ENABLED",
             ),
             ("fortune_rss", FortuneRssSource, "Fortune business RSS feed", "FORTUNE_RSS_ENABLED"),
@@ -238,7 +238,7 @@ class NewsVendorManager:
             (
                 "google_news_rss",
                 GoogleNewsRssSource,
-                "Google News aggregated market & ticker RSS feeds",
+                "Google News aggregated market & symbol RSS feeds",
                 "GOOGLE_NEWS_RSS_ENABLED",
             ),
         ]
@@ -298,7 +298,7 @@ class NewsVendorManager:
             "yfinance",
             YFinanceSource,
             "YFINANCE_NEWS_ENABLED",
-            "Yahoo Finance ticker feed via yfinance; no API key required.",
+            "Yahoo Finance symbol feed via yfinance; no API key required.",
             sources=sources,
         )
 
@@ -390,7 +390,7 @@ class NewsVendorManager:
         row: dict[str, Any],
         *,
         vendor_name: str,
-        default_ticker: str,
+        default_symbol: str,
     ) -> dict[str, Any]:
         """Normalize vendor-specific row format to standard format."""
         entry = dict(row)
@@ -410,9 +410,9 @@ class NewsVendorManager:
         elif isinstance(published_value, (int, float)):
             published_iso = datetime.fromtimestamp(float(published_value), tz=UTC).isoformat()
 
-        ticker_value = entry.get("ticker") or default_ticker
-        if isinstance(ticker_value, str):
-            ticker_value = ticker_value.upper()
+        symbol_value = entry.get("symbol") or default_symbol
+        if isinstance(symbol_value, str):
+            symbol_value = symbol_value.upper()
 
         vendor_payload = entry.get("raw_payload") or entry.get("vendor_payload")
         if isinstance(vendor_payload, str):
@@ -432,7 +432,7 @@ class NewsVendorManager:
             "published": published_iso,
             "published_at": published_iso,
             "vendor": vendor_name,
-            "ticker": ticker_value or default_ticker,
+            "symbol": symbol_value or default_symbol,
         }
         if vendor_payload is not None:
             normalized["vendor_payload"] = vendor_payload
@@ -442,7 +442,7 @@ class NewsVendorManager:
     def fetch_vendor_entries(
         self,
         *,
-        ticker: str,
+        symbol: str,
         ttl: timedelta,
         now: datetime,
         max_entries: int,
@@ -455,7 +455,7 @@ class NewsVendorManager:
         request = DatasetRequest(
             dataset=DATASET_NEWS,
             profile=None,
-            tickers=[ticker],
+            symbols=[symbol],
             start=now - ttl,
             end=now,
             timezone="UTC",
@@ -478,7 +478,7 @@ class NewsVendorManager:
             normalized = self.normalize_vendor_row(
                 row,
                 vendor_name=vendor_name,
-                default_ticker=ticker,
+                default_symbol=symbol,
             )
             if not normalized.get("headline"):
                 continue
@@ -522,7 +522,7 @@ class NewsVendorManager:
 
     def update_recent_mix_summary(
         self,
-        ticker: str,
+        symbol: str,
         *,
         timestamp: datetime,
         pre_counts: dict[str, int],
@@ -544,7 +544,7 @@ class NewsVendorManager:
             )
             runtime["articles_last_fetch_post"] = int(post_count)
 
-        self._recent_mix_summary[ticker.upper()] = {
+        self._recent_mix_summary[symbol.upper()] = {
             "timestamp": timestamp,
             "total_pre": int(sum(pre_counts.values())),
             "total_post": len(combined_entries),

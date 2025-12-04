@@ -26,24 +26,24 @@ logger = get_logger(__name__)
     retry_jitter=True,
 )  # type: ignore[misc]
 def update_technical_indicators(  # type: ignore[no-untyped-def]
-    self, tickers: list[str]
+    self, symbols: list[str]
 ) -> TechnicalIndicatorResultDict:
-    """Calculate and cache technical indicators for given tickers.
+    """Calculate and cache technical indicators for given symbols.
 
     This task calculates RSI, MACD, Bollinger Bands, moving averages (SMA/EMA),
     ATR, and Stochastic indicators using the latest 200 days of OHLCV data.
     Results are stored in the technical_indicators table for fast retrieval.
 
     Args:
-        tickers: List of ticker symbols to calculate indicators for
+        symbols: List of symbols to calculate indicators for
 
     Returns:
-        TechnicalIndicatorResultDict with counts: {"success": int, "failed": int, "tickers_processed": int}
+        TechnicalIndicatorResultDict with counts: {"success": int, "failed": int, "symbols_processed": int}
 
     Example:
         >>> # Run immediately
         >>> update_technical_indicators(["AAPL", "MSFT", "GOOGL"])
-        {"success": 3, "failed": 0, "tickers_processed": 3}
+        {"success": 3, "failed": 0, "symbols_processed": 3}
 
         >>> # Schedule as background task
         >>> update_technical_indicators.delay(["AAPL", "MSFT", "GOOGL"])
@@ -56,20 +56,20 @@ def update_technical_indicators(  # type: ignore[no-untyped-def]
     logger.info(
         "update_technical_indicators_started",
         task_id=task_id,
-        num_tickers=len(tickers),
-        tickers=tickers,
+        num_symbols=len(symbols),
+        symbols=symbols,
     )
 
     storage = get_storage()
     success_count = 0
     failed_count = 0
 
-    for ticker in tickers:
+    for symbol in symbols:
         try:
             # Calculate indicators using latest data
             result = calculate_indicators(
                 storage=storage,
-                ticker=ticker,
+                symbol=symbol,
                 indicators=None,  # Calculate all indicators
                 as_of_date=None,  # Use latest available date
             )
@@ -79,13 +79,13 @@ def update_technical_indicators(  # type: ignore[no-untyped-def]
             date = result["date"]
 
             # Prepare and insert indicator data
-            indicator_data = build_indicator_data(ticker, indicators, date)
+            indicator_data = build_indicator_data(symbol, indicators, date)
             upsert_indicators(storage, indicator_data)
 
             success_count += 1
             logger.info(
                 "technical_indicators_calculated",
-                ticker=ticker,
+                symbol=symbol,
                 date=date,
                 num_indicators=len([v for v in indicators.values() if v is not None]),
             )
@@ -94,16 +94,16 @@ def update_technical_indicators(  # type: ignore[no-untyped-def]
             failed_count += 1
             logger.error(
                 "technical_indicators_calculation_failed",
-                ticker=ticker,
+                symbol=symbol,
                 error=str(e),
                 error_type=type(e).__name__,
             )
-            # Continue with next ticker instead of failing entire task
+            # Continue with next symbol instead of failing entire task
 
     task_result: TechnicalIndicatorResultDict = {
         "success": success_count,
         "failed": failed_count,
-        "tickers_processed": len(tickers),
+        "symbols_processed": len(symbols),
     }
 
     logger.info(
@@ -125,7 +125,7 @@ def update_technical_indicators(  # type: ignore[no-untyped-def]
     retry_jitter=True,
 )  # type: ignore[misc]
 def backfill_technical_indicators(  # type: ignore[no-untyped-def]
-    self, tickers: list[str] | None = None, batch_size: int = 50
+    self, symbols: list[str] | None = None, batch_size: int = 50
 ) -> dict[str, int]:
     """Backfill technical indicators for all historical dates with OHLCV data.
 
@@ -135,21 +135,21 @@ def backfill_technical_indicators(  # type: ignore[no-untyped-def]
     The regular update_technical_indicators task only calculates for the LATEST date.
     Use this task when:
     - Initial setup of indicator data
-    - After adding new tickers to watchlist
+    - After adding new symbols to watchlist
     - Recovering from data gaps
 
     Args:
-        tickers: List of tickers to backfill. If None, backfills ALL tickers from day_bars.
-        batch_size: Number of dates to process per ticker before committing (default: 50)
+        symbols: List of symbols to backfill. If None, backfills ALL symbols from day_bars.
+        batch_size: Number of dates to process per symbol before committing (default: 50)
 
     Returns:
-        Dict with counts: {"tickers_processed": int, "indicators_created": int, "errors": int}
+        Dict with counts: {"symbols_processed": int, "indicators_created": int, "errors": int}
 
     Example:
-        >>> # Backfill all tickers
+        >>> # Backfill all symbols
         >>> backfill_technical_indicators.delay()
 
-        >>> # Backfill specific tickers
+        >>> # Backfill specific symbols
         >>> backfill_technical_indicators.delay(["AAPL", "MSFT", "GOOGL"])
 
     Note:
@@ -160,24 +160,24 @@ def backfill_technical_indicators(  # type: ignore[no-untyped-def]
     logger.info(
         "backfill_technical_indicators_started",
         task_id=task_id,
-        tickers=tickers,
+        symbols=symbols,
         batch_size=batch_size,
     )
 
     storage = get_storage()
 
-    # Get all tickers from day_bars if not specified
-    if tickers is None:
+    # Get all symbols from day_bars if not specified
+    if symbols is None:
         query = "SELECT DISTINCT symbol FROM day_bars ORDER BY symbol"
         result_df = storage.query(query, [])
-        tickers = [row["symbol"] for row in result_df.to_dicts()]
-        logger.info("backfill_auto_discovered_tickers", num_tickers=len(tickers))
+        symbols = [row["symbol"] for row in result_df.to_dicts()]
+        logger.info("backfill_auto_discovered_symbols", num_symbols=len(symbols))
 
-    tickers_processed = 0
+    symbols_processed = 0
     indicators_created = 0
     errors = 0
 
-    for ticker in tickers:
+    for symbol in symbols:
         try:
             # Find dates with OHLCV data but NO indicators
             query = """
@@ -189,21 +189,21 @@ def backfill_technical_indicators(  # type: ignore[no-untyped-def]
                   AND ti.symbol IS NULL
                 ORDER BY db.date ASC
             """
-            missing_dates_df = storage.query(query, [ticker])
+            missing_dates_df = storage.query(query, [symbol])
             missing_dates = [row["date"] for row in missing_dates_df.to_dicts()]
 
             if not missing_dates:
                 logger.info(
-                    "backfill_ticker_complete",
-                    ticker=ticker,
+                    "backfill_symbol_complete",
+                    symbol=symbol,
                     reason="no_missing_dates",
                 )
-                tickers_processed += 1
+                symbols_processed += 1
                 continue
 
             logger.info(
-                "backfill_ticker_started",
-                ticker=ticker,
+                "backfill_symbol_started",
+                symbol=symbol,
                 missing_dates=len(missing_dates),
             )
 
@@ -217,14 +217,14 @@ def backfill_technical_indicators(  # type: ignore[no-untyped-def]
                         # Calculate indicators for this specific date
                         result = calculate_indicators(
                             storage=storage,
-                            ticker=ticker,
+                            symbol=symbol,
                             indicators=None,  # Use all default indicators
                             as_of_date=date,  # Calculate for this specific historical date
                         )
 
                         # Extract and store
                         indicators = result["indicators"]
-                        indicator_data = build_indicator_data(ticker, indicators, date)
+                        indicator_data = build_indicator_data(symbol, indicators, date)
                         upsert_indicators(storage, indicator_data)
 
                         batch_created += 1
@@ -235,14 +235,14 @@ def backfill_technical_indicators(  # type: ignore[no-untyped-def]
                         if "Insufficient data" in str(e):
                             logger.debug(
                                 "backfill_skip_insufficient_data",
-                                ticker=ticker,
+                                symbol=symbol,
                                 date=date,
                                 error=str(e),
                             )
                         else:
                             logger.error(
                                 "backfill_date_failed",
-                                ticker=ticker,
+                                symbol=symbol,
                                 date=date,
                                 error=str(e),
                             )
@@ -250,7 +250,7 @@ def backfill_technical_indicators(  # type: ignore[no-untyped-def]
                     except Exception as e:
                         logger.error(
                             "backfill_date_failed",
-                            ticker=ticker,
+                            symbol=symbol,
                             date=date,
                             error=str(e),
                             error_type=type(e).__name__,
@@ -260,31 +260,31 @@ def backfill_technical_indicators(  # type: ignore[no-untyped-def]
                 # Log batch progress
                 logger.info(
                     "backfill_batch_complete",
-                    ticker=ticker,
+                    symbol=symbol,
                     batch_num=i // batch_size + 1,
                     batch_size=len(batch),
                     created=batch_created,
                 )
 
-            tickers_processed += 1
+            symbols_processed += 1
             logger.info(
-                "backfill_ticker_complete",
-                ticker=ticker,
+                "backfill_symbol_complete",
+                symbol=symbol,
                 indicators_created=indicators_created,
             )
 
         except Exception as e:
             logger.error(
-                "backfill_ticker_failed",
-                ticker=ticker,
+                "backfill_symbol_failed",
+                symbol=symbol,
                 error=str(e),
                 error_type=type(e).__name__,
             )
             errors += 1
-            # Continue with next ticker
+            # Continue with next symbol
 
     result = {
-        "tickers_processed": tickers_processed,
+        "symbols_processed": symbols_processed,
         "indicators_created": indicators_created,
         "errors": errors,
     }

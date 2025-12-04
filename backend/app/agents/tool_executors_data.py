@@ -130,7 +130,7 @@ class DataTools:
         to help agents make informed trading decisions.
 
         Args:
-            symbols: List of stock ticker symbols
+            symbols: List of stock symbols
 
         Returns:
             Dictionary with enriched price data
@@ -158,11 +158,11 @@ class DataTools:
             "count": len(price_data),
         }
 
-    def _fetch_indicators(self, ticker: str) -> dict[str, object] | None:
-        """Fetch latest technical indicators for a ticker.
+    def _fetch_indicators(self, symbol: str) -> dict[str, object] | None:
+        """Fetch latest technical indicators for a symbol.
 
         Args:
-            ticker: Stock ticker symbol
+            symbol: Stock symbol
 
         Returns:
             Dictionary of indicator values, or None if no data available
@@ -182,7 +182,7 @@ class DataTools:
                 ORDER BY date DESC
                 LIMIT 1
                 """,
-                [ticker.upper()],
+                [symbol.upper()],
             )
 
             if result.is_empty():
@@ -215,23 +215,23 @@ class DataTools:
                 "date": str(row["date"]),
             }
         except Exception as e:
-            logger.warning(f"Failed to fetch indicators for {ticker}: {e}")
+            logger.warning(f"Failed to fetch indicators for {symbol}: {e}")
             return None
 
     def _format_indicator_analysis(
-        self, ticker: str, current_price: float, indicators: dict[str, object]
+        self, symbol: str, current_price: float, indicators: dict[str, object]
     ) -> str:
         """Format technical indicators into human-readable analysis text.
 
         Args:
-            ticker: Stock ticker symbol
+            symbol: Stock symbol
             current_price: Current stock price
             indicators: Dictionary of indicator values
 
         Returns:
             Formatted analysis string for agent consumption
         """
-        analysis_parts = [f"{ticker} current price ${current_price:.2f}"]
+        analysis_parts = [f"{symbol} current price ${current_price:.2f}"]
 
         # RSI analysis
         rsi = indicators.get("rsi_14")

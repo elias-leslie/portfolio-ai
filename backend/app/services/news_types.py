@@ -94,7 +94,7 @@ class VendorFetchMetadataDict(TypedDict):
 
 
 class TickerMixSummaryDict(TypedDict):
-    """Article mix statistics for a ticker."""
+    """Article mix statistics for a symbol."""
 
     timestamp: datetime
     total_pre: int

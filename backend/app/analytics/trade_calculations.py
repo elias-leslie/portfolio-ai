@@ -16,7 +16,7 @@ from app.storage import PortfolioStorage
 logger = get_logger(__name__)
 
 
-def calculate_stop_loss(storage: PortfolioStorage, ticker: str, entry_price: float) -> float | None:
+def calculate_stop_loss(storage: PortfolioStorage, symbol: str, entry_price: float) -> float | None:
     """Calculate stop-loss price using 2x ATR method (GAP-042 fix).
 
     NEVER uses flat percentage fallback - always volatility-adjusted.
@@ -24,19 +24,19 @@ def calculate_stop_loss(storage: PortfolioStorage, ticker: str, entry_price: flo
 
     Args:
         storage: PortfolioStorage instance
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
         entry_price: Entry price for the trade
 
     Returns:
         Stop loss price (entry - 2xATR), or None if ATR unavailable.
         Returning None should block the trade (insufficient data).
     """
-    atr_value = get_atr_for_ticker(storage, ticker)
+    atr_value = get_atr_for_symbol(storage, symbol)
 
     if atr_value is None:
         logger.warning(
             "stop_loss_calculation_blocked",
-            ticker=ticker,
+            symbol=symbol,
             reason="no_atr_available",
             entry_price=entry_price,
         )
@@ -47,7 +47,7 @@ def calculate_stop_loss(storage: PortfolioStorage, ticker: str, entry_price: flo
 
     logger.info(
         "stop_loss_calculated",
-        ticker=ticker,
+        symbol=symbol,
         entry_price=entry_price,
         atr=atr_value,
         stop_loss=stop_loss,
@@ -57,8 +57,8 @@ def calculate_stop_loss(storage: PortfolioStorage, ticker: str, entry_price: flo
     return stop_loss
 
 
-def get_atr_for_ticker(storage: PortfolioStorage, ticker: str) -> float | None:
-    """Get ATR value for a ticker from multiple sources.
+def get_atr_for_symbol(storage: PortfolioStorage, symbol: str) -> float | None:
+    """Get ATR value for a symbol from multiple sources.
 
     Tries in order:
     1. technical_indicators table (cached daily)
@@ -67,7 +67,7 @@ def get_atr_for_ticker(storage: PortfolioStorage, ticker: str) -> float | None:
 
     Args:
         storage: PortfolioStorage instance
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
 
     Returns:
         ATR-14 value as float, or None if unavailable
@@ -81,26 +81,26 @@ def get_atr_for_ticker(storage: PortfolioStorage, ticker: str) -> float | None:
             ORDER BY date DESC
             LIMIT 1
         """
-        atr_result = storage.query(atr_query, [ticker])
+        atr_result = storage.query(atr_query, [symbol])
 
         if not atr_result.is_empty():
             atr_value = atr_result.to_dicts()[0]["atr_14"]
             if atr_value is not None:
                 logger.debug(
                     "atr_from_technical_indicators",
-                    ticker=ticker,
+                    symbol=symbol,
                     atr=atr_value,
                 )
                 return float(atr_value)
 
         # Source 2: Calculate from day_bars on-the-fly
-        indicators = calculate_indicators(storage, ticker, ["atr"])
+        indicators = calculate_indicators(storage, symbol, ["atr"])
         if indicators and "atr_14" in indicators:
             atr_indicator = indicators["atr_14"]
             if atr_indicator is not None:
                 logger.debug(
                     "atr_calculated_on_fly",
-                    ticker=ticker,
+                    symbol=symbol,
                     atr=atr_indicator,
                 )
                 return float(atr_indicator)
@@ -108,7 +108,7 @@ def get_atr_for_ticker(storage: PortfolioStorage, ticker: str) -> float | None:
         # No ATR available - log and return None
         logger.warning(
             "atr_unavailable",
-            ticker=ticker,
+            symbol=symbol,
             reason="no_data_in_technical_indicators_or_day_bars",
         )
         return None
@@ -116,7 +116,7 @@ def get_atr_for_ticker(storage: PortfolioStorage, ticker: str) -> float | None:
     except Exception as e:
         logger.error(
             "atr_calculation_error",
-            ticker=ticker,
+            symbol=symbol,
             error=str(e),
             error_type=type(e).__name__,
         )
@@ -157,8 +157,8 @@ def extract_target_price_from_thesis(thesis: str, entry_price: float) -> float |
     return entry_price * 1.10
 
 
-def extract_ticker_from_title(title: str) -> str | None:
-    """Extract ticker symbol from idea title.
+def extract_symbol_from_title(title: str) -> str | None:
+    """Extract symbol from idea title.
 
     Handles common formats:
     - "Buy AAPL"
@@ -170,21 +170,21 @@ def extract_ticker_from_title(title: str) -> str | None:
         title: Idea title string
 
     Returns:
-        Ticker symbol in uppercase, or None if not found
+        Symbol in uppercase, or None if not found
     """
-    # Look for 1-5 uppercase letter sequences (typical ticker format)
-    # Match standalone tickers or tickers followed by colon/space
+    # Look for 1-5 uppercase letter sequences (typical symbol format)
+    # Match standalone symbols or symbols followed by colon/space
     pattern = r"\b([A-Z]{1,5})\b"
     matches = re.findall(pattern, title)
 
     if matches:
         # Filter out common words that match the pattern
         common_words = {"BUY", "SELL", "LONG", "SHORT", "HOLD", "THE", "AND", "OR", "A", "I"}
-        tickers = [m for m in matches if m not in common_words]
+        symbols = [m for m in matches if m not in common_words]
 
-        if tickers:
-            ticker_str: str = tickers[0]  # Return first ticker found
-            return ticker_str
+        if symbols:
+            symbol_str: str = symbols[0]  # Return first symbol found
+            return symbol_str
 
     return None
 

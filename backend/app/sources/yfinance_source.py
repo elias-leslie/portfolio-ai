@@ -47,7 +47,7 @@ class YFinanceSource(BaseSource):
         """Fetch daily OHLCV bars from yfinance.
 
         Args:
-            request: DatasetRequest with tickers, start, end dates
+            request: DatasetRequest with symbols, start, end dates
 
         Returns:
             Polars DataFrame with OHLCV data, or None if fetch fails
@@ -59,24 +59,24 @@ class YFinanceSource(BaseSource):
 
         logger.info(
             "yfinance_fetch_day_bars_start",
-            num_tickers=len(list(request.tickers)),
+            num_symbols=len(list(request.symbols)),
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
         )
 
-        for ticker in request.tickers:
+        for symbol in request.symbols:
             try:
                 # Fetch historical data
-                yf_ticker = yf.Ticker(ticker)
+                yf_obj = yf.Ticker(symbol)
                 # NOTE: yfinance end parameter is EXCLUSIVE, so add 1 day to include end_date
-                hist = yf_ticker.history(
+                hist = yf_obj.history(
                     start=start_date.isoformat(),
                     end=(end_date + dt.timedelta(days=1)).isoformat(),
                     auto_adjust=True,  # Adjust for splits/dividends
                 )
 
                 if hist.empty:
-                    logger.debug("yfinance_no_data", ticker=ticker)
+                    logger.debug("yfinance_no_data", symbol=symbol)
                     continue
 
                 # Convert pandas DataFrame to Polars
@@ -87,7 +87,7 @@ class YFinanceSource(BaseSource):
                 df = pl.from_pandas(hist).select(
                     [
                         pl.col("Date").cast(pl.Date).alias("date"),
-                        pl.lit(ticker).alias("ticker"),
+                        pl.lit(symbol).alias("symbol"),
                         pl.col("Open").alias("open"),
                         pl.col("High").alias("high"),
                         pl.col("Low").alias("low"),
@@ -108,31 +108,31 @@ class YFinanceSource(BaseSource):
 
                 logger.debug(
                     "yfinance_fetch_success",
-                    ticker=ticker,
+                    symbol=symbol,
                     rows=len(df),
                 )
 
             except Exception as e:
                 logger.warning(
                     "yfinance_fetch_error",
-                    ticker=ticker,
+                    symbol=symbol,
                     error=str(e),
                     error_type=type(e).__name__,
                 )
-                # Continue to next ticker
+                # Continue to next symbol
                 continue
 
         if not frames:
             logger.warning("yfinance_no_data_fetched")
             return None
 
-        # Combine all tickers
+        # Combine all symbols
         combined = pl.concat(frames, how="vertical_relaxed")
 
         logger.info(
             "yfinance_fetch_day_bars_complete",
             total_rows=len(combined),
-            unique_tickers=combined["ticker"].n_unique(),
+            unique_symbols=combined["symbol"].n_unique(),
         )
 
         return combined
@@ -157,14 +157,14 @@ class YFinanceSource(BaseSource):
             return float((high_52 - low_52) / high_52)
         return None
 
-    def _build_reference_payload(self, ticker: str, info: dict[str, Any]) -> dict[str, Any]:
+    def _build_reference_payload(self, symbol: str, info: dict[str, Any]) -> dict[str, Any]:
         """Build reference payload from yfinance info dict."""
         price = self._extract_price_from_info(info)
         beta = info.get("beta")
         volatility = self._calculate_volatility_from_52w_range(info)
 
         return {
-            "symbol": ticker,
+            "symbol": symbol,
             "price": price,
             "beta": beta,
             "volatility": volatility,
@@ -206,28 +206,28 @@ class YFinanceSource(BaseSource):
         }
 
     def fetch_reference_payload(
-        self, tickers: Iterable[str], as_of: dt.date
+        self, symbols: Iterable[str], as_of: dt.date
     ) -> pl.DataFrame | None:
         """Fetch company reference data from yfinance (see helper methods for payload building)."""
         records = []
-        ticker_list = list(tickers)
+        symbol_list = list(symbols)
 
         logger.info(
             "yfinance_fetch_reference_start",
-            num_tickers=len(ticker_list),
+            num_symbols=len(symbol_list),
             as_of_date=as_of.isoformat(),
         )
 
-        for ticker in ticker_list:
+        for symbol in symbol_list:
             try:
-                yf_ticker = yf.Ticker(ticker)
-                info = yf_ticker.info
+                yf_obj = yf.Ticker(symbol)
+                info = yf_obj.info
 
                 if not info:
-                    logger.debug("yfinance_no_reference_data", ticker=ticker)
+                    logger.debug("yfinance_no_reference_data", symbol=symbol)
                     continue
 
-                payload_dict = self._build_reference_payload(ticker, info)
+                payload_dict = self._build_reference_payload(symbol, info)
                 records.append(
                     {
                         "symbol": symbol,
@@ -237,12 +237,12 @@ class YFinanceSource(BaseSource):
                     }
                 )
 
-                logger.debug("yfinance_reference_fetched", ticker=ticker)
+                logger.debug("yfinance_reference_fetched", symbol=symbol)
 
             except Exception as e:
                 logger.warning(
                     "yfinance_reference_error",
-                    ticker=ticker,
+                    symbol=symbol,
                     error=str(e),
                     error_type=type(e).__name__,
                 )
@@ -252,29 +252,29 @@ class YFinanceSource(BaseSource):
             logger.warning("yfinance_no_reference_data_fetched")
             return None
 
-        logger.info("yfinance_reference_complete", num_tickers=len(records))
+        logger.info("yfinance_reference_complete", num_symbols=len(records))
         return pl.DataFrame(records)
 
     def fetch_news_payload(
-        self, tickers: Iterable[str], start: dt.datetime, end: dt.datetime
+        self, symbols: Iterable[str], start: dt.datetime, end: dt.datetime
     ) -> pl.DataFrame | None:
-        """Fetch news articles using yfinance's ticker news feed."""
+        """Fetch news articles using yfinance's symbol news feed."""
         records: list[dict[str, Any]] = []
         start_utc = start.astimezone(dt.UTC)
         end_utc = end.astimezone(dt.UTC)
 
-        ticker_list = list(tickers) or ["__MARKET__"]
+        symbol_list = list(symbols) or ["__MARKET__"]
 
-        for ticker in ticker_list:
-            is_market = ticker in (None, "__MARKET__")
-            target_symbol = self.MARKET_SYMBOL if is_market else ticker
+        for symbol in symbol_list:
+            is_market = symbol in (None, "__MARKET__")
+            target_symbol = self.MARKET_SYMBOL if is_market else symbol
 
             try:
                 news_items = yf.Ticker(target_symbol).get_news()
             except Exception as exc:  # pragma: no cover - passthrough to fallback vendors
                 logger.warning(
                     "yfinance_news_error",
-                    ticker=target_symbol,
+                    symbol=target_symbol,
                     error=str(exc),
                     error_type=type(exc).__name__,
                 )
@@ -283,7 +283,7 @@ class YFinanceSource(BaseSource):
             if not news_items:
                 logger.debug(
                     "yfinance_news_empty",
-                    ticker=target_symbol,
+                    symbol=target_symbol,
                 )
                 continue
 
@@ -334,7 +334,7 @@ class YFinanceSource(BaseSource):
 
                 records.append(
                     {
-                        "symbol": "__MARKET__" if is_market else ticker,
+                        "symbol": "__MARKET__" if is_market else symbol,
                         "headline": headline,
                         "url": url,
                         "summary": summary,
@@ -349,12 +349,12 @@ class YFinanceSource(BaseSource):
 
             logger.debug(
                 "yfinance_news_fetched",
-                ticker=target_symbol,
+                symbol=target_symbol,
                 articles=len(news_items),
             )
 
         if not records:
-            logger.info("yfinance_news_no_articles", tickers=ticker_list)
+            logger.info("yfinance_news_no_articles", symbols=symbol_list)
             return None
 
         return pl.DataFrame(records)
@@ -362,19 +362,19 @@ class YFinanceSource(BaseSource):
     # ============================================
     # GAP-004: Cash Flow Metrics
     # ============================================
-    def fetch_cash_flow_data(self, ticker: str) -> dict[str, Any] | None:
-        """Fetch cash flow statement data for a ticker.
+    def fetch_cash_flow_data(self, symbol: str) -> dict[str, Any] | None:
+        """Fetch cash flow statement data for a symbol.
 
         Args:
-            ticker: Stock symbol
+            symbol: Stock symbol
 
         Returns:
             Dict with cash flow metrics, or None if failed
         """
         try:
-            yf_ticker = yf.Ticker(ticker)
-            cf = yf_ticker.cashflow
-            info = yf_ticker.info
+            yf_obj = yf.Ticker(symbol)
+            cf = yf_obj.cashflow
+            info = yf_obj.info
 
             if cf.empty:
                 return None
@@ -399,7 +399,7 @@ class YFinanceSource(BaseSource):
             cash_conversion = operating_cf / net_income if net_income != 0 else None
 
             return {
-                "symbol": ticker,
+                "symbol": symbol,
                 "operating_cash_flow": operating_cf,
                 "capital_expenditure": capex,
                 "free_cash_flow": free_cf,
@@ -410,24 +410,24 @@ class YFinanceSource(BaseSource):
             }
 
         except Exception as e:
-            logger.warning(f"Failed to fetch cash flow for {ticker}: {e}")
+            logger.warning(f"Failed to fetch cash flow for {symbol}: {e}")
             return None
 
     # ============================================
     # GAP-006: Insider Transactions
     # ============================================
-    def fetch_insider_transactions(self, ticker: str) -> list[dict[str, Any]]:
-        """Fetch insider transactions for a ticker.
+    def fetch_insider_transactions(self, symbol: str) -> list[dict[str, Any]]:
+        """Fetch insider transactions for a symbol.
 
         Args:
-            ticker: Stock symbol
+            symbol: Stock symbol
 
         Returns:
             List of insider transaction dicts
         """
         try:
-            yf_ticker = yf.Ticker(ticker)
-            insiders = yf_ticker.insider_transactions
+            yf_obj = yf.Ticker(symbol)
+            insiders = yf_obj.insider_transactions
 
             if insiders is None or insiders.empty:
                 return []
@@ -435,7 +435,7 @@ class YFinanceSource(BaseSource):
             transactions = []
             for _, row in insiders.iterrows():
                 transactions.append({
-                    "symbol": ticker,
+                    "symbol": symbol,
                     "insider_name": row.get("Insider"),
                     "insider_title": row.get("Position"),
                     "transaction_type": row.get("Transaction"),
@@ -445,35 +445,35 @@ class YFinanceSource(BaseSource):
                     "shares_owned_after": row.get("Shares Owned After"),
                 })
 
-            logger.debug(f"Fetched {len(transactions)} insider transactions for {ticker}")
+            logger.debug(f"Fetched {len(transactions)} insider transactions for {symbol}")
             return transactions
 
         except Exception as e:
-            logger.warning(f"Failed to fetch insider transactions for {ticker}: {e}")
+            logger.warning(f"Failed to fetch insider transactions for {symbol}: {e}")
             return []
 
     # ============================================
     # GAP-007: Institutional Holdings
     # ============================================
-    def fetch_institutional_holders(self, ticker: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-        """Fetch institutional holders for a ticker.
+    def fetch_institutional_holders(self, symbol: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        """Fetch institutional holders for a symbol.
 
         Args:
-            ticker: Stock symbol
+            symbol: Stock symbol
 
         Returns:
             Tuple of (list of holder dicts, summary dict)
         """
         try:
-            yf_ticker = yf.Ticker(ticker)
-            holders_df = yf_ticker.institutional_holders
-            info = yf_ticker.info
+            yf_obj = yf.Ticker(symbol)
+            holders_df = yf_obj.institutional_holders
+            info = yf_obj.info
 
             holders = []
             if holders_df is not None and not holders_df.empty:
                 for _, row in holders_df.iterrows():
                     holders.append({
-                        "symbol": ticker,
+                        "symbol": symbol,
                         "holder_name": row.get("Holder"),
                         "shares": row.get("Shares"),
                         "value": row.get("Value"),
@@ -483,34 +483,34 @@ class YFinanceSource(BaseSource):
 
             # Summary from info
             summary = {
-                "symbol": ticker,
+                "symbol": symbol,
                 "total_institutions": len(holders),
                 "pct_held_institutions": info.get("heldPercentInstitutions"),
                 "pct_held_insiders": info.get("heldPercentInsiders"),
             }
 
-            logger.debug(f"Fetched {len(holders)} institutional holders for {ticker}")
+            logger.debug(f"Fetched {len(holders)} institutional holders for {symbol}")
             return holders, summary
 
         except Exception as e:
-            logger.warning(f"Failed to fetch institutional holders for {ticker}: {e}")
+            logger.warning(f"Failed to fetch institutional holders for {symbol}: {e}")
             return [], {}
 
     # ============================================
     # GAP-011: Short Interest
     # ============================================
-    def fetch_short_interest(self, ticker: str) -> dict[str, Any] | None:
-        """Fetch short interest data for a ticker.
+    def fetch_short_interest(self, symbol: str) -> dict[str, Any] | None:
+        """Fetch short interest data for a symbol.
 
         Args:
-            ticker: Stock symbol
+            symbol: Stock symbol
 
         Returns:
             Dict with short interest metrics, or None if failed
         """
         try:
-            yf_ticker = yf.Ticker(ticker)
-            info = yf_ticker.info
+            yf_obj = yf.Ticker(symbol)
+            info = yf_obj.info
 
             short_shares = info.get("sharesShort")
             short_ratio = info.get("shortRatio")
@@ -525,7 +525,7 @@ class YFinanceSource(BaseSource):
                 short_pct_outstanding = short_shares / shares_outstanding
 
             return {
-                "symbol": ticker,
+                "symbol": symbol,
                 "short_shares": short_shares,
                 "short_ratio": short_ratio,
                 "short_percent_of_float": short_pct_float,
@@ -535,31 +535,31 @@ class YFinanceSource(BaseSource):
             }
 
         except Exception as e:
-            logger.warning(f"Failed to fetch short interest for {ticker}: {e}")
+            logger.warning(f"Failed to fetch short interest for {symbol}: {e}")
             return None
 
     # ============================================
     # Combined fundamental data fetch
     # ============================================
-    def fetch_all_fundamental_data(self, ticker: str) -> dict[str, Any]:
-        """Fetch all fundamental data for a ticker in one call.
+    def fetch_all_fundamental_data(self, symbol: str) -> dict[str, Any]:
+        """Fetch all fundamental data for a symbol in one call.
 
         Combines cash flow, insider, institutional, and short data.
 
         Args:
-            ticker: Stock symbol
+            symbol: Stock symbol
 
         Returns:
             Dict with all fundamental data
         """
         result = {
-            "symbol": ticker,
-            "cash_flow": self.fetch_cash_flow_data(ticker),
-            "insider_transactions": self.fetch_insider_transactions(ticker),
-            "short_interest": self.fetch_short_interest(ticker),
+            "symbol": symbol,
+            "cash_flow": self.fetch_cash_flow_data(symbol),
+            "insider_transactions": self.fetch_insider_transactions(symbol),
+            "short_interest": self.fetch_short_interest(symbol),
         }
 
-        holders, summary = self.fetch_institutional_holders(ticker)
+        holders, summary = self.fetch_institutional_holders(symbol)
         result["institutional_holders"] = holders
         result["institutional_summary"] = summary
 

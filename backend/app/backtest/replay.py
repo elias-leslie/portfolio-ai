@@ -378,7 +378,7 @@ def _get_data_range(storage: PortfolioStorage, symbol: str) -> tuple[date | None
 
     Args:
         storage: Database connection
-        symbol: Stock ticker
+        symbol: Stock symbol
 
     Returns:
         (min_date, max_date) or (None, None) if no data

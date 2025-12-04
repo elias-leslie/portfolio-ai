@@ -187,7 +187,7 @@ def _calculate_market_breadth(storage: PortfolioStorage, target_date: dt.date) -
         >>> breadth = _calculate_market_breadth(storage, dt.date(2025, 11, 12))
         >>> breadth  # e.g., 63.64 (7 out of 11 sectors up)
     """
-    sector_tickers = [
+    sector_symbols = [
         "XLK",  # Technology
         "XLF",  # Financials
         "XLE",  # Energy
@@ -204,9 +204,9 @@ def _calculate_market_breadth(storage: PortfolioStorage, target_date: dt.date) -
     with storage.connection() as conn:
         # Use subquery with window function to get current and previous close
         # We need to filter for the target_date specifically after computing LAG
-        # Note: sector_tickers is a list[str], so we pass it directly as first param
+        # Note: sector_symbols is a list[str], so we pass it directly as first param
         params: list[str | int | float | bool | list[str] | None] = [
-            sector_tickers,
+            sector_symbols,
             str(target_date),
             str(target_date),
             str(target_date),
@@ -239,19 +239,19 @@ def _calculate_market_breadth(storage: PortfolioStorage, target_date: dt.date) -
         )
         return None
 
-    # Collect data for each ticker
-    ticker_data: dict[str, tuple[float, float | None]] = {}
+    # Collect data for each symbol
+    symbol_data: dict[str, tuple[float, float | None]] = {}
     for row in rows:
-        ticker = str(row[0]) if row[0] is not None else ""
+        symbol = str(row[0]) if row[0] is not None else ""
         current_close = float(row[1]) if row[1] is not None else 0.0
         prev_close = float(row[2]) if row[2] is not None else None
-        ticker_data[ticker] = (current_close, prev_close)
+        symbol_data[symbol] = (current_close, prev_close)
 
     # Count sectors with valid data (both current and previous close)
     sectors_up = 0
     sectors_with_data = 0
 
-    for _ticker, (current_close, prev_close) in ticker_data.items():
+    for _symbol, (current_close, prev_close) in symbol_data.items():
         if prev_close is not None:
             sectors_with_data += 1
             if current_close > prev_close:

@@ -33,39 +33,39 @@ MIN_OBSERVATIONS = 60
 
 def calculate_daily_returns(
     storage: PortfolioStorage,
-    tickers: list[str],
+    symbols: list[str],
     lookback_days: int = DEFAULT_LOOKBACK_DAYS,
 ) -> dict[str, list[tuple[date, float]]]:
-    """Calculate daily returns for each ticker from day_bars.
+    """Calculate daily returns for each symbol from day_bars.
 
     Args:
         storage: Database storage instance
-        tickers: List of ticker symbols
+        symbols: List of symbols
         lookback_days: Number of trading days to look back
 
     Returns:
-        Dictionary mapping ticker to list of (date, return) tuples
+        Dictionary mapping symbol to list of (date, return) tuples
         Returns are simple returns: (P_t - P_{t-1}) / P_{t-1}
     """
-    if not tickers:
+    if not symbols:
         return {}
 
-    # Build query for all tickers
-    placeholders = ", ".join(f"${i + 1}" for i in range(len(tickers)))
+    # Build query for all symbols
+    placeholders = ", ".join(f"${i + 1}" for i in range(len(symbols)))
     query = f"""
         WITH ordered_prices AS (
             SELECT
-                ticker,
+                symbol,
                 date,
                 close,
                 LAG(close) OVER (PARTITION BY symbol ORDER BY date) as prev_close
             FROM day_bars
             WHERE symbol IN ({placeholders})
             ORDER BY symbol, date DESC
-            LIMIT ${len(tickers) + 1}
+            LIMIT ${len(symbols) + 1}
         )
         SELECT
-            ticker,
+            symbol,
             date,
             (close - prev_close) / NULLIF(prev_close, 0) as daily_return
         FROM ordered_prices
@@ -85,25 +85,25 @@ def calculate_daily_returns(
         ORDER BY symbol, date
     """
 
-    result = storage.query(query, list(tickers))
+    result = storage.query(query, list(symbols))
 
     if result.is_empty():
         return {}
 
-    # Organize by ticker and calculate returns
-    ticker_prices: dict[str, list[tuple[date, float]]] = {}
+    # Organize by symbol and calculate returns
+    symbol_prices: dict[str, list[tuple[date, float]]] = {}
     for row in result.iter_rows(named=True):
-        ticker = row["symbol"]
+        symbol = row["symbol"]
         price_date = row["date"]
         close = row["close"]
 
-        if ticker not in ticker_prices:
-            ticker_prices[ticker] = []
-        ticker_prices[ticker].append((price_date, close))
+        if symbol not in symbol_prices:
+            symbol_prices[symbol] = []
+        symbol_prices[symbol].append((price_date, close))
 
-    # Calculate returns for each ticker
-    ticker_returns: dict[str, list[tuple[date, float]]] = {}
-    for ticker, prices in ticker_prices.items():
+    # Calculate returns for each symbol
+    symbol_returns: dict[str, list[tuple[date, float]]] = {}
+    for symbol, prices in symbol_prices.items():
         # Sort by date
         prices.sort(key=lambda x: x[0])
         returns = []
@@ -114,9 +114,9 @@ def calculate_daily_returns(
             if prev_price > 0:
                 daily_return = (curr_price - prev_price) / prev_price
                 returns.append((curr_date, daily_return))
-        ticker_returns[ticker] = returns
+        symbol_returns[symbol] = returns
 
-    return ticker_returns
+    return symbol_returns
 
 
 def calculate_pairwise_covariance(
@@ -209,30 +209,30 @@ def calculate_volatility(returns: list[float], annualize: bool = True) -> float:
 
 def update_covariance_matrix(
     storage: PortfolioStorage,
-    tickers: list[str],
+    symbols: list[str],
     lookback_days: int = DEFAULT_LOOKBACK_DAYS,
 ) -> int:
-    """Calculate and store covariance matrix for given tickers.
+    """Calculate and store covariance matrix for given symbols.
 
     Args:
         storage: Database storage instance
-        tickers: List of ticker symbols
+        symbols: List of symbols
         lookback_days: Number of trading days for calculation
 
     Returns:
         Number of pairs updated
     """
-    if len(tickers) < 2:
-        logger.warning("covariance_matrix_skip", reason="need at least 2 tickers")
+    if len(symbols) < 2:
+        logger.warning("covariance_matrix_skip", reason="need at least 2 symbols")
         return 0
 
-    # Get daily returns for all tickers
-    all_returns = calculate_daily_returns(storage, tickers, lookback_days)
+    # Get daily returns for all symbols
+    all_returns = calculate_daily_returns(storage, symbols, lookback_days)
 
     if len(all_returns) < 2:
         logger.warning(
             "covariance_matrix_insufficient_data",
-            tickers=tickers,
+            symbols=symbols,
             available=list(all_returns.keys()),
         )
         return 0
@@ -241,22 +241,22 @@ def update_covariance_matrix(
     pairs_updated = 0
     now = datetime.now(UTC)
 
-    for i, ticker1 in enumerate(tickers):
-        if ticker1 not in all_returns:
+    for i, symbol1 in enumerate(symbols):
+        if symbol1 not in all_returns:
             continue
 
-        for ticker2 in tickers[i:]:  # Include self-covariance (variance)
-            if ticker2 not in all_returns:
+        for symbol2 in symbols[i:]:  # Include self-covariance (variance)
+            if symbol2 not in all_returns:
                 continue
 
             # Align returns by date
-            aligned1, aligned2 = align_returns(all_returns[ticker1], all_returns[ticker2])
+            aligned1, aligned2 = align_returns(all_returns[symbol1], all_returns[symbol2])
 
             if len(aligned1) < MIN_OBSERVATIONS:
                 logger.debug(
                     "covariance_skip_pair",
-                    symbol1=ticker1,
-                    symbol2=ticker2,
+                    symbol1=symbol1,
+                    symbol2=symbol2,
                     observations=len(aligned1),
                     min_required=MIN_OBSERVATIONS,
                 )
@@ -288,21 +288,21 @@ def update_covariance_matrix(
 
             storage.execute(
                 upsert_query,
-                [ticker1, ticker2, cov, corr, vol1, vol2, len(aligned1), lookback_days, now],
+                [symbol1, symbol2, cov, corr, vol1, vol2, len(aligned1), lookback_days, now],
             )
             pairs_updated += 1
 
-            # Store reverse direction (ticker2, ticker1) if different
-            if ticker1 != ticker2:
+            # Store reverse direction (symbol2, symbol1) if different
+            if symbol1 != symbol2:
                 storage.execute(
                     upsert_query,
-                    [ticker2, ticker1, cov, corr, vol2, vol1, len(aligned1), lookback_days, now],
+                    [symbol2, symbol1, cov, corr, vol2, vol1, len(aligned1), lookback_days, now],
                 )
                 pairs_updated += 1
 
     logger.info(
         "covariance_matrix_updated",
-        tickers_count=len(tickers),
+        symbols_count=len(symbols),
         pairs_updated=pairs_updated,
         lookback_days=lookback_days,
     )
@@ -312,23 +312,23 @@ def update_covariance_matrix(
 
 def get_covariance_matrix(
     storage: PortfolioStorage,
-    tickers: list[str],
+    symbols: list[str],
     max_age_hours: int = 24,
 ) -> dict[tuple[str, str], float] | None:
     """Retrieve covariance matrix from database.
 
     Args:
         storage: Database storage instance
-        tickers: List of ticker symbols
+        symbols: List of symbols
         max_age_hours: Maximum age of cached data in hours
 
     Returns:
-        Dictionary mapping (ticker1, ticker2) to covariance, or None if stale/missing
+        Dictionary mapping (symbol1, symbol2) to covariance, or None if stale/missing
     """
-    if len(tickers) < 2:
+    if len(symbols) < 2:
         return None
 
-    placeholders = ", ".join(f"${i + 1}" for i in range(len(tickers)))
+    placeholders = ", ".join(f"${i + 1}" for i in range(len(symbols)))
     cutoff_time = datetime.now(UTC) - timedelta(hours=max_age_hours)
 
     query = f"""
@@ -336,10 +336,10 @@ def get_covariance_matrix(
         FROM portfolio_covariance
         WHERE symbol1 IN ({placeholders})
           AND symbol2 IN ({placeholders})
-          AND calculated_at >= ${len(tickers) + 1}
+          AND calculated_at >= ${len(symbols) + 1}
     """
 
-    result = storage.query(query, tickers + tickers + [cutoff_time])
+    result = storage.query(query, symbols + symbols + [cutoff_time])
 
     if result.is_empty():
         return None
@@ -349,7 +349,7 @@ def get_covariance_matrix(
         matrix[(row["symbol1"], row["symbol2"])] = row["covariance"]
 
     # Check if we have all pairs
-    expected_pairs = len(tickers) * len(tickers)
+    expected_pairs = len(symbols) * len(symbols)
     if len(matrix) < expected_pairs:
         logger.debug(
             "covariance_matrix_incomplete",
@@ -370,31 +370,31 @@ def calculate_portfolio_volatility_from_covariance(
     Formula: sigma_portfolio = sqrt(w' * Cov * w)
 
     Args:
-        weights: Dictionary mapping ticker to portfolio weight (must sum to 1)
-        covariance_matrix: Dictionary mapping (ticker1, ticker2) to covariance
+        weights: Dictionary mapping symbol to portfolio weight (must sum to 1)
+        covariance_matrix: Dictionary mapping (symbol1, symbol2) to covariance
 
     Returns:
         Portfolio volatility (annualized, as decimal)
     """
-    tickers = list(weights.keys())
-    n = len(tickers)
+    symbols = list(weights.keys())
+    n = len(symbols)
 
     if n == 0:
         return 0.0
 
     if n == 1:
         # Single asset: volatility is sqrt of variance
-        ticker = tickers[0]
-        variance = covariance_matrix.get((ticker, ticker), 0.0)
+        symbol = symbols[0]
+        variance = covariance_matrix.get((symbol, symbol), 0.0)
         return math.sqrt(variance) * math.sqrt(252)  # Annualize
 
     # Calculate w' Σ w
     portfolio_variance = 0.0
-    for ticker1 in tickers:
-        w1 = weights[ticker1]
-        for ticker2 in tickers:
-            w2 = weights[ticker2]
-            cov = covariance_matrix.get((ticker1, ticker2), 0.0)
+    for symbol1 in symbols:
+        w1 = weights[symbol1]
+        for symbol2 in symbols:
+            w2 = weights[symbol2]
+            cov = covariance_matrix.get((symbol1, symbol2), 0.0)
             portfolio_variance += w1 * w2 * cov
 
     if portfolio_variance < 0:
@@ -413,14 +413,14 @@ def calculate_weight_hash(weights: dict[str, float]) -> str:
     """Create a hash of portfolio weights for cache key.
 
     Args:
-        weights: Dictionary mapping ticker to weight
+        weights: Dictionary mapping symbol to weight
 
     Returns:
         MD5 hash of sorted weight string
     """
-    # Sort by ticker for consistent hashing
+    # Sort by symbol for consistent hashing
     sorted_items = sorted(weights.items())
-    weight_str = "|".join(f"{t}:{w:.6f}" for t, w in sorted_items)
+    weight_str = "|".join(f"{s}:{w:.6f}" for s, w in sorted_items)
     return hashlib.md5(weight_str.encode()).hexdigest()[:16]
 
 
@@ -434,7 +434,7 @@ def get_portfolio_volatility(
 
     Args:
         storage: Database storage instance
-        weights: Dictionary mapping ticker to weight (should sum to ~1)
+        weights: Dictionary mapping symbol to weight (should sum to ~1)
         portfolio_id: Identifier for the portfolio
         force_recalculate: Skip cache and recalculate
 
@@ -445,7 +445,7 @@ def get_portfolio_volatility(
     if not weights:
         return None, None, None
 
-    tickers = list(weights.keys())
+    symbols = list(weights.keys())
     weight_hash = calculate_weight_hash(weights)
 
     # Check cache first
@@ -466,15 +466,15 @@ def get_portfolio_volatility(
             )
 
     # Get or update covariance matrix
-    cov_matrix = get_covariance_matrix(storage, tickers)
+    cov_matrix = get_covariance_matrix(storage, symbols)
     if cov_matrix is None:
         # Update covariance matrix
-        logger.info("portfolio_volatility_updating_covariance", tickers=tickers)
-        update_covariance_matrix(storage, tickers)
-        cov_matrix = get_covariance_matrix(storage, tickers, max_age_hours=1)
+        logger.info("portfolio_volatility_updating_covariance", symbols=symbols)
+        update_covariance_matrix(storage, symbols)
+        cov_matrix = get_covariance_matrix(storage, symbols, max_age_hours=1)
 
     if cov_matrix is None:
-        logger.warning("portfolio_volatility_no_covariance", tickers=tickers)
+        logger.warning("portfolio_volatility_no_covariance", symbols=symbols)
         return None, None, None
 
     # Calculate portfolio volatility
@@ -482,9 +482,9 @@ def get_portfolio_volatility(
 
     # Calculate weighted average volatility (the incorrect old method)
     weighted_avg_vol = 0.0
-    for ticker, weight in weights.items():
+    for symbol, weight in weights.items():
         # Get individual volatility from diagonal of covariance matrix
-        variance = cov_matrix.get((ticker, ticker), 0.0)
+        variance = cov_matrix.get((symbol, symbol), 0.0)
         vol = math.sqrt(variance) * math.sqrt(252)  # Annualize
         weighted_avg_vol += weight * vol
 

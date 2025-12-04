@@ -106,7 +106,7 @@ def get_daily_returns(
 
     Args:
         storage: Database storage instance
-        symbol: Stock ticker symbol
+        symbol: Stock symbol
         lookback_days: Number of calendar days to look back
 
     Returns:
@@ -219,7 +219,7 @@ def calculate_symbol_var(
 
     Args:
         storage: Database storage instance
-        symbol: Stock ticker symbol
+        symbol: Stock symbol
 
     Returns:
         VaRResult with 95% and 99% VaR/CVaR
@@ -256,7 +256,7 @@ def calculate_symbol_beta(
 
     Args:
         storage: Database storage instance
-        symbol: Stock ticker symbol
+        symbol: Stock symbol
 
     Returns:
         BetaResult with 90-day, 1-year, and 2-year betas

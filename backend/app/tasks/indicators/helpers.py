@@ -18,7 +18,7 @@ logger = get_logger(__name__)
 class IndicatorDataDict(TypedDict, total=False):
     """Technical indicator data dictionary for database insertion."""
 
-    ticker: str
+    symbol: str
     date: dt.date
     rsi_14: float | None
     macd: float | None
@@ -41,12 +41,12 @@ class IndicatorDataDict(TypedDict, total=False):
 
 
 def build_indicator_data(
-    ticker: str, indicators: dict[str, Any], date: dt.date
+    symbol: str, indicators: dict[str, Any], date: dt.date
 ) -> IndicatorDataDict:
     """Build indicator data dictionary for database insertion.
 
     Args:
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
         indicators: Calculated indicators dictionary
         date: Date of the indicator values
 
@@ -54,7 +54,7 @@ def build_indicator_data(
         Dictionary with all indicator fields ready for database insertion
     """
     return {
-        "ticker": ticker,
+        "symbol": symbol,
         "date": date,
         "rsi_14": indicators.get("rsi_14"),
         "macd": indicators.get("macd_12_26_9", {}).get("macd"),
@@ -81,7 +81,7 @@ def upsert_indicators(storage: PortfolioStorage, indicator_data: IndicatorDataDi
     """Insert or update technical indicators in database.
 
     Uses PostgreSQL UPSERT (ON CONFLICT) to update existing records
-    or insert new ones based on (ticker, date) unique constraint.
+    or insert new ones based on (symbol, date) unique constraint.
 
     Args:
         storage: Storage instance with connection context manager
@@ -126,7 +126,7 @@ def upsert_indicators(storage: PortfolioStorage, indicator_data: IndicatorDataDi
                 calculated_at = EXCLUDED.calculated_at
             """,
             [
-                indicator_data["ticker"],
+                indicator_data["symbol"],
                 indicator_data["date"].isoformat(),
                 indicator_data["rsi_14"],
                 indicator_data["macd"],

@@ -43,13 +43,13 @@ def _calculate_lookback_start(target_date: dt.date, lookback_days: int) -> dt.da
 
 
 def _fetch_current_volume(
-    storage: PortfolioStorage, ticker: str, target_date: dt.date
+    storage: PortfolioStorage, symbol: str, target_date: dt.date
 ) -> int | None:
-    """Fetch current day's volume for a ticker.
+    """Fetch current day's volume for a symbol.
 
     Args:
         storage: PortfolioStorage instance
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
         target_date: Date to fetch volume for
 
     Returns:
@@ -62,7 +62,7 @@ def _fetch_current_volume(
           AND date = ?
         LIMIT 1
     """
-    current_result = storage.query(current_volume_query, [ticker, target_date.isoformat()])
+    current_result = storage.query(current_volume_query, [symbol, target_date.isoformat()])
 
     if current_result is None or len(current_result) == 0:
         return None
@@ -73,7 +73,7 @@ def _fetch_current_volume(
 
 def _fetch_average_volume(
     storage: PortfolioStorage,
-    ticker: str,
+    symbol: str,
     lookback_start: dt.date,
     target_date: dt.date,
 ) -> float | None:
@@ -81,7 +81,7 @@ def _fetch_average_volume(
 
     Args:
         storage: PortfolioStorage instance
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
         lookback_start: Start of lookback period
         target_date: End of lookback period (exclusive)
 
@@ -97,7 +97,7 @@ def _fetch_average_volume(
           AND volume > 0
     """
     avg_result = storage.query(
-        avg_volume_query, [ticker, lookback_start.isoformat(), target_date.isoformat()]
+        avg_volume_query, [symbol, lookback_start.isoformat(), target_date.isoformat()]
     )
 
     if avg_result is None or len(avg_result) == 0:
@@ -109,11 +109,11 @@ def _fetch_average_volume(
 
 def calculate_rvol(
     storage: PortfolioStorage,
-    ticker: str,
+    symbol: str,
     date: dt.date | str,
     lookback_days: int = 20,
 ) -> float | None:
-    """Calculate Relative Volume (RVOL) for a ticker on a specific date.
+    """Calculate Relative Volume (RVOL) for a symbol on a specific date.
 
     RVOL measures current trading volume relative to the average volume
     over a lookback period. Values > 1.0 indicate above-average volume,
@@ -123,7 +123,7 @@ def calculate_rvol(
 
     Args:
         storage: PortfolioStorage instance for database access
-        ticker: Stock ticker symbol (e.g., "AAPL")
+        symbol: Stock symbol (e.g., "AAPL")
         date: Date to calculate RVOL for (YYYY-MM-DD format or date object)
         lookback_days: Number of trading days to average (default: 20)
 
@@ -144,24 +144,24 @@ def calculate_rvol(
 
     logger.debug(
         "calculate_rvol_start",
-        ticker=ticker,
+        symbol=symbol,
         date=str(target_date),
         lookback_days=lookback_days,
         lookback_start=str(lookback_start),
     )
 
     # Get current day's volume
-    current_volume = _fetch_current_volume(storage, ticker, target_date)
+    current_volume = _fetch_current_volume(storage, symbol, target_date)
     if current_volume is None:
-        logger.warning("calculate_rvol_no_current_data", ticker=ticker, date=str(target_date))
+        logger.warning("calculate_rvol_no_current_data", symbol=symbol, date=str(target_date))
         return None
 
     # Get average volume over lookback period
-    avg_volume = _fetch_average_volume(storage, ticker, lookback_start, target_date)
+    avg_volume = _fetch_average_volume(storage, symbol, lookback_start, target_date)
     if avg_volume is None:
         logger.warning(
             "calculate_rvol_no_lookback_data",
-            ticker=ticker,
+            symbol=symbol,
             lookback_start=str(lookback_start),
             date=str(target_date),
         )
@@ -172,7 +172,7 @@ def calculate_rvol(
 
     logger.info(
         "calculate_rvol_complete",
-        ticker=ticker,
+        symbol=symbol,
         date=str(target_date),
         current_volume=current_volume,
         avg_volume=avg_volume,
@@ -182,118 +182,118 @@ def calculate_rvol(
     return rvol
 
 
-def _fetch_all_tickers(storage: PortfolioStorage, target_date: dt.date) -> list[str]:
-    """Fetch all tickers with data for a specific date.
+def _fetch_all_symbols(storage: PortfolioStorage, target_date: dt.date) -> list[str]:
+    """Fetch all symbols with data for a specific date.
 
     Args:
         storage: PortfolioStorage instance
-        target_date: Date to check for ticker data
+        target_date: Date to check for symbol data
 
     Returns:
-        List of ticker symbols
+        List of symbols
     """
-    tickers_query = """
+    symbols_query = """
         SELECT DISTINCT symbol
         FROM day_bars
         WHERE date = ?
     """
-    tickers_result = storage.query(tickers_query, [target_date.isoformat()])
+    symbols_result = storage.query(symbols_query, [target_date.isoformat()])
 
-    if tickers_result is None or len(tickers_result) == 0:
+    if symbols_result is None or len(symbols_result) == 0:
         return []
 
-    return tickers_result["symbol"].to_list()
+    return symbols_result["symbol"].to_list()
 
 
 def _build_rvol_entry(
     storage: PortfolioStorage,
-    ticker: str,
+    symbol: str,
     rvol: float,
     target_date: dt.date,
     lookback_days: int,
 ) -> dict[str, float | str]:
-    """Build RVOL entry with volume details for a ticker.
+    """Build RVOL entry with volume details for a symbol.
 
     Args:
         storage: PortfolioStorage instance
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
         rvol: Calculated RVOL value
         target_date: Analysis date
         lookback_days: Lookback period for average calculation
 
     Returns:
-        Dict with ticker, rvol, current_volume, and avg_volume
+        Dict with symbol, rvol, current_volume, and avg_volume
     """
     # Get current volume
-    current_volume = _fetch_current_volume(storage, ticker, target_date)
+    current_volume = _fetch_current_volume(storage, symbol, target_date)
 
     # Get average volume
     lookback_start = _calculate_lookback_start(target_date, lookback_days)
-    avg_volume = _fetch_average_volume(storage, ticker, lookback_start, target_date)
+    avg_volume = _fetch_average_volume(storage, symbol, lookback_start, target_date)
 
     return {
-        "symbol": ticker,
+        "symbol": symbol,
         "rvol": round(rvol, 2),
         "current_volume": int(current_volume) if current_volume else 0,
         "avg_volume": int(avg_volume) if avg_volume else 0,
     }
 
 
-def get_high_volume_tickers(
+def get_high_volume_symbols(
     storage: PortfolioStorage,
     date: dt.date | str,
     rvol_threshold: float = 1.5,
     lookback_days: int = 20,
-    min_tickers: int = 10,
+    min_symbols: int = 10,
 ) -> list[dict[str, float | str]]:
-    """Find tickers with unusually high volume on a specific date.
+    """Find symbols with unusually high volume on a specific date.
 
     Args:
         storage: PortfolioStorage instance for database access
         date: Date to analyze (YYYY-MM-DD format or date object)
         rvol_threshold: Minimum RVOL to be considered high volume (default: 1.5)
         lookback_days: Number of trading days for RVOL calculation (default: 20)
-        min_tickers: Minimum number of tickers to return (default: 10)
+        min_symbols: Minimum number of symbols to return (default: 10)
 
     Returns:
-        List of dicts with ticker, rvol, current_volume, avg_volume
+        List of dicts with symbol, rvol, current_volume, avg_volume
         Sorted by RVOL descending
 
     Example:
         >>> storage = get_storage()
-        >>> high_vol = get_high_volume_tickers(storage, "2025-01-15", rvol_threshold=2.0)
+        >>> high_vol = get_high_volume_symbols(storage, "2025-01-15", rvol_threshold=2.0)
         >>> for item in high_vol[:5]:
-        ...     print(f"{item['ticker']}: RVOL={item['rvol']:.2f}x")
+        ...     print(f"{item['symbol']}: RVOL={item['rvol']:.2f}x")
     """
     target_date = _parse_target_date(date)
 
-    # Get all tickers that have data for the target date
-    tickers = _fetch_all_tickers(storage, target_date)
-    if not tickers:
-        logger.warning("get_high_volume_tickers_no_data", date=str(target_date))
+    # Get all symbols that have data for the target date
+    symbols = _fetch_all_symbols(storage, target_date)
+    if not symbols:
+        logger.warning("get_high_volume_symbols_no_data", date=str(target_date))
         return []
 
-    # Calculate RVOL for each ticker and filter by threshold
+    # Calculate RVOL for each symbol and filter by threshold
     high_volume_list: list[dict[str, float | str]] = []
 
-    for ticker in tickers:
-        rvol = calculate_rvol(storage, ticker, target_date, lookback_days)
+    for symbol in symbols:
+        rvol = calculate_rvol(storage, symbol, target_date, lookback_days)
 
         if rvol is not None and rvol >= rvol_threshold:
-            entry = _build_rvol_entry(storage, ticker, rvol, target_date, lookback_days)
+            entry = _build_rvol_entry(storage, symbol, rvol, target_date, lookback_days)
             high_volume_list.append(entry)
 
     # Sort by RVOL descending
     high_volume_list.sort(key=lambda x: x["rvol"], reverse=True)
 
-    # Return at least min_tickers if available
-    result = high_volume_list[: max(min_tickers, len(high_volume_list))]
+    # Return at least min_symbols if available
+    result = high_volume_list[: max(min_symbols, len(high_volume_list))]
 
     logger.info(
-        "get_high_volume_tickers_complete",
+        "get_high_volume_symbols_complete",
         date=str(target_date),
         threshold=rvol_threshold,
-        total_tickers=len(tickers),
+        total_symbols=len(symbols),
         high_volume_count=len(high_volume_list),
         returned_count=len(result),
     )

@@ -115,7 +115,7 @@ class StrategyOptimizer:
         """Optimize strategy parameters using walk-forward validation.
 
         Args:
-            symbol: Stock ticker
+            symbol: Stock symbol
             strategy_template: Base strategy from agent
             research: Real fundamental data from ResearchAggregator
             lookback_days: Historical data to use (default 1 year)
@@ -368,7 +368,7 @@ class StrategyOptimizer:
         """Test parameter configuration across validation windows.
 
         Args:
-            symbol: Stock ticker
+            symbol: Stock symbol
             params: Strategy parameters to test
             windows: Validation windows
 

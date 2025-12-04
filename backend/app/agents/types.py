@@ -22,7 +22,7 @@ class ToolInputDict(TypedDict, total=False):
     idea_type: str
     confidence_score: float
     risk_level: str
-    ticker: str
+    symbol: str
     reason: str
     expected_return_pct: float
     time_horizon_days: int

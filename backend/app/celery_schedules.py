@@ -178,12 +178,12 @@ def get_beat_schedule() -> dict[str, object]:
             "args": [
                 None,
                 50,
-            ],  # backfill_technical_indicators(tickers=None, batch_size=50) - auto-discovers all tickers
+            ],  # backfill_technical_indicators(symbols=None, batch_size=50) - auto-discovers all symbols
             "options": {"expires": 3600},  # Task expires after 1 hour
             # Notes:
             # - Changed from update_technical_indicators to backfill_technical_indicators
             # - Runs daily at 02:30 UTC (after OHLCV refresh at 02:00)
-            # - Auto-discovers ALL tickers from day_bars table
+            # - Auto-discovers ALL symbols from day_bars table
             # - Calculates indicators for any missing dates (catch-up + new dates)
             # - Permanent fix: ensures indicators stay in sync with OHLCV data
             # - Must run after refresh-daily-ohlcv completes
@@ -297,7 +297,7 @@ def get_beat_schedule() -> dict[str, object]:
             # Notes:
             # - Runs weekly on Sundays at 05:00 UTC (GAP-003)
             # - Fetches earnings surprise data (EPS estimate vs actual) from Finnhub
-            # - Auto-discovers all watchlist + portfolio tickers
+            # - Auto-discovers all watchlist + portfolio symbols
             # - Weekly is sufficient since earnings are quarterly events
             # - Data stored in earnings_surprises table
             # - Used for signal classification (consistent beats = bullish)
@@ -708,7 +708,7 @@ def get_beat_schedule() -> dict[str, object]:
             "options": {"expires": 3600},
             # Notes:
             # - Runs daily at 05:30 UTC (after OHLCV data refresh completes)
-            # - Calculates pairwise covariance matrix for all watchlist/portfolio tickers
+            # - Calculates pairwise covariance matrix for all watchlist/portfolio symbols
             # - Uses 252-day (1 year) lookback for statistical significance
             # - Enables proper portfolio volatility calculation: sigma = sqrt(w' * Cov * w)
             # - Fixes GAP-020: Wrong portfolio risk math using weighted average
@@ -739,7 +739,7 @@ def get_beat_schedule() -> dict[str, object]:
             "schedule": crontab(hour=8, minute=0),  # Daily at 08:00 UTC (3 AM ET)
             "options": {"expires": 1800},
             # Notes:
-            # - Discovers high-potential tickers from top gainers, volume spikes, news
+            # - Discovers high-potential symbols from top gainers, volume spikes, news
             # - Scoring: gainers (0-4), volume (0-4), news mentions (0-4) = 0-12
             # - Threshold: discovery_score >= 6.0 (from rules.yaml)
             # - Limits: Max 5 additions per day, respects max watchlist size (50)
@@ -750,9 +750,9 @@ def get_beat_schedule() -> dict[str, object]:
             "schedule": crontab(hour=8, minute=30),  # Daily at 08:30 UTC (30 min after discovery)
             "options": {"expires": 1800},
             # Notes:
-            # - Removes underperforming tickers after minimum hold period
+            # - Removes underperforming symbols after minimum hold period
             # - Criteria: avg_score < 4.0 AND days_watched >= 7
-            # - Excludes tickers owned in portfolio positions
+            # - Excludes symbols owned in portfolio positions
             # - Limits: Max 3 removals per day to prevent mass deletion
             # - Can be disabled via rules.yaml: auto_trim_enabled: false
         },

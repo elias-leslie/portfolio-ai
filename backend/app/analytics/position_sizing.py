@@ -205,7 +205,7 @@ def calculate_stop_distance_percent(entry_price: float, stop_loss: float) -> flo
 
 def get_risk_adjusted_position_size(
     storage: PortfolioStorage,
-    ticker: str,
+    symbol: str,
     equity: float,
     entry_price: float,
     risk_percent: float = DEFAULT_RISK_PERCENT,
@@ -216,7 +216,7 @@ def get_risk_adjusted_position_size(
 
     Args:
         storage: Database storage for ATR lookup
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
         equity: Total portfolio equity in dollars
         entry_price: Entry price per share
         risk_percent: Risk per trade as fraction (0.015 = 1.5%)
@@ -227,7 +227,7 @@ def get_risk_adjusted_position_size(
     from app.analytics.trade_calculations import calculate_stop_loss  # noqa: PLC0415
 
     details: dict[str, float | str | None] = {
-        "symbol": ticker,
+        "symbol": symbol,
         "equity": equity,
         "entry_price": entry_price,
         "stop_loss": None,
@@ -239,13 +239,13 @@ def get_risk_adjusted_position_size(
     }
 
     # Get ATR-based stop loss
-    stop_loss = calculate_stop_loss(storage, ticker, entry_price)
+    stop_loss = calculate_stop_loss(storage, symbol, entry_price)
 
     if stop_loss is None:
         details["reason"] = "no_atr_data"
         logger.warning(
             "risk_adjusted_sizing_no_stop",
-            ticker=ticker,
+            symbol=symbol,
             reason="ATR not available",
         )
         return 0, details

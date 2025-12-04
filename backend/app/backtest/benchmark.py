@@ -150,7 +150,7 @@ class BenchmarkComparisonEngine:
         normalized equity curve (starting at 0% return).
 
         Args:
-            symbol: Stock ticker (e.g., "SPY", "VTI")
+            symbol: Stock symbol (e.g., "SPY", "VTI")
             start_date: Start date for calculation
             end_date: End date for calculation
 
@@ -350,7 +350,7 @@ class BenchmarkComparisonEngine:
         Args:
             strategy_normalized: Normalized strategy equity curve
             benchmark_normalized: Normalized benchmark equity curve
-            benchmark_symbol: Benchmark ticker symbol
+            benchmark_symbol: Benchmark symbol
             start_date: Backtest start date
             end_date: Backtest end date
             risk_free_rate: Annual risk-free rate

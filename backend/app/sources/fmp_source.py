@@ -82,14 +82,14 @@ class FMPClient(BaseHTTPClient):
 
     def get_historical_price(
         self,
-        ticker: str,
+        symbol: str,
         from_date: str | None = None,
         to_date: str | None = None,
     ) -> dict[str, Any]:
-        """Fetch historical daily OHLCV bars for a ticker.
+        """Fetch historical daily OHLCV bars for a symbol.
 
         Args:
-            ticker: Stock symbol (e.g., "AAPL")
+            symbol: Stock symbol (e.g., "AAPL")
             from_date: Start date (YYYY-MM-DD format, optional)
             to_date: End date (YYYY-MM-DD format, optional)
 
@@ -100,7 +100,7 @@ class FMPClient(BaseHTTPClient):
             >>> client.get_historical_price("AAPL", "2024-01-01", "2024-01-31")
             {"symbol": "AAPL", "historical": [{"date": "2024-01-31", "open": 184.35, ...}]}
         """
-        path = f"/historical-price-full/{ticker}"
+        path = f"/historical-price-full/{symbol}"
         params: dict[str, Any] = {}
         if from_date:
             params["from"] = from_date
@@ -110,11 +110,11 @@ class FMPClient(BaseHTTPClient):
         result: dict[str, Any] = self.get(path, params)
         return result
 
-    def get_profile(self, ticker: str) -> list[dict[str, Any]]:
+    def get_profile(self, symbol: str) -> list[dict[str, Any]]:
         """Fetch company profile and metadata.
 
         Args:
-            ticker: Stock symbol (e.g., "AAPL")
+            symbol: Stock symbol (e.g., "AAPL")
 
         Returns:
             List with single dict containing company profile
@@ -123,7 +123,7 @@ class FMPClient(BaseHTTPClient):
             >>> client.get_profile("AAPL")
             [{"symbol": "AAPL", "companyName": "Apple Inc", "sector": "Technology", ...}]
         """
-        path = f"/profile/{ticker}"
+        path = f"/profile/{symbol}"
         result: list[dict[str, Any]] = self.get(path)
         return result
 
@@ -181,7 +181,7 @@ class FMPSource(BaseSource):
         """Fetch daily OHLCV bars from FMP.
 
         Args:
-            request: DatasetRequest with tickers, start, end dates
+            request: DatasetRequest with symbols, start, end dates
 
         Returns:
             Polars DataFrame with OHLCV data, or None if fetch fails
@@ -193,16 +193,16 @@ class FMPSource(BaseSource):
 
         logger.info(
             "fmp_fetch_day_bars_start",
-            num_tickers=len(list(request.tickers)),
+            num_symbols=len(list(request.symbols)),
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
         )
 
-        for ticker in request.tickers:
+        for symbol in request.symbols:
             try:
                 # Fetch historical data
                 response = self.client.get_historical_price(
-                    ticker=ticker,
+                    symbol=symbol,
                     from_date=start_date.isoformat(),
                     to_date=end_date.isoformat(),
                 )
@@ -212,7 +212,7 @@ class FMPSource(BaseSource):
                     error_msg = response.get("Error Message", "Unknown error")
                     logger.warning(
                         "fmp_api_error",
-                        ticker=ticker,
+                        symbol=symbol,
                         error=error_msg,
                     )
                     continue
@@ -220,7 +220,7 @@ class FMPSource(BaseSource):
                 # Extract historical data
                 historical = response.get("historical", [])
                 if not historical:
-                    logger.debug("fmp_no_data", ticker=ticker)
+                    logger.debug("fmp_no_data", symbol=symbol)
                     continue
 
                 # Parse OHLCV data
@@ -243,14 +243,14 @@ class FMPSource(BaseSource):
                     except (KeyError, ValueError) as e:
                         logger.warning(
                             "fmp_bar_parse_error",
-                            ticker=ticker,
+                            symbol=symbol,
                             bar=bar,
                             error=str(e),
                         )
                         continue
 
                 if not records:
-                    logger.debug("fmp_no_valid_bars", ticker=ticker)
+                    logger.debug("fmp_no_valid_bars", symbol=symbol)
                     continue
 
                 # Create DataFrame
@@ -264,42 +264,42 @@ class FMPSource(BaseSource):
 
                 logger.debug(
                     "fmp_fetch_success",
-                    ticker=ticker,
+                    symbol=symbol,
                     rows=len(df),
                 )
 
             except Exception as e:
                 logger.warning(
                     "fmp_fetch_error",
-                    ticker=ticker,
+                    symbol=symbol,
                     error=str(e),
                     error_type=type(e).__name__,
                 )
-                # Continue to next ticker
+                # Continue to next symbol
                 continue
 
         if not frames:
             logger.warning("fmp_no_data_fetched")
             return None
 
-        # Combine all tickers
+        # Combine all symbols
         combined = pl.concat(frames, how="vertical_relaxed")
 
         logger.info(
             "fmp_fetch_day_bars_complete",
             total_rows=len(combined),
-            unique_tickers=combined["ticker"].n_unique(),
+            unique_symbols=combined["symbol"].n_unique(),
         )
 
         return combined
 
     def fetch_reference_payload(
-        self, tickers: Iterable[str], as_of: dt.date
+        self, symbols: Iterable[str], as_of: dt.date
     ) -> pl.DataFrame | None:
         """Fetch company profile data from FMP.
 
         Args:
-            tickers: List of ticker symbols
+            symbols: List of symbols
             as_of: As-of date for reference data
 
         Returns:
@@ -309,19 +309,19 @@ class FMPSource(BaseSource):
 
         logger.info(
             "fmp_fetch_reference_start",
-            num_tickers=len(list(tickers)),
+            num_symbols=len(list(symbols)),
             as_of_date=as_of.isoformat(),
         )
 
-        for ticker in tickers:
+        for symbol in symbols:
             try:
-                response = self.client.get_profile(ticker)
+                response = self.client.get_profile(symbol)
 
                 # Check for empty response
                 if not response:
                     logger.warning(
                         "fmp_profile_api_error",
-                        ticker=ticker,
+                        symbol=symbol,
                         error="No data",
                     )
                     continue
@@ -341,12 +341,12 @@ class FMPSource(BaseSource):
                     }
                 )
 
-                logger.debug("fmp_reference_fetched", ticker=ticker)
+                logger.debug("fmp_reference_fetched", symbol=symbol)
 
             except Exception as e:
                 logger.warning(
                     "fmp_reference_error",
-                    ticker=ticker,
+                    symbol=symbol,
                     error=str(e),
                     error_type=type(e).__name__,
                 )
@@ -358,36 +358,36 @@ class FMPSource(BaseSource):
 
         logger.info(
             "fmp_reference_complete",
-            num_tickers=len(records),
+            num_symbols=len(records),
         )
 
         return pl.DataFrame(records)
 
     def fetch_news_payload(
-        self, tickers: Iterable[str], start: dt.datetime, end: dt.datetime
+        self, symbols: Iterable[str], start: dt.datetime, end: dt.datetime
     ) -> pl.DataFrame | None:
         """Fetch news articles from FMP stock news endpoint."""
         records: list[dict[str, Any]] = []
         start_date = start.astimezone(dt.UTC).date().isoformat()
         end_date = end.astimezone(dt.UTC).date().isoformat()
 
-        ticker_list = list(tickers) or ["__MARKET__"]
-        for ticker in ticker_list:
-            is_market = ticker in (None, "__MARKET__")
+        symbol_list = list(symbols) or ["__MARKET__"]
+        for symbol in symbol_list:
+            is_market = symbol in (None, "__MARKET__")
             params: dict[str, Any] = {
                 "from": start_date,
                 "to": end_date,
                 "limit": 50,
             }
             if not is_market:
-                params["tickers"] = ticker
+                params["symbols"] = symbol
 
             try:
                 response = self.client.get("/stock_news", params)
             except Exception as exc:
                 logger.warning(
                     "fmp_news_error",
-                    ticker="__MARKET__" if is_market else ticker,
+                    symbol="__MARKET__" if is_market else symbol,
                     error=str(exc),
                     error_type=type(exc).__name__,
                 )
@@ -397,7 +397,7 @@ class FMPSource(BaseSource):
             if not items:
                 logger.debug(
                     "fmp_news_empty",
-                    ticker="__MARKET__" if is_market else ticker,
+                    symbol="__MARKET__" if is_market else symbol,
                 )
                 continue
 
@@ -416,7 +416,7 @@ class FMPSource(BaseSource):
 
                 records.append(
                     {
-                        "symbol": "__MARKET__" if is_market else (item.get("symbol") or ticker),
+                        "symbol": "__MARKET__" if is_market else (item.get("symbol") or symbol),
                         "headline": headline,
                         "url": item.get("url"),
                         "summary": item.get("text"),
@@ -431,12 +431,12 @@ class FMPSource(BaseSource):
 
             logger.debug(
                 "fmp_news_fetched",
-                ticker="__MARKET__" if is_market else ticker,
+                symbol="__MARKET__" if is_market else symbol,
                 articles=len(items),
             )
 
         if not records:
-            logger.info("fmp_news_no_articles", tickers=list(ticker_list))
+            logger.info("fmp_news_no_articles", symbols=list(symbol_list))
             return None
 
         return pl.DataFrame(records)

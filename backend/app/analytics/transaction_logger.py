@@ -31,7 +31,7 @@ class TransactionLogger:
     def log_entry(
         self,
         trade_id: str,
-        ticker: str,
+        symbol: str,
         shares: int,
         price: float,
         cash_before: float,
@@ -43,7 +43,7 @@ class TransactionLogger:
 
         Args:
             trade_id: ID of the trade (idea_id from idea_outcomes)
-            ticker: Stock symbol
+            symbol: Stock symbol
             shares: Number of shares purchased
             price: Entry price per share
             cash_before: Cash balance before transaction
@@ -60,7 +60,7 @@ class TransactionLogger:
             INSERT INTO paper_trade_transactions (
                 trade_id,
                 transaction_type,
-                ticker,
+                symbol,
                 shares,
                 price,
                 amount,
@@ -78,20 +78,20 @@ class TransactionLogger:
                     insert_query,
                     [
                         trade_id,
-                        ticker,
+                        symbol,
                         shares,
                         price,
                         amount,
                         cash_before,
                         cash_after,
-                        notes or f"Entry: {ticker} {shares} shares @ ${price:.2f}",
+                        notes or f"Entry: {symbol} {shares} shares @ ${price:.2f}",
                         agent_run_id,
                     ],
                 )
                 conn.commit()  # Commit INSERT to database
 
             logger.info(
-                f"Logged ENTRY transaction: {trade_id} - {ticker} "
+                f"Logged ENTRY transaction: {trade_id} - {symbol} "
                 f"{shares} shares @ ${price:.2f} (${amount:.2f})"
                 + (f" [agent: {agent_run_id[:8]}...]" if agent_run_id else "")
             )
@@ -104,7 +104,7 @@ class TransactionLogger:
     def log_exit(
         self,
         trade_id: str,
-        ticker: str,
+        symbol: str,
         shares: int,
         price: float,
         cash_before: float,
@@ -117,7 +117,7 @@ class TransactionLogger:
 
         Args:
             trade_id: ID of the trade (idea_id from idea_outcomes)
-            ticker: Stock symbol
+            symbol: Stock symbol
             shares: Number of shares sold
             price: Exit price per share
             cash_before: Cash balance before transaction
@@ -134,13 +134,13 @@ class TransactionLogger:
         # Include P&L in default notes if not provided
         if not notes:
             pnl_sign = "+" if pnl >= 0 else ""
-            notes = f"Exit: {ticker} {shares} shares @ ${price:.2f} (P&L: {pnl_sign}${pnl:.2f})"
+            notes = f"Exit: {symbol} {shares} shares @ ${price:.2f} (P&L: {pnl_sign}${pnl:.2f})"
 
         insert_query = """
             INSERT INTO paper_trade_transactions (
                 trade_id,
                 transaction_type,
-                ticker,
+                symbol,
                 shares,
                 price,
                 amount,
@@ -158,7 +158,7 @@ class TransactionLogger:
                     insert_query,
                     [
                         trade_id,
-                        ticker,
+                        symbol,
                         shares,
                         price,
                         amount,
@@ -171,7 +171,7 @@ class TransactionLogger:
                 conn.commit()  # Commit INSERT to database
 
             logger.info(
-                f"Logged EXIT transaction: {trade_id} - {ticker} "
+                f"Logged EXIT transaction: {trade_id} - {symbol} "
                 f"{shares} shares @ ${price:.2f} (${amount:.2f}, P&L: ${pnl:.2f})"
                 + (f" [agent: {agent_run_id[:8]}...]" if agent_run_id else "")
             )
@@ -204,7 +204,7 @@ class TransactionLogger:
                     t.id,
                     t.trade_id,
                     t.transaction_type,
-                    t.ticker,
+                    t.symbol,
                     t.shares,
                     t.price,
                     t.amount,
@@ -228,7 +228,7 @@ class TransactionLogger:
                     id,
                     trade_id,
                     transaction_type,
-                    ticker,
+                    symbol,
                     shares,
                     price,
                     amount,
@@ -252,22 +252,22 @@ class TransactionLogger:
 
         return transactions
 
-    def get_transactions_by_ticker(self, ticker: str, limit: int = 50) -> list[TransactionDict]:
-        """Get recent transactions for a specific ticker.
+    def get_transactions_by_symbol(self, symbol: str, limit: int = 50) -> list[TransactionDict]:
+        """Get recent transactions for a specific symbol.
 
         Args:
-            ticker: Stock symbol
+            symbol: Stock symbol
             limit: Maximum number of transactions to return
 
         Returns:
-            List of transaction records for the ticker
+            List of transaction records for the symbol
         """
         query = """
             SELECT
                 id,
                 trade_id,
                 transaction_type,
-                ticker,
+                symbol,
                 shares,
                 price,
                 amount,
@@ -281,7 +281,7 @@ class TransactionLogger:
             LIMIT $2
         """
 
-        result = self.storage.query(query, [ticker, limit])
+        result = self.storage.query(query, [symbol, limit])
 
         if result.is_empty():
             return []

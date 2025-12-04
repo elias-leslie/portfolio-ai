@@ -13,7 +13,7 @@ from typing import cast
 from app.analytics.trade_calculations import (
     calculate_stop_loss,
     extract_target_price_from_thesis,
-    extract_ticker_from_title,
+    extract_symbol_from_title,
 )
 from app.analytics.types import IdeaDetailsDict, PaperTradeDict
 from app.logging_config import get_logger
@@ -55,32 +55,32 @@ def fetch_idea_details(storage: PortfolioStorage, idea_id: str) -> IdeaDetailsDi
     return cast(IdeaDetailsDict, idea_result.to_dicts()[0])
 
 
-def fetch_entry_price(storage: PortfolioStorage, ticker: str, idea_id: str) -> float | None:
-    """Fetch current market price for ticker.
+def fetch_entry_price(storage: PortfolioStorage, symbol: str, idea_id: str) -> float | None:
+    """Fetch current market price for symbol.
 
     Args:
         storage: PortfolioStorage instance
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
         idea_id: ID of the idea (for logging)
 
     Returns:
         Current price if available, None otherwise
     """
     price_fetcher = PriceDataFetcher(storage)
-    price_data = price_fetcher.fetch_price_data([ticker])
+    price_data = price_fetcher.fetch_price_data([symbol])
 
-    if ticker not in price_data:
+    if symbol not in price_data:
         logger.warning(
-            "paper_trade_create_failed", reason="price_fetch_failed", idea_id=idea_id, ticker=ticker
+            "paper_trade_create_failed", reason="price_fetch_failed", idea_id=idea_id, symbol=symbol
         )
         return None
 
-    return price_data[ticker].price
+    return price_data[symbol].price
 
 
 def build_paper_trade_record(
     idea: IdeaDetailsDict,
-    ticker: str,
+    symbol: str,
     entry_price: float,
     stop_loss_price: float | None,
     target_price: float | None,
@@ -90,7 +90,7 @@ def build_paper_trade_record(
 
     Args:
         idea: Agent idea data
-        ticker: Stock ticker symbol
+        symbol: Stock symbol
         entry_price: Entry price
         stop_loss_price: Stop loss price (optional)
         target_price: Target price (optional)
@@ -111,7 +111,7 @@ def build_paper_trade_record(
         {
             "idea_id": idea["id"],
             "agent_run_id": idea["agent_run_id"],
-            "symbol": ticker,
+            "symbol": symbol,
             "idea_type": idea_type,
             "entry_price": entry_price,
             "entry_date": entry_date,
@@ -148,7 +148,7 @@ def create_paper_trade_from_idea(  # noqa: PLR0911
 
     Returns:
         Dict with paper trade details if successful, None if failed
-        - ticker: Stock ticker symbol
+        - symbol: Stock symbol
         - entry_price: Current market price
         - stop_loss_price: Calculated stop loss (entry - 2xATR)
         - target_price: From agent idea (if available)
@@ -157,19 +157,19 @@ def create_paper_trade_from_idea(  # noqa: PLR0911
     Example:
         >>> storage = get_storage()
         >>> trade = create_paper_trade_from_idea(storage, "idea-123")
-        >>> print(f"Created paper trade for {trade['ticker']} at ${trade['entry_price']}")
+        >>> print(f"Created paper trade for {trade['symbol']} at ${trade['entry_price']}")
     """
     # Fetch idea details
     idea = fetch_idea_details(storage, idea_id)
     if not idea:
         return None
 
-    # Extract ticker from title
-    ticker = extract_ticker_from_title(idea["title"])
-    if not ticker:
+    # Extract symbol from title
+    symbol = extract_symbol_from_title(idea["title"])
+    if not symbol:
         logger.warning(
             "paper_trade_create_failed",
-            reason="ticker_not_extracted",
+            reason="symbol_not_extracted",
             idea_id=idea_id,
             title=idea["title"],
         )
@@ -178,27 +178,27 @@ def create_paper_trade_from_idea(  # noqa: PLR0911
     # Check earnings proximity (GAP-003)
     from app.analytics.earnings_filter import should_block_for_earnings
 
-    if should_block_for_earnings(storage, ticker):
+    if should_block_for_earnings(storage, symbol):
         logger.warning(
             "paper_trade_blocked_earnings",
             idea_id=idea_id,
-            ticker=ticker,
+            symbol=symbol,
             reason="too_close_to_earnings",
         )
         return None
 
     # Fetch current price
-    entry_price = fetch_entry_price(storage, ticker, idea_id)
+    entry_price = fetch_entry_price(storage, symbol, idea_id)
     if entry_price is None:
         return None
 
     # Calculate stop-loss and target price
-    stop_loss_price = calculate_stop_loss(storage, ticker, entry_price)
+    stop_loss_price = calculate_stop_loss(storage, symbol, entry_price)
     if stop_loss_price is None:
         logger.warning(
             "paper_trade_blocked_no_atr",
             idea_id=idea_id,
-            ticker=ticker,
+            symbol=symbol,
             reason="insufficient_volatility_data_for_stop_loss",
         )
         return None
@@ -207,7 +207,7 @@ def create_paper_trade_from_idea(  # noqa: PLR0911
 
     # Build paper trade record
     insert_data = build_paper_trade_record(
-        idea, ticker, entry_price, stop_loss_price, target_price, strategy_id
+        idea, symbol, entry_price, stop_loss_price, target_price, strategy_id
     )
 
     # Insert into database
@@ -217,7 +217,7 @@ def create_paper_trade_from_idea(  # noqa: PLR0911
         logger.info(
             "paper_trade_created",
             idea_id=idea_id,
-            ticker=ticker,
+            symbol=symbol,
             entry_price=entry_price,
             stop_loss_price=stop_loss_price,
             target_price=target_price,
@@ -227,7 +227,7 @@ def create_paper_trade_from_idea(  # noqa: PLR0911
         logger.error(
             "paper_trade_create_error",
             idea_id=idea_id,
-            ticker=ticker,
+            symbol=symbol,
             error=str(e),
         )
         return None
@@ -257,7 +257,7 @@ def create_paper_trade_from_strategy_signal(
     Args:
         storage: PortfolioStorage instance
         strategy_id: Strategy UUID that generated the signal
-        symbol: Stock ticker symbol
+        symbol: Stock symbol
         signal_strength: Signal strength (0-10)
         signal_reasons: Reasons for the signal
         backtest_run_id: Optional backtest run ID that validated this trade

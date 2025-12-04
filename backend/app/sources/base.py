@@ -29,7 +29,7 @@ class DatasetRequest:
 
     dataset: str
     profile: str | None
-    tickers: Iterable[str]
+    symbols: Iterable[str]
     start: dt.datetime | dt.date
     end: dt.datetime | dt.date
     timezone: str = "UTC"
@@ -91,14 +91,14 @@ class BaseSource(abc.ABC):
 
     @abc.abstractmethod
     def fetch_reference_payload(
-        self, tickers: Iterable[str], as_of: dt.date
+        self, symbols: Iterable[str], as_of: dt.date
     ) -> pl.DataFrame | None:
         """Fetch reference data (company info, sector, etc.)."""
         ...
 
     @abc.abstractmethod
     def fetch_news_payload(
-        self, tickers: Iterable[str], start: dt.datetime, end: dt.datetime
+        self, symbols: Iterable[str], start: dt.datetime, end: dt.datetime
     ) -> pl.DataFrame | None:
         """Fetch news articles."""
         ...
@@ -137,7 +137,7 @@ class SourceManager:
         automatically tries the next available source.
 
         Args:
-            request: DatasetRequest with dataset type, tickers, dates
+            request: DatasetRequest with dataset type, symbols, dates
             verbose: Log fallback messages (default: True)
 
         Returns:
@@ -147,7 +147,7 @@ class SourceManager:
 
         Example:
             >>> manager = SourceManager([polygon, yfinance, finnhub])
-            >>> request = DatasetRequest(dataset='reference', tickers=['AAPL', 'MSFT'], ...)
+            >>> request = DatasetRequest(dataset='reference', symbols=['AAPL', 'MSFT'], ...)
             >>> df, errors = manager.fetch_with_fallback(request)
             >>> # Automatically tries: polygon → yfinance → finnhub
         """
@@ -157,21 +157,21 @@ class SourceManager:
 
         all_data = []
         errors_by_source: dict[str, list[str]] = {}
-        tickers_remaining = set(request.tickers)
+        symbols_remaining = set(request.symbols)
 
         for source in sources:
-            if not tickers_remaining:
-                break  # All tickers fetched successfully
+            if not symbols_remaining:
+                break  # All symbols fetched successfully
 
-            # Create request for remaining tickers
-            remaining_request = dataclasses.replace(request, tickers=list(tickers_remaining))
+            # Create request for remaining symbols
+            remaining_request = dataclasses.replace(request, symbols=list(symbols_remaining))
 
             try:
                 if verbose:
                     logger.info(
                         "source_manager_trying",
                         source=source.name,
-                        num_tickers=len(tickers_remaining),
+                        num_symbols=len(symbols_remaining),
                         dataset=request.dataset,
                     )
 
@@ -188,7 +188,7 @@ class SourceManager:
                         as_of_date = remaining_request.start.date()
                     else:
                         as_of_date = remaining_request.start
-                    data = source.fetch_reference_payload(list(tickers_remaining), as_of_date)
+                    data = source.fetch_reference_payload(list(symbols_remaining), as_of_date)
                 elif request.dataset == DATASET_NEWS:
                     # Ensure start/end are datetime for news
                     start_dt = (
@@ -201,7 +201,7 @@ class SourceManager:
                         if isinstance(remaining_request.end, dt.datetime)
                         else dt.datetime.combine(remaining_request.end, dt.time.max)
                     )
-                    data = source.fetch_news_payload(list(tickers_remaining), start_dt, end_dt)
+                    data = source.fetch_news_payload(list(symbols_remaining), start_dt, end_dt)
                 else:
                     continue
 
@@ -210,22 +210,22 @@ class SourceManager:
                 if data is not None and len(data) > 0:
                     all_data.append(data)
 
-                    # Track which tickers were successfully fetched
-                    if "ticker" in data.columns:
-                        fetched_tickers = set(data["ticker"].unique().to_list())
-                        tickers_remaining -= fetched_tickers
+                    # Track which symbols were successfully fetched
+                    if "symbol" in data.columns:
+                        fetched_symbols = set(data["symbol"].unique().to_list())
+                        symbols_remaining -= fetched_symbols
 
                         if verbose:
                             logger.info(
                                 "source_manager_success",
                                 source=source.name,
-                                tickers_fetched=len(fetched_tickers),
-                                tickers_remaining=len(tickers_remaining),
+                                symbols_fetched=len(fetched_symbols),
+                                symbols_remaining=len(symbols_remaining),
                                 duration_ms=fetch_duration_ms,
                                 rows=len(data),
                             )
                     else:
-                        # Assume all tickers fetched if no ticker column
+                        # Assume all symbols fetched if no ticker column
                         if verbose:
                             logger.info(
                                 "source_manager_success",
@@ -233,7 +233,7 @@ class SourceManager:
                                 rows=len(data),
                                 duration_ms=fetch_duration_ms,
                             )
-                        tickers_remaining.clear()
+                        symbols_remaining.clear()
                 elif verbose:
                     logger.info(
                         "source_manager_no_data",
