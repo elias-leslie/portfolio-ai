@@ -22,6 +22,7 @@ import { CapabilitiesTable } from "@/components/capabilities/CapabilitiesTable";
 import { InsightCard } from "@/components/capabilities/InsightCard";
 import { CapabilitiesDashboard } from "@/components/capabilities/CapabilitiesDashboard";
 import { GapsOverview } from "@/components/capabilities/GapsOverview";
+import { ApiSourcesOverview } from "@/components/capabilities/ApiSourcesOverview";
 import {
   RefreshCw,
   Search,
@@ -33,6 +34,7 @@ import {
   TrendingUp,
   Loader2,
   X,
+  Cloud,
 } from "lucide-react";
 import {
   fetchCapabilities,
@@ -46,7 +48,7 @@ import {
 import { fetchGapSummary } from "@/lib/api/gaps";
 import { toast } from "sonner";
 
-type TabValue = "dashboard" | "database" | "celery" | "api" | "insights" | "gaps";
+type TabValue = "dashboard" | "database" | "celery" | "api" | "insights" | "gaps" | "sources";
 
 function CapabilitiesPageContent() {
   const queryClient = useQueryClient();
@@ -355,7 +357,7 @@ function CapabilitiesPageContent() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as TabValue)}>
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="dashboard">
               Dashboard
             </TabsTrigger>
@@ -398,10 +400,14 @@ function CapabilitiesPageContent() {
                 </span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="sources">
+              <Cloud className="mr-2 h-4 w-4" />
+              Sources
+            </TabsTrigger>
           </TabsList>
 
           {/* Filters (for capability tabs) */}
-          {activeTab !== "dashboard" && activeTab !== "insights" && activeTab !== "gaps" && (
+          {activeTab !== "dashboard" && activeTab !== "insights" && activeTab !== "gaps" && activeTab !== "sources" && (
             <div className="space-y-3">
               <div className="flex flex-wrap gap-3">
                 {/* Search */}
@@ -588,12 +594,18 @@ function CapabilitiesPageContent() {
               </div>
             )}
           </TabsContent>
+
+          {/* Sources Tab */}
+          <TabsContent value="sources">
+            <ApiSourcesOverview />
+          </TabsContent>
         </Tabs>
 
         {/* Pagination */}
         {((activeTab !== "dashboard" &&
           activeTab !== "insights" &&
           activeTab !== "gaps" &&
+          activeTab !== "sources" &&
           capabilitiesData &&
           capabilitiesData.total > pageSize) ||
           (activeTab === "insights" && insightsData && insightsData.total > pageSize)) && (

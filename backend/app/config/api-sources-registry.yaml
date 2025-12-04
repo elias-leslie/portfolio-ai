@@ -953,6 +953,302 @@ providers:
       - "Last resort backup only"
       - "Comprehensive fundamentals (if quota allows)"
 
+  # ---------------------------------------------------------------------------
+  # SEC EDGAR (Free - Regulatory Filings)
+  # ---------------------------------------------------------------------------
+  sec_edgar:
+    name: "SEC EDGAR"
+    tier: FREE
+    api_key_required: false
+    priority: 5  # High for regulatory news
+    rate_limits:
+      per_minute: null
+      per_day: null
+      notes: "Free public data, rate limit by 0.5s delay between requests"
+
+    capabilities:
+      ohlcv: false
+      fundamentals: false
+      news: true
+      filings: true
+
+    endpoints:
+      filings:
+        method: "edgartools library"
+        description: "SEC filings as news (8-K, Form 4, 10-K, 10-Q)"
+        fields_returned:
+          - form_type (8-K, 4, 10-K, 10-Q)
+          - filing_date
+          - accession_number
+          - primary_document
+          - company_name
+          - ticker
+          - items (for 8-K)
+        example: "edgar.get_filings(cik='320193')"
+        notes: "Material events, insider trades, quarterly/annual reports"
+
+    use_cases:
+      - "Material event detection (8-K filings)"
+      - "Insider trading alerts (Form 4)"
+      - "Quarterly earnings filings (10-Q)"
+      - "Annual report filings (10-K)"
+
+  # ---------------------------------------------------------------------------
+  # CBOE Most Active (Free - Options Intelligence)
+  # ---------------------------------------------------------------------------
+  cboe_most_active:
+    name: "CBOE Most Active Options"
+    tier: FREE
+    api_key_required: false
+    priority: 10
+    rate_limits:
+      per_minute: null
+      per_day: null
+      notes: "Web scraping, respect robots.txt"
+
+    capabilities:
+      ohlcv: false
+      fundamentals: false
+      news: false
+      options: true
+
+    endpoints:
+      most_active:
+        method: "Web scraping"
+        description: "Top 25 most active options contracts"
+        fields_returned:
+          - symbol
+          - call_put
+          - strike
+          - expiration
+          - volume
+          - open_interest
+        example: "https://www.cboe.com/us/options/market_statistics/most_active/"
+        notes: "Aggregated daily for market positioning intelligence"
+
+    use_cases:
+      - "Market positioning intelligence"
+      - "Put/call sentiment analysis"
+      - "Options flow tracking"
+
+  # ---------------------------------------------------------------------------
+  # RSS NEWS FEEDS (Free - No API Key Required)
+  # ---------------------------------------------------------------------------
+  cnbc_rss:
+    name: "CNBC RSS"
+    tier: FREE
+    api_key_required: false
+    priority: 60
+    rate_limits:
+      per_minute: null
+      per_day: null
+      notes: "0.25s delay between requests"
+
+    capabilities:
+      ohlcv: false
+      fundamentals: false
+      news: true
+
+    endpoints:
+      feed:
+        path: "https://www.cnbc.com/id/10001147/device/rss/rss.html"
+        method: RSS
+        description: "CNBC Finance & Earnings news"
+        fields_returned:
+          - title
+          - link
+          - description
+          - pubDate
+          - source
+
+    use_cases:
+      - "Financial news aggregation"
+      - "Earnings coverage"
+
+  marketwatch_rss:
+    name: "MarketWatch RSS"
+    tier: FREE
+    api_key_required: false
+    priority: 60
+    rate_limits:
+      per_minute: null
+      per_day: null
+
+    capabilities:
+      news: true
+
+    endpoints:
+      feed:
+        path: "http://feeds.marketwatch.com/marketwatch/topstories/"
+        method: RSS
+        description: "MarketWatch top stories"
+        fields_returned:
+          - title
+          - link
+          - description
+          - pubDate
+
+    use_cases:
+      - "Market news"
+
+  nasdaq_rss:
+    name: "Nasdaq RSS"
+    tier: FREE
+    api_key_required: false
+    priority: 65
+    rate_limits:
+      per_minute: null
+      per_day: null
+
+    capabilities:
+      news: true
+
+    endpoints:
+      feed:
+        path: "https://www.nasdaq.com/feed/rssoutbound"
+        method: RSS
+        description: "Nasdaq market news"
+        fields_returned:
+          - title
+          - link
+          - description
+          - pubDate
+
+    use_cases:
+      - "Nasdaq-specific market news"
+
+  fortune_rss:
+    name: "Fortune RSS"
+    tier: FREE
+    api_key_required: false
+    priority: 65
+    rate_limits:
+      per_minute: null
+      per_day: null
+
+    capabilities:
+      news: true
+
+    endpoints:
+      feed:
+        path: "https://fortune.com/feed"
+        method: RSS
+        description: "Fortune business news"
+        fields_returned:
+          - title
+          - link
+          - description
+          - pubDate
+
+    use_cases:
+      - "Business news coverage"
+
+  investing_rss:
+    name: "Investing.com RSS"
+    tier: FREE
+    api_key_required: false
+    priority: 65
+    rate_limits:
+      per_minute: null
+      per_day: null
+
+    capabilities:
+      news: true
+
+    endpoints:
+      feed:
+        path: "https://www.investing.com/rss/news.rss"
+        method: RSS
+        description: "Investing.com news feed"
+        fields_returned:
+          - title
+          - link
+          - description
+          - pubDate
+
+    use_cases:
+      - "International market news"
+
+  ft_rss:
+    name: "Financial Times RSS"
+    tier: FREE
+    api_key_required: false
+    priority: 65
+    rate_limits:
+      per_minute: null
+      per_day: null
+
+    capabilities:
+      news: true
+
+    endpoints:
+      feed:
+        path: "https://www.ft.com/?format=rss"
+        method: RSS
+        description: "Financial Times news"
+        fields_returned:
+          - title
+          - link
+          - description
+          - pubDate
+
+    use_cases:
+      - "Global financial news"
+
+  seeking_alpha_rss:
+    name: "Seeking Alpha RSS"
+    tier: FREE
+    api_key_required: false
+    priority: 70
+    rate_limits:
+      per_minute: null
+      per_day: null
+
+    capabilities:
+      news: true
+
+    endpoints:
+      feed:
+        path: "https://seekingalpha.com/feed.xml"
+        method: RSS
+        description: "Seeking Alpha analysis"
+        fields_returned:
+          - title
+          - link
+          - description
+          - pubDate
+
+    use_cases:
+      - "Investment analysis articles"
+
+  google_news_rss:
+    name: "Google News RSS"
+    tier: FREE
+    api_key_required: false
+    priority: 70
+    rate_limits:
+      per_minute: null
+      per_day: null
+
+    capabilities:
+      news: true
+
+    endpoints:
+      feed:
+        path: "https://news.google.com/rss/search?q=stock+market"
+        method: RSS
+        description: "Google News aggregation"
+        fields_returned:
+          - title
+          - link
+          - description
+          - pubDate
+          - source
+
+    use_cases:
+      - "Broad news aggregation"
+      - "Trending market stories"
+
 # =============================================================================
 # DECISION MATRIX: Which API for What Data?
 # =============================================================================
@@ -1040,6 +1336,9 @@ implementation:
     twelvedata: "backend/app/sources/twelvedata_source.py"
     alphavantage: "backend/app/sources/alphavantage_source.py"
     fred: "backend/app/sources/fred.py"
+    sec_edgar: "backend/app/sources/sec_edgar_source.py"
+    cboe_most_active: "backend/app/sources/cboe_most_active.py"
+    rss_feeds: "backend/app/sources/rss_source.py"
 
   multi_source: "backend/app/sources/multi_source_fetcher.py"
   rate_limiting: "backend/app/sources/base_http_client.py"
