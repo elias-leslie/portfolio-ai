@@ -86,7 +86,7 @@ def _get_last_refresh_time(storage: PortfolioStorage) -> dt.datetime | None:
         last_refresh_result = conn.execute(
             """
             SELECT MAX(fetched_at) as last_refresh
-            FROM watchlist_snapshots
+            FROM watchlist_snapshots_v
             """
         ).fetchone()
 

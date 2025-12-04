@@ -79,7 +79,7 @@ def calculate_price_change(
         snapshot_df = storage.query(
             """
             SELECT price
-            FROM watchlist_snapshots
+            FROM watchlist_snapshots_v
             WHERE item_id = ?
             ORDER BY fetched_at DESC
             LIMIT 1

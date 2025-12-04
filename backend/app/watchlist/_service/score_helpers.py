@@ -22,7 +22,7 @@ def check_score_alert(storage: PortfolioStorage, item_id: str, current_score: fl
     history_df = storage.query(
         """
         SELECT overall_score
-        FROM watchlist_snapshots
+        FROM watchlist_snapshots_v
         WHERE item_id = ?
           AND fetched_at >= current_timestamp - INTERVAL '7 days'
         ORDER BY fetched_at ASC

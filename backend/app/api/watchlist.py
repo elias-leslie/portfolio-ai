@@ -381,7 +381,7 @@ async def get_score_history(item_id: str, days: int = 10) -> ScoreHistoryRespons
         snapshots_df = storage.query(
             """
             SELECT item_id, fetched_at, price, technical_score, overall_score, raw_metrics
-            FROM watchlist_snapshots
+            FROM watchlist_snapshots_v
             WHERE item_id = ?
             ORDER BY fetched_at DESC
             """,
@@ -570,9 +570,9 @@ async def review_strategy_signal(item_id: str, dual: bool = True) -> dict[str, o
         # Get latest snapshot
         snapshots_df = storage.query(
             """
-            SELECT * FROM watchlist_snapshots
-            WHERE watchlist_item_id = ?
-            ORDER BY created_at DESC
+            SELECT * FROM watchlist_snapshots_v
+            WHERE item_id = ?
+            ORDER BY fetched_at DESC
             LIMIT 1
             """,
             [item_id],

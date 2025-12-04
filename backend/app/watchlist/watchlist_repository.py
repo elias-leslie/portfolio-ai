@@ -48,7 +48,7 @@ class WatchlistRepository:
                    ws.news_sentiment_score, ws.recent_news_headlines
             FROM watchlist_items wi
             LEFT JOIN LATERAL (
-                SELECT * FROM watchlist_snapshots WHERE item_id = wi.id
+                SELECT * FROM watchlist_snapshots_v WHERE item_id = wi.id
                 ORDER BY fetched_at DESC LIMIT 1
             ) ws ON TRUE
             ORDER BY wi.created_at DESC
@@ -93,7 +93,7 @@ class WatchlistRepository:
                    narrative_company_health, narrative_special_notes,
                    company_health, earnings_date, earnings_days_away,
                    news_sentiment_score, recent_news_headlines
-            FROM watchlist_snapshots
+            FROM watchlist_snapshots_v
             WHERE item_id = ?
             ORDER BY fetched_at DESC
             LIMIT 1
@@ -114,7 +114,7 @@ class WatchlistRepository:
         return self.storage.query(
             """
             SELECT overall_score
-            FROM watchlist_snapshots
+            FROM watchlist_snapshots_v
             WHERE item_id = ?
             ORDER BY fetched_at DESC
             LIMIT ?

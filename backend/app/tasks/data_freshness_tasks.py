@@ -39,7 +39,7 @@ def _check_data_freshness_impl() -> dict[str, Any]:
                 wi.symbol,
                 MAX(ws.fetched_at) as last_fetched
             FROM watchlist_items wi
-            LEFT JOIN watchlist_snapshots ws ON wi.id = ws.item_id
+            LEFT JOIN watchlist_snapshots_v ws ON wi.id = ws.item_id
             GROUP BY wi.symbol
             """
         ).fetchall()

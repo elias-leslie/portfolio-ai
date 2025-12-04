@@ -255,7 +255,7 @@ def get_watchlist_stats(storage: PortfolioStorage) -> WatchlistStats:
             SELECT
                 MAX(fetched_at) as last_refresh,
                 COUNT(DISTINCT item_id) as items_with_scores
-            FROM watchlist_snapshots
+            FROM watchlist_snapshots_v
             """
         )
 

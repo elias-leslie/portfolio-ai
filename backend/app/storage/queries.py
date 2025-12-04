@@ -96,7 +96,7 @@ class QueryManager:
                 competitor_score,
                 overall_score,
                 raw_metrics
-            FROM watchlist_snapshots
+            FROM watchlist_snapshots_v
             WHERE item_id = ?
         """
         params: list[ParameterValue] = [item_id]
