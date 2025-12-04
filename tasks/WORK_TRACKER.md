@@ -20,15 +20,7 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Data Freshness Investigation** (0% - 0/0 complete)
-   - File: `tasks-0100-data-freshness-investigation.md`
-   - Started: 2025-12-04 (today)
-   - Last updated: PENDING (scheduled from pause)
-   - Next: Task 0.1 - Very thorough Explore agents
-   - Tasks:
-     - (No tasks defined yet)
-
-2. **Tier 3: Validation & Evolution** (25% - 1/4 complete)
+1. **Tier 3: Validation & Evolution** (25% - 1/4 complete)
    - File: `tasks-0099-tier3-validation-evolution.md`
    - Started: 2025-12-04 (today)
    - Last updated: ✅ Complete - API working, returns per-fold and aggregate metrics
@@ -97,7 +89,19 @@
 
 *Last 5 completed tasks*
 
-1. **Data Architecture Improvements** ✅ COMPLETE (2025-12-04)
+1. **Data Freshness Investigation** ✅ COMPLETE (2025-12-04)
+   - File: `tasks-0100-data-freshness-investigation.md`
+   - Completed: 2025-12-04
+   - Duration: ~1 hour
+   - Summary: Investigated and fixed data freshness display - backend was FRESH, caching layers were stale
+   - Key achievements:
+     - ✅ Found 16 caching issues across Redis, Response Cache, React Query
+     - ✅ Added cache invalidation after Celery tasks complete
+     - ✅ Reduced frontend staleness (F&G: 5hr→1hr, Portfolio: 20min→7min)
+     - ✅ Reduced Redis F&G TTL from 1hr to 30min
+   - Impact: Data appears fresher on dashboard, cache invalidated when new data arrives
+
+2. **Data Architecture Improvements** ✅ COMPLETE (2025-12-04)
    - Files: `tasks-0092` through `tasks-0095`
    - Completed: 2025-12-04
    - Duration: ~4 hours
