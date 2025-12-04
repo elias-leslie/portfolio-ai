@@ -35,18 +35,18 @@ def collect_daily_strategy_metrics() -> dict[str, object]:
     logger.info(f"Collecting strategy metrics for {yesterday}")
 
     try:
-        # 1. Signal counts from watchlist snapshots
+        # 1. Signal counts from watchlist snapshots (using normalized view)
         signals_df = storage.query(
             """
             SELECT
                 signal_type,
                 COUNT(*) as count,
-                AVG(current_score->>'overall') as avg_overall,
-                AVG(current_score->'technical'->>'score') as avg_technical,
-                AVG(current_score->'fundamental'->>'score') as avg_fundamental,
-                STDDEV(CAST(current_score->>'overall' AS DECIMAL)) as score_stdev
-            FROM watchlist_snapshots
-            WHERE DATE(created_at) = ?
+                AVG(overall_score) as avg_overall,
+                AVG(technical_score) as avg_technical,
+                AVG(fundamental_score) as avg_fundamental,
+                STDDEV(overall_score) as score_stdev
+            FROM watchlist_snapshots_v
+            WHERE DATE(fetched_at) = ?
             GROUP BY signal_type
             """,
             [str(yesterday)],

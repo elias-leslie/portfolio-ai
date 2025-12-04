@@ -458,6 +458,7 @@ def _iterate_dates(start: dt.date | dt.datetime, end: dt.date | dt.datetime) -> 
     Returns:
         List of ISO date strings (e.g., ["2024-01-01", "2024-01-02", ...])
     """
+    # Convert to date objects (helper function, simple inline conversion is fine)
     start_date = start.date() if isinstance(start, dt.datetime) else start
     end_date = end.date() if isinstance(end, dt.datetime) else end
 

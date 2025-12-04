@@ -422,7 +422,7 @@ def weekly_strategy_generation() -> dict[str, Any]:
                         wi.symbol,
                         ws.overall_score
                     FROM watchlist_items wi
-                    LEFT JOIN watchlist_snapshots ws ON wi.id = ws.item_id
+                    LEFT JOIN watchlist_snapshots_v ws ON wi.id = ws.item_id
                     ORDER BY wi.symbol, ws.fetched_at DESC
                 )
                 SELECT symbol
@@ -545,7 +545,7 @@ def daily_strategy_refresh(max_symbols: int = 5) -> dict[str, Any]:
                         wi.symbol,
                         ws.overall_score
                     FROM watchlist_items wi
-                    LEFT JOIN watchlist_snapshots ws ON wi.id = ws.item_id
+                    LEFT JOIN watchlist_snapshots_v ws ON wi.id = ws.item_id
                     ORDER BY wi.symbol, ws.fetched_at DESC
                 ),
                 active_strategies AS (
