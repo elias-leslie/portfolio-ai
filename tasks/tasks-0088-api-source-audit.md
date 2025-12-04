@@ -17,7 +17,7 @@
 
 **Deliverables:**
 1. ✅ api-sources-registry.yaml - Comprehensive API documentation (`backend/app/config/`)
-2. ⏭️ /capabilities UI - New "API Sources" tab (deferred - low priority)
+2. ✅ /capabilities UI - New "API Sources" tab with all 17 providers
 3. ✅ GET /api/sources - Programmatic access for coding agents
 4. ✅ CLAUDE.md update - Quick reference for which API to use
 
@@ -71,7 +71,7 @@
 ### 9.0 Add API Sources to Capabilities Registry
 
 - [x] 9.1 Skipped DB table (not needed - YAML is sufficient for agents)
-- [ ] 9.2 UI tab deferred (low priority - API endpoint sufficient for agents)
+- [x] 9.2 UI tab: ApiSourcesOverview component with all 17 providers
 - [x] 9.3 Created `/api/sources` endpoint:
   - GET /api/sources - List all providers with capabilities and GAP coverage
   - GET /api/sources/{provider} - Detailed endpoint info
@@ -95,13 +95,13 @@
 
 ## Verification
 
-- [x] Functional: All 7 APIs documented with accurate FREE tier info
+- [x] Functional: All 17 data sources documented with accurate FREE tier info
 - [x] Tests: Endpoints tested with live API calls
 - [x] Quality: api-sources-registry.yaml created, lint passes
 - [x] Services: Backend restarted, API working
-- [x] Docs: api-sources-registry.yaml created (900+ lines)
-- [ ] UI: Deferred - API endpoint sufficient for agents
-- [x] API: GET /api/sources returns accurate data (tested)
+- [x] Docs: api-sources-registry.yaml created (1300+ lines)
+- [x] UI: Sources tab on /capabilities with all 17 providers, expandable cards, routing
+- [x] API: GET /api/sources returns all 17 providers (tested)
 - [x] CLAUDE.md: Updated with API source reference section
 
 ---
@@ -119,7 +119,10 @@
 | GAP-033 | Put/Call Ratio | ✅ YES | yfinance |
 
 **Files Created/Modified:**
-- NEW: `backend/app/config/api-sources-registry.yaml`
-- NEW: `backend/app/api/sources.py`
+- NEW: `backend/app/config/api-sources-registry.yaml` (1300+ lines, 17 providers)
+- NEW: `backend/app/api/sources.py` (API endpoint)
+- NEW: `frontend/lib/api/sources.ts` (API client)
+- NEW: `frontend/components/capabilities/ApiSourcesOverview.tsx` (UI component)
+- MOD: `frontend/app/capabilities/page.tsx` (added Sources tab)
 - MOD: `backend/app/main.py` (added sources router)
 - MOD: `CLAUDE.md` (added Data Source APIs section)
