@@ -385,9 +385,9 @@ function CapabilitiesPageContent() {
             <TabsTrigger value="insights">
               <AlertTriangle className="mr-2 h-4 w-4" />
               Insights
-              {(insightsCountData?.total ?? insightsData?.total ?? 0) > 0 && (
+              {(insightsCountData?.pending_count ?? insightsData?.pending_count ?? 0) > 0 && (
                 <span className="ml-2 rounded-full bg-accent/20 px-2 py-0.5 text-xs">
-                  {insightsCountData?.total ?? insightsData?.total}
+                  {insightsCountData?.pending_count ?? insightsData?.pending_count}
                 </span>
               )}
             </TabsTrigger>
