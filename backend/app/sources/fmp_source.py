@@ -21,7 +21,7 @@ from typing import Any
 import polars as pl
 
 from ..logging_config import get_logger
-from .base import BaseSource, DatasetRequest
+from .base import BaseSource, DatasetRequest, standardize_dates
 from .base_http_client import BaseHTTPClient
 
 logger = get_logger(__name__)
@@ -188,21 +188,8 @@ class FMPSource(BaseSource):
         """
         frames: list[pl.DataFrame] = []
 
-        # Convert dates to string format for FMP API
-        start_date = (
-            request.start
-            if isinstance(request.start, dt.date) and not isinstance(request.start, dt.datetime)
-            else request.start.date()
-            if isinstance(request.start, dt.datetime)
-            else request.start
-        )
-        end_date = (
-            request.end
-            if isinstance(request.end, dt.date) and not isinstance(request.end, dt.datetime)
-            else request.end.date()
-            if isinstance(request.end, dt.datetime)
-            else request.end
-        )
+        # Convert dates to date objects
+        start_date, end_date = standardize_dates(request)
 
         logger.info(
             "fmp_fetch_day_bars_start",

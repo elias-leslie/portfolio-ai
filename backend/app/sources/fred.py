@@ -6,21 +6,100 @@ Simplified FRED API integration for fetching economic indicators.
 from __future__ import annotations
 
 import os
+import threading
 from datetime import date, datetime
-from typing import ClassVar
-
-import httpx
+from typing import Any, ClassVar
 
 from ..logging_config import get_logger
+from .base_http_client import BaseHTTPClient
 from .types import FREDDataDict
 
 logger = get_logger(__name__)
 
 
-class FREDSource:
-    """Fetch macroeconomic indicators from the FRED API."""
+class FREDClient(BaseHTTPClient):
+    """FRED API client with connection pooling.
 
-    BASE_URL = "https://api.stlouisfed.org/fred/series/observations"
+    Uses BaseHTTPClient for connection reuse and rate limiting.
+    FRED API is free with no strict limits, but we use 100/min as a conservative limit.
+    """
+
+    BASE_URL = "https://api.stlouisfed.org/fred"
+
+    def __init__(
+        self,
+        api_key: str | None = None,
+        timeout: float = 15.0,
+    ) -> None:
+        """Initialize FRED client.
+
+        Args:
+            api_key: FRED API key (defaults to FRED_API_KEY env var)
+            timeout: Request timeout in seconds (default: 15)
+        """
+        super().__init__(
+            api_key=api_key,
+            rate_calls_per_minute=100,  # Conservative limit
+            timeout=timeout,
+        )
+
+    def get_api_key_env_var(self) -> str:
+        """Return environment variable name for API key."""
+        return "FRED_API_KEY"
+
+    def get_client_name(self) -> str:
+        """Return client name for logging."""
+        return "fred_client"
+
+    def get_api_key_param_name(self) -> str:
+        """Return query parameter name for API key."""
+        return "api_key"
+
+    def get(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Execute GET request.
+
+        Args:
+            path: API path (e.g., "/series/observations")
+            params: Query parameters
+
+        Returns:
+            Parsed JSON response
+        """
+        result: dict[str, Any] = self.request(path, params, method="GET")
+        return result
+
+
+# Module-level singleton state
+class _FREDClientState:
+    """Holds singleton client instance."""
+
+    client: FREDClient | None = None
+    lock = threading.Lock()
+
+
+def get_fred_client() -> FREDClient:
+    """Get or create the FRED client singleton.
+
+    Thread-safe lazy initialization.
+
+    Returns:
+        FREDClient instance
+
+    Raises:
+        RuntimeError: If FRED_API_KEY not set
+    """
+    if _FREDClientState.client is None:
+        with _FREDClientState.lock:
+            if _FREDClientState.client is None:
+                _FREDClientState.client = FREDClient()
+    return _FREDClientState.client
+
+
+class FREDSource:
+    """Fetch macroeconomic indicators from the FRED API.
+
+    Uses FREDClient singleton for connection pooling and rate limiting.
+    """
 
     # Key economic indicators
     INDICATORS: ClassVar[dict[str, str]] = {
@@ -60,12 +139,20 @@ class FREDSource:
         Args:
             api_key: FRED API key (or read from FRED_API_KEY env var)
         """
-        self.api_key = api_key or os.getenv("FRED_API_KEY")
-        self.timeout = 15.0
+        # Keep api_key for backwards compatibility with is_enabled()
+        self._api_key = api_key or os.getenv("FRED_API_KEY")
+        self._client: FREDClient | None = None
+
+    @property
+    def client(self) -> FREDClient:
+        """Get FRED client, initializing if needed."""
+        if self._client is None:
+            self._client = get_fred_client()
+        return self._client
 
     def is_enabled(self) -> bool:
         """Check if FRED API key is available."""
-        return bool(self.api_key)
+        return bool(self._api_key)
 
     def fetch_latest(self, indicator: str) -> FREDDataDict | None:
         """Fetch latest value for an indicator.
@@ -76,7 +163,7 @@ class FREDSource:
         Returns:
             Dict with date and value, or None if failed
         """
-        if not self.api_key:
+        if not self._api_key:
             logger.warning("FRED API key not set")
             return None
 
@@ -88,20 +175,12 @@ class FREDSource:
         try:
             params = {
                 "series_id": series_id,
-                "api_key": self.api_key,
                 "file_type": "json",
                 "sort_order": "desc",
                 "limit": 1,
             }
 
-            response = httpx.get(
-                self.BASE_URL,
-                params=params,  # type: ignore[arg-type]  # httpx params typing - dict[str, object] is valid at runtime
-                timeout=self.timeout,
-            )
-            response.raise_for_status()
-
-            data = response.json()
+            data = self.client.get("/series/observations", params)
             if data.get("observations"):
                 obs = data["observations"][0]
                 return {
@@ -151,7 +230,7 @@ class FREDSource:
             List of (date, value) tuples, sorted by date ascending.
             Missing values (FRED returns ".") are filtered out.
         """
-        if not self.api_key:
+        if not self._api_key:
             logger.warning("FRED API key not set")
             return []
 
@@ -163,7 +242,6 @@ class FREDSource:
         try:
             params: dict[str, str | int] = {
                 "series_id": series_id,
-                "api_key": self.api_key,
                 "file_type": "json",
                 "sort_order": "asc",
             }
@@ -181,14 +259,7 @@ class FREDSource:
                 else:
                     params["observation_end"] = end_date.strftime("%Y-%m-%d")
 
-            response = httpx.get(
-                self.BASE_URL,
-                params=params,
-                timeout=self.timeout,
-            )
-            response.raise_for_status()
-
-            data = response.json()
+            data = self.client.get("/series/observations", params)
             results = []
 
             if observations := data.get("observations"):
@@ -234,7 +305,9 @@ class FREDSource:
             logger.error(f"Failed to parse latest value for {indicator}: {e}")
             return None
 
-    def fetch_yield_curve(self, as_of_date: date | None = None) -> dict[str, float | None]:
+    def fetch_yield_curve(
+        self, as_of_date: date | None = None
+    ) -> dict[str, float | bool | None]:
         """Fetch complete yield curve data.
 
         Args:
@@ -243,7 +316,7 @@ class FREDSource:
         Returns:
             Dict with yields and spreads
         """
-        yields = {}
+        yields: dict[str, float | bool | None] = {}
         indicators = ["YIELD_3M", "YIELD_2Y", "YIELD_5Y", "YIELD_10Y", "YIELD_30Y"]
 
         for indicator in indicators:
@@ -258,9 +331,18 @@ class FREDSource:
         y2 = yields.get("yield_2y")
         y3m = yields.get("yield_3m")
 
-        yields["spread_10y_2y"] = (y10 - y2) if y10 and y2 else None
-        yields["spread_10y_3m"] = (y10 - y3m) if y10 and y3m else None
-        yields["is_inverted"] = yields["spread_10y_2y"] < 0 if yields["spread_10y_2y"] else None
+        if isinstance(y10, float) and isinstance(y2, float):
+            spread_10y_2y = y10 - y2
+            yields["spread_10y_2y"] = spread_10y_2y
+            yields["is_inverted"] = spread_10y_2y < 0
+        else:
+            yields["spread_10y_2y"] = None
+            yields["is_inverted"] = None
+
+        if isinstance(y10, float) and isinstance(y3m, float):
+            yields["spread_10y_3m"] = y10 - y3m
+        else:
+            yields["spread_10y_3m"] = None
 
         return yields
 
@@ -271,7 +353,7 @@ class FREDSource:
             Dict with CPI, PCE, breakeven rates
         """
         indicators = ["CPI", "CORE_CPI", "PCE", "BREAKEVEN_5Y", "BREAKEVEN_10Y"]
-        result = {}
+        result: dict[str, float | None] = {}
 
         for indicator in indicators:
             data = self.fetch_latest(indicator)
@@ -288,7 +370,7 @@ class FREDSource:
         Returns:
             Dict with fed funds rate and effective rate
         """
-        result = {}
+        result: dict[str, float | None] = {}
 
         for indicator in ["FEDFUNDS", "EFFR"]:
             data = self.fetch_latest(indicator)

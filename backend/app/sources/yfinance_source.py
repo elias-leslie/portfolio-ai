@@ -23,7 +23,7 @@ if not os.environ.get("HOME"):
 import yfinance as yf  # yfinance doesn't ship type stubs
 
 from ..logging_config import get_logger
-from .base import BaseSource, DatasetRequest
+from .base import BaseSource, DatasetRequest, standardize_dates
 
 logger = get_logger(__name__)
 
@@ -54,21 +54,8 @@ class YFinanceSource(BaseSource):
         """
         frames: list[pl.DataFrame] = []
 
-        # Convert dates to string format for yfinance
-        start_date = (
-            request.start
-            if isinstance(request.start, dt.date) and not isinstance(request.start, dt.datetime)
-            else request.start.date()
-            if isinstance(request.start, dt.datetime)
-            else request.start
-        )
-        end_date = (
-            request.end
-            if isinstance(request.end, dt.date) and not isinstance(request.end, dt.datetime)
-            else request.end.date()
-            if isinstance(request.end, dt.datetime)
-            else request.end
-        )
+        # Convert dates to date objects
+        start_date, end_date = standardize_dates(request)
 
         logger.info(
             "yfinance_fetch_day_bars_start",

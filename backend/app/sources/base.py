@@ -36,6 +36,33 @@ class DatasetRequest:
     ingest_run_id: str | None = None
 
 
+def standardize_dates(request: DatasetRequest) -> tuple[dt.date, dt.date]:
+    """Convert request start/end to date objects.
+
+    Handles both dt.date and dt.datetime inputs consistently across all sources.
+    This consolidates ~240 lines of duplicate date conversion logic.
+
+    Args:
+        request: DatasetRequest with start and end dates
+
+    Returns:
+        Tuple of (start_date, end_date) as dt.date objects
+    """
+    # Handle start date
+    if isinstance(request.start, dt.datetime):
+        start_date = request.start.date()
+    else:
+        start_date = request.start
+
+    # Handle end date
+    if isinstance(request.end, dt.datetime):
+        end_date = request.end.date()
+    else:
+        end_date = request.end
+
+    return start_date, end_date
+
+
 class BaseSource(abc.ABC):
     """Abstract base class for all data sources."""
 
