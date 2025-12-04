@@ -43,7 +43,7 @@ class TestExtendedWatchlistSnapshot:
             news_sentiment_score=0.35,
             recent_news_headlines={
                 "summary": {
-                    "ticker": "TEST",
+                    "symbol": "TEST",
                     "score": 0.35,
                     "score_change": 0.1,
                     "positive_count": 1,
@@ -55,7 +55,7 @@ class TestExtendedWatchlistSnapshot:
                 },
                 "articles": [
                     {
-                        "ticker": "TEST",
+                        "symbol": "TEST",
                         "headline": "Beats earnings",
                         "url": "https://example.com/article",
                         "summary": "Shares rally after results",

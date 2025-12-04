@@ -23,7 +23,7 @@ def test_get_sector_rotation_success(mock_storage: Mock) -> None:
     # Mock sector data query
     sector_data = pl.DataFrame(
         {
-            "ticker": ["AAPL", "MSFT", "JPM", "BAC"],
+            "symbol": ["AAPL", "MSFT", "JPM", "BAC"],
             "sector": ["Technology", "Technology", "Financial Services", "Financial Services"],
         }
     )
@@ -31,7 +31,7 @@ def test_get_sector_rotation_success(mock_storage: Mock) -> None:
     # Mock returns data query
     returns_data = pl.DataFrame(
         {
-            "ticker": ["AAPL", "MSFT", "JPM", "BAC"],
+            "symbol": ["AAPL", "MSFT", "JPM", "BAC"],
             "close_now": [180.0, 380.0, 150.0, 35.0],
             "volume": [50000000, 25000000, 15000000, 30000000],
             "close_5d": [175.0, 370.0, 148.0, 34.5],
@@ -76,7 +76,7 @@ def test_get_sector_rotation_no_returns_data(mock_storage: Mock) -> None:
     # Mock sector data
     sector_data = pl.DataFrame(
         {
-            "ticker": ["AAPL", "MSFT"],
+            "symbol": ["AAPL", "MSFT"],
             "sector": ["Technology", "Technology"],
         }
     )
@@ -96,14 +96,14 @@ def test_get_sector_rotation_string_date(mock_storage: Mock) -> None:
     # Mock data
     sector_data = pl.DataFrame(
         {
-            "ticker": ["AAPL"],
+            "symbol": ["AAPL"],
             "sector": ["Technology"],
         }
     )
 
     returns_data = pl.DataFrame(
         {
-            "ticker": ["AAPL"],
+            "symbol": ["AAPL"],
             "close_now": [180.0],
             "volume": [50000000],
             "close_5d": [175.0],
@@ -127,14 +127,14 @@ def test_get_sector_performance_detail_success(mock_storage: Mock) -> None:
     # Mock tickers in sector
     tickers_data = pl.DataFrame(
         {
-            "ticker": ["AAPL", "MSFT", "GOOGL"],
+            "symbol": ["AAPL", "MSFT", "GOOGL"],
         }
     )
 
     # Mock performance data
     performance_data = pl.DataFrame(
         {
-            "ticker": ["AAPL", "MSFT", "GOOGL"],
+            "symbol": ["AAPL", "MSFT", "GOOGL"],
             "sector": ["Technology", "Technology", "Technology"],
             "close": [180.0, 380.0, 140.0],
             "volume": [50000000, 25000000, 20000000],
@@ -151,7 +151,7 @@ def test_get_sector_performance_detail_success(mock_storage: Mock) -> None:
     # Verify
     assert result is not None
     assert len(result) == 3  # Three stocks
-    assert "ticker" in result.columns
+    assert "symbol" in result.columns
     assert "sector" in result.columns
     assert "return_5d" in result.columns
     assert "return_20d" in result.columns
@@ -176,7 +176,7 @@ def test_get_sector_performance_detail_no_performance_data(mock_storage: Mock) -
     # Mock tickers
     tickers_data = pl.DataFrame(
         {
-            "ticker": ["AAPL", "MSFT"],
+            "symbol": ["AAPL", "MSFT"],
         }
     )
 
@@ -193,10 +193,10 @@ def test_get_sector_performance_detail_no_performance_data(mock_storage: Mock) -
 def test_get_sector_performance_detail_date_object(mock_storage: Mock) -> None:
     """Test sector performance detail with date object input."""
     # Mock data
-    tickers_data = pl.DataFrame({"ticker": ["AAPL"]})
+    tickers_data = pl.DataFrame({"symbol": ["AAPL"]})
     performance_data = pl.DataFrame(
         {
-            "ticker": ["AAPL"],
+            "symbol": ["AAPL"],
             "sector": ["Technology"],
             "close": [180.0],
             "volume": [50000000],

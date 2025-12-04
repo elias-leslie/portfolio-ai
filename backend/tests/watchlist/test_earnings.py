@@ -198,7 +198,7 @@ class TestEarningsCaching:
 
             # Verify data was cached
             cached_row = conn.execute(
-                "SELECT payload FROM reference_cache WHERE ticker = %s AND source = %s",
+                "SELECT payload FROM reference_cache WHERE symbol = %s AND source = %s",
                 ["NVDA", "earnings"],
             ).fetchone()
 
@@ -246,7 +246,7 @@ class TestEarningsCaching:
             # Manually age the cache to 31 days ago (expired)
             expired_date = date.today() - timedelta(days=31)
             conn.execute(
-                "UPDATE reference_cache SET as_of_date = %s WHERE ticker = %s AND source = %s",
+                "UPDATE reference_cache SET as_of_date = %s WHERE symbol = %s AND source = %s",
                 [expired_date, "NVDA", "earnings"],
             )
             conn.commit()
@@ -273,7 +273,7 @@ class TestEarningsCaching:
             assert result is None
             # Should have cached the None result
             cached_row = conn.execute(
-                "SELECT payload FROM reference_cache WHERE ticker = %s AND source = %s",
+                "SELECT payload FROM reference_cache WHERE symbol = %s AND source = %s",
                 ["UNKNOWN", "earnings"],
             ).fetchone()
             assert cached_row is not None

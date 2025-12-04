@@ -23,10 +23,10 @@ def mock_storage() -> Mock:
 
 def test_validate_and_get_group_data_success(mock_storage: Mock) -> None:
     """Test successful validation and group data retrieval."""
-    # Mock ticker group data
+    # Mock symbol group data
     ticker_group_data = pl.DataFrame(
         {
-            "ticker": ["AAPL"],
+            "symbol": ["AAPL"],
             "sector": ["Technology"],
         }
     )
@@ -34,7 +34,7 @@ def test_validate_and_get_group_data_success(mock_storage: Mock) -> None:
     # Mock peers data
     peers_data = pl.DataFrame(
         {
-            "ticker": ["AAPL", "MSFT", "GOOGL"],
+            "symbol": ["AAPL", "MSFT", "GOOGL"],
         }
     )
 
@@ -59,8 +59,8 @@ def test_validate_and_get_group_data_invalid_group_by(mock_storage: Mock) -> Non
 
 
 def test_validate_and_get_group_data_no_ticker_data(mock_storage: Mock) -> None:
-    """Test when ticker has no group data."""
-    # Mock empty ticker group data
+    """Test when symbol has no group data."""
+    # Mock empty symbol group data
     mock_storage.query.return_value = pl.DataFrame()
 
     # Execute
@@ -73,10 +73,10 @@ def test_validate_and_get_group_data_no_ticker_data(mock_storage: Mock) -> None:
 
 def test_get_peer_comparison_success(mock_storage: Mock) -> None:
     """Test successful peer comparison calculation."""
-    # Mock ticker group data
+    # Mock symbol group data
     ticker_group_data = pl.DataFrame(
         {
-            "ticker": ["AAPL"],
+            "symbol": ["AAPL"],
             "sector": ["Technology"],
         }
     )
@@ -84,14 +84,14 @@ def test_get_peer_comparison_success(mock_storage: Mock) -> None:
     # Mock peers data
     peers_data = pl.DataFrame(
         {
-            "ticker": ["AAPL", "MSFT", "GOOGL", "META"],
+            "symbol": ["AAPL", "MSFT", "GOOGL", "META"],
         }
     )
 
     # Mock returns data
     returns_data = pl.DataFrame(
         {
-            "ticker": ["AAPL", "MSFT", "GOOGL", "META"],
+            "symbol": ["AAPL", "MSFT", "GOOGL", "META"],
             "return_5d": [2.5, 3.0, 1.5, 2.0],
             "return_20d": [8.0, 10.0, 6.0, 7.0],
         }
@@ -112,7 +112,7 @@ def test_get_peer_comparison_success(mock_storage: Mock) -> None:
 
     # Check columns
     expected_cols = [
-        "ticker",
+        "symbol",
         "sector",
         "return_5d",
         "return_20d",
@@ -128,7 +128,7 @@ def test_get_peer_comparison_success(mock_storage: Mock) -> None:
         assert col in result.columns
 
     # Verify values
-    assert result["ticker"][0] == "AAPL"
+    assert result["symbol"][0] == "AAPL"
     assert result["sector"][0] == "Technology"
     assert result["return_5d"][0] == 2.5
     assert result["return_20d"][0] == 8.0
@@ -154,10 +154,10 @@ def test_get_peer_comparison_no_group_data(mock_storage: Mock) -> None:
 
 def test_get_peer_comparison_no_returns_data(mock_storage: Mock) -> None:
     """Test peer comparison when no returns data available."""
-    # Mock ticker group data
+    # Mock symbol group data
     ticker_group_data = pl.DataFrame(
         {
-            "ticker": ["AAPL"],
+            "symbol": ["AAPL"],
             "sector": ["Technology"],
         }
     )
@@ -165,7 +165,7 @@ def test_get_peer_comparison_no_returns_data(mock_storage: Mock) -> None:
     # Mock peers data
     peers_data = pl.DataFrame(
         {
-            "ticker": ["AAPL", "MSFT"],
+            "symbol": ["AAPL", "MSFT"],
         }
     )
 
@@ -184,11 +184,11 @@ def test_get_peer_comparison_no_returns_data(mock_storage: Mock) -> None:
 
 
 def test_get_peer_comparison_ticker_not_in_returns(mock_storage: Mock) -> None:
-    """Test peer comparison when target ticker has no returns data."""
-    # Mock ticker group data
+    """Test peer comparison when target symbol has no returns data."""
+    # Mock symbol group data
     ticker_group_data = pl.DataFrame(
         {
-            "ticker": ["AAPL"],
+            "symbol": ["AAPL"],
             "sector": ["Technology"],
         }
     )
@@ -196,14 +196,14 @@ def test_get_peer_comparison_ticker_not_in_returns(mock_storage: Mock) -> None:
     # Mock peers data
     peers_data = pl.DataFrame(
         {
-            "ticker": ["AAPL", "MSFT"],
+            "symbol": ["AAPL", "MSFT"],
         }
     )
 
     # Mock returns data without AAPL
     returns_data = pl.DataFrame(
         {
-            "ticker": ["MSFT"],
+            "symbol": ["MSFT"],
             "return_5d": [3.0],
             "return_20d": [10.0],
         }
@@ -236,14 +236,14 @@ def test_get_peer_comparison_date_object(mock_storage: Mock) -> None:
     # Mock data
     ticker_group_data = pl.DataFrame(
         {
-            "ticker": ["AAPL"],
+            "symbol": ["AAPL"],
             "sector": ["Technology"],
         }
     )
-    peers_data = pl.DataFrame({"ticker": ["AAPL", "MSFT"]})
+    peers_data = pl.DataFrame({"symbol": ["AAPL", "MSFT"]})
     returns_data = pl.DataFrame(
         {
-            "ticker": ["AAPL", "MSFT"],
+            "symbol": ["AAPL", "MSFT"],
             "return_5d": [2.5, 3.0],
             "return_20d": [8.0, 10.0],
         }
@@ -264,10 +264,10 @@ def test_get_peer_comparison_date_object(mock_storage: Mock) -> None:
 
 def test_get_peer_group_detail_success(mock_storage: Mock) -> None:
     """Test successful peer group detail retrieval."""
-    # Mock ticker group data
+    # Mock symbol group data
     ticker_group_data = pl.DataFrame(
         {
-            "ticker": ["AAPL"],
+            "symbol": ["AAPL"],
             "sector": ["Technology"],
         }
     )
@@ -275,14 +275,14 @@ def test_get_peer_group_detail_success(mock_storage: Mock) -> None:
     # Mock peers data
     peers_data = pl.DataFrame(
         {
-            "ticker": ["AAPL", "MSFT", "GOOGL"],
+            "symbol": ["AAPL", "MSFT", "GOOGL"],
         }
     )
 
     # Mock returns data
     returns_data = pl.DataFrame(
         {
-            "ticker": ["AAPL", "MSFT", "GOOGL"],
+            "symbol": ["AAPL", "MSFT", "GOOGL"],
             "return_5d": [2.5, 3.0, 1.5],
             "return_20d": [8.0, 10.0, 6.0],
         }
@@ -300,7 +300,7 @@ def test_get_peer_group_detail_success(mock_storage: Mock) -> None:
     # Verify
     assert result is not None
     assert len(result) == 3
-    assert "ticker" in result.columns
+    assert "symbol" in result.columns
     assert "sector" in result.columns
     assert "return_5d" in result.columns
     assert "return_20d" in result.columns
@@ -319,7 +319,7 @@ def test_get_peer_group_detail_success(mock_storage: Mock) -> None:
     # Verify is_target flag
     target_rows = result.filter(pl.col("is_target"))
     assert len(target_rows) == 1
-    assert target_rows["ticker"][0] == "AAPL"
+    assert target_rows["symbol"][0] == "AAPL"
 
 
 def test_get_peer_group_detail_no_group_data(mock_storage: Mock) -> None:
@@ -336,10 +336,10 @@ def test_get_peer_group_detail_no_group_data(mock_storage: Mock) -> None:
 
 def test_get_peer_group_detail_no_returns_data(mock_storage: Mock) -> None:
     """Test peer group detail when no returns data available."""
-    # Mock ticker group data
+    # Mock symbol group data
     ticker_group_data = pl.DataFrame(
         {
-            "ticker": ["AAPL"],
+            "symbol": ["AAPL"],
             "sector": ["Technology"],
         }
     )
@@ -347,7 +347,7 @@ def test_get_peer_group_detail_no_returns_data(mock_storage: Mock) -> None:
     # Mock peers data
     peers_data = pl.DataFrame(
         {
-            "ticker": ["AAPL", "MSFT"],
+            "symbol": ["AAPL", "MSFT"],
         }
     )
 
@@ -367,10 +367,10 @@ def test_get_peer_group_detail_no_returns_data(mock_storage: Mock) -> None:
 
 def test_get_peer_group_detail_industry_grouping(mock_storage: Mock) -> None:
     """Test peer group detail with industry grouping."""
-    # Mock ticker group data
+    # Mock symbol group data
     ticker_group_data = pl.DataFrame(
         {
-            "ticker": ["AAPL"],
+            "symbol": ["AAPL"],
             "industry": ["Consumer Electronics"],
         }
     )
@@ -378,14 +378,14 @@ def test_get_peer_group_detail_industry_grouping(mock_storage: Mock) -> None:
     # Mock peers data
     peers_data = pl.DataFrame(
         {
-            "ticker": ["AAPL", "SONY"],
+            "symbol": ["AAPL", "SONY"],
         }
     )
 
     # Mock returns data
     returns_data = pl.DataFrame(
         {
-            "ticker": ["AAPL", "SONY"],
+            "symbol": ["AAPL", "SONY"],
             "return_5d": [2.5, 3.0],
             "return_20d": [8.0, 10.0],
         }

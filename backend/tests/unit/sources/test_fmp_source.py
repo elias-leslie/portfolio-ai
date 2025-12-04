@@ -84,7 +84,7 @@ def test_fmp_fetch_day_bars_success(fmp_source: FMPSource, mock_fmp_client: Mock
     request = DatasetRequest(
         dataset="day",
         profile=None,
-        tickers=["AAPL"],
+        symbols=["AAPL"],
         start=dt.date(2025, 1, 27),
         end=dt.date(2025, 1, 28),
         timezone="UTC",
@@ -96,20 +96,20 @@ def test_fmp_fetch_day_bars_success(fmp_source: FMPSource, mock_fmp_client: Mock
     # Verify result
     assert result is not None
     assert len(result) == 2
-    assert "ticker" in result.columns
+    assert "symbol" in result.columns
     assert "date" in result.columns
     assert "open" in result.columns
     assert "close" in result.columns
     assert "volume" in result.columns
     assert "vwap" in result.columns
-    assert result["ticker"][0] == "AAPL"
+    assert result["symbol"][0] == "AAPL"
     assert result["source"][0] == "fmp"
     assert result["vwap"][0] == 185.10
 
     # Verify client was called correctly
     mock_fmp_client.get_historical_price.assert_called_once()
     call_args = mock_fmp_client.get_historical_price.call_args
-    assert call_args[1]["ticker"] == "AAPL"
+    assert call_args[1]["symbol"] == "AAPL"
     assert call_args[1]["from_date"] == "2025-01-27"
     assert call_args[1]["to_date"] == "2025-01-28"
 
@@ -125,7 +125,7 @@ def test_fmp_fetch_day_bars_api_error(fmp_source: FMPSource, mock_fmp_client: Mo
     request = DatasetRequest(
         dataset="day",
         profile=None,
-        tickers=["AAPL"],
+        symbols=["AAPL"],
         start=dt.date(2025, 1, 28),
         end=dt.date(2025, 1, 28),
         timezone="UTC",
@@ -145,7 +145,7 @@ def test_fmp_fetch_day_bars_empty_historical(fmp_source: FMPSource, mock_fmp_cli
     request = DatasetRequest(
         dataset="day",
         profile=None,
-        tickers=["INVALID"],
+        symbols=["INVALID"],
         start=dt.date(2025, 1, 28),
         end=dt.date(2025, 1, 28),
         timezone="UTC",
@@ -177,7 +177,7 @@ def test_fmp_fetch_day_bars_no_vwap(fmp_source: FMPSource, mock_fmp_client: Mock
     request = DatasetRequest(
         dataset="day",
         profile=None,
-        tickers=["AAPL"],
+        symbols=["AAPL"],
         start=dt.date(2025, 1, 28),
         end=dt.date(2025, 1, 28),
         timezone="UTC",
@@ -211,7 +211,7 @@ def test_fmp_fetch_news_payload_ticker(fmp_source: FMPSource, mock_fmp_client: M
     assert result is not None
     assert len(result) == 1
     row = result.to_dicts()[0]
-    assert row["ticker"] == "AAPL"
+    assert row["symbol"] == "AAPL"
     assert row["headline"] == "Apple announces new product"
     assert row["source"] == "fmp"
 
@@ -221,7 +221,7 @@ def test_fmp_fetch_news_payload_ticker(fmp_source: FMPSource, mock_fmp_client: M
             "from": start.date().isoformat(),
             "to": end.date().isoformat(),
             "limit": 50,
-            "tickers": "AAPL",
+            "symbols": "AAPL",
         },
     )
 
@@ -262,12 +262,12 @@ def test_fmp_fetch_reference_payload_success(fmp_source: FMPSource, mock_fmp_cli
     mock_fmp_client.get_profile.return_value = mock_response
 
     # Fetch data
-    result = fmp_source.fetch_reference_payload(tickers=["AAPL"], as_of=dt.date(2025, 1, 28))
+    result = fmp_source.fetch_reference_payload(symbols=["AAPL"], as_of=dt.date(2025, 1, 28))
 
     # Verify result
     assert result is not None
     assert len(result) == 1
-    assert result["ticker"][0] == "AAPL"
+    assert result["symbol"][0] == "AAPL"
     assert result["source"][0] == "fmp"
     assert result["as_of_date"][0] == dt.date(2025, 1, 28)
 
@@ -288,7 +288,7 @@ def test_fmp_fetch_reference_payload_empty_response(
     mock_response: list[dict[str, str]] = []
     mock_fmp_client.get_profile.return_value = mock_response
 
-    result = fmp_source.fetch_reference_payload(tickers=["INVALID"], as_of=dt.date(2025, 1, 28))
+    result = fmp_source.fetch_reference_payload(symbols=["INVALID"], as_of=dt.date(2025, 1, 28))
 
     assert result is None
 
@@ -321,12 +321,12 @@ def test_fmp_fetch_reference_payload_multiple_tickers(
     mock_fmp_client.get_profile.side_effect = mock_get_profile
 
     result = fmp_source.fetch_reference_payload(
-        tickers=["AAPL", "GOOGL"], as_of=dt.date(2025, 1, 28)
+        symbols=["AAPL", "GOOGL"], as_of=dt.date(2025, 1, 28)
     )
 
     assert result is not None
     assert len(result) == 2
-    assert set(result["ticker"].to_list()) == {"AAPL", "GOOGL"}
+    assert set(result["symbol"].to_list()) == {"AAPL", "GOOGL"}
 
 
 def test_fmp_fetch_news_not_implemented(
@@ -334,7 +334,7 @@ def test_fmp_fetch_news_not_implemented(
 ) -> None:
     """Test that news fetching returns None (not implemented)."""
     result = fmp_source.fetch_news_payload(
-        tickers=["AAPL"],
+        symbols=["AAPL"],
         start=dt.datetime(2025, 1, 28, 0, 0),
         end=dt.datetime(2025, 1, 28, 23, 59),
     )
@@ -409,7 +409,7 @@ def test_fmp_fetch_day_bars_with_ingest_run_id(
     request = DatasetRequest(
         dataset="day",
         profile=None,
-        tickers=["AAPL"],
+        symbols=["AAPL"],
         start=dt.date(2025, 1, 28),
         end=dt.date(2025, 1, 28),
         timezone="UTC",

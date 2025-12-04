@@ -72,7 +72,7 @@ def test_finnhub_fetch_day_bars_success(
     request = DatasetRequest(
         dataset="day",
         profile=None,
-        tickers=["AAPL"],
+        symbols=["AAPL"],
         start=dt.date(2025, 1, 27),
         end=dt.date(2025, 1, 28),
         timezone="UTC",
@@ -84,19 +84,19 @@ def test_finnhub_fetch_day_bars_success(
     # Verify result
     assert result is not None
     assert len(result) == 2
-    assert "ticker" in result.columns
+    assert "symbol" in result.columns
     assert "date" in result.columns
     assert "open" in result.columns
     assert "close" in result.columns
     assert "volume" in result.columns
-    assert result["ticker"][0] == "AAPL"
+    assert result["symbol"][0] == "AAPL"
     assert result["source"][0] == "finnhub"
     assert result["vwap"][0] is None  # Finnhub doesn't provide VWAP
 
     # Verify client was called correctly
     mock_finnhub_client.get_candles.assert_called_once()
     call_args = mock_finnhub_client.get_candles.call_args
-    assert call_args[1]["ticker"] == "AAPL"
+    assert call_args[1]["symbol"] == "AAPL"
     assert call_args[1]["resolution"] == "D"
 
 
@@ -113,7 +113,7 @@ def test_finnhub_fetch_day_bars_no_data(
     request = DatasetRequest(
         dataset="day",
         profile=None,
-        tickers=["INVALID"],
+        symbols=["INVALID"],
         start=dt.date(2025, 1, 28),
         end=dt.date(2025, 1, 28),
         timezone="UTC",
@@ -143,7 +143,7 @@ def test_finnhub_fetch_day_bars_empty_arrays(
     request = DatasetRequest(
         dataset="day",
         profile=None,
-        tickers=["INVALID"],
+        symbols=["INVALID"],
         start=dt.date(2025, 1, 28),
         end=dt.date(2025, 1, 28),
         timezone="UTC",
@@ -173,12 +173,12 @@ def test_finnhub_fetch_reference_payload_success(
     mock_finnhub_client.get_company_profile.return_value = mock_response
 
     # Fetch data
-    result = finnhub_source.fetch_reference_payload(tickers=["AAPL"], as_of=dt.date(2025, 1, 28))
+    result = finnhub_source.fetch_reference_payload(symbols=["AAPL"], as_of=dt.date(2025, 1, 28))
 
     # Verify result
     assert result is not None
     assert len(result) == 1
-    assert result["ticker"][0] == "AAPL"
+    assert result["symbol"][0] == "AAPL"
     assert result["source"][0] == "finnhub"
     assert result["as_of_date"][0] == dt.date(2025, 1, 28)
 
@@ -199,7 +199,7 @@ def test_finnhub_fetch_reference_payload_empty_response(
     mock_response: dict[str, str] = {}
     mock_finnhub_client.get_company_profile.return_value = mock_response
 
-    result = finnhub_source.fetch_reference_payload(tickers=["INVALID"], as_of=dt.date(2025, 1, 28))
+    result = finnhub_source.fetch_reference_payload(symbols=["INVALID"], as_of=dt.date(2025, 1, 28))
 
     assert result is None
 
@@ -211,7 +211,7 @@ def test_finnhub_fetch_reference_payload_no_name(
     mock_response = {"ticker": "AAPL"}  # Missing name field
     mock_finnhub_client.get_company_profile.return_value = mock_response
 
-    result = finnhub_source.fetch_reference_payload(tickers=["AAPL"], as_of=dt.date(2025, 1, 28))
+    result = finnhub_source.fetch_reference_payload(symbols=["AAPL"], as_of=dt.date(2025, 1, 28))
 
     assert result is None
 
@@ -240,12 +240,12 @@ def test_finnhub_fetch_reference_payload_multiple_tickers(
     mock_finnhub_client.get_company_profile.side_effect = mock_get_profile
 
     result = finnhub_source.fetch_reference_payload(
-        tickers=["AAPL", "GOOGL"], as_of=dt.date(2025, 1, 28)
+        symbols=["AAPL", "GOOGL"], as_of=dt.date(2025, 1, 28)
     )
 
     assert result is not None
     assert len(result) == 2
-    assert set(result["ticker"].to_list()) == {"AAPL", "GOOGL"}
+    assert set(result["symbol"].to_list()) == {"AAPL", "GOOGL"}
 
 
 def test_finnhub_fetch_news_payload_ticker(
@@ -273,7 +273,7 @@ def test_finnhub_fetch_news_payload_ticker(
     assert result is not None
     assert len(result) == 1
     row = result.to_dicts()[0]
-    assert row["ticker"] == "AAPL"
+    assert row["symbol"] == "AAPL"
     assert row["headline"] == "AAPL launches new product"
     assert row["source"] == "finnhub"
 
@@ -388,7 +388,7 @@ def test_finnhub_fetch_day_bars_with_ingest_run_id(
     request = DatasetRequest(
         dataset="day",
         profile=None,
-        tickers=["AAPL"],
+        symbols=["AAPL"],
         start=dt.date(2025, 1, 28),
         end=dt.date(2025, 1, 28),
         timezone="UTC",
@@ -422,7 +422,7 @@ def test_finnhub_fetch_day_bars_timestamp_conversion(
     request = DatasetRequest(
         dataset="day",
         profile=None,
-        tickers=["AAPL"],
+        symbols=["AAPL"],
         start=dt.date(2025, 1, 27),
         end=dt.date(2025, 1, 28),
         timezone="UTC",

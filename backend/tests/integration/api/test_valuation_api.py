@@ -53,10 +53,10 @@ def clean_before_test() -> Iterator[None]:
     # Now set up test data
     storage = get_storage()
     with storage.connection() as conn:
-        # Insert test data for multiple tickers
+        # Insert test data for multiple symbols
         test_data = [
             {
-                "ticker": "NVDA",
+                "symbol": "NVDA",
                 "source": "fundamentals",
                 "as_of_date": date.today(),
                 "pe_trailing": 53.24,
@@ -68,7 +68,7 @@ def clean_before_test() -> Iterator[None]:
                 "payout_ratio": 0.0114,
             },
             {
-                "ticker": "AAPL",
+                "symbol": "AAPL",
                 "source": "fundamentals",
                 "as_of_date": date.today(),
                 "pe_trailing": 29.5,
@@ -80,7 +80,7 @@ def clean_before_test() -> Iterator[None]:
                 "payout_ratio": 0.16,
             },
             {
-                "ticker": "MSFT",
+                "symbol": "MSFT",
                 "source": "fundamentals",
                 "as_of_date": date.today(),
                 "pe_trailing": 35.2,
@@ -97,16 +97,16 @@ def clean_before_test() -> Iterator[None]:
             conn.execute(
                 """
                 INSERT INTO reference_cache
-                  (ticker, source, as_of_date, payload,
+                  (symbol, source, as_of_date, payload,
                    pe_ratio_trailing, pe_ratio_forward, ps_ratio, pb_ratio,
                    peg_ratio, dividend_yield, payout_ratio)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 [
-                    data["ticker"],
+                    data["symbol"],
                     data["source"],
                     data["as_of_date"],
-                    json.dumps({"symbol": data["ticker"]}),
+                    json.dumps({"symbol": data["symbol"]}),
                     data["pe_trailing"],
                     data["pe_forward"],
                     data["ps_ratio"],
@@ -125,13 +125,13 @@ class TestValuationAPI:
     """Tests for valuation metrics API endpoints."""
 
     def test_get_single_ticker_valuation(self) -> None:
-        """Test retrieving valuation metrics for a single ticker."""
+        """Test retrieving valuation metrics for a single symbol."""
         response = client.get("/api/valuation/NVDA")
 
         assert response.status_code == 200
         data = response.json()
 
-        assert data["ticker"] == "NVDA"
+        assert data["symbol"] == "NVDA"
         assert data["pe_ratio_trailing"] == 53.24
         assert data["pe_ratio_forward"] == 45.35
         assert data["ps_ratio"] == 27.54
@@ -142,70 +142,70 @@ class TestValuationAPI:
         assert data["as_of_date"] is not None
 
     def test_get_single_ticker_case_insensitive(self) -> None:
-        """Test that ticker lookup is case-insensitive."""
+        """Test that symbol lookup is case-insensitive."""
         response = client.get("/api/valuation/nvda")
 
         assert response.status_code == 200
         data = response.json()
-        assert data["ticker"] == "NVDA"
+        assert data["symbol"] == "NVDA"
 
     def test_get_ticker_not_found(self) -> None:
-        """Test error handling for non-existent ticker."""
+        """Test error handling for non-existent symbol."""
         response = client.get("/api/valuation/NONEXIST")
 
         assert response.status_code == 404
         assert "No valuation metrics found" in response.json()["detail"]
 
     def test_get_batch_valuation_metrics(self) -> None:
-        """Test retrieving valuation metrics for multiple tickers."""
-        response = client.get("/api/valuation?tickers=NVDA,AAPL,MSFT")
+        """Test retrieving valuation metrics for multiple symbols."""
+        response = client.get("/api/valuation?symbols=NVDA,AAPL,MSFT")
 
         assert response.status_code == 200
         data = response.json()
 
         assert data["count"] == 3
-        assert len(data["tickers"]) == 3
+        assert len(data["symbols"]) == 3
 
-        # Verify each ticker is present
-        tickers = {t["ticker"] for t in data["tickers"]}
-        assert tickers == {"NVDA", "AAPL", "MSFT"}
+        # Verify each symbol is present
+        symbols = {t["symbol"] for t in data["symbols"]}
+        assert symbols == {"NVDA", "AAPL", "MSFT"}
 
         # Verify data integrity
-        nvda_data = next(t for t in data["tickers"] if t["ticker"] == "NVDA")
+        nvda_data = next(t for t in data["symbols"] if t["symbol"] == "NVDA")
         assert nvda_data["pe_ratio_trailing"] == 53.24
 
     def test_get_batch_with_spaces(self) -> None:
-        """Test that batch endpoint handles whitespace in ticker list."""
-        response = client.get("/api/valuation?tickers=NVDA, AAPL , MSFT")
+        """Test that batch endpoint handles whitespace in symbol list."""
+        response = client.get("/api/valuation?symbols=NVDA, AAPL , MSFT")
 
         assert response.status_code == 200
         data = response.json()
         assert data["count"] == 3
 
     def test_get_batch_no_tickers(self) -> None:
-        """Test batch endpoint error when no tickers provided."""
-        response = client.get("/api/valuation?tickers=")
+        """Test batch endpoint error when no symbols provided."""
+        response = client.get("/api/valuation?symbols=")
 
         assert response.status_code == 400
-        assert "No tickers provided" in response.json()["detail"]
+        assert "No symbols provided" in response.json()["detail"]
 
     def test_get_batch_partial_match(self) -> None:
-        """Test batch endpoint with some tickers not found."""
-        response = client.get("/api/valuation?tickers=NVDA,NONEXIST,AAPL")
+        """Test batch endpoint with some symbols not found."""
+        response = client.get("/api/valuation?symbols=NVDA,NONEXIST,AAPL")
 
-        # Should still return data for found tickers (NVDA and AAPL)
+        # Should still return data for found symbols (NVDA and AAPL)
         assert response.status_code == 200
         data = response.json()
         # We only get the found ones
         assert data["count"] == 2
-        tickers = {t["ticker"] for t in data["tickers"]}
-        assert "NONEXIST" not in tickers
-        assert "NVDA" in tickers
-        assert "AAPL" in tickers
+        symbols = {t["symbol"] for t in data["symbols"]}
+        assert "NONEXIST" not in symbols
+        assert "NVDA" in symbols
+        assert "AAPL" in symbols
 
     def test_get_batch_mixed_case(self) -> None:
-        """Test batch endpoint with mixed case ticker symbols."""
-        response = client.get("/api/valuation?tickers=nvda,AaPl,MsF t")
+        """Test batch endpoint with mixed case symbols."""
+        response = client.get("/api/valuation?symbols=nvda,AaPl,MsF t")
 
         assert response.status_code == 200
         data = response.json()
@@ -221,7 +221,7 @@ class TestValuationAPI:
             conn.execute(
                 """
                 INSERT INTO reference_cache
-                  (ticker, source, as_of_date, payload,
+                  (symbol, source, as_of_date, payload,
                    pe_ratio_trailing, pe_ratio_forward)
                 VALUES (%s, %s, %s, %s, %s, %s)
                 """,

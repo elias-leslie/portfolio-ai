@@ -23,7 +23,7 @@ def test_backtest_tool_executor_integration(storage):
     """Test run_backtest tool executor with real database."""
     trading_tools = TradingTools(storage=storage)
     agent_run_id = str(uuid.uuid4())
-    ticker = "AAPL"
+    symbol = "AAPL"
 
     # Use recent 30-day window for quick test
     end_date = date.today()
@@ -42,7 +42,7 @@ def test_backtest_tool_executor_integration(storage):
             actual_run_id = create_backtest_run(
                 storage=storage,
                 strategy_name="signal_classifier",
-                symbol=ticker,
+                symbol=symbol,
                 start_date=start_date,
                 end_date=end_date,
                 initial_capital=Decimal("100000.00"),
@@ -75,14 +75,14 @@ def test_backtest_tool_executor_integration(storage):
                 with patch("app.agents.tool_executors_trading.time.sleep"):
                     result = trading_tools.execute_run_backtest(
                         agent_run_id=agent_run_id,
-                        ticker=ticker,
+                        symbol=symbol,
                         start_date=start_date.isoformat(),
                         end_date=end_date.isoformat(),
                     )
 
     # Verify result
     assert result["status"] == "completed"
-    assert result["ticker"] == ticker
+    assert result["symbol"] == symbol
     assert result["sharpe_ratio"] == 1.5
     assert result["win_rate"] == 60.0
     assert result["max_drawdown_pct"] == 8.0
@@ -93,7 +93,7 @@ def test_backtest_tool_executor_integration(storage):
 def test_paper_trade_validation_workflow_approval(storage):
     """Test paper trade validation workflow with good backtest metrics (should approve)."""
     strategy_id = str(uuid.uuid4())
-    ticker = "NVDA"
+    symbol = "NVDA"
     action = "buy"
     thesis = "Strong AI momentum, excellent technical setup"
 
@@ -119,7 +119,7 @@ def test_paper_trade_validation_workflow_approval(storage):
             mock_tools_instance.execute_create_paper_trade.return_value = {
                 "status": "created",
                 "trade_id": trade_id,
-                "ticker": ticker,
+                "symbol": symbol,
                 "action": action,
             }
             mock_agent_tools_class.return_value = mock_tools_instance
@@ -128,7 +128,7 @@ def test_paper_trade_validation_workflow_approval(storage):
             with patch("app.tasks.workflow_tasks.commit_workflow_results", return_value=True):
                 result = paper_trade_validation_workflow(
                     strategy_id=strategy_id,
-                    ticker=ticker,
+                    symbol=symbol,
                     action=action,
                     thesis=thesis,
                 )
@@ -146,7 +146,7 @@ def test_paper_trade_validation_workflow_approval(storage):
 def test_paper_trade_validation_workflow_rejection(storage):
     """Test paper trade validation workflow with bad backtest metrics (should reject)."""
     strategy_id = str(uuid.uuid4())
-    ticker = "BADSTOCK"
+    symbol = "BADSTOCK"
     action = "buy"
     thesis = "High risk speculative play"
 
@@ -166,7 +166,7 @@ def test_paper_trade_validation_workflow_rejection(storage):
         with patch("app.tasks.workflow_tasks.commit_workflow_results", return_value=True):
             result = paper_trade_validation_workflow(
                 strategy_id=strategy_id,
-                ticker=ticker,
+                symbol=symbol,
                 action=action,
                 thesis=thesis,
             )
@@ -182,7 +182,7 @@ def test_paper_trade_validation_workflow_rejection(storage):
 def test_paper_trade_validation_workflow_split_decision(storage):
     """Test workflow when strategy approves but risk rejects (should reject overall)."""
     strategy_id = str(uuid.uuid4())
-    ticker = "RISKY"
+    symbol = "RISKY"
     action = "buy"
     thesis = "Moderate setup with concerns"
 
@@ -201,7 +201,7 @@ def test_paper_trade_validation_workflow_split_decision(storage):
         with patch("app.tasks.workflow_tasks.commit_workflow_results", return_value=True):
             result = paper_trade_validation_workflow(
                 strategy_id=strategy_id,
-                ticker=ticker,
+                symbol=symbol,
                 action=action,
                 thesis=thesis,
             )
@@ -217,7 +217,7 @@ def test_paper_trade_validation_workflow_split_decision(storage):
 def test_paper_trade_validation_workflow_agent_failure(storage):
     """Test workflow when agent fails (should fail workflow)."""
     strategy_id = str(uuid.uuid4())
-    ticker = "AAPL"
+    symbol = "AAPL"
     action = "buy"
     thesis = "Test thesis"
 
@@ -230,7 +230,7 @@ def test_paper_trade_validation_workflow_agent_failure(storage):
         with patch("app.tasks.workflow_tasks.commit_workflow_results", return_value=True):
             result = paper_trade_validation_workflow(
                 strategy_id=strategy_id,
-                ticker=ticker,
+                symbol=symbol,
                 action=action,
                 thesis=thesis,
             )

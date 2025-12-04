@@ -60,7 +60,7 @@ def test_yfinance_fetch_news_payload_ticker(mock_ticker):
     assert isinstance(df, pl.DataFrame)
     assert len(df) == 1
     row = df.to_dicts()[0]
-    assert row["ticker"] == "AAPL"
+    assert row["symbol"] == "AAPL"
     assert row["news_source_name"] == "ExampleWire"
     assert row["source"] == "yfinance"
     assert row["headline"] == "Apple unveils new product"
@@ -84,7 +84,7 @@ def test_yfinance_fetch_news_payload_market(mock_ticker):
 
     df = source.fetch_news_payload(["__MARKET__"], start, end)
     assert df is not None
-    assert df["ticker"][0] == "__MARKET__"
+    assert df["symbol"][0] == "__MARKET__"
 
 
 def test_yfinance_fetch_news_payload_filters_time(mock_ticker):

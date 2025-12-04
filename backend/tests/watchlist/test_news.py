@@ -117,7 +117,7 @@ class StubNewsSource(BaseSource):
                 )
                 rows.append(
                     {
-                        "ticker": ticker,
+                        "symbol": ticker,
                         "headline": entry.get("title"),
                         "summary": entry.get("summary"),
                         "url": entry.get("link"),
@@ -264,7 +264,7 @@ def test_news_service_tracks_score_change(storage):
             """
             UPDATE news_cache
             SET fetched_at = %s
-            WHERE ticker = %s
+            WHERE symbol = %s
             """,
             [ninety_minutes, "AMD"],
         )
@@ -336,7 +336,7 @@ def test_recent_selection_backfills_with_stale_articles(storage):
 def test_build_recent_news_payload_includes_vendor_and_publisher():
     now = datetime.now(UTC)
     summary = NewsSummary(
-        ticker="AAPL",
+        symbol="AAPL",
         score=0.42,
         score_change=0.1,
         positive_count=1,
@@ -360,7 +360,7 @@ def test_build_recent_news_payload_includes_vendor_and_publisher():
         "source": {"title": "Example Publisher"},
     }
     article = NewsArticle(
-        ticker="AAPL",
+        symbol="AAPL",
         headline="Example headline",
         url="https://example.com/article",
         summary="Example summary",
@@ -374,10 +374,10 @@ def test_build_recent_news_payload_includes_vendor_and_publisher():
         raw={"raw": raw_entry},
         vendor=None,
     )
-    bundle = NewsBundle(ticker="AAPL", summary=summary, articles=[article])
+    bundle = NewsBundle(symbol="AAPL", summary=summary, articles=[article])
 
     payload = build_recent_news_payload(bundle, max_articles=5)
-    assert payload["summary"]["ticker"] == "AAPL"
+    assert payload["summary"]["symbol"] == "AAPL"
     assert len(payload["articles"]) == 1
     article_payload = payload["articles"][0]
     assert article_payload["vendor"] == "polygon"
@@ -389,7 +389,7 @@ def test_vendor_entries_round_robin_selection(storage):
     now = datetime.now(UTC)
     rows = [
         {
-            "ticker": "AAPL",
+            "symbol": "AAPL",
             "headline": "Polygon headline 1",
             "url": "https://example.com/polygon-1",
             "summary": "P1 summary",
@@ -400,7 +400,7 @@ def test_vendor_entries_round_robin_selection(storage):
             "source": "polygon",
         },
         {
-            "ticker": "AAPL",
+            "symbol": "AAPL",
             "headline": "Polygon headline 2",
             "url": "https://example.com/polygon-2",
             "summary": "P2 summary",
@@ -411,7 +411,7 @@ def test_vendor_entries_round_robin_selection(storage):
             "source": "polygon",
         },
         {
-            "ticker": "AAPL",
+            "symbol": "AAPL",
             "headline": "Finnhub headline 1",
             "url": "https://example.com/finnhub-1",
             "summary": "F1 summary",
@@ -437,7 +437,7 @@ def test_vendor_entries_round_robin_selection(storage):
     news_source = StubNewsSource([])
 
     with storage.connection() as conn:
-        conn.execute("DELETE FROM news_cache WHERE ticker = %s", ["AAPL"])
+        conn.execute("DELETE FROM news_cache WHERE symbol = %s", ["AAPL"])
         conn.commit()
 
     service = NewsService(

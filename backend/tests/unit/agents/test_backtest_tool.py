@@ -24,7 +24,7 @@ def trading_tools(mock_storage):
 def test_execute_run_backtest_success(trading_tools, mock_storage):
     """Test successful backtest execution."""
     agent_run_id = str(uuid.uuid4())
-    ticker = "AAPL"
+    symbol = "AAPL"
     start_date = "2023-01-01"
     end_date = "2024-01-01"
 
@@ -53,14 +53,14 @@ def test_execute_run_backtest_success(trading_tools, mock_storage):
                 ):
                     result = trading_tools.execute_run_backtest(
                         agent_run_id=agent_run_id,
-                        ticker=ticker,
+                        symbol=symbol,
                         start_date=start_date,
                         end_date=end_date,
                     )
 
     assert result["status"] == "completed"
     assert result["backtest_run_id"] == run_id
-    assert result["ticker"] == ticker
+    assert result["symbol"] == symbol
     assert result["sharpe_ratio"] == 1.5
     assert result["win_rate"] == 60.0
     assert result["max_drawdown_pct"] == 15.0
@@ -75,7 +75,7 @@ def test_execute_run_backtest_invalid_dates(trading_tools):
 
     result = trading_tools.execute_run_backtest(
         agent_run_id=agent_run_id,
-        ticker="AAPL",
+        symbol="AAPL",
         start_date="invalid-date",
         end_date="2024-01-01",
     )
@@ -90,7 +90,7 @@ def test_execute_run_backtest_end_before_start(trading_tools):
 
     result = trading_tools.execute_run_backtest(
         agent_run_id=agent_run_id,
-        ticker="AAPL",
+        symbol="AAPL",
         start_date="2024-01-01",
         end_date="2023-01-01",
     )
@@ -103,7 +103,7 @@ def test_execute_run_backtest_end_before_start(trading_tools):
 def test_execute_run_backtest_failed(trading_tools, mock_storage):
     """Test backtest execution that fails."""
     agent_run_id = str(uuid.uuid4())
-    ticker = "INVALID"
+    symbol = "INVALID"
     start_date = "2023-01-01"
     end_date = "2024-01-01"
 
@@ -126,21 +126,21 @@ def test_execute_run_backtest_failed(trading_tools, mock_storage):
                 ):
                     result = trading_tools.execute_run_backtest(
                         agent_run_id=agent_run_id,
-                        ticker=ticker,
+                        symbol=symbol,
                         start_date=start_date,
                         end_date=end_date,
                     )
 
     assert result["status"] == "error"
     assert result["backtest_run_id"] == run_id
-    assert result["ticker"] == ticker
+    assert result["symbol"] == symbol
     assert "Symbol not found" in result["error"]
 
 
 def test_execute_run_backtest_timeout(trading_tools, mock_storage):
     """Test backtest execution that times out."""
     agent_run_id = str(uuid.uuid4())
-    ticker = "AAPL"
+    symbol = "AAPL"
     start_date = "2023-01-01"
     end_date = "2024-01-01"
 
@@ -163,7 +163,7 @@ def test_execute_run_backtest_timeout(trading_tools, mock_storage):
                     # Force immediate timeout by patching elapsed time
                     result = trading_tools.execute_run_backtest(
                         agent_run_id=agent_run_id,
-                        ticker=ticker,
+                        symbol=symbol,
                         start_date=start_date,
                         end_date=end_date,
                     )
@@ -176,7 +176,7 @@ def test_execute_run_backtest_timeout(trading_tools, mock_storage):
 def test_execute_run_backtest_with_custom_params(trading_tools, mock_storage):
     """Test backtest with custom strategy parameters."""
     agent_run_id = str(uuid.uuid4())
-    ticker = "NVDA"
+    symbol = "NVDA"
     start_date = "2023-06-01"
     end_date = "2024-06-01"
 
@@ -202,7 +202,7 @@ def test_execute_run_backtest_with_custom_params(trading_tools, mock_storage):
                 ):
                     result = trading_tools.execute_run_backtest(
                         agent_run_id=agent_run_id,
-                        ticker=ticker,
+                        symbol=symbol,
                         start_date=start_date,
                         end_date=end_date,
                         initial_capital=50000.0,

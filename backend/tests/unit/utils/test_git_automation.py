@@ -311,7 +311,7 @@ class TestCommitWorkflowResults:
             mock_pull.return_value = True
             mock_push.return_value = True
 
-            snapshot_data = {"ticker": "NVDA", "action": "BUY"}
+            snapshot_data = {"symbol": "NVDA", "action": "BUY"}
 
             result = commit_workflow_results(
                 "paper_trade_validation",

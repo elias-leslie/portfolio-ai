@@ -133,7 +133,7 @@ class TestGetOwnershipMetricsBatch:
         """Should return metrics for all found tickers."""
         mock_storage = MagicMock()
         mock_df = pl.DataFrame({
-            "ticker": ["AAPL", "MSFT"],
+            "symbol": ["AAPL", "MSFT"],
             "payload": [
                 json.dumps({"heldPercentInstitutions": 0.64, "heldPercentInsiders": 0.02}),
                 json.dumps({"heldPercentInstitutions": 0.72, "heldPercentInsiders": 0.01}),
@@ -159,7 +159,7 @@ class TestGetOwnershipMetricsBatch:
         """Should skip rows with invalid JSON."""
         mock_storage = MagicMock()
         mock_df = pl.DataFrame({
-            "ticker": ["GOOD", "BAD"],
+            "symbol": ["GOOD", "BAD"],
             "payload": [
                 json.dumps({"heldPercentInstitutions": 0.50}),
                 "invalid json",

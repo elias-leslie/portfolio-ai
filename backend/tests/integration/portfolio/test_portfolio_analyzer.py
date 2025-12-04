@@ -89,7 +89,7 @@ def mock_news_service() -> Mock:
     # Create realistic mock articles
     mock_articles = [
         NewsArticle(
-            ticker="MARKET",
+            symbol="MARKET",
             headline="Tech stocks rally on AI optimism",
             url="http://example.com/1",
             summary="Technology sector leads gains",
@@ -101,7 +101,7 @@ def mock_news_service() -> Mock:
         ),
     ]
     mock_summary = NewsSummary(
-        ticker="MARKET",
+        symbol="MARKET",
         score=0.8,
         score_change=0.1,
         positive_count=1,
@@ -111,7 +111,7 @@ def mock_news_service() -> Mock:
         latest_published_at=datetime(2025, 10, 27, tzinfo=UTC),
     )
     mock_bundle = NewsBundle(
-        ticker="MARKET",
+        symbol="MARKET",
         summary=mock_summary,
         articles=mock_articles,
     )

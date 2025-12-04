@@ -37,7 +37,7 @@ def sample_ohlcv_data() -> pl.DataFrame:
         prices.append(price)
 
     data = {
-        "ticker": ["AAPL"] * 250,
+        "symbol": ["AAPL"] * 250,
         "date": dates,
         "open": [p * 0.99 for p in prices],
         "high": [p * 1.02 for p in prices],
@@ -62,7 +62,7 @@ def test_calculate_indicators_all_indicators(
     # Test with core indicators that have stable pandas_ta behavior
     result = calculate_indicators(
         storage=mock_storage,
-        ticker="AAPL",
+        symbol="AAPL",
         indicators=[
             "rsi",
             "macd",
@@ -78,7 +78,7 @@ def test_calculate_indicators_all_indicators(
     )
 
     # Verify structure
-    assert result["ticker"] == "AAPL"
+    assert result["symbol"] == "AAPL"
     assert result["date"] == "2025-02-05"
 
     # Verify key indicators are present
@@ -112,7 +112,7 @@ def test_calculate_indicators_rsi_values(
     mock_storage.query.return_value = sample_ohlcv_data
 
     result = calculate_indicators(
-        storage=mock_storage, ticker="AAPL", indicators=["rsi"], as_of_date="2025-02-05"
+        storage=mock_storage, symbol="AAPL", indicators=["rsi"], as_of_date="2025-02-05"
     )
 
     rsi = result["indicators"]["rsi_14"]
@@ -128,7 +128,7 @@ def test_calculate_indicators_rsi_oversold_interpretation(mock_storage: Mock) ->
 
     data = pl.DataFrame(
         {
-            "ticker": ["AAPL"] * 50,
+            "symbol": ["AAPL"] * 50,
             "date": dates,
             "open": [p * 0.99 for p in prices],
             "high": [p * 1.01 for p in prices],
@@ -141,7 +141,7 @@ def test_calculate_indicators_rsi_oversold_interpretation(mock_storage: Mock) ->
     mock_storage.query.return_value = data
 
     result = calculate_indicators(
-        storage=mock_storage, ticker="AAPL", indicators=["rsi"], as_of_date="2024-07-20"
+        storage=mock_storage, symbol="AAPL", indicators=["rsi"], as_of_date="2024-07-20"
     )
 
     rsi = result["indicators"]["rsi_14"]
@@ -161,7 +161,7 @@ def test_calculate_indicators_rsi_overbought_interpretation(mock_storage: Mock) 
 
     data = pl.DataFrame(
         {
-            "ticker": ["AAPL"] * 50,
+            "symbol": ["AAPL"] * 50,
             "date": dates,
             "open": [p * 0.99 for p in prices],
             "high": [p * 1.01 for p in prices],
@@ -174,7 +174,7 @@ def test_calculate_indicators_rsi_overbought_interpretation(mock_storage: Mock) 
     mock_storage.query.return_value = data
 
     result = calculate_indicators(
-        storage=mock_storage, ticker="AAPL", indicators=["rsi"], as_of_date="2024-07-20"
+        storage=mock_storage, symbol="AAPL", indicators=["rsi"], as_of_date="2024-07-20"
     )
 
     rsi = result["indicators"]["rsi_14"]
@@ -193,7 +193,7 @@ def test_calculate_indicators_macd_calculation(
     mock_storage.query.return_value = sample_ohlcv_data
 
     result = calculate_indicators(
-        storage=mock_storage, ticker="AAPL", indicators=["macd"], as_of_date="2025-02-05"
+        storage=mock_storage, symbol="AAPL", indicators=["macd"], as_of_date="2025-02-05"
     )
 
     macd = result["indicators"]["macd_12_26_9"]
@@ -214,7 +214,7 @@ def test_calculate_indicators_macd_bullish_cross(mock_storage: Mock) -> None:
 
     data = pl.DataFrame(
         {
-            "ticker": ["AAPL"] * 100,
+            "symbol": ["AAPL"] * 100,
             "date": dates,
             "open": [p * 0.99 for p in prices],
             "high": [p * 1.01 for p in prices],
@@ -227,7 +227,7 @@ def test_calculate_indicators_macd_bullish_cross(mock_storage: Mock) -> None:
     mock_storage.query.return_value = data
 
     result = calculate_indicators(
-        storage=mock_storage, ticker="AAPL", indicators=["macd"], as_of_date="2024-09-08"
+        storage=mock_storage, symbol="AAPL", indicators=["macd"], as_of_date="2024-09-08"
     )
 
     interpretation = result["interpretations"]["macd"]
@@ -244,7 +244,7 @@ def test_calculate_indicators_sma_calculations(
 
     result = calculate_indicators(
         storage=mock_storage,
-        ticker="AAPL",
+        symbol="AAPL",
         indicators=["sma_5", "sma_20", "sma_50", "sma_200"],
         as_of_date="2025-02-05",
     )
@@ -275,7 +275,7 @@ def test_calculate_indicators_ema_calculations(
 
     result = calculate_indicators(
         storage=mock_storage,
-        ticker="AAPL",
+        symbol="AAPL",
         indicators=["ema_20", "ema_50", "ema_200"],
         as_of_date="2025-02-05",
     )
@@ -299,7 +299,7 @@ def test_calculate_indicators_atr_calculation(
     mock_storage.query.return_value = sample_ohlcv_data
 
     result = calculate_indicators(
-        storage=mock_storage, ticker="AAPL", indicators=["atr"], as_of_date="2025-02-05"
+        storage=mock_storage, symbol="AAPL", indicators=["atr"], as_of_date="2025-02-05"
     )
 
     atr = result["indicators"]["atr_14"]
@@ -318,7 +318,7 @@ def test_calculate_indicators_stochastic_calculation(
 
     result = calculate_indicators(
         storage=mock_storage,
-        ticker="AAPL",
+        symbol="AAPL",
         indicators=["stoch"],
         as_of_date="2025-02-05",
     )
@@ -346,7 +346,7 @@ def test_calculate_indicators_insufficient_data(mock_storage: Mock) -> None:
 
     data = pl.DataFrame(
         {
-            "ticker": ["AAPL"] * 50,
+            "symbol": ["AAPL"] * 50,
             "date": dates,
             "open": [p * 0.99 for p in prices],
             "high": [p * 1.01 for p in prices],
@@ -361,7 +361,7 @@ def test_calculate_indicators_insufficient_data(mock_storage: Mock) -> None:
     # Should be able to calculate RSI with 50 days
     result = calculate_indicators(
         storage=mock_storage,
-        ticker="AAPL",
+        symbol="AAPL",
         indicators=["rsi"],
         as_of_date=None,
     )
@@ -373,13 +373,13 @@ def test_calculate_indicators_insufficient_data(mock_storage: Mock) -> None:
 
 
 def test_calculate_indicators_no_data(mock_storage: Mock) -> None:
-    """Test error handling when no data exists for ticker."""
+    """Test error handling when no data exists for symbol."""
     mock_storage.query.return_value = pl.DataFrame()
 
     with pytest.raises(ValueError, match="Insufficient data"):
         calculate_indicators(
             storage=mock_storage,
-            ticker="INVALID",
+            symbol="INVALID",
             indicators=["rsi"],
             as_of_date="2025-01-15",
         )
@@ -393,7 +393,7 @@ def test_calculate_indicators_specific_date(
 
     target_date = "2024-12-15"
     result = calculate_indicators(
-        storage=mock_storage, ticker="AAPL", indicators=["rsi"], as_of_date=target_date
+        storage=mock_storage, symbol="AAPL", indicators=["rsi"], as_of_date=target_date
     )
 
     # Verify the result uses the latest date from the returned data
@@ -409,7 +409,7 @@ def test_calculate_indicators_latest_date(
     mock_storage.query.return_value = sample_ohlcv_data
 
     result = calculate_indicators(
-        storage=mock_storage, ticker="AAPL", indicators=["rsi"], as_of_date=None
+        storage=mock_storage, symbol="AAPL", indicators=["rsi"], as_of_date=None
     )
 
     # Should use latest date from sample data (2025-02-05)
@@ -424,7 +424,7 @@ def test_calculate_indicators_with_date_object(
 
     target_date = dt.date(2024, 12, 15)
     result = calculate_indicators(
-        storage=mock_storage, ticker="AAPL", indicators=["rsi"], as_of_date=target_date
+        storage=mock_storage, symbol="AAPL", indicators=["rsi"], as_of_date=target_date
     )
 
     # Verify date object is accepted and result returns a date string
@@ -440,7 +440,7 @@ def test_calculate_indicators_price_vs_sma_200_interpretation(
 
     result = calculate_indicators(
         storage=mock_storage,
-        ticker="AAPL",
+        symbol="AAPL",
         indicators=["sma_200"],
         as_of_date="2025-02-05",
     )

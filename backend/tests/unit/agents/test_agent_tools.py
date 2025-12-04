@@ -162,7 +162,7 @@ def test_execute_get_news(agent_tools: AgentTools, mock_news_service: Mock) -> N
     # Setup mock with proper NewsBundle structure
     mock_articles = [
         NewsArticle(
-            ticker="MARKET",
+            symbol="MARKET",
             headline="Market rallies",
             url="http://example.com/1",
             summary="Markets are up",
@@ -173,7 +173,7 @@ def test_execute_get_news(agent_tools: AgentTools, mock_news_service: Mock) -> N
             content_hash="hash1",
         ),
         NewsArticle(
-            ticker="MARKET",
+            symbol="MARKET",
             headline="Tech stocks surge",
             url="http://example.com/2",
             summary="Tech is booming",
@@ -185,7 +185,7 @@ def test_execute_get_news(agent_tools: AgentTools, mock_news_service: Mock) -> N
         ),
     ]
     mock_summary = NewsSummary(
-        ticker="MARKET",
+        symbol="MARKET",
         score=0.85,
         score_change=0.1,
         positive_count=2,
@@ -195,7 +195,7 @@ def test_execute_get_news(agent_tools: AgentTools, mock_news_service: Mock) -> N
         latest_published_at=datetime.now(UTC),
     )
     mock_bundle = NewsBundle(
-        ticker="MARKET",
+        symbol="MARKET",
         summary=mock_summary,
         articles=mock_articles,
     )
@@ -208,7 +208,7 @@ def test_execute_get_news(agent_tools: AgentTools, mock_news_service: Mock) -> N
 
     # Verify
     assert result["query"] == "stock market"
-    assert result["ticker"] == "MARKET"
+    assert result["symbol"] == "MARKET"
     assert result["count"] == 2
     assert len(result["articles"]) == 2
     assert result["articles"][0]["headline"] == "Market rallies"
@@ -224,7 +224,7 @@ def test_execute_get_news_default_max_results(
 
     # Setup mock with empty NewsBundle
     mock_summary = NewsSummary(
-        ticker="MARKET",
+        symbol="MARKET",
         score=None,
         score_change=None,
         positive_count=0,
@@ -234,7 +234,7 @@ def test_execute_get_news_default_max_results(
         latest_published_at=None,
     )
     mock_bundle = NewsBundle(
-        ticker="MARKET",
+        symbol="MARKET",
         summary=mock_summary,
         articles=[],
     )

@@ -138,7 +138,7 @@ class TestUpdateValuationMetrics:
             conn.execute(
                 """
                 INSERT INTO reference_cache
-                  (ticker, source, as_of_date, payload, pe_ratio_trailing)
+                  (symbol, source, as_of_date, payload, pe_ratio_trailing)
                 VALUES (%s, %s, %s, %s, %s)
                 """,
                 [
@@ -180,7 +180,7 @@ class TestUpdateValuationMetrics:
                     dividend_yield,
                     payout_ratio
                 FROM reference_cache
-                WHERE ticker = %s AND source = %s
+                WHERE symbol = %s AND source = %s
                 """,
                 ["NVDA", "fundamentals"],
             ).fetchone()
@@ -215,7 +215,7 @@ class TestUpdateValuationMetrics:
                     ps_ratio,
                     pb_ratio
                 FROM reference_cache
-                WHERE ticker = %s AND source = %s
+                WHERE symbol = %s AND source = %s
                 """,
                 ["NVDA", "fundamentals"],
             ).fetchone()
@@ -246,7 +246,7 @@ class TestUpdateValuationMetrics:
                 """
                 SELECT pe_ratio_trailing, pe_ratio_forward
                 FROM reference_cache
-                WHERE ticker = %s AND source = %s
+                WHERE symbol = %s AND source = %s
                 """,
                 ["NVDA", "fundamentals"],
             ).fetchone()

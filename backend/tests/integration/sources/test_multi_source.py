@@ -41,7 +41,7 @@ def sample_request() -> DatasetRequest:
     return DatasetRequest(
         dataset=DATASET_REFERENCE,
         profile=None,
-        tickers=["AAPL", "GOOGL"],
+        symbols=["AAPL", "GOOGL"],
         start=dt.date(2025, 1, 28),
         end=dt.date(2025, 1, 28),
         timezone="UTC",
@@ -99,7 +99,7 @@ def test_yfinance_primary_success(
     # Mock yfinance returning valid data
     mock_data = pl.DataFrame(
         {
-            "ticker": ["AAPL", "GOOGL"],
+            "symbol": ["AAPL", "GOOGL"],
             "as_of_date": [dt.date(2025, 1, 28), dt.date(2025, 1, 28)],
             "payload": ['{"price": 180.0}', '{"price": 140.0}'],
             "source": ["yfinance", "yfinance"],
@@ -114,7 +114,7 @@ def test_yfinance_primary_success(
     # Should succeed with yfinance
     assert df is not None
     assert len(df) == 2
-    assert set(df["ticker"].to_list()) == {"AAPL", "GOOGL"}
+    assert set(df["symbol"].to_list()) == {"AAPL", "GOOGL"}
 
     # Polygon should not be called (yfinance succeeded)
     mock_polygon_source.fetch_reference_payload.assert_not_called()
@@ -142,7 +142,7 @@ def test_polygon_failover_on_yfinance_429(
     # Mock Polygon returning valid data
     mock_data = pl.DataFrame(
         {
-            "ticker": ["AAPL", "GOOGL"],
+            "symbol": ["AAPL", "GOOGL"],
             "as_of_date": [dt.date(2025, 1, 28), dt.date(2025, 1, 28)],
             "payload": ['{"price": 180.0}', '{"price": 140.0}'],
             "source": ["polygon", "polygon"],
@@ -186,7 +186,7 @@ def test_polygon_failover_on_yfinance_timeout(
     # Mock Polygon returning valid data
     mock_data = pl.DataFrame(
         {
-            "ticker": ["AAPL", "GOOGL"],
+            "symbol": ["AAPL", "GOOGL"],
             "as_of_date": [dt.date(2025, 1, 28), dt.date(2025, 1, 28)],
             "payload": ['{"price": 180.0}', '{"price": 140.0}'],
             "source": ["polygon", "polygon"],
@@ -251,7 +251,7 @@ def test_rate_limit_cooldown_skips_source(
     # Mock Polygon returning valid data
     mock_data = pl.DataFrame(
         {
-            "ticker": ["AAPL"],
+            "symbol": ["AAPL"],
             "as_of_date": [dt.date(2025, 1, 28)],
             "payload": ['{"price": 180.0}'],
             "source": ["polygon"],
@@ -278,7 +278,7 @@ def test_source_performance_tracking(
     # Mock yfinance returning valid data
     mock_data = pl.DataFrame(
         {
-            "ticker": ["AAPL"],
+            "symbol": ["AAPL"],
             "as_of_date": [dt.date(2025, 1, 28)],
             "payload": ['{"price": 180.0}'],
             "source": ["yfinance"],
@@ -311,7 +311,7 @@ def test_source_metrics_persistence(
     # Mock yfinance returning valid data
     mock_data = pl.DataFrame(
         {
-            "ticker": ["AAPL"],
+            "symbol": ["AAPL"],
             "as_of_date": [dt.date(2025, 1, 28)],
             "payload": ['{"price": 180.0}'],
             "source": ["yfinance"],
@@ -340,7 +340,7 @@ def test_no_sources_available() -> None:
     request = DatasetRequest(
         dataset="unknown_dataset",
         profile=None,
-        tickers=["AAPL"],
+        symbols=["AAPL"],
         start=dt.date(2025, 1, 28),
         end=dt.date(2025, 1, 28),
     )

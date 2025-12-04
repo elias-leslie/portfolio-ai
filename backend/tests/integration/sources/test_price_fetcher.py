@@ -123,7 +123,7 @@ def test_fetch_fresh_prices_success(
     # Mock the MultiSourceFetcher.fetch_with_fallback method
     mock_df = pl.DataFrame(
         {
-            "ticker": ["AAPL"],
+            "symbol": ["AAPL"],
             "as_of_date": [dt.date.today()],
             "payload": [json.dumps({"price": 180.0, "beta": 1.2, "sector": "Technology"})],
             "source": ["yfinance"],
@@ -149,7 +149,7 @@ def test_fetch_fresh_prices_no_price(
     # Mock response with no price (price = 0)
     mock_df = pl.DataFrame(
         {
-            "ticker": ["AAPL"],
+            "symbol": ["AAPL"],
             "as_of_date": [dt.date.today()],
             "payload": [json.dumps({"price": 0, "sector": "Technology"})],
             "source": ["yfinance"],
@@ -219,7 +219,7 @@ def test_fetch_price_data_cache_miss(
     # Mock MultiSourceFetcher response
     mock_df = pl.DataFrame(
         {
-            "ticker": ["AAPL"],
+            "symbol": ["AAPL"],
             "as_of_date": [dt.date.today()],
             "payload": [json.dumps({"price": 180.0, "beta": 1.2, "sector": "Technology"})],
             "source": ["yfinance"],
@@ -247,7 +247,7 @@ def test_fetch_partial_success(
     # Mock response where AAPL succeeds but INVALID has no data
     mock_df = pl.DataFrame(
         {
-            "ticker": ["AAPL"],
+            "symbol": ["AAPL"],
             "as_of_date": [dt.date.today()],
             "payload": [json.dumps({"price": 180.0, "beta": 1.2, "sector": "Technology"})],
             "source": ["yfinance"],
@@ -270,7 +270,7 @@ def test_fetch_partial_success(
 
 def _insert_day_bars(
     storage: PortfolioStorage,
-    ticker: str,
+    symbol: str,
     start_date: datetime,
     closes: list[float],
 ) -> None:
@@ -279,7 +279,7 @@ def _insert_day_bars(
         current_date = (start_date + timedelta(days=idx)).date()
         rows.append(
             {
-                "ticker": ticker,
+                "symbol": symbol,
                 "date": current_date,
                 "open": close,
                 "high": close,
@@ -317,7 +317,7 @@ def test_fresh_prices_compute_risk_metrics_from_history(
 
     mock_df = pl.DataFrame(
         {
-            "ticker": ["AAPL"],
+            "symbol": ["AAPL"],
             "as_of_date": [dt.date.today()],
             "payload": [json.dumps({"price": 180.0, "sector": "Technology"})],
             "source": ["yfinance"],

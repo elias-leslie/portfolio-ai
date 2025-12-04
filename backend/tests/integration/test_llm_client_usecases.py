@@ -24,7 +24,7 @@ class TestGapAnalysisUseCase:
         client = GeminiCLIClient()
 
         gap_data = {
-            "ticker": "AAPL",
+            "symbol": "AAPL",
             "current_data": {
                 "price": 150.25,
                 "volume": 1000000,
@@ -58,7 +58,7 @@ Reply with just the number."""
         client = ClaudeCLIClient()
 
         gap_data = {
-            "ticker": "TSLA",
+            "symbol": "TSLA",
             "data_quality": {"completeness": 75, "freshness": 90},
             "gaps": ["options_data", "short_interest"],
         }
@@ -78,14 +78,14 @@ Reply with just the severity level."""
         """Test dual provider with gap analysis (Gemini primary, Claude fallback)."""
         client = DualProviderClient(primary="gemini")
 
-        # Gap analysis with multiple tickers
+        # Gap analysis with multiple symbols
         gaps = {
-            "tickers": ["AAPL", "GOOGL", "MSFT"],
+            "symbols": ["AAPL", "GOOGL", "MSFT"],
             "common_gaps": ["real_time_options", "institutional_holdings"],
             "priority": "high",
         }
 
-        prompt = f"""How many tickers have data gaps?
+        prompt = f"""How many symbols have data gaps?
 
 {json.dumps(gaps, indent=2)}
 
@@ -105,7 +105,7 @@ class TestPaperTradingUseCase:
         client = GeminiCLIClient()
 
         trade_data = {
-            "ticker": "NVDA",
+            "symbol": "NVDA",
             "current_price": 450.75,
             "indicators": {
                 "rsi": 68,
@@ -210,12 +210,12 @@ class TestNewsSentimentUseCase:
 
         news_items = [
             {
-                "ticker": "AAPL",
+                "symbol": "AAPL",
                 "headline": "Apple announces record quarterly earnings",
                 "source": "Reuters",
             },
             {
-                "ticker": "AAPL",
+                "symbol": "AAPL",
                 "headline": "Apple faces regulatory scrutiny in EU",
                 "source": "Bloomberg",
             },
@@ -237,7 +237,7 @@ Reply with just the sentiment."""
         client = ClaudeCLIClient()
 
         news = {
-            "ticker": "TSLA",
+            "symbol": "TSLA",
             "headline": "Tesla recalls 500k vehicles for safety issue",
             "sentiment": "negative",
             "expected_impact": "moderate",
@@ -262,15 +262,15 @@ class TestLargeDatasetHandling:
         """Test Gemini with large ticker watchlist."""
         client = GeminiCLIClient()
 
-        # 50 tickers with data
-        tickers = [
-            {"ticker": f"STOCK{i}", "price": 100 + i, "change_pct": i % 10 - 5}
+        # 50 symbols with data
+        symbols = [
+            {"symbol": f"STOCK{i}", "price": 100 + i, "change_pct": i % 10 - 5}
             for i in range(50)
         ]
 
         prompt = f"""How many stocks are showing positive gains?
 
-{json.dumps(tickers, indent=2)}
+{json.dumps(symbols, indent=2)}
 
 Reply with just the number."""
 
@@ -289,7 +289,7 @@ Reply with just the number."""
         records = [
             {
                 "id": i,
-                "ticker": f"TICK{i}",
+                "symbol": f"TICK{i}",
                 "gap_type": "missing_data",
                 "severity": "medium" if i % 3 == 0 else "low",
             }
@@ -316,7 +316,7 @@ class TestCSVDataHandling:
         """Test Gemini parsing trade history CSV."""
         client = GeminiCLIClient()
 
-        csv_data = """date,ticker,action,price,shares,total
+        csv_data = """date,symbol,action,price,shares,total
 2024-01-15,AAPL,BUY,150.25,10,1502.50
 2024-01-20,AAPL,SELL,155.75,10,1557.50
 2024-02-01,GOOGL,BUY,2800.00,2,5600.00
@@ -338,12 +338,12 @@ Reply with just the dollar amount (no $)."""
         """Test Claude parsing technical indicator CSV."""
         client = ClaudeCLIClient()
 
-        csv_data = """ticker,date,rsi,macd,signal
+        csv_data = """symbol,date,rsi,macd,signal
 AAPL,2024-11-15,68.5,2.3,bullish
 TSLA,2024-11-15,42.1,-1.5,bearish
 NVDA,2024-11-15,72.8,3.1,bullish"""
 
-        prompt = f"""How many tickers show bullish signals?
+        prompt = f"""How many symbols show bullish signals?
 
 {csv_data}
 

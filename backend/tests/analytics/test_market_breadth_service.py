@@ -150,7 +150,7 @@ class TestCalculateBreadthReading:
         mock_storage = MagicMock()
         # 8 sectors: 6 up, 2 down
         mock_df = pl.DataFrame({
-            "ticker": ["XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLU"],
+            "symbol": ["XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLU"],
             "current_close": [100.0, 50.0, 60.0, 120.0, 90.0, 70.0, 80.0, 55.0],
             "prev_close": [95.0, 48.0, 58.0, 118.0, 88.0, 68.0, 82.0, 57.0],
         })
@@ -167,7 +167,7 @@ class TestCalculateBreadthReading:
         """Should return None with < 8 sectors."""
         mock_storage = MagicMock()
         mock_df = pl.DataFrame({
-            "ticker": ["XLK", "XLF"],
+            "symbol": ["XLK", "XLF"],
             "current_close": [100.0, 50.0],
             "prev_close": [95.0, 48.0],
         })
@@ -206,7 +206,7 @@ class TestAnalyzeMarketBreadth:
 
         # Breadth data DataFrame
         breadth_df = pl.DataFrame({
-            "ticker": ["XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLU"],
+            "symbol": ["XLK", "XLF", "XLE", "XLV", "XLY", "XLP", "XLI", "XLU"],
             "current_close": [100.0, 50.0, 60.0, 120.0, 90.0, 70.0, 80.0, 55.0],
             "prev_close": [95.0, 48.0, 58.0, 118.0, 88.0, 68.0, 78.0, 53.0],
         })

@@ -162,7 +162,7 @@ class APICallTracker:
 
         # Return mock NewsBundle with NewsSummary
         summary = NewsSummary(
-            ticker=symbol,
+            symbol=symbol,
             score=0.5,
             score_change=0.0,
             positive_count=0,
@@ -172,7 +172,7 @@ class APICallTracker:
             latest_published_at=None,
         )
         return NewsBundle(
-            ticker=symbol,
+            symbol=symbol,
             summary=summary,
             articles=[],
         )
@@ -209,9 +209,9 @@ class APICallTracker:
         # Return mock bundles for all symbols
         return {
             symbol: NewsBundle(
-                ticker=symbol,
+                symbol=symbol,
                 summary=NewsSummary(
-                    ticker=symbol,
+                    symbol=symbol,
                     score=0.5,
                     score_change=0.0,
                     positive_count=0,

@@ -141,7 +141,7 @@ class TestBacktestExecution:
 
         result = tools.execute_run_backtest(
             agent_run_id="test-agent-001",
-            ticker="AAPL",
+            symbol="AAPL",
             start_date=start.isoformat(),
             end_date=end.isoformat(),
             initial_capital=10000.0,

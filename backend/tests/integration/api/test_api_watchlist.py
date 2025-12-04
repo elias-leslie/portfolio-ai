@@ -106,7 +106,7 @@ def _insert_day_bars(storage: PortfolioStorage, symbol: str, closes: list[float]
         current_date = (start_date + timedelta(days=idx)).date()
         rows.append(
             {
-                "ticker": symbol,
+                "symbol": symbol,
                 "date": current_date,
                 "open": close,
                 "high": close * 1.02,
@@ -129,7 +129,7 @@ def _insert_technical(storage: PortfolioStorage, symbol: str, rsi: float = 50.0)
         pl.DataFrame(
             [
                 {
-                    "ticker": symbol,
+                    "symbol": symbol,
                     "date": datetime.now(UTC).date(),
                     "rsi_14": rsi,
                     "macd": 2.5,

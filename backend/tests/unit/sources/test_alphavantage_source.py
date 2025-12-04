@@ -57,7 +57,7 @@ def test_alphavantage_fetch_day_bars_success(
     request = DatasetRequest(
         dataset="day",
         profile=None,
-        tickers=["AAPL"],
+        symbols=["AAPL"],
         start=dt.date(2025, 1, 28),
         end=dt.date(2025, 1, 28),
         timezone="UTC",

@@ -84,7 +84,7 @@ def test_twelvedata_fetch_day_bars_success(
     request = DatasetRequest(
         dataset="day",
         profile=None,
-        tickers=["AAPL"],
+        symbols=["AAPL"],
         start=dt.date(2025, 1, 27),
         end=dt.date(2025, 1, 28),
         timezone="UTC",
@@ -96,18 +96,18 @@ def test_twelvedata_fetch_day_bars_success(
     # Verify result
     assert result is not None
     assert len(result) == 2
-    assert "ticker" in result.columns
+    assert "symbol" in result.columns
     assert "date" in result.columns
     assert "open" in result.columns
     assert "close" in result.columns
     assert "volume" in result.columns
-    assert result["ticker"][0] == "AAPL"
+    assert result["symbol"][0] == "AAPL"
     assert result["source"][0] == "twelvedata"
 
     # Verify client was called correctly
     mock_twelvedata_client.get_time_series.assert_called_once()
     call_args = mock_twelvedata_client.get_time_series.call_args
-    assert call_args[1]["ticker"] == "AAPL"
+    assert call_args[1]["symbol"] == "AAPL"
     assert call_args[1]["start_date"] == "2025-01-27"
     assert call_args[1]["end_date"] == "2025-01-28"
 
@@ -126,7 +126,7 @@ def test_twelvedata_fetch_day_bars_api_error(
     request = DatasetRequest(
         dataset="day",
         profile=None,
-        tickers=["AAPL"],
+        symbols=["AAPL"],
         start=dt.date(2025, 1, 28),
         end=dt.date(2025, 1, 28),
         timezone="UTC",
@@ -148,7 +148,7 @@ def test_twelvedata_fetch_day_bars_empty_values(
     request = DatasetRequest(
         dataset="day",
         profile=None,
-        tickers=["INVALID"],
+        symbols=["INVALID"],
         start=dt.date(2025, 1, 28),
         end=dt.date(2025, 1, 28),
         timezone="UTC",
@@ -176,12 +176,12 @@ def test_twelvedata_fetch_reference_payload_success(
     mock_twelvedata_client.get_profile.return_value = mock_response
 
     # Fetch data
-    result = twelvedata_source.fetch_reference_payload(tickers=["AAPL"], as_of=dt.date(2025, 1, 28))
+    result = twelvedata_source.fetch_reference_payload(symbols=["AAPL"], as_of=dt.date(2025, 1, 28))
 
     # Verify result
     assert result is not None
     assert len(result) == 1
-    assert result["ticker"][0] == "AAPL"
+    assert result["symbol"][0] == "AAPL"
     assert result["source"][0] == "twelvedata"
     assert result["as_of_date"][0] == dt.date(2025, 1, 28)
 
@@ -203,7 +203,7 @@ def test_twelvedata_fetch_reference_payload_api_error(
     mock_twelvedata_client.get_profile.return_value = mock_response
 
     result = twelvedata_source.fetch_reference_payload(
-        tickers=["INVALID"], as_of=dt.date(2025, 1, 28)
+        symbols=["INVALID"], as_of=dt.date(2025, 1, 28)
     )
 
     assert result is None
@@ -233,12 +233,12 @@ def test_twelvedata_fetch_reference_payload_multiple_tickers(
     mock_twelvedata_client.get_profile.side_effect = mock_get_profile
 
     result = twelvedata_source.fetch_reference_payload(
-        tickers=["AAPL", "GOOGL"], as_of=dt.date(2025, 1, 28)
+        symbols=["AAPL", "GOOGL"], as_of=dt.date(2025, 1, 28)
     )
 
     assert result is not None
     assert len(result) == 2
-    assert set(result["ticker"].to_list()) == {"AAPL", "GOOGL"}
+    assert set(result["symbol"].to_list()) == {"AAPL", "GOOGL"}
 
 
 def test_twelvedata_fetch_news_not_implemented(
@@ -246,7 +246,7 @@ def test_twelvedata_fetch_news_not_implemented(
 ) -> None:
     """Test that news fetching returns None (not implemented)."""
     result = twelvedata_source.fetch_news_payload(
-        tickers=["AAPL"],
+        symbols=["AAPL"],
         start=dt.datetime(2025, 1, 28, 0, 0),
         end=dt.datetime(2025, 1, 28, 23, 59),
     )

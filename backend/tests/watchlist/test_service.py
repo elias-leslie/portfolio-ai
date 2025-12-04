@@ -102,7 +102,7 @@ def _insert_day_bars(storage: PortfolioStorage, symbol: str, closes: list[float]
         current_date = (start_date + timedelta(days=idx)).date()
         rows.append(
             {
-                "ticker": symbol,
+                "symbol": symbol,
                 "date": current_date,
                 "open": close,
                 "high": close,
@@ -124,7 +124,7 @@ def _insert_technical(storage: PortfolioStorage, symbol: str, rsi: float) -> Non
         pl.DataFrame(
             [
                 {
-                    "ticker": symbol,
+                    "symbol": symbol,
                     "date": datetime.now(UTC).date(),
                     "rsi_14": rsi,
                     "macd": None,
@@ -195,7 +195,7 @@ def test_refresh_watchlist_scores_persists_snapshots(storage: PortfolioStorage) 
 
 def test_normalize_recent_news_payload_backfills_vendor_and_publisher() -> None:
     payload = {
-        "summary": {"ticker": "AAPL"},
+        "summary": {"symbol": "AAPL"},
         "articles": [
             {
                 "headline": "Example",

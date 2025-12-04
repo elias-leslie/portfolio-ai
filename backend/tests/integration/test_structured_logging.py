@@ -29,7 +29,7 @@ def test_structured_logging_outputs_dict_format() -> None:
     assert hasattr(logger, "error")
 
     # Verify we can call with key/value arguments (would raise if broken)
-    logger.info("test message", account_id="test_account", ticker="AAPL", value=100)
+    logger.info("test message", account_id="test_account", symbol="AAPL", value=100)
 
     # If we get here, structlog is working correctly
     assert True
@@ -58,7 +58,7 @@ def test_structured_logging_with_json_formatter() -> None:
     test_logger.setLevel(logging.INFO)
 
     # Log using standard logging (structlog wraps this)
-    test_logger.info("test message", extra={"account_id": "test_account", "ticker": "AAPL"})
+    test_logger.info("test message", extra={"account_id": "test_account", "symbol": "AAPL"})
 
     # Get and parse log output
     log_output = buffer.getvalue()

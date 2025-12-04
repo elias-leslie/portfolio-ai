@@ -40,13 +40,13 @@ class TestDiscoveryAgentWithCLI:
         tools.execute_get_news.return_value = {
             "articles": [
                 {
-                    "ticker": "AAPL",
+                    "symbol": "AAPL",
                     "headline": "Apple announces record quarterly earnings",
                     "summary": "Strong iPhone sales drive revenue growth",
                     "sentiment": "positive",
                 },
                 {
-                    "ticker": "TSLA",
+                    "symbol": "TSLA",
                     "headline": "Tesla faces regulatory scrutiny",
                     "summary": "Safety concerns raised by authorities",
                     "sentiment": "negative",
@@ -96,7 +96,7 @@ class TestDiscoveryAgentWithCLI:
                     "tool_calls": [{
                         "name": "store_idea",
                         "parameters": {
-                            "ticker": "AAPL",
+                            "symbol": "AAPL",
                             "idea_type": "long",
                             "thesis": "Strong earnings momentum",
                             "action": "Buy on pullback to $150",
@@ -153,7 +153,7 @@ class TestDiscoveryAgentWithCLI:
         # Verify store_idea was called with correct parameters
         store_call = mock_tools.execute_store_idea.call_args
         assert store_call is not None
-        assert store_call[1]["ticker"] == "AAPL"
+        assert store_call[1]["symbol"] == "AAPL"
         assert store_call[1]["idea_type"] == "long"
         assert store_call[1]["confidence"] == 75
 

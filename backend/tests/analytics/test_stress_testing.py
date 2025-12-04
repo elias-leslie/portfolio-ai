@@ -19,11 +19,11 @@ from app.analytics.stress_testing import (
 def sample_portfolio() -> list[dict[str, object]]:
     """Sample portfolio for testing."""
     return [
-        {"ticker": "AAPL", "sector": "Technology", "current_value": 10000.0},
-        {"ticker": "JPM", "sector": "Financial Services", "current_value": 8000.0},
-        {"ticker": "XOM", "sector": "Energy", "current_value": 5000.0},
-        {"ticker": "JNJ", "sector": "Healthcare", "current_value": 7000.0},
-        {"ticker": "PG", "sector": "Consumer Defensive", "current_value": 5000.0},
+        {"symbol": "AAPL", "sector": "Technology", "current_value": 10000.0},
+        {"symbol": "JPM", "sector": "Financial Services", "current_value": 8000.0},
+        {"symbol": "XOM", "sector": "Energy", "current_value": 5000.0},
+        {"symbol": "JNJ", "sector": "Healthcare", "current_value": 7000.0},
+        {"symbol": "PG", "sector": "Consumer Defensive", "current_value": 5000.0},
     ]
 
 
@@ -31,10 +31,10 @@ def sample_portfolio() -> list[dict[str, object]]:
 def tech_heavy_portfolio() -> list[dict[str, object]]:
     """Tech-concentrated portfolio."""
     return [
-        {"ticker": "AAPL", "sector": "Technology", "current_value": 20000.0},
-        {"ticker": "MSFT", "sector": "Technology", "current_value": 15000.0},
-        {"ticker": "GOOGL", "sector": "Communication Services", "current_value": 10000.0},
-        {"ticker": "META", "sector": "Communication Services", "current_value": 5000.0},
+        {"symbol": "AAPL", "sector": "Technology", "current_value": 20000.0},
+        {"symbol": "MSFT", "sector": "Technology", "current_value": 15000.0},
+        {"symbol": "GOOGL", "sector": "Communication Services", "current_value": 10000.0},
+        {"symbol": "META", "sector": "Communication Services", "current_value": 5000.0},
     ]
 
 

@@ -29,7 +29,7 @@ def test_get_rvol_success(mock_calculate_rvol, client: TestClient) -> None:
     # Verify
     assert response.status_code == 200
     data = response.json()
-    assert data["ticker"] == "AAPL"
+    assert data["symbol"] == "AAPL"
     assert data["date"] == "2025-01-15"
     assert data["rvol"] == 1.8
     assert "interpretation" in data
@@ -108,7 +108,7 @@ def test_get_peer_comparison_success(mock_get_peer_comparison, client: TestClien
     # Mock the get_peer_comparison function
     mock_df = pl.DataFrame(
         {
-            "ticker": ["AAPL"],
+            "symbol": ["AAPL"],
             "sector": ["Technology"],
             "return_5d": [2.5],
             "return_20d": [8.0],
@@ -129,7 +129,7 @@ def test_get_peer_comparison_success(mock_get_peer_comparison, client: TestClien
     # Verify
     assert response.status_code == 200
     data = response.json()
-    assert data["ticker"] == "AAPL"
+    assert data["symbol"] == "AAPL"
     assert data["sector"] == "Technology"
     assert data["date"] == "2025-01-15"
     assert data["peer_rank"] == 2
@@ -168,7 +168,7 @@ def test_get_peer_group_detail_success(mock_get_peer_group_detail, client: TestC
     # Mock the get_peer_group_detail function
     mock_df = pl.DataFrame(
         {
-            "ticker": ["MSFT", "AAPL", "GOOGL"],
+            "symbol": ["MSFT", "AAPL", "GOOGL"],
             "sector": ["Technology", "Technology", "Technology"],
             "return_5d": [3.0, 2.5, 2.0],
             "return_20d": [10.0, 8.0, 7.0],
@@ -184,14 +184,14 @@ def test_get_peer_group_detail_success(mock_get_peer_group_detail, client: TestC
     # Verify
     assert response.status_code == 200
     data = response.json()
-    assert data["ticker"] == "AAPL"
+    assert data["symbol"] == "AAPL"
     assert data["sector"] == "Technology"
     assert data["date"] == "2025-01-15"
     assert data["count"] == 3
     assert len(data["peers"]) == 3
     # Verify target ticker is marked
     target_peer = next(p for p in data["peers"] if p["is_target"])
-    assert target_peer["ticker"] == "AAPL"
+    assert target_peer["symbol"] == "AAPL"
 
 
 @patch("app.api.analytics.get_peer_group_detail")
@@ -218,7 +218,7 @@ def test_analytics_endpoints_registered(client: TestClient) -> None:
     paths = schema["paths"]
 
     # Verify all analytics endpoints are registered
-    assert "/api/analytics/rvol/{ticker}" in paths
+    assert "/api/analytics/rvol/{symbol}" in paths
     assert "/api/analytics/sectors/rotation" in paths
-    assert "/api/analytics/peers/{ticker}" in paths
-    assert "/api/analytics/peers/{ticker}/detail" in paths
+    assert "/api/analytics/peers/{symbol}" in paths
+    assert "/api/analytics/peers/{symbol}/detail" in paths
