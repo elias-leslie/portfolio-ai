@@ -139,6 +139,14 @@ class RunMetricsResponse(BaseModel):
     return_rank: int | None
     sharpe_rank: int | None
     drawdown_rank: int | None
+    # Benchmark comparison fields (Section 0.1)
+    buy_hold_return: Decimal | None = None
+    excess_return: Decimal | None = None
+    beats_buy_hold: bool | None = None
+    alpha: Decimal | None = None
+    information_ratio: Decimal | None = None
+    beta: Decimal | None = None
+    benchmark_symbol: str | None = None
 
 
 class ComparisonResponse(BaseModel):

@@ -23,22 +23,33 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from app.logging_config import get_logger
+from app.rules import get_rules
 
 if TYPE_CHECKING:
     from app.storage import PortfolioStorage
 
 logger = get_logger(__name__)
 
-# Default risk per trade (1-2% range is standard)
-DEFAULT_RISK_PERCENT = 0.015  # 1.5% of equity per trade
-MIN_RISK_PERCENT = 0.005  # 0.5% minimum
-MAX_RISK_PERCENT = 0.05  # 5% maximum (aggressive)
 
-# Minimum position value (avoid tiny positions)
-MIN_POSITION_VALUE = 100.0  # $100 minimum
+def _get_sizing_rules() -> tuple[float, float, float, float, float]:
+    """Get position sizing rules from centralized config."""
+    rules = get_rules()
+    ps = rules.position_sizing
+    return (
+        ps.default_risk_percent,
+        ps.min_risk_percent,
+        ps.max_risk_percent,
+        ps.min_position_value,
+        ps.max_position_percent,
+    )
 
-# Maximum position as % of portfolio (even with tight stops)
-MAX_POSITION_PERCENT = 0.25  # 25% max
+
+# Legacy constants for backwards compatibility (deprecated - use get_rules() instead)
+DEFAULT_RISK_PERCENT = 0.015
+MIN_RISK_PERCENT = 0.005
+MAX_RISK_PERCENT = 0.05
+MIN_POSITION_VALUE = 100.0
+MAX_POSITION_PERCENT = 0.25
 
 
 def calculate_risk_per_share(entry_price: float, stop_loss: float) -> float | None:

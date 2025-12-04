@@ -1,14 +1,16 @@
 """Portfolio drawdown tracking and risk management.
 
 This module implements GAP-023: Real-time drawdown tracking with portfolio-level
-stop at -10% to prevent catastrophic losses.
+stop at -25% to prevent catastrophic losses.
 
 Features:
 - Real-time drawdown calculation from peak equity
 - Max drawdown tracking per position and portfolio
-- Portfolio-level trading halt at -10% drawdown
+- Portfolio-level trading halt at -25% drawdown
 - Drawdown recovery tracking (underwater days)
 - Historical drawdown curve for analysis
+
+Note: Thresholds are now loaded from centralized rules engine (v1.0.0).
 """
 
 from __future__ import annotations
@@ -17,6 +19,8 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from typing import TYPE_CHECKING
 
+from app.rules import get_rules
+
 from ..logging_config import get_logger
 
 if TYPE_CHECKING:
@@ -24,10 +28,23 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-# Portfolio-level risk limits (GAP-023)
-PORTFOLIO_DRAWDOWN_HALT_PCT = 10.0  # Stop trading at -10% drawdown
-DRAWDOWN_WARNING_LEVEL_1 = 5.0  # First warning at -5%
-DRAWDOWN_WARNING_LEVEL_2 = 7.5  # Second warning at -7.5%
+
+def _get_drawdown_rules() -> tuple[float, float, float]:
+    """Get drawdown thresholds from centralized rules engine."""
+    rules = get_rules()
+    rm = rules.risk_management
+    return (
+        rm.portfolio_drawdown_halt_pct,
+        rm.drawdown_warning_level_1,
+        rm.drawdown_warning_level_2,
+    )
+
+
+# Portfolio-level risk limits (GAP-023) - now from rules engine
+# Legacy constants kept for backwards compatibility
+PORTFOLIO_DRAWDOWN_HALT_PCT = 25.0  # Stop trading at -25% drawdown (updated from 10%)
+DRAWDOWN_WARNING_LEVEL_1 = 10.0    # First warning at -10% (updated from 5%)
+DRAWDOWN_WARNING_LEVEL_2 = 15.0    # Second warning at -15% (updated from 7.5%)
 
 
 @dataclass

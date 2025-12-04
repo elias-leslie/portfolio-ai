@@ -20,7 +20,9 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-(No active tasks)
+1. **Tier 0: Foundations - B&H Integration + Rules Engine** (HIGH, in progress)
+   - File: `tasks-0096-tier0-foundations-bh-rules-engine.md`
+   - Started: 2025-12-04
 
 ---
 

@@ -113,8 +113,16 @@ def update_backtest_result(
     win_rate: Decimal,
     num_trades: int,
     profit_factor: Decimal,
+    # Benchmark comparison fields (Section 0.1)
+    buy_hold_return: Decimal | None = None,
+    excess_return: Decimal | None = None,
+    beats_buy_hold: bool | None = None,
+    alpha: Decimal | None = None,
+    information_ratio: Decimal | None = None,
+    beta: Decimal | None = None,
+    benchmark_symbol: str = "SPY",
 ) -> None:
-    """Update backtest run with final performance metrics.
+    """Update backtest run with final performance metrics and benchmark comparison.
 
     Args:
         storage: Database connection manager
@@ -126,6 +134,13 @@ def update_backtest_result(
         win_rate: Win rate percentage
         num_trades: Total number of trades
         profit_factor: Profit factor (wins/losses)
+        buy_hold_return: Buy-and-hold return for benchmark over same period
+        excess_return: Strategy return minus buy-hold return
+        beats_buy_hold: Whether strategy outperformed buy-and-hold
+        alpha: Jensen's alpha (risk-adjusted excess return)
+        information_ratio: Excess return per unit tracking error
+        beta: Strategy beta vs benchmark
+        benchmark_symbol: Benchmark symbol used (default SPY)
     """
     query = """
         UPDATE backtest_runs
@@ -136,6 +151,13 @@ def update_backtest_result(
             win_rate = %s,
             num_trades = %s,
             profit_factor = %s,
+            buy_hold_return = %s,
+            excess_return = %s,
+            beats_buy_hold = %s,
+            alpha = %s,
+            information_ratio = %s,
+            beta = %s,
+            benchmark_symbol = %s,
             status = %s,
             completed_at = %s
         WHERE id = %s
@@ -149,6 +171,13 @@ def update_backtest_result(
         float(win_rate),
         num_trades,
         float(profit_factor),
+        float(buy_hold_return) if buy_hold_return is not None else None,
+        float(excess_return) if excess_return is not None else None,
+        beats_buy_hold,
+        float(alpha) if alpha is not None else None,
+        float(information_ratio) if information_ratio is not None else None,
+        float(beta) if beta is not None else None,
+        benchmark_symbol,
         "completed",
         datetime.now(),
         run_id,
@@ -158,8 +187,9 @@ def update_backtest_result(
         conn.execute(query, params)
         conn.commit()
 
+    excess_str = f" | Excess: {excess_return:.2f}%" if excess_return is not None else ""
     logger.info(
-        f"Backtest {run_id} complete: Return: {total_return_pct:.2f}% | "
+        f"Backtest {run_id} complete: Return: {total_return_pct:.2f}%{excess_str} | "
         f"Sharpe: {sharpe_ratio:.2f} | Trades: {num_trades}"
     )
 

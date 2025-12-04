@@ -60,6 +60,22 @@ class BacktestRun(BaseModel):
     created_at: datetime
     completed_at: datetime | None = None
 
+    # Benchmark comparison fields (Section 0.1)
+    buy_hold_return: Decimal | None = None  # B&H return for same period
+    excess_return: Decimal | None = None  # strategy_return - buy_hold_return
+    beats_buy_hold: bool | None = None  # Whether strategy outperformed B&H
+    alpha: Decimal | None = None  # Jensen's alpha (risk-adjusted)
+    information_ratio: Decimal | None = None  # Excess return per tracking error
+    beta: Decimal | None = None  # Strategy beta vs benchmark
+    benchmark_symbol: str = "SPY"  # Benchmark used for comparison
+
+    @property
+    def beats_buy_hold_risk_adjusted(self) -> bool | None:
+        """Whether strategy beats B&H on risk-adjusted basis (positive alpha)."""
+        if self.alpha is None:
+            return None
+        return self.alpha > 0
+
 
 class BacktestTrade(BaseModel):
     """Individual trade entry/exit details.

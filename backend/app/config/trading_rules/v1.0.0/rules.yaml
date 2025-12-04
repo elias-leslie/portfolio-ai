@@ -1,0 +1,253 @@
+# Trading Rules Configuration v1.0.0
+# Centralized configuration for all trading thresholds and parameters
+#
+# VERSION HISTORY:
+# - v1.0.0 (2025-12-04): Initial extraction from hardcoded values
+#
+# USAGE:
+#   from app.rules.loader import get_rules
+#   rules = get_rules()
+#   risk_pct = rules.position_sizing.default_risk_percent
+
+version: "1.0.0"
+updated: "2025-12-04"
+updated_by: "Claude Code"
+
+# =============================================================================
+# POSITION SIZING
+# Source: analytics/position_sizing.py, analytics/kelly.py, analytics/order_executor.py
+# =============================================================================
+position_sizing:
+  # Risk per trade
+  default_risk_percent: 0.015  # 1.5% of equity per trade
+  min_risk_percent: 0.005      # 0.5% minimum
+  max_risk_percent: 0.05       # 5% maximum (aggressive)
+
+  # Position limits
+  min_position_value: 100.0    # $100 minimum position
+  max_position_percent: 0.25   # 25% max as % of portfolio
+  max_sector_exposure_pct: 0.20  # 20% max per sector (VISION.md P2)
+
+  # Kelly criterion
+  default_kelly_fraction: 0.25   # 25% of full Kelly (fractional)
+  min_trades_for_kelly: 30       # Min trades for statistical significance
+  min_position_percent: 0.01     # 1% minimum position size
+
+  # Liquidity limits
+  max_position_percent_adv: 0.01  # 1% of ADV max
+  min_volume_days: 20             # Min days for reliable ADV
+
+# =============================================================================
+# RISK MANAGEMENT
+# Source: portfolio/drawdown.py, analytics/advanced_risk.py
+# =============================================================================
+risk_management:
+  # Drawdown thresholds (CORRECTED per spec)
+  portfolio_drawdown_halt_pct: 25.0    # Stop trading at -25% (was 10%)
+  drawdown_warning_level_1: 10.0       # First warning at -10% (was 5%)
+  drawdown_warning_level_2: 15.0       # Second warning at -15% (was 7.5%)
+
+  # Max single trade loss (per trade_calculations.yaml spec)
+  max_single_trade_loss_pct: 2.0       # 2% max loss per trade
+
+  # Exposure budgets
+  default_position_limit: 0.10   # 10% max per position
+  default_sector_limit: 0.30     # 30% max per sector
+  warning_threshold_pct: 0.80    # 80% of limit triggers warning
+
+# =============================================================================
+# TECHNICAL INDICATORS
+# Source: analytics/indicators.py
+# =============================================================================
+technical_thresholds:
+  # RSI
+  rsi_period: 14
+  rsi_oversold: 30
+  rsi_overbought: 70
+  rsi_reversal_zone_low: [30, 40]   # Oversold reversal
+  rsi_reversal_zone_high: [60, 70]  # Overbought reversal
+
+  # Moving averages
+  sma_periods: [5, 20, 50, 200]
+  ema_periods: [20, 50, 200]
+
+  # MACD
+  macd_fast: 12
+  macd_slow: 26
+  macd_signal: 9
+
+  # Bollinger Bands
+  bollinger_period: 20
+  bollinger_std_dev: 2.0
+  bollinger_lower_threshold: 20
+  bollinger_upper_threshold: 80
+
+  # ATR
+  atr_period: 14
+  stop_loss_atr_multiplier: 2.0
+
+  # Stochastic
+  stochastic_k_period: 14
+  stochastic_d_period: 3
+  stochastic_smooth_k: 3
+  stochastic_oversold: 20
+  stochastic_overbought: 80
+
+  # Volume
+  volume_sma_period: 20
+  volume_threshold_ratio: 0.7  # 70% of 20-day avg
+  volume_high_threshold: 1.5   # 150% = high volume
+
+  # Trend
+  trend_threshold_pct: 0.02    # 2% above EMA = uptrend
+  lookback_days: 250           # For indicator calculation
+  min_days_for_sma200: 200
+
+# =============================================================================
+# SCORING WEIGHTS
+# Source: watchlist/models.py, watchlist/fundamentals.py, watchlist/scoring.py
+# =============================================================================
+scoring:
+  # 3-pillar score weights
+  price_weight: 33.0
+  technical_weight: 33.0
+  fundamental_weight: 34.0
+
+  # Fundamental pillar weights (4 components)
+  valuation_weight: 0.25      # 25%
+  growth_weight: 0.35         # 35%
+  health_weight: 0.25         # 25%
+  sentiment_weight: 0.15      # 15%
+
+  # Score staleness TTL
+  price_stale_ttl_minutes: 15
+  technical_stale_ttl_minutes: 60
+
+  # Signal classification
+  buy_confirmations_threshold: 10  # 10+ confirmations = BUY
+  avoid_flags_threshold: 2         # 2+ flags = AVOID
+  signal_strength_divisor: 2.4     # For 0-10 scaling
+
+# =============================================================================
+# FUNDAMENTAL THRESHOLDS
+# Source: watchlist/signal_classifier.py, watchlist/fundamentals.py
+# =============================================================================
+fundamentals:
+  # Profit margin
+  profit_margin_excellent: 0.20   # 20%+ = excellent
+  profit_margin_good: 0.10        # 10%+ = good
+  profit_margin_moderate: 0.05    # 5%+ = moderate
+
+  # Revenue growth
+  revenue_growth_exceptional: 0.30  # 30%+ = exceptional
+  revenue_growth_strong: 0.20       # 20%+ = strong
+  revenue_growth_good: 0.10         # 10%+ = good
+  revenue_growth_moderate: 0.05     # 5%+ = moderate
+
+  # Debt-to-equity
+  debt_equity_excellent: 0.3    # <30% = excellent
+  debt_equity_good: 0.7         # <70% = good
+  debt_equity_moderate: 1.5     # <150% = moderate
+  debt_equity_high: 2.5         # <250% = high
+  debt_equity_weak: 2.0         # >200% = WEAK classification
+
+  # Analyst recommendations (1.0=Strong Buy, 5.0=Sell)
+  analyst_strong_buy: 1.5
+  analyst_buy: 2.0
+  analyst_hold: 2.5
+  analyst_neutral: 3.5
+  analyst_sell: 4.5
+  analyst_buy_pct_strong: 0.70   # 70% buy = strong bullish
+  analyst_buy_pct_moderate: 0.50 # 50% buy = moderate
+
+# =============================================================================
+# SIGNAL THRESHOLDS
+# Source: watchlist/signal_classifier.py
+# =============================================================================
+signals:
+  # News sentiment
+  news_sentiment_positive: 0.2
+  news_sentiment_negative: -0.3  # AVOID trigger
+
+  # Options flow (GAP-031)
+  options_strong_bullish: 0.58   # 58% calls
+  options_moderate_bullish: 0.55
+  options_slight_bullish: 0.52
+  options_bearish: 0.45          # <45% calls
+
+  # Earnings
+  earnings_avoid_days: 5         # Avoid if <=5 days to earnings
+  earnings_event_days: 7         # Event style if <7 days
+
+  # Signal strength
+  strong_buy_threshold: 8
+  buy_threshold: 6
+
+# =============================================================================
+# TRADING COSTS
+# Source: backtest/costs.py, api/recommendations.py
+# =============================================================================
+fees:
+  # Slippage
+  slippage_bps: 5.0              # 5 basis points = 0.05%
+  slippage_dynamic_factor: 0.1   # 10% impact if position = ADV
+  slippage_institutional_bps: 2.0
+
+  # Commission (retail)
+  commission_per_share: 0.005    # $0.005/share
+  commission_per_trade: 1.00     # $1.00 flat
+  commission_pct: 0.001          # 0.1%
+  commission_minimum: 1.00       # $1.00 minimum
+
+  # Commission (institutional)
+  commission_per_share_institutional: 0.001
+  commission_minimum_institutional: 0.50
+
+  # Profit targets / stop loss
+  default_stop_loss_pct: 8.0     # 8% stop loss
+  default_target_gain_pct: 15.0  # 15% profit target
+  momentum_target_profit_pct: 20.0
+  momentum_stop_loss_pct: 8.0
+
+# =============================================================================
+# COMPLIANCE
+# Source: analytics/pdt_rules.py, analytics/compliance.py
+# =============================================================================
+compliance:
+  # PDT rules
+  pdt_day_trade_limit: 4         # 4+ triggers PDT
+  pdt_rolling_days: 5            # 5 business day window
+  pdt_equity_threshold: 25000.0  # $25k minimum
+
+  # Wash sale
+  wash_sale_window_days: 30
+
+# =============================================================================
+# MARKET CONDITIONS
+# Source: market/sentiment.py, market/intelligence.py
+# =============================================================================
+market:
+  # VIX thresholds
+  vix_low: 15          # Complacent
+  vix_normal: 20       # Normal range
+  vix_elevated: 20     # Elevated
+  vix_high: 30         # Fear
+
+  # Treasury yields
+  treasury_10y_dovish: 3.5
+  treasury_10y_hawkish: 4.5
+  treasury_10y_very_dovish: 3.0
+
+  # Put-call ratio
+  put_call_bullish: 0.7  # <0.7 = bullish
+
+  # Risk-free rate
+  default_risk_free_rate: 0.04   # 4%
+
+# =============================================================================
+# PAPER TRADING
+# Source: analytics/paper_trading_portfolio.py
+# =============================================================================
+paper_trading:
+  max_holding_days: 60           # Default 60-day max hold
+  default_position_pct: 0.05     # 5% position size
