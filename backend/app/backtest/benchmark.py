@@ -92,7 +92,7 @@ class BenchmarkComparisonEngine:
 
         Args:
             strategy_equity_curve: Strategy's daily equity snapshots
-            benchmark_symbol: Benchmark ticker (e.g., "SPY", "VTI")
+            benchmark_symbol: Benchmark symbol (e.g., "SPY", "VTI")
             start_date: Backtest start date
             end_date: Backtest end date
             risk_free_rate: Annual risk-free rate (default: 4.5%)

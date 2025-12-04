@@ -82,7 +82,7 @@ def calculate_breadth_reading(
     query = """
         WITH price_data AS (
             SELECT
-                ticker,
+                symbol,
                 date,
                 close as current_close,
                 LAG(close) OVER (PARTITION BY symbol ORDER BY date) as prev_close

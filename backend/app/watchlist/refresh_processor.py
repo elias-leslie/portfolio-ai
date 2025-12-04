@@ -77,7 +77,7 @@ def process_symbol_snapshot(
     config: ProcessorConfig,
     news_service: NewsService,
 ) -> WatchlistSnapshot:
-    """Process ticker and generate watchlist snapshot.
+    """Process symbol and generate watchlist snapshot.
 
     This is the main orchestration function that coordinates:
     1. Price change calculation and backfill detection

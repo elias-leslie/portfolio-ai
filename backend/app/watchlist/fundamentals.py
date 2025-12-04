@@ -88,8 +88,8 @@ class YFinanceSource(BaseFundamentalSource):
             return None
 
         try:
-            symbol = yf.Ticker(symbol)
-            info = ticker.info
+            yf_obj = yf.Ticker(symbol)
+            info = yf_obj.info
 
             # Extract and convert fields
             profit_margin = info.get("profitMargins")

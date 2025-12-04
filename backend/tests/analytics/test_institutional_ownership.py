@@ -88,7 +88,7 @@ class TestGetOwnershipFromCache:
         result = get_ownership_from_cache("AAPL", mock_storage)
 
         assert result is not None
-        assert result.ticker == "AAPL"
+        assert result.symbol == "AAPL"
         assert result.institutional_pct == 0.64
         assert result.insider_pct == 0.02
         assert result.ownership_score == 2  # High inst (2) + low insider (0)

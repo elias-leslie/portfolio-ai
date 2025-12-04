@@ -190,7 +190,7 @@ def get_active_catalysts_for_symbol(
     """Get all active (non-expired) catalysts for a symbol.
 
     Args:
-        ticker: Stock symbol
+        symbol: Stock symbol
         news_articles: List of news article dicts with:
             - headline: str
             - summary: str | None

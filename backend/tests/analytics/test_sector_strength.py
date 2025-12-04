@@ -22,7 +22,7 @@ from app.analytics.sector_strength import (
     _safe_subtract,
     calculate_sector_relative_strength,
     calculate_sector_strength_score,
-    get_ticker_sector_etf,
+    get_symbol_sector_etf,
 )
 
 
@@ -48,24 +48,24 @@ class TestGetTickerSectorETF:
 
     def test_tech_stocks(self) -> None:
         """Tech stocks map to XLK."""
-        assert get_ticker_sector_etf("AAPL") == "XLK"
-        assert get_ticker_sector_etf("MSFT") == "XLK"
-        assert get_ticker_sector_etf("NVDA") == "XLK"
+        assert get_symbol_sector_etf("AAPL") == "XLK"
+        assert get_symbol_sector_etf("MSFT") == "XLK"
+        assert get_symbol_sector_etf("NVDA") == "XLK"
 
     def test_financial_stocks(self) -> None:
         """Financial stocks map to XLF."""
-        assert get_ticker_sector_etf("JPM") == "XLF"
-        assert get_ticker_sector_etf("BAC") == "XLF"
-        assert get_ticker_sector_etf("GS") == "XLF"
+        assert get_symbol_sector_etf("JPM") == "XLF"
+        assert get_symbol_sector_etf("BAC") == "XLF"
+        assert get_symbol_sector_etf("GS") == "XLF"
 
     def test_unknown_ticker(self) -> None:
         """Unknown ticker returns None."""
-        assert get_ticker_sector_etf("UNKNOWN123") is None
+        assert get_symbol_sector_etf("UNKNOWN123") is None
 
     def test_case_insensitive(self) -> None:
         """Ticker lookup is case insensitive."""
-        assert get_ticker_sector_etf("aapl") == "XLK"
-        assert get_ticker_sector_etf("Aapl") == "XLK"
+        assert get_symbol_sector_etf("aapl") == "XLK"
+        assert get_symbol_sector_etf("Aapl") == "XLK"
 
 
 class TestCalculateReturns:
@@ -208,16 +208,16 @@ class TestCalculateSectorRelativeStrength:
 
         # Create mock data with all sectors + SPY
         mock_data = []
-        all_tickers = list(SECTOR_ETFS.keys()) + ["SPY"]
+        all_symbols = list(SECTOR_ETFS.keys()) + ["SPY"]
 
-        for ticker in all_tickers:
+        for symbol in all_symbols:
             for i in range(300):
                 d = today - timedelta(days=i)
                 # Different growth rates for each sector
                 base = 100.0
-                growth_rate = 0.05 if ticker == "XLK" else 0.01  # XLK grows faster
+                growth_rate = 0.05 if symbol == "XLK" else 0.01  # XLK grows faster
                 price = base + (299 - i) * growth_rate
-                mock_data.append({"ticker": ticker, "date": d, "close": price})
+                mock_data.append({"symbol": symbol, "date": d, "close": price})
 
         mock_result = MagicMock()
         mock_result.is_empty.return_value = False

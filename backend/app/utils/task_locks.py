@@ -20,7 +20,7 @@ USAGE:
 
     @celery_app.task
     def my_task(symbol: str):
-        lock_key = f"my_task:{ticker}"
+        lock_key = f"my_task:{symbol}"
         with task_lock(lock_key, ttl=300) as acquired:
             if not acquired:
                 return {"skipped": True, "reason": "duplicate_task"}

@@ -42,8 +42,8 @@ def fetch_earnings_date(symbol: str) -> datetime | None:
     # Try YFinance first
     if YFINANCE_AVAILABLE:
         try:
-            symbol = yf.Ticker(symbol)
-            calendar = ticker.calendar
+            yf_obj = yf.Ticker(symbol)
+            calendar = yf_obj.calendar
 
             if calendar and "Earnings Date" in calendar:
                 earnings_dates = calendar["Earnings Date"]

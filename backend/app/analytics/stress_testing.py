@@ -228,7 +228,7 @@ def run_stress_test(
 
         position_results.append(
             PositionStressResult(
-                ticker=ticker,
+                symbol=symbol,
                 sector=sector,
                 current_value=current_value,
                 stressed_value=stressed_value,

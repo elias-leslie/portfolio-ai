@@ -22,7 +22,7 @@ class TestEarningsSurpriseDataclass:
     def test_create_full_surprise(self) -> None:
         """Test creating a complete earnings surprise record."""
         surprise = EarningsSurprise(
-            ticker="NVDA",
+            symbol="NVDA",
             earnings_date=date(2024, 11, 20),
             fiscal_quarter="Q3 2024",
             eps_estimate=Decimal("0.58"),
@@ -31,7 +31,7 @@ class TestEarningsSurpriseDataclass:
             surprise_direction="beat",
         )
 
-        assert surprise.ticker == "NVDA"
+        assert surprise.symbol == "NVDA"
         assert surprise.earnings_date == date(2024, 11, 20)
         assert surprise.fiscal_quarter == "Q3 2024"
         assert surprise.eps_estimate == Decimal("0.58")
@@ -42,7 +42,7 @@ class TestEarningsSurpriseDataclass:
     def test_create_minimal_surprise(self) -> None:
         """Test creating surprise with minimal required fields."""
         surprise = EarningsSurprise(
-            ticker="AAPL",
+            symbol="AAPL",
             earnings_date=date(2024, 10, 31),
             fiscal_quarter=None,
             eps_estimate=None,
@@ -51,7 +51,7 @@ class TestEarningsSurpriseDataclass:
             surprise_direction="inline",
         )
 
-        assert surprise.ticker == "AAPL"
+        assert surprise.symbol == "AAPL"
         assert surprise.fiscal_quarter is None
 
 
@@ -88,7 +88,7 @@ class TestFetchEarningsSurprises:
         result = fetch_earnings_surprises_from_finnhub("NVDA", limit=2)
 
         assert len(result) == 2
-        assert result[0].ticker == "NVDA"
+        assert result[0].symbol == "NVDA"
         assert result[0].surprise_direction == "beat"
         assert result[0].eps_actual == Decimal("0.62")
 
@@ -137,7 +137,7 @@ class TestSaveEarningsSurprises:
         mock_storage.connection.return_value.__enter__.return_value = mock_conn
 
         surprise = EarningsSurprise(
-            ticker="NVDA",
+            symbol="NVDA",
             earnings_date=date(2024, 11, 20),
             fiscal_quarter="Q3 2024",
             eps_estimate=Decimal("0.58"),
@@ -174,7 +174,7 @@ class TestGetRecentEarningsSurprises:
         mock_result.is_empty.return_value = False
         mock_result.to_dicts.return_value = [
             {
-                "ticker": "NVDA",
+                "symbol": "NVDA",
                 "earnings_date": "2024-11-20",
                 "surprise_direction": "beat",
             }
@@ -184,7 +184,7 @@ class TestGetRecentEarningsSurprises:
         result = get_recent_earnings_surprises(mock_storage, "NVDA")
 
         assert len(result) == 1
-        assert result[0]["ticker"] == "NVDA"
+        assert result[0]["symbol"] == "NVDA"
 
 
 class TestCalculateEarningsSurpriseScore:
@@ -213,10 +213,10 @@ class TestCalculateEarningsSurpriseScore:
     def test_consistent_beats_4_points(self) -> None:
         """Test 4+ beats with no misses = 4 points."""
         surprises = [
-            {"ticker": "NVDA", "surprise_direction": "beat"},
-            {"ticker": "NVDA", "surprise_direction": "beat"},
-            {"ticker": "NVDA", "surprise_direction": "beat"},
-            {"ticker": "NVDA", "surprise_direction": "beat"},
+            {"symbol": "NVDA", "surprise_direction": "beat"},
+            {"symbol": "NVDA", "surprise_direction": "beat"},
+            {"symbol": "NVDA", "surprise_direction": "beat"},
+            {"symbol": "NVDA", "surprise_direction": "beat"},
         ]
         mock_storage = self._mock_storage_with_surprises(surprises)
 
@@ -229,10 +229,10 @@ class TestCalculateEarningsSurpriseScore:
     def test_good_track_record_3_points(self) -> None:
         """Test 2+ beats with 1 or fewer misses = 3 points."""
         surprises = [
-            {"ticker": "NVDA", "surprise_direction": "beat"},
-            {"ticker": "NVDA", "surprise_direction": "beat"},
-            {"ticker": "NVDA", "surprise_direction": "inline"},
-            {"ticker": "NVDA", "surprise_direction": "miss"},
+            {"symbol": "NVDA", "surprise_direction": "beat"},
+            {"symbol": "NVDA", "surprise_direction": "beat"},
+            {"symbol": "NVDA", "surprise_direction": "inline"},
+            {"symbol": "NVDA", "surprise_direction": "miss"},
         ]
         mock_storage = self._mock_storage_with_surprises(surprises)
 
@@ -243,9 +243,9 @@ class TestCalculateEarningsSurpriseScore:
     def test_recent_beat_2_points(self) -> None:
         """Test recent beat (most recent quarter) = 2 points."""
         surprises = [
-            {"ticker": "NVDA", "surprise_direction": "beat", "surprise_pct": 5.0},
-            {"ticker": "NVDA", "surprise_direction": "miss"},
-            {"ticker": "NVDA", "surprise_direction": "miss"},
+            {"symbol": "NVDA", "surprise_direction": "beat", "surprise_pct": 5.0},
+            {"symbol": "NVDA", "surprise_direction": "miss"},
+            {"symbol": "NVDA", "surprise_direction": "miss"},
         ]
         mock_storage = self._mock_storage_with_surprises(surprises)
 
@@ -257,7 +257,7 @@ class TestCalculateEarningsSurpriseScore:
     def test_large_beat_shows_percentage(self) -> None:
         """Test large beat shows percentage in reason."""
         surprises = [
-            {"ticker": "NVDA", "surprise_direction": "beat", "surprise_pct": 15.0},
+            {"symbol": "NVDA", "surprise_direction": "beat", "surprise_pct": 15.0},
         ]
         mock_storage = self._mock_storage_with_surprises(surprises)
 
@@ -269,8 +269,8 @@ class TestCalculateEarningsSurpriseScore:
     def test_inline_results_1_point(self) -> None:
         """Test inline (met expectations) = 1 point."""
         surprises = [
-            {"ticker": "NVDA", "surprise_direction": "inline"},
-            {"ticker": "NVDA", "surprise_direction": "miss"},
+            {"symbol": "NVDA", "surprise_direction": "inline"},
+            {"symbol": "NVDA", "surprise_direction": "miss"},
         ]
         mock_storage = self._mock_storage_with_surprises(surprises)
 
@@ -282,9 +282,9 @@ class TestCalculateEarningsSurpriseScore:
     def test_consistent_misses_negative_1(self) -> None:
         """Test consistent misses (3+) = -1 point."""
         surprises = [
-            {"ticker": "BAD", "surprise_direction": "miss"},
-            {"ticker": "BAD", "surprise_direction": "miss"},
-            {"ticker": "BAD", "surprise_direction": "miss"},
+            {"symbol": "BAD", "surprise_direction": "miss"},
+            {"symbol": "BAD", "surprise_direction": "miss"},
+            {"symbol": "BAD", "surprise_direction": "miss"},
         ]
         mock_storage = self._mock_storage_with_surprises(surprises)
 
@@ -296,7 +296,7 @@ class TestCalculateEarningsSurpriseScore:
     def test_single_miss_zero_points(self) -> None:
         """Test single recent miss = 0 points (no reason)."""
         surprises = [
-            {"ticker": "OOPS", "surprise_direction": "miss"},
+            {"symbol": "OOPS", "surprise_direction": "miss"},
         ]
         mock_storage = self._mock_storage_with_surprises(surprises)
 

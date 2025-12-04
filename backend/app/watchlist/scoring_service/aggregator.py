@@ -69,7 +69,7 @@ def process_all_symbols(
         update_progress(redis_key, symbol, processed)
 
         try:
-            # Process ticker and collect results
+            # Process symbol and collect results
             _, _, symbol_success, symbol_failed = process_single_symbol(
                 storage=storage,
                 symbol=symbol,

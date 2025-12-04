@@ -101,7 +101,7 @@ class TestCalculateMomentumScore:
     def test_strong_positive_momentum(self) -> None:
         """Strong positive 252d momentum gets 2+ points."""
         metrics = MomentumMetrics(
-            ticker="AAPL",
+            symbol="AAPL",
             as_of_date=date.today(),
             momentum_5d=1.0,
             momentum_20d=5.0,
@@ -118,7 +118,7 @@ class TestCalculateMomentumScore:
     def test_weak_positive_momentum(self) -> None:
         """Weak positive momentum gets 1 point."""
         metrics = MomentumMetrics(
-            ticker="AAPL",
+            symbol="AAPL",
             as_of_date=date.today(),
             momentum_5d=0.5,
             momentum_20d=1.0,
@@ -135,7 +135,7 @@ class TestCalculateMomentumScore:
     def test_strong_negative_momentum(self) -> None:
         """Strong negative momentum subtracts points."""
         metrics = MomentumMetrics(
-            ticker="AAPL",
+            symbol="AAPL",
             as_of_date=date.today(),
             momentum_5d=-3.0,
             momentum_20d=-8.0,
@@ -152,7 +152,7 @@ class TestCalculateMomentumScore:
     def test_accelerating_momentum_bonus(self) -> None:
         """Accelerating momentum (5d > 20d > 0) gets bonus."""
         metrics = MomentumMetrics(
-            ticker="AAPL",
+            symbol="AAPL",
             as_of_date=date.today(),
             momentum_5d=5.0,  # Higher than 20d
             momentum_20d=3.0,  # Positive
@@ -169,7 +169,7 @@ class TestCalculateMomentumScore:
         """Score is clamped to 0-5 range."""
         # Best case scenario
         metrics = MomentumMetrics(
-            ticker="AAPL",
+            symbol="AAPL",
             as_of_date=date.today(),
             momentum_5d=10.0,
             momentum_20d=8.0,
@@ -233,7 +233,7 @@ class TestCalculateMomentum:
         result = calculate_momentum(mock_storage, "AAPL")
 
         assert result is not None
-        assert result.ticker == "AAPL"
+        assert result.symbol == "AAPL"
         # All momentum should be positive (prices increasing)
         assert result.momentum_5d is not None and result.momentum_5d > 0
         assert result.momentum_20d is not None and result.momentum_20d > 0

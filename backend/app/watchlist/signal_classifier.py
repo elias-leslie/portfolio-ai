@@ -269,7 +269,7 @@ def _calculate_options_flow_score(
     Args:
         options_call_pct: Percentage of call volume (0.0-1.0)
         options_near_term_pct: Percentage of near-term options (0.0-1.0)
-        symbol_in_active_sector: True if ticker's sector has high options volume
+        symbol_in_active_sector: True if symbol's sector has high options volume
 
     Returns:
         (score, reasons) where score is 0-4 based on options sentiment

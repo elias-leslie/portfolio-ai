@@ -276,7 +276,7 @@ class PortfolioManager:
                     VALUES (?, ?, 'portfolio', ?, ?)
                     ON CONFLICT (symbol) DO NOTHING
                     """,
-                    [item_id, ticker, now, now],
+                    [item_id, symbol, now, now],
                 )
             conn.commit()
 

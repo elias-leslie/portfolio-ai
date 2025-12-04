@@ -8,7 +8,7 @@ from unittest.mock import Mock
 import polars as pl
 import pytest
 
-from app.analytics.volume import calculate_rvol, get_high_volume_tickers
+from app.analytics.volume import calculate_rvol, get_high_volume_symbols
 
 
 @pytest.fixture
@@ -158,56 +158,56 @@ def test_calculate_rvol_custom_lookback(mock_storage: Mock) -> None:
     assert rvol == 1.5
 
 
-def test_get_high_volume_tickers_success(mock_storage: Mock) -> None:
-    """Test finding high volume tickers."""
-    # Mock tickers for the date
-    tickers_result = pl.DataFrame({"ticker": ["AAPL", "MSFT", "GOOGL"]})
+def test_get_high_volume_symbols_success(mock_storage: Mock) -> None:
+    """Test finding high volume symbols."""
+    # Mock symbols for the date
+    symbols_result = pl.DataFrame({"symbol": ["AAPL", "MSFT", "GOOGL"]})
 
-    # Volume data per ticker
+    # Volume data per symbol
     volume_data = {
         "AAPL": {"volume": 200000000, "avg": 100000000.0},  # RVOL=2.0
         "MSFT": {"volume": 100000000, "avg": 100000000.0},  # RVOL=1.0
         "GOOGL": {"volume": 80000000, "avg": 100000000.0},  # RVOL=0.8
     }
 
-    # Mock volume data for each ticker
+    # Mock volume data for each symbol
     def query_side_effect(sql: str, params: list) -> pl.DataFrame:  # type: ignore[type-arg]
-        if "SELECT DISTINCT ticker" in sql:
-            return tickers_result
+        if "SELECT DISTINCT symbol" in sql:
+            return symbols_result
         if params and params[0] in volume_data:
-            ticker_data = volume_data[params[0]]
+            symbol_data = volume_data[params[0]]
             if "SELECT volume" in sql:
-                return pl.DataFrame({"volume": [ticker_data["volume"]]})
+                return pl.DataFrame({"volume": [symbol_data["volume"]]})
             if "SELECT AVG(volume)" in sql:
-                return pl.DataFrame({"avg_volume": [ticker_data["avg"]]})
+                return pl.DataFrame({"avg_volume": [symbol_data["avg"]]})
         return pl.DataFrame()
 
     mock_storage.query.side_effect = query_side_effect
 
-    # Get high volume tickers (threshold = 1.5x)
-    high_vol = get_high_volume_tickers(
+    # Get high volume symbols (threshold = 1.5x)
+    high_vol = get_high_volume_symbols(
         mock_storage,
         dt.date(2025, 1, 15),
         rvol_threshold=1.5,
         lookback_days=20,
-        min_tickers=1,
+        min_symbols=1,
     )
 
     # Should only return AAPL (RVOL=2.0)
     assert len(high_vol) == 1
-    assert high_vol[0]["ticker"] == "AAPL"
+    assert high_vol[0]["symbol"] == "AAPL"
     assert high_vol[0]["rvol"] == 2.0
     assert high_vol[0]["current_volume"] == 200000000
     assert high_vol[0]["avg_volume"] == 100000000
 
 
-def test_get_high_volume_tickers_with_string_date(mock_storage: Mock) -> None:
-    """Test finding high volume tickers with string date."""
-    tickers_result = pl.DataFrame({"ticker": ["AAPL"]})
+def test_get_high_volume_symbols_with_string_date(mock_storage: Mock) -> None:
+    """Test finding high volume symbols with string date."""
+    symbols_result = pl.DataFrame({"symbol": ["AAPL"]})
 
     def query_side_effect(sql: str, params: list) -> pl.DataFrame:  # type: ignore[type-arg]
-        if "SELECT DISTINCT ticker" in sql:
-            return tickers_result
+        if "SELECT DISTINCT symbol" in sql:
+            return symbols_result
         if "SELECT volume" in sql:
             return pl.DataFrame({"volume": [150000000]})
         if "SELECT AVG(volume)" in sql:
@@ -216,8 +216,8 @@ def test_get_high_volume_tickers_with_string_date(mock_storage: Mock) -> None:
 
     mock_storage.query.side_effect = query_side_effect
 
-    # Get high volume tickers with string date
-    high_vol = get_high_volume_tickers(
+    # Get high volume symbols with string date
+    high_vol = get_high_volume_symbols(
         mock_storage,
         "2025-01-15",
         rvol_threshold=1.4,
@@ -226,17 +226,17 @@ def test_get_high_volume_tickers_with_string_date(mock_storage: Mock) -> None:
 
     # Should return AAPL (RVOL=1.5)
     assert len(high_vol) >= 1
-    assert high_vol[0]["ticker"] == "AAPL"
+    assert high_vol[0]["symbol"] == "AAPL"
     assert high_vol[0]["rvol"] == 1.5
 
 
-def test_get_high_volume_tickers_no_data(mock_storage: Mock) -> None:
-    """Test finding high volume tickers when no data exists."""
-    empty_result = pl.DataFrame({"ticker": []})
+def test_get_high_volume_symbols_no_data(mock_storage: Mock) -> None:
+    """Test finding high volume symbols when no data exists."""
+    empty_result = pl.DataFrame({"symbol": []})
     mock_storage.query.return_value = empty_result
 
-    # Get high volume tickers
-    high_vol = get_high_volume_tickers(
+    # Get high volume symbols
+    high_vol = get_high_volume_symbols(
         mock_storage,
         dt.date(2025, 1, 15),
         rvol_threshold=1.5,
@@ -246,9 +246,9 @@ def test_get_high_volume_tickers_no_data(mock_storage: Mock) -> None:
     assert len(high_vol) == 0
 
 
-def test_get_high_volume_tickers_sorted_by_rvol(mock_storage: Mock) -> None:
-    """Test that high volume tickers are sorted by RVOL descending."""
-    tickers_result = pl.DataFrame({"ticker": ["AAPL", "MSFT", "GOOGL"]})
+def test_get_high_volume_symbols_sorted_by_rvol(mock_storage: Mock) -> None:
+    """Test that high volume symbols are sorted by RVOL descending."""
+    symbols_result = pl.DataFrame({"symbol": ["AAPL", "MSFT", "GOOGL"]})
 
     # Helper to reduce complexity - AAPL has RVOL=2.0
     def get_aapl_data(sql: str) -> pl.DataFrame:
@@ -269,8 +269,8 @@ def test_get_high_volume_tickers_sorted_by_rvol(mock_storage: Mock) -> None:
         return pl.DataFrame({"avg_volume": [100000000.0]})
 
     def query_side_effect(sql: str, params: list) -> pl.DataFrame:  # type: ignore[type-arg]
-        if "SELECT DISTINCT ticker" in sql:
-            return tickers_result
+        if "SELECT DISTINCT symbol" in sql:
+            return symbols_result
         if params and params[0] == "AAPL":
             return get_aapl_data(sql)
         if params and params[0] == "MSFT":
@@ -281,8 +281,8 @@ def test_get_high_volume_tickers_sorted_by_rvol(mock_storage: Mock) -> None:
 
     mock_storage.query.side_effect = query_side_effect
 
-    # Get high volume tickers
-    high_vol = get_high_volume_tickers(
+    # Get high volume symbols
+    high_vol = get_high_volume_symbols(
         mock_storage,
         dt.date(2025, 1, 15),
         rvol_threshold=1.4,
@@ -291,9 +291,9 @@ def test_get_high_volume_tickers_sorted_by_rvol(mock_storage: Mock) -> None:
 
     # Should be sorted: MSFT (3.0), AAPL (2.0), GOOGL (1.5)
     assert len(high_vol) == 3
-    assert high_vol[0]["ticker"] == "MSFT"
+    assert high_vol[0]["symbol"] == "MSFT"
     assert high_vol[0]["rvol"] == 3.0
-    assert high_vol[1]["ticker"] == "AAPL"
+    assert high_vol[1]["symbol"] == "AAPL"
     assert high_vol[1]["rvol"] == 2.0
-    assert high_vol[2]["ticker"] == "GOOGL"
+    assert high_vol[2]["symbol"] == "GOOGL"
     assert high_vol[2]["rvol"] == 1.5

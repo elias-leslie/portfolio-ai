@@ -7,11 +7,11 @@ import pytest
 
 from app.analytics.trade_calculations import (
     calculate_stop_loss,
-    get_atr_for_ticker,
+    get_atr_for_symbol,
 )
 
 
-class TestGetAtrForTicker:
+class TestGetAtrForSymbol:
     """Tests for ATR retrieval from multiple sources."""
 
     def test_atr_from_technical_indicators(self) -> None:
@@ -19,7 +19,7 @@ class TestGetAtrForTicker:
         storage = MagicMock()
         storage.query.return_value = pl.DataFrame({"atr_14": [5.25]})
 
-        atr = get_atr_for_ticker(storage, "AAPL")
+        atr = get_atr_for_symbol(storage, "AAPL")
 
         assert atr == 5.25
         storage.query.assert_called_once()
@@ -32,7 +32,7 @@ class TestGetAtrForTicker:
 
         with patch("app.analytics.trade_calculations.calculate_indicators") as mock_calc:
             mock_calc.return_value = {"atr_14": 4.50}
-            atr = get_atr_for_ticker(storage, "AAPL")
+            atr = get_atr_for_symbol(storage, "AAPL")
 
         assert atr == 4.50
         mock_calc.assert_called_once()
@@ -44,7 +44,7 @@ class TestGetAtrForTicker:
 
         with patch("app.analytics.trade_calculations.calculate_indicators") as mock_calc:
             mock_calc.return_value = {}  # No ATR in result
-            atr = get_atr_for_ticker(storage, "NEWSTOCK")
+            atr = get_atr_for_symbol(storage, "NEWSTOCK")
 
         assert atr is None
 

@@ -233,7 +233,7 @@ async def get_news_intelligence(
     final_limit = min(limit, pref_limit) if limit else pref_limit
 
     bundle = news_service.get_news_intelligence(
-        ticker=symbol,
+        symbol=symbol,
         max_articles=final_limit,
         force_refresh=force_refresh,
     )

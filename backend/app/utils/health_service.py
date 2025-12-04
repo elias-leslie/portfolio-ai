@@ -248,7 +248,7 @@ class HealthCheckService:
         day_bars_freshness_internal = get_day_bars_freshness(self.storage)
         day_bars_freshness_model = [
             DayBarFreshnessInfo(
-                ticker=item.ticker,
+                symbol=item.symbol,
                 last_updated=item.last_updated,
                 age_days=item.age_days,
             )
