@@ -1,6 +1,6 @@
 # Work Tracker
 
-**Last Updated:** 2025-12-03 (All tasks complete, 3 archived)
+**Last Updated:** 2025-12-04 (Insights resolved - 0 pending)
 
 **Current Status:** 🎯 **VISION.MD ALIGNMENT** | 97% Overall (+25%) | ✅ Strategy Validation Complete
 
@@ -27,7 +27,7 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-- [ ] Capability Improvements (capability_it 2025-12-04) - tasks/tasks-0090-capability-improvements.md
+(No planned tasks)
 
 ---
 
@@ -35,7 +35,19 @@
 
 *Last 5 completed tasks*
 
-1. **Data Source API Audit & Documentation** ✅ COMPLETE (2025-12-03)
+1. **Resolve Pending Capability Insights** ✅ COMPLETE (2025-12-04)
+   - File: `tasks-0091-resolve-pending-insights.md`
+   - Completed: 2025-12-04
+   - Duration: ~15 minutes
+   - Summary: Addressed all 17 pending capability insights
+   - Key achievements:
+     - ✅ 5 dismissed (test, agent_messages/runs - future features)
+     - ✅ 5 fixed (day_bars, Celery tasks now running with data)
+     - ✅ 7 acknowledged (API metrics P2 enhancement, strategy_metrics needs more data, symbols architecture)
+   - Results: 0 pending, 34 fixed, 10 acknowledged, 4 dismissed
+   - Impact: Insights tab shows "All Clear!" - clean system health
+
+2. **Data Source API Audit & Documentation** ✅ COMPLETE (2025-12-03)
    - File: `tasks-0088-api-source-audit.md`
    - Completed: 2025-12-03
    - Duration: ~1.5 hours
