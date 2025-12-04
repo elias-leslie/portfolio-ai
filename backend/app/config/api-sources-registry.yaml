@@ -1,0 +1,1045 @@
+# API Sources Registry
+# Comprehensive reference for all data source APIs
+# Updated: 2025-12-03
+#
+# Usage: Check this file before implementing data fetches
+# Format: "Need X data? -> Use Y provider -> Z endpoint"
+#
+# IMPORTANT: This file documents TESTED FREE tier capabilities
+# See also: trading_requirements.yaml for GAP mappings
+
+version: "1.1.0"
+
+# =============================================================================
+# PROVIDER SUMMARY (Quick Reference)
+# =============================================================================
+#
+# | Provider      | Tier | Rate Limit      | Best For                        |
+# |---------------|------|-----------------|----------------------------------|
+# | yfinance      | FREE | No key needed   | OHLCV, fundamentals, earnings   |
+# | Finnhub       | FREE | 60/min          | Earnings, insiders, news        |
+# | Polygon       | FREE | 5/min, 15m delay| Grouped daily bars, news        |
+# | FRED          | FREE | Unlimited       | Economic indicators (VIX, rates)|
+# | FMP           | FREE | 250/day         | Fundamentals, historical prices |
+# | TwelveData    | FREE | 8/min, 800/day  | Time series, profiles           |
+# | Alpha Vantage | FREE | 5/min, 25/day   | Backup only (very restrictive)  |
+#
+# =============================================================================
+#
+# GAP COVERAGE SUMMARY (from trading_requirements.yaml)
+# =============================================================================
+#
+# | GAP ID  | Capability               | Available FREE?  | Provider          |
+# |---------|--------------------------|------------------|-------------------|
+# | GAP-003 | Earnings Surprises       | ✅ YES           | yfinance, Finnhub |
+# | GAP-005 | Analyst Revisions        | ✅ YES           | Finnhub           |
+# | GAP-006 | Insider Transactions     | ✅ YES           | yfinance, Finnhub |
+# | GAP-007 | Institutional Ownership  | ✅ YES           | yfinance          |
+# | GAP-011 | Short Interest           | ❌ PREMIUM       | -                 |
+# | GAP-029 | Bid/Ask Spreads          | ✅ YES (15m del) | Polygon           |
+# | GAP-001 | Intraday Data            | ❌ PREMIUM       | Polygon $200/mo   |
+#
+# =============================================================================
+
+providers:
+  # ---------------------------------------------------------------------------
+  # YFINANCE (Primary Source - No API Key Required)
+  # ---------------------------------------------------------------------------
+  yfinance:
+    name: "Yahoo Finance (yfinance)"
+    tier: FREE
+    api_key_required: false
+    priority: 1  # Highest - use first
+    rate_limits:
+      per_minute: null
+      per_day: null
+      notes: "No official limits, but recommend 0.5-2s delay between requests"
+
+    capabilities:
+      ohlcv: true
+      fundamentals: true
+      news: true
+      reference: true
+
+    endpoints:
+      history:
+        method: "Ticker.history()"
+        description: "Fetch daily OHLCV bars"
+        fields_returned:
+          - Open
+          - High
+          - Low
+          - Close
+          - Volume
+          - Dividends
+          - Stock Splits
+        example: "yf.Ticker('AAPL').history(period='1y')"
+        notes: "Auto-adjusted for splits/dividends"
+
+      info:
+        method: "Ticker.info"
+        description: "Company profile and fundamentals"
+        fields_returned:
+          # Core identifiers
+          - symbol
+          - longName
+          - shortName
+          - sector
+          - industry
+          - country
+          - currency
+          - exchange
+          # Valuation ratios
+          - trailingPE
+          - forwardPE
+          - priceToBook
+          - priceToSalesTrailing12Months
+          - pegRatio
+          - dividendYield
+          # Financial metrics
+          - marketCap
+          - enterpriseValue
+          - profitMargins
+          - operatingMargins
+          - returnOnEquity
+          - returnOnAssets
+          - debtToEquity
+          - currentRatio
+          - revenueGrowth
+          - earningsGrowth
+          # Ownership
+          - heldPercentInstitutions
+          - heldPercentInsiders
+          # Price data
+          - currentPrice
+          - regularMarketPrice
+          - fiftyTwoWeekHigh
+          - fiftyTwoWeekLow
+          - beta
+        example: "yf.Ticker('AAPL').info"
+
+      news:
+        method: "Ticker.get_news()"
+        description: "Recent news articles"
+        fields_returned:
+          - title
+          - summary
+          - publisher
+          - link
+          - providerPublishTime
+          - thumbnail
+        example: "yf.Ticker('AAPL').get_news()"
+
+      # GAP-003: Earnings Surprises
+      earnings_history:
+        method: "Ticker.earnings_history"
+        description: "Historical earnings with actual vs expected EPS"
+        gap_id: GAP-003
+        fields_returned:
+          - epsActual
+          - epsEstimate
+          - epsDifference
+          - surprisePercent
+        example: "yf.Ticker('AAPL').earnings_history"
+        notes: "Returns last 4 quarters. Use for post-earnings drift analysis"
+
+      earnings_dates:
+        method: "Ticker.earnings_dates"
+        description: "Upcoming and past earnings with EPS estimates"
+        gap_id: GAP-003
+        fields_returned:
+          - "EPS Estimate"
+          - "Reported EPS"
+          - "Surprise(%)"
+        example: "yf.Ticker('AAPL').earnings_dates"
+        notes: "Returns ~25 rows (past and future)"
+
+      # GAP-006: Insider Transactions
+      insider_transactions:
+        method: "Ticker.insider_transactions"
+        description: "Form 4 insider transaction history"
+        gap_id: GAP-006
+        fields_returned:
+          - Insider Trading (type)
+          - Start Date
+          - Shares
+          - Value
+          - URL
+        example: "yf.Ticker('AAPL').insider_transactions"
+        notes: "Returns ~76 transactions"
+
+      insider_purchases:
+        method: "Ticker.insider_purchases"
+        description: "Aggregate insider purchase summary"
+        gap_id: GAP-006
+        fields_returned:
+          - Insider Purchases Last 6m
+          - Purchases
+          - Sales
+          - Net Shares Purchased (Sold)
+          - Total Insider Shares Held
+        example: "yf.Ticker('AAPL').insider_purchases"
+        notes: "Aggregated view of insider activity"
+
+      # GAP-007: Institutional Ownership
+      institutional_holders:
+        method: "Ticker.institutional_holders"
+        description: "Top 10 institutional holders"
+        gap_id: GAP-007
+        fields_returned:
+          - Holder
+          - Shares
+          - Date Reported
+          - "% Out"
+          - Value
+        example: "yf.Ticker('AAPL').institutional_holders"
+        notes: "Returns top 10 institutional holders"
+
+      major_holders:
+        method: "Ticker.major_holders"
+        description: "Ownership breakdown percentages"
+        gap_id: GAP-007
+        fields_returned:
+          - "% of Shares Held by All Insider"
+          - "% of Shares Held by Institutions"
+          - "% of Float Held by Institutions"
+          - "Number of Institutions Holding Shares"
+        example: "yf.Ticker('AAPL').major_holders"
+
+      # GAP-008/009: Piotroski F-Score & Altman Z-Score inputs
+      balance_sheet:
+        method: "Ticker.balance_sheet"
+        description: "Annual balance sheet for F-Score/Z-Score calc"
+        gap_id: "GAP-008, GAP-009"
+        fields_returned:
+          - Total Assets
+          - Total Liabilities
+          - Total Debt
+          - Current Assets
+          - Current Liabilities
+          - Total Equity
+          - Working Capital
+          - Retained Earnings
+        example: "yf.Ticker('AAPL').balance_sheet"
+
+      cashflow:
+        method: "Ticker.cashflow"
+        description: "Cash flow statement for FCF calculation"
+        gap_id: GAP-004
+        fields_returned:
+          - Operating Cash Flow
+          - Free Cash Flow
+          - Capital Expenditure
+        example: "yf.Ticker('AAPL').cashflow"
+
+      financials:
+        method: "Ticker.financials"
+        description: "Income statement for profitability metrics"
+        gap_id: GAP-008
+        fields_returned:
+          - Total Revenue
+          - Gross Profit
+          - Operating Income
+          - Net Income
+          - EBIT
+          - EBITDA
+        example: "yf.Ticker('AAPL').financials"
+
+      # Options data
+      options:
+        method: "Ticker.options"
+        description: "Available option expiration dates"
+        fields_returned:
+          - list of expiration dates (YYYY-MM-DD)
+        example: "yf.Ticker('AAPL').options"
+        notes: "Returns ~20 expiration dates"
+
+      option_chain:
+        method: "Ticker.option_chain(date)"
+        description: "Full options chain for given expiration"
+        gap_id: GAP-033
+        fields_returned:
+          - calls (DataFrame with strike, volume, openInterest, impliedVolatility)
+          - puts (DataFrame with same fields)
+        example: "yf.Ticker('AAPL').option_chain('2024-12-20')"
+        notes: "Can calculate put/call ratio from volume/OI"
+
+    use_cases:
+      - "Primary source for OHLCV data"
+      - "Company fundamentals and valuation ratios"
+      - "News feed for specific tickers"
+      - "No API key management needed"
+      - "GAP-003: Earnings surprises (earnings_history)"
+      - "GAP-006: Insider transactions (insider_transactions)"
+      - "GAP-007: Institutional ownership (institutional_holders)"
+      - "GAP-004/008/009: Financial statements for F-Score, Z-Score, FCF"
+      - "GAP-033: Options data for put/call ratio"
+
+  # ---------------------------------------------------------------------------
+  # FINNHUB (60 calls/min - Good for profiles and news)
+  # ---------------------------------------------------------------------------
+  finnhub:
+    name: "Finnhub"
+    tier: FREE
+    api_key_required: true
+    env_var: "FINNHUB_API_KEY"
+    db_key: "finnhub.apikey"
+    priority: 10
+    rate_limits:
+      per_minute: 60
+      per_day: null  # Unlimited
+
+    capabilities:
+      ohlcv: true
+      fundamentals: true
+      news: true
+      reference: true
+
+    endpoints:
+      candles:
+        path: "/stock/candle"
+        method: GET
+        description: "Historical OHLCV candlestick data"
+        params:
+          symbol: "Ticker symbol (e.g., AAPL)"
+          resolution: "D (daily), W (weekly), M (monthly)"
+          from: "Unix timestamp start"
+          to: "Unix timestamp end"
+        fields_returned:
+          - c (close prices array)
+          - h (high prices array)
+          - l (low prices array)
+          - o (open prices array)
+          - v (volume array)
+          - t (timestamp array)
+          - s (status: ok or no_data)
+        example: "/stock/candle?symbol=AAPL&resolution=D&from=1704067200&to=1706745600"
+        notes: "Returns 's: no_data' if no data for period"
+
+      profile:
+        path: "/stock/profile2"
+        method: GET
+        description: "Company profile information"
+        params:
+          symbol: "Ticker symbol"
+        fields_returned:
+          - country
+          - currency
+          - exchange
+          - finnhubIndustry
+          - ipo
+          - logo
+          - marketCapitalization
+          - name
+          - phone
+          - shareOutstanding
+          - ticker
+          - weburl
+        example: "/stock/profile2?symbol=AAPL"
+
+      company_news:
+        path: "/company-news"
+        method: GET
+        description: "Company-specific news"
+        params:
+          symbol: "Ticker symbol"
+          from: "YYYY-MM-DD"
+          to: "YYYY-MM-DD"
+        fields_returned:
+          - category
+          - datetime (unix timestamp)
+          - headline
+          - id
+          - image
+          - related
+          - source
+          - summary
+          - url
+        example: "/company-news?symbol=AAPL&from=2024-01-01&to=2024-01-31"
+
+      general_news:
+        path: "/news"
+        method: GET
+        description: "General market news"
+        params:
+          category: "general, forex, crypto, merger"
+        fields_returned:
+          - same as company_news
+        example: "/news?category=general"
+
+      recommendations:
+        path: "/stock/recommendation"
+        method: GET
+        description: "Analyst recommendations"
+        gap_id: GAP-005
+        params:
+          symbol: "Ticker symbol"
+        fields_returned:
+          - buy
+          - hold
+          - period
+          - sell
+          - strongBuy
+          - strongSell
+          - symbol
+        example: "/stock/recommendation?symbol=AAPL"
+        notes: "FREE tier endpoint - confirmed working 2025-12-03"
+
+      # GAP-003: Earnings Surprises (TESTED FREE)
+      earnings:
+        path: "/stock/earnings"
+        method: GET
+        description: "Historical quarterly earnings surprises"
+        gap_id: GAP-003
+        params:
+          symbol: "Ticker symbol"
+          limit: "Number of quarters (FREE: 4 max)"
+        fields_returned:
+          - actual (actual EPS)
+          - estimate (consensus EPS)
+          - period (quarter date)
+          - surprise (EPS surprise)
+          - surprisePercent
+          - symbol
+        example: "/stock/earnings?symbol=AAPL"
+        notes: "FREE tier returns last 4 quarters. TESTED 2025-12-03"
+
+      # GAP-006: Insider Transactions (TESTED FREE)
+      insider_transactions:
+        path: "/stock/insider-transactions"
+        method: GET
+        description: "Form 3,4,5 insider transaction data"
+        gap_id: GAP-006
+        params:
+          symbol: "Ticker symbol"
+        fields_returned:
+          - data (array):
+            - name (insider name)
+            - share (shares traded)
+            - change (position change)
+            - filingDate
+            - transactionDate
+            - transactionCode (P=purchase, S=sale, A=award)
+            - transactionPrice
+          - symbol
+        example: "/stock/insider-transactions?symbol=AAPL"
+        notes: "FREE tier - TESTED 2025-12-03. Up to 100 transactions"
+
+      # GAP-006: Insider Sentiment (TESTED FREE)
+      insider_sentiment:
+        path: "/stock/insider-sentiment"
+        method: GET
+        description: "Monthly Share Purchase Ratio (MSPR)"
+        gap_id: GAP-006
+        params:
+          symbol: "Ticker symbol"
+          from: "YYYY-MM-DD"
+          to: "YYYY-MM-DD"
+        fields_returned:
+          - data (array):
+            - year
+            - month
+            - change (net change in shares)
+            - mspr (Monthly Share Purchase Ratio: -100 to +100)
+          - symbol
+        example: "/stock/insider-sentiment?symbol=AAPL"
+        notes: "FREE tier - TESTED 2025-12-03. MSPR>0 = net buying"
+
+    premium_only:
+      - "/stock/eps-estimate (EPS estimates)"
+      - "/stock/revenue-estimate (Revenue estimates)"
+      - "/stock/upgrade-downgrade (Analyst rating changes)"
+      - "/stock/ownership (Institutional ownership)"
+      - "/institutional-ownership (Full 13F data)"
+
+    use_cases:
+      - "GAP-005: Analyst recommendations (FREE)"
+      - "GAP-003: Earnings surprises (FREE, 4 quarters)"
+      - "GAP-006: Insider transactions + sentiment (FREE)"
+      - "Company news with sentiment"
+      - "General market news"
+      - "Backup OHLCV source"
+
+  # ---------------------------------------------------------------------------
+  # POLYGON (5 calls/min - Best for grouped daily bars)
+  # ---------------------------------------------------------------------------
+  polygon:
+    name: "Polygon.io"
+    tier: FREE
+    api_key_required: true
+    env_var: "POLYGON_API_KEY"
+    db_key: "polygon.apikey"
+    priority: 10
+    rate_limits:
+      per_minute: 5
+      per_day: 7200
+    data_delay: "15 minutes (FREE tier)"
+
+    capabilities:
+      ohlcv: true
+      fundamentals: false
+      news: true
+      reference: true
+
+    endpoints:
+      grouped_daily:
+        path: "/v2/aggs/grouped/locale/us/market/stocks/{date}"
+        method: GET
+        description: "ALL tickers for a single date (efficient for multi-ticker)"
+        params:
+          date: "YYYY-MM-DD"
+          adjusted: "true/false"
+          include_otc: "true/false"
+        fields_returned:
+          - T (ticker)
+          - o (open)
+          - h (high)
+          - l (low)
+          - c (close)
+          - v (volume)
+          - vw (VWAP)
+          - n (number of trades)
+        example: "/v2/aggs/grouped/locale/us/market/stocks/2024-01-31"
+        notes: "Best for fetching many tickers at once"
+
+      ticker_details:
+        path: "/v3/reference/tickers/{ticker}"
+        method: GET
+        description: "Company reference data"
+        params:
+          ticker: "Ticker symbol"
+        fields_returned:
+          - ticker
+          - name
+          - market
+          - locale
+          - primary_exchange
+          - type
+          - active
+          - currency_name
+          - cik
+          - composite_figi
+          - share_class_figi
+          - market_cap
+          - phone_number
+          - address
+          - description
+          - sic_code
+          - sic_description
+          - ticker_root
+          - homepage_url
+          - total_employees
+          - list_date
+          - branding (logo_url, icon_url)
+          - share_class_shares_outstanding
+          - weighted_shares_outstanding
+        example: "/v3/reference/tickers/AAPL"
+
+      news:
+        path: "/v2/reference/news"
+        method: GET
+        description: "Market or ticker-specific news"
+        params:
+          ticker: "Optional - filter by ticker"
+          published_utc.gte: "ISO datetime start"
+          published_utc.lte: "ISO datetime end"
+          order: "asc/desc"
+          limit: "Max results (50)"
+        fields_returned:
+          - id
+          - publisher (name, logo_url, homepage_url)
+          - title
+          - author
+          - published_utc
+          - article_url
+          - tickers
+          - description
+          - keywords
+          - image_url
+        example: "/v2/reference/news?ticker=AAPL&limit=10"
+
+    use_cases:
+      - "Grouped daily bars (all tickers at once)"
+      - "Company reference data with CIK"
+      - "News with publisher info"
+      - "Data with VWAP"
+
+  # ---------------------------------------------------------------------------
+  # FRED (Unlimited - Economic Indicators)
+  # ---------------------------------------------------------------------------
+  fred:
+    name: "Federal Reserve Economic Data (FRED)"
+    tier: FREE
+    api_key_required: true
+    env_var: "FRED_API_KEY"
+    db_key: "fred.apikey"
+    priority: 1  # Only source for economic data
+    rate_limits:
+      per_minute: null  # No limit
+      per_day: null     # No limit
+
+    capabilities:
+      ohlcv: false
+      fundamentals: false
+      news: false
+      economic_indicators: true
+
+    endpoints:
+      observations:
+        path: "/fred/series/observations"
+        method: GET
+        description: "Fetch time series data for economic indicator"
+        params:
+          series_id: "FRED series ID"
+          api_key: "Your API key"
+          file_type: "json"
+          sort_order: "asc/desc"
+          observation_start: "YYYY-MM-DD (optional)"
+          observation_end: "YYYY-MM-DD (optional)"
+          limit: "Max observations"
+        fields_returned:
+          - realtime_start
+          - realtime_end
+          - observation_start
+          - observation_end
+          - units
+          - output_type
+          - file_type
+          - order_by
+          - sort_order
+          - count
+          - observations (date, value)
+        example: "/fred/series/observations?series_id=VIXCLS&limit=1"
+
+    available_series:
+      VIX:
+        series_id: "VIXCLS"
+        description: "CBOE Volatility Index"
+        frequency: "Daily"
+
+      DXY:
+        series_id: "DTWEXBGS"
+        description: "US Dollar Index (Broad)"
+        frequency: "Daily"
+
+      TNX:
+        series_id: "GS10"
+        description: "10-Year Treasury Constant Maturity Rate"
+        frequency: "Daily"
+
+      FEDFUNDS:
+        series_id: "FEDFUNDS"
+        description: "Federal Funds Effective Rate"
+        frequency: "Daily"
+
+      CPI_YOY:
+        series_id: "CPIAUCSL"
+        description: "Consumer Price Index (All Urban)"
+        frequency: "Monthly"
+
+      UNEMPLOYMENT:
+        series_id: "UNRATE"
+        description: "Unemployment Rate"
+        frequency: "Monthly"
+
+      HY_SPREAD:
+        series_id: "BAMLH0A0HYM2"
+        description: "High-Yield Corporate Bond OAS (basis points)"
+        frequency: "Daily"
+        notes: "Used for Fear & Greed calculation"
+
+    use_cases:
+      - "VIX volatility index"
+      - "Treasury yields (10-year)"
+      - "High-yield bond spreads"
+      - "Macroeconomic indicators"
+      - "Fear & Greed calculation inputs"
+
+  # ---------------------------------------------------------------------------
+  # FMP (250 calls/day - Good fundamentals backup)
+  # ---------------------------------------------------------------------------
+  fmp:
+    name: "Financial Modeling Prep"
+    tier: FREE
+    api_key_required: true
+    env_var: "FMP_API_KEY"
+    db_key: "fmp.apikey"
+    priority: 3
+    rate_limits:
+      per_minute: null
+      per_day: 250
+
+    capabilities:
+      ohlcv: true
+      fundamentals: true
+      news: true
+      reference: true
+
+    endpoints:
+      historical_price:
+        path: "/historical-price-full/{ticker}"
+        method: GET
+        description: "Historical daily OHLCV"
+        params:
+          ticker: "In URL path"
+          from: "YYYY-MM-DD"
+          to: "YYYY-MM-DD"
+        fields_returned:
+          - symbol
+          - historical (array):
+            - date
+            - open
+            - high
+            - low
+            - close
+            - adjClose
+            - volume
+            - unadjustedVolume
+            - change
+            - changePercent
+            - vwap
+            - label
+            - changeOverTime
+        example: "/historical-price-full/AAPL?from=2024-01-01&to=2024-01-31"
+        notes: "Includes VWAP in response"
+
+      profile:
+        path: "/profile/{ticker}"
+        method: GET
+        description: "Company profile"
+        params:
+          ticker: "In URL path"
+        fields_returned:
+          - symbol
+          - price
+          - beta
+          - volAvg
+          - mktCap
+          - lastDiv
+          - range
+          - changes
+          - companyName
+          - currency
+          - cik
+          - isin
+          - cusip
+          - exchange
+          - exchangeShortName
+          - industry
+          - website
+          - description
+          - ceo
+          - sector
+          - country
+          - fullTimeEmployees
+          - phone
+          - address
+          - city
+          - state
+          - zip
+          - dcfDiff
+          - dcf
+          - image
+          - ipoDate
+          - defaultImage
+          - isEtf
+          - isActivelyTrading
+          - isAdr
+          - isFund
+        example: "/profile/AAPL"
+
+      stock_news:
+        path: "/stock_news"
+        method: GET
+        description: "Stock-specific or general news"
+        params:
+          tickers: "Comma-separated tickers (optional)"
+          from: "YYYY-MM-DD"
+          to: "YYYY-MM-DD"
+          limit: "Max results"
+        fields_returned:
+          - symbol
+          - publishedDate
+          - title
+          - image
+          - site
+          - text
+          - url
+        example: "/stock_news?tickers=AAPL&limit=10"
+
+    use_cases:
+      - "Backup OHLCV with VWAP"
+      - "Company profiles with CIK/ISIN"
+      - "DCF valuation data"
+      - "Stock news"
+
+  # ---------------------------------------------------------------------------
+  # TWELVEDATA (8/min, 800/day - Time series focus)
+  # ---------------------------------------------------------------------------
+  twelvedata:
+    name: "Twelve Data"
+    tier: FREE
+    api_key_required: true
+    env_var: "TWELVEDATA_API_KEY"
+    db_key: "twelvedata.apikey"
+    priority: 2
+    rate_limits:
+      per_minute: 8
+      per_day: 800  # Credits, not calls
+
+    capabilities:
+      ohlcv: true
+      fundamentals: false
+      news: false
+      reference: true
+
+    endpoints:
+      time_series:
+        path: "/time_series"
+        method: GET
+        description: "Historical OHLCV data"
+        params:
+          symbol: "Ticker symbol"
+          interval: "1min, 5min, 15min, 30min, 45min, 1h, 2h, 4h, 1day, 1week, 1month"
+          outputsize: "Number of data points (max 5000)"
+          start_date: "YYYY-MM-DD"
+          end_date: "YYYY-MM-DD"
+        fields_returned:
+          - meta (symbol, interval, currency, exchange_timezone, exchange)
+          - values (array):
+            - datetime
+            - open
+            - high
+            - low
+            - close
+            - volume
+          - status
+        example: "/time_series?symbol=AAPL&interval=1day&outputsize=30"
+
+      profile:
+        path: "/profile"
+        method: GET
+        description: "Company profile"
+        params:
+          symbol: "Ticker symbol"
+        fields_returned:
+          - symbol
+          - name
+          - exchange
+          - mic_code
+          - sector
+          - industry
+          - employees
+          - website
+          - description
+          - type
+          - CEO
+          - address
+          - city
+          - zip
+          - state
+          - country
+          - phone
+        example: "/profile?symbol=AAPL"
+
+    use_cases:
+      - "Intraday OHLCV data"
+      - "Backup daily time series"
+      - "Company profiles"
+
+  # ---------------------------------------------------------------------------
+  # ALPHA VANTAGE (Very Restrictive - Backup Only)
+  # ---------------------------------------------------------------------------
+  alphavantage:
+    name: "Alpha Vantage"
+    tier: FREE
+    api_key_required: true
+    env_var: "ALPHAVANTAGE_API_KEY"
+    db_key: "alphavantage.apikey"
+    priority: 30  # Lowest - use as last resort
+    rate_limits:
+      per_minute: 5
+      per_day: 25
+    warning: "VERY RESTRICTIVE - Only 25 calls/day. Use as backup only."
+
+    capabilities:
+      ohlcv: true
+      fundamentals: true
+      news: false
+      reference: true
+
+    endpoints:
+      time_series_daily:
+        path: "/"
+        method: GET
+        description: "Daily OHLCV data"
+        params:
+          function: "TIME_SERIES_DAILY"
+          symbol: "Ticker symbol"
+          outputsize: "compact (100 days) or full (20+ years)"
+        fields_returned:
+          - Meta Data (symbol, last_refreshed, output_size, time_zone)
+          - Time Series (Daily) - dict with dates as keys:
+            - 1. open
+            - 2. high
+            - 3. low
+            - 4. close
+            - 5. volume
+        example: "/?function=TIME_SERIES_DAILY&symbol=AAPL&outputsize=compact"
+        notes: "Output keys have numbers prefix (1. open, etc.)"
+
+      overview:
+        path: "/"
+        method: GET
+        description: "Company fundamentals"
+        params:
+          function: "OVERVIEW"
+          symbol: "Ticker symbol"
+        fields_returned:
+          - Symbol
+          - AssetType
+          - Name
+          - Description
+          - CIK
+          - Exchange
+          - Currency
+          - Country
+          - Sector
+          - Industry
+          - Address
+          - FiscalYearEnd
+          - LatestQuarter
+          - MarketCapitalization
+          - EBITDA
+          - PERatio
+          - PEGRatio
+          - BookValue
+          - DividendPerShare
+          - DividendYield
+          - EPS
+          - RevenuePerShareTTM
+          - ProfitMargin
+          - OperatingMarginTTM
+          - ReturnOnAssetsTTM
+          - ReturnOnEquityTTM
+          - RevenueTTM
+          - GrossProfitTTM
+          - DilutedEPSTTM
+          - QuarterlyEarningsGrowthYOY
+          - QuarterlyRevenueGrowthYOY
+          - AnalystTargetPrice
+          - AnalystRatingStrongBuy
+          - AnalystRatingBuy
+          - AnalystRatingHold
+          - AnalystRatingSell
+          - AnalystRatingStrongSell
+          - TrailingPE
+          - ForwardPE
+          - PriceToSalesRatioTTM
+          - PriceToBookRatio
+          - EVToRevenue
+          - EVToEBITDA
+          - Beta
+          - 52WeekHigh
+          - 52WeekLow
+          - 50DayMovingAverage
+          - 200DayMovingAverage
+          - SharesOutstanding
+          - DividendDate
+          - ExDividendDate
+        example: "/?function=OVERVIEW&symbol=AAPL"
+
+    use_cases:
+      - "Last resort backup only"
+      - "Comprehensive fundamentals (if quota allows)"
+
+# =============================================================================
+# DECISION MATRIX: Which API for What Data?
+# =============================================================================
+
+data_routing:
+  ohlcv_daily:
+    primary: yfinance
+    fallback_1: twelvedata
+    fallback_2: finnhub
+    fallback_3: polygon
+    fallback_4: fmp
+    fallback_5: alphavantage
+    notes: "yfinance is free and reliable; use others only on failure"
+
+  company_profile:
+    primary: yfinance
+    fallback_1: finnhub
+    fallback_2: polygon
+    notes: "yfinance.info has most comprehensive fundamentals"
+
+  fundamentals:
+    primary: yfinance
+    fallback_1: alphavantage  # Only if 25/day quota allows
+    fallback_2: fmp
+    notes: "yfinance.info covers 90% of needs"
+
+  analyst_recommendations:
+    primary: finnhub  # FREE endpoint confirmed
+    fallback_1: yfinance
+    notes: "Finnhub /stock/recommendation is FREE"
+
+  news:
+    primary: yfinance
+    fallback_1: finnhub
+    fallback_2: polygon
+    fallback_3: fmp
+    notes: "Multi-source for diversity"
+
+  economic_indicators:
+    primary: fred
+    fallback: null  # FRED is the only source
+    notes: "VIX, Treasury yields, HY spreads - FRED only"
+
+  vwap:
+    primary: polygon  # Only source with VWAP
+    fallback: fmp     # Also has VWAP
+    notes: "yfinance doesn't provide VWAP"
+
+# =============================================================================
+# API KEY CONFIGURATION
+# =============================================================================
+
+credentials:
+  storage: "PostgreSQL source_credentials table"
+  table: "source_credentials"
+  columns:
+    source_id: "Provider name (e.g., 'finnhub')"
+    field: "Key field name (e.g., 'apikey')"
+    value: "API key value"
+
+  query_example: |
+    SELECT value FROM source_credentials
+    WHERE source_id = 'finnhub' AND field = 'apikey';
+
+  env_fallback: |
+    Keys can also be set via environment variables:
+    - FINNHUB_API_KEY
+    - POLYGON_API_KEY
+    - FRED_API_KEY
+    - FMP_API_KEY
+    - TWELVEDATA_API_KEY
+    - ALPHAVANTAGE_API_KEY
+
+# =============================================================================
+# SOURCE ADAPTER FILES
+# =============================================================================
+
+implementation:
+  base_class: "backend/app/sources/base.py"
+  adapters:
+    yfinance: "backend/app/sources/yfinance_source.py"
+    finnhub: "backend/app/sources/finnhub_source.py"
+    polygon: "backend/app/sources/polygon_source.py"
+    fmp: "backend/app/sources/fmp_source.py"
+    twelvedata: "backend/app/sources/twelvedata_source.py"
+    alphavantage: "backend/app/sources/alphavantage_source.py"
+    fred: "backend/app/sources/fred.py"
+
+  multi_source: "backend/app/sources/multi_source_fetcher.py"
+  rate_limiting: "backend/app/sources/base_http_client.py"

@@ -36,6 +36,7 @@ from app.api import (
     preferences,
     recommendations,
     settings_profiles,
+    sources,
     status,
     status_stream,
     strategies,
@@ -168,6 +169,7 @@ app.include_router(layouts.router)  # Task 0042: Customizable dashboard layouts
 app.include_router(agents.router)  # Task 0077: Agent telemetry dashboard
 app.include_router(automation.router)  # Manual pipeline triggers
 app.include_router(disagreements.router)  # Task 0003: Multi-LLM disagreement detection
+app.include_router(sources.router)  # Task 0088: API sources registry for agents
 
 
 @app.get("/")

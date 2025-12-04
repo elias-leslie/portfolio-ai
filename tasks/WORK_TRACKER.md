@@ -19,17 +19,7 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Remaining P0 Gaps** ✅ COMPLETE (2025-12-03)
-   - File: `tasks-0003-remaining-p0-gaps.md` (archived)
-   - Completed: 2025-12-03
-   - Focus: Resolve P0 gaps - position sizing, Kelly, PDT, bid/ask, analyst revisions
-   - Results: P0 gaps 4 → 1 (GAP-005 needs FMP premium), Coverage 48.3% → 60%
-   - Key achievements:
-     - ✅ GAP-043: Equity-based position sizing (already in position_sizing.py)
-     - ✅ GAP-045: Kelly criterion (already in kelly.py)
-     - ✅ GAP-052: PDT tracking (already in pdt_rules.py)
-     - ✅ GAP-029: Bid/ask spreads (migration 064, PriceData model updated)
-     - ⏸️ GAP-005: Analyst revisions (infrastructure ready, needs FMP premium $29/mo)
+(No active tasks)
 
 ---
 
@@ -45,7 +35,20 @@
 
 *Last 5 completed tasks*
 
-1. **Capability Improvements v2** ✅ COMPLETE (2025-12-03)
+1. **Data Source API Audit & Documentation** ✅ COMPLETE (2025-12-03)
+   - File: `tasks-0088-api-source-audit.md`
+   - Completed: 2025-12-03
+   - Duration: ~1.5 hours
+   - Summary: Comprehensive API source documentation for coding agents
+   - Key achievements:
+     - ✅ Audited all 7 API providers with live tests
+     - ✅ Created api-sources-registry.yaml (900+ lines)
+     - ✅ Created /api/sources endpoint with GAP lookup
+     - ✅ Documented FREE tier GAP coverage (GAP-003,005,006,007,033 available)
+     - ✅ Updated CLAUDE.md with data source quick reference
+   - Impact: Agents can now lookup API capabilities via /api/sources/gap/{id}
+
+2. **Capability Improvements v2** ✅ COMPLETE (2025-12-03)
    - File: `tasks-0002-capability-improvements.md`
    - Completed: 2025-12-03
    - Duration: ~15 minutes
