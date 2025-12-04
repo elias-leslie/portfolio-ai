@@ -337,6 +337,33 @@ def get_beat_schedule() -> dict[str, object]:
             # - Stores in symbol_risk_metrics table
             # - Uses SPY as market proxy for beta calculation
         },
+        "ingest-fundamental-data-weekly": {
+            "task": "app.tasks.ingestion.fundamental_ingestion.ingest_fundamental_data",
+            "schedule": crontab(hour=6, minute=0, day_of_week=0),  # Sundays at 06:00 UTC
+            "options": {"expires": 7200},  # Task expires after 2 hours
+            # Notes:
+            # - Runs weekly on Sundays at 06:00 UTC
+            # - Fetches and stores (GAP-004, 006, 007, 011):
+            #   * Cash flow metrics (FCF, OCF, FCF yield)
+            #   * Insider transactions
+            #   * Institutional holdings
+            #   * Short interest
+            # - Uses yfinance as data source
+            # - Weekly is sufficient since data updates quarterly/bi-weekly
+        },
+        "ingest-macro-indicators-daily": {
+            "task": "app.tasks.ingestion.fundamental_ingestion.ingest_macro_indicators",
+            "schedule": crontab(hour=6, minute=30),  # Daily at 06:30 UTC
+            "options": {"expires": 3600},  # Task expires after 1 hour
+            # Notes:
+            # - Runs daily at 06:30 UTC
+            # - Fetches and stores (GAP-034, 035, 036):
+            #   * Yield curve (3M, 2Y, 5Y, 10Y, 30Y, spreads)
+            #   * Inflation data (CPI, PCE, breakevens)
+            #   * Fed funds rate (FEDFUNDS, EFFR)
+            # - Uses FRED API as data source
+            # - Requires FRED_API_KEY environment variable
+        },
         "fetch-options-activity-daily": {
             "task": "fetch_options_activity_metrics",
             "schedule": crontab(hour=21, minute=15),  # Daily at 21:15 UTC (4:15 PM ET)

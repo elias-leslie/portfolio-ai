@@ -371,3 +371,209 @@ class YFinanceSource(BaseSource):
             return None
 
         return pl.DataFrame(records)
+
+    # ============================================
+    # GAP-004: Cash Flow Metrics
+    # ============================================
+    def fetch_cash_flow_data(self, ticker: str) -> dict[str, Any] | None:
+        """Fetch cash flow statement data for a ticker.
+
+        Args:
+            ticker: Stock symbol
+
+        Returns:
+            Dict with cash flow metrics, or None if failed
+        """
+        try:
+            yf_ticker = yf.Ticker(ticker)
+            cf = yf_ticker.cashflow
+            info = yf_ticker.info
+
+            if cf.empty:
+                return None
+
+            # Get most recent period
+            latest = cf.iloc[:, 0]
+
+            # Extract key metrics
+            operating_cf = latest.get("Operating Cash Flow", 0) or 0
+            capex = latest.get("Capital Expenditure", 0) or 0
+            free_cf = operating_cf + capex  # capex is negative
+
+            # Get market cap for FCF yield
+            market_cap = info.get("marketCap", 0) or 0
+            shares_outstanding = info.get("sharesOutstanding", 0) or 0
+            revenue = info.get("totalRevenue", 0) or 0
+            net_income = info.get("netIncomeToCommon", 0) or 0
+
+            fcf_yield = free_cf / market_cap if market_cap > 0 else None
+            fcf_per_share = free_cf / shares_outstanding if shares_outstanding > 0 else None
+            cash_flow_margin = operating_cf / revenue if revenue > 0 else None
+            cash_conversion = operating_cf / net_income if net_income != 0 else None
+
+            return {
+                "symbol": ticker,
+                "operating_cash_flow": operating_cf,
+                "capital_expenditure": capex,
+                "free_cash_flow": free_cf,
+                "fcf_yield": fcf_yield,
+                "fcf_per_share": fcf_per_share,
+                "cash_flow_margin": cash_flow_margin,
+                "cash_conversion_ratio": cash_conversion,
+            }
+
+        except Exception as e:
+            logger.warning(f"Failed to fetch cash flow for {ticker}: {e}")
+            return None
+
+    # ============================================
+    # GAP-006: Insider Transactions
+    # ============================================
+    def fetch_insider_transactions(self, ticker: str) -> list[dict[str, Any]]:
+        """Fetch insider transactions for a ticker.
+
+        Args:
+            ticker: Stock symbol
+
+        Returns:
+            List of insider transaction dicts
+        """
+        try:
+            yf_ticker = yf.Ticker(ticker)
+            insiders = yf_ticker.insider_transactions
+
+            if insiders is None or insiders.empty:
+                return []
+
+            transactions = []
+            for _, row in insiders.iterrows():
+                transactions.append({
+                    "symbol": ticker,
+                    "insider_name": row.get("Insider"),
+                    "insider_title": row.get("Position"),
+                    "transaction_type": row.get("Transaction"),
+                    "transaction_date": row.get("Start Date"),
+                    "shares": row.get("Shares"),
+                    "value": row.get("Value"),
+                    "shares_owned_after": row.get("Shares Owned After"),
+                })
+
+            logger.debug(f"Fetched {len(transactions)} insider transactions for {ticker}")
+            return transactions
+
+        except Exception as e:
+            logger.warning(f"Failed to fetch insider transactions for {ticker}: {e}")
+            return []
+
+    # ============================================
+    # GAP-007: Institutional Holdings
+    # ============================================
+    def fetch_institutional_holders(self, ticker: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        """Fetch institutional holders for a ticker.
+
+        Args:
+            ticker: Stock symbol
+
+        Returns:
+            Tuple of (list of holder dicts, summary dict)
+        """
+        try:
+            yf_ticker = yf.Ticker(ticker)
+            holders_df = yf_ticker.institutional_holders
+            info = yf_ticker.info
+
+            holders = []
+            if holders_df is not None and not holders_df.empty:
+                for _, row in holders_df.iterrows():
+                    holders.append({
+                        "symbol": ticker,
+                        "holder_name": row.get("Holder"),
+                        "shares": row.get("Shares"),
+                        "value": row.get("Value"),
+                        "pct_held": row.get("% Out"),
+                        "report_date": row.get("Date Reported"),
+                    })
+
+            # Summary from info
+            summary = {
+                "symbol": ticker,
+                "total_institutions": len(holders),
+                "pct_held_institutions": info.get("heldPercentInstitutions"),
+                "pct_held_insiders": info.get("heldPercentInsiders"),
+            }
+
+            logger.debug(f"Fetched {len(holders)} institutional holders for {ticker}")
+            return holders, summary
+
+        except Exception as e:
+            logger.warning(f"Failed to fetch institutional holders for {ticker}: {e}")
+            return [], {}
+
+    # ============================================
+    # GAP-011: Short Interest
+    # ============================================
+    def fetch_short_interest(self, ticker: str) -> dict[str, Any] | None:
+        """Fetch short interest data for a ticker.
+
+        Args:
+            ticker: Stock symbol
+
+        Returns:
+            Dict with short interest metrics, or None if failed
+        """
+        try:
+            yf_ticker = yf.Ticker(ticker)
+            info = yf_ticker.info
+
+            short_shares = info.get("sharesShort")
+            short_ratio = info.get("shortRatio")
+            short_pct_float = info.get("shortPercentOfFloat")
+            shares_outstanding = info.get("sharesOutstanding")
+
+            if not any([short_shares, short_ratio, short_pct_float]):
+                return None
+
+            short_pct_outstanding = None
+            if short_shares and shares_outstanding:
+                short_pct_outstanding = short_shares / shares_outstanding
+
+            return {
+                "symbol": ticker,
+                "short_shares": short_shares,
+                "short_ratio": short_ratio,
+                "short_percent_of_float": short_pct_float,
+                "short_percent_of_outstanding": short_pct_outstanding,
+                "short_prior_month": info.get("sharesShortPriorMonth"),
+                "short_pct_change": info.get("sharesShortPreviousMonthDate"),  # This is actually a date
+            }
+
+        except Exception as e:
+            logger.warning(f"Failed to fetch short interest for {ticker}: {e}")
+            return None
+
+    # ============================================
+    # Combined fundamental data fetch
+    # ============================================
+    def fetch_all_fundamental_data(self, ticker: str) -> dict[str, Any]:
+        """Fetch all fundamental data for a ticker in one call.
+
+        Combines cash flow, insider, institutional, and short data.
+
+        Args:
+            ticker: Stock symbol
+
+        Returns:
+            Dict with all fundamental data
+        """
+        result = {
+            "symbol": ticker,
+            "cash_flow": self.fetch_cash_flow_data(ticker),
+            "insider_transactions": self.fetch_insider_transactions(ticker),
+            "short_interest": self.fetch_short_interest(ticker),
+        }
+
+        holders, summary = self.fetch_institutional_holders(ticker)
+        result["institutional_holders"] = holders
+        result["institutional_summary"] = summary
+
+        return result

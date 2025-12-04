@@ -24,13 +24,34 @@ class FREDSource:
 
     # Key economic indicators
     INDICATORS: ClassVar[dict[str, str]] = {
+        # Volatility & Risk
         "VIX": "VIXCLS",  # Volatility Index
-        "DXY": "DTWEXBGS",  # US Dollar Index
-        "TNX": "GS10",  # 10-Year Treasury Rate
-        "FEDFUNDS": "FEDFUNDS",  # Fed Funds Rate
-        "CPI_YOY": "CPIAUCSL",  # Consumer Price Index
-        "UNEMPLOYMENT": "UNRATE",  # Unemployment Rate
         "HY_SPREAD": "BAMLH0A0HYM2",  # High-Yield Corporate Bond OAS (basis points)
+        # Currency
+        "DXY": "DTWEXBGS",  # US Dollar Index
+        # Treasury Yields (GAP-034: Yield Curve)
+        "YIELD_3M": "DTB3",  # 3-Month T-Bill
+        "YIELD_2Y": "DGS2",  # 2-Year Treasury
+        "YIELD_5Y": "DGS5",  # 5-Year Treasury
+        "YIELD_10Y": "DGS10",  # 10-Year Treasury
+        "YIELD_30Y": "DGS30",  # 30-Year Treasury
+        "TNX": "GS10",  # 10-Year Treasury (legacy alias)
+        # Fed Policy (GAP-036)
+        "FEDFUNDS": "FEDFUNDS",  # Fed Funds Rate
+        "EFFR": "EFFR",  # Effective Fed Funds Rate (daily)
+        # Inflation (GAP-035)
+        "CPI": "CPIAUCSL",  # Consumer Price Index (monthly)
+        "CPI_YOY": "CPIAUCSL",  # Alias for CPI
+        "PCE": "PCEPI",  # Personal Consumption Expenditures
+        "CORE_CPI": "CPILFESL",  # Core CPI (ex food & energy)
+        "BREAKEVEN_5Y": "T5YIE",  # 5-Year Breakeven Inflation
+        "BREAKEVEN_10Y": "T10YIE",  # 10-Year Breakeven Inflation
+        # Employment
+        "UNEMPLOYMENT": "UNRATE",  # Unemployment Rate
+        "NONFARM_PAYROLLS": "PAYEMS",  # Total Nonfarm Payrolls
+        # GDP & Growth
+        "GDP": "GDP",  # Gross Domestic Product
+        "REAL_GDP": "GDPC1",  # Real GDP
     }
 
     def __init__(self, api_key: str | None = None) -> None:
@@ -212,3 +233,68 @@ class FREDSource:
         except (ValueError, KeyError) as e:
             logger.error(f"Failed to parse latest value for {indicator}: {e}")
             return None
+
+    def fetch_yield_curve(self, as_of_date: date | None = None) -> dict[str, float | None]:
+        """Fetch complete yield curve data.
+
+        Args:
+            as_of_date: Date to fetch (default: latest available)
+
+        Returns:
+            Dict with yields and spreads
+        """
+        yields = {}
+        indicators = ["YIELD_3M", "YIELD_2Y", "YIELD_5Y", "YIELD_10Y", "YIELD_30Y"]
+
+        for indicator in indicators:
+            data = self.fetch_latest(indicator)
+            if data:
+                yields[indicator.lower()] = data["value"]
+            else:
+                yields[indicator.lower()] = None
+
+        # Calculate spreads
+        y10 = yields.get("yield_10y")
+        y2 = yields.get("yield_2y")
+        y3m = yields.get("yield_3m")
+
+        yields["spread_10y_2y"] = (y10 - y2) if y10 and y2 else None
+        yields["spread_10y_3m"] = (y10 - y3m) if y10 and y3m else None
+        yields["is_inverted"] = yields["spread_10y_2y"] < 0 if yields["spread_10y_2y"] else None
+
+        return yields
+
+    def fetch_inflation_data(self) -> dict[str, float | None]:
+        """Fetch inflation-related indicators.
+
+        Returns:
+            Dict with CPI, PCE, breakeven rates
+        """
+        indicators = ["CPI", "CORE_CPI", "PCE", "BREAKEVEN_5Y", "BREAKEVEN_10Y"]
+        result = {}
+
+        for indicator in indicators:
+            data = self.fetch_latest(indicator)
+            if data:
+                result[indicator.lower()] = data["value"]
+            else:
+                result[indicator.lower()] = None
+
+        return result
+
+    def fetch_fed_funds_data(self) -> dict[str, float | None]:
+        """Fetch Fed funds rate data.
+
+        Returns:
+            Dict with fed funds rate and effective rate
+        """
+        result = {}
+
+        for indicator in ["FEDFUNDS", "EFFR"]:
+            data = self.fetch_latest(indicator)
+            if data:
+                result[indicator.lower()] = data["value"]
+            else:
+                result[indicator.lower()] = None
+
+        return result
