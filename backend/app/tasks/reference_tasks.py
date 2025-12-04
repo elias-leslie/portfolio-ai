@@ -196,6 +196,40 @@ def _update_valuation_metrics(ticker: str, source: str, payload: dict[str, Any])
                 as_of_date,
             ],
         )
+
+        # Dual-write to valuation_metrics table
+        conn.execute(
+            """
+            INSERT INTO valuation_metrics (
+                symbol, as_of_date,
+                pe_ratio_trailing, pe_ratio_forward,
+                ps_ratio, pb_ratio, peg_ratio,
+                dividend_yield, payout_ratio
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (symbol, as_of_date) DO UPDATE SET
+                pe_ratio_trailing = EXCLUDED.pe_ratio_trailing,
+                pe_ratio_forward = EXCLUDED.pe_ratio_forward,
+                ps_ratio = EXCLUDED.ps_ratio,
+                pb_ratio = EXCLUDED.pb_ratio,
+                peg_ratio = EXCLUDED.peg_ratio,
+                dividend_yield = EXCLUDED.dividend_yield,
+                payout_ratio = EXCLUDED.payout_ratio,
+                updated_at = NOW()
+            """,
+            [
+                ticker,
+                as_of_date,
+                metrics["pe_ratio_trailing"],
+                metrics["pe_ratio_forward"],
+                metrics["ps_ratio"],
+                metrics["pb_ratio"],
+                metrics["peg_ratio"],
+                metrics["dividend_yield"],
+                metrics["payout_ratio"],
+            ],
+        )
+
         conn.commit()
 
         logger.info(
@@ -728,6 +762,32 @@ def refresh_financial_health_scores(self: Task) -> dict[str, int | str]:
                                 symbol,
                             ],
                         )
+
+                        # Dual-write to financial_health_scores table
+                        conn.execute(
+                            """
+                            INSERT INTO financial_health_scores (
+                                symbol, as_of_date, f_score, f_score_components, z_score, z_score_zone
+                            )
+                            VALUES (%s, NOW(), %s, %s, %s, %s)
+                            ON CONFLICT (symbol, as_of_date) DO UPDATE SET
+                                f_score = EXCLUDED.f_score,
+                                f_score_components = EXCLUDED.f_score_components,
+                                z_score = EXCLUDED.z_score,
+                                z_score_zone = EXCLUDED.z_score_zone,
+                                updated_at = NOW()
+                            """,
+                            [
+                                symbol,
+                                scores.f_score,
+                                json.dumps(scores.f_score_components)
+                                if scores.f_score_components
+                                else None,
+                                scores.z_score,
+                                scores.z_score_zone,
+                            ],
+                        )
+
                         symbols_updated += 1
                         logger.debug(
                             "financial_health_scores_calculated",

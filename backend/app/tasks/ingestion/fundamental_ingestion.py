@@ -252,6 +252,26 @@ def _insert_short_interest(storage: PortfolioStorage, data: dict, as_of_date: da
         data.get("short_prior_month"),
     ])
 
+    # Dual-write to short_interest_summary table
+    summary_query = """
+        INSERT INTO short_interest_summary (
+            symbol, as_of_date, shares_short, short_ratio, short_percent_of_float
+        ) VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (symbol, as_of_date)
+        DO UPDATE SET
+            shares_short = EXCLUDED.shares_short,
+            short_ratio = EXCLUDED.short_ratio,
+            short_percent_of_float = EXCLUDED.short_percent_of_float,
+            updated_at = NOW()
+    """
+    storage.execute(summary_query, [
+        data["symbol"],
+        as_of_date,
+        data.get("short_shares"),
+        data.get("short_ratio"),
+        data.get("short_percent_of_float"),
+    ])
+
 
 @celery_app.task(bind=True, max_retries=2)
 def ingest_macro_indicators(self) -> dict:
