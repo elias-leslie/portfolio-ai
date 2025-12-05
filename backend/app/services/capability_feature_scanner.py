@@ -90,7 +90,10 @@ class FeatureScanner:
                     f.passes, f.task_file, f.task_section, f.health_status,
                     f.last_verified_at, f.verified_by, f.created_at, f.updated_at,
                     COALESCE(t.total_tasks, 0) as db_total_tasks,
-                    COALESCE(t.completed_tasks, 0) as db_completed_tasks
+                    COALESCE(t.completed_tasks, 0) as db_completed_tasks,
+                    CASE WHEN f.layers IS NULL OR f.layers = '{}' THEN ARRAY['Frontend', 'Backend', 'UI'] ELSE f.layers END as layers,
+                    COALESCE(f.layer_results, '{}'::jsonb) as layer_results,
+                    COALESCE(f.test_count, 0) as test_count
                 FROM feature_capabilities f
                 LEFT JOIN (
                     SELECT
@@ -140,6 +143,9 @@ class FeatureScanner:
             updated_at,
             db_total_tasks,
             db_completed_tasks,
+            layers,
+            layer_results,
+            test_count,
         ) = row
 
         # Use DB tasks if available (all-in-DB approach)
@@ -210,6 +216,9 @@ class FeatureScanner:
             "category": category,
             "description": description,
             "passes": passes,
+            "layers": layers if layers else ["Frontend", "Backend", "UI"],
+            "layer_results": layer_results if layer_results else {},
+            "test_count": test_count if test_count else 0,
             "task_file": task_file,
             "task_section": task_section,
             "task_file_exists": task_file_exists,

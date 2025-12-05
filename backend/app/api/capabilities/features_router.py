@@ -59,6 +59,20 @@ class FeaturePassesUpdate(BaseModel):
     verified_by: str = "manual"
 
 
+class FeatureLayersUpdate(BaseModel):
+    """Request model for updating feature verification layers."""
+
+    layers: list[str]  # e.g., ["UI", "API", "Backend", "DB", "Tasks"]
+
+
+class FeatureLayerResultUpdate(BaseModel):
+    """Request model for updating a single layer's verification result."""
+
+    layer: str  # e.g., "UI", "API", "Backend", "DB", "Tasks"
+    passed: bool
+    evidence: str | None = None
+
+
 class TaskResponse(BaseModel):
     """Response model for a single subtask."""
 
@@ -97,6 +111,9 @@ class FeatureResponse(BaseModel):
     category: str | None
     description: str | None
     passes: bool | None
+    layers: list[str] = []  # Verification layers: Frontend, Backend, UI, API, DB, Tasks
+    layer_results: dict[str, dict] = {}  # Per-layer verification: {"UI": {"passed": true}}
+    test_count: int = 0  # Number of tests covering this feature
     task_file: str | None = None  # Deprecated - for migration
     task_section: str | None = None  # Deprecated - for migration
     task_file_exists: bool = False  # Deprecated - for migration
@@ -155,6 +172,9 @@ def _feature_to_response(f: dict[str, Any]) -> FeatureResponse:
         category=f.get("category"),
         description=f.get("description"),
         passes=f.get("passes"),
+        layers=f.get("layers", []),
+        layer_results=f.get("layer_results", {}),
+        test_count=f.get("test_count", 0),
         task_file=f.get("task_file"),
         task_section=f.get("task_section"),
         task_file_exists=f.get("task_file_exists", False),
@@ -406,6 +426,115 @@ async def update_feature_passes(
     except Exception as e:
         logger.error(
             "update_feature_passes_failed", feature_id=feature_id, error=str(e)
+        )
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.patch("/{feature_id}/layers", response_model=dict[str, Any])
+async def update_feature_layers(
+    feature_id: str, update: FeatureLayersUpdate
+) -> dict[str, Any]:
+    """Update the verification layers for a feature.
+
+    Args:
+        feature_id: Feature ID (e.g., FEAT-001)
+        update: New layers list
+    """
+    conn_mgr = get_connection_manager()
+
+    try:
+        with conn_mgr.connection() as conn:
+            result = conn.execute(
+                """
+                UPDATE feature_capabilities
+                SET layers = %s, updated_at = NOW()
+                WHERE feature_id = %s
+                RETURNING feature_id
+                """,
+                (update.layers, feature_id),
+            ).fetchone()
+
+            if not result:
+                raise HTTPException(
+                    status_code=404, detail=f"Feature {feature_id} not found"
+                )
+
+        logger.info(
+            "feature_layers_updated",
+            feature_id=feature_id,
+            layers=update.layers,
+        )
+
+        return {
+            "status": "updated",
+            "feature_id": feature_id,
+            "layers": update.layers,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "update_feature_layers_failed", feature_id=feature_id, error=str(e)
+        )
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.patch("/{feature_id}/layer-result", response_model=dict[str, Any])
+async def update_feature_layer_result(
+    feature_id: str, update: FeatureLayerResultUpdate
+) -> dict[str, Any]:
+    """Update a single layer's verification result.
+
+    Args:
+        feature_id: Feature ID (e.g., FEAT-001)
+        update: Layer name, passed status, and evidence
+    """
+    conn_mgr = get_connection_manager()
+
+    try:
+        with conn_mgr.connection() as conn:
+            # Update the specific layer in layer_results JSONB
+            result = conn.execute(
+                """
+                UPDATE feature_capabilities
+                SET layer_results = layer_results || %s::jsonb,
+                    updated_at = NOW()
+                WHERE feature_id = %s
+                RETURNING feature_id, layer_results
+                """,
+                (
+                    {update.layer: {"passed": update.passed, "evidence": update.evidence}},
+                    feature_id,
+                ),
+            ).fetchone()
+
+            if not result:
+                raise HTTPException(
+                    status_code=404, detail=f"Feature {feature_id} not found"
+                )
+
+        logger.info(
+            "feature_layer_result_updated",
+            feature_id=feature_id,
+            layer=update.layer,
+            passed=update.passed,
+        )
+
+        return {
+            "status": "updated",
+            "feature_id": feature_id,
+            "layer": update.layer,
+            "passed": update.passed,
+            "evidence": update.evidence,
+            "layer_results": result[1],
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "update_feature_layer_result_failed", feature_id=feature_id, error=str(e)
         )
         raise HTTPException(status_code=500, detail=str(e)) from e
 
