@@ -20,6 +20,7 @@ Implements Anthropic's long-running agent patterns:
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
@@ -453,6 +454,7 @@ async def update_feature_layers(
                 """,
                 (update.layers, feature_id),
             ).fetchone()
+            conn.commit()
 
             if not result:
                 raise HTTPException(
@@ -495,6 +497,9 @@ async def update_feature_layer_result(
     try:
         with conn_mgr.connection() as conn:
             # Update the specific layer in layer_results JSONB
+            layer_data = json.dumps(
+                {update.layer: {"passed": update.passed, "evidence": update.evidence}}
+            )
             result = conn.execute(
                 """
                 UPDATE feature_capabilities
@@ -503,11 +508,9 @@ async def update_feature_layer_result(
                 WHERE feature_id = %s
                 RETURNING feature_id, layer_results
                 """,
-                (
-                    {update.layer: {"passed": update.passed, "evidence": update.evidence}},
-                    feature_id,
-                ),
+                (layer_data, feature_id),
             ).fetchone()
+            conn.commit()
 
             if not result:
                 raise HTTPException(
@@ -535,6 +538,63 @@ async def update_feature_layer_result(
     except Exception as e:
         logger.error(
             "update_feature_layer_result_failed", feature_id=feature_id, error=str(e)
+        )
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+class FeatureTestCountUpdate(BaseModel):
+    """Request model for updating feature test count."""
+
+    test_count: int  # Number of tests covering this feature
+
+
+@router.patch("/{feature_id}/test-count", response_model=dict[str, Any])
+async def update_feature_test_count(
+    feature_id: str, update: FeatureTestCountUpdate
+) -> dict[str, Any]:
+    """Update the test count for a feature.
+
+    Args:
+        feature_id: Feature ID (e.g., FEAT-001)
+        update: New test count
+    """
+    conn_mgr = get_connection_manager()
+
+    try:
+        with conn_mgr.connection() as conn:
+            result = conn.execute(
+                """
+                UPDATE feature_capabilities
+                SET test_count = %s, updated_at = NOW()
+                WHERE feature_id = %s
+                RETURNING feature_id, test_count
+                """,
+                (update.test_count, feature_id),
+            ).fetchone()
+            conn.commit()
+
+            if not result:
+                raise HTTPException(
+                    status_code=404, detail=f"Feature {feature_id} not found"
+                )
+
+        logger.info(
+            "feature_test_count_updated",
+            feature_id=feature_id,
+            test_count=update.test_count,
+        )
+
+        return {
+            "status": "updated",
+            "feature_id": feature_id,
+            "test_count": update.test_count,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "update_feature_test_count_failed", feature_id=feature_id, error=str(e)
         )
         raise HTTPException(status_code=500, detail=str(e)) from e
 
