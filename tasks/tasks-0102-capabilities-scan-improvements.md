@@ -451,56 +451,68 @@
   - Updated workflow commands descriptions
   - Removed WORK_TRACKER.md references
 
-#### Phase D: Verification (IN PROGRESS)
+#### Phase D: Verification (COMPLETE ✅)
 
 - [x] 12.7 Add to Dashboard summary cards
   - **DONE**: Added Features card to CapabilitiesDashboard.tsx
   - Shows: Total count, Verified, Failing, Unreviewed
   - 4-column grid layout with Database, Tasks, Endpoints, Features
-- [ ] 12.8 Audit and populate initial features (~80-120 features)
-  - Systematically review each page/feature
-  - Create comprehensive feature list directly in DB
-  - Current: 14 features migrated, need ~70-100 more
+- [x] 12.8 Audit and populate initial features (~80-120 features)
+  - **DONE**: 122 features populated via parallel Explore agent
+  - Categories: Dashboard (11), Watchlist (17), Portfolio (10), Trading (10), etc.
+  - All features visible at /capabilities → Features tab
 
-- [ ] 12.18 Update /task_it command (.claude/commands/task_it.md)
-  - Creates feature + subtasks directly in DB via API
+- [x] 12.18 Update /task_it command (.claude/commands/task_it.md)
+  - **DONE**: Creates feature + subtasks directly in DB via API
   - No markdown file generation
-  - Remove WORK_TRACKER.md references
+  - Removed WORK_TRACKER.md references
 
-- [ ] 12.19 Update /do_it command (.claude/commands/do_it.md)
-  - Reads features/tasks from DB via API
-  - Updates task completion in DB
+- [x] 12.19 Update /do_it command (.claude/commands/do_it.md)
+  - **DONE**: Reads features from API, toggles subtask completion
   - Sets passes=true when all tasks complete and verified
 
-- [ ] 12.20 Update /check_it command (.claude/commands/check_it.md)
-  - Query DB for task status instead of parsing markdown
-  - Remove sync-tracker.js dependency
+- [x] 12.20 Update /check_it command (.claude/commands/check_it.md)
+  - **DONE**: Queries DB for feature status via API
+  - Removed sync-tracker.js dependency
 
-- [ ] 12.21 Update /pause_it command (.claude/commands/pause_it.md)
-  - Save session state to DB
-  - Update resume instructions to use Features tab
+- [x] 12.21 Update /pause_it command (.claude/commands/pause_it.md)
+  - **DONE**: Uses Features tab for state/resume
+  - No markdown file updates
 
-- [ ] 12.11 Test end-to-end workflow
-  - Test full /task_it → /do_it → /pause_it cycle with DB
+- [x] 12.11 Test end-to-end workflow
+  - **DONE**: E2E test verified full cycle:
+    - Create feature via API ✅
+    - Add subtasks ✅
+    - Toggle completion ✅
+    - Progress tracking (0% → 50% → 100%) ✅
+    - Mark passes=true ✅
+  - Test feature: FEAT-123 "E2E Test Feature"
+
+- [x] 12.N Create /audit_it command (NEW)
+  - **DONE**: `.claude/commands/audit_it.md`
+  - Parallel Explore agents for comprehensive feature discovery
+  - Compare with registry, identify missing/obsolete features
 
 ---
 
-## RESUME POINT (after /clear)
+## TASK COMPLETE ✅
 
-**Run**: `/do_it tasks/tasks-0102-capabilities-scan-improvements.md`
+**Status**: All phases complete
 
-**Status**: Phase D in progress
-
-**Completed**:
+**Summary**:
 - ✅ Phase A: Features tab backbone, migration 079
 - ✅ Phase B: All-in-DB (migration 080, scanner, API, expandable UI)
-- ✅ Phase C: 14 features migrated, WORK_TRACKER archived, CLAUDE.md updated
-- ✅ 12.7: Dashboard Features card added
+- ✅ Phase C: Features migrated, WORK_TRACKER archived, CLAUDE.md updated
+- ✅ Phase D: 122 features populated, 5 commands updated, E2E verified
 
-**Next tasks (in order)**:
-1. 12.8: Populate more features (audit each page)
-2. 12.18-12.21: Update 4 slash commands for all-in-DB
-3. 12.11: End-to-end test
+**New workflow commands**:
+- `/task_it` - Create features via API (all-in-DB)
+- `/do_it` - Execute from Features tab, toggle subtask completion
+- `/check_it` - Query feature status from DB
+- `/pause_it` - Use Features tab for resume
+- `/audit_it` - Comprehensive feature audit with parallel Explore agents
+
+**Feature Registry**: /capabilities → Features tab (122 features, 2 verified)
 
 **Key files modified this session**:
 - `backend/migrations/080_feature_tasks.sql` - subtasks table
