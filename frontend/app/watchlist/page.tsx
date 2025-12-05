@@ -26,25 +26,28 @@ type RiskFilter = "all" | "Low" | "Medium-Low" | "Medium" | "High";
 
 export default function WatchlistPage() {
   const [addSymbolOpen, setAddSymbolOpen] = useState(false);
-  const [styleFilter, setStyleFilter] = useState<StyleFilter>(() => {
-    const saved = localStorage.getItem("watchlist-style-filter");
-    return saved && ["all", "Index", "Trend", "Value", "Swing", "Event"].includes(saved)
-      ? (saved as StyleFilter)
-      : "all";
-  });
-  const [signalFilter, setSignalFilter] = useState<SignalFilter>(() => {
-    const saved = localStorage.getItem("watchlist-signal-filter");
-    return saved && ["all", "BUY", "HOLD", "AVOID"].includes(saved)
-      ? (saved as SignalFilter)
-      : "all";
-  });
-  const [riskFilter, setRiskFilter] = useState<RiskFilter>(() => {
-    const saved = localStorage.getItem("watchlist-risk-filter");
-    return saved && ["all", "Low", "Medium-Low", "Medium", "High"].includes(saved)
-      ? (saved as RiskFilter)
-      : "all";
-  });
+  const [styleFilter, setStyleFilter] = useState<StyleFilter>("all");
+  const [signalFilter, setSignalFilter] = useState<SignalFilter>("all");
+  const [riskFilter, setRiskFilter] = useState<RiskFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  // Load saved filters from localStorage after hydration
+  useEffect(() => {
+    const savedStyle = localStorage.getItem("watchlist-style-filter");
+    if (savedStyle && ["all", "Index", "Trend", "Value", "Swing", "Event"].includes(savedStyle)) {
+      setStyleFilter(savedStyle as StyleFilter);
+    }
+    const savedSignal = localStorage.getItem("watchlist-signal-filter");
+    if (savedSignal && ["all", "BUY", "HOLD", "AVOID"].includes(savedSignal)) {
+      setSignalFilter(savedSignal as SignalFilter);
+    }
+    const savedRisk = localStorage.getItem("watchlist-risk-filter");
+    if (savedRisk && ["all", "Low", "Medium-Low", "Medium", "High"].includes(savedRisk)) {
+      setRiskFilter(savedRisk as RiskFilter);
+    }
+    setIsHydrated(true);
+  }, []);
 
   const { data: watchlistData, isLoading, error } = useWatchlist();
   const refreshMutation = useRefreshWatchlist();
