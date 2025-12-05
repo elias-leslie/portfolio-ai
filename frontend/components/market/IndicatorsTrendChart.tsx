@@ -117,9 +117,9 @@ export function IndicatorsTrendChart() {
                 borderRadius: "8px",
                 fontSize: "12px",
               }}
-              formatter={(value: number, name: string, props: { payload: Record<string, number> }) => {
+              formatter={(value: number, name: string, props: { payload?: Record<string, number> }) => {
                 const config = INDICATOR_CONFIG[name as IndicatorKey];
-                const actualValue = props.payload[`${name}_value`];
+                const actualValue = props.payload?.[`${name}_value`];
                 // Format actual value based on indicator type
                 let formattedValue = "";
                 if (name === "sp500") {

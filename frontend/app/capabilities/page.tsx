@@ -23,6 +23,7 @@ import { InsightCard } from "@/components/capabilities/InsightCard";
 import { CapabilitiesDashboard } from "@/components/capabilities/CapabilitiesDashboard";
 import { GapsOverview } from "@/components/capabilities/GapsOverview";
 import { ApiSourcesOverview } from "@/components/capabilities/ApiSourcesOverview";
+import { FeaturesTab } from "@/components/capabilities/FeaturesTab";
 import { RulesViewer } from "@/components/rules/RulesViewer";
 import {
   RefreshCw,
@@ -37,6 +38,7 @@ import {
   X,
   Cloud,
   BookOpen,
+  CheckSquare,
 } from "lucide-react";
 import {
   fetchCapabilities,
@@ -50,7 +52,7 @@ import {
 import { fetchGapSummary } from "@/lib/api/gaps";
 import { toast } from "sonner";
 
-type TabValue = "dashboard" | "database" | "celery" | "api" | "insights" | "gaps" | "sources" | "rules";
+type TabValue = "dashboard" | "database" | "celery" | "api" | "insights" | "gaps" | "sources" | "rules" | "features";
 
 function CapabilitiesPageContent() {
   const queryClient = useQueryClient();
@@ -359,7 +361,7 @@ function CapabilitiesPageContent() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as TabValue)}>
-          <TabsList className="grid w-full grid-cols-8">
+          <TabsList className="grid w-full grid-cols-9">
             <TabsTrigger value="dashboard">
               Dashboard
             </TabsTrigger>
@@ -410,10 +412,14 @@ function CapabilitiesPageContent() {
               <BookOpen className="mr-2 h-4 w-4" />
               Rules
             </TabsTrigger>
+            <TabsTrigger value="features">
+              <CheckSquare className="mr-2 h-4 w-4" />
+              Features
+            </TabsTrigger>
           </TabsList>
 
           {/* Filters (for capability tabs) */}
-          {activeTab !== "dashboard" && activeTab !== "insights" && activeTab !== "gaps" && activeTab !== "sources" && activeTab !== "rules" && (
+          {activeTab !== "dashboard" && activeTab !== "insights" && activeTab !== "gaps" && activeTab !== "sources" && activeTab !== "rules" && activeTab !== "features" && (
             <div className="space-y-3">
               <div className="flex flex-wrap gap-3">
                 {/* Search */}
@@ -610,6 +616,11 @@ function CapabilitiesPageContent() {
           <TabsContent value="rules">
             <RulesViewer />
           </TabsContent>
+
+          {/* Features Tab */}
+          <TabsContent value="features">
+            <FeaturesTab />
+          </TabsContent>
         </Tabs>
 
         {/* Pagination */}
@@ -618,6 +629,7 @@ function CapabilitiesPageContent() {
           activeTab !== "gaps" &&
           activeTab !== "sources" &&
           activeTab !== "rules" &&
+          activeTab !== "features" &&
           capabilitiesData &&
           capabilitiesData.total > pageSize) ||
           (activeTab === "insights" && insightsData && insightsData.total > pageSize)) && (

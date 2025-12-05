@@ -48,14 +48,16 @@
 │                          PostgreSQL                                  │
 │  db_capabilities | celery_capabilities | api_capabilities           │
 │  capability_insights | trading_gaps | api_sources_registry          │
-│  feature_capabilities (NEW)                                         │
+│  feature_capabilities | feature_tasks (ALL-IN-DB)                   │
 └─────────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                    tasks/*.md (Feature Details)                      │
-│  Linked via task_file + task_section fields                         │
-│  Agent permissions: task_it adds, do_it verifies (passes only)      │
+│                    All-in-DB Task Tracking                           │
+│  feature_capabilities: features with passes status                  │
+│  feature_tasks: subtasks with completion status                     │
+│  Agent permissions: task_it adds, do_it updates passes/completion   │
+│  Single source of truth - no markdown files needed                  │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -294,53 +296,175 @@
 ### 12.0 Features Tab Implementation (Long-Running Agent Patterns)
 
 *Implements Anthropic's long-running agent patterns via capabilities extension*
+*All-in-DB approach: Single source of truth, no markdown task files*
 
-- [ ] 12.1 Create feature_capabilities table (migration)
-  - Fields: feature_id, name, category, description, passes, task_file, task_section
-  - Indexes on feature_id, category, health_status
-  - passes: null=not reviewed, false=failing, true=verified
-- [ ] 12.2 Create capability_feature_scanner.py
-  - Validates task_file exists
-  - Checks task_section completion status
-  - Updates health_status based on passes + task completion
-  - **Key**: Scanner can only modify passes, health_status, last_verified_at
-- [ ] 12.3 Register scanner in capability_tasks.py
-  - Add to scan_all_capabilities task
-  - Add individual scan_feature_capabilities task
-- [ ] 12.4 Create features_router.py API endpoints
-  - GET /api/capabilities/features - List all features
-  - GET /api/capabilities/features/{id} - Get feature detail
-  - POST /api/capabilities/features - Add feature (task_it only)
-  - PATCH /api/capabilities/features/{id}/passes - Update passes (do_it only)
-- [ ] 12.5 Add Features tab to /capabilities UI
-  - New tab alongside existing 8 tabs
-  - Table with: ID, Name, Category, Passes, Health, Task Link
-  - Filters: Category, Health, Passes status
-- [ ] 12.6 Create FeaturesTab.tsx component
-  - Click to expand: Shows linked task section
-  - Color-coded passes status (green/red/gray)
+#### Phase A: Initial Infrastructure (DONE)
+
+- [x] 12.1 Create feature_capabilities table (migration 079)
+  - **DONE**: `backend/migrations/079_feature_capabilities.sql`
+- [x] 12.2 Create capability_feature_scanner.py
+  - **DONE**: `backend/app/services/capability_feature_scanner.py`
+  - **NOTE**: Will be updated in 12.12 to remove markdown parsing
+- [x] 12.3 Register scanner in capability_tasks.py
+  - **DONE**: Added FeatureScanner import and scan_feature_capabilities task
+- [x] 12.4 Create features_router.py API endpoints
+  - **DONE**: `backend/app/api/capabilities/features_router.py`
+  - **NOTE**: Will be extended in 12.13 for subtasks
+- [x] 12.5 Add Features tab to /capabilities UI (9 tabs total)
+  - **DONE**: Updated `frontend/app/capabilities/page.tsx`
+- [x] 12.6 Create FeaturesTab.tsx component
+  - **DONE**: `frontend/components/capabilities/FeaturesTab.tsx`
+  - **NOTE**: Will be updated in 12.14 for expandable rows
+- [x] 12.10 Update CLAUDE.md with feature registry rules
+  - **DONE**: Added "Feature Registry (Long-Running Agent Patterns)" section
+
+#### Phase B: All-in-DB Refactor (TODO)
+
+##### 12.B.0 Scope Discovery (COMPLETE ✅)
+
+**Context**: Significant changes were made in Phase A. Before proceeding, verify current state.
+
+- [x] 12.B.0.1 Run Explore agent (very thorough) on backend changes
+  - ✅ Migration 079 applied: table exists with all columns
+  - ✅ Scanner imports correct in capability_scanner.py and capability_tasks.py
+  - ✅ API routes working: `curl localhost:8000/api/capabilities/features/summary` returns data
+  - ✅ Router order correct: features_router before capabilities_router in __init__.py
+
+- [x] 12.B.0.2 Run Explore agent (very thorough) on frontend changes
+  - ✅ FeaturesTab.tsx exists and compiles (fixed AlertTriangle title→aria-label)
+  - ✅ capabilities page.tsx has 9 tabs with grid-cols-9
+  - ✅ Features tab wired correctly with import and TabsContent
+
+- [x] 12.B.0.3 Verify CLAUDE.md Feature Registry section
+  - ✅ Section exists with agent permissions documented
+  - ⚠️ Contains markdown task file references (will update in Phase C)
+
+- [x] 12.B.0.4 Audit commands that reference markdown/WORK_TRACKER
+  - ✅ **task_it.md**: Creates task files, updates WORK_TRACKER, calls sync-tracker.js
+  - ✅ **do_it.md**: Reads WORK_TRACKER for auto-discovery, parses task files
+  - ✅ **check_it.md**: Runs sync-tracker.js and check.js, handles cleanup
+  - ✅ **pause_it.md**: Updates task file checkboxes, adds pause markers, updates WORK_TRACKER
+  - **Summary**: All 4 commands need major refactor for DB-only approach
+
+- [x] 12.B.0.5 Audit task-manager scripts
+  - ✅ **sync-tracker.js** (397 lines): Parses WORK_TRACKER sections, rebuilds markdown
+  - ✅ **check.js** (941 lines): Orphan cleanup, archive cleanup, conflict detection
+  - **Summary**: Complex logic, need 15+ API endpoints to replace
+
+- [x] 12.B.0.6 Inventory incomplete task files for migration
+  - ✅ **tasks-0096**: 4/5 complete (Task 4 deferred - Rules UI)
+  - ✅ **tasks-0097**: 3/4 complete (Task 4 incomplete - threshold alignment)
+  - ✅ **tasks-0098**: 5/6 complete (Task 4 optional - daily reports)
+  - ✅ **tasks-0099**: 1/3 complete (Tasks 2-3 not started - evolution + validation)
+  - ✅ **tasks-0100**: 0/8 complete (all tasks pending - MCP architecture)
+  - **Total**: 14 features, 50+ subtasks to migrate to DB
+
+- [x] 12.B.0.7 Update this task list with findings
+  - ✅ Phase B scope confirmed: Create feature_tasks table + API
+  - ✅ Phase C is VERY HIGH effort: 4 commands + 2 scripts to update
+  - ✅ Phase D scope confirmed: Populate ~14-80 features
+
+**SCOPE DISCOVERY COMPLETE - Proceeding to Phase B**
+
+---
+
+- [x] 12.12 Create feature_tasks table (migration 080)
+  - **DONE**: `backend/migrations/080_feature_tasks.sql`
+  - Fields: id, feature_id (FK), task_id, description, completed, order_num, timestamps
+  - Progress calculated from: `COUNT(*) FILTER (WHERE completed = true)`
+  - task_file/task_section kept for migration (deprecated)
+- [x] 12.13 Update scanner to use DB only
+  - **DONE**: `backend/app/services/capability_feature_scanner.py`
+  - All-in-DB approach: completion from feature_tasks, fallback to markdown
+  - Added methods: get_tasks(), add_task(), toggle_task(), delete_task()
+- [x] 12.14 Extend API for subtasks
+  - **DONE**: `backend/app/api/capabilities/features_router.py`
+  - GET /api/capabilities/features/{id}/tasks - List subtasks
+  - POST /api/capabilities/features/{id}/tasks - Add subtask
+  - PATCH /api/capabilities/features/{id}/tasks/{task_id} - Toggle completed
+  - DELETE /api/capabilities/features/{id}/tasks/{task_id} - Delete subtask
+- [x] 12.15 Update FeaturesTab.tsx for expandable rows
+  - **DONE**: `frontend/components/capabilities/FeaturesTab.tsx`
+  - Click row to expand/collapse with chevron indicator
+  - Show subtasks with checkboxes when expanded
+  - Inline task completion toggle via API
+  - Progress bar reflects actual task completion (green at 100%)
+
+**Phase B Complete ✅** - All-in-DB architecture implemented and verified.
+
+#### Phase C: Migration & Cleanup (MOSTLY COMPLETE - Commands Deferred)
+
+- [x] 12.16 Migrate existing task files to DB
+  - **DONE**: Created 13 features from incomplete task files:
+    - FEAT-001: Fear & Greed Index Display (Dashboard) - VERIFIED ✓
+    - FEAT-002: Rules Engine UI (tasks-0096 Task 4)
+    - FEAT-003: Validation Threshold Alignment (tasks-0097 Task 4.1)
+    - FEAT-004: LLM Disagreement Dashboard (tasks-0097 Task 4.2)
+    - FEAT-005: Plain-Language Headlines (tasks-0097 Task 4.3)
+    - FEAT-006: Daily Watchlist Reports (tasks-0098 Task 4)
+    - FEAT-007: Strategy Evolution Loop (tasks-0099 Task 2)
+    - FEAT-008: AI Rules Validation Agent (tasks-0099 Task 3)
+    - FEAT-009: MCP Server Core (tasks-0100 Task 2)
+    - FEAT-010: LLM Provider Abstraction (tasks-0100 Task 3)
+    - FEAT-011: Agent State Management (tasks-0100 Task 4)
+    - FEAT-012: Orchestration Patterns (tasks-0100 Task 5)
+    - FEAT-013: Agent Migration to MCP (tasks-0100 Task 6)
+  - **FIXED**: Next.js proxy redirect issue (trailing slash for FastAPI)
+  - All features visible at `/capabilities` → Features tab
+  - Original markdown files preserved (not deleted yet)
+
+- [x] 12.17 Deprecate WORK_TRACKER.md
+  - **DONE**: Archived to `tasks/archive/2025-12/WORK_TRACKER-archived-20251205.md`
+  - Features tab now serves as dashboard
+  - Resume point = first feature with passes=null or incomplete tasks
+
+- [ ] 12.18 Update /task_it command (.claude/commands/task_it.md) **DEFERRED**
+  - Creates feature + subtasks directly in DB via API
+  - No markdown file generation
+  - Remove WORK_TRACKER.md references
+  - **Note**: Complex refactor, defer to separate task
+
+- [ ] 12.19 Update /do_it command (.claude/commands/do_it.md) **DEFERRED**
+  - Reads features/tasks from DB via API
+  - Updates task completion in DB
+  - Sets passes=true when all tasks complete and verified
+  - **Note**: Complex refactor, defer to separate task
+
+- [ ] 12.20 Update /check_it command (.claude/commands/check_it.md) **DEFERRED**
+  - Query DB for task status instead of parsing markdown
+  - Remove sync-tracker.js dependency
+  - **Note**: Complex refactor, defer to separate task
+
+- [ ] 12.21 Update /pause_it command (.claude/commands/pause_it.md) **DEFERRED**
+  - Save session state to DB (or derive from task status)
+  - Update resume instructions to use Features tab
+  - **Note**: Complex refactor, defer to separate task
+
+- [x] 12.22 Deprecate task-manager scripts
+  - **DONE**: Created `.claude/skills/task-manager/DEPRECATED.md`
+  - Scripts preserved but marked as deprecated
+  - Will be removed when commands are updated
+
+- [x] 12.23 Update CLAUDE.md
+  - **DONE**: Updated Feature Registry section for all-in-DB
+  - Updated Work Tracking to reference Features tab
+  - Updated workflow commands descriptions
+  - Removed WORK_TRACKER.md references
+
+#### Phase D: Verification (TODO)
+
 - [ ] 12.7 Add to Dashboard summary cards
   - Features count card
   - Features health breakdown (verified/failing/unreviewed)
 - [ ] 12.8 Audit and populate initial features (~80-120 features)
   - Systematically review each page/feature
-  - Create comprehensive feature list
-- [ ] 12.9 Create category task files for feature details
-  - tasks/tasks-features-dashboard.md
-  - tasks/tasks-features-watchlist.md
-  - tasks/tasks-features-portfolio.md
-  - tasks/tasks-features-trading.md
-  - tasks/tasks-features-agents.md
-  - tasks/tasks-features-status.md
-  - tasks/tasks-features-settings.md
-  - tasks/tasks-features-capabilities.md
-- [ ] 12.10 Update CLAUDE.md with feature registry rules
-  - Agent boundaries: task_it adds, do_it verifies
-  - Feature discovery protocol
-- [ ] 12.11 Test feature verification workflow
-  - Add feature via /task_it
-  - Verify feature via /do_it (passes: null → true)
-  - Scanner detects inconsistencies
+  - Create comprehensive feature list directly in DB
+- [ ] 12.11 Test end-to-end workflow
+  - Add feature via API/UI
+  - Add subtasks
+  - Complete subtasks
+  - Verify feature (passes: null → true)
+  - Scanner validates consistency
 
 ---
 
@@ -380,15 +504,23 @@
 - `frontend/components/capabilities/`
 - `frontend/components/capabilities/FeaturesTab.tsx` **(NEW)**
 
-**Feature Task Files (NEW):**
-- `tasks/tasks-features-dashboard.md`
-- `tasks/tasks-features-watchlist.md`
-- `tasks/tasks-features-portfolio.md`
-- `tasks/tasks-features-trading.md`
-- `tasks/tasks-features-agents.md`
-- `tasks/tasks-features-status.md`
-- `tasks/tasks-features-settings.md`
-- `tasks/tasks-features-capabilities.md`
+**Commands to Update (Phase C):**
+- `.claude/commands/task_it.md` - Create features in DB
+- `.claude/commands/do_it.md` - Read/update from DB
+- `.claude/commands/check_it.md` - Query DB for status
+- `.claude/commands/pause_it.md` - Use DB state
+
+**Scripts to Deprecate (Phase C):**
+- `.claude/skills/task-manager/sync-tracker.js` - Replaced by DB
+- `.claude/skills/task-manager/check.js` - Replaced by DB
+
+**Files to Archive (Phase C):**
+- `tasks/WORK_TRACKER.md` - Replaced by Features tab
+- `tasks/tasks-*.md` (active) - Migrated to DB
+
+**Database Tables:**
+- `feature_capabilities` - Features with passes status
+- `feature_tasks` **(NEW)** - Subtasks with completion status
 
 ---
 
@@ -401,6 +533,9 @@
 - [ ] Performance: Full scan <30s, UI load <2s
 - [ ] Pipeline: Scan → Insights → Gaps runs correctly
 - [ ] Self-healing: Stale entries auto-cleaned
+- [ ] Features tab: Expandable rows show subtasks
 - [ ] Features tab: Corruption protection working (passes field only editable by do_it)
-- [ ] Features tab: Task file linkage working (task_section maps to markdown sections)
+- [ ] Features tab: Subtasks completion updates progress bar
 - [ ] Features tab: Initial features populated (~80-120 features catalogued)
+- [ ] Commands updated: /task_it, /do_it, /check_it, /pause_it work with DB
+- [ ] WORK_TRACKER.md archived, Features tab is single dashboard

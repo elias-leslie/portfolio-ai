@@ -4,15 +4,24 @@ const nextConfig: NextConfig = {
   async rewrites() {
     // Use 127.0.0.1 instead of localhost to avoid IPv6 issues
     // Next.js server will proxy requests to the backend
+    // Note: We handle both with and without trailing slashes to avoid FastAPI redirects
     return [
+      // Routes that need trailing slash (list endpoints)
+      {
+        source: "/api/capabilities/features",
+        destination: "http://127.0.0.1:8000/api/capabilities/features/",
+      },
+      {
+        source: "/api/capabilities/features/summary",
+        destination: "http://127.0.0.1:8000/api/capabilities/features/summary",
+      },
+      // General catch-all for all other API routes
       {
         source: "/api/:path*",
         destination: "http://127.0.0.1:8000/api/:path*",
       },
     ];
   },
-  // Turbopack config (Next.js 16+ default)
-  turbopack: {},
 };
 
 export default nextConfig;

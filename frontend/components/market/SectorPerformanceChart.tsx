@@ -114,9 +114,9 @@ export function SectorPerformanceChart() {
                 borderRadius: "8px",
                 fontSize: "12px",
               }}
-              formatter={(value: number, name: string, props: { payload: Record<string, number> }) => {
+              formatter={(value: number, name: string, props: { payload?: Record<string, number> }) => {
                 const sector = data.sectors.find((s) => s.symbol === name);
-                const price = props.payload[`${name}_price`];
+                const price = props.payload?.[`${name}_price`];
                 const formattedPrice = price?.toFixed(2) ?? "";
                 return [`$${formattedPrice} (${value >= 0 ? "+" : ""}${value.toFixed(1)}%)`, sector?.name || name];
               }}

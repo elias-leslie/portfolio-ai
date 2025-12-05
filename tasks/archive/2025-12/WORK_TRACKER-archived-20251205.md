@@ -20,16 +20,31 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Tier 3: Validation & Evolution** (50% - 2/4 complete)
-   - File: `tasks-0099-tier3-validation-evolution.md`
-   - Started: 2025-12-04 (yesterday)
-   - Last updated: 🔍 REVIEW NEEDED
-   - Next: Task 2 - Implement Strategy Evolution Loop (Section 3.2)
+1. **Capabilities System - Features Tab (Long-Running Agent Patterns)** (0% - 0/13 complete)
+   - File: `tasks-0102-capabilities-scan-improvements.md`
+   - Started: 2025-12-05 (today)
+   - Last updated: Unknown
+   - Next: Task 12.B.0 - Scope Discovery (MANDATORY before Phase B)**
+   - Progress:
+     - [x] Phase A: Initial Infrastructure (12.1-12.6, 12.10) - COMPLETE
+     - [ ] Phase B.0: Scope Discovery - MANDATORY
+     - [ ] Phase B: All-in-DB Refactor (12.12-12.15)
+     - [ ] Phase C: Migration & Cleanup (12.16-12.23)
+     - [ ] Phase D: Verification (12.7-12.8, 12.11)
    - Tasks:
-     - [x] Task 0: Scope Discovery (MANDATORY) - COMPLETE
-     - [x] Task 1: Expose Walk-Forward Testing in Backtest API (Section 3.1) - ✅ COMPLETE
-     - [ ] Task 2: Implement Strategy Evolution Loop (Section 3.2)
-     - [ ] Task 3: AI Rules Validation Agent (Section 3.3)
+     - [ ] Task 0: Scope Discovery & Baseline (MANDATORY)
+     - [ ] Task 1: Dashboard Tab Review
+     - [ ] Task 2: Database Tab Review
+     - [ ] Task 3: Tasks Tab Review
+     - [ ] Task 4: Endpoints Tab Review
+     - [ ] Task 5: Insights Tab Review
+     - [ ] Task 6: Gaps Tab Review
+     - [ ] Task 7: Sources Tab Review
+     - [ ] Task 8: Rules Tab Review
+     - [ ] Task 9: Data Pipeline Verification
+     - [ ] Task 10: Performance Optimization
+     - [ ] Task 11: End-to-End UI Testing
+     - [ ] Task 12: Features Tab Implementation (Long-Running Agent Patterns)
 
 
 ---
@@ -94,24 +109,6 @@
      - [ ] Task 5: Implement Orchestration Patterns
      - [ ] Task 6: Migrate Existing Agents
      - [ ] Task 7: Testing & Documentation
-
-6. **Capabilities System - Comprehensive Review & Optimization** (HIGH, 0/11 tasks)
-   - File: `tasks-0102-capabilities-scan-improvements.md`
-   - Created: 2025-12-05
-   - Goal: End-to-end review of ALL 8 tabs (Dashboard, Database, Tasks, Endpoints, Insights, Gaps, Sources, Rules). Verify data accuracy, optimize performance, E2E UI testing.
-   - Tasks:
-     - [ ] Task 0: Scope Discovery & Baseline
-     - [ ] Task 1: Dashboard Tab Review
-     - [ ] Task 2: Database Tab Review
-     - [ ] Task 3: Tasks Tab Review
-     - [ ] Task 4: Endpoints Tab Review (partially done - router prefix fixed)
-     - [ ] Task 5: Insights Tab Review
-     - [ ] Task 6: Gaps Tab Review
-     - [ ] Task 7: Sources Tab Review
-     - [ ] Task 8: Rules Tab Review
-     - [ ] Task 9: Data Pipeline Verification
-     - [ ] Task 10: Performance Optimization (<30s scan, <2s UI)
-     - [ ] Task 11: End-to-End UI Testing (all 8 tabs)
 
 
 ---

@@ -186,7 +186,7 @@ export default function WatchlistPage() {
             <DisagreementAlert
               key={disagreement.review_pair_id}
               symbol={disagreement.symbol}
-              severity={disagreement.disagreement_severity}
+              severity={disagreement.disagreement_severity as "minor" | "major"}
               geminiReview={disagreement.gemini_review}
               claudeReview={disagreement.claude_review}
               agreementScore={disagreement.agreement_score}
