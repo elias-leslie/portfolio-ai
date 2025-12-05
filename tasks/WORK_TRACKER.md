@@ -95,17 +95,19 @@
      - [ ] Task 6: Migrate Existing Agents
      - [ ] Task 7: Testing & Documentation
 
-6. **Capabilities Scan System Improvements** (MEDIUM, 0/5 tasks)
+6. **Capabilities Scan System Improvements** (MEDIUM, 0/7 tasks)
    - File: `tasks-0102-capabilities-scan-improvements.md`
    - Created: 2025-12-05
-   - Goal: Make capabilities scan accurate, fast (<30s), and self-healing. Fix orphan detection, improve frontend usage patterns, add gap analysis.
+   - Goal: Make capabilities scan accurate, fast (<30s), and self-healing. Audit data quality, add missing context, fix orphan detection.
    - Tasks:
      - [ ] Task 0: Scope Discovery (MANDATORY)
      - [ ] Task 1: Improve Frontend Usage Detection
      - [ ] Task 2: Optimize Scan Performance
      - [ ] Task 3: Improve Health Status Logic
      - [ ] Task 4: Ensure Scheduled Execution
-     - [ ] Task 5: Testing & Verification
+     - [ ] Task 5: Data Quality Audit (CRITICAL) - verify scan data is accurate and useful
+     - [ ] Task 6: Add Missing Contextual Data - error context, freshness alerts, cross-refs
+     - [ ] Task 7: Testing & Verification - validate accuracy, user acceptance tests
 
 
 ---

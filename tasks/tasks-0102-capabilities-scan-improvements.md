@@ -102,16 +102,60 @@ Issues discovered during /polish_it:
   - "Scan System" button should be prominent
   - Show scan progress/status
 
-### 5.0 Testing & Verification
+### 5.0 Data Quality Audit (CRITICAL)
 
-- [ ] 5.1 Write unit tests for frontend detection patterns
+- [ ] 5.1 Audit API endpoint data - what's captured vs what's useful
+  - Current: endpoint_path, http_method, category, depends_on_tables, health_status
+  - Missing? Request count (actual usage), error rate, avg response time
+  - Missing? Last called timestamp, caller context (which frontend pages)
+  - Missing? Parameter types, return types, authentication required
+- [ ] 5.2 Audit Celery task data - is it actionable?
+  - Current: task_name, schedule, last_run, success_rate, populates_tables
+  - Missing? Last error message, retry count, queue depth
+  - Missing? Dependencies between tasks (task A must run before B)
+  - Missing? Resource usage (memory, CPU, duration trend)
+- [ ] 5.3 Audit DB table data - what insights matter?
+  - Current: row_count, freshness, completeness_pct, columns
+  - Missing? Growth rate (rows/day), storage size
+  - Missing? Query patterns (which tables queried together)
+  - Missing? Data quality issues (nulls, duplicates, orphans)
+- [ ] 5.4 Gap analysis - what questions can't the UI answer?
+  - "Why is this endpoint slow?" - need response time data
+  - "Is this task actually running?" - need real-time status
+  - "What data is stale?" - need freshness alerts
+  - "What's broken?" - need error aggregation
+
+### 6.0 Add Missing Contextual Data
+
+- [ ] 6.1 Add request metrics to API endpoints (if feasible)
+  - Middleware to track: request count, error rate, p50/p95 latency
+  - Store in api_capabilities or separate metrics table
+  - Consider: Is this already tracked elsewhere? (logs, APM)
+- [ ] 6.2 Add error context to Celery tasks
+  - Capture last_error_message, last_error_at
+  - Link to maintenance_log for full history
+- [ ] 6.3 Add freshness alerts
+  - Flag tables where days_since_update > expected_freshness
+  - Show prominently in UI (not buried in list)
+- [ ] 6.4 Add cross-reference insights
+  - "Endpoint X depends on table Y which is stale"
+  - "Task A populates table B but hasn't run in 3 days"
+
+### 7.0 Testing & Verification
+
+- [ ] 7.1 Write unit tests for frontend detection patterns
   - Test all regex patterns against real code snippets
-- [ ] 5.2 Add integration test for full scan
-  - Run scan, verify no false positives
-  - Verify known endpoints detected correctly
-- [ ] 5.3 Performance benchmark test
+- [ ] 7.2 Validate scan accuracy
+  - Pick 10 random endpoints - verify health_status is correct
+  - Pick 10 random tasks - verify schedule and last_run accurate
+  - Pick 10 random tables - verify row_count and freshness
+- [ ] 7.3 User acceptance test
+  - Can you answer: "What's broken right now?"
+  - Can you answer: "What data is stale?"
+  - Can you answer: "What code is unused?"
+- [ ] 7.4 Performance benchmark
   - Assert scan < 30s
-  - Log timing breakdown
+  - Log timing breakdown by scanner
 
 ---
 
