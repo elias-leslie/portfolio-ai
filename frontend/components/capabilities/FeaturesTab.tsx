@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   Table,
   TableBody,
@@ -108,8 +109,8 @@ export function FeaturesTab() {
       if (!response.ok) throw new Error("Failed to toggle task");
       // Invalidate queries to refresh data
       queryClient.invalidateQueries({ queryKey: ["features"] });
-    } catch (error) {
-      console.error("Failed to toggle task:", error);
+    } catch {
+      toast.error("Failed to toggle task completion");
     }
   };
 
@@ -298,9 +299,8 @@ export function FeaturesTab() {
                 const hasTasks = feature.tasks && feature.tasks.length > 0;
 
                 return (
-                  <>
+                  <Fragment key={feature.feature_id}>
                     <TableRow
-                      key={feature.feature_id}
                       className={hasTasks ? "cursor-pointer hover:bg-muted/50" : ""}
                       onClick={() => hasTasks && toggleRow(feature.feature_id)}
                     >
@@ -408,7 +408,7 @@ export function FeaturesTab() {
                         </TableCell>
                       </TableRow>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
             </TableBody>

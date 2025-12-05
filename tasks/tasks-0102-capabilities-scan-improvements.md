@@ -392,7 +392,7 @@
 
 **Phase B Complete ✅** - All-in-DB architecture implemented and verified.
 
-#### Phase C: Migration & Cleanup (MOSTLY COMPLETE - Commands Deferred)
+#### Phase C: Migration & Cleanup (COMPLETE ✅)
 
 - [x] 12.16 Migrate existing task files to DB
   - **DONE**: Created 13 features from incomplete task files:
@@ -417,28 +417,6 @@
   - **DONE**: Archived to `tasks/archive/2025-12/WORK_TRACKER-archived-20251205.md`
   - Features tab now serves as dashboard
   - Resume point = first feature with passes=null or incomplete tasks
-
-- [ ] 12.18 Update /task_it command (.claude/commands/task_it.md) **DEFERRED**
-  - Creates feature + subtasks directly in DB via API
-  - No markdown file generation
-  - Remove WORK_TRACKER.md references
-  - **Note**: Complex refactor, defer to separate task
-
-- [ ] 12.19 Update /do_it command (.claude/commands/do_it.md) **DEFERRED**
-  - Reads features/tasks from DB via API
-  - Updates task completion in DB
-  - Sets passes=true when all tasks complete and verified
-  - **Note**: Complex refactor, defer to separate task
-
-- [ ] 12.20 Update /check_it command (.claude/commands/check_it.md) **DEFERRED**
-  - Query DB for task status instead of parsing markdown
-  - Remove sync-tracker.js dependency
-  - **Note**: Complex refactor, defer to separate task
-
-- [ ] 12.21 Update /pause_it command (.claude/commands/pause_it.md) **DEFERRED**
-  - Save session state to DB (or derive from task status)
-  - Update resume instructions to use Features tab
-  - **Note**: Complex refactor, defer to separate task
 
 - [x] 12.22 Deprecate task-manager scripts
   - **DONE**: Created `.claude/skills/task-manager/DEPRECATED.md`

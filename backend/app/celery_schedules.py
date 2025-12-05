@@ -437,6 +437,18 @@ def get_beat_schedule() -> dict[str, object]:
             # - Enables AI-powered monitoring and gap detection
             # - Critical for preventing AI agents from breaking features
         },
+        "scan-feature-capabilities": {
+            "task": "scan_feature_capabilities",
+            "schedule": crontab(hour=3, minute=5),  # Daily at 03:05 UTC
+            "options": {"expires": 1800},  # Task expires after 30 minutes
+            # Notes:
+            # - Runs daily at 03:05 UTC (5 minutes after system capability scan)
+            # - Scans feature_capabilities and feature_tasks tables
+            # - Calculates completion percentages from subtasks
+            # - Updates health_status (active/suspect/orphaned)
+            # - Detects inconsistencies (passes=true but tasks incomplete)
+            # - Enables /capabilities → Features tab monitoring
+        },
         "analyze-capabilities": {
             "task": "analyze_capabilities",
             "schedule": crontab(hour=3, minute=15),  # Daily at 03:15 UTC (15 min after scan)
