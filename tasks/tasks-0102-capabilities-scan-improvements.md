@@ -1,194 +1,330 @@
-# Task List: Capabilities Scan System Improvements
+# Task List: Capabilities System - Comprehensive Review & Optimization
 
 **Source**: User request via /task_it + /polish_it findings
 **Complexity**: Complex
-**Effort**: MEDIUM
-**Environment**: Local Dev (auto-detected)
+**Effort**: HIGH
+**Environment**: Local Dev
 **Created**: 2025-12-05 09:10
+**Updated**: 2025-12-05 09:30
 
 ---
 
 ## Summary
 
-**Goal**: Make the capabilities scan system accurate, fast (<30s), and self-healing so orphan detection and health status are always correct without manual intervention.
+**Goal**: Complete end-to-end review, optimization, and verification of the entire Capabilities system - UI, backend, scanners, tasks, and database. Ensure all 8 tabs work correctly with accurate, fresh data.
 
-**Approach**: Review all three scanners (API, Celery, DB), fix frontend detection patterns, add comprehensive cleanup logic, optimize query performance, and ensure scheduled execution.
+**Scope**: ALL components of /capabilities page:
+1. Dashboard (summary cards, health overview)
+2. Database (78 tables)
+3. Tasks (60 background tasks)
+4. Endpoints (58 API endpoints)
+5. Insights (AI-generated findings)
+6. Gaps (trading capability gaps)
+7. Sources (data providers)
+8. Rules (trading rules)
 
-**Scope Discovery**: Required - need to audit all scanner code and frontend API call patterns
+**Approach**: Audit each component, verify data accuracy, fix issues, optimize performance, add E2E tests.
 
 ---
 
-## Background
+## Architecture Overview
 
-Issues discovered during /polish_it:
-1. API scanner didn't include router prefix in endpoint paths (FIXED)
-2. Frontend usage detection missed template literal patterns
-3. Orphan detection had false positives
-4. Cleanup logic was missing from API scanner (FIXED)
-5. No performance benchmarking
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    /capabilities UI                          │
+├─────────┬─────────┬─────────┬─────────┬─────────┬──────────┤
+│Dashboard│Database │ Tasks   │Endpoints│Insights │ Gaps     │
+│         │         │         │         │         │          │
+│ Sources │ Rules   │         │         │         │          │
+└────┬────┴────┬────┴────┬────┴────┬────┴────┬────┴────┬─────┘
+     │         │         │         │         │         │
+┌────▼────┐┌───▼───┐┌────▼────┐┌───▼────┐┌───▼────┐┌──▼─────┐
+│db_caps  ││celery ││api_caps ││insights││gaps    ││sources │
+│scanner  ││scanner││scanner  ││analyzer││analyzer││registry│
+└────┬────┘└───┬───┘└────┬────┘└───┬────┘└───┬────┘└───┬────┘
+     │         │         │         │         │         │
+┌────▼─────────▼─────────▼─────────▼─────────▼─────────▼────┐
+│                     PostgreSQL                            │
+│  db_capabilities | celery_capabilities | api_capabilities │
+│  capability_insights | trading_gaps | api_sources_registry│
+└───────────────────────────────────────────────────────────┘
+```
 
 ---
 
 ## Tasks
 
-### 0.0 Scope Discovery (MANDATORY)
+### 0.0 Scope Discovery & Baseline (MANDATORY)
 
-- [ ] 0.1 Audit all scanner implementations
-  - Files: capability_api_scanner.py, capability_celery_scanner.py, capability_db_scanner.py
-  - Check: Cleanup logic, health status calculation, frontend detection
-- [ ] 0.2 Audit frontend API call patterns
-  - Search frontend/ for all API call patterns (fetch, axios, useSWR, api.*)
-  - Identify patterns not currently detected
-- [ ] 0.3 Benchmark current scan performance
-  - Time each scanner individually
-  - Identify slowest operations
-- [ ] 0.4 Checkpoint: Document findings
-  - Current scan time: [TBD]
-  - Missing patterns: [TBD]
-  - Performance bottlenecks: [TBD]
+- [ ] 0.1 Document current state of each tab
+  - Screenshot each tab, note row counts
+  - Record last_scanned_at timestamps
+  - Note any visible errors/warnings
+- [ ] 0.2 Identify all backend components
+  - Scanners: capability_db_scanner.py, capability_celery_scanner.py, capability_api_scanner.py
+  - Analyzers: ai_analyzer.py, gap_analysis_tasks.py
+  - APIs: capabilities_router.py, insights_router.py, gaps_router.py
+  - Tasks: capability_tasks.py, maintenance_tasks.py
+- [ ] 0.3 Verify scheduled tasks exist
+  - Check celery_schedules.py for all capability-related tasks
+  - Verify execution frequency
+- [ ] 0.4 Baseline performance
+  - Time full scan execution
+  - Note any slow queries
 
-### 1.0 Improve Frontend Usage Detection
+### 1.0 Dashboard Tab Review
 
-- [ ] 1.1 Add template literal detection
-  - Pattern: `` `${API_BASE}/api/path` ``
-  - Pattern: `` `${baseUrl}/path/${id}` ``
-- [ ] 1.2 Add useSWR hook detection
-  - Pattern: `useSWR('/api/path'...)`
-  - Pattern: `useSWR(\`/api/${path}\`...)`
-- [ ] 1.3 Add TanStack Query detection
-  - Pattern: `useQuery(['key', '/api/path']...)`
-- [ ] 1.4 Add custom API client patterns
-  - Pattern: `api.get('/path')`, `apiClient.post('/path')`
-- [ ] 1.5 Test with known endpoints that should be detected
+- [ ] 1.1 Verify summary cards are accurate
+  - Database Tables count matches actual
+  - Background Tasks count matches actual
+  - API Endpoints count matches actual
+  - Health status breakdown is correct
+- [ ] 1.2 Verify "Recent Critical & High Priority Insights"
+  - Are insights fresh (not stale)?
+  - Do they link to correct items?
+  - Is severity classification correct?
+- [ ] 1.3 Test "Scan System" button
+  - Does it trigger scan?
+  - Does UI update after scan?
+  - Is there progress indication?
 
-### 2.0 Optimize Scan Performance
+### 2.0 Database Tab Review
 
-- [ ] 2.1 Profile current scan operations
-  - Use cProfile or timing decorators
-  - Identify N+1 queries
-- [ ] 2.2 Batch database operations
-  - Group INSERTs instead of one-by-one commits
-  - Use executemany where possible
-- [ ] 2.3 Cache file reads
-  - Don't re-read same file multiple times
-  - Cache frontend file contents during scan
-- [ ] 2.4 Parallelize independent scans
-  - Consider running DB, Celery, API scans concurrently
-- [ ] 2.5 Target: Scan completes in <30s
+- [ ] 2.1 Verify table list is complete
+  - Compare against actual `\dt` in psql
+  - No missing tables
+  - No phantom/dropped tables
+- [ ] 2.2 Verify row counts are accurate
+  - Spot-check 10 random tables
+  - Compare UI count vs `SELECT COUNT(*)`
+- [ ] 2.3 Verify freshness data
+  - Are date_range_start/end correct?
+  - Is days_since_update accurate?
+  - Is freshness_status (fresh/stale/critical) correct?
+- [ ] 2.4 Verify health status logic
+  - Active: Has data, recently updated
+  - Suspect: Low completeness or stale
+  - Orphaned: No references
+  - Legacy: Deprecated
+- [ ] 2.5 Test filtering and search
+  - Category filter works
+  - Health filter works
+  - Search finds tables
 
-### 3.0 Improve Health Status Logic
+### 3.0 Tasks Tab Review
 
-- [ ] 3.1 Review API health status criteria
-  - Active: Has frontend callers OR has table dependencies
-  - Orphaned: No callers AND no dependencies
-  - Legacy: Exists but deprecated annotation
-  - Suspect: Has issues (errors, slow, etc.)
-- [ ] 3.2 Add "suspect" detection for APIs
-  - Check for error rates from logs
-  - Check for slow response times
-- [ ] 3.3 Cross-reference with actual usage
-  - Check request logs if available
-  - Consider adding request counting middleware
+- [ ] 3.1 Verify task list is complete
+  - Compare against celery_schedules.py beat_schedule
+  - No missing scheduled tasks
+  - No phantom/removed tasks
+- [ ] 3.2 Verify schedule information
+  - Crontab/interval correct
+  - Next run time calculated correctly
+- [ ] 3.3 Verify execution metrics
+  - last_run_at matches reality
+  - success_count_7d / failure_count_7d accurate
+  - success_rate_pct calculated correctly
+- [ ] 3.4 Verify health status logic
+  - Active: Running on schedule, good success rate
+  - Legacy: Old/deprecated tasks
+  - Orphaned: Not in beat_schedule but still registered
+- [ ] 3.5 Verify populates_tables linkage
+  - Are table dependencies correct?
+  - Cross-reference with actual INSERT statements
 
-### 4.0 Ensure Scheduled Execution & Data Pipeline
+### 4.0 Endpoints Tab Review
 
-- [ ] 4.1 Verify full data pipeline is scheduled
-  - Task 1: `scan_all_capabilities` - scans DB/Tasks/Endpoints
-  - Task 2: `analyze_capabilities_ai` - generates Insights (ai_analyzer.py)
-  - Task 3: `analyze_trading_gaps` - updates Gaps (gap_analysis_tasks.py)
-  - Verify: All 3 run in sequence (scan → insights → gaps)
-- [ ] 4.2 Add health check for scan freshness
-  - Alert if last_scanned_at > 24h ago
-  - Show in /capabilities dashboard
-- [ ] 4.3 Verify Insights generation is working
-  - Check: Are new insights being generated?
-  - Check: Is AI analyzer configured and running?
-  - Check: What triggers insight generation?
-- [ ] 4.4 Verify Gaps analysis is working
-  - Check: Are gaps being identified from scan data?
-  - Check: Is gap_analysis_tasks running on schedule?
+- [ ] 4.1 Verify endpoint list is complete
+  - Compare against actual FastAPI routes
+  - All routers included (api/, capabilities/, etc.)
+  - Router prefixes correctly applied
+- [ ] 4.2 Verify depends_on_tables
+  - Spot-check 10 endpoints
+  - Do detected tables match actual SQL queries?
+- [ ] 4.3 Verify frontend_callers detection
+  - Are template literals detected?
+  - Are useSWR calls detected?
+  - Are API client calls detected?
+- [ ] 4.4 Verify health status logic
+  - Active: Has frontend callers OR table deps
+  - Orphaned: No callers AND no deps
+  - Fix any false positives
+- [ ] 4.5 Fix router prefix bug (DONE)
+  - ✅ Already fixed in this session
 
-### 5.0 Data Quality Audit (CRITICAL)
+### 5.0 Insights Tab Review
 
-- [ ] 5.1 Audit API endpoint data - what's captured vs what's useful
-  - Current: endpoint_path, http_method, category, depends_on_tables, health_status
-  - Missing? Request count (actual usage), error rate, avg response time
-  - Missing? Last called timestamp, caller context (which frontend pages)
-  - Missing? Parameter types, return types, authentication required
-- [ ] 5.2 Audit Celery task data - is it actionable?
-  - Current: task_name, schedule, last_run, success_rate, populates_tables
-  - Missing? Last error message, retry count, queue depth
-  - Missing? Dependencies between tasks (task A must run before B)
-  - Missing? Resource usage (memory, CPU, duration trend)
-- [ ] 5.3 Audit DB table data - what insights matter?
-  - Current: row_count, freshness, completeness_pct, columns
-  - Missing? Growth rate (rows/day), storage size
-  - Missing? Query patterns (which tables queried together)
-  - Missing? Data quality issues (nulls, duplicates, orphans)
-- [ ] 5.4 Gap analysis - what questions can't the UI answer?
-  - "Why is this endpoint slow?" - need response time data
-  - "Is this task actually running?" - need real-time status
-  - "What data is stale?" - need freshness alerts
-  - "What's broken?" - need error aggregation
+- [ ] 5.1 Verify insights are being generated
+  - Check last insight timestamp
+  - Verify AI analyzer is running
+- [ ] 5.2 Verify insight quality
+  - Are insights actionable?
+  - Is severity (CRITICAL/HIGH/MEDIUM/LOW) appropriate?
+  - Do insights link to correct capabilities?
+- [ ] 5.3 Verify insight categories
+  - db: Database issues
+  - celery: Task issues
+  - api: Endpoint issues
+  - missing: Missing data
+- [ ] 5.4 Test insight status workflow
+  - pending → acknowledged → resolved
+  - Status changes persist
+- [ ] 5.5 Check for stale/duplicate insights
+  - Old insights that no longer apply
+  - Duplicate entries for same issue
 
-### 6.0 Add Missing Contextual Data
+### 6.0 Gaps Tab Review
 
-- [ ] 6.1 Add request metrics to API endpoints (if feasible)
-  - Middleware to track: request count, error rate, p50/p95 latency
-  - Store in api_capabilities or separate metrics table
-  - Consider: Is this already tracked elsewhere? (logs, APM)
-- [ ] 6.2 Add error context to Celery tasks
-  - Capture last_error_message, last_error_at
-  - Link to maintenance_log for full history
-- [ ] 6.3 Add freshness alerts
-  - Flag tables where days_since_update > expected_freshness
-  - Show prominently in UI (not buried in list)
-- [ ] 6.4 Add cross-reference insights
-  - "Endpoint X depends on table Y which is stale"
-  - "Task A populates table B but hasn't run in 3 days"
+- [ ] 6.1 Verify gaps are being identified
+  - Check gap_analysis_tasks execution
+  - Are new gaps being detected?
+- [ ] 6.2 Verify gap definitions
+  - Are GAP-XXX codes documented?
+  - Do gaps link to relevant capabilities?
+- [ ] 6.3 Verify gap resolution tracking
+  - Can gaps be marked resolved?
+  - Resolution status persists
+- [ ] 6.4 Check gap criticality
+  - CRITICAL/HIGH/MEDIUM/LOW appropriate?
+  - Priority ordering correct?
 
-### 7.0 Testing & Verification
+### 7.0 Sources Tab Review
 
-- [ ] 7.1 Write unit tests for frontend detection patterns
-  - Test all regex patterns against real code snippets
-- [ ] 7.2 Validate scan accuracy
-  - Pick 10 random endpoints - verify health_status is correct
-  - Pick 10 random tasks - verify schedule and last_run accurate
-  - Pick 10 random tables - verify row_count and freshness
-- [ ] 7.3 User acceptance test
-  - Can you answer: "What's broken right now?"
-  - Can you answer: "What data is stale?"
-  - Can you answer: "What code is unused?"
-- [ ] 7.4 Performance benchmark
-  - Assert scan < 30s
-  - Log timing breakdown by scanner
+- [ ] 7.1 Verify sources list
+  - All data providers shown
+  - Configuration accurate
+- [ ] 7.2 Verify source health
+  - API key status correct
+  - Rate limit info accurate
+  - Last success timestamp correct
+- [ ] 7.3 Test source details expansion
+  - Endpoints list complete
+  - GAP coverage accurate
+
+### 8.0 Rules Tab Review
+
+- [ ] 8.1 Verify rules list
+  - Trading rules from config loaded
+  - Rule definitions accurate
+- [ ] 8.2 Verify rule validation
+  - Rules being validated against trades
+  - Violation detection working
+- [ ] 8.3 Test rule editing (if applicable)
+  - Can rules be modified?
+  - Changes persist
+
+### 9.0 Data Pipeline Verification
+
+- [ ] 9.1 Verify scan → insights → gaps pipeline
+  - scan_all_capabilities runs first
+  - analyze_capabilities_ai runs after scan
+  - analyze_trading_gaps runs after insights
+- [ ] 9.2 Verify cleanup logic
+  - Stale entries removed on scan (API scanner ✅)
+  - Stale entries removed (Celery scanner ✅)
+  - Stale entries removed (DB scanner ✅)
+- [ ] 9.3 Verify scheduled execution
+  - All tasks in beat_schedule
+  - Appropriate frequency
+- [ ] 9.4 Add missing pipeline connections
+  - Insights should trigger on scan completion
+  - Gaps should trigger on insights completion
+
+### 10.0 Performance Optimization
+
+- [ ] 10.1 Benchmark current performance
+  - Full scan time: [TBD] (target <30s)
+  - UI load time: [TBD] (target <2s)
+  - Individual tab load: [TBD]
+- [ ] 10.2 Optimize slow queries
+  - Profile DB queries
+  - Add indexes if needed
+- [ ] 10.3 Batch database operations
+  - Avoid N+1 queries
+  - Use bulk inserts
+- [ ] 10.4 Cache expensive computations
+  - Frontend file scanning
+  - Regex compilations
+
+### 11.0 End-to-End UI Testing
+
+- [ ] 11.1 Test Dashboard tab
+  - Loads without errors
+  - Data is current (not stale)
+  - Scan button works
+- [ ] 11.2 Test Database tab
+  - Table list loads
+  - Filters work
+  - Click-through to details works
+- [ ] 11.3 Test Tasks tab
+  - Task list loads
+  - Schedule info accurate
+  - Metrics display correctly
+- [ ] 11.4 Test Endpoints tab
+  - Endpoint list loads
+  - Health status correct (no false orphans)
+  - Dependencies shown
+- [ ] 11.5 Test Insights tab
+  - Insights load
+  - Status changes work
+  - Filtering works
+- [ ] 11.6 Test Gaps tab
+  - Gaps load
+  - Resolution workflow works
+- [ ] 11.7 Test Sources tab
+  - Sources load
+  - Details expand correctly
+- [ ] 11.8 Test Rules tab
+  - Rules load
+  - Validation info shown
+- [ ] 11.9 Console error check
+  - No JavaScript errors
+  - No failed API calls
+  - No hydration errors
 
 ---
 
-## Verification
+## Already Fixed (This Session)
 
-- [ ] Functional: All 3 scanners work correctly, no false positives
-- [ ] Performance: Full scan completes in <30s
-- [ ] Self-healing: Stale entries auto-cleaned on each scan
-- [ ] Tests: Unit tests for pattern detection
-- [ ] Quality: ~/portfolio-ai/scripts/lint.sh passes
-- [ ] UI: /capabilities page shows accurate data
+1. ✅ Router prefix now included in API endpoint paths
+2. ✅ Self-healing cleanup added to API scanner
+3. ✅ Manual DB fix for existing orphan entries
+4. ✅ Orphaned count reduced from 6 to 0
 
 ---
 
-## Files to Modify
+## Files Reference
 
-- `backend/app/services/capability_api_scanner.py` - Frontend detection, performance
-- `backend/app/services/capability_celery_scanner.py` - Review cleanup logic
-- `backend/app/services/capability_db_scanner.py` - Review cleanup logic
-- `backend/app/tasks/capability_tasks.py` - Performance optimization
-- `backend/app/celery_schedules.py` - Verify scheduling
-- `frontend/app/capabilities/page.tsx` - Scan status UI (optional)
+**Scanners:**
+- `backend/app/services/capability_db_scanner.py`
+- `backend/app/services/capability_celery_scanner.py`
+- `backend/app/services/capability_api_scanner.py`
+
+**Analyzers:**
+- `backend/app/services/ai_analyzer.py`
+- `backend/app/tasks/gap_analysis_tasks.py`
+
+**APIs:**
+- `backend/app/api/capabilities/` (router files)
+- `backend/app/api/gaps.py`
+- `backend/app/api/sources.py`
+
+**Tasks:**
+- `backend/app/tasks/capability_tasks.py`
+- `backend/app/celery_schedules.py`
+
+**Frontend:**
+- `frontend/app/capabilities/page.tsx`
+- `frontend/components/capabilities/`
 
 ---
 
-## Already Fixed (from this session)
+## Verification Checklist
 
-1. Router prefix now included in endpoint paths
-2. Self-healing cleanup added to API scanner
-3. Manual DB fix for existing orphan entries
+- [ ] All 8 tabs load without errors
+- [ ] Data is fresh (updated within 24h)
+- [ ] No false positives (orphaned items that aren't)
+- [ ] No missing data (items that should appear but don't)
+- [ ] Performance: Full scan <30s, UI load <2s
+- [ ] Pipeline: Scan → Insights → Gaps runs correctly
+- [ ] Self-healing: Stale entries auto-cleaned

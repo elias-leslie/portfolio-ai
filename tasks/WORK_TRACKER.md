@@ -95,19 +95,23 @@
      - [ ] Task 6: Migrate Existing Agents
      - [ ] Task 7: Testing & Documentation
 
-6. **Capabilities Scan System Improvements** (MEDIUM, 0/7 tasks)
+6. **Capabilities System - Comprehensive Review & Optimization** (HIGH, 0/11 tasks)
    - File: `tasks-0102-capabilities-scan-improvements.md`
    - Created: 2025-12-05
-   - Goal: Make capabilities scan accurate, fast (<30s), and self-healing. Audit data quality, add missing context, fix orphan detection.
+   - Goal: End-to-end review of ALL 8 tabs (Dashboard, Database, Tasks, Endpoints, Insights, Gaps, Sources, Rules). Verify data accuracy, optimize performance, E2E UI testing.
    - Tasks:
-     - [ ] Task 0: Scope Discovery (MANDATORY)
-     - [ ] Task 1: Improve Frontend Usage Detection
-     - [ ] Task 2: Optimize Scan Performance
-     - [ ] Task 3: Improve Health Status Logic
-     - [ ] Task 4: Ensure Scheduled Execution
-     - [ ] Task 5: Data Quality Audit (CRITICAL) - verify scan data is accurate and useful
-     - [ ] Task 6: Add Missing Contextual Data - error context, freshness alerts, cross-refs
-     - [ ] Task 7: Testing & Verification - validate accuracy, user acceptance tests
+     - [ ] Task 0: Scope Discovery & Baseline
+     - [ ] Task 1: Dashboard Tab Review
+     - [ ] Task 2: Database Tab Review
+     - [ ] Task 3: Tasks Tab Review
+     - [ ] Task 4: Endpoints Tab Review (partially done - router prefix fixed)
+     - [ ] Task 5: Insights Tab Review
+     - [ ] Task 6: Gaps Tab Review
+     - [ ] Task 7: Sources Tab Review
+     - [ ] Task 8: Rules Tab Review
+     - [ ] Task 9: Data Pipeline Verification
+     - [ ] Task 10: Performance Optimization (<30s scan, <2s UI)
+     - [ ] Task 11: End-to-End UI Testing (all 8 tabs)
 
 
 ---
