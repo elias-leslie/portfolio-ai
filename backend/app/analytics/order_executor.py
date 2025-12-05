@@ -7,6 +7,7 @@ Phase B: Advanced order types (limit, stop), fill simulation with slippage.
 VISION.md P2 Compliance:
 - Max 5% of portfolio per position
 - Max 20% exposure per sector
+- Max 2% single trade loss (from rules.yaml)
 
 GAP-023 Compliance:
 - Portfolio-level trading halt at -10% drawdown
@@ -21,6 +22,7 @@ from app.analytics.transaction_logger import TransactionLogger
 from app.logging_config import get_logger
 from app.portfolio.drawdown import check_portfolio_drawdown_halt
 from app.portfolio.price_fetcher import PriceDataFetcher
+from app.rules.loader import get_rules
 
 if TYPE_CHECKING:
     from app.storage import PortfolioStorage
@@ -347,7 +349,7 @@ class OrderExecutor:
     def validate_position_limits(
         self, symbol: str, amount: float, account_id: str
     ) -> tuple[bool, str | None]:
-        """Validate position against P2 limits (5% position, 20% sector).
+        """Validate position against P2 limits (5% position, 20% sector, max single trade loss).
 
         Args:
             symbol: Stock symbol
@@ -374,6 +376,22 @@ class OrderExecutor:
                 return False, (
                     f"Position size {position_pct:.1%} exceeds {MAX_POSITION_PCT:.0%} limit. "
                     f"Max allowed: ${portfolio_value * MAX_POSITION_PCT:.2f}"
+                )
+
+            # Check max single trade loss limit (from rules engine)
+            rules = get_rules()
+            max_loss_pct = rules.risk_management.max_single_trade_loss_pct / 100.0  # Convert to decimal
+            max_allowed_loss = portfolio_value * max_loss_pct
+
+            # Potential loss = position amount (worst case: 100% loss)
+            # In practice, stop-loss would limit this, but we check worst case
+            potential_loss = amount
+
+            if potential_loss > max_allowed_loss:
+                return False, (
+                    f"Potential loss ${potential_loss:.2f} exceeds max single trade loss limit "
+                    f"of {rules.risk_management.max_single_trade_loss_pct:.1f}% "
+                    f"(${max_allowed_loss:.2f})"
                 )
 
             # Check sector exposure limit (20%)

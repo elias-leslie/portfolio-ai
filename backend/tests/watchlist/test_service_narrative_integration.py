@@ -74,7 +74,7 @@ class TestNarrativeGenerationIntegration:
             conn.execute(
                 """
                 INSERT INTO technical_indicators (
-                    ticker, date, rsi_14, sma_50, sma_200, macd, macd_signal,
+                    symbol, date, rsi_14, sma_50, sma_200, macd, macd_signal,
                     ema_20, atr_14, calculated_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
@@ -94,14 +94,14 @@ class TestNarrativeGenerationIntegration:
             # Insert historical price data for swing calculations
             conn.execute(
                 """
-                INSERT INTO day_bars (ticker, date, open, high, low, close, volume, vwap, source)
+                INSERT INTO day_bars (symbol, date, open, high, low, close, volume, vwap, source)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 ["NVDA", "2025-11-01", 200.0, 205.0, 198.0, 201.0, 1000000, 201.0, "test"],
             )
             conn.execute(
                 """
-                INSERT INTO day_bars (ticker, date, open, high, low, close, volume, vwap, source)
+                INSERT INTO day_bars (symbol, date, open, high, low, close, volume, vwap, source)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 ["NVDA", "2025-10-31", 195.0, 200.0, 193.0, 195.0, 900000, 195.0, "test"],

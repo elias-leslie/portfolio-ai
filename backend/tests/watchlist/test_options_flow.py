@@ -22,7 +22,7 @@ class TestCalculateOptionsFlowScore:
         score, reasons = _calculate_options_flow_score(
             options_call_pct=None,
             options_near_term_pct=None,
-            ticker_in_active_sector=None,
+            symbol_in_active_sector=None,
         )
         assert score == 0
         assert reasons == []
@@ -32,7 +32,7 @@ class TestCalculateOptionsFlowScore:
         score, reasons = _calculate_options_flow_score(
             options_call_pct=0.60,
             options_near_term_pct=0.50,
-            ticker_in_active_sector=False,
+            symbol_in_active_sector=False,
         )
         assert score == 3
         assert len(reasons) == 1
@@ -44,7 +44,7 @@ class TestCalculateOptionsFlowScore:
         score, reasons = _calculate_options_flow_score(
             options_call_pct=0.56,
             options_near_term_pct=0.50,
-            ticker_in_active_sector=False,
+            symbol_in_active_sector=False,
         )
         assert score == 2
         assert "moderately bullish" in reasons[0].lower()
@@ -54,7 +54,7 @@ class TestCalculateOptionsFlowScore:
         score, reasons = _calculate_options_flow_score(
             options_call_pct=0.53,
             options_near_term_pct=0.50,
-            ticker_in_active_sector=False,
+            symbol_in_active_sector=False,
         )
         assert score == 1
         assert "slightly bullish" in reasons[0].lower()
@@ -64,7 +64,7 @@ class TestCalculateOptionsFlowScore:
         score, reasons = _calculate_options_flow_score(
             options_call_pct=0.50,
             options_near_term_pct=0.50,
-            ticker_in_active_sector=False,
+            symbol_in_active_sector=False,
         )
         assert score == 0
         assert len(reasons) == 0
@@ -74,7 +74,7 @@ class TestCalculateOptionsFlowScore:
         score, reasons = _calculate_options_flow_score(
             options_call_pct=0.40,
             options_near_term_pct=0.50,
-            ticker_in_active_sector=False,
+            symbol_in_active_sector=False,
         )
         assert score == 0  # No positive points
         assert len(reasons) == 1
@@ -85,7 +85,7 @@ class TestCalculateOptionsFlowScore:
         score, reasons = _calculate_options_flow_score(
             options_call_pct=0.58,
             options_near_term_pct=0.50,
-            ticker_in_active_sector=True,
+            symbol_in_active_sector=True,
         )
         assert score == 4  # 3 (bullish) + 1 (sector)
         assert any("sector" in r.lower() for r in reasons)
@@ -95,7 +95,7 @@ class TestCalculateOptionsFlowScore:
         score, reasons = _calculate_options_flow_score(
             options_call_pct=0.65,
             options_near_term_pct=0.80,
-            ticker_in_active_sector=True,
+            symbol_in_active_sector=True,
         )
         assert score == 4
         assert len(reasons) == 2
@@ -128,7 +128,7 @@ class TestOptionsFlowIntegration:
             **base_inputs,
             "options_call_pct": 0.60,
             "options_near_term_pct": 0.50,
-            "ticker_in_active_sector": True,
+            "symbol_in_active_sector": True,
         }
         result_with = classify_signal(inputs_with_options)
 
@@ -150,7 +150,7 @@ class TestOptionsFlowIntegration:
             "news_sentiment": 0.1,
             "options_call_pct": 0.58,
             "options_near_term_pct": 0.50,
-            "ticker_in_active_sector": False,
+            "symbol_in_active_sector": False,
         }
 
         result = classify_signal(inputs)
@@ -174,7 +174,7 @@ class TestOptionsFlowIntegration:
             "news_sentiment": 0.1,
             "options_call_pct": 0.40,  # Bearish
             "options_near_term_pct": 0.50,
-            "ticker_in_active_sector": False,
+            "symbol_in_active_sector": False,
         }
 
         result = classify_signal(inputs)

@@ -31,12 +31,12 @@ echo "Collecting health metrics..." >&2
   curl -sf http://localhost:8000/api/capabilities/health/summary || echo '{"error": "unreachable"}'
   echo ','
 
-  # Service status
+  # Service status (user services for portfolio, system service for redis)
   echo '"service_status": {'
-  echo '"backend": "'$(systemctl is-active portfolio-backend 2>/dev/null || echo "inactive")'",'
-  echo '"celery_worker": "'$(systemctl is-active portfolio-celery 2>/dev/null || echo "inactive")'",'
-  echo '"celery_beat": "'$(systemctl is-active portfolio-beat 2>/dev/null || echo "inactive")'",'
-  echo '"frontend": "'$(systemctl is-active portfolio-frontend 2>/dev/null || echo "inactive")'",'
+  echo '"backend": "'$(systemctl --user is-active portfolio-backend 2>/dev/null || echo "inactive")'",'
+  echo '"celery_worker": "'$(systemctl --user is-active portfolio-celery 2>/dev/null || echo "inactive")'",'
+  echo '"celery_beat": "'$(systemctl --user is-active portfolio-celery-beat 2>/dev/null || echo "inactive")'",'
+  echo '"frontend": "'$(systemctl --user is-active portfolio-frontend 2>/dev/null || echo "inactive")'",'
   echo '"redis": "'$(systemctl is-active redis 2>/dev/null || echo "inactive")'"'
   echo '}'
 

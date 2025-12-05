@@ -50,7 +50,6 @@ def parse_news_article(
         _fetched_at,
         filing_type,
         is_material_event,
-        plain_language_headline,
         _story_id,
         _is_primary_article,
         _coverage_count,
@@ -73,7 +72,6 @@ def parse_news_article(
         "sentiment_confidence": (float(sentiment_confidence) if sentiment_confidence else 0.0),
         "filing_type": filing_type,
         "is_material_event": bool(is_material_event),
-        "plain_language_headline": plain_language_headline or headline,
         "impact_summary": impact_summary,
         "actionable_insight": actionable_insight,
     }
@@ -94,7 +92,7 @@ def parse_news_article(
         key_events.append(
             KeyEvent(
                 icon=_get_event_icon(event_category, True),
-                text=plain_language_headline or headline,
+                text=headline,
                 time_ago=_format_time_ago(published_at),
                 is_material=True,
                 event_category=event_category,

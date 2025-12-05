@@ -232,6 +232,14 @@ export interface FearGreedHistoryResponse {
   labels: string[];
 }
 
+export interface NewsSentimentHistoryResponse {
+  dates: string[];
+  scores: number[];  // -1 to +1
+  positive_counts: number[];
+  negative_counts: number[];
+  article_counts: number[];
+}
+
 export interface IndicatorDataPoint {
   date: string;
   close: number;
@@ -274,6 +282,20 @@ export async function fetchFearGreedHistory(
 ): Promise<FearGreedHistoryResponse> {
   return apiRequest<FearGreedHistoryResponse>(
     `/api/market/fear-greed-history?days=${days}`
+  );
+}
+
+/**
+ * Get news sentiment historical data for trend charts
+ * @param days - Number of days of history
+ * @param granularity - 'daily' or 'hourly'
+ */
+export async function fetchNewsSentimentHistory(
+  days: number = 30,
+  granularity: "daily" | "hourly" = "daily"
+): Promise<NewsSentimentHistoryResponse> {
+  return apiRequest<NewsSentimentHistoryResponse>(
+    `/api/market/news-sentiment-history?days=${days}&granularity=${granularity}`
   );
 }
 

@@ -4,6 +4,10 @@ This module provides a unified interface for calling different LLM providers
 (Gemini CLI, Claude CLI) with automatic failover support.
 
 Zero API costs - uses local CLI tools with cached credentials/OAuth.
+
+TODO: Replace with MCP server for multi-agent coordination.
+      See tasks/tasks-0100-multi-agent-mcp-architecture.md for migration plan.
+      MCP will provide: agent registry, tool routing, shared context, orchestration.
 """
 
 from __future__ import annotations

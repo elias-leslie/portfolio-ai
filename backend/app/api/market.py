@@ -22,6 +22,7 @@ from app.api.market_responses import (
     IndicatorHistoryResponse,
     MarketConditionsResponse,
     MarketStatusResponse,
+    NewsSentimentHistoryResponse,
     PriceResponse,
     PricesResponse,
     SectorHistory,
@@ -159,7 +160,7 @@ async def get_prices(
 
 
 @router.get("/intelligence", response_model=MarketIntelligenceResponse)
-@cache_response(ttl=300)
+@cache_response(ttl=60)  # 1 minute cache for fresh data
 async def get_market_intelligence(_request: Request) -> MarketIntelligenceResponse:
     """Get unified market intelligence with narrative, dual scoring, and sector rotation.
 
@@ -372,7 +373,7 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
 
 
 @router.get("/trends", response_model=MarketTrendsResponse)
-@cache_response(ttl=300)
+@cache_response(ttl=60)  # 1 minute cache for fresh data
 async def get_market_trends(
     request: Request,
     days: int = Query(30, ge=1, le=365, description="Number of days of historical data"),
@@ -468,7 +469,7 @@ async def get_market_status_endpoint(request: Request) -> MarketStatusResponse:
 
 
 @router.get("/fear-greed-history", response_model=FearGreedHistoryResponse)
-@cache_response(ttl=300)
+@cache_response(ttl=60)  # 1 minute cache for fresh data
 async def get_fear_greed_history(
     request: Request,
     days: int = Query(365, ge=7, le=730, description="Number of days of history"),
@@ -505,8 +506,90 @@ async def get_fear_greed_history(
     return FearGreedHistoryResponse(dates=dates, scores=scores, labels=labels)
 
 
+@router.get("/news-sentiment-history", response_model=NewsSentimentHistoryResponse)
+@cache_response(ttl=60)  # 1 minute cache
+async def get_news_sentiment_history(
+    request: Request,
+    days: int = Query(30, ge=1, le=365, description="Number of days of history"),
+    granularity: str = Query(
+        "daily",
+        description="Data granularity: 'daily' for day-level, 'hourly' for hour-level",
+    ),
+) -> NewsSentimentHistoryResponse:
+    """Get news sentiment historical data for trend charts.
+
+    Returns daily or hourly aggregated sentiment scores from news_summary_log.
+    Scores range from -1 (very negative) to +1 (very positive).
+    """
+    with storage.connection() as conn:
+        if granularity == "hourly":
+            # Hourly aggregation - useful for intraday view
+            result = conn.execute(
+                """
+                SELECT
+                    DATE_TRUNC('hour', window_end) as period,
+                    AVG(sentiment_score) as avg_score,
+                    SUM(positive_count) as pos_count,
+                    SUM(negative_count) as neg_count,
+                    SUM(article_count) as total_count
+                FROM news_summary_log
+                WHERE symbol = '__MARKET__'
+                  AND window_end >= NOW() - INTERVAL '%s days'
+                GROUP BY DATE_TRUNC('hour', window_end)
+                ORDER BY period ASC
+                """,
+                [days],
+            )
+        else:
+            # Daily aggregation - use last reading per day for consistency
+            result = conn.execute(
+                """
+                SELECT DISTINCT ON (DATE(window_end))
+                    DATE(window_end) as period,
+                    sentiment_score as avg_score,
+                    positive_count as pos_count,
+                    negative_count as neg_count,
+                    article_count as total_count
+                FROM news_summary_log
+                WHERE symbol = '__MARKET__'
+                  AND window_end >= NOW() - INTERVAL '%s days'
+                ORDER BY DATE(window_end), window_end DESC
+                """,
+                [days],
+            )
+        rows = result.fetchall()
+
+    dates: list[str] = []
+    scores: list[float] = []
+    positive_counts: list[int] = []
+    negative_counts: list[int] = []
+    article_counts: list[int] = []
+
+    for row in rows:
+        period, avg_score, pos_count, neg_count, total_count = row
+        if period and avg_score is not None:
+            if isinstance(period, datetime):
+                dates.append(period.isoformat())
+            elif isinstance(period, date):
+                dates.append(period.isoformat())
+            else:
+                dates.append(str(period))
+            scores.append(float(avg_score))
+            positive_counts.append(int(pos_count) if pos_count else 0)
+            negative_counts.append(int(neg_count) if neg_count else 0)
+            article_counts.append(int(total_count) if total_count else 0)
+
+    return NewsSentimentHistoryResponse(
+        dates=dates,
+        scores=scores,
+        positive_counts=positive_counts,
+        negative_counts=negative_counts,
+        article_counts=article_counts,
+    )
+
+
 @router.get("/indicator-history", response_model=IndicatorHistoryResponse)
-@cache_response(ttl=300)
+@cache_response(ttl=60)  # 1 minute cache for fresh data
 async def get_indicator_history(
     request: Request,
     days: int = Query(365, ge=7, le=730, description="Number of days of history"),
@@ -552,7 +635,7 @@ async def get_indicator_history(
 
 
 @router.get("/sector-history", response_model=SectorHistoryResponse)
-@cache_response(ttl=300)
+@cache_response(ttl=60)  # 1 minute cache for fresh data
 async def get_sector_history(
     request: Request,
     days: int = Query(365, ge=7, le=730, description="Number of days of history"),

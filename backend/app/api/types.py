@@ -161,7 +161,6 @@ class NewsArticleDict(TypedDict, total=False):
     vendor: str | None
     filing_type: str | None
     is_material_event: bool
-    plain_language_headline: str | None
     impact_summary: str | None
     actionable_insight: str | None
     quality_prediction: bool | None
@@ -237,7 +236,6 @@ class ArticleRowDict(TypedDict, total=False):
     vendor: str | None
     filing_type: str | None
     is_material_event: bool
-    plain_language_headline: str | None
     impact_summary: str | None
     actionable_insight: str | None
     quality_prediction: bool | None

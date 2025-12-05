@@ -195,7 +195,7 @@ def _dry_run_preview(task_name: str, args: list[Any], verbose: bool) -> dict[str
                 # Show sample of articles that would be deleted
                 sample = conn.execute(
                     """
-                    SELECT ticker, headline, fetched_at
+                    SELECT symbol, headline, fetched_at
                     FROM news_cache
                     WHERE fetched_at < %s
                     ORDER BY fetched_at
@@ -207,8 +207,8 @@ def _dry_run_preview(task_name: str, args: list[Any], verbose: bool) -> dict[str
                 print(f"\nWould delete {count} news articles older than {cutoff_date.date()}")
                 if sample:
                     print("\nSample (first 5):")
-                    for ticker, headline, fetched_at in sample:
-                        print(f"  - {ticker}: {headline[:60]}... ({fetched_at.date()})")
+                    for symbol, headline, fetched_at in sample:
+                        print(f"  - {symbol}: {headline[:60]}... ({fetched_at.date()})")
 
         return {
             "task": task_name,

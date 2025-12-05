@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Populate historical data and technical indicators for watchlist tickers.
+"""Populate historical data and technical indicators for watchlist symbols.
 
 This script:
-1. Fetches all tickers from the watchlist
+1. Fetches all symbols from the watchlist
 2. Ingests 200 days of historical OHLCV data
 3. Calculates technical indicators
 4. Refreshes watchlist scores
@@ -36,25 +36,25 @@ def main() -> None:
     # Initialize storage
     storage = get_storage()
 
-    # Step 1: Get all watchlist tickers
-    logger.info("fetching_watchlist_tickers")
+    # Step 1: Get all watchlist symbols
+    logger.info("fetching_watchlist_symbols")
     with storage.connection() as conn:
-        result = conn.execute("SELECT DISTINCT ticker FROM watchlist_items").fetchall()
-        tickers = [row[0] for row in result]
+        result = conn.execute("SELECT DISTINCT symbol FROM watchlist_items").fetchall()
+        symbols = [row[0] for row in result]
 
-    if not tickers:
-        logger.warning("no_watchlist_tickers_found")
-        print("No tickers found in watchlist. Please add tickers first.")
+    if not symbols:
+        logger.warning("no_watchlist_symbols_found")
+        print("No symbols found in watchlist. Please add symbols first.")
         return
 
-    logger.info("found_tickers", count=len(tickers), tickers=tickers)
-    print(f"\nFound {len(tickers)} tickers in watchlist: {', '.join(tickers)}")
+    logger.info("found_symbols", count=len(symbols), symbols=symbols)
+    print(f"\nFound {len(symbols)} symbols in watchlist: {', '.join(symbols)}")
 
     # Step 2: Ingest historical OHLCV data (200 days)
-    print(f"\n[1/4] Ingesting 200 days of historical data for {len(tickers)} tickers...")
-    logger.info("ingesting_historical_data", tickers=tickers, days=200)
+    print(f"\n[1/4] Ingesting 200 days of historical data for {len(symbols)} symbols...")
+    logger.info("ingesting_historical_data", symbols=symbols, days=200)
 
-    ingest_result = ingest_historical_ohlcv(tickers=tickers, days=200)
+    ingest_result = ingest_historical_ohlcv(symbols=symbols, days=200)
 
     print(
         f"  ✓ Ingested {ingest_result['rows_inserted']} rows in {ingest_result['duration_seconds']:.2f}s"
@@ -63,10 +63,10 @@ def main() -> None:
     logger.info("ingest_completed", **ingest_result)
 
     # Step 3: Calculate technical indicators
-    print(f"\n[2/4] Calculating technical indicators for {len(tickers)} tickers...")
-    logger.info("calculating_technical_indicators", tickers=tickers)
+    print(f"\n[2/4] Calculating technical indicators for {len(symbols)} symbols...")
+    logger.info("calculating_technical_indicators", symbols=symbols)
 
-    indicators_result = update_technical_indicators(tickers=tickers)
+    indicators_result = update_technical_indicators(symbols=symbols)
 
     print(f"  ✓ Success: {indicators_result['success']}")
     print(f"  ✓ Failed: {indicators_result['failed']}")
@@ -89,24 +89,24 @@ def main() -> None:
         score_check = conn.execute(
             """
             SELECT
-                ticker,
-                ROUND(price_score, 2) as price,
-                ROUND(technical_score, 2) as technical,
-                ROUND(overall_score, 2) as overall
-            FROM watchlist_snapshots
-            WHERE item_id IN (SELECT id FROM watchlist_items)
-            ORDER BY ticker
+                wi.symbol,
+                ROUND(ws.price_score, 2) as price,
+                ROUND(ws.technical_score, 2) as technical,
+                ROUND(ws.overall_score, 2) as overall
+            FROM watchlist_snapshots ws
+            JOIN watchlist_items wi ON ws.item_id = wi.id
+            ORDER BY wi.symbol
             """
         ).fetchall()
 
         if score_check:
             print("\n  Scores calculated successfully:")
             print("  " + "-" * 60)
-            print(f"  {'Ticker':<10} {'Price':<10} {'Technical':<12} {'Overall':<10}")
+            print(f"  {'Symbol':<10} {'Price':<10} {'Technical':<12} {'Overall':<10}")
             print("  " + "-" * 60)
             for row in score_check:
-                ticker, price, technical, overall = row
-                print(f"  {ticker:<10} {price:<10} {technical:<12} {overall:<10}")
+                symbol, price, technical, overall = row
+                print(f"  {symbol:<10} {price:<10} {technical:<12} {overall:<10}")
             print("  " + "-" * 60)
         else:
             print("  ⚠️  No scores found! Check logs for errors.")

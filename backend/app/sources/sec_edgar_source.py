@@ -221,7 +221,6 @@ class SECEdgarSource(BaseSource):
                 pl.col("image_url").cast(pl.Utf8),
                 pl.col("raw_payload").cast(pl.Utf8),
                 pl.col("filing_type").cast(pl.Utf8),
-                pl.col("plain_language_headline").cast(pl.Utf8),
             ]
         )
 
@@ -259,9 +258,6 @@ class SECEdgarSource(BaseSource):
 
         # TODO: Extract 8-K items if applicable (future enhancement)
 
-        # Plain language headline for plain_language_headline field
-        plain_language = self._generate_headline(form, symbol)
-
         # Build record with ALL standard news fields (for schema compatibility)
         record = {
             "symbol": symbol,
@@ -278,7 +274,6 @@ class SECEdgarSource(BaseSource):
             "vendor": "sec_edgar",
             "filing_type": form,
             "is_material_event": is_material,
-            "plain_language_headline": plain_language,
         }
 
         return record

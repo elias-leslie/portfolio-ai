@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from ..logging_config import get_logger
 from ..storage.credential_loader import load_credentials_from_database
-from .news_constants import MARKET_TICKER
+from .news_constants import MARKET_SYMBOL
 
 if TYPE_CHECKING:
     from ..storage import PortfolioStorage
@@ -118,7 +118,7 @@ class NewsCacheRefresher:
         """Refresh cache with new articles from vendors.
 
         Args:
-            symbol: Symbol (or MARKET_TICKER for market news)
+            symbol: Symbol (or MARKET_SYMBOL for market news)
             query: Search query for vendors
             max_articles: Maximum number of articles to fetch
             now: Current timestamp
@@ -170,7 +170,7 @@ class NewsCacheRefresher:
 
         # Apply AI features
         articles = self.ai_features.apply_story_clustering(articles)
-        articles = self.ai_features.apply_plain_language_translation(
+        articles = self.ai_features.apply_insight_generation(
             articles, watchlist_symbols=None
         )
 
@@ -199,7 +199,7 @@ class NewsCacheRefresher:
             else "SELECT MAX(fetched_at) FROM news_cache WHERE symbol <> %s"
         )
         with self.storage.connection() as conn:
-            row = conn.execute(query, [MARKET_TICKER]).fetchone()
+            row = conn.execute(query, [MARKET_SYMBOL]).fetchone()
         if not row:
             return None
         fetched_at = row[0]

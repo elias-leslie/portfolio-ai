@@ -18,6 +18,7 @@ export interface ScoreBreakdown {
     price: ScoreComponent;
     technical: ScoreComponent;
     fundamental?: ScoreComponent | null; // NEW: Fundamental pillar (optional)
+    catalyst?: ScoreComponent | null; // NEW: Fourth pillar (optional)
     overall: number;
 }
 
@@ -60,8 +61,7 @@ export interface SentimentArticle {
     sentiment: SentimentScoreMeta;
     content_hash: string;
     raw?: Record<string, unknown>;
-    // AI-generated insights (optional, prepared for future use)
-    plain_language_headline?: string | null;
+    // AI-generated insights
     impact_summary?: string | null;
     actionable_insight?: string | null;
 }

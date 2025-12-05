@@ -1,7 +1,10 @@
 """Shared constants for news services."""
 
-# Special ticker used for market-level news
-MARKET_TICKER = "__MARKET__"
+# Special symbol used for market-level news
+MARKET_SYMBOL = "__MARKET__"
+
+# Backwards compatibility alias (deprecated, use MARKET_SYMBOL)
+MARKET_TICKER = MARKET_SYMBOL
 
 # Default configuration
 DEFAULT_TTL_HOURS = 6

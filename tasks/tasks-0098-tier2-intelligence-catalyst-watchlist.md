@@ -1,5 +1,3 @@
-<!-- PAUSED: 2025-12-04 | Context: 79% | Reason: User request | Next: Tier 3 tasks (tasks-0099) -->
-
 # Task List: Tier 2 Intelligence Layer - Catalyst Scoring + Watchlist Automation
 
 **Source**: trading_platform_improvements_v2.md sections 2.1, 2.2
@@ -7,9 +5,9 @@
 **Effort**: HIGH
 **Environment**: Local Dev
 **Created**: 2025-12-04 16:30
-**Status**: ✅ COMPLETE (5/6 tasks)
+**Status**: 🔍 REVIEW NEEDED
 **Last Updated**: 2025-12-04
-**Next Action**: Start Tier 3 - Validation & Evolution (tasks-0099)
+**Claimed done**: Catalyst scoring, discovery, trimming, telemetry, daily report - VERIFY
 
 ---
 
@@ -181,16 +179,27 @@
 
 ---
 
-## Verification
+## Verification (Updated 2025-12-04 - FACTS)
 
-- [ ] Functional: Catalyst scores appear in watchlist snapshots
-- [ ] Functional: Discovery task adds qualifying tickers
-- [ ] Functional: Trim task removes underperformers
-- [ ] Tests: pytest tests/watchlist/ -v passes
-- [ ] Tests: pytest tests/tasks/ -v passes
-- [ ] Quality: ~/portfolio-ai/scripts/lint.sh passes
-- [ ] Services: Restarted and verified
-- [ ] Manual: Monitor watchlist over 3 days for automated changes
+- [ ] Functional: Catalyst scores appear in watchlist snapshots ❌ NOT WIRED (scoring.py ignores catalyst)
+- [x] Functional: Discovery task adds qualifying tickers ✅ VERIFIED (scheduled 08:00 UTC)
+- [x] Functional: Trim task removes underperformers ✅ VERIFIED (scheduled 08:30 UTC)
+- [ ] Tests: pytest tests/watchlist/ -v passes ⚠️ NOT RUN
+- [ ] Tests: pytest tests/tasks/ -v passes ⚠️ NOT RUN
+- [x] Quality: ~/portfolio-ai/scripts/lint.sh passes ✅ VERIFIED
+- [x] Services: Restarted and verified ✅ VERIFIED
+- [ ] Manual: Monitor watchlist over 3 days for automated changes ⚠️ NOT DONE
+
+## Bugs Fixed (2025-12-04)
+
+1. **Catalyst scoring INTEGRATED** ✅ FIXED - Now 4th pillar of watchlist scoring:
+   - `scoring.py` imports and calls `get_active_catalysts_for_symbol()`, `aggregate_catalyst_scores()`
+   - Added `_compute_catalyst_component()` function (maps -5/+5 to 0-100 scale)
+   - Updated `ScoreWeights` model: price=25%, technical=25%, fundamental=30%, catalyst=20%
+   - Updated `ScoreBreakdown` and `WatchlistScoreInputs` models
+   - Updated `refresh_processor.py` to pass news articles to scoring
+
+2. **Daily watchlist report** - NOT IMPLEMENTED (low priority, optional)
 
 ---
 

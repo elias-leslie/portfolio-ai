@@ -299,7 +299,7 @@ def test_watchlist_tables_structure(schema_mgr: SchemaManager) -> None:
             "overall_score",
             "raw_metrics",
         }.issubset(snapshots_columns)
-        assert {"ticker", "as_of_date", "payload", "source"}.issubset(reference_columns)
+        assert {"symbol", "as_of_date", "payload", "source"}.issubset(reference_columns)
 
 
 def test_get_watchlist_items_by_account(schema_mgr: SchemaManager, query_mgr: QueryManager) -> None:

@@ -20,10 +20,11 @@ class TestMultiReviewer:
     @pytest.fixture
     def reviewer(self) -> MultiReviewer:
         """Create MultiReviewer instance with mocked clients."""
+        mock_storage = MagicMock()
         with patch("app.agents.multi_reviewer.GeminiCLIClient"), patch(
             "app.agents.multi_reviewer.ClaudeCLIClient"
         ):
-            return MultiReviewer()
+            return MultiReviewer(mock_storage)
 
     @pytest.fixture
     def sample_signal_data(self) -> dict:

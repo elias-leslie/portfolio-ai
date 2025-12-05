@@ -40,7 +40,9 @@ function SectionLoadingState({
   );
 }
 
-const MARKET_NEWS_INITIAL_LIMIT = 6;
+// Fetch enough articles initially for balanced view (top 3 positive + top 3 negative)
+// Need ~20 to ensure we get a mix of sentiments from recent news
+const MARKET_NEWS_INITIAL_LIMIT = 20;
 const MARKET_NEWS_EXPANDED_LIMIT = 50;
 
 function MarketNewsSection() {

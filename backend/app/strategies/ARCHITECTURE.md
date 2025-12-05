@@ -378,7 +378,7 @@ async def optimize_strategy_parameters(
     """Optimize strategy parameters using walk-forward validation.
 
     Args:
-        symbol: Stock ticker
+        symbol: Stock symbol
         strategy_template: Base strategy from agent
         lookback_days: Historical data to use (default 1 year)
 
@@ -550,7 +550,7 @@ async def strategy_research_workflow(
     6. Commit to git with research summary
 
     Args:
-        symbol: Stock ticker
+        symbol: Stock symbol
         force_regenerate: Regenerate even if active strategy exists
 
     Returns:
@@ -653,7 +653,7 @@ async def strategy_research_workflow(
 ```python
 # BEFORE (Task 3 - current state)
 backtest_result = await execute_run_backtest(
-    ticker=ticker,
+    symbol=symbol,
     start_date=start_date,
     end_date=end_date,
     strategy="signal_classifier",  # HARDCODED
@@ -663,11 +663,11 @@ backtest_result = await execute_run_backtest(
 )
 
 # AFTER (Task 4.7 - dynamic strategies)
-strategy = await get_active_strategy(ticker)
+strategy = await get_active_strategy(symbol)
 if strategy:
     # Use dynamic strategy
     backtest_result = await execute_run_backtest_with_strategy(
-        ticker=ticker,
+        symbol=symbol,
         start_date=start_date,
         end_date=end_date,
         strategy_config=strategy.parameters,  # DYNAMIC
@@ -677,7 +677,7 @@ if strategy:
 else:
     # Fallback to default
     backtest_result = await execute_run_backtest(
-        ticker=ticker,
+        symbol=symbol,
         strategy="signal_classifier",  # DEFAULT
         ...
     )

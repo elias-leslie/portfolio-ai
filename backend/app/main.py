@@ -35,6 +35,7 @@ from app.api import (
     portfolio,
     preferences,
     recommendations,
+    rules,
     settings_profiles,
     sources,
     status,
@@ -170,6 +171,7 @@ app.include_router(agents.router)  # Task 0077: Agent telemetry dashboard
 app.include_router(automation.router)  # Manual pipeline triggers
 app.include_router(disagreements.router)  # Task 0003: Multi-LLM disagreement detection
 app.include_router(sources.router)  # Task 0088: API sources registry for agents
+app.include_router(rules.router)  # Trading rules viewer
 
 
 @app.get("/")

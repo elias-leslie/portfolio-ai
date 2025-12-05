@@ -636,3 +636,136 @@ def daily_strategy_refresh(max_symbols: int = 5) -> dict[str, Any]:
     except Exception as e:
         logger.exception("Daily strategy refresh failed", error=str(e))
         return {"status": "failed", "error": str(e)}
+
+
+@celery_app.task(name="app.tasks.strategy_monitoring_tasks.weekly_strategy_evolution")  # type: ignore[misc]
+def weekly_strategy_evolution() -> dict[str, Any]:
+    """Weekly strategy evolution - evolve underperforming strategies via LLM.
+
+    Schedule: Weekly on Sunday at 06:00 UTC (after weekly strategy generation)
+
+    Evolution Logic:
+    1. Find active strategies underperforming by >10% (Sharpe ratio)
+    2. For each strategy:
+       - Analyze performance with LLM diagnosis
+       - Propose parameter mutations
+       - Test mutations via walk-forward backtest
+       - Save best mutation if it meets MAS (Minimum Acceptable Score)
+    3. Archive parent strategy, activate evolved child
+
+    MAS Criteria:
+    - Child Sharpe >= 90% of parent Sharpe
+    - OR Child Sharpe > Buy & Hold Benchmark
+
+    Returns:
+        Summary dict with evolution results
+    """
+    logger.info("Starting weekly strategy evolution")
+
+    from app.agents.strategy_evolution_agent import get_strategy_evolution_agent
+
+    try:
+        evolution_agent = get_strategy_evolution_agent()
+        strategy_storage = get_strategy_storage()
+
+        # Find underperforming active strategies (performance < 90% of expected)
+        with get_connection_manager().connection() as conn:
+            underperforming_strategies = conn.execute(
+                """
+                SELECT DISTINCT sd.id, sd.symbol, sd.name,
+                       sd.expected_sharpe,
+                       AVG(sp.sharpe_ratio_30d) as actual_sharpe,
+                       AVG(sp.sharpe_ratio_30d) / NULLIF(sd.expected_sharpe, 0) as performance_ratio
+                FROM strategy_definitions sd
+                JOIN strategy_performance sp ON sd.id = sp.strategy_id
+                WHERE sd.status = 'active'
+                  AND sp.date >= CURRENT_DATE - INTERVAL '30 days'
+                  AND sd.expected_sharpe > 0
+                GROUP BY sd.id, sd.symbol, sd.name, sd.expected_sharpe
+                HAVING AVG(sp.sharpe_ratio_30d) / NULLIF(sd.expected_sharpe, 0) < 0.9
+                ORDER BY performance_ratio ASC
+                LIMIT 5
+                """
+            ).fetchall()
+
+        if not underperforming_strategies:
+            logger.info("No underperforming strategies found")
+            return {
+                "status": "completed",
+                "strategies_evaluated": 0,
+                "strategies_evolved": 0,
+                "details": [],
+            }
+
+        logger.info(f"Found {len(underperforming_strategies)} underperforming strategies")
+
+        results = []
+        evolved_count = 0
+
+        for row in underperforming_strategies:
+            strategy_id = str(row[0])
+            symbol = row[1]
+            name = row[2]
+            expected_sharpe = float(row[3] or 0.0)
+            actual_sharpe = float(row[4] or 0.0)
+            performance_ratio = float(row[5] or 0.0)
+
+            logger.info(
+                f"Attempting evolution: {symbol} {name} "
+                f"(Sharpe: {actual_sharpe:.2f} vs expected {expected_sharpe:.2f}, "
+                f"ratio: {performance_ratio:.1%})"
+            )
+
+            try:
+                # Evolve strategy
+                result = asyncio.run(
+                    evolution_agent.evolve_strategy(
+                        strategy_id=strategy_id,
+                        reason=f"underperforming_{performance_ratio:.0%}",
+                    )
+                )
+
+                if result.success:
+                    evolved_count += 1
+                    results.append(
+                        f"Evolved {symbol}: {result.parent_sharpe:.2f} → {result.child_sharpe:.2f} "
+                        f"({result.mutations_tested} mutations tested)"
+                    )
+                    logger.info(
+                        "Strategy evolved successfully",
+                        symbol=symbol,
+                        original_id=strategy_id,
+                        new_id=result.new_strategy_id,
+                        sharpe_improvement=result.child_sharpe - result.parent_sharpe
+                        if result.child_sharpe
+                        else 0,
+                    )
+                else:
+                    results.append(f"Evolution failed for {symbol}: {result.message}")
+                    logger.info(
+                        "Strategy evolution failed",
+                        symbol=symbol,
+                        strategy_id=strategy_id,
+                        reason=result.message,
+                    )
+
+            except Exception as e:
+                logger.exception("Strategy evolution error", symbol=symbol, error=str(e))
+                results.append(f"Error for {symbol}: {str(e)[:100]}")
+
+        logger.info(
+            "Weekly strategy evolution complete",
+            strategies_evaluated=len(underperforming_strategies),
+            strategies_evolved=evolved_count,
+        )
+
+        return {
+            "status": "completed",
+            "strategies_evaluated": len(underperforming_strategies),
+            "strategies_evolved": evolved_count,
+            "details": results,
+        }
+
+    except Exception as e:
+        logger.exception("Weekly strategy evolution failed", error=str(e))
+        return {"status": "failed", "error": str(e)}

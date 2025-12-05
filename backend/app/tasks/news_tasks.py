@@ -128,7 +128,9 @@ def _refresh_news_sentiment_task(
         max_articles=news_max_articles,
         force_refresh=should_force_refresh,
     )
-    _record_summary(storage, market_bundle.summary, news_service.ttl, now)
+    # Only log summary when we actually refreshed from APIs (to avoid duplicate entries)
+    if should_force_refresh:
+        _record_summary(storage, market_bundle.summary, news_service.ttl, now)
 
     items_with_scores: list[dict[str, Any]] = watchlist_service.get_items_with_scores()
     symbols = [item["symbol"] for item in items_with_scores]
@@ -140,8 +142,10 @@ def _refresh_news_sentiment_task(
             force_refresh=should_force_refresh,
         )
         watchlist_count = len(bundles)
-        for bundle in bundles.values():
-            _record_summary(storage, bundle.summary, news_service.ttl, now)
+        # Only log summaries when we actually refreshed
+        if should_force_refresh:
+            for bundle in bundles.values():
+                _record_summary(storage, bundle.summary, news_service.ttl, now)
 
     logger.info(
         "news_refresh_completed",

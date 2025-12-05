@@ -43,9 +43,9 @@ def analyze_health(report_path: str) -> dict:
     day_bars = detailed.get("day_bars_freshness", [])
     now = datetime.now(timezone.utc)
 
-    stale_tickers = []
-    for ticker in day_bars:
-        last_updated_str = ticker["last_updated"]
+    stale_symbols = []
+    for item in day_bars:
+        last_updated_str = item["last_updated"]
         # Handle both with and without 'Z' suffix
         if last_updated_str.endswith('Z'):
             last_updated_str = last_updated_str[:-1] + '+00:00'
@@ -58,13 +58,13 @@ def analyze_health(report_path: str) -> dict:
         # Weekday: >3 days stale, Weekend: >5 days stale
         threshold = 5 if now.weekday() >= 5 else 3
         if age_days > threshold:
-            stale_tickers.append((ticker["ticker"], age_days))
+            stale_symbols.append((item["symbol"], age_days))
 
-    if stale_tickers:
+    if stale_symbols:
         issues["P1_high"].append({
             "issue": "OHLCV Data Stale",
-            "details": f"{len(stale_tickers)} tickers with data {stale_tickers[0][1]}+ days old",
-            "tickers": stale_tickers[:5],  # Top 5
+            "details": f"{len(stale_symbols)} symbols with data {stale_symbols[0][1]}+ days old",
+            "symbols": stale_symbols[:5],  # Top 5
             "severity": "high"
         })
 

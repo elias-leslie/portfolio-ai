@@ -20,14 +20,14 @@
 
 *Currently working on - use `/do_it` to auto-resume*
 
-1. **Tier 3: Validation & Evolution** (25% - 1/4 complete)
+1. **Tier 3: Validation & Evolution** (50% - 2/4 complete)
    - File: `tasks-0099-tier3-validation-evolution.md`
-   - Started: 2025-12-04 (today)
-   - Last updated: ✅ Complete - API working, returns per-fold and aggregate metrics
-   - Next: Task 1 - Expose Walk-Forward Testing in Backtest API (Section 3.1) - COMPLETE
+   - Started: 2025-12-04 (yesterday)
+   - Last updated: 🔍 REVIEW NEEDED
+   - Next: Task 2 - Implement Strategy Evolution Loop (Section 3.2)
    - Tasks:
      - [x] Task 0: Scope Discovery (MANDATORY) - COMPLETE
-     - [ ] Task 1: Expose Walk-Forward Testing in Backtest API (Section 3.1) - COMPLETE
+     - [x] Task 1: Expose Walk-Forward Testing in Backtest API (Section 3.1) - ✅ COMPLETE
      - [ ] Task 2: Implement Strategy Evolution Loop (Section 3.2)
      - [ ] Task 3: AI Rules Validation Agent (Section 3.3)
 
@@ -38,7 +38,7 @@
 
 *Prioritized queue - `/do_it` picks first when Active is empty*
 
-1. **Tier 0: Foundations - B&H Integration + Rules Engine** (HIGH, 2/5 tasks (today))
+1. **Tier 0: Foundations - B&H Integration + Rules Engine** (HIGH, 2/5 tasks (yesterday))
    - File: `tasks-0096-tier0-foundations-bh-rules-engine.md`
    - Created: 2025-12-04
    - Goal: Complete the two CRITICAL foundation tasks that enable all other improvements - integrate the existing B&H benchmark engine and create a centralized trading rules YAML config.
@@ -49,7 +49,7 @@
      - [ ] Task 3: Fix Risk Management Thresholds (From Second Pass) - COMPLETE
      - [ ] Task 4: Rules Engine UI (Optional Enhancement) - DEFERRED
 
-2. **Tier 1: Quick Wins - Prompts & Feedback** (LOW, 2/4 tasks (today))
+2. **Tier 1: Quick Wins - Prompts & Feedback** (LOW, 2/4 tasks (yesterday))
    - File: `tasks-0097-tier1-quick-wins-prompts.md`
    - Created: 2025-12-04
    - Goal: Add performance metrics, fee awareness, and confidence-based position sizing to LLM agent prompts. These are "quick wins" that improve agent decision-making with minimal effort.
@@ -59,11 +59,10 @@
      - [x] Task 3: Add Fee Awareness to System Prompts (Section 1.3) - COMPLETE
      - [ ] Task 4: Fix Additional Issues (From Second Pass)
 
-3. **Tier 2: Intelligence - Catalyst Scoring + Watchlist** (HIGH, 5/6 tasks (today))
+3. **Tier 2: Intelligence - Catalyst Scoring + Watchlist** (HIGH, 5/6 tasks (yesterday))
    - File: `tasks-0098-tier2-intelligence-catalyst-watchlist.md`
    - Created: 2025-12-04
    - Goal: Complete the catalyst detection system (add impact scoring) and implement automated watchlist discovery/trimming.
-   - Status: PAUSED (2025-12-04)
    - Tasks:
      - [x] Task 0: Scope Discovery for Watchlist Automation (MANDATORY) - COMPLETE
      - [x] Task 1: Complete Catalyst Detection System (Section 2.1) - COMPLETE
@@ -72,15 +71,29 @@
      - [ ] Task 4: Daily Watchlist Report (Optional)
      - [x] Task 5: Agent Telemetry Dashboard (From Second Pass) - ALREADY COMPLETE
 
-4. **Tier 3: Validation & Evolution** (VERY HIGH, 1/4 tasks (today))
+4. **Tier 3: Validation & Evolution** (VERY HIGH, 2/4 tasks (yesterday))
    - File: `tasks-0099-tier3-validation-evolution.md`
    - Created: 2025-12-04
    - Goal: Expose walk-forward backtesting in main API and implement LLM-based strategy evolution loop.
    - Tasks:
      - [x] Task 0: Scope Discovery (MANDATORY) - COMPLETE
-     - [ ] Task 1: Expose Walk-Forward Testing in Backtest API (Section 3.1) - COMPLETE
+     - [x] Task 1: Expose Walk-Forward Testing in Backtest API (Section 3.1) - ✅ COMPLETE
      - [ ] Task 2: Implement Strategy Evolution Loop (Section 3.2)
      - [ ] Task 3: AI Rules Validation Agent (Section 3.3)
+
+5. **Multi-Agent MCP Architecture** (VERY HIGH, 0/8 tasks (yesterday))
+   - File: `tasks-0100-multi-agent-mcp-architecture.md`
+   - Created: 2025-12-04
+   - Goal: Replace existing Gemini/Claude CLI integrations with a dedicated MCP server for centralized agent coordination, providing agent registry, LLM provider abstraction, tool routing, persistent shared state, and flexible orchestration patterns.
+   - Tasks:
+     - [ ] Task 0: Scope Discovery (MANDATORY)
+     - [ ] Task 1: Design MCP Server Architecture
+     - [ ] Task 2: Implement MCP Server Core
+     - [ ] Task 3: Implement LLM Provider Layer
+     - [ ] Task 4: Implement State Management
+     - [ ] Task 5: Implement Orchestration Patterns
+     - [ ] Task 6: Migrate Existing Agents
+     - [ ] Task 7: Testing & Documentation
 
 
 ---

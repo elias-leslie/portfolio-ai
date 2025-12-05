@@ -61,6 +61,16 @@ class FearGreedHistoryResponse(BaseModel):
     labels: list[str] = Field(..., description="Labels (Extreme Fear, Fear, etc.)")
 
 
+class NewsSentimentHistoryResponse(BaseModel):
+    """Response model for news sentiment history."""
+
+    dates: list[str] = Field(..., description="ISO date strings")
+    scores: list[float] = Field(..., description="Sentiment scores (-1 to +1)")
+    positive_counts: list[int] = Field(..., description="Positive article counts per day")
+    negative_counts: list[int] = Field(..., description="Negative article counts per day")
+    article_counts: list[int] = Field(..., description="Total article counts per day")
+
+
 # Indicator history endpoint
 class IndicatorDataPoint(BaseModel):
     """Single data point for an indicator."""

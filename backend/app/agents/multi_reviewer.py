@@ -2,6 +2,8 @@
 
 Executes both Gemini and Claude reviews independently and detects disagreements
 between providers, fulfilling VISION.md "Disagreement Detection" requirement.
+
+TODO: Migrate to MCP-based agent coordination (see tasks/tasks-0100-multi-agent-mcp-architecture.md)
 """
 
 from __future__ import annotations
@@ -10,14 +12,17 @@ import asyncio
 import uuid
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
+
+if TYPE_CHECKING:
+    from app.storage.facade import PortfolioStorage
 
 from ..logging_config import get_logger
 from .llm_client import ClaudeCLIClient, GeminiCLIClient, LLMClient, LLMResponse
 from .strategy_reviewer_prompts import (
     GUARDRAILS,
-    SYSTEM_PROMPT,
     build_review_prompt,
+    get_system_prompt,
     validate_review,
 )
 
@@ -91,8 +96,13 @@ class MultiReviewer:
         "warning",
     ]
 
-    def __init__(self) -> None:
-        """Initialize multi-reviewer with both providers."""
+    def __init__(self, storage: PortfolioStorage) -> None:
+        """Initialize multi-reviewer with both providers.
+
+        Args:
+            storage: PortfolioStorage instance for performance metrics
+        """
+        self.storage = storage
         self._clients: dict[str, LLMClient] = {
             "gemini": GeminiCLIClient(),
             "claude": ClaudeCLIClient(),
@@ -203,7 +213,7 @@ class MultiReviewer:
             response: LLMResponse = await asyncio.to_thread(
                 client.generate,
                 prompt=prompt,
-                system=SYSTEM_PROMPT,
+                system=get_system_prompt(self.storage),
                 max_tokens=GUARDRAILS["max_tokens"],
                 temperature=GUARDRAILS["temperature"],
             )

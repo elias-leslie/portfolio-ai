@@ -21,7 +21,7 @@ from .news_cache_refresh import (
     NewsCacheRefresher,
     ensure_credentials_loaded,
 )
-from .news_constants import MARKET_TICKER
+from .news_constants import MARKET_SYMBOL
 from .news_health_metrics import NewsHealthMetrics
 from .news_models import NewsBundle, NewsSummary
 from .news_processing import FinBertUnavailableError, NewsProcessor
@@ -172,7 +172,7 @@ class NewsService:
         if symbol is None:
             # Market-level news
             return self._get_bundle(
-                symbol=MARKET_TICKER,
+                symbol=MARKET_SYMBOL,
                 query="stock market",
                 max_articles=max_articles,
                 force_refresh=force_refresh,
@@ -267,13 +267,11 @@ class NewsService:
         force_refresh: bool,
     ) -> NewsBundle:
         now = datetime.now(UTC)
-        initial_limit = max(max_articles * self.selection_overfetch, max_articles)
-        if max_articles <= ARTICLE_OVERFETCH_CAP:
-            overfetch_limit = min(initial_limit, ARTICLE_OVERFETCH_CAP)
-        else:
-            overfetch_limit = max_articles
+        # Always load enough articles to calculate accurate summary
+        # Use a high limit for summary calculation, independent of display limit
+        summary_limit = max(200, max_articles)  # At least 200 for accurate sentiment
 
-        cached = self.cache_manager.load_cached_articles(symbol, limit=overfetch_limit)
+        cached = self.cache_manager.load_cached_articles(symbol, limit=summary_limit)
         is_stale = cached.is_stale(self.ttl, now)
 
         if force_refresh or is_stale:
@@ -289,30 +287,36 @@ class NewsService:
                 )
 
             # Reload after refresh attempt
-            cached = self.cache_manager.load_cached_articles(symbol, limit=overfetch_limit)
+            cached = self.cache_manager.load_cached_articles(symbol, limit=summary_limit)
 
-        recent_articles = self.processor.select_recent_articles(
+        # Get ALL articles within TTL for summary calculation
+        all_recent_articles = self.processor.select_recent_articles(
             cached.articles,
             now,
-            max_articles=max_articles,
+            max_articles=summary_limit,  # Use high limit for summary
             ttl=self.ttl,
         )
+
+        # Get limited articles for display
+        display_articles = all_recent_articles[:max_articles]
+
         previous_window_articles = self.cache_manager.load_articles_in_window(
             symbol=symbol,
             start=now - (self.ttl * 2),
             end=now - self.ttl,
-            limit=max_articles,
+            limit=summary_limit,
         )
 
+        # Build summary from ALL articles, not just display articles
         summary = self.processor.build_summary(
             symbol=symbol,
-            articles=recent_articles,
+            articles=all_recent_articles,
             previous_articles=previous_window_articles,
             as_of=now,
             ttl=self.ttl,
         )
 
-        return NewsBundle(symbol=symbol, summary=summary, articles=recent_articles)
+        return NewsBundle(symbol=symbol, summary=summary, articles=display_articles)
 
     def get_health(self) -> dict[str, Any]:
         """Return lightweight health metrics for the news pipeline."""

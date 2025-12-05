@@ -225,7 +225,7 @@ class SourceManager:
                                 rows=len(data),
                             )
                     else:
-                        # Assume all symbols fetched if no ticker column
+                        # Assume all symbols fetched if no symbol column
                         if verbose:
                             logger.info(
                                 "source_manager_success",

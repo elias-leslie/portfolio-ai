@@ -1,19 +1,24 @@
 """LLM Strategy Reviewer service - second opinion on trading signals.
 
 Zero-cost post-analysis using Claude/Gemini CLI tools.
+
+TODO: Migrate to MCP-based agent coordination (see tasks/tasks-0100-multi-agent-mcp-architecture.md)
 """
 
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from app.storage.facade import PortfolioStorage
 
 from ..logging_config import get_logger
 from .llm_client import ClaudeCLIClient, GeminiCLIClient, LLMClient, LLMResponse
 from .strategy_reviewer_prompts import (
     GUARDRAILS,
-    SYSTEM_PROMPT,
     build_review_prompt,
+    get_system_prompt,
     validate_review,
 )
 
@@ -23,12 +28,16 @@ logger = get_logger(__name__)
 class StrategyReviewer:
     """LLM-powered strategy reviewer with automatic failover."""
 
-    def __init__(self, primary_provider: str = "gemini") -> None:
+    def __init__(
+        self, storage: PortfolioStorage, primary_provider: str = "gemini"
+    ) -> None:
         """Initialize reviewer with provider preference.
 
         Args:
+            storage: PortfolioStorage instance for performance metrics
             primary_provider: "gemini" or "claude" (fallback to other if unavailable)
         """
+        self.storage = storage
         self.primary_provider = primary_provider
         self._clients: dict[str, LLMClient] = {
             "gemini": GeminiCLIClient(),
@@ -118,7 +127,7 @@ class StrategyReviewer:
                 response: LLMResponse = await asyncio.to_thread(
                     client.generate,
                     prompt=prompt,
-                    system=SYSTEM_PROMPT,
+                    system=get_system_prompt(self.storage),
                     max_tokens=GUARDRAILS["max_tokens"],
                     temperature=GUARDRAILS["temperature"],
                 )

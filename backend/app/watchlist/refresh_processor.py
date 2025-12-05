@@ -83,8 +83,8 @@ def process_symbol_snapshot(
     1. Price change calculation and backfill detection
     2. Technical snapshot preparation
     3. Fundamental and earnings data fetching
-    4. Scoring (3-pillar: price/technical/fundamental)
-    5. Auxiliary data fetching (volume, SMA5, news)
+    4. Auxiliary data fetching (volume, SMA5, news)
+    5. Scoring (4-pillar: price/technical/fundamental/catalyst)
     6. Narrative generation and trade level calculation
     7. Final snapshot building
 
@@ -129,22 +129,34 @@ def process_symbol_snapshot(
         earnings_days_away_val,
     ) = fetch_fundamentals_and_earnings(storage, symbol, now)
 
-    # Step 4: Calculate scores (3-pillar: price/technical/fundamental)
+    # Step 4: Fetch auxiliary data (volume, SMA5, news) - MOVED BEFORE SCORING
+    current_volume, avg_volume_20d, sma_5_prev, news_sentiment_value, news_bundle_result = (
+        fetch_auxiliary_data(storage, news_service, symbol, max_news_articles, news_bundle)
+    )
+
+    # Convert news bundle to article list for catalyst scoring
+    news_articles_for_catalyst: list[dict[str, str | datetime | float | None]] = []
+    if news_bundle_result and news_bundle_result.articles:
+        for article in news_bundle_result.articles:
+            news_articles_for_catalyst.append({
+                "headline": article.headline,
+                "summary": article.summary if hasattr(article, "summary") else None,
+                "published_at": article.published_at,
+                "filing_type": article.filing_type if hasattr(article, "filing_type") else None,
+            })
+
+    # Step 5: Calculate scores (4-pillar: price/technical/fundamental/catalyst)
     breakdown = calculate_watchlist_scores(
         WatchlistScoreInputs(
             price=price_data,
             price_change_pct=change_pct,
             technical=technical_snapshot,
             fundamental=fundamentals_data,
+            news_articles=news_articles_for_catalyst,
             weights=default_weights,
             now=now,
             stale_ttl_minutes=stale_ttl_minutes,
         )
-    )
-
-    # Step 5: Fetch auxiliary data (volume, SMA5, news)
-    current_volume, avg_volume_20d, sma_5_prev, news_sentiment_value, news_bundle_result = (
-        fetch_auxiliary_data(storage, news_service, symbol, max_news_articles, news_bundle)
     )
 
     # Build recent news payload if we have a news bundle

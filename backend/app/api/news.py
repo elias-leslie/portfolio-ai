@@ -49,7 +49,6 @@ class NewsArticleResponse(BaseModel):
     filing_type: str | None = None
     is_material_event: bool = False
     # AI-generated insights
-    plain_language_headline: str | None = None
     impact_summary: str | None = None
     actionable_insight: str | None = None
     # ML quality prediction
@@ -159,7 +158,6 @@ def _serialize_article(article: object) -> NewsArticleResponse:
         # AI-generated insights
         impact_summary=getattr(article, "impact_summary", None),
         actionable_insight=getattr(article, "actionable_insight", None),
-        plain_language_headline=getattr(article, "plain_language_headline", None),
         # ML quality prediction
         quality_prediction=getattr(article, "quality_prediction", None),
         quality_confidence=getattr(article, "quality_confidence", None),

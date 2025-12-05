@@ -74,6 +74,7 @@ from app.tasks import (  # noqa: E402, F401
     news_tasks,
     portfolio_tasks,
     reference_tasks,
+    rules_validation_tasks,  # NEW: Rules validation and optimization
     source_health_tasks,
     strategy_metrics_tasks,
     strategy_monitoring_tasks,

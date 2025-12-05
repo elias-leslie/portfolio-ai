@@ -40,7 +40,6 @@ interface NewsArticle {
     confidence?: number;
     model?: string;
   };
-  plain_language_headline?: string | null;
   impact_summary?: string | null;
   actionable_insight?: string | null;
   content_hash?: string;
@@ -191,11 +190,11 @@ export function UnifiedNewsIntelligenceCard({
     return sorted;
   }, [articles, sortBy]);
 
-  // Balanced view: Top 3 positive + top 3 negative (6 total)
-  const balancedArticles = useMemo(() => {
+  // Balanced view: Top 3 positive + top 3 negative (up to 6 total)
+  const { balancedArticles, positiveCount, negativeCount } = useMemo(() => {
     if (sortBy !== "recent") {
       // User manually selected sorting, use that
-      return sortedArticles;
+      return { balancedArticles: sortedArticles, positiveCount: 0, negativeCount: 0 };
     }
 
     // Default balanced view: show extremes
@@ -211,7 +210,11 @@ export function UnifiedNewsIntelligenceCard({
     const negative = byScore.filter(x => x.score < 0).slice(-3).reverse(); // Most negative first
 
     // Positive first, then negative
-    return [...positive, ...negative].map(x => x.article);
+    return {
+      balancedArticles: [...positive, ...negative].map(x => x.article),
+      positiveCount: positive.length,
+      negativeCount: negative.length,
+    };
   }, [articles, sortedArticles, sortBy]);
 
   const DEFAULT_DISPLAY_COUNT = 6;
@@ -387,7 +390,14 @@ export function UnifiedNewsIntelligenceCard({
           <>
             {!showAll && sortBy === "recent" && (
               <p className="text-xs text-text-muted mb-3">
-                Showing top 3 positive + top 3 negative articles ({displayedArticles.length} of {sortedArticles.length})
+                {positiveCount > 0 && negativeCount > 0
+                  ? `Showing ${positiveCount} positive + ${negativeCount} negative articles`
+                  : positiveCount > 0
+                  ? `Showing ${positiveCount} most positive articles`
+                  : negativeCount > 0
+                  ? `Showing ${negativeCount} most negative articles`
+                  : `Showing ${displayedArticles.length} articles`}
+                {" "}({displayedArticles.length} of {sortedArticles.length})
               </p>
             )}
             {!showAll && sortBy !== "recent" && (
@@ -410,8 +420,6 @@ export function UnifiedNewsIntelligenceCard({
 
                 const impactSummary = article.impact_summary;
                 const actionableInsight = article.actionable_insight;
-
-                // ALWAYS use original headline (plain_language_headline is disabled due to broken transformation)
                 const displayHeadline = article.headline;
 
                 // Generate unique key
@@ -508,6 +516,8 @@ export function UnifiedNewsIntelligenceCard({
                     ? "Loading headlines..."
                     : showAll
                     ? "Show Less"
+                    : onRequestExpanded
+                    ? "Load More..."
                     : `Show All (${sortedArticles.length} total)`}
                 </Button>
               </div>

@@ -12,7 +12,6 @@ from __future__ import annotations
 from enum import Enum
 
 from ..logging_config import get_logger
-from .news_types import PlainLanguageTranslationDict
 
 logger = get_logger(__name__)
 
@@ -52,55 +51,6 @@ class EventCategory(str, Enum):
     MARKET_SHARE_GAIN = "market_share_gain"
     MARKET_SHARE_LOSS = "market_share_loss"
     UNKNOWN = "unknown"
-
-
-# Event templates: Plain language descriptions of financial events
-EVENT_TEMPLATES: dict[EventCategory, str] = {
-    # Earnings events
-    EventCategory.EARNINGS_BEAT: "Company made more money than expected",
-    EventCategory.EARNINGS_MISS: "Company made less money than expected",
-    EventCategory.EARNINGS_MIXED: "Results were mixed - some good, some bad",
-    # Insider trading events
-    EventCategory.INSIDER_BUY_LARGE: "Executives are buying lots of stock - bullish signal",
-    EventCategory.INSIDER_BUY_SMALL: "Executive bought some stock - mildly bullish",
-    EventCategory.INSIDER_SELL_LARGE: "Executives are selling lots of stock",
-    EventCategory.INSIDER_SELL_SMALL: "Executive sold some stock (often routine)",
-    # Analyst events
-    EventCategory.ANALYST_UPGRADE: "Wall Street analyst raised rating - bullish",
-    EventCategory.ANALYST_DOWNGRADE: "Wall Street analyst lowered rating - bearish",
-    EventCategory.ANALYST_INITIATE: "Wall Street firm started covering the stock",
-    # M&A events
-    EventCategory.M_AND_A_ANNOUNCED: "Major business deal announced",
-    EventCategory.M_AND_A_COMPLETED: "Business deal officially completed",
-    # Executive changes
-    EventCategory.EXEC_CHANGE_CEO: "Company has a new CEO",
-    EventCategory.EXEC_CHANGE_CFO: "Company has a new CFO (money manager)",
-    # Product/partnership events
-    EventCategory.PRODUCT_LAUNCH: "New product or service launched",
-    EventCategory.PARTNERSHIP: "Strategic partnership announced",
-    # FDA events (biotech/pharma)
-    EventCategory.FDA_APPROVAL: "FDA approved their drug - big win",
-    EventCategory.FDA_REJECTION: "FDA rejected their drug - major setback",
-    # Legal events
-    EventCategory.LAWSUIT_FILED: "Company is being sued",
-    EventCategory.LAWSUIT_SETTLED: "Legal case was settled",
-    # Guidance events
-    EventCategory.GUIDANCE_RAISED: "Company raised future expectations - bullish",
-    EventCategory.GUIDANCE_LOWERED: "Company lowered future expectations - bearish",
-    # Dividend/buyback events
-    EventCategory.DIVIDEND_INCREASE: "Company is paying shareholders more - bullish",
-    EventCategory.DIVIDEND_CUT: "Company cut shareholder payments - bearish",
-    EventCategory.BUYBACK_ANNOUNCED: "Company buying back its own stock - bullish",
-    EventCategory.SPLIT_ANNOUNCED: "Stock split announced (cosmetic, not fundamental)",
-    # Regulatory events
-    EventCategory.SEC_INVESTIGATION: "SEC is investigating the company",
-    EventCategory.REGULATORY_WIN: "Won a regulatory battle",
-    EventCategory.REGULATORY_LOSS: "Lost a regulatory battle",
-    # Market position events
-    EventCategory.MARKET_SHARE_GAIN: "Gaining market share vs competitors",
-    EventCategory.MARKET_SHARE_LOSS: "Losing market share to competitors",
-    EventCategory.UNKNOWN: "News reported - check details",
-}
 
 
 def classify_event_category(  # noqa: PLR0911
@@ -376,55 +326,3 @@ def generate_impact_summary(category: EventCategory, sentiment_score: float | No
             return "Mildly negative - modest downside risk"
 
     return "News reported - assess impact based on your strategy"
-
-
-def translate_to_plain_language(
-    headline: str,
-    summary: str | None = None,
-    filing_type: str | None = None,
-    sentiment_score: float | None = None,
-    symbol: str | None = None,
-    in_watchlist: bool = False,
-) -> PlainLanguageTranslationDict:
-    """Translate financial news to plain language with insights.
-
-    Args:
-        headline: News headline
-        summary: Optional news summary
-        filing_type: Optional SEC filing type
-        sentiment_score: Optional sentiment score (-1 to 1)
-        symbol: Optional stock symbol
-        in_watchlist: Whether symbol is in user's watchlist
-
-    Returns:
-        Dict with plain_language_headline, event_category, actionable_insight, impact_summary
-    """
-    # Classify the event
-    category = classify_event_category(headline, summary, filing_type)
-
-    # Generate plain language headline
-    # For UNKNOWN category, return None to keep original headline (more informative)
-    if category == EventCategory.UNKNOWN:
-        plain_headline = None
-    else:
-        event_template = EVENT_TEMPLATES.get(category, headline)
-        # Add symbol context if available
-        if symbol:
-            plain_headline = f"{symbol}: {event_template}"
-        else:
-            plain_headline = event_template
-
-    # Generate actionable insight
-    actionable_insight = generate_actionable_insight(
-        category, sentiment_score, symbol or "Stock", in_watchlist
-    )
-
-    # Generate impact summary
-    impact_summary = generate_impact_summary(category, sentiment_score)
-
-    return {
-        "plain_language_headline": plain_headline,
-        "event_category": category.value,
-        "actionable_insight": actionable_insight,
-        "impact_summary": impact_summary,
-    }

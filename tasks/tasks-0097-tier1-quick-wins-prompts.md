@@ -5,9 +5,10 @@
 **Effort**: LOW
 **Environment**: Local Dev
 **Created**: 2025-12-04 16:30
-**Status**: ✅ COMPLETE (Tasks 1-3), Task 4 deferred
+**Status**: 🔍 REVIEW NEEDED
 **Completed**: 2025-12-04
 **Commit**: 66c85ce
+**Claimed done**: LLM-based plain-language headlines, tool descriptions - VERIFY
 
 ---
 
@@ -121,15 +122,29 @@
 
 ---
 
-## Verification
+## Verification (Updated 2025-12-04 - FACTS)
 
-- [ ] Functional: All 3 agent types show performance metrics in prompts
-- [ ] Functional: Confidence affects position sizing
-- [ ] Functional: Fee warnings appear in all system prompts
-- [ ] Tests: pytest tests/agents/ -v passes
-- [ ] Quality: ~/portfolio-ai/scripts/lint.sh passes
-- [ ] Services: Restarted and verified
-- [ ] Manual: Trigger agent run, inspect prompt in logs
+- [ ] Functional: All 3 agent types show performance metrics in prompts ⚠️ ONLY 2/3 (strategy_reviewer MISSING)
+- [x] Functional: Confidence affects position sizing ✅ VERIFIED (5-tier CONFIDENCE_LEVERAGE_MAP)
+- [x] Functional: Fee warnings appear in all system prompts ✅ VERIFIED (all 3 agents)
+- [ ] Tests: pytest tests/agents/ -v passes ⚠️ NOT RUN
+- [x] Quality: ~/portfolio-ai/scripts/lint.sh passes ✅ VERIFIED
+- [x] Services: Restarted and verified ✅ VERIFIED
+- [ ] Manual: Trigger agent run, inspect prompt in logs ⚠️ NOT DONE
+
+## Bugs Fixed (2025-12-04)
+
+1. **Sharpe threshold ALIGNED** ✅ FIXED - Both workflow_tasks.py and paper_trading_orders.py now use ≥1.0
+   - Changed paper_trading_orders.py:243 default from 0.5 → 1.0
+
+2. **Disagreement components INTEGRATED** ✅ FIXED - DisagreementAlert & DisagreementCard now on watchlist page
+   - Created useDisagreements hook
+   - Added to frontend/app/watchlist/page.tsx
+
+3. **Performance metrics added to strategy_reviewer** ✅ FIXED - All 3 agents now have metrics
+   - discovery.py:67 ✅
+   - portfolio_analyzer.py:69 ✅
+   - strategy_reviewer_prompts.py ✅ FIXED (now uses get_system_prompt(storage))
 
 ---
 

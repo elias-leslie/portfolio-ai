@@ -67,14 +67,14 @@ TABLE_FRESHNESS_CONFIG: list[TableFreshnessConfig] = [
     },
     {
         "table_name": "technical_indicators",
-        "date_column": "timestamp",
+        "date_column": "calculated_at",  # Fixed: was "timestamp" which doesn't exist
         "expected_hours": 24,
         "critical_hours": 48,
         "market_data": True,
     },
     {
         "table_name": "fear_greed_inputs",
-        "date_column": "date",
+        "date_column": "as_of_date",  # Fixed: was "date" which doesn't exist
         "expected_hours": 24,
         "critical_hours": 48,
         "market_data": True,
@@ -269,8 +269,17 @@ def check_table_freshness(
             "reason": "no_data",
         }
 
-    # Ensure last_update is datetime
-    if not isinstance(last_update, dt.datetime):
+    # Handle both DATE and TIMESTAMP types from PostgreSQL
+    # DATE columns return date objects, TIMESTAMP returns datetime objects
+    if isinstance(last_update, dt.date) and not isinstance(last_update, dt.datetime):
+        # Convert date to datetime at midnight UTC
+        last_update = dt.datetime.combine(last_update, dt.time.min, tzinfo=dt.UTC)
+    elif isinstance(last_update, dt.datetime):
+        # Make timezone-aware if needed
+        if last_update.tzinfo is None:
+            last_update = last_update.replace(tzinfo=dt.UTC)
+    else:
+        # Invalid type - not a date or datetime
         logger.warning(
             "invalid_date_column_type",
             table=table_name,
@@ -285,10 +294,6 @@ def check_table_freshness(
             "is_critical": True,
             "reason": "invalid_date",
         }
-
-    # Make timezone-aware if needed
-    if last_update.tzinfo is None:
-        last_update = last_update.replace(tzinfo=dt.UTC)
 
     # Calculate age (market-aware for market data tables)
     age_hours = get_market_aware_age_hours(

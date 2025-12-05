@@ -240,7 +240,7 @@ def create_paper_trade_from_strategy_signal(
     signal_strength: int,
     signal_reasons: list[str] | None = None,
     backtest_run_id: str | None = None,
-    min_sharpe: float = 0.5,
+    min_sharpe: float = 1.0,
     min_win_rate: float = 0.30,
 ) -> PaperTradeDict | None:
     """Create a paper trade from a strategy signal.
@@ -251,7 +251,7 @@ def create_paper_trade_from_strategy_signal(
     VISION.md: "Validate Before Execute" - Requires backtest validation
     before paper trade execution. Trade is rejected if:
     - No backtest exists for strategy (expected_sharpe is None)
-    - Sharpe ratio < min_sharpe (default 0.5)
+    - Sharpe ratio < min_sharpe (default 1.0)
     - Win rate < min_win_rate (default 30%)
 
     Args:
@@ -261,7 +261,7 @@ def create_paper_trade_from_strategy_signal(
         signal_strength: Signal strength (0-10)
         signal_reasons: Reasons for the signal
         backtest_run_id: Optional backtest run ID that validated this trade
-        min_sharpe: Minimum required Sharpe ratio (default 0.5)
+        min_sharpe: Minimum required Sharpe ratio (default 1.0)
         min_win_rate: Minimum required win rate (default 0.30 = 30%)
 
     Returns:

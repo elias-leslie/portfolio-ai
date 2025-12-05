@@ -1,6 +1,6 @@
 """SEC CIK (Central Index Key) fetcher with multiple fallback sources.
 
-This module downloads and caches ticker→CIK mappings from the SEC and alternative sources.
+This module downloads and caches symbol→CIK mappings from the SEC and alternative sources.
 CIK numbers are permanent identifiers (never recycled), so once cached, they remain valid forever.
 
 Usage:
@@ -71,7 +71,7 @@ CIK_SOURCES: list[CIKSource] = [
 
 
 def fetch_cik_mapping(timeout: int = 30) -> dict[str, str]:
-    """Fetch ticker→CIK mapping from SEC or fallback sources.
+    """Fetch symbol→CIK mapping from SEC or fallback sources.
 
     Tries multiple sources in priority order until one succeeds.
 
@@ -111,7 +111,7 @@ def fetch_cik_mapping(timeout: int = 30) -> dict[str, str]:
             # Parse JSON
             data = response.json()
 
-            # Convert to ticker→CIK mapping
+            # Convert to symbol→CIK mapping
             mapping = _parse_cik_data(data, source["name"])
 
             if not mapping:
@@ -157,7 +157,7 @@ def _parse_cik_data(data: dict[str, Any] | list[Any], source_name: str) -> dict[
         source_name: Name of source (for logging)
 
     Returns:
-        Dictionary mapping ticker→CIK (zero-padded to 10 digits)
+        Dictionary mapping symbol→CIK (zero-padded to 10 digits)
     """
     mapping: dict[str, str] = {}
 

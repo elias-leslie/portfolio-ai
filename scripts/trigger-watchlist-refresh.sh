@@ -65,7 +65,7 @@ TICKER_COUNT=${#TICKER_ARRAY[@]}
 echo -e "${GREEN}[2/4] Triggering historical OHLCV data ingestion (${DAYS} days, ${TICKER_COUNT} tickers)...${NC}"
 python3 -c "
 from app.tasks.agent_tasks import ingest_historical_ohlcv
-result = ingest_historical_ohlcv.delay(tickers=['${TICKERS//,/\',\'}'], days=${DAYS})
+result = ingest_historical_ohlcv.delay(symbols=['${TICKERS//,/\',\'}'], days=${DAYS})
 print(f'Task ID: {result.id}')
 print('Background task queued. Check Celery worker logs for progress.')
 "
@@ -76,7 +76,7 @@ sleep 30
 echo -e "${GREEN}[3/4] Triggering technical indicators calculation...${NC}"
 python3 -c "
 from app.tasks.agent_tasks import update_technical_indicators
-result = update_technical_indicators.delay(tickers=['${TICKERS//,/\',\'}'])
+result = update_technical_indicators.delay(symbols=['${TICKERS//,/\',\'}'])
 print(f'Task ID: {result.id}')
 print('Background task queued. Check Celery worker logs for progress.')
 "

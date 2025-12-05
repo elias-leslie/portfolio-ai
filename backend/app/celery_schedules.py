@@ -215,15 +215,36 @@ def get_beat_schedule() -> dict[str, object]:
             # - Must run after populate-fear-greed-inputs-daily completes
             # - Invalidates Redis cache automatically after successful calculation
         },
-        # Additional intraday runs to ensure data stays current
-        "maintain-market-data-midday": {
-            "task": "maintain_historical_market_data",
+        # Additional intraday runs to ensure data stays current during market hours
+        "refresh-market-ohlcv-midday": {
+            "task": "refresh_daily_ohlcv",
             "schedule": crontab(hour=17, minute=0),  # Daily at 17:00 UTC (12:00 PM ET, midday)
+            "args": [ALL_MARKET_SYMBOLS],  # Same symbols as morning refresh
             "options": {"expires": 3600},
             # Notes:
-            # - Midday check to catch intraday data updates and new watchlist symbols
-            # - Ensures new symbols added during the day get 5-year backfill same day
-            # - Self-healing: Catches any symbols that failed in morning run
+            # - Midday refresh to get TODAY's market data during trading hours
+            # - Morning refresh (02:00 UTC) only gets previous day's close
+            # - This ensures Market Conditions shows TODAY's data, not yesterday's
+            # - Self-healing: Catches any failed morning fetches
+        },
+        "refresh-fear-greed-midday": {
+            "task": "populate_fear_greed_inputs",
+            "schedule": crontab(hour=17, minute=15),  # Daily at 17:15 UTC (12:15 PM ET)
+            "args": [7],
+            "options": {"expires": 3600},
+            # Notes:
+            # - Midday Fear & Greed update with intraday market data
+            # - Runs after midday OHLCV refresh completes
+            # - Ensures Fear & Greed shows TODAY's sentiment, not yesterday's
+        },
+        "calculate-fear-greed-midday": {
+            "task": "calculate_fear_greed",
+            "schedule": crontab(hour=17, minute=30),  # Daily at 17:30 UTC (12:30 PM ET)
+            "args": [None],
+            "options": {"expires": 3600},
+            # Notes:
+            # - Midday Fear & Greed calculation with fresh inputs
+            # - Invalidates Redis cache for immediate fresh data
         },
         "update-fear-greed-after-close": {
             "task": "populate_fear_greed_inputs",
@@ -669,6 +690,19 @@ def get_beat_schedule() -> dict[str, object]:
             # - Runs strategy_research_workflow for each symbol
             # - Commits generated strategies to git with research context
         },
+        "weekly-strategy-evolution": {
+            "task": "app.tasks.strategy_monitoring_tasks.weekly_strategy_evolution",
+            "schedule": crontab(hour=6, minute=0, day_of_week=0),  # Sunday 06:00 UTC
+            "options": {"expires": 7200},
+            # Notes:
+            # - Evolves underperforming strategies via LLM analysis
+            # - Runs after weekly strategy generation (05:00)
+            # - Finds strategies performing <90% of expected Sharpe
+            # - LLM proposes mutations, tests via walk-forward backtest
+            # - Saves best mutation if it beats MAS (90% parent OR buy-hold)
+            # - Archives parent, creates child with lineage tracking
+            # - Limit: 5 strategies per week to control costs
+        },
         "daily-strategy-refresh": {
             "task": "app.tasks.strategy_monitoring_tasks.daily_strategy_refresh",
             "schedule": crontab(hour=5, minute=15),  # Daily at 05:15 UTC
@@ -755,5 +789,41 @@ def get_beat_schedule() -> dict[str, object]:
             # - Excludes symbols owned in portfolio positions
             # - Limits: Max 3 removals per day to prevent mass deletion
             # - Can be disabled via rules.yaml: auto_trim_enabled: false
+        },
+        "generate-watchlist-daily-report": {
+            "task": "generate_daily_watchlist_report",
+            "schedule": crontab(hour=9, minute=0),  # Daily at 09:00 UTC (after discovery and trim)
+            "options": {"expires": 1800},
+            # Notes:
+            # - Generates daily summary of watchlist changes
+            # - Tracks: symbols added, symbols removed, significant score changes (>10 points)
+            # - Stores report in watchlist_daily_reports table
+            # - Runs after discovery (08:00) and trim (08:30) complete
+            # - Used by frontend WatchlistDailyReport component
+        },
+        # ============================================================================
+        # RULES VALIDATION & OPTIMIZATION (Tier 3 Task 3.0)
+        # ============================================================================
+        # AI-powered validation of trading rules configuration
+        # ============================================================================
+        "daily-rules-validation": {
+            "task": "daily_rules_validation",
+            "schedule": crontab(hour=3, minute=0),  # Daily at 03:00 UTC
+            "options": {"expires": 600},
+            # Notes:
+            # - Validates all trading rules for logical consistency
+            # - Checks: threshold ranges, contradictions, position sizing, fee assumptions
+            # - Alerts on critical failures via maintenance_log
+            # - Ensures rules configuration doesn't break trading logic
+        },
+        "weekly-optimization-review": {
+            "task": "weekly_optimization_review",
+            "schedule": crontab(hour=3, minute=0, day_of_week=1),  # Monday 03:00 UTC
+            "options": {"expires": 1800},
+            # Notes:
+            # - Analyzes recent trading performance vs rules configuration
+            # - Identifies unused rules and threshold tuning opportunities
+            # - Generates optimization recommendations
+            # - Runs weekly to avoid over-fitting to short-term noise
         },
     }

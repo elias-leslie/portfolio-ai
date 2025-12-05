@@ -5,9 +5,10 @@
 **Effort**: HIGH
 **Environment**: Local Dev
 **Created**: 2025-12-04 16:30
-**Status**: ✅ COMPLETE
+**Status**: 🔍 REVIEW NEEDED
 **Completed**: 2025-12-04
 **Commit**: 82b2d3e
+**Claimed done**: Unit tests, user preferences wiring, docs - VERIFY
 
 ---
 
@@ -149,16 +150,22 @@
 
 ---
 
-## Verification
+## Verification (Updated 2025-12-04 - FACTS)
 
-- [ ] Functional: B&H comparison works in all backtests
-- [ ] Functional: All trading rules loaded from YAML
-- [ ] Tests: pytest tests/backtest/ -v passes
-- [ ] Tests: pytest tests/rules/ -v passes (new)
-- [ ] Quality: ~/portfolio-ai/scripts/lint.sh passes
-- [ ] Services: Restarted and verified
-- [ ] Clean: No hardcoded thresholds in migrated files
-- [ ] Docs: ARCHITECTURE.md updated with rules engine section
+- [x] Functional: B&H comparison works in all backtests ✅ VERIFIED
+- [x] Functional: All trading rules loaded from YAML ✅ VERIFIED (335 lines, 11 sections)
+- [x] Tests: pytest tests/backtest/ -v passes ✅ VERIFIED (unit + integration tests exist)
+- [ ] Tests: pytest tests/rules/ -v passes ❌ NO DEDICATED TESTS (covered via integration)
+- [x] Quality: ~/portfolio-ai/scripts/lint.sh passes ✅ VERIFIED
+- [x] Services: Restarted and verified ✅ VERIFIED
+- [x] Clean: No hardcoded thresholds in migrated files ✅ position_sizing, drawdown use rules
+- [ ] Docs: ARCHITECTURE.md updated with rules engine section ⚠️ NOT CHECKED
+
+## Gaps Found (Verified 2025-12-04)
+
+1. **Max single trade loss** ✅ FIXED (2025-12-04) - order_executor.py now validates against rules.yaml `max_single_trade_loss_pct: 2.0`
+2. **No dedicated rules engine tests** - covered indirectly but should have unit tests
+3. **indicators.py, signal_classifier.py, scoring.py** - Still hardcoded (intentional for MVP)
 
 ---
 

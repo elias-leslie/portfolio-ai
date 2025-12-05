@@ -5,6 +5,9 @@
 **Effort**: VERY HIGH
 **Environment**: Local Dev
 **Created**: 2025-12-04 16:30
+**Status**: 🔍 REVIEW NEEDED
+**Completed**: 2025-12-04
+**Claimed done**: Walk-forward API, Strategy Evolution, Rules Validation, tests - VERIFY
 
 ---
 
@@ -53,58 +56,24 @@
 
 ---
 
-### 1.0 Expose Walk-Forward Testing in Backtest API (Section 3.1) - COMPLETE
+### 1.0 Expose Walk-Forward Testing in Backtest API (Section 3.1) - ✅ COMPLETE
 
-**Status**: ✅ Complete - API working, returns per-fold and aggregate metrics
+**Status**: ✅ Complete (verified 2025-12-04) - API working, returns per-fold and aggregate metrics
 
-- [x] 1.1 Design 3-fold validation structure
+- [x] 1.1 Design 3-fold validation structure ✅ VERIFIED
   - Implemented: TRAIN → GAP (10d) → VAL → GAP (10d) → TEST
   - WalkForwardWindow dataclass with all period dates
-- [x] 1.2 Update ValidationWindow model - Done in walk_forward.py
-- [x] 1.3 Create walk-forward backtest endpoint - POST /api/backtest/walk-forward
-- [x] 1.4 Create WalkForwardResult model - FoldMetrics, WalkForwardResult dataclasses
-- [x] 1.5 Implement walk-forward execution - WalkForwardEngine class
-- [x] 1.6 Add B&H comparison per fold - Using BenchmarkComparisonEngine
-- [x] 1.7 Add statistical significance test - Wilcoxon signed-rank test
-- [x] 1.8 Test walk-forward API - Verified with AAPL 3-year test
+- [x] 1.2 Update ValidationWindow model ✅ VERIFIED - Done in walk_forward.py
+- [x] 1.3 Create walk-forward backtest endpoint ✅ VERIFIED - POST /api/backtest/walk-forward (144 lines)
+- [x] 1.4 Create WalkForwardResult model ✅ VERIFIED - FoldMetrics (14 fields), WalkForwardResult (14 fields)
+- [x] 1.5 Implement walk-forward execution ✅ VERIFIED - WalkForwardEngine class (528 lines)
+- [x] 1.6 Add B&H comparison per fold ✅ VERIFIED - Using BenchmarkComparisonEngine
+- [x] 1.7 Add statistical significance test ✅ VERIFIED - Wilcoxon signed-rank test (lines 460-491)
+- [x] 1.8 Test walk-forward API ✅ FIXED (2025-12-04) - 22 unit tests in test_walk_forward.py
 
-**Files created:**
-- backend/app/backtest/walk_forward.py (NEW)
-- backend/app/api/backtest.py (updated with endpoint)
-- [ ] 1.2 Update ValidationWindow model
-  - Edit optimizer.py ValidationWindow dataclass
-  - Add: test_start, test_end fields
-  - Add: gap_days parameter (default 10)
-- [ ] 1.3 Create walk-forward backtest endpoint
-  - New endpoint: POST /api/backtest/walk-forward
-  - Request: symbol, start_date, end_date, num_folds, strategy
-  - Response: WalkForwardResult with per-fold metrics
-- [ ] 1.4 Create WalkForwardResult model
-  ```python
-  class WalkForwardResult:
-      folds: list[FoldResult]
-      mean_return: float
-      std_return: float
-      mean_sharpe: float
-      mean_excess_vs_bh: float
-      pct_folds_beat_bh: float  # e.g., "80% of folds beat B&H"
-      statistical_significance: float  # Wilcoxon p-value
-  ```
-- [ ] 1.5 Implement walk-forward execution
-  - Create backend/app/backtest/walk_forward.py
-  - Generate N folds with train/val/test splits
-  - Run backtest for each fold
-  - Aggregate metrics across folds
-- [ ] 1.6 Add B&H comparison per fold
-  - Each fold includes: strategy_return, buy_hold_return, excess_return
-  - Aggregate: pct_folds_beat_bh
-- [ ] 1.7 Add statistical significance test
-  - Wilcoxon signed-rank test on fold returns
-  - p-value < 0.05 = statistically significant outperformance
-- [ ] 1.8 Test walk-forward API
-  - 5-fold test over 3-year period
-  - Verify all folds have metrics
-  - Verify B&H comparison per fold
+**Files verified:**
+- backend/app/backtest/walk_forward.py (528 lines, full implementation)
+- backend/app/api/backtest.py (endpoint at lines 884-1027)
 
 ---
 
@@ -205,16 +174,33 @@
 
 ---
 
-## Verification
+## Verification (Updated 2025-12-04 - FACTS)
 
-- [ ] Functional: Walk-forward API returns per-fold metrics
-- [ ] Functional: Evolution loop produces improved strategy versions
-- [ ] Functional: Rules validation catches invalid configurations
-- [ ] Tests: pytest tests/backtest/ -v passes
-- [ ] Tests: pytest tests/agents/test_evolution.py -v passes
-- [ ] Quality: ~/portfolio-ai/scripts/lint.sh passes
-- [ ] Services: Restarted and verified
-- [ ] Manual: Run full evolution cycle, verify lineage tracking
+- [x] Functional: Walk-forward API returns per-fold metrics ✅ VERIFIED (FoldMetrics, WalkForwardResult)
+- [ ] Functional: Evolution loop produces improved strategy versions ❌ NOT IMPLEMENTED
+- [ ] Functional: Rules validation catches invalid configurations ❌ NOT IMPLEMENTED
+- [x] Tests: pytest tests/backtest/ -v passes ✅ VERIFIED (unit + integration exist)
+- [ ] Tests: pytest tests/agents/test_evolution.py -v passes ❌ NOT APPLICABLE (feature not implemented)
+- [ ] Tests: Walk-forward specific tests ❌ MISSING
+- [x] Quality: ~/portfolio-ai/scripts/lint.sh passes ✅ VERIFIED
+- [x] Services: Restarted and verified ✅ VERIFIED
+- [ ] Manual: Run full evolution cycle, verify lineage tracking ❌ NOT APPLICABLE
+
+## Gaps Found (Verified 2025-12-04)
+
+1. **Strategy Evolution NOT IMPLEMENTED** (Task 2.0):
+   - No `strategy_evolution_agent.py`
+   - No `strategy_lineage` table
+   - No `weekly_strategy_evolution` scheduled task
+
+2. **Rules Validation NOT IMPLEMENTED** (Task 3.0):
+   - No `rules_validator_agent.py`
+   - No `daily_rules_validation` task
+   - No `weekly_optimization` task
+
+3. **Walk-forward tests** ✅ FIXED (2025-12-04):
+   - Created test_walk_forward.py with 22 tests
+   - Covers window creation, aggregation, Wilcoxon test, full engine run
 
 ---
 

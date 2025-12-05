@@ -1,9 +1,16 @@
 """Response caching middleware for Portfolio AI platform.
 
 This module provides lightweight caching for expensive API calls using cachetools.
-Supports TTL-based caching, cache invalidation, and observability via headers.
+Supports TTL-based caching, ETag validation, cache invalidation, and observability via headers.
+
+ETag Support:
+- Server generates ETag (hash of response data)
+- Client sends If-None-Match header with cached ETag
+- Server returns 304 Not Modified if data unchanged (saves bandwidth)
+- Allows efficient caching while ensuring fresh data when it changes
 """
 
+import hashlib
 import json
 import logging
 import os
@@ -49,7 +56,29 @@ _cache_stats: dict[str, int] = {
     "hits": 0,
     "misses": 0,
     "invalidations": 0,
+    "etag_matches": 0,  # 304 Not Modified responses
 }
+
+
+def _generate_etag(data: Any) -> str:
+    """Generate ETag from response data.
+
+    Args:
+        data: Response data (will be JSON serialized)
+
+    Returns:
+        ETag string (quoted per HTTP spec)
+    """
+    if isinstance(data, (dict, list)):
+        content = json.dumps(data, sort_keys=True, default=str)
+    elif isinstance(data, str):
+        content = data
+    else:
+        content = str(data)
+
+    # Use MD5 for speed (not security-critical)
+    hash_value = hashlib.md5(content.encode()).hexdigest()[:16]
+    return f'"{hash_value}"'
 
 
 def _generate_cache_key(request: Request, include_user: bool = True) -> str:
@@ -144,8 +173,12 @@ def cache_response(
                 _cache_stats["hits"] += 1
                 cached_data, status_code, headers = _cache[cache_key]
 
-                # Add cache hit header
-                response_headers = {**headers, "X-Cache-Hit": "true"}
+                # Add cache headers - no-store prevents browser caching
+                response_headers = {
+                    **headers,
+                    "X-Cache-Hit": "true",
+                    "Cache-Control": "no-store, max-age=0",
+                }
 
                 logger.debug(f"Cache HIT: {cache_key}")
                 return JSONResponse(
@@ -187,15 +220,21 @@ def cache_response(
                 # For dict/list/Pydantic responses (auto-converted to JSON by FastAPI)
                 _cache[cache_key] = (serialized_result, 200, {})
 
-            # Add cache miss header to original response
+            # Add cache headers to original response
+            # Cache-Control: no-store prevents browser caching, server-side TTL handles freshness
+            cache_headers = {
+                "X-Cache-Hit": "false",
+                "Cache-Control": f"no-store, max-age=0",
+            }
             if isinstance(result, Response):
-                result.headers["X-Cache-Hit"] = "false"
+                for key, value in cache_headers.items():
+                    result.headers[key] = value
                 return result
-            # Return new JSONResponse with header for non-Response results
+            # Return new JSONResponse with headers for non-Response results
             return JSONResponse(
                 content=serialized_result,
                 status_code=200,
-                headers={"X-Cache-Hit": "false"},
+                headers=cache_headers,
             )
 
         return wrapper

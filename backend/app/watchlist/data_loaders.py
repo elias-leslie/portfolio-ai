@@ -11,6 +11,7 @@ import polars as pl
 
 from ..logging_config import get_logger
 from ..storage import PortfolioStorage
+from ..utils.preferences_loader import get_user_scoring_weights
 from .models import ScoreWeights, TechnicalSnapshot
 
 logger = get_logger(__name__)
@@ -68,31 +69,20 @@ def load_latest_technical(
     return snapshots
 
 
-def load_default_weights(storage: PortfolioStorage) -> ScoreWeights:
-    """Load default score weights from user preferences.
+def load_default_weights(storage: PortfolioStorage, user_id: str | None = None) -> ScoreWeights:
+    """Load score weights from user preferences (4-pillar system).
+
+    This function now loads from the watchlist_score_weights JSONB column,
+    which supports all 4 pillars: price, technical, fundamental, catalyst.
 
     Args:
         storage: PortfolioStorage instance
+        user_id: User ID to fetch preferences for (defaults to 'default')
 
     Returns:
-        ScoreWeights with price and technical weights
+        ScoreWeights with all 4 pillar weights (price/technical/fundamental/catalyst)
     """
-    df = storage.query(
-        """
-        SELECT watchlist_price_weight, watchlist_technical_weight
-        FROM user_preferences
-        ORDER BY updated_at DESC
-        LIMIT 1
-        """
-    )
-    if df.is_empty():
-        return ScoreWeights()
-
-    row = df.to_dicts()[0]
-    return ScoreWeights(
-        price=row.get("watchlist_price_weight", 50.0) or 0.0,
-        technical=row.get("watchlist_technical_weight", 50.0) or 0.0,
-    )
+    return get_user_scoring_weights(storage, user_id)
 
 
 def load_stale_ttl_minutes(storage: PortfolioStorage) -> int:

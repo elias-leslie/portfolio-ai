@@ -39,7 +39,6 @@ class NewsArticle(BaseModel):
     # SEC filing metadata
     filing_type: str | None = None
     is_material_event: bool = False
-    plain_language_headline: str | None = None
     # Story clustering metadata
     story_id: str | None = None
     is_primary_article: bool = False

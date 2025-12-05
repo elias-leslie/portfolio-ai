@@ -205,25 +205,27 @@ class SignalClassification(BaseModel):
 
 
 class ScoreWeights(BaseModel):
-    """Weights used to compute overall watchlist score (3-pillar system)."""
+    """Weights used to compute overall watchlist score (4-pillar system)."""
 
-    price: float = 33.0
-    technical: float = 33.0
-    fundamental: float = 34.0  # NEW: Third pillar
+    price: float = 25.0
+    technical: float = 25.0
+    fundamental: float = 30.0
+    catalyst: float = 20.0  # NEW: Fourth pillar (event-driven signals)
 
     @property
     def total(self) -> float:
-        return self.price + self.technical + self.fundamental
+        return self.price + self.technical + self.fundamental + self.catalyst
 
     def normalized(self) -> dict[str, float]:
         """Normalize weights to sum to 1.0."""
         total = self.total
         if total <= 0:
-            return {"price": 0.33, "technical": 0.33, "fundamental": 0.34}
+            return {"price": 0.25, "technical": 0.25, "fundamental": 0.30, "catalyst": 0.20}
         return {
             "price": self.price / total,
             "technical": self.technical / total,
             "fundamental": self.fundamental / total,
+            "catalyst": self.catalyst / total,
         }
 
 
@@ -247,11 +249,12 @@ class ScoreComponent(BaseModel):
 
 
 class ScoreBreakdown(BaseModel):
-    """Score breakdown for a watchlist item (3-pillar system)."""
+    """Score breakdown for a watchlist item (4-pillar system)."""
 
     price: ScoreComponent
     technical: ScoreComponent
-    fundamental: ScoreComponent | None = None  # NEW: May be None if not fetched
+    fundamental: ScoreComponent | None = None  # May be None if not fetched
+    catalyst: ScoreComponent | None = None  # NEW: Fourth pillar (may be None if no news)
 
     overall: float
 
@@ -267,6 +270,7 @@ class ScoreBreakdown(BaseModel):
             "price": self.price.model_dump(mode="json"),
             "technical": self.technical.model_dump(mode="json"),
             "fundamental": self.fundamental.model_dump(mode="json") if self.fundamental else None,
+            "catalyst": self.catalyst.model_dump(mode="json") if self.catalyst else None,
             "overall": self.overall,
         }
 
@@ -295,6 +299,7 @@ class WatchlistScoreInputs(BaseModel):
     price_change_pct: float | None = None
     technical: TechnicalSnapshot = Field(default_factory=TechnicalSnapshot)
     fundamental: Any | None = None  # FundamentalData (avoid circular import)
+    news_articles: list[dict[str, str | datetime | float | None]] = Field(default_factory=list)  # NEW: For catalyst scoring
     weights: ScoreWeights = Field(default_factory=ScoreWeights)
     now: datetime = Field(default_factory=lambda: datetime.now(UTC))
     stale_ttl_minutes: int = 15  # Default to 15 minutes (3x default 5min refresh)

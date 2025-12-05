@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import cast
+from typing import Any, cast
 
 from fastapi import APIRouter
 from fastapi.concurrency import run_in_threadpool
@@ -62,6 +62,37 @@ class PreferencesResponse(BaseModel):
     )
     display_timezone: str = Field(..., description="User's preferred display timezone")
     watchlist_show_news: bool = Field(..., description="Show news sentiment in watchlist UI")
+
+
+class ScoringWeightsUpdate(BaseModel):
+    """Request model for updating scoring weights."""
+
+    price: float = Field(..., ge=0, le=100, description="Price component weight (0-100)")
+    technical: float = Field(..., ge=0, le=100, description="Technical component weight (0-100)")
+    fundamental: float = Field(
+        ..., ge=0, le=100, description="Fundamental component weight (0-100)"
+    )
+    catalyst: float = Field(..., ge=0, le=100, description="Catalyst component weight (0-100)")
+
+    @field_validator("catalyst")
+    @classmethod
+    def validate_weights_sum(cls, v: float, info: Any) -> float:
+        """Validate that all weights sum to 100."""
+        if not info.data:
+            return v
+
+        total = (
+            info.data.get("price", 0)
+            + info.data.get("technical", 0)
+            + info.data.get("fundamental", 0)
+            + v
+        )
+
+        if abs(total - 100.0) > 0.01:  # Allow small floating point errors
+            msg = f"Weights must sum to 100 (got {total})"
+            raise ValueError(msg)
+
+        return v
 
 
 class PreferencesUpdate(BaseModel):
@@ -446,3 +477,69 @@ async def update_preferences(update: PreferencesUpdate) -> PreferencesResponse:
         display_timezone=cast(str, current["display_timezone"]),
         watchlist_show_news=cast(bool, current.get("watchlist_show_news", True)),
     )
+
+
+@router.get("/scoring-weights", response_model=ScoringWeightsUpdate)
+async def get_scoring_weights() -> ScoringWeightsUpdate:
+    """Get current scoring weights (4-pillar system)."""
+    user_id = "default"
+
+    with storage.connection() as conn:
+        result_df = conn.execute(
+            "SELECT watchlist_score_weights FROM user_preferences WHERE id = %s LIMIT 1",
+            [user_id],
+        ).fetchdf()
+
+    if result_df.is_empty():
+        # Return defaults if no preferences exist
+        return ScoringWeightsUpdate(price=25.0, technical=25.0, fundamental=30.0, catalyst=20.0)
+
+    row = result_df.row(0, named=True)
+    weights_json = row.get("watchlist_score_weights")
+
+    if not weights_json:
+        # Return defaults if weights not set
+        return ScoringWeightsUpdate(price=25.0, technical=25.0, fundamental=30.0, catalyst=20.0)
+
+    # Extract from JSONB
+    return ScoringWeightsUpdate(
+        price=float(weights_json.get("price", 25.0)),
+        technical=float(weights_json.get("technical", 25.0)),
+        fundamental=float(weights_json.get("fundamental", 30.0)),
+        catalyst=float(weights_json.get("catalyst", 20.0)),
+    )
+
+
+@router.put("/scoring-weights", response_model=ScoringWeightsUpdate)
+async def update_scoring_weights(weights: ScoringWeightsUpdate) -> ScoringWeightsUpdate:
+    """Update scoring weights (4-pillar system).
+
+    Weights must sum to 100. Updates are stored in the watchlist_score_weights JSONB column.
+    """
+    user_id = "default"
+
+    # Ensure user preferences exist
+    await run_in_threadpool(_get_or_create_preferences)
+
+    # Build JSONB value for PostgreSQL
+    weights_json = {
+        "price": weights.price,
+        "technical": weights.technical,
+        "fundamental": weights.fundamental,
+        "catalyst": weights.catalyst,
+    }
+
+    # Update the JSONB column
+    with storage.connection() as conn:
+        conn.execute(
+            """
+            UPDATE user_preferences
+            SET watchlist_score_weights = %s::jsonb,
+                updated_at = %s
+            WHERE id = %s
+            """,
+            [str(weights_json).replace("'", '"'), datetime.now(UTC), user_id],
+        )
+        conn.commit()
+
+    return weights

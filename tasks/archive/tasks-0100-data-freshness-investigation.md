@@ -5,12 +5,36 @@
 **Priority**: HIGH
 **Effort**: MEDIUM
 **Completed**: 2025-12-04
+**Final Verification**: 2025-12-04 (comprehensive fix session)
 
 ---
 
 ## Summary
 
-Investigated and fixed data freshness display issues. **Key finding**: Backend data was FRESH all along - the issue was in multiple caching layers serving stale cached data despite fresh database.
+Investigated and fixed data freshness display issues across multiple sessions.
+
+### Session 1 (Earlier Dec 4): Cache Layer Fixes
+- Frontend React Query staleness reduced
+- Redis F&G cache TTL reduced
+- Cache invalidation after Celery tasks
+
+### Session 2 (Dec 4 19:00 UTC): Root Cause Fixes
+
+**Problems Identified:**
+1. `watchlist_snapshots_core` missing historical data (Migration 070 didn't migrate history)
+2. `data_freshness_service.py` had wrong column names causing "invalid date column" errors
+3. No midday OHLCV refresh - morning task (02:00 UTC) only gets previous day's close
+4. Fear & Greed not calculated for current day until after market close
+
+**Permanent Fixes Applied:**
+1. Created `migrations/074_backfill_watchlist_snapshots_core.sql` - Backfilled 514 historical records
+2. Fixed `data_freshness_service.py:70,77` - Column names: `timestamp`→`calculated_at`, `date`→`as_of_date`
+3. Added 3 new Celery beat schedules in `celery_schedules.py`:
+   - `refresh-market-ohlcv-midday` (17:00 UTC / 12 PM ET) - TODAY's OHLCV data
+   - `refresh-fear-greed-midday` (17:15 UTC) - Populate F&G inputs with today's data
+   - `calculate-fear-greed-midday` (17:30 UTC) - Calculate F&G index for today
+
+**Result**: Dashboard now shows "Updated Just now" and Fear & Greed 67 (Greed) for Dec 4.
 
 ### Root Causes Fixed
 

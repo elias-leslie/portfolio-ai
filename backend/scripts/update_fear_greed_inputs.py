@@ -89,7 +89,7 @@ def fetch_spy_data(storage, start_date: dt.date, end_date: dt.date) -> list[tupl
             """
             SELECT date, close
             FROM day_bars
-            WHERE ticker = 'SPY'
+            WHERE symbol = 'SPY'
             AND date BETWEEN %s AND %s
             ORDER BY date ASC
             """,
@@ -196,7 +196,7 @@ def main() -> None:
 
     # Get earliest available date from day_bars
     with storage.connection() as conn:
-        result = conn.execute("SELECT MIN(date) FROM day_bars WHERE ticker = 'SPY'")
+        result = conn.execute("SELECT MIN(date) FROM day_bars WHERE symbol = 'SPY'")
         earliest_available = result.fetchone()[0]
 
     # Use earliest available date or calculated start date, whichever is earlier

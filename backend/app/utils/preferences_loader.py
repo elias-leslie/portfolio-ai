@@ -17,8 +17,12 @@ AFTER (Fix):
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from app.storage import PortfolioStorage
+if TYPE_CHECKING:
+    from app.storage import PortfolioStorage
+
+from app.watchlist.models import ScoreWeights
 
 
 @dataclass
@@ -33,7 +37,7 @@ class UserPreferences:
     news_lookback_hours: int
     news_max_articles: int
 
-    # Watchlist scoring weights
+    # Watchlist scoring weights (legacy 2-pillar)
     watchlist_price_weight: float
     watchlist_technical_weight: float
 
@@ -108,3 +112,52 @@ class UserPreferences:
             else self.default_refresh_minutes
         )
         return refresh_minutes * 3
+
+
+def get_user_scoring_weights(storage: PortfolioStorage, user_id: str | None = None) -> ScoreWeights:
+    """Get user scoring weights from preferences or defaults.
+
+    Args:
+        storage: PortfolioStorage instance
+        user_id: User ID to fetch preferences for (defaults to 'default')
+
+    Returns:
+        ScoreWeights object with user preferences or default weights
+    """
+    # Default weights (from ScoreWeights defaults)
+    default_weights = ScoreWeights()
+
+    # Use 'default' user if not specified
+    if user_id is None:
+        user_id = "default"
+
+    # Query user preferences for score weights
+    df = storage.query(
+        """
+        SELECT watchlist_score_weights
+        FROM user_preferences
+        WHERE id = %s
+        LIMIT 1
+        """,
+        [user_id],
+    )
+
+    if df.is_empty():
+        # No preferences found, return defaults
+        return default_weights
+
+    row = df.to_dicts()[0]
+    weights_json = row.get("watchlist_score_weights")
+
+    if not weights_json:
+        # No custom weights, return defaults
+        return default_weights
+
+    # Extract weights from JSONB column
+    # watchlist_score_weights has structure: {"price": 25, "technical": 25, "fundamental": 30, "catalyst": 20}
+    return ScoreWeights(
+        price=float(weights_json.get("price", default_weights.price)),
+        technical=float(weights_json.get("technical", default_weights.technical)),
+        fundamental=float(weights_json.get("fundamental", default_weights.fundamental)),
+        catalyst=float(weights_json.get("catalyst", default_weights.catalyst)),
+    )

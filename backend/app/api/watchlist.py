@@ -48,8 +48,8 @@ router = APIRouter(prefix="/api/watchlist", tags=["watchlist"])
 # Initialize services
 storage = get_storage()
 watchlist_service = WatchlistService(storage)
-strategy_reviewer = StrategyReviewer(primary_provider="gemini")
-multi_reviewer = MultiReviewer()
+strategy_reviewer = StrategyReviewer(storage, primary_provider="gemini")
+multi_reviewer = MultiReviewer(storage)
 
 
 # Endpoints
@@ -74,6 +74,62 @@ async def list_watchlist_items(request: Request) -> WatchlistListResponse:
     except Exception as e:
         logger.error("Failed to list watchlist items", error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to fetch watchlist: {e}") from e
+
+
+@router.get("/daily-report")
+async def get_daily_report() -> dict[str, object]:
+    """
+    Get the latest daily watchlist report.
+
+    Returns:
+        Latest report with symbols added, removed, and score changes
+    """
+    try:
+        # Get latest report
+        report_df = storage.query(
+            """
+            SELECT id, report_date, symbols_added, symbols_removed, score_changes, generated_at
+            FROM watchlist_daily_reports
+            ORDER BY report_date DESC
+            LIMIT 1
+            """
+        )
+
+        if report_df.is_empty():
+            return {
+                "report_date": None,
+                "generated_at": None,
+                "symbols_added": [],
+                "symbols_removed": [],
+                "score_changes": [],
+                "is_stale": True,
+            }
+
+        report_row = report_df.to_dicts()[0]
+
+        # Parse JSON fields
+        symbols_added = json.loads(report_row["symbols_added"]) if isinstance(report_row["symbols_added"], str) else report_row["symbols_added"]
+        symbols_removed = json.loads(report_row["symbols_removed"]) if isinstance(report_row["symbols_removed"], str) else report_row["symbols_removed"]
+        score_changes = json.loads(report_row["score_changes"]) if isinstance(report_row["score_changes"], str) else report_row["score_changes"]
+
+        # Check if report is stale (>48 hours old)
+        generated_at = report_row["generated_at"]
+        if isinstance(generated_at, str):
+            generated_at = datetime.fromisoformat(generated_at)
+        is_stale = (datetime.now(UTC) - generated_at).total_seconds() > 48 * 3600
+
+        return {
+            "report_date": report_row["report_date"].isoformat() if report_row["report_date"] else None,
+            "generated_at": generated_at.isoformat() if generated_at else None,
+            "symbols_added": symbols_added,
+            "symbols_removed": symbols_removed,
+            "score_changes": score_changes,
+            "is_stale": is_stale,
+        }
+
+    except Exception as e:
+        logger.error("Failed to get daily report", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to fetch daily report: {e}") from e
 
 
 @router.post("", response_model=WatchlistItemResponse, status_code=201)
@@ -377,7 +433,7 @@ async def get_score_history(item_id: str, days: int = 10) -> ScoreHistoryRespons
 
         symbol = item_df.to_dicts()[0]["symbol"]
 
-        # Fetch snapshots from database
+        # Fetch snapshots from database using the normalized view
         snapshots_df = storage.query(
             """
             SELECT item_id, fetched_at, price, technical_score, overall_score, raw_metrics
@@ -400,7 +456,8 @@ async def get_score_history(item_id: str, days: int = 10) -> ScoreHistoryRespons
         snapshots = []
         for row in snapshots_df.to_dicts():
             # Parse raw_metrics if it's a string (from JSON column)
-            raw_metrics = row.get("raw_metrics", {})
+            # Handle NULL values by defaulting to empty dict
+            raw_metrics = row.get("raw_metrics") or {}
             if isinstance(raw_metrics, str):
                 raw_metrics = json.loads(raw_metrics)
 

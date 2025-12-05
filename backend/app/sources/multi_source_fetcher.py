@@ -117,7 +117,6 @@ class MultiSourceFetcher:
         # SEC EDGAR-specific columns (may not exist in other sources)
         sec_edgar_casts = {
             "filing_type": pl.Utf8,
-            "plain_language_headline": pl.Utf8,
             "is_material_event": pl.Boolean,
         }
 
@@ -237,7 +236,7 @@ class MultiSourceFetcher:
                         rows=len(data),
                     )
             else:
-                # Assume all symbols fetched if no ticker column
+                # Assume all symbols fetched if no symbol column
                 if verbose:
                     logger.info("source_fetched_all", source=source.name, rows=len(data))
                 if not news_dataset:
@@ -246,10 +245,12 @@ class MultiSourceFetcher:
             self.metrics_manager.record_success(source.name, fetch_duration_ms)
             return True
 
-        # No data, but still success (no error)
+        # No data returned - for news sources this is more common (legitimate case where no articles match)
+        # Don't count as either success or failure; these are "no data" events (different from errors)
         if verbose:
             logger.info("source_no_data", source=source.name)
-        self.metrics_manager.record_success(source.name, fetch_duration_ms)
+        # Note: Not recording as success/failure to keep metrics focused on actual API errors
+        # This prevents sources with legitimate "no data" responses from showing reduced success rates
         return False
 
     def _combine_results(self, all_data: list[pl.DataFrame], verbose: bool) -> pl.DataFrame | None:

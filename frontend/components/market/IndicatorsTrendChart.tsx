@@ -32,15 +32,20 @@ export function IndicatorsTrendChart() {
   const { data, isLoading, error } = useIndicatorHistory(days);
 
   // Transform data for Recharts - merge all indicators by date
+  // Include both percentage change (for charting) and actual values (for tooltips)
   const chartData = useMemo(() => {
     if (!data?.sp500?.length) return [];
 
     return data.sp500.map((point, idx) => ({
       date: point.date,
       sp500: point.pct_change,
+      sp500_value: point.close,
       vix: data.vix[idx]?.pct_change ?? 0,
+      vix_value: data.vix[idx]?.close ?? 0,
       tnx: data.tnx[idx]?.pct_change ?? 0,
+      tnx_value: data.tnx[idx]?.close ?? 0,
       dxy: data.dxy[idx]?.pct_change ?? 0,
+      dxy_value: data.dxy[idx]?.close ?? 0,
     }));
   }, [data]);
 
@@ -58,7 +63,8 @@ export function IndicatorsTrendChart() {
   }, [data]);
 
   const formatXAxis = (date: string) => {
-    const d = new Date(date);
+    // Append T12:00:00 to avoid timezone shift
+    const d = new Date(date + "T12:00:00");
     return d.toLocaleDateString("en-US", { month: "short" });
   };
 
@@ -111,12 +117,23 @@ export function IndicatorsTrendChart() {
                 borderRadius: "8px",
                 fontSize: "12px",
               }}
-              formatter={(value: number, name: string) => [
-                `${value.toFixed(1)}%`,
-                INDICATOR_CONFIG[name as IndicatorKey]?.name || name,
-              ]}
+              formatter={(value: number, name: string, props: { payload: Record<string, number> }) => {
+                const config = INDICATOR_CONFIG[name as IndicatorKey];
+                const actualValue = props.payload[`${name}_value`];
+                // Format actual value based on indicator type
+                let formattedValue = "";
+                if (name === "sp500") {
+                  formattedValue = actualValue?.toLocaleString(undefined, { maximumFractionDigits: 0 }) ?? "";
+                } else if (name === "tnx") {
+                  formattedValue = `${actualValue?.toFixed(2) ?? ""}%`;
+                } else {
+                  formattedValue = actualValue?.toFixed(2) ?? "";
+                }
+                return [`${formattedValue} (${value >= 0 ? "+" : ""}${value.toFixed(1)}%)`, config?.name || name];
+              }}
               labelFormatter={(label) =>
-                new Date(label).toLocaleDateString("en-US", {
+                // Append T12:00:00 to avoid timezone shift
+                new Date(label + "T12:00:00").toLocaleDateString("en-US", {
                   month: "short",
                   day: "numeric",
                   year: "numeric",

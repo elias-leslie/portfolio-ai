@@ -113,10 +113,9 @@ class FallbackDetailsDict(TypedDict, total=False):
     article_count: int | None
 
 
-class PlainLanguageTranslationDict(TypedDict, total=False):
-    """Plain language translation of financial news."""
+class InsightGenerationDict(TypedDict, total=False):
+    """Rule-based insight generation for financial news."""
 
-    plain_language_headline: str | None
     event_category: str
     actionable_insight: str
     impact_summary: str
@@ -144,7 +143,6 @@ class ArticleDbRowDict(TypedDict, total=False):
     updated_at: datetime
     filing_type: str | None
     is_material_event: bool
-    plain_language_headline: str | None
     story_id: str | None
     is_primary_article: bool
     coverage_count: int

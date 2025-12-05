@@ -1,4 +1,4 @@
-"""AI-powered news features: story clustering and plain language translation."""
+"""AI-powered news features: story clustering and insight generation."""
 
 from __future__ import annotations
 
@@ -16,21 +16,16 @@ try:
         classify_event_category,
         generate_actionable_insight,
         generate_impact_summary,
-        translate_to_plain_language,
     )
 except Exception:  # pragma: no cover - handled via availability checks
     classify_event_category = cast(Any, None)
     generate_actionable_insight = cast(Any, None)
     generate_impact_summary = cast(Any, None)
-    translate_to_plain_language = cast(Any, None)
 
 from ..logging_config import get_logger
 from .news_models import NewsArticle
 
 logger = get_logger(__name__)
-
-# Feature flags
-ENABLE_PLAIN_LANGUAGE_HEADLINES = False  # Disabled due to broken keyword-based transformation
 
 
 class NewsAIFeatures:
@@ -96,10 +91,13 @@ class NewsAIFeatures:
 
         return articles
 
-    def apply_plain_language_translation(
+    def apply_insight_generation(
         self, articles: list[NewsArticle], watchlist_symbols: list[str] | None = None
     ) -> list[NewsArticle]:
-        """Apply plain language translation to articles.
+        """Apply rule-based insight generation to articles.
+
+        Generates impact_summary and actionable_insight based on event category
+        and sentiment score. No LLM calls - pure rule-based logic.
 
         Args:
             articles: List of scored NewsArticle objects
@@ -113,7 +111,6 @@ class NewsAIFeatures:
             or classify_event_category is None
             or generate_actionable_insight is None
             or generate_impact_summary is None
-            or translate_to_plain_language is None
         ):
             return articles
 
@@ -125,19 +122,6 @@ class NewsAIFeatures:
                     summary=article.summary,
                     filing_type=article.filing_type,
                 )
-
-                # Generate plain language headline if not already set
-                # DISABLED: Keyword-based transformation is broken (wrong transformations, sentiment mismatch)
-                # TODO: Re-enable when proper LLM-based transformation is implemented
-                if ENABLE_PLAIN_LANGUAGE_HEADLINES and not article.plain_language_headline:
-                    translation_result = translate_to_plain_language(
-                        headline=article.headline,
-                        summary=article.summary,
-                        filing_type=article.filing_type,
-                        sentiment_score=article.sentiment.score,
-                        symbol=article.symbol,
-                    )
-                    article.plain_language_headline = translation_result["plain_language_headline"]
 
                 # Generate impact summary
                 article.impact_summary = generate_impact_summary(
@@ -155,15 +139,15 @@ class NewsAIFeatures:
                 )
 
             logger.info(
-                "plain_language_translation_applied",
+                "insight_generation_applied",
                 num_articles=len(articles),
                 num_with_insights=sum(1 for a in articles if a.actionable_insight),
             )
 
         except Exception as exc:
-            # Non-fatal: plain language translation is enhancement, not critical
+            # Non-fatal: insight generation is enhancement, not critical
             logger.warning(
-                "plain_language_translation_failed", error=str(exc), error_type=type(exc).__name__
+                "insight_generation_failed", error=str(exc), error_type=type(exc).__name__
             )
 
         return articles

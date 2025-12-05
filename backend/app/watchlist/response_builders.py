@@ -55,6 +55,7 @@ class ScoreBreakdownResponse(BaseModel):
     price: ScoreComponentResponse
     technical: ScoreComponentResponse
     fundamental: ScoreComponentResponse | None = None
+    catalyst: ScoreComponentResponse | None = None  # Fourth pillar (event-driven signals)
     overall: float
 
 
@@ -149,6 +150,9 @@ class WatchlistItemResponse(BaseModel):
                 technical=ScoreComponentResponse(**item["score"]["technical"]),
                 fundamental=ScoreComponentResponse(**item["score"]["fundamental"])
                 if item["score"].get("fundamental")
+                else None,
+                catalyst=ScoreComponentResponse(**item["score"]["catalyst"])
+                if item["score"].get("catalyst")
                 else None,
                 overall=item["score"]["overall"],
             )

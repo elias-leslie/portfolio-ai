@@ -38,6 +38,7 @@ export function SectorPerformanceChart() {
   const { data, isLoading, error } = useSectorHistory(days);
 
   // Transform data for Recharts
+  // Include both percentage change (for charting) and actual close price (for tooltips)
   const chartData = useMemo(() => {
     if (!data?.sectors?.length) return [];
 
@@ -50,6 +51,7 @@ export function SectorPerformanceChart() {
       data.sectors.forEach((sector) => {
         if (sector.data[idx]) {
           entry[sector.symbol] = sector.data[idx].pct_change;
+          entry[`${sector.symbol}_price`] = sector.data[idx].close;
         }
       });
       return entry;
@@ -58,7 +60,8 @@ export function SectorPerformanceChart() {
 
   // Format date for X axis
   const formatXAxis = (date: string) => {
-    const d = new Date(date);
+    // Append T12:00:00 to avoid timezone shift
+    const d = new Date(date + "T12:00:00");
     return d.toLocaleDateString("en-US", { month: "short" });
   };
 
@@ -111,12 +114,15 @@ export function SectorPerformanceChart() {
                 borderRadius: "8px",
                 fontSize: "12px",
               }}
-              formatter={(value: number, name: string) => {
+              formatter={(value: number, name: string, props: { payload: Record<string, number> }) => {
                 const sector = data.sectors.find((s) => s.symbol === name);
-                return [`${value.toFixed(1)}%`, sector?.name || name];
+                const price = props.payload[`${name}_price`];
+                const formattedPrice = price?.toFixed(2) ?? "";
+                return [`$${formattedPrice} (${value >= 0 ? "+" : ""}${value.toFixed(1)}%)`, sector?.name || name];
               }}
               labelFormatter={(label) =>
-                new Date(label).toLocaleDateString("en-US", {
+                // Append T12:00:00 to avoid timezone shift
+                new Date(label + "T12:00:00").toLocaleDateString("en-US", {
                   month: "short",
                   day: "numeric",
                   year: "numeric",

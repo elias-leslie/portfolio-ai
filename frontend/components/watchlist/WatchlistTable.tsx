@@ -257,6 +257,35 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
     }
   };
 
+  // Get catalyst indicator (show when catalyst score is significant)
+  const getCatalystIndicator = (catalystScore?: number, catalystMetadata?: Record<string, unknown>) => {
+    if (!catalystScore || catalystScore < 30) return null;
+
+    // Positive catalyst (score >= 60)
+    if (catalystScore >= 60) {
+      const eventCategory = catalystMetadata?.event_category as string | undefined;
+      const categoryLabel = eventCategory?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Positive catalyst';
+      return {
+        icon: "🚀",
+        tooltip: `${categoryLabel} (Impact: ${catalystScore.toFixed(0)}/100)`,
+        color: "text-green-600",
+      };
+    }
+
+    // Negative catalyst (score <= 40)
+    if (catalystScore <= 40) {
+      const eventCategory = catalystMetadata?.event_category as string | undefined;
+      const categoryLabel = eventCategory?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Negative catalyst';
+      return {
+        icon: "⚠️",
+        tooltip: `${categoryLabel} (Impact: ${catalystScore.toFixed(0)}/100)`,
+        color: "text-red-600",
+      };
+    }
+
+    return null;
+  };
+
   // Get trading style display
   const getStyleDisplay = (style?: "Index" | "Trend" | "Value" | "Swing" | "Event" | null) => {
     switch (style) {
@@ -609,6 +638,10 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                     {item.signal_type ? (
                       (() => {
                         const signalDisplay = getSignalDisplay(item.signal_type);
+                        const catalystIndicator = getCatalystIndicator(
+                          item.current_score?.catalyst?.score,
+                          item.current_score?.catalyst?.metadata
+                        );
                         return signalDisplay ? (
                           <div className="flex items-center gap-1">
                             {/* Signal Badge */}
@@ -626,6 +659,16 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                                 </span>
                               )}
                             </div>
+
+                            {/* Catalyst Indicator (direct score display) */}
+                            {catalystIndicator && (
+                              <span
+                                className={cn("text-base cursor-help", catalystIndicator.color)}
+                                title={catalystIndicator.tooltip}
+                              >
+                                {catalystIndicator.icon}
+                              </span>
+                            )}
 
                             {/* Priority Indicators (NO CAP - show all) */}
                             {item.priority_indicators && item.priority_indicators.length > 0 && (

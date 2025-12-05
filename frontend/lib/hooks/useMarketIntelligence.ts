@@ -6,10 +6,12 @@ import { useQuery, UseQueryResult } from "@tanstack/react-query";
 import {
   fetchMarketIntelligence,
   fetchFearGreedHistory,
+  fetchNewsSentimentHistory,
   fetchIndicatorHistory,
   fetchSectorHistory,
   type MarketIntelligenceResponse,
   type FearGreedHistoryResponse,
+  type NewsSentimentHistoryResponse,
   type IndicatorHistoryResponse,
   type SectorHistoryResponse,
 } from "../api/market";
@@ -30,6 +32,7 @@ export function useMarketIntelligence(): UseQueryResult<MarketIntelligenceRespon
 
 /**
  * Hook to fetch Fear & Greed historical data for trend charts
+ * Auto-refreshes every 5 minutes to catch new data
  */
 export function useFearGreedHistory(
   days: number = 365
@@ -37,13 +40,33 @@ export function useFearGreedHistory(
   return useQuery({
     queryKey: ["market", "fear-greed-history", days],
     queryFn: () => fetchFearGreedHistory(days),
-    staleTime: 1000 * 60 * 30, // 30 minutes
-    refetchOnWindowFocus: false,
+    staleTime: 1000 * 60 * 2, // 2 minutes - consider stale quickly
+    refetchInterval: 1000 * 60 * 5, // Auto-refetch every 5 minutes
+    refetchOnWindowFocus: true, // Refetch when user returns to tab
+  });
+}
+
+/**
+ * Hook to fetch news sentiment historical data for trend charts
+ * @param days - Number of days of history
+ * @param granularity - 'daily' or 'hourly' (hourly useful for intraday view)
+ */
+export function useNewsSentimentHistory(
+  days: number = 30,
+  granularity: "daily" | "hourly" = "daily"
+): UseQueryResult<NewsSentimentHistoryResponse> {
+  return useQuery({
+    queryKey: ["market", "news-sentiment-history", days, granularity],
+    queryFn: () => fetchNewsSentimentHistory(days, granularity),
+    staleTime: 1000 * 60 * 2, // 2 minutes
+    refetchInterval: 1000 * 60 * 5, // Auto-refetch every 5 minutes
+    refetchOnWindowFocus: true,
   });
 }
 
 /**
  * Hook to fetch key indicator historical data for trend charts
+ * Auto-refreshes every 5 minutes to catch new data
  */
 export function useIndicatorHistory(
   days: number = 365
@@ -51,13 +74,15 @@ export function useIndicatorHistory(
   return useQuery({
     queryKey: ["market", "indicator-history", days],
     queryFn: () => fetchIndicatorHistory(days),
-    staleTime: 1000 * 60 * 30, // 30 minutes
-    refetchOnWindowFocus: false,
+    staleTime: 1000 * 60 * 2, // 2 minutes - consider stale quickly
+    refetchInterval: 1000 * 60 * 5, // Auto-refetch every 5 minutes
+    refetchOnWindowFocus: true, // Refetch when user returns to tab
   });
 }
 
 /**
  * Hook to fetch sector ETF historical data for performance charts
+ * Auto-refreshes every 5 minutes to catch new data
  */
 export function useSectorHistory(
   days: number = 365
@@ -65,7 +90,8 @@ export function useSectorHistory(
   return useQuery({
     queryKey: ["market", "sector-history", days],
     queryFn: () => fetchSectorHistory(days),
-    staleTime: 1000 * 60 * 30, // 30 minutes
-    refetchOnWindowFocus: false,
+    staleTime: 1000 * 60 * 2, // 2 minutes - consider stale quickly
+    refetchInterval: 1000 * 60 * 5, // Auto-refetch every 5 minutes
+    refetchOnWindowFocus: true, // Refetch when user returns to tab
   });
 }

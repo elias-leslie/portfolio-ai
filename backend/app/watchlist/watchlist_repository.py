@@ -162,7 +162,6 @@ class WatchlistRepository:
                     fetched_at,
                     filing_type,
                     is_material_event,
-                    plain_language_headline,
                     story_id,
                     is_primary_article,
                     coverage_count,

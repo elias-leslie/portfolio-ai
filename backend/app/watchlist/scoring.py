@@ -8,6 +8,10 @@ from typing import Any
 
 from ..logging_config import get_logger
 from ..portfolio.models import PriceData
+from ..services.catalyst_scoring import (
+    aggregate_catalyst_scores,
+    get_active_catalysts_for_symbol,
+)
 from .fundamentals import FundamentalData
 from .models import (
     ScoreBreakdown,
@@ -209,8 +213,95 @@ def _compute_fundamental_component(
     return component
 
 
+def _compute_catalyst_component(
+    symbol: str,
+    news_articles: list[dict[str, str | datetime | float | None]],
+    weight: float,
+    now: datetime,
+) -> ScoreComponent:
+    """Compute catalyst score component from recent news events.
+
+    Args:
+        symbol: Stock symbol
+        news_articles: List of news article dicts with headline, summary, published_at, filing_type
+        weight: Weight for this component (0.0-1.0)
+        now: Current timestamp
+
+    Returns:
+        ScoreComponent with catalyst score (0-100 scale, mapped from -5 to +5)
+    """
+    if not news_articles:
+        return ScoreComponent(
+            score=50.0,  # Neutral score when no news
+            weight=weight,
+            stale=False,
+            metadata={"reason": "no_news_articles", "catalyst_count": 0},
+            sub_scores={},
+        )
+
+    try:
+        # Get active catalysts (non-expired events)
+        active_catalysts = get_active_catalysts_for_symbol(
+            symbol=symbol,
+            news_articles=news_articles,
+            current_date=now,
+        )
+
+        if not active_catalysts:
+            return ScoreComponent(
+                score=50.0,  # Neutral score when no active catalysts
+                weight=weight,
+                stale=False,
+                metadata={"reason": "no_active_catalysts", "catalyst_count": 0},
+                sub_scores={},
+            )
+
+        # Aggregate catalyst scores (-5 to +5 range)
+        catalyst_impact = aggregate_catalyst_scores(active_catalysts)
+
+        # Map -5 to +5 range to 0-100 scale
+        # -5 => 0, 0 => 50, +5 => 100
+        score = (catalyst_impact + 5.0) / 10.0 * 100.0
+        score = max(0.0, min(100.0, score))
+
+        # Extract sub-scores for top 3 catalysts
+        sub_scores = {}
+        for i, catalyst in enumerate(active_catalysts[:3], 1):
+            sub_scores[f"catalyst_{i}"] = catalyst.score
+
+        metadata: dict[str, str | int | float | bool | None] = {
+            "catalyst_count": len(active_catalysts),
+            "raw_impact": catalyst_impact,
+            "top_category": active_catalysts[0].event_category if active_catalysts else None,
+            "top_score": active_catalysts[0].score if active_catalysts else None,
+        }
+
+        return ScoreComponent(
+            score=score,
+            weight=weight,
+            stale=False,
+            metadata=metadata,
+            sub_scores=sub_scores,
+        )
+
+    except Exception as e:
+        logger.error(
+            "catalyst_scoring_error",
+            symbol=symbol,
+            error=str(e),
+            exc_info=True,
+        )
+        return ScoreComponent(
+            score=50.0,  # Neutral score on error
+            weight=weight,
+            stale=True,
+            metadata={"reason": "error", "error": str(e)},
+            sub_scores={},
+        )
+
+
 def calculate_watchlist_scores(inputs: WatchlistScoreInputs) -> ScoreBreakdown:
-    """Compute watchlist price/technical/fundamental scores and overall composite (3-pillar)."""
+    """Compute watchlist price/technical/fundamental/catalyst scores and overall composite (4-pillar)."""
     # Ensure timestamps are timezone-aware
     now = inputs.now if inputs.now.tzinfo is not None else inputs.now.replace(tzinfo=UTC)
 
@@ -255,16 +346,40 @@ def calculate_watchlist_scores(inputs: WatchlistScoreInputs) -> ScoreBreakdown:
             now=now,
         )
 
-    # Calculate overall score
-    if fundamental_component and not fundamental_component.stale:
-        # 3-pillar formula
-        overall = (
-            price_component.score * weights["price"]
-            + technical_component.score * weights["technical"]
-            + fundamental_component.score * weights["fundamental"]
+    # Catalyst component (if news articles available)
+    catalyst_component = None
+    if hasattr(inputs, "news_articles") and inputs.news_articles:
+        catalyst_component = _compute_catalyst_component(
+            symbol=inputs.price.symbol,
+            news_articles=inputs.news_articles,
+            weight=weights.get("catalyst", 0.0),
+            now=now,
         )
+
+    # Calculate overall score based on available components
+    components_used = [
+        (price_component, weights["price"], True),
+        (technical_component, weights["technical"], True),
+        (fundamental_component, weights.get("fundamental", 0.0), fundamental_component and not fundamental_component.stale),
+        (catalyst_component, weights.get("catalyst", 0.0), catalyst_component is not None),
+    ]
+
+    # Filter to only active components
+    active_components = [(comp, weight) for comp, weight, is_active in components_used if is_active and comp]
+
+    if active_components:
+        # Renormalize weights for active components only
+        total_weight = sum(weight for _, weight in active_components)
+        if total_weight > 0:
+            overall = sum(
+                comp.score * (weight / total_weight)
+                for comp, weight in active_components
+            )
+        else:
+            # Fallback: equal weights if all weights are 0
+            overall = sum(comp.score for comp, _ in active_components) / len(active_components)
     else:
-        # Fallback to 2-pillar (renormalize weights)
+        # Fallback to 2-pillar (price + technical)
         price_weight = weights["price"] / (weights["price"] + weights["technical"])
         technical_weight = weights["technical"] / (weights["price"] + weights["technical"])
         overall = (
@@ -275,6 +390,7 @@ def calculate_watchlist_scores(inputs: WatchlistScoreInputs) -> ScoreBreakdown:
         price=price_component,
         technical=technical_component,
         fundamental=fundamental_component,
+        catalyst=catalyst_component,
         overall=overall,
     )
 
@@ -285,6 +401,7 @@ def calculate_watchlist_scores(inputs: WatchlistScoreInputs) -> ScoreBreakdown:
         price_score=breakdown.price.score,
         technical_score=breakdown.technical.score,
         fundamental_score=breakdown.fundamental.score if breakdown.fundamental else None,
+        catalyst_score=breakdown.catalyst.score if breakdown.catalyst else None,
     )
 
     return breakdown

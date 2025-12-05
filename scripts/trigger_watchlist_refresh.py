@@ -80,7 +80,7 @@ def main() -> None:
     # Step 2: Trigger historical OHLCV ingestion
     print(f"[2/5] Triggering historical data ingestion ({days} days)...")
     try:
-        task_result = ingest_historical_ohlcv.delay(tickers=tickers, days=days)
+        task_result = ingest_historical_ohlcv.delay(symbols=tickers, days=days)
         print(f"✓ Task queued: {task_result.id}")
         print("  Waiting 30s for ingestion to complete...")
         time.sleep(30)
@@ -92,7 +92,7 @@ def main() -> None:
     # Step 3: Trigger technical indicators calculation
     print("\n[3/5] Triggering technical indicators calculation...")
     try:
-        task_result = update_technical_indicators.delay(tickers=tickers)
+        task_result = update_technical_indicators.delay(symbols=tickers)
         print(f"✓ Task queued: {task_result.id}")
         print("  Waiting 20s for calculations to complete...")
         time.sleep(20)

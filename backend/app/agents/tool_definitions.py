@@ -199,7 +199,9 @@ def get_create_paper_trade_tool_definition() -> dict[str, object]:
     return {
         "name": "create_paper_trade",
         "description": "Create a paper trade to test your investment thesis. Trade will be tracked with "
-        "automatic exits based on target price, stop loss, or time limit. Cash management is automatic.",
+        "automatic exits based on target price, stop loss, or time limit. Cash management is automatic. "
+        "Position sizing is confidence-based: very_low=1.25%, low=2.5%, medium=5%, high=7.5%, very_high=10% "
+        "of portfolio. Higher confidence results in larger position sizes, automatically adjusted by confidence tier.",
         "input_schema": {
             "type": "object",
             "properties": {

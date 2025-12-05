@@ -1,5 +1,5 @@
 #!/bin/bash
-# Check status of all Portfolio AI services
+# Check status of all Portfolio AI services (User Mode)
 #
 # Usage: bash ~/portfolio-ai/scripts/status.sh
 
@@ -16,9 +16,9 @@ echo ""
 
 ERRORS=0
 
-# Check Redis
+# Check Redis (system service)
 echo -n "Redis:         "
-if pgrep -x redis-server > /dev/null; then
+if systemctl is-active --quiet redis-server 2>/dev/null || pgrep -x redis-server > /dev/null; then
     if redis-cli ping > /dev/null 2>&1; then
         echo -e "${GREEN}✓ Running${NC}"
     else
@@ -30,9 +30,22 @@ else
     ERRORS=$((ERRORS + 1))
 fi
 
-# Check Backend
+# Check PostgreSQL (system service)
+echo -n "PostgreSQL:    "
+if systemctl is-active --quiet postgresql 2>/dev/null; then
+    echo -e "${GREEN}✓ Running${NC}"
+else
+    echo -e "${RED}✗ Not running${NC}"
+    ERRORS=$((ERRORS + 1))
+fi
+
+echo ""
+echo "--- Portfolio AI Services (User Mode) ---"
+echo ""
+
+# Check Backend (user service)
 echo -n "Backend API:   "
-if pgrep -f "uvicorn.*main:app" > /dev/null; then
+if systemctl --user is-active --quiet portfolio-backend.service; then
     if curl -s http://localhost:8000/api/health > /dev/null 2>&1; then
         echo -e "${GREEN}✓ Running (http://localhost:8000)${NC}"
     else
@@ -44,9 +57,9 @@ else
     ERRORS=$((ERRORS + 1))
 fi
 
-# Check Celery Worker
+# Check Celery Worker (user service)
 echo -n "Celery Worker: "
-if pgrep -f "celery.*worker" > /dev/null; then
+if systemctl --user is-active --quiet portfolio-celery.service; then
     WORKER_COUNT=$(pgrep -f "celery.*worker" | wc -l)
     echo -e "${GREEN}✓ Running ($WORKER_COUNT processes)${NC}"
 else
@@ -54,18 +67,18 @@ else
     ERRORS=$((ERRORS + 1))
 fi
 
-# Check Celery Beat
+# Check Celery Beat (user service)
 echo -n "Celery Beat:   "
-if pgrep -f "celery.*beat" > /dev/null; then
+if systemctl --user is-active --quiet portfolio-celery-beat.service; then
     echo -e "${GREEN}✓ Running${NC}"
 else
     echo -e "${RED}✗ Not running${NC}"
     ERRORS=$((ERRORS + 1))
 fi
 
-# Check Frontend
+# Check Frontend (user service)
 echo -n "Frontend:      "
-if pgrep -f "next.*dev" > /dev/null; then
+if systemctl --user is-active --quiet portfolio-frontend.service; then
     if curl -s http://localhost:3000 > /dev/null 2>&1; then
         echo -e "${GREEN}✓ Running (http://localhost:3000)${NC}"
     else
@@ -94,11 +107,11 @@ else
 fi
 
 echo ""
-echo "Logs:"
-echo "  - Backend:      tail -f /tmp/portfolio-backend.log"
-echo "  - Celery Worker:tail -f /tmp/portfolio-celery-worker.log"
-echo "  - Celery Beat:  tail -f /tmp/portfolio-celery-beat.log"
-echo "  - Frontend:     tail -f /tmp/portfolio-frontend.log"
+echo "Logs (via journalctl):"
+echo "  Backend:       journalctl --user -u portfolio-backend -f"
+echo "  Celery Worker: journalctl --user -u portfolio-celery -f"
+echo "  Celery Beat:   journalctl --user -u portfolio-celery-beat -f"
+echo "  Frontend:      journalctl --user -u portfolio-frontend -f"
 echo ""
 
 exit $ERRORS

@@ -58,23 +58,23 @@ def verify_backend_e2e():
     print("Creating paper trade...")
     trade_result = tools.execute_create_paper_trade(
         agent_run_id=run_id,
-        ticker="AAPL",
+        symbol="AAPL",
         action="buy",
         thesis="E2E Test Trade Thesis",
         confidence_score=75.0  # Should be normalized to 0.75
     )
     print(f"Created trade: {trade_result}")
-        
+
     print("\n=== 2. Testing Backtest Execution ===")
     # Run a quick backtest
-    ticker = "AAPL"
+    symbol = "AAPL"
     end_date = date.today().isoformat()
     start_date = (date.today() - timedelta(days=30)).isoformat()
-    
-    print(f"Starting backtest for {ticker} ({start_date} to {end_date})...")
+
+    print(f"Starting backtest for {symbol} ({start_date} to {end_date})...")
     bt_result = tools.execute_run_backtest(
         agent_run_id=run_id,
-        ticker=ticker,
+        symbol=symbol,
         start_date=start_date,
         end_date=end_date
     )

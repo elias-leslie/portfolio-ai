@@ -46,7 +46,7 @@ def test_get_swing_low_returns_lowest_close_in_10_days() -> None:
         for price_date, close_price in prices:
             conn.execute(
                 """
-                INSERT INTO day_bars (ticker, date, open, high, low, close, volume, source)
+                INSERT INTO day_bars (symbol, date, open, high, low, close, volume, source)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
@@ -81,7 +81,7 @@ def test_get_swing_low_returns_none_for_insufficient_data() -> None:
             price_date = today - timedelta(days=i)
             conn.execute(
                 """
-                INSERT INTO day_bars (ticker, date, open, high, low, close, volume, source)
+                INSERT INTO day_bars (symbol, date, open, high, low, close, volume, source)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (symbol, price_date, 200.0, 202.0, 198.0, 200.0, 1000000, "test"),
@@ -117,7 +117,7 @@ def test_get_swing_high_returns_highest_close_in_30_days() -> None:
         for price_date, close_price in prices:
             conn.execute(
                 """
-                INSERT INTO day_bars (ticker, date, open, high, low, close, volume, source)
+                INSERT INTO day_bars (symbol, date, open, high, low, close, volume, source)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
@@ -152,7 +152,7 @@ def test_get_swing_high_returns_none_for_insufficient_data() -> None:
             price_date = today - timedelta(days=i)
             conn.execute(
                 """
-                INSERT INTO day_bars (ticker, date, open, high, low, close, volume, source)
+                INSERT INTO day_bars (symbol, date, open, high, low, close, volume, source)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (symbol, price_date, 150.0, 152.0, 148.0, 150.0, 1000000, "test"),
@@ -223,7 +223,7 @@ class TestCalculateStopLoss:
             conn.execute(
                 """
                 INSERT INTO technical_indicators (
-                    ticker, date, atr_14, ema_20, rsi_14, macd, macd_signal, calculated_at
+                    symbol, date, atr_14, ema_20, rsi_14, macd, macd_signal, calculated_at
                 )
                 VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
                 """,
@@ -245,7 +245,7 @@ class TestCalculateStopLoss:
             conn.execute(
                 """
                 INSERT INTO technical_indicators (
-                    ticker, date, atr_14, ema_20, rsi_14, macd, macd_signal, calculated_at
+                    symbol, date, atr_14, ema_20, rsi_14, macd, macd_signal, calculated_at
                 )
                 VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
                 """,
@@ -258,7 +258,7 @@ class TestCalculateStopLoss:
                 close_price = 146.0 if i == 5 else 148.0 + i
                 conn.execute(
                     """
-                    INSERT INTO day_bars (ticker, date, open, high, low, close, volume, source)
+                    INSERT INTO day_bars (symbol, date, open, high, low, close, volume, source)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
@@ -291,7 +291,7 @@ class TestCalculateProfitTarget:
             conn.execute(
                 """
                 INSERT INTO technical_indicators (
-                    ticker, date, atr_14, ema_20, rsi_14, macd, macd_signal, calculated_at
+                    symbol, date, atr_14, ema_20, rsi_14, macd, macd_signal, calculated_at
                 )
                 VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
                 """,
@@ -313,7 +313,7 @@ class TestCalculateProfitTarget:
             conn.execute(
                 """
                 INSERT INTO technical_indicators (
-                    ticker, date, atr_14, ema_20, rsi_14, macd, macd_signal, calculated_at
+                    symbol, date, atr_14, ema_20, rsi_14, macd, macd_signal, calculated_at
                 )
                 VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
                 """,
@@ -326,7 +326,7 @@ class TestCalculateProfitTarget:
                 close_price = 170.0 if i == 15 else 158.0 + (i % 10)
                 conn.execute(
                     """
-                    INSERT INTO day_bars (ticker, date, open, high, low, close, volume, source)
+                    INSERT INTO day_bars (symbol, date, open, high, low, close, volume, source)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
