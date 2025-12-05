@@ -27,11 +27,10 @@ import {
   CheckCircle2,
   XCircle,
   HelpCircle,
-  FileText,
   Loader2,
-  AlertTriangle,
   ChevronDown,
   ChevronRight,
+  FileText,
 } from "lucide-react";
 
 // Task interface for subtasks
@@ -180,20 +179,6 @@ export function FeaturesTab() {
     );
   };
 
-  // Render health badge
-  const renderHealthBadge = (health: string) => {
-    const colors: Record<string, string> = {
-      active: "bg-green-500/20 text-green-400 border-green-500/30",
-      suspect: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-      orphaned: "bg-red-500/20 text-red-400 border-red-500/30",
-    };
-    return (
-      <Badge variant="outline" className={colors[health] || "bg-muted"}>
-        {health}
-      </Badge>
-    );
-  };
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -280,17 +265,16 @@ export function FeaturesTab() {
 
       {/* Table */}
       {filteredFeatures.length > 0 ? (
-        <div className="rounded-lg border border-border">
-          <Table>
+        <div className="rounded-lg border border-border overflow-x-auto">
+          <Table className="w-full">
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[100px]">ID</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Progress</TableHead>
-                <TableHead>Health</TableHead>
-                <TableHead>Task File</TableHead>
+                <TableHead className="px-3 whitespace-nowrap">ID</TableHead>
+                <TableHead className="px-3 whitespace-nowrap">Name</TableHead>
+                <TableHead className="px-3 min-w-[150px] max-w-[400px]">Description</TableHead>
+                <TableHead className="px-3 whitespace-nowrap">Category</TableHead>
+                <TableHead className="px-3 whitespace-nowrap">Status</TableHead>
+                <TableHead className="px-3 whitespace-nowrap text-right">Progress</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -304,37 +288,39 @@ export function FeaturesTab() {
                       className={hasTasks ? "cursor-pointer hover:bg-muted/50" : ""}
                       onClick={() => hasTasks && toggleRow(feature.feature_id)}
                     >
-                      <TableCell className="font-mono text-xs">
+                      <TableCell className="font-mono text-xs px-3 whitespace-nowrap">
                         <div className="flex items-center gap-1">
-                          {hasTasks && (
-                            isExpanded ? (
-                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                            )
-                          )}
+                          <span className="w-4 h-4 inline-flex items-center justify-center shrink-0">
+                            {hasTasks && (
+                              isExpanded ? (
+                                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                              )
+                            )}
+                          </span>
                           {feature.feature_id}
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{feature.name}</div>
-                          {feature.description && (
-                            <div className="text-xs text-muted-foreground truncate max-w-[300px]">
-                              {feature.description}
-                            </div>
-                          )}
+                      <TableCell className="px-3 whitespace-nowrap">
+                        <div className="font-medium">
+                          {feature.name}
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="px-3 max-w-[400px]">
+                        <div className="text-sm text-muted-foreground truncate" title={feature.description || ""}>
+                          {feature.description || "—"}
+                        </div>
+                      </TableCell>
+                      <TableCell className="px-3 whitespace-nowrap">
                         {feature.category && (
                           <Badge variant="outline">{feature.category}</Badge>
                         )}
                       </TableCell>
-                      <TableCell>{renderPassesBadge(feature.passes)}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="w-20 h-2 bg-muted rounded-full overflow-hidden">
+                      <TableCell className="px-3 whitespace-nowrap">{renderPassesBadge(feature.passes)}</TableCell>
+                      <TableCell className="px-3 whitespace-nowrap text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <div className="w-10 h-2 bg-muted rounded-full overflow-hidden">
                             <div
                               className={`h-full ${
                                 feature.completion_pct === 100
@@ -351,30 +337,11 @@ export function FeaturesTab() {
                           </span>
                         </div>
                       </TableCell>
-                      <TableCell>{renderHealthBadge(feature.health_status)}</TableCell>
-                      <TableCell>
-                        {feature.task_file && (
-                          <div className="flex items-center gap-1 text-xs">
-                            <FileText className="h-3 w-3" />
-                            <span className="truncate max-w-[150px]">
-                              {feature.task_file.split("/").pop()}
-                            </span>
-                            {feature.task_section && (
-                              <span className="text-muted-foreground">
-                                #{feature.task_section}
-                              </span>
-                            )}
-                            {!feature.task_file_exists && !hasTasks && (
-                              <AlertTriangle className="h-3 w-3 text-yellow-500" aria-label="File not found" />
-                            )}
-                          </div>
-                        )}
-                      </TableCell>
                     </TableRow>
                     {/* Expanded subtasks row */}
                     {isExpanded && hasTasks && (
                       <TableRow key={`${feature.feature_id}-tasks`} className="bg-muted/30">
-                        <TableCell colSpan={7} className="py-2 px-4">
+                        <TableCell colSpan={6} className="py-2 px-4">
                           <div className="pl-6 space-y-1">
                             <div className="text-xs font-medium text-muted-foreground mb-2">
                               Subtasks ({feature.completed_tasks}/{feature.total_tasks})
@@ -390,15 +357,16 @@ export function FeaturesTab() {
                                   onCheckedChange={(checked) =>
                                     toggleTask(feature.feature_id, task.task_id, checked as boolean)
                                   }
+                                  className="shrink-0"
                                 />
-                                <span className="font-mono text-xs text-muted-foreground w-10">
+                                <span className="font-mono text-xs text-muted-foreground shrink-0 min-w-[100px]">
                                   {task.task_id}
                                 </span>
-                                <span className={task.completed ? "line-through text-muted-foreground" : ""}>
+                                <span className={`flex-1 ${task.completed ? "line-through text-muted-foreground" : ""}`}>
                                   {task.description}
                                 </span>
                                 {task.completed_by && (
-                                  <span className="text-xs text-muted-foreground ml-2">
+                                  <span className="text-xs text-muted-foreground ml-2 shrink-0">
                                     by {task.completed_by}
                                   </span>
                                 )}
