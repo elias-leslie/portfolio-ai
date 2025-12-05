@@ -16,6 +16,7 @@ import {
   Globe,
   TrendingUp,
   AlertTriangle,
+  CheckSquare,
 } from "lucide-react";
 import {
   fetchInsights,
@@ -56,6 +57,17 @@ interface HealthSummary {
   next_scan?: string;
 }
 
+interface FeaturesSummary {
+  total: number;
+  passes_breakdown: {
+    passing?: number;
+    failing?: number;
+    unreviewed?: number;
+  };
+  category_breakdown: Record<string, number>;
+  health_breakdown: Record<string, number>;
+}
+
 /**
  * Get badge variant based on severity
  */
@@ -94,6 +106,18 @@ export function CapabilitiesDashboard() {
       const response = await fetch("/api/capabilities/health/summary");
       if (!response.ok) {
         throw new Error("Failed to fetch health summary");
+      }
+      return response.json();
+    },
+  });
+
+  // Fetch features summary
+  const { data: featuresSummary } = useQuery<FeaturesSummary>({
+    queryKey: ["features-summary"],
+    queryFn: async () => {
+      const response = await fetch("/api/capabilities/features/summary");
+      if (!response.ok) {
+        throw new Error("Failed to fetch features summary");
       }
       return response.json();
     },
@@ -187,7 +211,7 @@ export function CapabilitiesDashboard() {
       )}
 
       {/* Health Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {/* Database Health Card */}
         <Card>
           <CardHeader>
@@ -309,6 +333,41 @@ export function CapabilitiesDashboard() {
                   Legacy
                 </span>
                 <span className="font-medium">{apiStats.legacy}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Features Health Card */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <CheckSquare className="h-5 w-5 text-accent" />
+              <CardTitle>Features ({featuresSummary?.total || 0})</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="flex items-center gap-2 text-sm">
+                  <span className="h-2 w-2 rounded-full bg-gain" />
+                  Verified
+                </span>
+                <span className="font-medium">{featuresSummary?.passes_breakdown?.passing || 0}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="flex items-center gap-2 text-sm">
+                  <span className="h-2 w-2 rounded-full bg-loss" />
+                  Failing
+                </span>
+                <span className="font-medium">{featuresSummary?.passes_breakdown?.failing || 0}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="flex items-center gap-2 text-sm">
+                  <span className="h-2 w-2 rounded-full bg-accent" />
+                  Unreviewed
+                </span>
+                <span className="font-medium">{featuresSummary?.passes_breakdown?.unreviewed || 0}</span>
               </div>
             </div>
           </CardContent>

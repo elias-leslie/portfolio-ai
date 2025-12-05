@@ -451,11 +451,12 @@
   - Updated workflow commands descriptions
   - Removed WORK_TRACKER.md references
 
-#### Phase D: Verification (TODO)
+#### Phase D: Verification (IN PROGRESS)
 
-- [ ] 12.7 Add to Dashboard summary cards
-  - Features count card
-  - Features health breakdown (verified/failing/unreviewed)
+- [x] 12.7 Add to Dashboard summary cards
+  - **DONE**: Added Features card to CapabilitiesDashboard.tsx
+  - Shows: Total count, Verified, Failing, Unreviewed
+  - 4-column grid layout with Database, Tasks, Endpoints, Features
 - [ ] 12.8 Audit and populate initial features (~80-120 features)
   - Systematically review each page/feature
   - Create comprehensive feature list directly in DB
