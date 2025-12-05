@@ -12,8 +12,8 @@ from typing import cast
 
 from app.analytics.trade_calculations import (
     calculate_stop_loss,
-    extract_target_price_from_thesis,
     extract_symbol_from_title,
+    extract_target_price_from_thesis,
 )
 from app.analytics.types import IdeaDetailsDict, PaperTradeDict
 from app.logging_config import get_logger

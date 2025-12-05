@@ -13,11 +13,9 @@ MAS (Minimum Acceptable Score):
 from __future__ import annotations
 
 import json
-import logging
 import uuid
 from dataclasses import asdict, dataclass
-from datetime import UTC, date, datetime, timedelta
-from decimal import Decimal
+from datetime import date, timedelta
 from typing import Any
 
 from app.agents.llm_client import GeminiCLIClient

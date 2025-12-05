@@ -14,18 +14,35 @@ Populates data for trading gaps:
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+
+import numpy as np
 
 from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.sources.fred import FREDSource
 from app.sources.yfinance_source import YFinanceSource
 from app.storage import PortfolioStorage
+from app.storage.credential_loader import load_credentials_from_database
 
 if TYPE_CHECKING:
     pass
 
 logger = get_logger(__name__)
+
+
+def _to_python(value: Any) -> Any:
+    """Convert numpy types to native Python types for database insertion."""
+    if value is None:
+        return None
+    # Handle numpy numeric types
+    if isinstance(value, np.integer):
+        return int(value)
+    if isinstance(value, np.floating):
+        return None if np.isnan(value) else float(value)
+    if isinstance(value, (np.bool_, np.ndarray)):
+        return bool(value) if isinstance(value, np.bool_) else value.tolist()
+    return value
 
 
 @celery_app.task(bind=True, max_retries=2)
@@ -135,13 +152,13 @@ def _insert_cash_flow(storage: PortfolioStorage, data: dict, as_of_date: date) -
     storage.execute(query, [
         data["symbol"],
         as_of_date,
-        data.get("operating_cash_flow"),
-        data.get("free_cash_flow"),
-        data.get("capital_expenditure"),
-        data.get("fcf_yield"),
-        data.get("cash_flow_margin"),
-        data.get("fcf_per_share"),
-        data.get("cash_conversion_ratio"),
+        _to_python(data.get("operating_cash_flow")),
+        _to_python(data.get("free_cash_flow")),
+        _to_python(data.get("capital_expenditure")),
+        _to_python(data.get("fcf_yield")),
+        _to_python(data.get("cash_flow_margin")),
+        _to_python(data.get("fcf_per_share")),
+        _to_python(data.get("cash_conversion_ratio")),
     ])
 
 
@@ -167,9 +184,9 @@ def _insert_insider_transaction(storage: PortfolioStorage, data: dict) -> None:
         data.get("insider_title"),
         data.get("transaction_type"),
         txn_date,
-        data.get("shares"),
-        data.get("value"),
-        data.get("shares_owned_after"),
+        _to_python(data.get("shares")),
+        _to_python(data.get("value")),
+        _to_python(data.get("shares_owned_after")),
     ])
 
 
@@ -195,9 +212,9 @@ def _insert_institutional_holding(storage: PortfolioStorage, data: dict) -> None
     storage.execute(query, [
         data["symbol"],
         data.get("holder_name"),
-        data.get("shares"),
-        data.get("value"),
-        data.get("pct_held"),
+        _to_python(data.get("shares")),
+        _to_python(data.get("value")),
+        _to_python(data.get("pct_held")),
         report_date,
     ])
 
@@ -219,9 +236,9 @@ def _insert_institutional_summary(storage: PortfolioStorage, data: dict, as_of_d
     storage.execute(query, [
         data["symbol"],
         as_of_date,
-        data.get("total_institutions"),
-        data.get("pct_held_institutions"),
-        data.get("pct_held_insiders"),
+        _to_python(data.get("total_institutions")),
+        _to_python(data.get("pct_held_institutions")),
+        _to_python(data.get("pct_held_insiders")),
     ])
 
 
@@ -245,11 +262,11 @@ def _insert_short_interest(storage: PortfolioStorage, data: dict, as_of_date: da
     storage.execute(query, [
         data["symbol"],
         as_of_date,
-        data.get("short_shares"),
-        data.get("short_ratio"),
-        data.get("short_percent_of_float"),
-        data.get("short_percent_of_outstanding"),
-        data.get("short_prior_month"),
+        _to_python(data.get("short_shares")),
+        _to_python(data.get("short_ratio")),
+        _to_python(data.get("short_percent_of_float")),
+        _to_python(data.get("short_percent_of_outstanding")),
+        _to_python(data.get("short_prior_month")),
     ])
 
     # Dual-write to short_interest_summary table
@@ -267,9 +284,9 @@ def _insert_short_interest(storage: PortfolioStorage, data: dict, as_of_date: da
     storage.execute(summary_query, [
         data["symbol"],
         as_of_date,
-        data.get("short_shares"),
-        data.get("short_ratio"),
-        data.get("short_percent_of_float"),
+        _to_python(data.get("short_shares")),
+        _to_python(data.get("short_ratio")),
+        _to_python(data.get("short_percent_of_float")),
     ])
 
 
@@ -285,6 +302,9 @@ def ingest_macro_indicators(self) -> dict:
     Returns:
         Dict with ingestion statistics
     """
+    # Load API keys from database into environment
+    load_credentials_from_database()
+
     storage = PortfolioStorage()
     fred = FREDSource()
 
@@ -369,13 +389,13 @@ def _insert_yield_curve(storage: PortfolioStorage, data: dict, as_of_date: date)
     """
     storage.execute(query, [
         as_of_date,
-        data.get("yield_3m"),
-        data.get("yield_2y"),
-        data.get("yield_5y"),
-        data.get("yield_10y"),
-        data.get("yield_30y"),
-        data.get("spread_10y_2y"),
-        data.get("spread_10y_3m"),
+        _to_python(data.get("yield_3m")),
+        _to_python(data.get("yield_2y")),
+        _to_python(data.get("yield_5y")),
+        _to_python(data.get("yield_10y")),
+        _to_python(data.get("yield_30y")),
+        _to_python(data.get("spread_10y_2y")),
+        _to_python(data.get("spread_10y_3m")),
     ])
 
 
@@ -393,4 +413,4 @@ def _insert_macro_indicator(
         ON CONFLICT (indicator_name, observation_date)
         DO UPDATE SET value = EXCLUDED.value
     """
-    storage.execute(query, [indicator, series_id, as_of_date, value])
+    storage.execute(query, [indicator, series_id, as_of_date, _to_python(value)])

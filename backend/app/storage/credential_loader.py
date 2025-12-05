@@ -23,6 +23,7 @@ ENV_VAR_MAPPINGS = {
     ("finnhub", "apikey"): "FINNHUB_API_KEY",
     ("alphavantage", "apikey"): "ALPHAVANTAGE_API_KEY",
     ("fred", "api_key"): "FRED_API_KEY",
+    ("fred", "apikey"): "FRED_API_KEY",  # Case variation
     ("newsapi", "apiKey"): "NEWSAPI_KEY",
     ("stockdata", "api_token"): "STOCKDATA_API_TOKEN",
     ("alpaca", "api_key"): "ALPACA_API_KEY",

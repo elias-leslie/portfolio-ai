@@ -11,7 +11,7 @@
 
 ## Summary
 
-**Goal**: Complete end-to-end review, optimization, and verification of the entire Capabilities system - UI, backend, scanners, tasks, and database. Ensure all 8 tabs work correctly with accurate, fresh data.
+**Goal**: Complete end-to-end review, optimization, and verification of the entire Capabilities system - UI, backend, scanners, tasks, and database. Ensure all 9 tabs work correctly with accurate, fresh data. **NEW**: Add Features tab implementing Anthropic's long-running agent patterns.
 
 **Scope**: ALL components of /capabilities page:
 1. Dashboard (summary cards, health overview)
@@ -22,6 +22,7 @@
 6. Gaps (trading capability gaps)
 7. Sources (data providers)
 8. Rules (trading rules)
+9. **Features (NEW)** - user-facing functionality tracking with corruption protection
 
 **Approach**: Audit each component, verify data accuracy, fix issues, optimize performance, add E2E tests.
 
@@ -30,24 +31,32 @@
 ## Architecture Overview
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    /capabilities UI                          │
-├─────────┬─────────┬─────────┬─────────┬─────────┬──────────┤
-│Dashboard│Database │ Tasks   │Endpoints│Insights │ Gaps     │
-│         │         │         │         │         │          │
-│ Sources │ Rules   │         │         │         │          │
-└────┬────┴────┬────┴────┬────┴────┬────┴────┬────┴────┬─────┘
-     │         │         │         │         │         │
-┌────▼────┐┌───▼───┐┌────▼────┐┌───▼────┐┌───▼────┐┌──▼─────┐
-│db_caps  ││celery ││api_caps ││insights││gaps    ││sources │
-│scanner  ││scanner││scanner  ││analyzer││analyzer││registry│
-└────┬────┘└───┬───┘└────┬────┘└───┬────┘└───┬────┘└───┬────┘
-     │         │         │         │         │         │
-┌────▼─────────▼─────────▼─────────▼─────────▼─────────▼────┐
-│                     PostgreSQL                            │
-│  db_capabilities | celery_capabilities | api_capabilities │
-│  capability_insights | trading_gaps | api_sources_registry│
-└───────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                         /capabilities UI                              │
+├─────────┬─────────┬─────────┬─────────┬─────────┬─────────┬─────────┤
+│Dashboard│Database │ Tasks   │Endpoints│Insights │ Gaps    │Features │
+│         │         │         │         │         │         │  (NEW)  │
+│ Sources │ Rules   │         │         │         │         │         │
+└────┬────┴────┬────┴────┬────┴────┬────┴────┬────┴────┬────┴────┬────┘
+     │         │         │         │         │         │         │
+┌────▼────┐┌───▼───┐┌────▼────┐┌───▼────┐┌───▼────┐┌──▼─────┐┌──▼─────┐
+│db_caps  ││celery ││api_caps ││insights││gaps    ││sources ││feature │
+│scanner  ││scanner││scanner  ││analyzer││analyzer││registry││scanner │
+└────┬────┘└───┬───┘└────┬────┘└───┬────┘└───┬────┘└───┬────┘└───┬────┘
+     │         │         │         │         │         │         │
+┌────▼─────────▼─────────▼─────────▼─────────▼─────────▼─────────▼────┐
+│                          PostgreSQL                                  │
+│  db_capabilities | celery_capabilities | api_capabilities           │
+│  capability_insights | trading_gaps | api_sources_registry          │
+│  feature_capabilities (NEW)                                         │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    tasks/*.md (Feature Details)                      │
+│  Linked via task_file + task_section fields                         │
+│  Agent permissions: task_it adds, do_it verifies (passes only)      │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -282,6 +291,57 @@
   - No failed API calls
   - No hydration errors
 
+### 12.0 Features Tab Implementation (Long-Running Agent Patterns)
+
+*Implements Anthropic's long-running agent patterns via capabilities extension*
+
+- [ ] 12.1 Create feature_capabilities table (migration)
+  - Fields: feature_id, name, category, description, passes, task_file, task_section
+  - Indexes on feature_id, category, health_status
+  - passes: null=not reviewed, false=failing, true=verified
+- [ ] 12.2 Create capability_feature_scanner.py
+  - Validates task_file exists
+  - Checks task_section completion status
+  - Updates health_status based on passes + task completion
+  - **Key**: Scanner can only modify passes, health_status, last_verified_at
+- [ ] 12.3 Register scanner in capability_tasks.py
+  - Add to scan_all_capabilities task
+  - Add individual scan_feature_capabilities task
+- [ ] 12.4 Create features_router.py API endpoints
+  - GET /api/capabilities/features - List all features
+  - GET /api/capabilities/features/{id} - Get feature detail
+  - POST /api/capabilities/features - Add feature (task_it only)
+  - PATCH /api/capabilities/features/{id}/passes - Update passes (do_it only)
+- [ ] 12.5 Add Features tab to /capabilities UI
+  - New tab alongside existing 8 tabs
+  - Table with: ID, Name, Category, Passes, Health, Task Link
+  - Filters: Category, Health, Passes status
+- [ ] 12.6 Create FeaturesTab.tsx component
+  - Click to expand: Shows linked task section
+  - Color-coded passes status (green/red/gray)
+- [ ] 12.7 Add to Dashboard summary cards
+  - Features count card
+  - Features health breakdown (verified/failing/unreviewed)
+- [ ] 12.8 Audit and populate initial features (~80-120 features)
+  - Systematically review each page/feature
+  - Create comprehensive feature list
+- [ ] 12.9 Create category task files for feature details
+  - tasks/tasks-features-dashboard.md
+  - tasks/tasks-features-watchlist.md
+  - tasks/tasks-features-portfolio.md
+  - tasks/tasks-features-trading.md
+  - tasks/tasks-features-agents.md
+  - tasks/tasks-features-status.md
+  - tasks/tasks-features-settings.md
+  - tasks/tasks-features-capabilities.md
+- [ ] 12.10 Update CLAUDE.md with feature registry rules
+  - Agent boundaries: task_it adds, do_it verifies
+  - Feature discovery protocol
+- [ ] 12.11 Test feature verification workflow
+  - Add feature via /task_it
+  - Verify feature via /do_it (passes: null → true)
+  - Scanner detects inconsistencies
+
 ---
 
 ## Already Fixed (This Session)
@@ -299,6 +359,7 @@
 - `backend/app/services/capability_db_scanner.py`
 - `backend/app/services/capability_celery_scanner.py`
 - `backend/app/services/capability_api_scanner.py`
+- `backend/app/services/capability_feature_scanner.py` **(NEW)**
 
 **Analyzers:**
 - `backend/app/services/ai_analyzer.py`
@@ -306,6 +367,7 @@
 
 **APIs:**
 - `backend/app/api/capabilities/` (router files)
+- `backend/app/api/capabilities/features_router.py` **(NEW)**
 - `backend/app/api/gaps.py`
 - `backend/app/api/sources.py`
 
@@ -316,15 +378,29 @@
 **Frontend:**
 - `frontend/app/capabilities/page.tsx`
 - `frontend/components/capabilities/`
+- `frontend/components/capabilities/FeaturesTab.tsx` **(NEW)**
+
+**Feature Task Files (NEW):**
+- `tasks/tasks-features-dashboard.md`
+- `tasks/tasks-features-watchlist.md`
+- `tasks/tasks-features-portfolio.md`
+- `tasks/tasks-features-trading.md`
+- `tasks/tasks-features-agents.md`
+- `tasks/tasks-features-status.md`
+- `tasks/tasks-features-settings.md`
+- `tasks/tasks-features-capabilities.md`
 
 ---
 
 ## Verification Checklist
 
-- [ ] All 8 tabs load without errors
+- [ ] All 9 tabs load without errors (including new Features tab)
 - [ ] Data is fresh (updated within 24h)
 - [ ] No false positives (orphaned items that aren't)
 - [ ] No missing data (items that should appear but don't)
 - [ ] Performance: Full scan <30s, UI load <2s
 - [ ] Pipeline: Scan → Insights → Gaps runs correctly
 - [ ] Self-healing: Stale entries auto-cleaned
+- [ ] Features tab: Corruption protection working (passes field only editable by do_it)
+- [ ] Features tab: Task file linkage working (task_section maps to markdown sections)
+- [ ] Features tab: Initial features populated (~80-120 features catalogued)

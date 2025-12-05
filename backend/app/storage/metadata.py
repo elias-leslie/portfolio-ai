@@ -106,7 +106,6 @@ class MetadataManager:
                 "agent_runs",
                 "agent_ideas",
                 "agent_tool_calls",
-                "validation_results",
             ]
             counts: dict[str, int] = {}
             for table in tables:  # validated: table from hardcoded list
