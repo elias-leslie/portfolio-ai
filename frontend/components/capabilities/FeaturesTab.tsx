@@ -269,17 +269,17 @@ export function FeaturesTab() {
       {/* Table */}
       {filteredFeatures.length > 0 ? (
         <div className="rounded-lg border border-border overflow-x-auto">
-          <Table className="w-full table-fixed">
+          <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="px-2 whitespace-nowrap w-[90px]">ID</TableHead>
-                <TableHead className="px-2 whitespace-nowrap">Name</TableHead>
-                <TableHead className="px-2 w-[180px]">Description</TableHead>
-                <TableHead className="px-2 whitespace-nowrap">Category</TableHead>
-                <TableHead className="px-2 w-[140px]">Layers</TableHead>
-                <TableHead className="px-2 whitespace-nowrap text-center w-[50px]">Tests</TableHead>
-                <TableHead className="px-2 whitespace-nowrap w-[100px]">Status</TableHead>
-                <TableHead className="px-2 whitespace-nowrap text-right w-[90px]">Progress</TableHead>
+                <TableHead className="px-2 w-20">ID</TableHead>
+                <TableHead className="px-2 w-40">Name</TableHead>
+                <TableHead className="px-2 w-48">Description</TableHead>
+                <TableHead className="px-2 w-24">Category</TableHead>
+                <TableHead className="px-2 w-32">Layers</TableHead>
+                <TableHead className="px-2 w-12 text-center">Tests</TableHead>
+                <TableHead className="px-2 w-24">Status</TableHead>
+                <TableHead className="px-2 w-20 text-right">Progress</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -293,7 +293,7 @@ export function FeaturesTab() {
                       className={hasTasks ? "cursor-pointer hover:bg-muted/50" : ""}
                       onClick={() => hasTasks && toggleRow(feature.feature_id)}
                     >
-                      <TableCell className="font-mono text-xs px-2 whitespace-nowrap align-top py-2">
+                      <TableCell className="font-mono text-xs px-2 align-top py-2 w-20">
                         <div className="flex items-center gap-1">
                           <span className="w-4 h-4 inline-flex items-center justify-center shrink-0">
                             {hasTasks && (
@@ -307,34 +307,36 @@ export function FeaturesTab() {
                           {feature.feature_id}
                         </div>
                       </TableCell>
-                      <TableCell className="px-2 whitespace-nowrap align-top py-2">
-                        <div className="font-medium">
+                      <TableCell className="px-2 align-top py-2 w-40">
+                        <div className="font-medium truncate" title={feature.name}>
                           {feature.name}
                         </div>
                       </TableCell>
-                      <TableCell className="px-2 align-top py-2 max-w-[180px]">
-                        <div className="text-sm text-muted-foreground break-words">
+                      <TableCell className="px-2 align-top py-2 w-48">
+                        <div className="text-sm text-muted-foreground whitespace-normal break-words">
                           {feature.description || "—"}
                         </div>
                       </TableCell>
-                      <TableCell className="px-2 whitespace-nowrap align-top py-2">
+                      <TableCell className="px-2 align-top py-2 w-24">
                         {feature.category && (
-                          <Badge variant="outline">{feature.category}</Badge>
+                          <Badge variant="outline" className="text-xs">{feature.category}</Badge>
                         )}
                       </TableCell>
-                      <TableCell className="px-2 align-top py-2 max-w-[140px]">
+                      <TableCell className="px-2 align-top py-2 w-32">
                         <div className="flex flex-wrap gap-0.5">
                           {feature.layers?.map((layer) => {
                             const result = feature.layer_results?.[layer];
-                            const colorClass = result?.passed === true
-                              ? "bg-green-600 text-white"
+                            const bgColor = result?.passed === true
+                              ? "#16a34a"  // green-600
                               : result?.passed === false
-                              ? "bg-red-600 text-white"
-                              : "bg-zinc-600 text-zinc-300";
+                              ? "#dc2626"  // red-600
+                              : "#52525b"; // zinc-600
+                            const textColor = result?.passed === undefined ? "#a1a1aa" : "#ffffff";
                             return (
                               <span
                                 key={layer}
-                                className={`text-[10px] px-1 py-0 rounded ${colorClass}`}
+                                className="text-[10px] px-1 rounded"
+                                style={{ backgroundColor: bgColor, color: textColor }}
                                 title={result?.evidence || `${layer} - not verified`}
                               >
                                 {layer}
@@ -346,13 +348,13 @@ export function FeaturesTab() {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className="px-2 whitespace-nowrap text-center align-top py-2">
-                        <span className={`text-sm ${feature.test_count > 0 ? "text-green-400" : "text-muted-foreground"}`}>
+                      <TableCell className="px-2 text-center align-top py-2 w-12">
+                        <span style={{ color: feature.test_count > 0 ? "#4ade80" : "#71717a" }}>
                           {feature.test_count}
                         </span>
                       </TableCell>
-                      <TableCell className="px-2 whitespace-nowrap align-top py-2">{renderPassesBadge(feature.passes)}</TableCell>
-                      <TableCell className="px-2 whitespace-nowrap text-right align-top py-2">
+                      <TableCell className="px-2 align-top py-2 w-24">{renderPassesBadge(feature.passes)}</TableCell>
+                      <TableCell className="px-2 text-right align-top py-2 w-20">
                         <div className="flex items-center justify-end gap-2">
                           <div className="w-10 h-2 bg-muted rounded-full overflow-hidden">
                             <div
