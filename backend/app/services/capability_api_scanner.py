@@ -402,6 +402,10 @@ class APIScanner:
 
         logger.info("saving_api_capabilities", count=len(capabilities))
 
+        # Use consistent timestamp for all entries in this scan
+        # This enables cleanup of stale entries not found in current scan
+        scan_time = datetime.now(UTC)
+
         with self.conn_mgr.connection() as conn:
             for cap in capabilities:
                 # Convert lists to JSON strings for JSONB columns
@@ -446,12 +450,33 @@ class APIScanner:
                         cap["p99_response_time_ms"],
                         cap["error_rate_pct"],
                         cap["last_7d_request_count"],
-                        datetime.now(UTC),  # last_scanned_at
+                        scan_time,  # last_scanned_at
                         datetime.now(UTC),  # created_at
                         datetime.now(UTC),  # updated_at
                     ],
                 )
-                conn.commit()
+            conn.commit()
+
+            # Cleanup: Remove stale entries not found in current scan
+            # Entries with last_scanned_at < scan_time are no longer in codebase
+            result = conn.execute(
+                """
+                DELETE FROM api_capabilities
+                WHERE last_scanned_at < %s
+                RETURNING endpoint_path
+                """,
+                [scan_time],
+            )
+            deleted_rows = result.fetchall()
+            conn.commit()
+
+            if deleted_rows:
+                deleted_paths = [row[0] for row in deleted_rows]
+                logger.info(
+                    "api_capabilities_cleanup",
+                    deleted_count=len(deleted_rows),
+                    deleted_paths=deleted_paths[:10],  # Log first 10
+                )
 
         logger.info("api_capabilities_saved", count=len(capabilities))
         return len(capabilities)
