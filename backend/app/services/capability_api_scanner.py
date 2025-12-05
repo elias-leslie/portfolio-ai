@@ -111,6 +111,14 @@ class APIScanner:
         content = route_file.read_text()
         endpoints = []
 
+        # Extract router prefix from APIRouter(prefix="/api/xyz", ...)
+        # This is needed to build the full endpoint path for frontend usage detection
+        router_prefix = ""
+        prefix_pattern = r'APIRouter\s*\([^)]*prefix\s*=\s*["\']([^"\']+)["\']'
+        prefix_match = re.search(prefix_pattern, content)
+        if prefix_match:
+            router_prefix = prefix_match.group(1)
+
         # Regex pattern to find route decorators
         # Matches: @router.get("/path"), @router.post("/path/{id}"), etc.
         route_pattern = r'@router\.(get|post|put|delete|patch)\(["\']([^"\']+)["\']\)'
@@ -121,17 +129,26 @@ class APIScanner:
             if any(x in path for x in ["/health", "/docs", "/openapi", "/redoc"]):
                 continue
 
+            # Build full endpoint path (prefix + relative path)
+            # Handle edge cases: empty path, path starting with /, prefix ending with /
+            if path in ("", "/"):
+                full_path = router_prefix or "/"
+            elif router_prefix:
+                full_path = router_prefix.rstrip("/") + "/" + path.lstrip("/")
+            else:
+                full_path = path
+
             # Detect function name (next line after decorator)
             function_name = self._extract_function_name(content, method, path)
 
             # Detect table dependencies (basic regex scan)
             depends_on_tables = self._detect_table_dependencies(content, function_name)
 
-            # Detect frontend usage (is this endpoint called from frontend?)
-            frontend_callers = self._detect_frontend_usage(path)
+            # Detect frontend usage (use FULL path including router prefix)
+            frontend_callers = self._detect_frontend_usage(full_path)
 
             # Categorize endpoint
-            category = categorize_by_name(path)
+            category = categorize_by_name(full_path)
 
             # Calculate health status
             health_status = self._calculate_api_health_status(
@@ -141,7 +158,7 @@ class APIScanner:
 
             endpoints.append(
                 {
-                    "endpoint_path": path,
+                    "endpoint_path": full_path,
                     "http_method": method.upper(),
                     "category": category,
                     "route_file": str(route_file.name),
