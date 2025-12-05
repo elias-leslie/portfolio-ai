@@ -51,6 +51,9 @@ interface Feature {
   category: string | null;
   description: string | null;
   passes: boolean | null;
+  layers: string[];
+  layer_results: Record<string, { passed: boolean; evidence?: string }>;
+  test_count: number;
   task_file: string | null;
   task_section: string | null;
   task_file_exists: boolean;
@@ -271,8 +274,10 @@ export function FeaturesTab() {
               <TableRow>
                 <TableHead className="px-3 whitespace-nowrap">ID</TableHead>
                 <TableHead className="px-3 whitespace-nowrap">Name</TableHead>
-                <TableHead className="px-3 min-w-[150px] max-w-[400px]">Description</TableHead>
+                <TableHead className="px-3 min-w-[120px]">Description</TableHead>
                 <TableHead className="px-3 whitespace-nowrap">Category</TableHead>
+                <TableHead className="px-3 min-w-[100px]">Layers</TableHead>
+                <TableHead className="px-3 whitespace-nowrap text-center">Tests</TableHead>
                 <TableHead className="px-3 whitespace-nowrap">Status</TableHead>
                 <TableHead className="px-3 whitespace-nowrap text-right">Progress</TableHead>
               </TableRow>
@@ -288,7 +293,7 @@ export function FeaturesTab() {
                       className={hasTasks ? "cursor-pointer hover:bg-muted/50" : ""}
                       onClick={() => hasTasks && toggleRow(feature.feature_id)}
                     >
-                      <TableCell className="font-mono text-xs px-3 whitespace-nowrap">
+                      <TableCell className="font-mono text-xs px-3 whitespace-nowrap align-top py-2">
                         <div className="flex items-center gap-1">
                           <span className="w-4 h-4 inline-flex items-center justify-center shrink-0">
                             {hasTasks && (
@@ -302,23 +307,53 @@ export function FeaturesTab() {
                           {feature.feature_id}
                         </div>
                       </TableCell>
-                      <TableCell className="px-3 whitespace-nowrap">
+                      <TableCell className="px-3 whitespace-nowrap align-top py-2">
                         <div className="font-medium">
                           {feature.name}
                         </div>
                       </TableCell>
-                      <TableCell className="px-3 max-w-[400px]">
-                        <div className="text-sm text-muted-foreground truncate" title={feature.description || ""}>
+                      <TableCell className="px-3 align-top py-2">
+                        <div className="text-sm text-muted-foreground">
                           {feature.description || "—"}
                         </div>
                       </TableCell>
-                      <TableCell className="px-3 whitespace-nowrap">
+                      <TableCell className="px-3 whitespace-nowrap align-top py-2">
                         {feature.category && (
                           <Badge variant="outline">{feature.category}</Badge>
                         )}
                       </TableCell>
-                      <TableCell className="px-3 whitespace-nowrap">{renderPassesBadge(feature.passes)}</TableCell>
-                      <TableCell className="px-3 whitespace-nowrap text-right">
+                      <TableCell className="px-3 align-top py-2">
+                        <div className="flex flex-wrap gap-1">
+                          {feature.layers?.map((layer) => {
+                            const result = feature.layer_results?.[layer];
+                            const bgColor = result?.passed === true
+                              ? "bg-green-500/20 text-green-400 border-green-500/30"
+                              : result?.passed === false
+                              ? "bg-red-500/20 text-red-400 border-red-500/30"
+                              : "bg-muted text-muted-foreground";
+                            return (
+                              <Badge
+                                key={layer}
+                                variant="outline"
+                                className={`text-xs px-1.5 py-0 ${bgColor}`}
+                                title={result?.evidence || `${layer} - not verified`}
+                              >
+                                {layer}
+                              </Badge>
+                            );
+                          })}
+                          {(!feature.layers || feature.layers.length === 0) && (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="px-3 whitespace-nowrap text-center align-top py-2">
+                        <span className={`text-sm ${feature.test_count > 0 ? "text-green-400" : "text-muted-foreground"}`}>
+                          {feature.test_count}
+                        </span>
+                      </TableCell>
+                      <TableCell className="px-3 whitespace-nowrap align-top py-2">{renderPassesBadge(feature.passes)}</TableCell>
+                      <TableCell className="px-3 whitespace-nowrap text-right align-top py-2">
                         <div className="flex items-center justify-end gap-2">
                           <div className="w-10 h-2 bg-muted rounded-full overflow-hidden">
                             <div
@@ -341,7 +376,7 @@ export function FeaturesTab() {
                     {/* Expanded subtasks row */}
                     {isExpanded && hasTasks && (
                       <TableRow key={`${feature.feature_id}-tasks`} className="bg-muted/30">
-                        <TableCell colSpan={6} className="py-2 px-4">
+                        <TableCell colSpan={8} className="py-2 px-4">
                           <div className="pl-6 space-y-1">
                             <div className="text-xs font-medium text-muted-foreground mb-2">
                               Subtasks ({feature.completed_tasks}/{feature.total_tasks})
