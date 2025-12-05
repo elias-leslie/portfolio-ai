@@ -47,9 +47,15 @@ class FeatureCreate(BaseModel):
 
 
 class FeaturePassesUpdate(BaseModel):
-    """Request model for updating feature passes status."""
+    """Request model for updating feature passes status.
 
-    passes: bool
+    passes can be:
+    - true: Feature verified working
+    - false: Feature known to be broken
+    - null: Feature needs review (unverified)
+    """
+
+    passes: bool | None
     verified_by: str = "manual"
 
 
