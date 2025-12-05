@@ -460,12 +460,65 @@
 - [ ] 12.8 Audit and populate initial features (~80-120 features)
   - Systematically review each page/feature
   - Create comprehensive feature list directly in DB
+  - Current: 14 features migrated, need ~70-100 more
+
+- [ ] 12.18 Update /task_it command (.claude/commands/task_it.md)
+  - Creates feature + subtasks directly in DB via API
+  - No markdown file generation
+  - Remove WORK_TRACKER.md references
+
+- [ ] 12.19 Update /do_it command (.claude/commands/do_it.md)
+  - Reads features/tasks from DB via API
+  - Updates task completion in DB
+  - Sets passes=true when all tasks complete and verified
+
+- [ ] 12.20 Update /check_it command (.claude/commands/check_it.md)
+  - Query DB for task status instead of parsing markdown
+  - Remove sync-tracker.js dependency
+
+- [ ] 12.21 Update /pause_it command (.claude/commands/pause_it.md)
+  - Save session state to DB
+  - Update resume instructions to use Features tab
+
 - [ ] 12.11 Test end-to-end workflow
-  - Add feature via API/UI
-  - Add subtasks
-  - Complete subtasks
-  - Verify feature (passes: null → true)
-  - Scanner validates consistency
+  - Test full /task_it → /do_it → /pause_it cycle with DB
+
+---
+
+## RESUME POINT (after /clear)
+
+**Run**: `/do_it tasks/tasks-0102-capabilities-scan-improvements.md`
+
+**Status**: Phase D in progress
+
+**Completed**:
+- ✅ Phase A: Features tab backbone, migration 079
+- ✅ Phase B: All-in-DB (migration 080, scanner, API, expandable UI)
+- ✅ Phase C: 14 features migrated, WORK_TRACKER archived, CLAUDE.md updated
+- ✅ 12.7: Dashboard Features card added
+
+**Next tasks (in order)**:
+1. 12.8: Populate more features (audit each page)
+2. 12.18-12.21: Update 4 slash commands for all-in-DB
+3. 12.11: End-to-end test
+
+**Key files modified this session**:
+- `backend/migrations/080_feature_tasks.sql` - subtasks table
+- `backend/app/services/capability_feature_scanner.py` - DB-based scanning
+- `backend/app/api/capabilities/features_router.py` - subtask endpoints
+- `frontend/components/capabilities/FeaturesTab.tsx` - expandable rows
+- `frontend/components/capabilities/CapabilitiesDashboard.tsx` - Features card
+- `frontend/next.config.ts` - Fixed proxy redirect for /features
+- `CLAUDE.md` - Updated for all-in-DB workflow
+
+**API endpoints available**:
+```bash
+GET  /api/capabilities/features/              # List features
+POST /api/capabilities/features/              # Create feature
+GET  /api/capabilities/features/{id}/tasks    # List subtasks
+POST /api/capabilities/features/{id}/tasks    # Add subtask
+PATCH /api/capabilities/features/{id}/tasks/{task_id}  # Toggle completion
+```
 
 ---
 
