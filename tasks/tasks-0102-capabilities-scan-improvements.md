@@ -90,17 +90,23 @@ Issues discovered during /polish_it:
   - Check request logs if available
   - Consider adding request counting middleware
 
-### 4.0 Ensure Scheduled Execution
+### 4.0 Ensure Scheduled Execution & Data Pipeline
 
-- [ ] 4.1 Verify scan is scheduled in celery_schedules.py
-  - Task: scan_all_capabilities
-  - Schedule: Daily or more frequent
+- [ ] 4.1 Verify full data pipeline is scheduled
+  - Task 1: `scan_all_capabilities` - scans DB/Tasks/Endpoints
+  - Task 2: `analyze_capabilities_ai` - generates Insights (ai_analyzer.py)
+  - Task 3: `analyze_trading_gaps` - updates Gaps (gap_analysis_tasks.py)
+  - Verify: All 3 run in sequence (scan → insights → gaps)
 - [ ] 4.2 Add health check for scan freshness
   - Alert if last_scanned_at > 24h ago
   - Show in /capabilities dashboard
-- [ ] 4.3 Add manual trigger button
-  - "Scan System" button should be prominent
-  - Show scan progress/status
+- [ ] 4.3 Verify Insights generation is working
+  - Check: Are new insights being generated?
+  - Check: Is AI analyzer configured and running?
+  - Check: What triggers insight generation?
+- [ ] 4.4 Verify Gaps analysis is working
+  - Check: Are gaps being identified from scan data?
+  - Check: Is gap_analysis_tasks running on schedule?
 
 ### 5.0 Data Quality Audit (CRITICAL)
 
