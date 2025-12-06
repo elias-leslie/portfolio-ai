@@ -46,6 +46,15 @@ interface Task {
   completed_by: string | null;
 }
 
+// Acceptance Criterion interface (matches backend AcceptanceCriterion model)
+interface AcceptanceCriterion {
+  id: string;
+  criterion: string;
+  verification: string;
+  type: string;
+  passed: boolean | null;
+}
+
 interface Feature {
   id: number | null;
   feature_id: string;
@@ -67,6 +76,11 @@ interface Feature {
   last_verified_at: string | null;
   verified_by: string | null;
   tasks: Task[];
+  // New spec-driven fields
+  priority: number | null;
+  effective_priority: number;
+  acceptance_criteria: AcceptanceCriterion[];
+  vision_goals: string[];
 }
 
 interface FeaturesResponse {
@@ -239,6 +253,53 @@ export function FeaturesTab() {
     );
   };
 
+  // Render priority badge (P1-P5 with colors)
+  const renderPriorityBadge = (priority: number | null, effectivePriority: number) => {
+    const p = priority ?? effectivePriority;
+    const colors: Record<number, { bg: string; text: string; border: string }> = {
+      1: { bg: "#ef444420", text: "#f87171", border: "#ef444440" }, // red - critical
+      2: { bg: "#f9731620", text: "#fb923c", border: "#f9731640" }, // orange
+      3: { bg: "#eab30820", text: "#facc15", border: "#eab30840" }, // yellow
+      4: { bg: "#3b82f620", text: "#60a5fa", border: "#3b82f640" }, // blue
+      5: { bg: "#71717a20", text: "#a1a1aa", border: "#71717a40" }, // gray
+    };
+    const color = colors[p] || colors[5];
+    return (
+      <span
+        className="text-xs px-1.5 py-0.5 rounded border font-medium"
+        style={{
+          backgroundColor: color.bg,
+          color: color.text,
+          borderColor: color.border,
+        }}
+      >
+        P{p}
+      </span>
+    );
+  };
+
+  // Render criteria status (X/Y format)
+  const renderCriteriaStatus = (criteria: AcceptanceCriterion[]) => {
+    if (!criteria || criteria.length === 0) {
+      return <span className="text-xs text-muted-foreground">—</span>;
+    }
+    const passed = criteria.filter((c) => c.passed === true).length;
+    const total = criteria.length;
+    const allPassed = passed === total;
+    const hasFailed = criteria.some((c) => c.passed === false);
+
+    return (
+      <span
+        className="text-xs font-mono"
+        style={{
+          color: allPassed ? "#4ade80" : hasFailed ? "#f87171" : "#a1a1aa",
+        }}
+      >
+        {passed}/{total}
+      </span>
+    );
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -346,11 +407,12 @@ export function FeaturesTab() {
             <TableHeader>
               <TableRow>
                 <TableHead className="px-2 w-20">ID</TableHead>
+                <TableHead className="px-2 w-10 text-center">P</TableHead>
                 <TableHead className="px-2 w-40">Name</TableHead>
-                <TableHead className="px-2 w-48">Description</TableHead>
                 <TableHead className="px-2 w-24">Category</TableHead>
                 <TableHead className="px-2 w-32">Layers</TableHead>
                 <TableHead className="px-2 w-12 text-center">Tests</TableHead>
+                <TableHead className="px-2 w-14 text-center">Criteria</TableHead>
                 <TableHead className="px-2 w-24">Status</TableHead>
                 <TableHead className="px-2 w-20 text-right">Progress</TableHead>
               </TableRow>
@@ -363,14 +425,14 @@ export function FeaturesTab() {
                 return (
                   <Fragment key={feature.feature_id}>
                     <TableRow
-                      className={hasTasks ? "cursor-pointer hover:bg-muted/50" : ""}
-                      onClick={() => hasTasks && toggleRow(feature.feature_id)}
+                      className={(hasTasks || (feature.acceptance_criteria && feature.acceptance_criteria.length > 0)) ? "cursor-pointer hover:bg-muted/50" : ""}
+                      onClick={() => (hasTasks || (feature.acceptance_criteria && feature.acceptance_criteria.length > 0)) && toggleRow(feature.feature_id)}
                       style={{ backgroundColor: getRowBgColor(feature.passes) }}
                     >
                       <TableCell className="font-mono text-xs px-2 align-top py-2 w-20">
                         <div className="flex items-center gap-1">
                           <span className="w-4 h-4 inline-flex items-center justify-center shrink-0">
-                            {hasTasks && (
+                            {(hasTasks || (feature.acceptance_criteria && feature.acceptance_criteria.length > 0)) && (
                               isExpanded ? (
                                 <ChevronDown className="h-4 w-4 text-muted-foreground" />
                               ) : (
@@ -391,6 +453,9 @@ export function FeaturesTab() {
                           </span>
                         </div>
                       </TableCell>
+                      <TableCell className="px-2 align-top py-2 w-10 text-center">
+                        {renderPriorityBadge(feature.priority, feature.effective_priority)}
+                      </TableCell>
                       <TableCell className="px-2 align-top py-2 w-40">
                         <div className="flex items-center gap-1">
                           {feature.needs_review && (
@@ -403,11 +468,6 @@ export function FeaturesTab() {
                           <span className="font-medium truncate" title={feature.name}>
                             {feature.name}
                           </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="px-2 align-top py-2 w-48">
-                        <div className="text-sm text-muted-foreground whitespace-normal break-words">
-                          {feature.description || "—"}
                         </div>
                       </TableCell>
                       <TableCell className="px-2 align-top py-2 w-24">
@@ -468,6 +528,9 @@ export function FeaturesTab() {
                           {feature.test_count}
                         </span>
                       </TableCell>
+                      <TableCell className="px-2 text-center align-top py-2 w-14">
+                        {renderCriteriaStatus(feature.acceptance_criteria)}
+                      </TableCell>
                       <TableCell className="px-2 align-top py-2 w-24">{renderPassesBadge(feature.passes)}</TableCell>
                       <TableCell className="px-2 text-right align-top py-2 w-20">
                         <div className="flex items-center justify-end gap-2">
@@ -498,40 +561,118 @@ export function FeaturesTab() {
                         </div>
                       </TableCell>
                     </TableRow>
-                    {/* Expanded subtasks row */}
-                    {isExpanded && hasTasks && (
-                      <TableRow key={`${feature.feature_id}-tasks`} className="bg-muted/30">
-                        <TableCell colSpan={8} className="py-2 px-4">
-                          <div className="pl-6 space-y-1">
-                            <div className="text-xs font-medium text-muted-foreground mb-2">
-                              Subtasks ({feature.completed_tasks}/{feature.total_tasks})
-                            </div>
-                            {feature.tasks.map((task) => (
-                              <div
-                                key={task.task_id}
-                                className="flex items-center gap-2 py-1"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <Checkbox
-                                  checked={task.completed}
-                                  onCheckedChange={(checked) =>
-                                    toggleTask(feature.feature_id, task.task_id, checked as boolean)
-                                  }
-                                  className="shrink-0"
-                                />
-                                <span className="font-mono text-xs text-muted-foreground shrink-0 min-w-[100px]">
-                                  {task.task_id}
-                                </span>
-                                <span className={`flex-1 ${task.completed ? "line-through text-muted-foreground" : ""}`}>
-                                  {task.description}
-                                </span>
-                                {task.completed_by && (
-                                  <span className="text-xs text-muted-foreground ml-2 shrink-0">
-                                    by {task.completed_by}
+                    {/* Expanded details row (subtasks + acceptance criteria) */}
+                    {isExpanded && (hasTasks || (feature.acceptance_criteria && feature.acceptance_criteria.length > 0)) && (
+                      <TableRow key={`${feature.feature_id}-details`} className="bg-muted/30">
+                        <TableCell colSpan={9} className="py-2 px-4">
+                          <div className="pl-6 space-y-4">
+                            {/* Acceptance Criteria Section */}
+                            {feature.acceptance_criteria && feature.acceptance_criteria.length > 0 && (
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between mb-3">
+                                  <span className="text-xs font-medium text-muted-foreground">
+                                    Acceptance Criteria ({feature.acceptance_criteria.filter(c => c.passed === true).length}/{feature.acceptance_criteria.length} verified)
                                   </span>
-                                )}
+                                  <span className="text-[10px] text-muted-foreground/70 flex items-center gap-3">
+                                    <span className="flex items-center gap-0.5"><CheckCircle2 className="h-3 w-3 text-green-400" />pass</span>
+                                    <span className="flex items-center gap-0.5"><XCircle className="h-3 w-3 text-red-400" />fail</span>
+                                    <span className="flex items-center gap-0.5"><HelpCircle className="h-3 w-3 text-yellow-500" />pending</span>
+                                  </span>
+                                </div>
+                                {feature.acceptance_criteria.map((criterion) => (
+                                  <div
+                                    key={criterion.id}
+                                    className="py-2 border-b border-border/50 last:border-0"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <div className="flex items-start gap-2">
+                                      <span
+                                        className="shrink-0 mt-0.5"
+                                        title={
+                                          criterion.passed === true ? "Verified - Passed" :
+                                          criterion.passed === false ? "Verified - Failed" :
+                                          "Not yet verified (run /verify_it)"
+                                        }
+                                      >
+                                        {criterion.passed === true ? (
+                                          <CheckCircle2 className="h-4 w-4 text-green-400" />
+                                        ) : criterion.passed === false ? (
+                                          <XCircle className="h-4 w-4 text-red-400" />
+                                        ) : (
+                                          <HelpCircle className="h-4 w-4 text-yellow-500" />
+                                        )}
+                                      </span>
+                                      <span className="font-mono text-xs text-muted-foreground shrink-0 min-w-[50px]">
+                                        {criterion.id}
+                                      </span>
+                                      {criterion.type && (
+                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 shrink-0">
+                                          {criterion.type}
+                                        </span>
+                                      )}
+                                      <span className="flex-1 text-sm">
+                                        {criterion.criterion}
+                                      </span>
+                                    </div>
+                                    {criterion.verification && (
+                                      <div className="mt-1 ml-6 pl-[50px]">
+                                        <span className="text-xs text-muted-foreground">
+                                          <span className="text-muted-foreground/60">Verify: </span>
+                                          <code className="font-mono bg-muted/50 px-1 py-0.5 rounded text-[11px]">
+                                            {criterion.verification}
+                                          </code>
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
                               </div>
-                            ))}
+                            )}
+                            {/* Vision Goals */}
+                            {feature.vision_goals && feature.vision_goals.length > 0 && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground">Vision Goals:</span>
+                                {feature.vision_goals.map((goal) => (
+                                  <span key={goal} className="text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                                    {goal}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            {/* Subtasks Section */}
+                            {hasTasks && (
+                              <div className="space-y-1">
+                                <div className="text-xs font-medium text-muted-foreground mb-2">
+                                  Subtasks ({feature.completed_tasks}/{feature.total_tasks})
+                                </div>
+                                {feature.tasks.map((task) => (
+                                  <div
+                                    key={task.task_id}
+                                    className="flex items-center gap-2 py-1"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <Checkbox
+                                      checked={task.completed}
+                                      onCheckedChange={(checked) =>
+                                        toggleTask(feature.feature_id, task.task_id, checked as boolean)
+                                      }
+                                      className="shrink-0"
+                                    />
+                                    <span className="font-mono text-xs text-muted-foreground shrink-0 min-w-[100px]">
+                                      {task.task_id}
+                                    </span>
+                                    <span className={`flex-1 ${task.completed ? "line-through text-muted-foreground" : ""}`}>
+                                      {task.description}
+                                    </span>
+                                    {task.completed_by && (
+                                      <span className="text-xs text-muted-foreground ml-2 shrink-0">
+                                        by {task.completed_by}
+                                      </span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>

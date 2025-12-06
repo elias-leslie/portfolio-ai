@@ -1,4 +1,4 @@
-# Task List: Backfill Acceptance Criteria for All Features
+# Task List: Backfill Acceptance Criteria for ALL 163 Features
 
 **Source**: Continuation of tasks-0103
 **Complexity**: Medium
@@ -8,19 +8,45 @@
 
 ---
 
+## CRITICAL INSTRUCTIONS FOR NEXT SESSION
+
+**YOU MUST**:
+1. Launch MULTIPLE Explore agents in "very thorough" mode
+2. EXHAUSTIVELY gather acceptance criteria for ALL 163 features
+3. UPDATE `tasks/backfill/feature-specs-reference.json` with ALL features
+4. Use CORRECT schema: `criterion`, `verification`, `type`, `passed` (NOT description/verification_cmd)
+5. Run `/audit_it --backfill tasks/backfill/feature-specs-reference.json`
+6. VERIFY all 163 features have criteria via API
+
+**NO ASSUMPTIONS** - Only use FACTS from:
+- Existing feature names/descriptions in database
+- Task files in `tasks/archive/`
+- Actual API endpoints and UI components
+- Test files that verify functionality
+
+---
+
 ## Summary
 
-**Goal**: Add acceptance criteria to all 163 features (currently only 31 have criteria).
+**Goal**: Add acceptance criteria to ALL 163 features (not just 31).
 
-**Approach**: Use parallel Explore agents to analyze features by category and generate appropriate acceptance criteria.
+**Approach**:
+1. Launch 6+ parallel Explore agents (very thorough mode)
+2. Each agent covers different feature categories
+3. Agents analyze: feature name, description, related code, existing tests
+4. Generate 2+ testable criteria per feature with correct schema
+5. Merge all outputs into reference JSON
+6. Run backfill
 
 **Current state**:
 - 31 features have acceptance_criteria (from tasks-0103)
-- 132 features need criteria added
-- Reference JSON saved at `data/backfill/feature-specs-reference.json` (31 features, 63 criteria)
-- Earlier Explore agents extracted 200+ criteria from task files (in conversation history, not persisted)
+- **132 features NEED criteria added**
+- Reference JSON at `tasks/backfill/feature-specs-reference.json` (incomplete - only 31 features)
 
-**Permanent file location**: `~/portfolio-ai/data/backfill/feature-specs-reference.json`
+**Target state**:
+- ALL 163 features have 2+ acceptance criteria
+- ALL criteria have correct schema
+- `/audit_it --backfill` runs successfully
 
 ---
 
