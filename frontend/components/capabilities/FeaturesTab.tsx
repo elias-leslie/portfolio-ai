@@ -33,7 +33,15 @@ import {
   ChevronRight,
   ChevronLeft,
   FileText,
+  Play,
+  Target,
 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // Task interface for subtasks
 interface Task {
@@ -108,13 +116,23 @@ interface VerificationSummary {
   by_type: Record<string, { total: number; passed: number; failed: number; pending: number }>;
 }
 
+interface VisionGoal {
+  code: string;
+  name: string;
+  description: string | null;
+  category: string | null;
+}
+
 export function FeaturesTab() {
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [passesFilter, setPassesFilter] = useState("all");
+  const [visionGoalFilter, setVisionGoalFilter] = useState("all");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [pageSize, setPageSize] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verifyTypeFilter, setVerifyTypeFilter] = useState("api");
   const queryClient = useQueryClient();
 
   // Toggle row expansion
@@ -189,8 +207,56 @@ export function FeaturesTab() {
     },
   });
 
-  // Filter features by search query
+  // Fetch vision goals for filter dropdown
+  const { data: visionGoalsData } = useQuery<VisionGoal[]>({
+    queryKey: ["vision-goals"],
+    queryFn: async () => {
+      const response = await fetch("/api/vision-goals");
+      if (!response.ok) throw new Error("Failed to fetch vision goals");
+      return response.json();
+    },
+  });
+
+  // Verify all criteria function
+  const handleVerifyAll = async () => {
+    setIsVerifying(true);
+    try {
+      const params = verifyTypeFilter !== "all" ? `?type_filter=${verifyTypeFilter}` : "";
+      const response = await fetch(`/api/capabilities/features/verify-all${params}`, {
+        method: "POST",
+      });
+      if (!response.ok) throw new Error("Failed to start verification");
+      const data = await response.json();
+      toast.success(`Verification queued: ${data.task_id.slice(0, 8)}...`);
+      // Poll for completion
+      const pollInterval = setInterval(async () => {
+        const summaryRes = await fetch("/api/capabilities/features/verification-summary");
+        if (summaryRes.ok) {
+          queryClient.invalidateQueries({ queryKey: ["verification-summary"] });
+        }
+      }, 5000);
+      // Stop polling after 2 minutes
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        setIsVerifying(false);
+        queryClient.invalidateQueries({ queryKey: ["verification-summary"] });
+        toast.success("Verification complete");
+      }, 120000);
+    } catch {
+      toast.error("Failed to start verification");
+      setIsVerifying(false);
+    }
+  };
+
+  // Filter features by search query and vision goal
   const filteredFeatures = featuresData?.features.filter((f) => {
+    // Vision goal filter
+    if (visionGoalFilter !== "all") {
+      if (!f.vision_goals || !f.vision_goals.includes(visionGoalFilter)) {
+        return false;
+      }
+    }
+    // Search filter
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return (
@@ -363,7 +429,34 @@ export function FeaturesTab() {
         <div className="rounded-lg border border-border bg-surface p-4">
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm font-medium">Acceptance Criteria Verification</span>
-            <span className="text-xs text-muted-foreground">{verificationData.total_criteria} total criteria</span>
+            <div className="flex items-center gap-2">
+              <Select value={verifyTypeFilter} onValueChange={setVerifyTypeFilter}>
+                <SelectTrigger className="w-[100px] h-7 text-xs">
+                  <SelectValue placeholder="Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="api">API</SelectItem>
+                  <SelectItem value="ui">UI</SelectItem>
+                  <SelectItem value="test">Test</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleVerifyAll}
+                disabled={isVerifying}
+                className="h-7 text-xs"
+              >
+                {isVerifying ? (
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                ) : (
+                  <Play className="h-3 w-3 mr-1" />
+                )}
+                {isVerifying ? "Verifying..." : "Verify All"}
+              </Button>
+              <span className="text-xs text-muted-foreground">{verificationData.total_criteria} total</span>
+            </div>
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div className="flex items-center gap-2">
@@ -443,6 +536,23 @@ export function FeaturesTab() {
             <SelectItem value="null">Unreviewed</SelectItem>
           </SelectContent>
         </Select>
+
+        {visionGoalsData && visionGoalsData.length > 0 && (
+          <Select value={visionGoalFilter} onValueChange={(v) => { setVisionGoalFilter(v); setCurrentPage(1); }}>
+            <SelectTrigger className="w-[180px]">
+              <Target className="mr-2 h-4 w-4" />
+              <SelectValue placeholder="Vision Goal" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Vision Goals</SelectItem>
+              {visionGoalsData.map((goal) => (
+                <SelectItem key={goal.code} value={goal.code}>
+                  {goal.code}: {goal.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
 
         <Select value={String(pageSize)} onValueChange={handlePageSizeChange}>
           <SelectTrigger className="w-[80px]">
@@ -694,15 +804,34 @@ export function FeaturesTab() {
                                 ))}
                               </div>
                             )}
-                            {/* Vision Goals */}
+                            {/* Vision Goals with Tooltips */}
                             {feature.vision_goals && feature.vision_goals.length > 0 && (
                               <div className="flex items-center gap-2">
                                 <span className="text-xs text-muted-foreground">Vision Goals:</span>
-                                {feature.vision_goals.map((goal) => (
-                                  <span key={goal} className="text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 border border-purple-500/30">
-                                    {goal}
-                                  </span>
-                                ))}
+                                <TooltipProvider>
+                                  {feature.vision_goals.map((goalCode) => {
+                                    const goalInfo = visionGoalsData?.find((g) => g.code === goalCode);
+                                    return (
+                                      <Tooltip key={goalCode}>
+                                        <TooltipTrigger asChild>
+                                          <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 border border-purple-500/30 cursor-help">
+                                            {goalCode}
+                                          </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <div className="text-sm">
+                                            <div className="font-medium">{goalInfo?.name || goalCode}</div>
+                                            {goalInfo?.description && (
+                                              <div className="text-xs text-muted-foreground mt-1 max-w-xs">
+                                                {goalInfo.description}
+                                              </div>
+                                            )}
+                                          </div>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    );
+                                  })}
+                                </TooltipProvider>
                               </div>
                             )}
                             {/* Subtasks Section */}
