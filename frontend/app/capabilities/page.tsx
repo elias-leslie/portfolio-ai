@@ -361,6 +361,22 @@ function CapabilitiesPageContent() {
           <TabsTrigger value="dashboard">
             Dashboard
           </TabsTrigger>
+          <TabsTrigger value="vision">
+            <Target className="mr-2 h-4 w-4" />
+            Vision
+          </TabsTrigger>
+          <TabsTrigger value="features">
+            <CheckSquare className="mr-2 h-4 w-4" />
+            Features
+          </TabsTrigger>
+          <TabsTrigger value="sources">
+            <Cloud className="mr-2 h-4 w-4" />
+            Sources
+          </TabsTrigger>
+          <TabsTrigger value="rules">
+            <BookOpen className="mr-2 h-4 w-4" />
+            Rules
+          </TabsTrigger>
           <TabsTrigger value="database">
             <Database className="mr-2 h-4 w-4" />
             Database
@@ -382,15 +398,6 @@ function CapabilitiesPageContent() {
               {apiCount}
             </span>
           </TabsTrigger>
-          <TabsTrigger value="insights">
-            <AlertTriangle className="mr-2 h-4 w-4" />
-            Insights
-            {(insightsCountData?.pending_count ?? insightsData?.pending_count ?? 0) > 0 && (
-              <span className="ml-2 rounded-full bg-accent/20 px-2 py-0.5 text-xs">
-                {insightsCountData?.pending_count ?? insightsData?.pending_count}
-              </span>
-            )}
-          </TabsTrigger>
           <TabsTrigger value="gaps">
             <TrendingUp className="mr-2 h-4 w-4" />
             Gaps
@@ -400,21 +407,14 @@ function CapabilitiesPageContent() {
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="sources">
-            <Cloud className="mr-2 h-4 w-4" />
-            Sources
-          </TabsTrigger>
-          <TabsTrigger value="rules">
-            <BookOpen className="mr-2 h-4 w-4" />
-            Rules
-          </TabsTrigger>
-          <TabsTrigger value="features">
-            <CheckSquare className="mr-2 h-4 w-4" />
-            Features
-          </TabsTrigger>
-          <TabsTrigger value="vision">
-            <Target className="mr-2 h-4 w-4" />
-            Vision
+          <TabsTrigger value="insights">
+            <AlertTriangle className="mr-2 h-4 w-4" />
+            Insights
+            {(insightsCountData?.pending_count ?? insightsData?.pending_count ?? 0) > 0 && (
+              <span className="ml-2 rounded-full bg-accent/20 px-2 py-0.5 text-xs">
+                {insightsCountData?.pending_count ?? insightsData?.pending_count}
+              </span>
+            )}
           </TabsTrigger>
         </TabsList>
 
