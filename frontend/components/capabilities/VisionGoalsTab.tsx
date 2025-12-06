@@ -52,7 +52,7 @@ export function VisionGoalsTab() {
   const { data: goalsData, isLoading } = useQuery<VisionGoal[]>({
     queryKey: ["vision-goals"],
     queryFn: async () => {
-      const response = await fetch("/api/vision-goals/");
+      const response = await fetch("/api/vision-goals");
       if (!response.ok) throw new Error("Failed to fetch vision goals");
       return response.json();
     },

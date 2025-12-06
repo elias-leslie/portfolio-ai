@@ -15,6 +15,15 @@ const nextConfig: NextConfig = {
         source: "/api/capabilities/features/summary",
         destination: "http://127.0.0.1:8000/api/capabilities/features/summary",
       },
+      // Vision goals endpoints (need trailing slash)
+      {
+        source: "/api/vision-goals",
+        destination: "http://127.0.0.1:8000/api/vision-goals/",
+      },
+      {
+        source: "/api/vision-goals/:code",
+        destination: "http://127.0.0.1:8000/api/vision-goals/:code",
+      },
       // General catch-all for all other API routes
       {
         source: "/api/:path*",
