@@ -103,6 +103,16 @@ class TaskToggle(BaseModel):
     completed_by: str = "manual"
 
 
+class AcceptanceCriterion(BaseModel):
+    """Model for a single acceptance criterion."""
+
+    id: str  # e.g., "ac-001"
+    criterion: str  # What needs to be true
+    verification: str  # How to verify (curl command, screenshot, etc.)
+    type: str  # api, ui, db, backend, quality, content
+    passed: bool | None = None  # null = not checked, true/false = result
+
+
 class FeatureResponse(BaseModel):
     """Response model for a single feature."""
 
@@ -128,6 +138,11 @@ class FeatureResponse(BaseModel):
     created_at: str | None = None
     updated_at: str | None = None
     tasks: list[TaskResponse] = []  # Subtasks from DB
+    # New spec-driven fields
+    priority: int | None = None  # User override (1-5), null = auto
+    effective_priority: int = 5  # Calculated priority (1-5)
+    acceptance_criteria: list[AcceptanceCriterion] = []  # Testable criteria
+    vision_goals: list[str] = []  # Links to VISION.md goals
 
 
 class FeaturesListResponse(BaseModel):
@@ -166,6 +181,20 @@ def _feature_to_response(f: dict[str, Any]) -> FeatureResponse:
         for t in f.get("tasks", [])
     ]
 
+    # Convert acceptance_criteria from JSONB to list of AcceptanceCriterion
+    raw_criteria = f.get("acceptance_criteria", [])
+    acceptance_criteria = [
+        AcceptanceCriterion(
+            id=c.get("id", ""),
+            criterion=c.get("criterion", ""),
+            verification=c.get("verification", ""),
+            type=c.get("type", ""),
+            passed=c.get("passed"),
+        )
+        for c in raw_criteria
+        if isinstance(c, dict)
+    ]
+
     return FeatureResponse(
         id=f.get("id"),
         feature_id=f["feature_id"],
@@ -191,6 +220,10 @@ def _feature_to_response(f: dict[str, Any]) -> FeatureResponse:
         created_at=f["created_at"].isoformat() if f.get("created_at") else None,
         updated_at=f["updated_at"].isoformat() if f.get("updated_at") else None,
         tasks=tasks,
+        priority=f.get("priority"),
+        effective_priority=f.get("effective_priority", 5),
+        acceptance_criteria=acceptance_criteria,
+        vision_goals=f.get("vision_goals", []),
     )
 
 
@@ -595,6 +628,279 @@ async def update_feature_test_count(
     except Exception as e:
         logger.error(
             "update_feature_test_count_failed", feature_id=feature_id, error=str(e)
+        )
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+# =========================================================================
+# Spec-Driven Endpoints (priority, acceptance criteria, vision goals)
+# =========================================================================
+
+
+class FeaturePriorityUpdate(BaseModel):
+    """Request model for updating feature priority."""
+
+    priority: int | None  # 1-5 for user override, null to auto-calculate
+
+
+@router.patch("/{feature_id}/priority", response_model=dict[str, Any])
+async def update_feature_priority(
+    feature_id: str, update: FeaturePriorityUpdate
+) -> dict[str, Any]:
+    """Update the priority for a feature.
+
+    Args:
+        feature_id: Feature ID (e.g., FEAT-001)
+        update: New priority (1-5) or null for auto-calculate
+    """
+    conn_mgr = get_connection_manager()
+
+    try:
+        with conn_mgr.connection() as conn:
+            result = conn.execute(
+                """
+                UPDATE feature_capabilities
+                SET priority = %s, updated_at = NOW()
+                WHERE feature_id = %s
+                RETURNING feature_id, priority
+                """,
+                (update.priority, feature_id),
+            ).fetchone()
+            conn.commit()
+
+            if not result:
+                raise HTTPException(
+                    status_code=404, detail=f"Feature {feature_id} not found"
+                )
+
+        logger.info(
+            "feature_priority_updated",
+            feature_id=feature_id,
+            priority=update.priority,
+        )
+
+        return {
+            "status": "updated",
+            "feature_id": feature_id,
+            "priority": update.priority,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "update_feature_priority_failed", feature_id=feature_id, error=str(e)
+        )
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+class AcceptanceCriteriaUpdate(BaseModel):
+    """Request model for updating acceptance criteria."""
+
+    acceptance_criteria: list[dict[str, Any]]  # Full replacement of criteria array
+
+
+@router.patch("/{feature_id}/acceptance-criteria", response_model=dict[str, Any])
+async def update_feature_acceptance_criteria(
+    feature_id: str, update: AcceptanceCriteriaUpdate
+) -> dict[str, Any]:
+    """Update the acceptance criteria for a feature.
+
+    Args:
+        feature_id: Feature ID (e.g., FEAT-001)
+        update: New acceptance criteria array
+    """
+    conn_mgr = get_connection_manager()
+
+    try:
+        with conn_mgr.connection() as conn:
+            result = conn.execute(
+                """
+                UPDATE feature_capabilities
+                SET acceptance_criteria = %s::jsonb, updated_at = NOW()
+                WHERE feature_id = %s
+                RETURNING feature_id, acceptance_criteria
+                """,
+                (json.dumps(update.acceptance_criteria), feature_id),
+            ).fetchone()
+            conn.commit()
+
+            if not result:
+                raise HTTPException(
+                    status_code=404, detail=f"Feature {feature_id} not found"
+                )
+
+        logger.info(
+            "feature_acceptance_criteria_updated",
+            feature_id=feature_id,
+            criteria_count=len(update.acceptance_criteria),
+        )
+
+        return {
+            "status": "updated",
+            "feature_id": feature_id,
+            "acceptance_criteria": result[1],
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "update_feature_acceptance_criteria_failed",
+            feature_id=feature_id,
+            error=str(e),
+        )
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+class AcceptanceCriterionPassedUpdate(BaseModel):
+    """Request model for updating a single criterion's passed status."""
+
+    passed: bool | None  # true, false, or null to reset
+    evidence: str | None = None  # Evidence for the pass/fail decision
+
+
+@router.patch(
+    "/{feature_id}/acceptance-criteria/{criterion_id}", response_model=dict[str, Any]
+)
+async def update_acceptance_criterion_passed(
+    feature_id: str, criterion_id: str, update: AcceptanceCriterionPassedUpdate
+) -> dict[str, Any]:
+    """Update the passed status of a single acceptance criterion.
+
+    Args:
+        feature_id: Feature ID (e.g., FEAT-001)
+        criterion_id: Criterion ID within the feature (e.g., ac-001)
+        update: New passed status and optional evidence
+    """
+    conn_mgr = get_connection_manager()
+
+    try:
+        with conn_mgr.connection() as conn:
+            # Get current acceptance_criteria
+            row = conn.execute(
+                """
+                SELECT acceptance_criteria
+                FROM feature_capabilities
+                WHERE feature_id = %s
+                """,
+                (feature_id,),
+            ).fetchone()
+
+            if not row:
+                raise HTTPException(
+                    status_code=404, detail=f"Feature {feature_id} not found"
+                )
+
+            criteria = row[0] if row[0] else []
+
+            # Find and update the specific criterion
+            found = False
+            for c in criteria:
+                if c.get("id") == criterion_id:
+                    c["passed"] = update.passed
+                    if update.evidence:
+                        c["evidence"] = update.evidence
+                    found = True
+                    break
+
+            if not found:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Criterion {criterion_id} not found in feature {feature_id}",
+                )
+
+            # Update the database
+            conn.execute(
+                """
+                UPDATE feature_capabilities
+                SET acceptance_criteria = %s::jsonb, updated_at = NOW()
+                WHERE feature_id = %s
+                """,
+                (json.dumps(criteria), feature_id),
+            )
+            conn.commit()
+
+        logger.info(
+            "acceptance_criterion_passed_updated",
+            feature_id=feature_id,
+            criterion_id=criterion_id,
+            passed=update.passed,
+        )
+
+        return {
+            "status": "updated",
+            "feature_id": feature_id,
+            "criterion_id": criterion_id,
+            "passed": update.passed,
+            "evidence": update.evidence,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "update_acceptance_criterion_passed_failed",
+            feature_id=feature_id,
+            criterion_id=criterion_id,
+            error=str(e),
+        )
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+class VisionGoalsUpdate(BaseModel):
+    """Request model for updating vision goals."""
+
+    vision_goals: list[str]  # List of VISION.md goal identifiers
+
+
+@router.patch("/{feature_id}/vision-goals", response_model=dict[str, Any])
+async def update_feature_vision_goals(
+    feature_id: str, update: VisionGoalsUpdate
+) -> dict[str, Any]:
+    """Update the vision goals for a feature.
+
+    Args:
+        feature_id: Feature ID (e.g., FEAT-001)
+        update: New vision goals list
+    """
+    conn_mgr = get_connection_manager()
+
+    try:
+        with conn_mgr.connection() as conn:
+            result = conn.execute(
+                """
+                UPDATE feature_capabilities
+                SET vision_goals = %s, updated_at = NOW()
+                WHERE feature_id = %s
+                RETURNING feature_id, vision_goals
+                """,
+                (update.vision_goals, feature_id),
+            ).fetchone()
+            conn.commit()
+
+            if not result:
+                raise HTTPException(
+                    status_code=404, detail=f"Feature {feature_id} not found"
+                )
+
+        logger.info(
+            "feature_vision_goals_updated",
+            feature_id=feature_id,
+            vision_goals=update.vision_goals,
+        )
+
+        return {
+            "status": "updated",
+            "feature_id": feature_id,
+            "vision_goals": result[1],
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "update_feature_vision_goals_failed", feature_id=feature_id, error=str(e)
         )
         raise HTTPException(status_code=500, detail=str(e)) from e
 

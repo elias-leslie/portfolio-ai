@@ -93,7 +93,10 @@ class FeatureScanner:
                     COALESCE(t.completed_tasks, 0) as db_completed_tasks,
                     CASE WHEN f.layers IS NULL OR f.layers = '{}' THEN ARRAY['Frontend', 'Backend', 'UI'] ELSE f.layers END as layers,
                     COALESCE(f.layer_results, '{}'::jsonb) as layer_results,
-                    COALESCE(f.test_count, 0) as test_count
+                    COALESCE(f.test_count, 0) as test_count,
+                    f.priority,
+                    COALESCE(f.acceptance_criteria, '[]'::jsonb) as acceptance_criteria,
+                    COALESCE(f.vision_goals, '{}') as vision_goals
                 FROM feature_capabilities f
                 LEFT JOIN (
                     SELECT
@@ -146,6 +149,9 @@ class FeatureScanner:
             layers,
             layer_results,
             test_count,
+            priority,
+            acceptance_criteria,
+            vision_goals,
         ) = row
 
         # Use DB tasks if available (all-in-DB approach)
@@ -209,6 +215,14 @@ class FeatureScanner:
         elif passes is False and completion_pct == 100:
             needs_review = True  # Tasks complete, may be ready to pass
 
+        # Calculate effective priority
+        effective_priority = self._calculate_effective_priority(
+            priority=priority,
+            passes=passes,
+            layers=layers,
+            layer_results=layer_results,
+        )
+
         return {
             "id": db_id,
             "feature_id": feature_id,
@@ -232,6 +246,10 @@ class FeatureScanner:
             "created_at": created_at,
             "updated_at": updated_at,
             "tasks": tasks,
+            "priority": priority,
+            "effective_priority": effective_priority,
+            "acceptance_criteria": acceptance_criteria if acceptance_criteria else [],
+            "vision_goals": vision_goals if vision_goals else [],
         }
 
     def _parse_task_section(
@@ -322,6 +340,59 @@ class FeatureScanner:
             return "active"
 
         return "active"
+
+    def _calculate_effective_priority(  # noqa: PLR0911
+        self,
+        priority: int | None,
+        passes: bool | None,
+        layers: list[str] | None,
+        layer_results: dict | None,
+    ) -> int:
+        """Calculate effective priority based on verification state.
+
+        Priority is auto-calculated from layer verification progress unless
+        a user override (priority field) is set.
+
+        Args:
+            priority: User override priority (1-5), or None for auto
+            passes: Current passes status
+            layers: List of verification layers
+            layer_results: Dict of layer verification results
+
+        Returns:
+            Effective priority 1-5:
+                1 = Critical (broken)
+                2 = High (almost verified)
+                3 = Medium (partially verified)
+                4 = Low (started)
+                5 = Backlog (not started)
+        """
+        # User override takes precedence
+        if priority is not None:
+            return priority
+
+        # Broken features are highest priority
+        if passes is False:
+            return 1
+
+        # Calculate layer verification progress
+        layers_list = layers if layers else []
+        results = layer_results if layer_results else {}
+        total_layers = len(layers_list)
+        verified_layers = len(results)
+
+        if total_layers == 0:
+            return 5  # No layers defined
+
+        verification_pct = (verified_layers / total_layers) * 100
+
+        if verification_pct >= 80:
+            return 2  # Almost verified
+        if verification_pct >= 50:
+            return 3  # Partially verified
+        if verification_pct > 0:
+            return 4  # Started
+        return 5  # Not started
 
     def update_passes(
         self,
