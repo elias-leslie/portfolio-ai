@@ -20,6 +20,7 @@ import { CapabilitiesDashboard } from "@/components/capabilities/CapabilitiesDas
 import { GapsOverview } from "@/components/capabilities/GapsOverview";
 import { ApiSourcesOverview } from "@/components/capabilities/ApiSourcesOverview";
 import { FeaturesTab } from "@/components/capabilities/FeaturesTab";
+import { VisionGoalsTab } from "@/components/capabilities/VisionGoalsTab";
 import { RulesViewer } from "@/components/rules/RulesViewer";
 import {
   RefreshCw,
@@ -35,6 +36,7 @@ import {
   Cloud,
   BookOpen,
   CheckSquare,
+  Target,
 } from "lucide-react";
 import {
   fetchCapabilities,
@@ -49,7 +51,7 @@ import { fetchGapSummary } from "@/lib/api/gaps";
 import { toast } from "sonner";
 import { PageContainer } from "@/components/shared/PageContainer";
 
-type TabValue = "dashboard" | "database" | "celery" | "api" | "insights" | "gaps" | "sources" | "rules" | "features";
+type TabValue = "dashboard" | "database" | "celery" | "api" | "insights" | "gaps" | "sources" | "rules" | "features" | "vision";
 
 function CapabilitiesPageContent() {
   const queryClient = useQueryClient();
@@ -355,7 +357,7 @@ function CapabilitiesPageContent() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as TabValue)}>
-        <TabsList className="grid w-full grid-cols-9">
+        <TabsList className="grid w-full grid-cols-10">
           <TabsTrigger value="dashboard">
             Dashboard
           </TabsTrigger>
@@ -410,10 +412,14 @@ function CapabilitiesPageContent() {
             <CheckSquare className="mr-2 h-4 w-4" />
             Features
           </TabsTrigger>
+          <TabsTrigger value="vision">
+            <Target className="mr-2 h-4 w-4" />
+            Vision
+          </TabsTrigger>
         </TabsList>
 
         {/* Filters (for capability tabs) */}
-        {activeTab !== "dashboard" && activeTab !== "insights" && activeTab !== "gaps" && activeTab !== "sources" && activeTab !== "rules" && activeTab !== "features" && (
+        {activeTab !== "dashboard" && activeTab !== "insights" && activeTab !== "gaps" && activeTab !== "sources" && activeTab !== "rules" && activeTab !== "features" && activeTab !== "vision" && (
           <div className="space-y-3">
             <div className="flex flex-wrap gap-3">
               {/* Search */}
@@ -615,6 +621,11 @@ function CapabilitiesPageContent() {
         <TabsContent value="features">
           <FeaturesTab />
         </TabsContent>
+
+        {/* Vision Goals Tab */}
+        <TabsContent value="vision">
+          <VisionGoalsTab />
+        </TabsContent>
       </Tabs>
 
       {/* Pagination */}
@@ -624,6 +635,7 @@ function CapabilitiesPageContent() {
         activeTab !== "sources" &&
         activeTab !== "rules" &&
         activeTab !== "features" &&
+        activeTab !== "vision" &&
         capabilitiesData &&
         capabilitiesData.total > pageSize) ||
         (activeTab === "insights" && insightsData && insightsData.total > pageSize)) && (

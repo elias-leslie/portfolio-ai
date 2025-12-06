@@ -502,6 +502,25 @@ def get_beat_schedule() -> dict[str, object]:
             # - Alerts visible in system health dashboard
         },
         # ============================================================================
+        # ACCEPTANCE CRITERIA AUTO-VERIFICATION
+        # ============================================================================
+        # These tasks auto-verify API/test/UI criteria on a schedule
+        # ============================================================================
+        "verify-acceptance-criteria": {
+            "task": "verify_all_acceptance_criteria",
+            "schedule": crontab(hour=5, minute=0),  # Daily at 05:00 UTC
+            "options": {"expires": 3600},  # Task expires after 1 hour
+            # Notes:
+            # - Runs daily at 05:00 UTC (after all data refresh tasks complete)
+            # - Auto-verifies acceptance criteria by type:
+            #   * API criteria: Makes HTTP requests, checks status codes
+            #   * Test criteria: Runs pytest tests
+            #   * UI criteria: Takes screenshots via browser automation
+            # - Updates passed/verified_at/verification_output in database
+            # - Records run history in criteria_verification_runs table
+            # - Manual criteria types (backend, quality, db) are skipped
+        },
+        # ============================================================================
         # MULTI-AGENT WORKFLOW TASKS
         # ============================================================================
         # These tasks orchestrate collaboration between multiple AI agents

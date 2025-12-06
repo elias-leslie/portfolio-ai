@@ -53,6 +53,10 @@ interface AcceptanceCriterion {
   verification: string;
   type: string;
   passed: boolean | null;
+  // Verification tracking fields (added for auto-verification)
+  verified_at: string | null;
+  verified_by: string | null; // auto, manual, pytest, browser
+  verification_output: string | null;
 }
 
 interface Feature {
@@ -94,6 +98,14 @@ interface FeaturesSummary {
   passes_breakdown: Record<string, number>;
   category_breakdown: Record<string, number>;
   health_breakdown: Record<string, number>;
+}
+
+interface VerificationSummary {
+  total_criteria: number;
+  passed: number;
+  failed: number;
+  pending: number;
+  by_type: Record<string, { total: number; passed: number; failed: number; pending: number }>;
 }
 
 export function FeaturesTab() {
@@ -163,6 +175,16 @@ export function FeaturesTab() {
     queryFn: async () => {
       const response = await fetch("/api/capabilities/features/summary");
       if (!response.ok) throw new Error("Failed to fetch summary");
+      return response.json();
+    },
+  });
+
+  // Fetch verification summary for criteria status
+  const { data: verificationData } = useQuery<VerificationSummary>({
+    queryKey: ["verification-summary"],
+    queryFn: async () => {
+      const response = await fetch("/api/capabilities/features/verification-summary");
+      if (!response.ok) throw new Error("Failed to fetch verification summary");
       return response.json();
     },
   });
@@ -310,7 +332,7 @@ export function FeaturesTab() {
 
   return (
     <div className="space-y-4">
-      {/* Summary Cards */}
+      {/* Summary Cards - Features */}
       <div className="grid grid-cols-4 gap-4">
         <div className="rounded-lg border border-border bg-surface p-4">
           <div className="text-2xl font-bold">{summaryData?.total || 0}</div>
@@ -335,6 +357,50 @@ export function FeaturesTab() {
           <div className="text-sm text-muted-foreground">Unreviewed</div>
         </div>
       </div>
+
+      {/* Acceptance Criteria Summary */}
+      {verificationData && (
+        <div className="rounded-lg border border-border bg-surface p-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-medium">Acceptance Criteria Verification</span>
+            <span className="text-xs text-muted-foreground">{verificationData.total_criteria} total criteria</span>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-green-400" />
+              <div>
+                <span className="text-lg font-semibold text-green-400">{verificationData.passed}</span>
+                <span className="text-xs text-muted-foreground ml-1">passed</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <XCircle className="h-4 w-4 text-red-400" />
+              <div>
+                <span className="text-lg font-semibold text-red-400">{verificationData.failed}</span>
+                <span className="text-xs text-muted-foreground ml-1">failed</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <HelpCircle className="h-4 w-4 text-yellow-500" />
+              <div>
+                <span className="text-lg font-semibold text-yellow-400">{verificationData.pending}</span>
+                <span className="text-xs text-muted-foreground ml-1">pending</span>
+              </div>
+            </div>
+          </div>
+          {verificationData.by_type && Object.keys(verificationData.by_type).length > 0 && (
+            <div className="mt-3 pt-3 border-t border-border/50 flex gap-4 text-xs">
+              {Object.entries(verificationData.by_type).map(([type, stats]) => (
+                <span key={type} className="text-muted-foreground">
+                  <span className="capitalize">{type}</span>:{" "}
+                  <span className="text-green-400">{stats.passed}</span>/
+                  <span>{stats.total}</span>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3">

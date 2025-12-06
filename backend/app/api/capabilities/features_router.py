@@ -111,6 +111,10 @@ class AcceptanceCriterion(BaseModel):
     verification: str  # How to verify (curl command, screenshot, etc.)
     type: str  # api, ui, db, backend, quality, content
     passed: bool | None = None  # null = not checked, true/false = result
+    # Verification tracking fields (added for auto-verification)
+    verified_at: str | None = None  # ISO timestamp of last verification
+    verified_by: str | None = None  # auto, manual, pytest, browser
+    verification_output: str | None = None  # Actual output (truncated)
 
 
 class FeatureResponse(BaseModel):
@@ -190,6 +194,9 @@ def _feature_to_response(f: dict[str, Any]) -> FeatureResponse:
             verification=c.get("verification", ""),
             type=c.get("type", ""),
             passed=c.get("passed"),
+            verified_at=c.get("verified_at"),
+            verified_by=c.get("verified_by"),
+            verification_output=c.get("verification_output"),
         )
         for c in raw_criteria
         if isinstance(c, dict)
@@ -332,6 +339,254 @@ async def get_features_summary() -> FeatureSummaryResponse:
     except Exception as e:
         logger.error("get_features_summary_failed", error=str(e))
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+# =========================================================================
+# Verification Summary Endpoints (MUST come before /{feature_id} routes)
+# =========================================================================
+
+
+class VerificationSummary(BaseModel):
+    """Response model for verification summary."""
+
+    total_criteria: int
+    passed: int
+    failed: int
+    pending: int
+    by_type: dict[str, dict[str, int]]
+    last_run_at: str | None
+
+
+@router.get("/verification-summary", response_model=VerificationSummary)
+async def get_verification_summary() -> VerificationSummary:
+    """Get summary statistics for acceptance criteria verification."""
+    conn_mgr = get_connection_manager()
+
+    try:
+        with conn_mgr.connection() as conn:
+            # Get all criteria counts
+            row = conn.execute(
+                """
+                SELECT
+                    SUM(jsonb_array_length(COALESCE(acceptance_criteria, '[]'))) as total,
+                    SUM((
+                        SELECT COUNT(*)
+                        FROM jsonb_array_elements(COALESCE(acceptance_criteria, '[]')) c
+                        WHERE c->>'passed' = 'true'
+                    )) as passed,
+                    SUM((
+                        SELECT COUNT(*)
+                        FROM jsonb_array_elements(COALESCE(acceptance_criteria, '[]')) c
+                        WHERE c->>'passed' = 'false'
+                    )) as failed
+                FROM feature_capabilities
+                """
+            ).fetchone()
+
+            total = row[0] or 0
+            passed = row[1] or 0
+            failed = row[2] or 0
+            pending = total - passed - failed
+
+            # Get by-type breakdown
+            type_rows = conn.execute(
+                """
+                SELECT
+                    c->>'type' as type,
+                    COUNT(*) as total,
+                    COUNT(*) FILTER (WHERE c->>'passed' = 'true') as passed,
+                    COUNT(*) FILTER (WHERE c->>'passed' = 'false') as failed
+                FROM feature_capabilities,
+                     jsonb_array_elements(COALESCE(acceptance_criteria, '[]')) c
+                GROUP BY c->>'type'
+                """
+            ).fetchall()
+
+            by_type = {}
+            for r in type_rows:
+                ctype = r[0] or "unknown"
+                by_type[ctype] = {
+                    "total": r[1],
+                    "passed": r[2],
+                    "failed": r[3],
+                    "pending": r[1] - r[2] - r[3],
+                }
+
+            # Get last run timestamp
+            try:
+                last_run = conn.execute(
+                    """
+                    SELECT run_at
+                    FROM criteria_verification_runs
+                    ORDER BY run_at DESC
+                    LIMIT 1
+                    """
+                ).fetchone()
+                last_run_at = last_run[0].isoformat() if last_run else None
+            except Exception:
+                last_run_at = None
+
+            return VerificationSummary(
+                total_criteria=total,
+                passed=passed,
+                failed=failed,
+                pending=pending,
+                by_type=by_type,
+                last_run_at=last_run_at,
+            )
+
+    except Exception as e:
+        logger.error("get_verification_summary_failed", error=str(e))
+        return VerificationSummary(
+            total_criteria=0,
+            passed=0,
+            failed=0,
+            pending=0,
+            by_type={},
+            last_run_at=None,
+        )
+
+
+@router.get("/criteria/failing", response_model=list[dict[str, Any]])
+async def get_failing_criteria() -> list[dict[str, Any]]:
+    """Get all failing acceptance criteria for quick triage."""
+    conn_mgr = get_connection_manager()
+
+    try:
+        with conn_mgr.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    fc.feature_id,
+                    fc.name as feature_name,
+                    c->>'id' as criterion_id,
+                    c->>'criterion' as criterion,
+                    c->>'verification' as verification,
+                    c->>'verification_output' as verification_output,
+                    c->>'verified_at' as verified_at
+                FROM feature_capabilities fc,
+                     jsonb_array_elements(COALESCE(acceptance_criteria, '[]')) c
+                WHERE c->>'passed' = 'false'
+                ORDER BY c->>'verified_at' DESC NULLS LAST
+                LIMIT 100
+                """
+            ).fetchall()
+
+            return [
+                {
+                    "feature_id": r[0],
+                    "feature_name": r[1],
+                    "criterion_id": r[2],
+                    "criterion": r[3],
+                    "verification": r[4],
+                    "verification_output": r[5],
+                    "failed_at": r[6],
+                }
+                for r in rows
+            ]
+
+    except Exception as e:
+        logger.error("get_failing_criteria_failed", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.get("/criteria/pending", response_model=list[dict[str, Any]])
+async def get_pending_criteria(
+    type_filter: str | None = Query(None, alias="type", description="Filter by type"),
+) -> list[dict[str, Any]]:
+    """Get all pending (unverified) acceptance criteria."""
+    conn_mgr = get_connection_manager()
+
+    try:
+        with conn_mgr.connection() as conn:
+            if type_filter:
+                rows = conn.execute(
+                    """
+                    SELECT
+                        fc.feature_id,
+                        c->>'id' as criterion_id,
+                        c->>'criterion' as criterion,
+                        c->>'verification' as verification,
+                        c->>'type' as type
+                    FROM feature_capabilities fc,
+                         jsonb_array_elements(COALESCE(acceptance_criteria, '[]')) c
+                    WHERE c->>'passed' IS NULL
+                      AND c->>'type' = %s
+                    ORDER BY fc.feature_id, c->>'id'
+                    LIMIT 100
+                    """,
+                    (type_filter,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT
+                        fc.feature_id,
+                        c->>'id' as criterion_id,
+                        c->>'criterion' as criterion,
+                        c->>'verification' as verification,
+                        c->>'type' as type
+                    FROM feature_capabilities fc,
+                         jsonb_array_elements(COALESCE(acceptance_criteria, '[]')) c
+                    WHERE c->>'passed' IS NULL
+                    ORDER BY fc.feature_id, c->>'id'
+                    LIMIT 100
+                    """
+                ).fetchall()
+
+            return [
+                {
+                    "feature_id": r[0],
+                    "criterion_id": r[1],
+                    "criterion": r[2],
+                    "verification": r[3],
+                    "type": r[4],
+                }
+                for r in rows
+            ]
+
+    except Exception as e:
+        logger.error("get_pending_criteria_failed", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.post("/verify-all", response_model=dict[str, Any])
+async def verify_all_features(
+    type_filter: str | None = Query(None, description="Filter by type: api, test, ui"),
+    limit: int | None = Query(None, description="Limit number of criteria to verify"),
+) -> dict[str, Any]:
+    """Trigger verification of all auto-verifiable criteria.
+
+    This queues the verification as a Celery task and returns immediately.
+    """
+    from ...tasks.verify_criteria import verify_all_acceptance_criteria  # noqa: PLC0415
+
+    try:
+        task = verify_all_acceptance_criteria.delay(type_filter=type_filter, limit=limit)
+        logger.info("bulk_verification_queued", task_id=task.id, type_filter=type_filter, limit=limit)
+        return {"status": "queued", "task_id": task.id, "type_filter": type_filter, "limit": limit}
+    except Exception as e:
+        logger.error("queue_bulk_verification_failed", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.post("/verify-batch", response_model=dict[str, Any])
+async def verify_batch(feature_ids: list[str]) -> dict[str, Any]:
+    """Trigger verification for multiple features."""
+    from ...tasks.verify_criteria import verify_criteria_batch  # noqa: PLC0415
+
+    try:
+        task = verify_criteria_batch.delay(feature_ids)
+        logger.info("batch_verification_queued", task_id=task.id, feature_count=len(feature_ids))
+        return {"status": "queued", "task_id": task.id, "feature_ids": feature_ids, "estimated_seconds": len(feature_ids) * 5}
+    except Exception as e:
+        logger.error("queue_batch_verification_failed", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+# =========================================================================
+# Feature Detail and Update Endpoints
+# =========================================================================
 
 
 @router.get("/{feature_id}", response_model=FeatureResponse)
@@ -1089,4 +1344,23 @@ async def delete_feature_task(feature_id: str, task_id: str) -> dict[str, Any]:
             task_id=task_id,
             error=str(e),
         )
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+# =========================================================================
+# Feature-Specific Verification Endpoint
+# =========================================================================
+
+
+@router.post("/{feature_id}/verify", response_model=dict[str, Any])
+async def verify_feature(feature_id: str) -> dict[str, Any]:
+    """Trigger verification of all criteria for a feature."""
+    from ...tasks.verify_criteria import verify_feature_criteria  # noqa: PLC0415
+
+    try:
+        task = verify_feature_criteria.delay(feature_id)
+        logger.info("feature_verification_queued", feature_id=feature_id, task_id=task.id)
+        return {"status": "queued", "feature_id": feature_id, "task_id": task.id}
+    except Exception as e:
+        logger.error("queue_verification_failed", feature_id=feature_id, error=str(e))
         raise HTTPException(status_code=500, detail=str(e)) from e
