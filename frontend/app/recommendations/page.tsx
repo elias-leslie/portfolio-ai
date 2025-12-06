@@ -332,6 +332,8 @@ function TrackInPortfolioModal({ open, onOpenChange, recommendation, onConfirm, 
   );
 }
 
+import { PageContainer } from "@/components/shared/PageContainer";
+
 export default function RecommendationsPage() {
   const [minStrength, setMinStrength] = useState(5);
   const [portfolioSize, setPortfolioSize] = useState(100000);
@@ -376,160 +378,158 @@ export default function RecommendationsPage() {
   };
 
   return (
-    <div className="bg-bg">
-      <div className="mx-auto max-w-7xl space-y-6 px-4 py-10 sm:px-6 lg:px-8">
-        {/* Page Header */}
-        <PageHeader
-          title="Trade Recommendations"
-          description="Top trades from active strategies with position sizing"
-          size="md"
-        />
+    <PageContainer className="space-y-10 py-10">
+      {/* Page Header */}
+      <PageHeader
+        title="Trade Recommendations"
+        description="Top trades from active strategies with position sizing"
+        size="md"
+      />
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-text-muted">Active Signals</p>
-                  <p className="text-3xl font-bold text-green-600">
-                    {summary?.buy_signals || 0}
-                  </p>
-                </div>
-                <Target className="h-8 w-8 text-primary" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-text-muted">Avg Strength</p>
-                  <p className="text-3xl font-bold">{summary?.avg_signal_strength?.toFixed(1) || 0}</p>
-                </div>
-                <Badge variant="outline" className="text-lg">
-                  /10
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-text-muted">Total Position</p>
-                  <p className="text-3xl font-bold">
-                    ${(summary?.total_position_size || 0).toLocaleString()}
-                  </p>
-                </div>
-                <DollarSign className="h-8 w-8 text-green-600" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-text-muted">Portfolio Size</p>
-                  <p className="text-3xl font-bold">${portfolioSize.toLocaleString()}</p>
-                </div>
-                <Badge variant="outline">{((summary?.position_pct || 0.05) * 100).toFixed(0)}% each</Badge>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Filters */}
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Filters</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Min Signal Strength: {minStrength}</Label>
-                <Slider
-                  value={[minStrength]}
-                  onValueChange={(v) => setMinStrength(v[0])}
-                  min={1}
-                  max={10}
-                  step={1}
-                />
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-text-muted">Active Signals</p>
+                <p className="text-3xl font-bold text-green-600">
+                  {summary?.buy_signals || 0}
+                </p>
               </div>
-              <div className="space-y-2">
-                <Label>Portfolio Size: ${portfolioSize.toLocaleString()}</Label>
-                <Slider
-                  value={[portfolioSize]}
-                  onValueChange={(v) => setPortfolioSize(v[0])}
-                  min={10000}
-                  max={1000000}
-                  step={10000}
-                />
-              </div>
+              <Target className="h-8 w-8 text-primary" />
             </div>
           </CardContent>
         </Card>
 
-        {/* Recommendations Grid */}
-        {isLoading ? (
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {[1, 2, 3].map((i) => (
-              <Card key={i} className="animate-pulse">
-                <CardContent className="h-80" />
-              </Card>
-            ))}
-          </div>
-        ) : error ? (
-          <Card className="border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/20">
-            <CardContent className="flex items-center gap-3 py-6">
-              <AlertCircle className="h-5 w-5 text-red-600" />
-              <p className="text-red-600">
-                Failed to load recommendations: {error instanceof Error ? error.message : "Unknown error"}
-              </p>
-            </CardContent>
-          </Card>
-        ) : recommendations.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <Target className="mx-auto h-12 w-12 text-text-muted" />
-              <h3 className="mt-4 text-lg font-medium">No Recommendations</h3>
-              <p className="mt-2 text-text-muted">
-                No active BUY signals with strength {">"}= {minStrength}. Try lowering the threshold or
-                wait for new signals (generated daily at 21:30 UTC).
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {recommendations.map((rec) => (
-              <RecommendationCard
-                key={`${rec.strategy_id}-${rec.symbol}`}
-                rec={rec}
-                onPaperTrade={() =>
-                  paperTradeMutation.mutate({
-                    symbol: rec.symbol,
-                    strategyId: rec.strategy_id,
-                  })
-                }
-                onTrackInPortfolio={() => handleTrackClick(rec)}
-                isPaperTrading={paperTradeMutation.isPending}
-              />
-            ))}
-          </div>
-        )}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-text-muted">Avg Strength</p>
+                <p className="text-3xl font-bold">{summary?.avg_signal_strength?.toFixed(1) || 0}</p>
+              </div>
+              <Badge variant="outline" className="text-lg">
+                /10
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* Track in Portfolio Modal */}
-        <TrackInPortfolioModal
-          open={trackModalOpen}
-          onOpenChange={setTrackModalOpen}
-          recommendation={selectedRec}
-          onConfirm={handleTrackConfirm}
-          isLoading={trackMutation.isPending}
-        />
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-text-muted">Total Position</p>
+                <p className="text-3xl font-bold">
+                  ${(summary?.total_position_size || 0).toLocaleString()}
+                </p>
+              </div>
+              <DollarSign className="h-8 w-8 text-green-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-text-muted">Portfolio Size</p>
+                <p className="text-3xl font-bold">${portfolioSize.toLocaleString()}</p>
+              </div>
+              <Badge variant="outline">{((summary?.position_pct || 0.05) * 100).toFixed(0)}% each</Badge>
+            </div>
+          </CardContent>
+        </Card>
       </div>
-    </div>
+
+      {/* Filters */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Filters</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Min Signal Strength: {minStrength}</Label>
+              <Slider
+                value={[minStrength]}
+                onValueChange={(v) => setMinStrength(v[0])}
+                min={1}
+                max={10}
+                step={1}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Portfolio Size: ${portfolioSize.toLocaleString()}</Label>
+              <Slider
+                value={[portfolioSize]}
+                onValueChange={(v) => setPortfolioSize(v[0])}
+                min={10000}
+                max={1000000}
+                step={10000}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Recommendations Grid */}
+      {isLoading ? (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <Card key={i} className="animate-pulse">
+              <CardContent className="h-80" />
+            </Card>
+          ))}
+        </div>
+      ) : error ? (
+        <Card className="border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/20">
+          <CardContent className="flex items-center gap-3 py-6">
+            <AlertCircle className="h-5 w-5 text-red-600" />
+            <p className="text-red-600">
+              Failed to load recommendations: {error instanceof Error ? error.message : "Unknown error"}
+            </p>
+          </CardContent>
+        </Card>
+      ) : recommendations.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Target className="mx-auto h-12 w-12 text-text-muted" />
+            <h3 className="mt-4 text-lg font-medium">No Recommendations</h3>
+            <p className="mt-2 text-text-muted">
+              No active BUY signals with strength {">"}= {minStrength}. Try lowering the threshold or
+              wait for new signals (generated daily at 21:30 UTC).
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {recommendations.map((rec, i) => (
+            <RecommendationCard
+              key={`${rec.strategy_id}-${rec.symbol}-${i}`}
+              rec={rec}
+              onPaperTrade={() =>
+                paperTradeMutation.mutate({
+                  symbol: rec.symbol,
+                  strategyId: rec.strategy_id,
+                })
+              }
+              onTrackInPortfolio={() => handleTrackClick(rec)}
+              isPaperTrading={paperTradeMutation.isPending}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Track in Portfolio Modal */}
+      <TrackInPortfolioModal
+        open={trackModalOpen}
+        onOpenChange={setTrackModalOpen}
+        recommendation={selectedRec}
+        onConfirm={handleTrackConfirm}
+        isLoading={trackMutation.isPending}
+      />
+    </PageContainer>
   );
 }

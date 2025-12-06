@@ -31,6 +31,8 @@ import {
 } from "recharts";
 import { Activity, Cpu, Clock, CheckCircle2, XCircle } from "lucide-react";
 
+import { PageContainer } from "@/components/shared/PageContainer";
+
 export default function AgentsPage() {
   const [days, setDays] = useState(7);
   const { data: summary, isLoading: summaryLoading } = useTelemetrySummary(days);
@@ -39,7 +41,7 @@ export default function AgentsPage() {
   });
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <PageContainer className="space-y-10 py-10">
       <PageHeader
         title="Agent Telemetry"
         description="Monitor AI agent execution metrics, token usage, and performance"
@@ -51,11 +53,10 @@ export default function AgentsPage() {
           <button
             key={d}
             onClick={() => setDays(d)}
-            className={`px-3 py-1 rounded-md text-sm ${
-              days === d
+            className={`px-3 py-1 rounded-md text-sm ${days === d
                 ? "bg-primary text-primary-foreground"
                 : "bg-muted hover:bg-muted/80"
-            }`}
+              }`}
           >
             {d} days
           </button>
@@ -79,8 +80,8 @@ export default function AgentsPage() {
             (summary?.success_rate ?? 0) >= 90
               ? "text-green-500"
               : (summary?.success_rate ?? 0) >= 70
-              ? "text-yellow-500"
-              : "text-red-500"
+                ? "text-yellow-500"
+                : "text-red-500"
           }
         />
         <MetricCard
@@ -188,8 +189,8 @@ export default function AgentsPage() {
                         provider.success_rate >= 90
                           ? "text-green-500"
                           : provider.success_rate >= 70
-                          ? "text-yellow-500"
-                          : "text-red-500"
+                            ? "text-yellow-500"
+                            : "text-red-500"
                       }
                     >
                       {provider.success_rate.toFixed(1)}%
@@ -273,7 +274,7 @@ export default function AgentsPage() {
           </div>
         )}
       </SectionCard>
-    </div>
+    </PageContainer>
   );
 }
 
@@ -313,8 +314,8 @@ function StatusBadge({ status }: { status: string }) {
     status === "completed"
       ? "default"
       : status === "failed"
-      ? "destructive"
-      : "secondary";
+        ? "destructive"
+        : "secondary";
   const icon =
     status === "completed" ? (
       <CheckCircle2 className="h-3 w-3" />

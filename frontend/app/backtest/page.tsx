@@ -11,6 +11,8 @@ import { BacktestDetails } from "@/components/backtest/BacktestDetails";
 import { NewBacktestDialog } from "@/components/backtest/NewBacktestDialog";
 import Link from "next/link";
 
+import { PageContainer } from "@/components/shared/PageContainer";
+
 export default function BacktestPage() {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [newBacktestOpen, setNewBacktestOpen] = useState(false);
@@ -53,65 +55,63 @@ export default function BacktestPage() {
   };
 
   return (
-    <div className="bg-bg">
-      <div className="mx-auto max-w-7xl space-y-6 px-4 py-10 sm:px-6 lg:px-8">
-        {/* Page Header */}
-        <PageHeader
-          title="Backtesting"
-          description="Strategy validation with historical data"
-          size="md"
-          actions={
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => generateBatch.mutate({ top_n: 20 })}
-                disabled={generateBatch.isPending}
-              >
-                <Sparkles className="mr-2 h-4 w-4" />
-                {generateBatch.isPending ? "Generating..." : "Generate Strategies"}
+    <PageContainer className="space-y-10 py-10">
+      {/* Page Header */}
+      <PageHeader
+        title="Backtesting"
+        description="Strategy validation with historical data"
+        size="md"
+        actions={
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => generateBatch.mutate({ top_n: 20 })}
+              disabled={generateBatch.isPending}
+            >
+              <Sparkles className="mr-2 h-4 w-4" />
+              {generateBatch.isPending ? "Generating..." : "Generate Strategies"}
+            </Button>
+            <Link href="/strategies">
+              <Button variant="ghost">
+                <ExternalLink className="mr-2 h-4 w-4" />
+                View Strategies
               </Button>
-              <Link href="/strategies">
-                <Button variant="ghost">
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  View Strategies
-                </Button>
-              </Link>
-              <Button onClick={() => setNewBacktestOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                New Backtest
-              </Button>
-            </div>
-          }
-        />
-
-        {/* Two-Column Layout */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-          {/* Sidebar: Runs List */}
-          <div className="lg:col-span-4 xl:col-span-3">
-            <BacktestRunsList
-              runs={runs || []}
-              isLoading={isLoading}
-              selectedRunId={selectedRunId}
-              comparisonMode={comparisonMode}
-              selectedRunIds={selectedRunIds}
-              onSelectRun={handleSelectRun}
-              onToggleComparison={toggleComparisonMode}
-            />
+            </Link>
+            <Button onClick={() => setNewBacktestOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              New Backtest
+            </Button>
           </div>
+        }
+      />
 
-          {/* Main Area: Details or Comparison */}
-          <div className="lg:col-span-8 xl:col-span-9">
-            <BacktestDetails
-              runId={selectedRunId}
-              comparisonMode={comparisonMode}
-              comparisonRunIds={Array.from(selectedRunIds)}
-            />
-          </div>
+      {/* Two-Column Layout */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        {/* Sidebar: Runs List */}
+        <div className="lg:col-span-4 xl:col-span-3">
+          <BacktestRunsList
+            runs={runs || []}
+            isLoading={isLoading}
+            selectedRunId={selectedRunId}
+            comparisonMode={comparisonMode}
+            selectedRunIds={selectedRunIds}
+            onSelectRun={handleSelectRun}
+            onToggleComparison={toggleComparisonMode}
+          />
         </div>
 
-        {/* New Backtest Dialog */}
-        <NewBacktestDialog open={newBacktestOpen} onOpenChange={setNewBacktestOpen} />
+        {/* Main Area: Details or Comparison */}
+        <div className="lg:col-span-8 xl:col-span-9">
+          <BacktestDetails
+            runId={selectedRunId}
+            comparisonMode={comparisonMode}
+            comparisonRunIds={Array.from(selectedRunIds)}
+          />
+        </div>
       </div>
-    </div>
+
+      {/* New Backtest Dialog */}
+      <NewBacktestDialog open={newBacktestOpen} onOpenChange={setNewBacktestOpen} />
+    </PageContainer>
   );
 }

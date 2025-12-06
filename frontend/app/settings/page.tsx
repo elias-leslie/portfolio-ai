@@ -195,6 +195,8 @@ const countEditableDifferences = (
   return count;
 };
 
+import { PageContainer } from "@/components/shared/PageContainer";
+
 export default function SettingsPage() {
   const { data: preferences, isLoading } = usePreferences();
   const updatePreferences = useUpdatePreferences();
@@ -407,19 +409,17 @@ export default function SettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="bg-bg">
-        <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
-          <div className="animate-pulse space-y-6">
-            <div className="h-9 w-48 rounded-md bg-surface-muted/60" />
-            <div className="h-4 w-80 rounded-md bg-surface-muted/60" />
-            <div className="space-y-4">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="h-64 rounded-lg bg-surface-muted/60" />
-              ))}
-            </div>
+      <PageContainer className="max-w-6xl space-y-12 py-10" fullWidth>
+        <div className="animate-pulse space-y-6">
+          <div className="h-9 w-48 rounded-md bg-surface-muted/60" />
+          <div className="h-4 w-80 rounded-md bg-surface-muted/60" />
+          <div className="space-y-4">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="h-64 rounded-lg bg-surface-muted/60" />
+            ))}
           </div>
         </div>
-      </div>
+      </PageContainer>
     );
   }
 
@@ -439,93 +439,91 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="bg-bg pb-24">
-      <div className="mx-auto max-w-6xl space-y-12 px-4 py-10 sm:px-6 lg:px-8">
-        <PageHeader
-          title="Settings"
-          description="Configure your preferences, risk tolerance, and system behavior."
-          size="md"
-        />
+    <PageContainer className="max-w-6xl space-y-12 py-10 pb-24" fullWidth>
+      <PageHeader
+        title="Settings"
+        description="Configure your preferences, risk tolerance, and system behavior."
+        size="md"
+      />
 
-        <div className="space-y-8">
-          {preferences && (
-            <SettingsSection
-              title="Profiles"
-              description="Save and reuse preference sets for different strategies."
-              summary="Import, export, and activate saved profiles"
-              defaultCollapsed={false}
-            >
-              <ProfileSelector
-                variant="plain"
-                currentPreferences={getCurrentPreferences()}
-                onProfileLoad={handleProfileLoad}
-              />
-            </SettingsSection>
-          )}
-
+      <div className="space-y-8">
+        {preferences && (
           <SettingsSection
-            title="Trading & Risk"
-            description="Control the instruments, position sizing, and risk tolerance available to AI agents."
-            summary={tradingSummary}
+            title="Profiles"
+            description="Save and reuse preference sets for different strategies."
+            summary="Import, export, and activate saved profiles"
+            defaultCollapsed={false}
           >
-            <TradingRiskSettings
-              riskTolerance={riskTolerance}
-              maxPositionSizePct={maxPositionSizePct}
-              allowLong={allowLong}
-              allowShort={allowShort}
-              allowOptions={allowOptions}
-              allowCrypto={allowCrypto}
-              allowFutures={allowFutures}
-              onRiskToleranceChange={setRiskTolerance}
-              onMaxPositionSizePctChange={setMaxPositionSizePct}
-              onAllowLongChange={setAllowLong}
-              onAllowShortChange={setAllowShort}
-              onAllowOptionsChange={setAllowOptions}
-              onAllowCryptoChange={setAllowCrypto}
-              onAllowFuturesChange={setAllowFutures}
+            <ProfileSelector
+              variant="plain"
+              currentPreferences={getCurrentPreferences()}
+              onProfileLoad={handleProfileLoad}
             />
           </SettingsSection>
+        )}
 
-          <SettingsSection
-            title="Display & Interface"
-            description="Choose your timezone and presentation theme."
-            summary={displaySummary}
-          >
-            <DisplaySettings
-              displayTimezone={displayTimezone}
-              onDisplayTimezoneChange={setDisplayTimezone}
-            />
-          </SettingsSection>
+        <SettingsSection
+          title="Trading & Risk"
+          description="Control the instruments, position sizing, and risk tolerance available to AI agents."
+          summary={tradingSummary}
+        >
+          <TradingRiskSettings
+            riskTolerance={riskTolerance}
+            maxPositionSizePct={maxPositionSizePct}
+            allowLong={allowLong}
+            allowShort={allowShort}
+            allowOptions={allowOptions}
+            allowCrypto={allowCrypto}
+            allowFutures={allowFutures}
+            onRiskToleranceChange={setRiskTolerance}
+            onMaxPositionSizePctChange={setMaxPositionSizePct}
+            onAllowLongChange={setAllowLong}
+            onAllowShortChange={setAllowShort}
+            onAllowOptionsChange={setAllowOptions}
+            onAllowCryptoChange={setAllowCrypto}
+            onAllowFuturesChange={setAllowFutures}
+          />
+        </SettingsSection>
 
-          <SettingsSection
-            title="Watchlist & Scoring"
-            description="Tune refresh cadence, news visibility, and scoring weights for watchlist insights."
-            summary={watchlistSummary}
-          >
-            <WatchlistSettingsSection
-              defaultRefreshMinutes={defaultRefreshMinutes}
-              watchlistOverride={watchlistOverride}
-              newsOverride={newsOverride}
-              newsLookbackHours={newsLookbackHours}
-              newsMaxArticles={newsMaxArticles}
-              showNews={showNews}
-              autoExpand={autoExpand}
-              scoreWeights={scoreWeights}
-              technicalSubWeights={technicalSubWeights}
-              fundamentalSubWeights={fundamentalSubWeights}
-              onDefaultRefreshMinutesChange={setDefaultRefreshMinutes}
-              onWatchlistOverrideChange={setWatchlistOverride}
-              onNewsOverrideChange={setNewsOverride}
-              onNewsLookbackHoursChange={setNewsLookbackHours}
-              onNewsMaxArticlesChange={setNewsMaxArticles}
-              onShowNewsChange={setShowNews}
-              onAutoExpandChange={setAutoExpand}
-              onScoreWeightsChange={setScoreWeights}
-              onTechnicalSubWeightsChange={setTechnicalSubWeights}
-              onFundamentalSubWeightsChange={setFundamentalSubWeights}
-            />
-          </SettingsSection>
-        </div>
+        <SettingsSection
+          title="Display & Interface"
+          description="Choose your timezone and presentation theme."
+          summary={displaySummary}
+        >
+          <DisplaySettings
+            displayTimezone={displayTimezone}
+            onDisplayTimezoneChange={setDisplayTimezone}
+          />
+        </SettingsSection>
+
+        <SettingsSection
+          title="Watchlist & Scoring"
+          description="Tune refresh cadence, news visibility, and scoring weights for watchlist insights."
+          summary={watchlistSummary}
+        >
+          <WatchlistSettingsSection
+            defaultRefreshMinutes={defaultRefreshMinutes}
+            watchlistOverride={watchlistOverride}
+            newsOverride={newsOverride}
+            newsLookbackHours={newsLookbackHours}
+            newsMaxArticles={newsMaxArticles}
+            showNews={showNews}
+            autoExpand={autoExpand}
+            scoreWeights={scoreWeights}
+            technicalSubWeights={technicalSubWeights}
+            fundamentalSubWeights={fundamentalSubWeights}
+            onDefaultRefreshMinutesChange={setDefaultRefreshMinutes}
+            onWatchlistOverrideChange={setWatchlistOverride}
+            onNewsOverrideChange={setNewsOverride}
+            onNewsLookbackHoursChange={setNewsLookbackHours}
+            onNewsMaxArticlesChange={setNewsMaxArticles}
+            onShowNewsChange={setShowNews}
+            onAutoExpandChange={setAutoExpand}
+            onScoreWeightsChange={setScoreWeights}
+            onTechnicalSubWeightsChange={setTechnicalSubWeights}
+            onFundamentalSubWeightsChange={setFundamentalSubWeights}
+          />
+        </SettingsSection>
       </div>
 
       {/* Unified Save Bar */}
@@ -536,6 +534,6 @@ export default function SettingsPage() {
         isPending={updatePreferences.isPending}
         changeCount={changeCount}
       />
-    </div>
+    </PageContainer>
   );
 }

@@ -1,7 +1,3 @@
-/**
- * System Capabilities Registry - Main Page
- */
-
 "use client";
 
 import { useState, useMemo, Suspense } from "react";
@@ -51,6 +47,7 @@ import {
 } from "@/lib/api/capabilities";
 import { fetchGapSummary } from "@/lib/api/gaps";
 import { toast } from "sonner";
+import { PageContainer } from "@/components/shared/PageContainer";
 
 type TabValue = "dashboard" | "database" | "celery" | "api" | "insights" | "gaps" | "sources" | "rules" | "features";
 
@@ -117,10 +114,10 @@ function CapabilitiesPageContent() {
     activeTab === "database"
       ? "db"
       : activeTab === "celery"
-      ? "celery"
-      : activeTab === "api"
-      ? "api"
-      : "all";
+        ? "celery"
+        : activeTab === "api"
+          ? "api"
+          : "all";
 
   // Fetch capabilities
   const {
@@ -230,8 +227,8 @@ function CapabilitiesPageContent() {
           cap.capability_type === "db"
             ? (cap.table_name || "")
             : cap.capability_type === "celery"
-            ? (cap.task_name || "")
-            : (cap.endpoint_path || "");
+              ? (cap.task_name || "")
+              : (cap.endpoint_path || "");
         return (
           name.toLowerCase().includes(query) ||
           cap.category?.toLowerCase().includes(query) ||
@@ -267,14 +264,14 @@ function CapabilitiesPageContent() {
         a.capability_type === "db"
           ? (a.table_name || "")
           : a.capability_type === "celery"
-          ? (a.task_name || "")
-          : (a.endpoint_path || "");
+            ? (a.task_name || "")
+            : (a.endpoint_path || "");
       const nameB =
         b.capability_type === "db"
           ? (b.table_name || "")
           : b.capability_type === "celery"
-          ? (b.task_name || "")
-          : (b.endpoint_path || "");
+            ? (b.task_name || "")
+            : (b.endpoint_path || "");
       return nameA.localeCompare(nameB);
     });
 
@@ -309,18 +306,16 @@ function CapabilitiesPageContent() {
   // Render loading state
   if (capabilitiesLoading && !capabilitiesData) {
     return (
-      <div className="bg-bg min-h-screen">
-        <div className="mx-auto max-w-7xl space-y-8 px-4 py-10 sm:px-6 lg:px-8">
-          <PageHeader
-            title="System Capabilities"
-            description="Loading capability registry..."
-            size="md"
-          />
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
+      <PageContainer className="min-h-screen space-y-10 py-10">
+        <PageHeader
+          title="System Capabilities"
+          description="Loading capability registry..."
+          size="md"
+        />
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
-      </div>
+      </PageContainer>
     );
   }
 
@@ -340,299 +335,298 @@ function CapabilitiesPageContent() {
     : 0;
 
   return (
-    <div className="bg-bg min-h-screen">
-      <div className="mx-auto max-w-7xl space-y-8 px-4 py-10 sm:px-6 lg:px-8">
-        {/* Header */}
-        <PageHeader
-          title="System Capabilities Registry"
-          description="Comprehensive view of database tables, background tasks, and API endpoints"
-          size="md"
-          actions={
-            <Button onClick={() => scanMutation.mutate()} disabled={scanMutation.isPending}>
-              {scanMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="mr-2 h-4 w-4" />
-              )}
-              Scan System
-            </Button>
-          }
-        />
+    <PageContainer className="min-h-screen space-y-10 py-10">
+      {/* Header */}
+      <PageHeader
+        title="System Capabilities Registry"
+        description="Comprehensive view of database tables, background tasks, and API endpoints"
+        size="md"
+        actions={
+          <Button onClick={() => scanMutation.mutate()} disabled={scanMutation.isPending}>
+            {scanMutation.isPending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-2 h-4 w-4" />
+            )}
+            Scan System
+          </Button>
+        }
+      />
 
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as TabValue)}>
-          <TabsList className="grid w-full grid-cols-9">
-            <TabsTrigger value="dashboard">
-              Dashboard
-            </TabsTrigger>
-            <TabsTrigger value="database">
-              <Database className="mr-2 h-4 w-4" />
-              Database
-              <span className="ml-2 rounded-full bg-surface-muted px-2 py-0.5 text-xs">
-                {dbCount}
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as TabValue)}>
+        <TabsList className="grid w-full grid-cols-9">
+          <TabsTrigger value="dashboard">
+            Dashboard
+          </TabsTrigger>
+          <TabsTrigger value="database">
+            <Database className="mr-2 h-4 w-4" />
+            Database
+            <span className="ml-2 rounded-full bg-surface-muted px-2 py-0.5 text-xs">
+              {dbCount}
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="celery">
+            <Zap className="mr-2 h-4 w-4" />
+            Tasks
+            <span className="ml-2 rounded-full bg-surface-muted px-2 py-0.5 text-xs">
+              {celeryCount}
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="api">
+            <Globe className="mr-2 h-4 w-4" />
+            Endpoints
+            <span className="ml-2 rounded-full bg-surface-muted px-2 py-0.5 text-xs">
+              {apiCount}
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="insights">
+            <AlertTriangle className="mr-2 h-4 w-4" />
+            Insights
+            {(insightsCountData?.pending_count ?? insightsData?.pending_count ?? 0) > 0 && (
+              <span className="ml-2 rounded-full bg-accent/20 px-2 py-0.5 text-xs">
+                {insightsCountData?.pending_count ?? insightsData?.pending_count}
               </span>
-            </TabsTrigger>
-            <TabsTrigger value="celery">
-              <Zap className="mr-2 h-4 w-4" />
-              Tasks
-              <span className="ml-2 rounded-full bg-surface-muted px-2 py-0.5 text-xs">
-                {celeryCount}
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="gaps">
+            <TrendingUp className="mr-2 h-4 w-4" />
+            Gaps
+            {gapsData && gapsData.total_gaps > 0 && (
+              <span className="ml-2 rounded-full bg-accent/20 px-2 py-0.5 text-xs">
+                {gapsData.total_gaps}
               </span>
-            </TabsTrigger>
-            <TabsTrigger value="api">
-              <Globe className="mr-2 h-4 w-4" />
-              Endpoints
-              <span className="ml-2 rounded-full bg-surface-muted px-2 py-0.5 text-xs">
-                {apiCount}
-              </span>
-            </TabsTrigger>
-            <TabsTrigger value="insights">
-              <AlertTriangle className="mr-2 h-4 w-4" />
-              Insights
-              {(insightsCountData?.pending_count ?? insightsData?.pending_count ?? 0) > 0 && (
-                <span className="ml-2 rounded-full bg-accent/20 px-2 py-0.5 text-xs">
-                  {insightsCountData?.pending_count ?? insightsData?.pending_count}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="gaps">
-              <TrendingUp className="mr-2 h-4 w-4" />
-              Gaps
-              {gapsData && gapsData.total_gaps > 0 && (
-                <span className="ml-2 rounded-full bg-accent/20 px-2 py-0.5 text-xs">
-                  {gapsData.total_gaps}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="sources">
-              <Cloud className="mr-2 h-4 w-4" />
-              Sources
-            </TabsTrigger>
-            <TabsTrigger value="rules">
-              <BookOpen className="mr-2 h-4 w-4" />
-              Rules
-            </TabsTrigger>
-            <TabsTrigger value="features">
-              <CheckSquare className="mr-2 h-4 w-4" />
-              Features
-            </TabsTrigger>
-          </TabsList>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="sources">
+            <Cloud className="mr-2 h-4 w-4" />
+            Sources
+          </TabsTrigger>
+          <TabsTrigger value="rules">
+            <BookOpen className="mr-2 h-4 w-4" />
+            Rules
+          </TabsTrigger>
+          <TabsTrigger value="features">
+            <CheckSquare className="mr-2 h-4 w-4" />
+            Features
+          </TabsTrigger>
+        </TabsList>
 
-          {/* Filters (for capability tabs) */}
-          {activeTab !== "dashboard" && activeTab !== "insights" && activeTab !== "gaps" && activeTab !== "sources" && activeTab !== "rules" && activeTab !== "features" && (
-            <div className="space-y-3">
-              <div className="flex flex-wrap gap-3">
-                {/* Search */}
-                <div className="relative flex-1 min-w-[250px]">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    type="text"
-                    placeholder="Search capabilities..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9"
-                  />
-                </div>
+        {/* Filters (for capability tabs) */}
+        {activeTab !== "dashboard" && activeTab !== "insights" && activeTab !== "gaps" && activeTab !== "sources" && activeTab !== "rules" && activeTab !== "features" && (
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-3">
+              {/* Search */}
+              <div className="relative flex-1 min-w-[250px]">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Search capabilities..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
 
-                {/* Category Filter */}
-                {categories.length > 0 && (
-                  <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                    <SelectTrigger className="w-[180px]">
-                      <Filter className="mr-2 h-4 w-4" />
-                      <SelectValue placeholder="Category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Categories</SelectItem>
-                      {categories.map((cat) => (
-                        <SelectItem key={cat} value={cat}>
-                          {cat}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-
-                {/* Status Filter (DB only) */}
-                {activeTab === "database" && (
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[160px]">
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Statuses</SelectItem>
-                      <SelectItem value="fresh">Fresh</SelectItem>
-                      <SelectItem value="stale">Stale</SelectItem>
-                      <SelectItem value="critical">Critical</SelectItem>
-                      <SelectItem value="unknown">Unknown</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-
-                {/* Health Filter */}
-                <Select value={healthFilter} onValueChange={handleHealthFilterChange}>
-                  <SelectTrigger className="w-[200px]">
-                    <SelectValue placeholder="Health Status" />
+              {/* Category Filter */}
+              {categories.length > 0 && (
+                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                  <SelectTrigger className="w-[180px]">
+                    <Filter className="mr-2 h-4 w-4" />
+                    <SelectValue placeholder="Category" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All ({healthCounts.total})</SelectItem>
-                    <SelectItem value="active">Active ({healthCounts.active})</SelectItem>
-                    <SelectItem value="orphaned">Orphaned ({healthCounts.orphaned})</SelectItem>
-                    <SelectItem value="legacy">Legacy ({healthCounts.legacy})</SelectItem>
-                    <SelectItem value="suspect">Suspect ({healthCounts.suspect})</SelectItem>
+                    <SelectItem value="all">All Categories</SelectItem>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat} value={cat}>
+                        {cat}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
+              )}
 
-                {/* Clear Health Filter Button */}
-                {healthFilter !== "all" && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleHealthFilterChange("all")}
-                  >
-                    <X className="mr-2 h-4 w-4" />
-                    Clear Filter
-                  </Button>
-                )}
-              </div>
+              {/* Status Filter (DB only) */}
+              {activeTab === "database" && (
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[160px]">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="fresh">Fresh</SelectItem>
+                    <SelectItem value="stale">Stale</SelectItem>
+                    <SelectItem value="critical">Critical</SelectItem>
+                    <SelectItem value="unknown">Unknown</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
 
-              {/* Result Count */}
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>
-                  Showing {healthCounts.filtered}{" "}
-                  {healthFilter !== "all" && `${healthFilter} `}
-                  {healthCounts.filtered === 1 ? "capability" : "capabilities"}
-                  {healthFilter !== "all" && ` (of ${healthCounts.total} total)`}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Filters (for insights tab) */}
-          {activeTab === "insights" && (
-            <div className="flex flex-wrap gap-3">
-              {/* Severity Filter */}
-              <Select value={severityFilter} onValueChange={setSeverityFilter}>
-                <SelectTrigger className="w-[160px]">
-                  <SelectValue placeholder="Severity" />
+              {/* Health Filter */}
+              <Select value={healthFilter} onValueChange={handleHealthFilterChange}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Health Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Severities</SelectItem>
-                  <SelectItem value="critical">Critical</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="all">All ({healthCounts.total})</SelectItem>
+                  <SelectItem value="active">Active ({healthCounts.active})</SelectItem>
+                  <SelectItem value="orphaned">Orphaned ({healthCounts.orphaned})</SelectItem>
+                  <SelectItem value="legacy">Legacy ({healthCounts.legacy})</SelectItem>
+                  <SelectItem value="suspect">Suspect ({healthCounts.suspect})</SelectItem>
                 </SelectContent>
               </Select>
 
-              {/* Status Filter */}
-              <Select
-                value={insightStatusFilter}
-                onValueChange={(val) => setInsightStatusFilter(val as InsightStatus | "all")}
-              >
-                <SelectTrigger className="w-[160px]">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="confirmed">Confirmed</SelectItem>
-                  <SelectItem value="in_progress">In Progress</SelectItem>
-                  <SelectItem value="fixed">Fixed</SelectItem>
-                  <SelectItem value="dismissed">Dismissed</SelectItem>
-                </SelectContent>
-              </Select>
+              {/* Clear Health Filter Button */}
+              {healthFilter !== "all" && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleHealthFilterChange("all")}
+                >
+                  <X className="mr-2 h-4 w-4" />
+                  Clear Filter
+                </Button>
+              )}
+            </div>
+
+            {/* Result Count */}
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <span>
+                Showing {healthCounts.filtered}{" "}
+                {healthFilter !== "all" && `${healthFilter} `}
+                {healthCounts.filtered === 1 ? "capability" : "capabilities"}
+                {healthFilter !== "all" && ` (of ${healthCounts.total} total)`}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Filters (for insights tab) */}
+        {activeTab === "insights" && (
+          <div className="flex flex-wrap gap-3">
+            {/* Severity Filter */}
+            <Select value={severityFilter} onValueChange={setSeverityFilter}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Severity" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Severities</SelectItem>
+                <SelectItem value="critical">Critical</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Status Filter */}
+            <Select
+              value={insightStatusFilter}
+              onValueChange={(val) => setInsightStatusFilter(val as InsightStatus | "all")}
+            >
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="confirmed">Confirmed</SelectItem>
+                <SelectItem value="in_progress">In Progress</SelectItem>
+                <SelectItem value="fixed">Fixed</SelectItem>
+                <SelectItem value="dismissed">Dismissed</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* Dashboard Tab */}
+        <TabsContent value="dashboard">
+          <CapabilitiesDashboard />
+        </TabsContent>
+
+        {/* Database Tab */}
+        <TabsContent value="database">
+          <CapabilitiesTable capabilities={filteredCapabilities} />
+        </TabsContent>
+
+        {/* Celery Tasks Tab */}
+        <TabsContent value="celery">
+          <CapabilitiesTable capabilities={filteredCapabilities} />
+        </TabsContent>
+
+        {/* API Endpoints Tab */}
+        <TabsContent value="api">
+          <CapabilitiesTable capabilities={filteredCapabilities} />
+        </TabsContent>
+
+        {/* Insights Tab */}
+        <TabsContent value="insights">
+          {insightsLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : insightsData && insightsData.insights.length > 0 ? (
+            <div className="space-y-3">
+              {insightsData.insights.map((insight) => (
+                <InsightCard
+                  key={insight.id}
+                  insight={insight}
+                  onReview={async (insightId, status, reason) => {
+                    await reviewMutation.mutateAsync({ insightId, status, reason });
+                  }}
+                  isLoading={reviewMutation.isPending}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-border bg-surface p-8 text-center">
+              <AlertTriangle className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
+              <p className="mt-4 text-sm text-muted-foreground">No insights found</p>
             </div>
           )}
+        </TabsContent>
 
-          {/* Dashboard Tab */}
-          <TabsContent value="dashboard">
-            <CapabilitiesDashboard />
-          </TabsContent>
+        {/* Gaps Tab */}
+        <TabsContent value="gaps">
+          {gapsLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : gapsData ? (
+            <GapsOverview data={gapsData} />
+          ) : (
+            <div className="rounded-lg border border-border bg-surface p-8 text-center">
+              <TrendingUp className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
+              <p className="mt-4 text-sm text-muted-foreground">No gap data available</p>
+            </div>
+          )}
+        </TabsContent>
 
-          {/* Database Tab */}
-          <TabsContent value="database">
-            <CapabilitiesTable capabilities={filteredCapabilities} />
-          </TabsContent>
+        {/* Sources Tab */}
+        <TabsContent value="sources">
+          <ApiSourcesOverview />
+        </TabsContent>
 
-          {/* Celery Tasks Tab */}
-          <TabsContent value="celery">
-            <CapabilitiesTable capabilities={filteredCapabilities} />
-          </TabsContent>
+        {/* Rules Tab */}
+        <TabsContent value="rules">
+          <RulesViewer />
+        </TabsContent>
 
-          {/* API Endpoints Tab */}
-          <TabsContent value="api">
-            <CapabilitiesTable capabilities={filteredCapabilities} />
-          </TabsContent>
+        {/* Features Tab */}
+        <TabsContent value="features">
+          <FeaturesTab />
+        </TabsContent>
+      </Tabs>
 
-          {/* Insights Tab */}
-          <TabsContent value="insights">
-            {insightsLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : insightsData && insightsData.insights.length > 0 ? (
-              <div className="space-y-3">
-                {insightsData.insights.map((insight) => (
-                  <InsightCard
-                    key={insight.id}
-                    insight={insight}
-                    onReview={async (insightId, status, reason) => {
-                      await reviewMutation.mutateAsync({ insightId, status, reason });
-                    }}
-                    isLoading={reviewMutation.isPending}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-lg border border-border bg-surface p-8 text-center">
-                <AlertTriangle className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
-                <p className="mt-4 text-sm text-muted-foreground">No insights found</p>
-              </div>
-            )}
-          </TabsContent>
-
-          {/* Gaps Tab */}
-          <TabsContent value="gaps">
-            {gapsLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : gapsData ? (
-              <GapsOverview data={gapsData} />
-            ) : (
-              <div className="rounded-lg border border-border bg-surface p-8 text-center">
-                <TrendingUp className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
-                <p className="mt-4 text-sm text-muted-foreground">No gap data available</p>
-              </div>
-            )}
-          </TabsContent>
-
-          {/* Sources Tab */}
-          <TabsContent value="sources">
-            <ApiSourcesOverview />
-          </TabsContent>
-
-          {/* Rules Tab */}
-          <TabsContent value="rules">
-            <RulesViewer />
-          </TabsContent>
-
-          {/* Features Tab */}
-          <TabsContent value="features">
-            <FeaturesTab />
-          </TabsContent>
-        </Tabs>
-
-        {/* Pagination */}
-        {((activeTab !== "dashboard" &&
-          activeTab !== "insights" &&
-          activeTab !== "gaps" &&
-          activeTab !== "sources" &&
-          activeTab !== "rules" &&
-          activeTab !== "features" &&
-          capabilitiesData &&
-          capabilitiesData.total > pageSize) ||
-          (activeTab === "insights" && insightsData && insightsData.total > pageSize)) && (
+      {/* Pagination */}
+      {((activeTab !== "dashboard" &&
+        activeTab !== "insights" &&
+        activeTab !== "gaps" &&
+        activeTab !== "sources" &&
+        activeTab !== "rules" &&
+        activeTab !== "features" &&
+        capabilitiesData &&
+        capabilitiesData.total > pageSize) ||
+        (activeTab === "insights" && insightsData && insightsData.total > pageSize)) && (
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
               Showing {page * pageSize + 1} -{" "}
@@ -667,15 +661,14 @@ function CapabilitiesPageContent() {
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </PageContainer>
   );
 }
 
 export default function CapabilitiesPage() {
   return (
     <Suspense fallback={
-      <div className="bg-bg min-h-screen">
+      <div className="min-h-screen bg-bg">
         <div className="mx-auto max-w-7xl space-y-8 px-4 py-10 sm:px-6 lg:px-8">
           <PageHeader
             title="System Capabilities"

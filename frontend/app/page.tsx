@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { MarketIntelligence } from "@/components/market/MarketIntelligence";
 import { UnifiedNewsIntelligenceCard } from "@/components/shared/UnifiedNewsIntelligenceCard";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { PageContainer } from "@/components/shared/PageContainer";
 import { useNewsIntelligence } from "@/lib/hooks/useNews";
 import { PaperTradingCard } from "@/components/trading/PaperTradingCard";
 import { BacktestCard } from "@/components/backtest/BacktestCard";
@@ -126,34 +127,32 @@ function MarketNewsSection() {
 
 export default function Dashboard() {
   return (
-    <div className="bg-bg">
-      <div className="mx-auto max-w-7xl space-y-10 px-4 py-10 sm:px-6 lg:px-8">
-        <PageHeader
-          title="Portfolio AI Dashboard"
-          description="AI-powered portfolio intelligence and market insights"
-        />
+    <PageContainer className="space-y-10 py-10">
+      <PageHeader
+        title="Portfolio AI Dashboard"
+        description="AI-powered portfolio intelligence and market insights"
+      />
 
-        <Suspense fallback={<SectionLoadingState label="Loading market intelligence" rows={5} />}>
-          <MarketIntelligence />
-        </Suspense>
+      <Suspense fallback={<SectionLoadingState label="Loading market intelligence" rows={5} />}>
+        <MarketIntelligence />
+      </Suspense>
 
-        {/* AI Trading & Backtesting Cards */}
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          <PaperTradingCard />
-          <BacktestCard />
-        </div>
+      {/* AI Trading & Backtesting Cards */}
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <PaperTradingCard />
+        <BacktestCard />
+      </div>
 
-        <MarketNewsSection />
+      <MarketNewsSection />
 
-        {/* Portfolio Overview re-enabled once analytics.concentration issue is resolved */}
-        {/* <SectionCard
+      {/* Portfolio Overview re-enabled once analytics.concentration issue is resolved */}
+      {/* <SectionCard
           variant="surface"
           title="Portfolio Overview"
           description="Snapshot of current allocation, risk profile, and performance."
         >
           <PortfolioOverview />
         </SectionCard> */}
-      </div>
-    </div>
+    </PageContainer>
   );
 }

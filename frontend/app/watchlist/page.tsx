@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { PageContainer } from "@/components/shared/PageContainer";
 
 type StyleFilter = "all" | "Index" | "Trend" | "Value" | "Swing" | "Event";
 type SignalFilter = "all" | "BUY" | "HOLD" | "AVOID";
@@ -146,178 +147,176 @@ export default function WatchlistPage() {
   }, {} as Record<string, number>);
 
   return (
-    <div className="bg-bg min-h-screen watchlist-page">
-      <div className="mx-auto max-w-7xl space-y-8 px-4 py-10 sm:px-6 lg:px-8">
-        <PageHeader
-          title="Watchlist Intelligence Hub"
-          description={
-            searchQuery.trim()
-              ? `Found ${filteredItems.length} ${filteredItems.length === 1 ? "symbol" : "symbols"} matching "${searchQuery}"`
-              : styleFilter === "all"
+    <PageContainer className="py-10">
+      <PageHeader
+        title="Watchlist Intelligence Hub"
+        description={
+          searchQuery.trim()
+            ? `Found ${filteredItems.length} ${filteredItems.length === 1 ? "symbol" : "symbols"} matching "${searchQuery}"`
+            : styleFilter === "all"
               ? `Showing all ${watchlistData?.items.length || 0} symbols`
               : `Showing ${filteredItems.length} ${styleFilter} ${filteredItems.length === 1 ? "play" : "plays"}`
-          }
-          size="md"
-          actions={
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                onClick={handleRefresh}
-                disabled={refreshMutation.isPending}
-              >
-                <RefreshCw
-                  className={`mr-2 h-4 w-4 ${refreshMutation.isPending ? "animate-spin" : ""}`}
-                />
-                Refresh
-              </Button>
-              <Button onClick={() => setAddSymbolOpen(true)}>
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Add Symbol
-              </Button>
-            </div>
-          }
-        />
+        }
+        size="md"
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              onClick={handleRefresh}
+              disabled={refreshMutation.isPending}
+            >
+              <RefreshCw
+                className={`mr-2 h-4 w-4 ${refreshMutation.isPending ? "animate-spin" : ""}`}
+              />
+              Refresh
+            </Button>
+            <Button onClick={() => setAddSymbolOpen(true)}>
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Add Symbol
+            </Button>
+          </div>
+        }
+      />
 
-        {/* Major Disagreement Alerts */}
-        {disagreementsData?.items
-          .filter((d) => d.disagreement_severity === "major")
-          .slice(0, 3)
-          .map((disagreement) => (
-            <DisagreementAlert
-              key={disagreement.review_pair_id}
-              symbol={disagreement.symbol}
-              severity={disagreement.disagreement_severity as "minor" | "major"}
-              geminiReview={disagreement.gemini_review}
-              claudeReview={disagreement.claude_review}
-              agreementScore={disagreement.agreement_score}
-              className="mb-4"
+      {/* Major Disagreement Alerts */}
+      {disagreementsData?.items
+        .filter((d) => d.disagreement_severity === "major")
+        .slice(0, 3)
+        .map((disagreement) => (
+          <DisagreementAlert
+            key={disagreement.review_pair_id}
+            symbol={disagreement.symbol}
+            severity={disagreement.disagreement_severity as "minor" | "major"}
+            geminiReview={disagreement.gemini_review}
+            claudeReview={disagreement.claude_review}
+            agreementScore={disagreement.agreement_score}
+            className="mb-4"
+          />
+        ))}
+
+      <div className="flex flex-wrap gap-2">
+        <Select value={signalFilter} onValueChange={(value) => setSignalFilter(value as SignalFilter)}>
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="Signal: All" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Signals ({watchlistData?.items.length || 0})</SelectItem>
+            <SelectItem value="BUY">🟢 BUY ({signalCounts["BUY"] || 0})</SelectItem>
+            <SelectItem value="HOLD">🟡 HOLD ({signalCounts["HOLD"] || 0})</SelectItem>
+            <SelectItem value="AVOID">🔴 AVOID ({signalCounts["AVOID"] || 0})</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={styleFilter} onValueChange={(value) => setStyleFilter(value as StyleFilter)}>
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="Style: All" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Styles ({watchlistData?.items.length || 0})</SelectItem>
+            <SelectItem value="Index">📈 Index ({styleCounts["Index"] || 0})</SelectItem>
+            <SelectItem value="Trend">🔥 Trend ({styleCounts["Trend"] || 0})</SelectItem>
+            <SelectItem value="Value">💎 Value ({styleCounts["Value"] || 0})</SelectItem>
+            <SelectItem value="Swing">⚡ Swing ({styleCounts["Swing"] || 0})</SelectItem>
+            <SelectItem value="Event">📅 Event ({styleCounts["Event"] || 0})</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={riskFilter} onValueChange={(value) => setRiskFilter(value as RiskFilter)}>
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="Risk: All" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Risk Levels ({watchlistData?.items.length || 0})</SelectItem>
+            <SelectItem value="Low">✓ Low ({riskCounts["Low"] || 0})</SelectItem>
+            <SelectItem value="Medium-Low">⚠ Med-Low ({riskCounts["Medium-Low"] || 0})</SelectItem>
+            <SelectItem value="Medium">⚠ Medium ({riskCounts["Medium"] || 0})</SelectItem>
+            <SelectItem value="High">⚠⚠ High ({riskCounts["High"] || 0})</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Search Bar */}
+      <div className="mb-6">
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
+          <Input
+            type="text"
+            placeholder="Search by symbol or note..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full text-text-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              aria-label="Clear search"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Daily Watchlist Report */}
+      <WatchlistDailyReport />
+
+      {/* Recent LLM Disagreements Section */}
+      {disagreementsData && (
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold text-text mb-3">
+            Recent LLM Review Disagreements
+          </h2>
+          {disagreementsData.items.length > 0 ? (
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+              {disagreementsData.items.slice(0, 6).map((disagreement) => (
+                <DisagreementCard
+                  key={disagreement.review_pair_id}
+                  item={disagreement}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-green-500/20 bg-green-500/5 p-4">
+              <div className="flex items-center gap-2 text-sm text-text-muted">
+                <span className="text-green-500">✓</span>
+                <span>No LLM disagreements detected in last 7 days</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <div className="mb-6 rounded-md border border-loss bg-loss/10 p-4 text-sm text-loss">
+          Failed to load watchlist: {error.message}
+        </div>
+      )}
+
+      {/* Loading Skeleton */}
+      {isLoading && (
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="h-16 animate-pulse rounded-md bg-surface-muted"
             />
           ))}
-
-        <div className="flex flex-wrap gap-2">
-          <Select value={signalFilter} onValueChange={(value) => setSignalFilter(value as SignalFilter)}>
-            <SelectTrigger className="w-[160px]">
-              <SelectValue placeholder="Signal: All" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Signals ({watchlistData?.items.length || 0})</SelectItem>
-              <SelectItem value="BUY">🟢 BUY ({signalCounts["BUY"] || 0})</SelectItem>
-              <SelectItem value="HOLD">🟡 HOLD ({signalCounts["HOLD"] || 0})</SelectItem>
-              <SelectItem value="AVOID">🔴 AVOID ({signalCounts["AVOID"] || 0})</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={styleFilter} onValueChange={(value) => setStyleFilter(value as StyleFilter)}>
-            <SelectTrigger className="w-[160px]">
-              <SelectValue placeholder="Style: All" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Styles ({watchlistData?.items.length || 0})</SelectItem>
-              <SelectItem value="Index">📈 Index ({styleCounts["Index"] || 0})</SelectItem>
-              <SelectItem value="Trend">🔥 Trend ({styleCounts["Trend"] || 0})</SelectItem>
-              <SelectItem value="Value">💎 Value ({styleCounts["Value"] || 0})</SelectItem>
-              <SelectItem value="Swing">⚡ Swing ({styleCounts["Swing"] || 0})</SelectItem>
-              <SelectItem value="Event">📅 Event ({styleCounts["Event"] || 0})</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={riskFilter} onValueChange={(value) => setRiskFilter(value as RiskFilter)}>
-            <SelectTrigger className="w-[160px]">
-              <SelectValue placeholder="Risk: All" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Risk Levels ({watchlistData?.items.length || 0})</SelectItem>
-              <SelectItem value="Low">✓ Low ({riskCounts["Low"] || 0})</SelectItem>
-              <SelectItem value="Medium-Low">⚠ Med-Low ({riskCounts["Medium-Low"] || 0})</SelectItem>
-              <SelectItem value="Medium">⚠ Medium ({riskCounts["Medium"] || 0})</SelectItem>
-              <SelectItem value="High">⚠⚠ High ({riskCounts["High"] || 0})</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
+      )}
 
-        {/* Search Bar */}
-        <div className="mb-6">
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
-            <Input
-              type="text"
-              placeholder="Search by symbol or note..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full text-text-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-                aria-label="Clear search"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Daily Watchlist Report */}
-        <WatchlistDailyReport />
-
-        {/* Recent LLM Disagreements Section */}
-        {disagreementsData && (
-          <div className="mb-6">
-            <h2 className="text-lg font-semibold text-text mb-3">
-              Recent LLM Review Disagreements
-            </h2>
-            {disagreementsData.items.length > 0 ? (
-              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                {disagreementsData.items.slice(0, 6).map((disagreement) => (
-                  <DisagreementCard
-                    key={disagreement.review_pair_id}
-                    item={disagreement}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-lg border border-green-500/20 bg-green-500/5 p-4">
-                <div className="flex items-center gap-2 text-sm text-text-muted">
-                  <span className="text-green-500">✓</span>
-                  <span>No LLM disagreements detected in last 7 days</span>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Error State */}
-        {error && (
-          <div className="mb-6 rounded-md border border-loss bg-loss/10 p-4 text-sm text-loss">
-            Failed to load watchlist: {error.message}
-          </div>
-        )}
-
-        {/* Loading Skeleton */}
-        {isLoading && (
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="h-16 animate-pulse rounded-md bg-surface-muted"
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Watchlist Table */}
-        {!isLoading && !error && (
-          <WatchlistTable
-            items={filteredItems}
-          />
-        )}
-
-        {/* Add Symbol Modal */}
-        <AddSymbolModal
-          open={addSymbolOpen}
-          onOpenChange={setAddSymbolOpen}
-          currentCount={watchlistData?.items.length || 0}
+      {/* Watchlist Table */}
+      {!isLoading && !error && (
+        <WatchlistTable
+          items={filteredItems}
         />
-      </div>
-    </div>
+      )}
+
+      {/* Add Symbol Modal */}
+      <AddSymbolModal
+        open={addSymbolOpen}
+        onOpenChange={setAddSymbolOpen}
+        currentCount={watchlistData?.items.length || 0}
+      />
+    </PageContainer>
   );
 }

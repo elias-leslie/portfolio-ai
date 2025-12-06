@@ -55,6 +55,7 @@ import {
 } from "@/lib/api/status";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { SectionCard } from "@/components/shared/SectionCard";
+import { PageContainer } from "@/components/shared/PageContainer";
 import { cn } from "@/lib/utils";
 
 export default function StatusPage() {
@@ -352,16 +353,15 @@ export default function StatusPage() {
         newsHealth?.lookback_window_hours ?? newsHealth?.cache_ttl_hours ?? 0;
 
     const renderShell = (content: React.ReactNode) => (
-        <div className="bg-bg">
-            <div className="mx-auto max-w-7xl space-y-8 px-4 py-10 sm:px-6 lg:px-8">
-                <PageHeader
-                    title="System Status"
-                    description="Real-time monitoring of services, workers, and integrations."
-                    actions={headerActions}
-                />
-                {content}
-            </div>
-        </div>
+        <PageContainer className="space-y-10 py-10">
+            {/* Page Header */}
+            <PageHeader
+                title="System Status"
+                description="Real-time monitoring of services, workers, and integrations."
+                actions={headerActions}
+            />
+            {content}
+        </PageContainer>
     );
 
     if (error) {
