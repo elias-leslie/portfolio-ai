@@ -250,14 +250,15 @@ class CriteriaVerifier:
 
         Parses curl commands like:
             curl -s http://localhost:8000/api/health | jq '.status'
-            curl -s http://localhost:8000/api/market/fear-greed | jq '{value: .value}'
+            curl -s -X POST http://localhost:8000/api/data -d '{"key": "value"}'
+            curl -s http://localhost:8000/api/market/fear-greed | jq '.tables | length'
         """
         verification = criterion.get("verification", "")
 
-        # Parse the curl command
-        url, jq_filter = self._parse_curl_command(verification)
+        # Parse the curl command (method, url, data, jq_filter)
+        parsed = self._parse_curl_command_full(verification)
 
-        if not url:
+        if not parsed or not parsed.get("url"):
             return {
                 **criterion,
                 "passed": False,
@@ -265,6 +266,11 @@ class CriteriaVerifier:
                 "verified_by": "auto",
                 "verification_output": f"Could not parse URL from: {verification}",
             }
+
+        url = parsed["url"]
+        method = parsed.get("method", "GET").upper()
+        data = parsed.get("data")
+        jq_filter = parsed.get("jq_filter")
 
         # Validate URL is allowed
         if not self._is_url_allowed(url):
@@ -278,10 +284,20 @@ class CriteriaVerifier:
 
         try:
             async with httpx.AsyncClient(timeout=MAX_API_TIMEOUT) as client:
-                response = await client.get(url)
+                # Support different HTTP methods
+                if method == "POST":
+                    response = await client.post(url, json=data if data else None)
+                elif method == "PATCH":
+                    response = await client.patch(url, json=data if data else None)
+                elif method == "PUT":
+                    response = await client.put(url, json=data if data else None)
+                elif method == "DELETE":
+                    response = await client.delete(url)
+                else:
+                    response = await client.get(url)
 
-            # Check HTTP status
-            if response.status_code != 200:
+            # Check HTTP status (allow 200, 201, 204)
+            if response.status_code not in (200, 201, 204):
                 return {
                     **criterion,
                     "passed": False,
@@ -290,18 +306,21 @@ class CriteriaVerifier:
                     "verification_output": f"HTTP {response.status_code}: {response.text[:200]}",
                 }
 
-            # Try to parse JSON and apply jq filter
+            # Get response data
             try:
-                data = response.json()
-                if jq_filter:
-                    output = self._apply_jq_filter(data, jq_filter)
-                else:
-                    output = data
+                response_data = response.json() if response.text else {}
             except json.JSONDecodeError:
-                output = response.text[:MAX_OUTPUT_LENGTH]
+                response_data = response.text[:MAX_OUTPUT_LENGTH]
 
-            # Determine pass/fail - passed if we got 200 and some data
-            passed = bool(output)
+            # Apply jq filter using real jq CLI if filter exists
+            if jq_filter and isinstance(response_data, (dict, list)):
+                output = await self._apply_jq_cli(response_data, jq_filter)
+            else:
+                output = response_data
+
+            # Determine pass/fail - passed if we got success status and some data
+            # For filters that return numbers, 0 is falsy but valid
+            passed = output is not None and output not in ("", [])
 
             return {
                 **criterion,
@@ -495,24 +514,126 @@ class CriteriaVerifier:
         }
 
     def _parse_curl_command(self, verification: str) -> tuple[str | None, str | None]:
-        """Parse a curl command to extract URL and jq filter.
-
-        Examples:
-            curl -s http://localhost:8000/api/health | jq '.status'
-            curl -s http://localhost:8000/api/market/fear-greed | jq '{value: .value}'
+        """Parse a curl command to extract URL and jq filter (legacy method).
 
         Returns:
             Tuple of (url, jq_filter) or (None, None) if parsing fails
         """
+        parsed = self._parse_curl_command_full(verification)
+        if parsed:
+            return parsed.get("url"), parsed.get("jq_filter")
+        return None, None
+
+    def _parse_curl_command_full(self, verification: str) -> dict[str, Any] | None:
+        """Parse a curl command to extract method, URL, data, and jq filter.
+
+        Examples:
+            curl -s http://localhost:8000/api/health | jq '.status'
+            curl -s -X POST http://localhost:8000/api/data -d '{"key": "value"}'
+            POST /api/strategies/{id}/evolve -> returns success
+
+        Returns:
+            Dict with url, method, data, jq_filter or None if parsing fails
+        """
+        result: dict[str, Any] = {"method": "GET"}
+
+        # Handle shorthand format: "GET /api/path" or "POST /api/path"
+        shorthand_match = re.match(
+            r"^(GET|POST|PUT|PATCH|DELETE)\s+(/[^\s]+)", verification, re.IGNORECASE
+        )
+        if shorthand_match:
+            result["method"] = shorthand_match.group(1).upper()
+            result["url"] = f"http://localhost:8000{shorthand_match.group(2)}"
+            return result
+
+        # Extract HTTP method from -X flag
+        method_match = re.search(r"-X\s+(GET|POST|PUT|PATCH|DELETE)", verification, re.IGNORECASE)
+        if method_match:
+            result["method"] = method_match.group(1).upper()
+
         # Extract URL
-        url_match = re.search(r"http[s]?://[^\s|]+", verification)
-        url = url_match.group(0) if url_match else None
+        url_match = re.search(r"http[s]?://[^\s|'\"]+", verification)
+        if url_match:
+            result["url"] = url_match.group(0)
+        else:
+            return None
 
-        # Extract jq filter
-        jq_match = re.search(r"\|\s*jq\s+['\"]?([^'\"]+)['\"]?", verification)
-        jq_filter = jq_match.group(1).strip() if jq_match else None
+        # Extract request data from -d flag
+        data_match = re.search(r"-d\s+['\"]([^'\"]+)['\"]", verification)
+        if data_match:
+            try:
+                result["data"] = json.loads(data_match.group(1))
+            except json.JSONDecodeError:
+                result["data"] = data_match.group(1)
 
-        return url, jq_filter
+        # Extract jq filter (handle both quoted and unquoted)
+        jq_match = re.search(r"\|\s*jq\s+['\"]?(.+?)['\"]?\s*$", verification)
+        if jq_match:
+            result["jq_filter"] = jq_match.group(1).strip().strip("'\"")
+
+        return result
+
+    async def _apply_jq_cli(self, data: Any, jq_filter: str) -> Any:
+        """Apply jq filter using the actual jq CLI for full compatibility.
+
+        This supports all jq operations including:
+            .field | length
+            map(select(...))
+            .items[] | select(.foo == "bar")
+        """
+        if not jq_filter or jq_filter == ".":
+            return data
+
+        try:
+            # Write data to stdin and run jq
+            proc = await asyncio.create_subprocess_exec(
+                "jq",
+                "-c",  # Compact output
+                jq_filter,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+
+            input_data = json.dumps(data).encode()
+            stdout, stderr = await asyncio.wait_for(
+                proc.communicate(input=input_data), timeout=5
+            )
+
+            if proc.returncode != 0:
+                logger.warning(
+                    "jq_filter_failed",
+                    filter=jq_filter,
+                    error=stderr.decode()[:200],
+                )
+                # Fall back to simple parser for basic cases
+                return self._apply_jq_filter_simple(data, jq_filter)
+
+            # Parse jq output
+            output = stdout.decode().strip()
+            if not output or output == "null":
+                return None
+
+            try:
+                return json.loads(output)
+            except json.JSONDecodeError:
+                # jq returned a raw string or number
+                return output
+
+        except FileNotFoundError:
+            # jq not installed, fall back to simple parser
+            logger.warning("jq_not_installed", fallback="simple_parser")
+            return self._apply_jq_filter_simple(data, jq_filter)
+        except TimeoutError:
+            logger.warning("jq_timeout", filter=jq_filter)
+            return None
+        except Exception as e:
+            logger.warning("jq_error", filter=jq_filter, error=str(e))
+            return self._apply_jq_filter_simple(data, jq_filter)
+
+    def _apply_jq_filter_simple(self, data: Any, jq_filter: str) -> Any:
+        """Simple jq-like filter fallback (for when jq CLI unavailable)."""
+        return self._apply_jq_filter(data, jq_filter)
 
     def _parse_pytest_command(self, verification: str) -> list[str] | None:
         """Parse a pytest command to extract arguments.
