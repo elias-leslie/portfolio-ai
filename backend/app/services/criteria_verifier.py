@@ -428,7 +428,14 @@ class CriteriaVerifier:
     async def _verify_ui_criterion(
         self, feature_id: str, criterion: dict
     ) -> dict[str, Any]:
-        """Verify a UI criterion by taking a screenshot.
+        """Take screenshot for UI criterion and queue for visual verification.
+
+        This method does NOT auto-pass. It:
+            1. Checks page returns 200 (not 404/500)
+            2. Takes screenshot
+            3. Marks as pending_visual_review for AI to verify
+
+        The AI must then visually inspect the screenshot and mark passed/failed.
 
         Parses commands like:
             screenshot /dashboard and verify gauge visible
@@ -453,7 +460,18 @@ class CriteriaVerifier:
         full_url = f"http://192.168.8.233:3000{url_path}"
 
         try:
-            # Run screenshot script
+            # STEP 1: Check if page returns 200 before taking screenshot
+            page_check = await self._check_page_status(full_url)
+            if not page_check["ok"]:
+                return {
+                    **criterion,
+                    "passed": False,
+                    "verified_at": datetime.now(UTC).isoformat(),
+                    "verified_by": "browser",
+                    "verification_output": f"Page check failed: {page_check['error']}",
+                }
+
+            # STEP 2: Run screenshot script
             proc = await asyncio.create_subprocess_exec(
                 "node",
                 str(BROWSER_SCRIPTS / "screenshot.js"),
@@ -464,7 +482,7 @@ class CriteriaVerifier:
             )
 
             try:
-                _stdout, stderr = await asyncio.wait_for(
+                stdout, stderr = await asyncio.wait_for(
                     proc.communicate(), timeout=MAX_UI_TIMEOUT
                 )
             except TimeoutError:
@@ -477,21 +495,45 @@ class CriteriaVerifier:
                     "verification_output": f"Timeout after {MAX_UI_TIMEOUT}s",
                 }
 
-            # Check if screenshot was created and has content
-            if screenshot_path.exists() and screenshot_path.stat().st_size > 1000:
+            # STEP 3: Check if screenshot was created
+            if not screenshot_path.exists():
                 return {
                     **criterion,
-                    "passed": True,
+                    "passed": False,
                     "verified_at": datetime.now(UTC).isoformat(),
                     "verified_by": "browser",
-                    "verification_output": f"Screenshot saved: {screenshot_path}",
+                    "verification_output": f"Screenshot not created. stderr: {stderr.decode()[:500]}",
                 }
+
+            file_size = screenshot_path.stat().st_size
+            if file_size < 1000:
+                return {
+                    **criterion,
+                    "passed": False,
+                    "verified_at": datetime.now(UTC).isoformat(),
+                    "verified_by": "browser",
+                    "verification_output": f"Screenshot too small ({file_size} bytes)",
+                }
+
+            # STEP 4: Auto-fail obvious error pages (404 detection)
+            error_detection = await self._detect_error_screenshot(screenshot_path, stdout.decode())
+            if error_detection["is_error"]:
+                return {
+                    **criterion,
+                    "passed": False,
+                    "verified_at": datetime.now(UTC).isoformat(),
+                    "verified_by": "browser",
+                    "verification_output": f"Error page detected: {error_detection['reason']}",
+                }
+
+            # STEP 5: Queue for visual verification - DO NOT AUTO-PASS
+            # AI must visually verify the screenshot shows the expected content
             return {
                 **criterion,
-                "passed": False,
+                "passed": None,  # Explicitly null - requires visual verification
                 "verified_at": datetime.now(UTC).isoformat(),
-                "verified_by": "browser",
-                "verification_output": f"Screenshot failed or too small. stderr: {stderr.decode()[:500]}",
+                "verified_by": "pending_visual_review",
+                "verification_output": f"NEEDS_VISUAL_REVIEW: {screenshot_path} ({file_size} bytes). Criterion: {criterion.get('criterion', '')[:100]}",
             }
 
         except Exception as e:
@@ -502,6 +544,71 @@ class CriteriaVerifier:
                 "verified_by": "browser",
                 "verification_output": f"Error: {str(e)[:MAX_OUTPUT_LENGTH]}",
             }
+
+    async def _check_page_status(self, url: str) -> dict[str, Any]:
+        """Check if page returns 200 status before taking screenshot.
+
+        Returns:
+            Dict with ok=True if page loads, or ok=False with error message
+        """
+        try:
+            async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+                response = await client.get(url)
+
+                if response.status_code == 404:
+                    return {"ok": False, "error": f"HTTP 404 - Page not found: {url}"}
+                if response.status_code >= 500:
+                    return {"ok": False, "error": f"HTTP {response.status_code} - Server error"}
+                if response.status_code >= 400:
+                    return {"ok": False, "error": f"HTTP {response.status_code} - Client error"}
+
+                # Check for Next.js 404 page in HTML content
+                content = response.text[:2000].lower()
+                if "404" in content and ("not found" in content or "page could not be found" in content):
+                    return {"ok": False, "error": "Page contains 404 error content"}
+
+                return {"ok": True, "status": response.status_code}
+
+        except httpx.TimeoutException:
+            return {"ok": False, "error": "Timeout checking page status"}
+        except Exception as e:
+            return {"ok": False, "error": f"Error checking page: {str(e)[:100]}"}
+
+    async def _detect_error_screenshot(self, screenshot_path: Path, script_output: str) -> dict[str, Any]:
+        """Detect if screenshot shows an error page.
+
+        Checks:
+            1. Known error page file sizes (404 pages are often consistent size)
+            2. Script output for error indicators
+            3. File size patterns
+
+        Returns:
+            Dict with is_error=True/False and reason
+        """
+        file_size = screenshot_path.stat().st_size
+
+        # Known 404 error page size from Next.js (approximately 33KB)
+        # This is a heuristic based on observed 404 page screenshots
+        KNOWN_404_SIZE = 33254
+        KNOWN_404_TOLERANCE = 500  # Allow small variance
+
+        if abs(file_size - KNOWN_404_SIZE) < KNOWN_404_TOLERANCE:
+            return {
+                "is_error": True,
+                "reason": f"Screenshot size ({file_size}) matches known 404 error page pattern",
+            }
+
+        # Check script output for error indicators
+        script_output_lower = script_output.lower()
+        error_indicators = ["404", "not found", "error", "failed to load"]
+        for indicator in error_indicators:
+            if indicator in script_output_lower:
+                return {
+                    "is_error": True,
+                    "reason": f"Script output contains error indicator: '{indicator}'",
+                }
+
+        return {"is_error": False, "reason": None}
 
     def _handle_manual_criterion(self, criterion: dict) -> dict[str, Any]:
         """Mark a criterion as requiring manual verification."""
