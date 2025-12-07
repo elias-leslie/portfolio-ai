@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import math
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Path, Query
@@ -15,6 +16,7 @@ from app.analytics import (
     get_sector_rotation,
 )
 from app.storage import get_storage
+from app.storage.connection import get_connection_manager
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
@@ -90,6 +92,88 @@ class PeerGroupDetailResponse(BaseModel):
     date: str = Field(..., description="Date for peer comparison (YYYY-MM-DD)")
     peers: list[PeerDetailItem] = Field(..., description="All peers ranked by performance")
     count: int = Field(..., description="Number of peers")
+
+
+class ShortInterestResponse(BaseModel):
+    """Response model for short interest data."""
+
+    model_config = {"populate_by_name": True}
+
+    symbol: str = Field(..., description="Stock symbol")
+    as_of_date: str = Field(..., description="Date of short interest data (YYYY-MM-DD)")
+    short_shares: float | None = Field(None, description="Number of shares sold short")
+    short_ratio: float | None = Field(None, description="Days to cover (short ratio)")
+    pct_float: float | None = Field(
+        None, description="Short percent of float", alias="short_percent_of_float"
+    )
+    pct_outstanding: float | None = Field(
+        None, description="Short percent of shares outstanding", alias="short_percent_of_outstanding"
+    )
+    short_prior_month: float | None = Field(None, description="Short shares prior month")
+    pct_change: float | None = Field(None, description="Percent change from prior month")
+    source: str = Field("yfinance", description="Data source")
+
+
+class CashFlowMetricsResponse(BaseModel):
+    """Response model for cash flow metrics data."""
+
+    symbol: str = Field(..., description="Stock symbol")
+    as_of_date: str = Field(..., description="Date of cash flow data (YYYY-MM-DD)")
+    operating_cash_flow: float | None = Field(None, description="Operating cash flow")
+    free_cash_flow: float | None = Field(None, description="Free cash flow")
+    capital_expenditure: float | None = Field(None, description="Capital expenditure")
+    fcf_yield: float | None = Field(None, description="FCF yield (FCF / Market Cap)")
+    cash_flow_margin: float | None = Field(None, description="Cash flow margin (OCF / Revenue)")
+    fcf_per_share: float | None = Field(None, description="Free cash flow per share")
+    cash_conversion_ratio: float | None = Field(None, description="Cash conversion ratio (OCF / Net Income)")
+    source: str = Field("yfinance", description="Data source")
+
+
+class InsiderTransactionResponse(BaseModel):
+    """Response model for insider transaction data."""
+
+    symbol: str = Field(..., description="Stock symbol")
+    insider_name: str | None = Field(None, description="Name of insider")
+    insider_title: str | None = Field(None, description="Title of insider")
+    transaction_type: str | None = Field(None, description="Transaction type (Buy, Sell, etc.)")
+    transaction_date: str | None = Field(None, description="Transaction date")
+    shares: float | None = Field(None, description="Number of shares")
+    value: float | None = Field(None, description="Transaction value")
+    shares_owned_after: float | None = Field(None, description="Shares owned after transaction")
+
+
+class InsiderTransactionsListResponse(BaseModel):
+    """Response model for list of insider transactions."""
+
+    symbol: str = Field(..., description="Stock symbol")
+    transactions: list[InsiderTransactionResponse] = Field(default_factory=list)
+    count: int = Field(0, description="Number of transactions")
+
+
+class InstitutionalHoldingResponse(BaseModel):
+    """Response model for institutional holding data."""
+
+    symbol: str = Field(..., description="Stock symbol")
+    holder_name: str | None = Field(None, description="Name of institutional holder")
+    shares: float | None = Field(None, description="Number of shares held")
+    value: float | None = Field(None, description="Value of holdings")
+    pct_held: float | None = Field(None, description="Percent of company held")
+    pct_change: float | None = Field(None, description="Change from prior period")
+    report_date: str | None = Field(None, description="Report date")
+
+
+class InstitutionalSummaryResponse(BaseModel):
+    """Response model for institutional ownership summary."""
+
+    symbol: str = Field(..., description="Stock symbol")
+    as_of_date: str | None = Field(None, description="As of date")
+    total_institutions: int | None = Field(None, description="Total number of institutions")
+    total_shares_held: float | None = Field(None, description="Total shares held by institutions")
+    pct_held_institutions: float | None = Field(None, description="Percent held by institutions")
+    pct_held_insiders: float | None = Field(None, description="Percent held by insiders")
+    institutions_increased: int | None = Field(None, description="Institutions that increased")
+    institutions_decreased: int | None = Field(None, description="Institutions that decreased")
+    top_holders: list[InstitutionalHoldingResponse] = Field(default_factory=list)
 
 
 # Endpoints
@@ -413,4 +497,226 @@ async def get_peer_group_det(
         date=target_date.isoformat(),
         peers=peer_items,
         count=len(peer_items),
+    )
+
+
+@router.get("/short-interest/{symbol}", response_model=ShortInterestResponse)
+async def get_short_interest(
+    symbol: Annotated[str, Path(description="Stock symbol (e.g., AAPL)")],
+) -> ShortInterestResponse:
+    """Get short interest data for a symbol.
+
+    Returns the most recent short interest data including short ratio,
+    percent of float, and changes from prior period.
+
+    Args:
+        symbol: Stock symbol (e.g., "AAPL")
+
+    Returns:
+        ShortInterestResponse with short interest metrics
+
+    Raises:
+        HTTPException: If symbol not found or no data available
+    """
+    mgr = get_connection_manager()
+    with mgr.connection() as conn:
+        result = conn.execute(
+            """
+            SELECT symbol, as_of_date, short_shares, short_ratio,
+                   short_percent_of_float, short_percent_of_outstanding,
+                   short_prior_month, short_pct_change, source
+            FROM short_interest
+            WHERE symbol = %s
+            ORDER BY as_of_date DESC
+            LIMIT 1
+            """,
+            (symbol.upper(),),
+        )
+        row = result.fetchone()
+
+    if row is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No short interest data found for {symbol.upper()}",
+        )
+
+    return ShortInterestResponse(
+        symbol=row[0],
+        as_of_date=row[1].isoformat() if row[1] else None,
+        short_shares=row[2],
+        short_ratio=row[3],
+        pct_float=row[4],
+        pct_outstanding=row[5],
+        short_prior_month=row[6],
+        pct_change=row[7],
+        source=row[8] or "yfinance",
+    )
+
+
+@router.get("/cash-flow/{symbol}", response_model=CashFlowMetricsResponse)
+async def get_cash_flow_metrics(
+    symbol: Annotated[str, Path(description="Stock symbol (e.g., AAPL)")],
+) -> CashFlowMetricsResponse:
+    """Get cash flow metrics for a symbol.
+
+    Returns FCF yield, operating cash flow, conversion ratio and other metrics.
+    """
+    mgr = get_connection_manager()
+    with mgr.connection() as conn:
+        result = conn.execute(
+            """
+            SELECT symbol, as_of_date, operating_cash_flow, free_cash_flow,
+                   capital_expenditure, fcf_yield, cash_flow_margin,
+                   fcf_per_share, cash_conversion_ratio, source
+            FROM cash_flow_metrics
+            WHERE symbol = %s
+            ORDER BY as_of_date DESC
+            LIMIT 1
+            """,
+            (symbol.upper(),),
+        )
+        row = result.fetchone()
+
+    if row is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No cash flow metrics found for {symbol.upper()}",
+        )
+
+    return CashFlowMetricsResponse(
+        symbol=row[0],
+        as_of_date=row[1].isoformat() if row[1] else None,
+        operating_cash_flow=row[2],
+        free_cash_flow=row[3],
+        capital_expenditure=row[4],
+        fcf_yield=row[5],
+        cash_flow_margin=row[6],
+        fcf_per_share=row[7],
+        cash_conversion_ratio=row[8],
+        source=row[9] or "yfinance",
+    )
+
+
+@router.get("/insider-transactions/{symbol}", response_model=InsiderTransactionsListResponse)
+async def get_insider_transactions(
+    symbol: Annotated[str, Path(description="Stock symbol (e.g., AAPL)")],
+    limit: Annotated[int, Query(description="Max transactions to return", ge=1, le=100)] = 20,
+) -> InsiderTransactionsListResponse:
+    """Get SEC Form 4 insider transactions for a symbol.
+
+    Returns buy/sell tracking data from insider filings.
+    """
+    mgr = get_connection_manager()
+    with mgr.connection() as conn:
+        result = conn.execute(
+            """
+            SELECT symbol, insider_name, insider_title, transaction_type,
+                   transaction_date, shares, value, shares_owned_after
+            FROM insider_transactions
+            WHERE symbol = %s
+            ORDER BY transaction_date DESC
+            LIMIT %s
+            """,
+            (symbol.upper(), limit),
+        )
+        rows = result.fetchall()
+
+    def safe_float(val: float | None) -> float | None:
+        """Convert NaN to None for JSON serialization."""
+        if val is None:
+            return None
+        if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
+            return None
+        return val
+
+    transactions = [
+        InsiderTransactionResponse(
+            symbol=row[0],
+            insider_name=row[1],
+            insider_title=row[2],
+            transaction_type=row[3],
+            transaction_date=row[4].isoformat() if row[4] else None,
+            shares=safe_float(row[5]),
+            value=safe_float(row[6]),
+            shares_owned_after=safe_float(row[7]),
+        )
+        for row in rows
+    ]
+
+    return InsiderTransactionsListResponse(
+        symbol=symbol.upper(),
+        transactions=transactions,
+        count=len(transactions),
+    )
+
+
+@router.get("/institutional-holdings/{symbol}", response_model=InstitutionalSummaryResponse)
+async def get_institutional_holdings(
+    symbol: Annotated[str, Path(description="Stock symbol (e.g., AAPL)")],
+    top_n: Annotated[int, Query(description="Number of top holders to include", ge=1, le=50)] = 10,
+) -> InstitutionalSummaryResponse:
+    """Get 13F institutional holdings for a symbol.
+
+    Returns ownership percent and change tracking from institutional filings.
+    """
+    mgr = get_connection_manager()
+
+    # Get summary data
+    with mgr.connection() as conn:
+        summary_result = conn.execute(
+            """
+            SELECT symbol, as_of_date, total_institutions, total_shares_held,
+                   pct_held_institutions, pct_held_insiders,
+                   institutions_increased, institutions_decreased
+            FROM institutional_ownership_summary
+            WHERE symbol = %s
+            ORDER BY as_of_date DESC
+            LIMIT 1
+            """,
+            (symbol.upper(),),
+        )
+        summary_row = summary_result.fetchone()
+
+        # Get top holders
+        holders_result = conn.execute(
+            """
+            SELECT symbol, holder_name, shares, value, pct_held, pct_change, report_date
+            FROM institutional_holdings
+            WHERE symbol = %s
+            ORDER BY value DESC NULLS LAST
+            LIMIT %s
+            """,
+            (symbol.upper(), top_n),
+        )
+        holder_rows = holders_result.fetchall()
+
+    top_holders = [
+        InstitutionalHoldingResponse(
+            symbol=row[0],
+            holder_name=row[1],
+            shares=row[2],
+            value=row[3],
+            pct_held=row[4],
+            pct_change=row[5],
+            report_date=row[6].isoformat() if row[6] else None,
+        )
+        for row in holder_rows
+    ]
+
+    if summary_row is None and not top_holders:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No institutional holdings found for {symbol.upper()}",
+        )
+
+    return InstitutionalSummaryResponse(
+        symbol=symbol.upper(),
+        as_of_date=summary_row[1].isoformat() if summary_row and summary_row[1] else None,
+        total_institutions=summary_row[2] if summary_row else None,
+        total_shares_held=summary_row[3] if summary_row else None,
+        pct_held_institutions=summary_row[4] if summary_row else None,
+        pct_held_insiders=summary_row[5] if summary_row else None,
+        institutions_increased=summary_row[6] if summary_row else None,
+        institutions_decreased=summary_row[7] if summary_row else None,
+        top_holders=top_holders,
     )
