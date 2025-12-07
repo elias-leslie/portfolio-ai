@@ -49,15 +49,22 @@
 ### 0.2 Baseline Test Each Script
 
 For each script, run against `/` (dashboard) and record:
-- [ ] screenshot.js - Basic screenshot
-- [ ] console.js - Console capture
-- [ ] interact.js - Click testing
-- [ ] execute.js - JavaScript execution
-- [ ] snapshot.js - Accessibility tree
-- [ ] network.js - Network capture
-- [ ] performance.js - Performance metrics
-- [ ] manage.js - Multi-page
-- [ ] emulate.js - Device emulation
+- [x] screenshot.js - Basic screenshot ✅
+- [x] console.js - Console capture ✅
+- [x] interact.js - Click testing ✅
+- [x] execute.js - JavaScript execution ✅
+- [x] snapshot.js - Accessibility tree ✅
+- [x] network.js - Network capture ✅
+- [x] performance.js - Performance metrics ✅
+- [x] manage.js - Multi-page ✅
+- [x] emulate.js - Device emulation ✅
+- [x] expand-and-screenshot.js - Expand row + screenshot ✅
+
+### 0.3 Verify Prerequisites
+
+- [x] Playwright installed and chromium available ✅
+- [x] Frontend running at http://192.168.8.233:3000 ✅
+- [x] Backend services healthy ✅
 
 ---
 
@@ -65,10 +72,12 @@ For each script, run against `/` (dashboard) and record:
 
 ### 1.1 screenshot.js Improvements
 
-- [ ] 1.1.1 Add `--wait-for-idle` option (wait for network idle)
-- [ ] 1.1.2 Add `--wait-for-selector` option (wait for specific element)
+- [ ] 1.1.1 Add `--wait-for-selector` option (wait for specific element before screenshot)
+- [ ] 1.1.2 Add `--delay=<ms>` option (extra wait after page load)
 - [ ] 1.1.3 Add retry logic on timeout
 - [ ] 1.1.4 Document all options with examples
+
+**Note:** Already uses `waitUntil: 'networkidle'` - no need to add that.
 
 **Current usage**:
 ```bash
@@ -78,33 +87,41 @@ node screenshot.js <url> <output> [fullPage]
 **Proposed usage**:
 ```bash
 node screenshot.js <url> <output> [options]
-# Options: --full, --wait-idle, --wait-for="selector", --delay=1000
+# Options: --full, --wait-for="selector", --delay=1000
 ```
 
 ### 1.2 interact.js Improvements
 
-- [ ] 1.2.1 Fix tab clicking for React components
+- [ ] 1.2.1 Fix tab clicking for React/Radix UI components
 - [ ] 1.2.2 Add `--wait-before` and `--wait-after` options
 - [ ] 1.2.3 Add retry logic for flaky clicks
-- [ ] 1.2.4 Support role-based selectors (getByRole)
-- [ ] 1.2.5 Document reliable selector patterns
+- [ ] 1.2.4 Document reliable selector patterns
+- [ ] 1.2.5 Document Radix UI Tabs patterns (data-state, role="tab")
 
 **Current issues**:
 - `click button[value="features"]` times out
 - Tab components need text-based selection
 
-**Fix approach**:
-```javascript
-// Instead of: page.click('button[value="features"]')
-// Use: page.getByRole('tab', { name: /Features/i }).click()
+**Recommended selector strategy (use consistently):**
+```bash
+# PRIMARY: Use text= selector (simple, reliable)
+node interact.js click http://... "text=Features"
+
+# ALTERNATIVE: Use role selector for Radix tabs
+node interact.js click http://... "[role='tab']:has-text('Features')"
+
+# VERIFY: Check tab state after click
+node execute.js http://... "document.querySelector('[data-state=\"active\"]')?.textContent"
 ```
 
 ### 1.3 execute.js Improvements
 
-- [ ] 1.3.1 Add async/await support properly
+- [ ] 1.3.1 Document existing async/await patterns (already supported!)
 - [ ] 1.3.2 Add `--screenshot-after` option
 - [ ] 1.3.3 Better error messages on script failure
 - [ ] 1.3.4 Document common patterns
+
+**Note:** Async/await already works - code is wrapped in async function automatically.
 
 ### 1.4 console.js Improvements
 
@@ -135,51 +152,61 @@ node screenshot.js <url> <output> [options]
 
 ### 2.3 Capabilities (`/capabilities`)
 
-- [ ] 2.3.1 Screenshot default tab (Dashboard)
-- [ ] 2.3.2 Click each tab and screenshot:
-  - [ ] Dashboard
-  - [ ] Vision
-  - [ ] Features
-  - [ ] Sources
-  - [ ] Rules
-  - [ ] Database
-  - [ ] Tasks
-  - [ ] Endpoints
-  - [ ] Gaps
-  - [ ] Insights
-- [ ] 2.3.3 Expand a feature row in Features tab
-- [ ] 2.3.4 Expand a vision goal in Vision tab
+- [x] 2.3.1 Screenshot default tab (Dashboard) ✅
+- [x] 2.3.2 Click each tab and screenshot:
+  - [x] Dashboard ✅
+  - [x] Vision ✅
+  - [x] Features ✅
+  - [x] Sources ✅
+  - [x] Rules ✅
+  - [x] Database ✅
+  - [x] Tasks ✅
+  - [x] Endpoints ✅
+  - [x] Gaps ✅
+  - [x] Insights ✅
+- [x] 2.3.3 Expand a feature row in Features tab ✅ (click first cell chevron)
+- [x] 2.3.4 Expand a vision goal in Vision tab ✅ (same pattern)
 - [ ] 2.3.5 Use filters (category, status, vision goal)
-- [ ] 2.3.6 Document working commands for ALL interactions
+- [x] 2.3.6 Document working commands for ALL interactions ✅ (in Appendix A)
+
+**Feature Row Expansion (verified):**
+```javascript
+// Click first cell (chevron) to expand - shows acceptance criteria
+const firstRow = document.querySelector('tbody tr');
+firstRow?.querySelector('td:first-child')?.click();
+// Row count increases, expanded row shows "Acceptance Criteria (X/Y verified)"
+```
 
 ### 2.4 Portfolio (`/portfolio`)
 
-- [ ] 2.4.1 Screenshot portfolio view
+- [x] 2.4.1 Screenshot portfolio view ✅
 - [ ] 2.4.2 Expand a holding row
-- [ ] 2.4.3 Verify metrics visible
-- [ ] 2.4.4 Document working commands
+- [x] 2.4.3 Verify metrics visible ✅
+- [x] 2.4.4 Document working commands ✅ (in Appendix A)
 
 ### 2.5 Trading (`/trading`)
 
-- [ ] 2.5.1 Screenshot trading view
+- [x] 2.5.1 Screenshot trading view ✅ (shows 7 open positions, $100K portfolio)
 - [ ] 2.5.2 Expand order details
 - [ ] 2.5.3 Navigate tabs (if any)
-- [ ] 2.5.4 Document working commands
+- [x] 2.5.4 Document working commands ✅ (in Appendix A)
 
 ### 2.6 Backtest (`/backtest`)
 
-- [ ] 2.6.1 Screenshot backtest list
+- [x] 2.6.1 Screenshot backtest list ✅
 - [ ] 2.6.2 Click a backtest to see details
 - [ ] 2.6.3 Verify charts render
 - [ ] 2.6.4 Document working commands
 
 ### 2.7 Other Pages
 
-- [ ] 2.7.1 Strategies - basic screenshot + interactions
-- [ ] 2.7.2 Recommendations - basic screenshot + expand
-- [ ] 2.7.3 Agents - screenshot + verify charts
-- [ ] 2.7.4 Status - screenshot + verify indicators
+- [x] 2.7.1 Strategies - basic screenshot ✅
+- [x] 2.7.2 Recommendations - basic screenshot ✅
+- [x] 2.7.3 Agents - screenshot ✅
+- [ ] 2.7.4 Status - ⚠️ TIMES OUT (continuous polling prevents networkidle)
 - [ ] 2.7.5 Settings - screenshot + toggle test
+
+**Note:** /status page requires `domcontentloaded` instead of `networkidle` due to continuous health check polling.
 
 ---
 
@@ -193,36 +220,38 @@ node screenshot.js <url> <output> [options]
 - [ ] 3.1.4 Generate summary report
 - [ ] 3.1.5 Fail if any page has errors
 
-### 3.2 Create tab-interaction.js
+### 3.2 Create tab-interaction.js → DONE: tab-click-screenshot.js
 
-- [ ] 3.2.1 Generic tab clicking helper
-- [ ] 3.2.2 Works with Radix UI tabs
-- [ ] 3.2.3 Waits for content to load
-- [ ] 3.2.4 Returns success/failure
+- [x] 3.2.1 Generic tab clicking helper ✅
+- [x] 3.2.2 Works with Radix UI tabs ✅ (tested on /capabilities)
+- [x] 3.2.3 Waits for content to load ✅ (configurable wait-ms)
+- [x] 3.2.4 Returns success/failure ✅
 
-### 3.3 Create expand-row.js
+### 3.3 Improve expand-and-screenshot.js (Already Exists!)
 
-- [ ] 3.3.1 Generic row expansion helper
-- [ ] 3.3.2 Works with table rows
-- [ ] 3.3.3 Waits for expanded content
-- [ ] 3.3.4 Screenshots before/after
+- [ ] 3.3.1 Make more generic (not just watchlist)
+- [ ] 3.3.2 Add --wait-after option for slower content
+- [ ] 3.3.3 Add --before-screenshot option (capture collapsed state)
+- [ ] 3.3.4 Support different expand button patterns (not just first button)
 
 ---
 
 ## Phase 4: Documentation
 
-### 4.1 Update Skill Documentation
+### 4.1 Audit & Update SKILL.md (Already Comprehensive!)
 
-- [ ] 4.1.1 Document every script with examples
-- [ ] 4.1.2 Document selector patterns that work
-- [ ] 4.1.3 Document common pitfalls
-- [ ] 4.1.4 Add troubleshooting guide
+**Note:** SKILL.md already has ~540 lines of documentation. Focus on gaps.
+
+- [x] 4.1.1 Add page-specific selector patterns discovered in Phase 2 ✅
+- [x] 4.1.2 Add Radix UI component patterns ✅ (Workflow 6)
+- [x] 4.1.3 Update troubleshooting with real issues found ✅ (Known Issues table)
+- [x] 4.1.4 Add "Known Working Commands" section per page ✅ (Workflow 6 examples)
 
 ### 4.2 Create Quick Reference
 
-- [ ] 4.2.1 One-liner commands for each page
-- [ ] 4.2.2 Tab click commands per page
-- [ ] 4.2.3 Row expansion commands
+- [x] 4.2.1 One-liner commands for each page ✅ (Appendix A in task file)
+- [x] 4.2.2 Tab click commands per page ✅ (SKILL.md Workflow 6)
+- [x] 4.2.3 Row expansion commands ✅ (SKILL.md Workflow 5)
 - [ ] 4.2.4 Common filter interactions
 
 ### 4.3 Update CLAUDE.md
@@ -247,33 +276,67 @@ node screenshot.js <url> <output> [options]
 
 ---
 
-## Appendix A: Known Working Commands (To Update)
+## Appendix A: Known Working Commands (VERIFIED 2025-12-06)
 
 ```bash
-# Dashboard screenshot
-node screenshot.js http://192.168.8.233:3000/ /tmp/dashboard.png
+# All scripts located at: ~/portfolio-ai/.claude/skills/browser-automation/scripts/
 
-# Console errors (5 seconds)
+# === SCREENSHOTS ===
+node screenshot.js http://192.168.8.233:3000/ /tmp/dashboard.png true
+node screenshot.js http://192.168.8.233:3000/portfolio /tmp/portfolio.png true
+node screenshot.js http://192.168.8.233:3000/trading /tmp/trading.png true
+
+# === TAB CLICK + SCREENSHOT (SAME SESSION - USE THIS FOR TABS!) ===
+node tab-click-screenshot.js http://192.168.8.233:3000/capabilities Vision /tmp/vision.png 2000
+node tab-click-screenshot.js http://192.168.8.233:3000/capabilities Features /tmp/features.png 2000
+node tab-click-screenshot.js http://192.168.8.233:3000/capabilities Database /tmp/database.png 2000
+
+# === EXPAND ROW + SCREENSHOT ===
+node expand-and-screenshot.js http://192.168.8.233:3000/watchlist AAPL /tmp/aapl-expanded.png
+
+# === CONSOLE CAPTURE ===
+node console.js http://192.168.8.233:3000/ 3000
 node console.js http://192.168.8.233:3000/capabilities 5000
 
-# Click by text (RELIABLE)
+# === CLICK INTERACTIONS ===
+node interact.js click http://192.168.8.233:3000/ "text=Watchlist"
 node interact.js click http://192.168.8.233:3000/capabilities "text=Features"
 
-# Execute JS and get content
+# === JAVASCRIPT EXECUTION ===
+node execute.js http://192.168.8.233:3000/ "return document.title"
 node execute.js http://192.168.8.233:3000/capabilities "
-  await new Promise(r => setTimeout(r, 2000));
-  return document.body.innerText.substring(0, 3000);
+  const tabs = Array.from(document.querySelectorAll('button')).filter(b => b.textContent?.includes('Vision'));
+  tabs[0]?.click();
+  await new Promise(r => setTimeout(r, 1500));
+  return document.body.innerText.substring(0, 2000);
 "
+
+# === NETWORK MONITORING ===
+node network.js http://192.168.8.233:3000/ 3000 api
+
+# === PERFORMANCE METRICS ===
+node performance.js metrics http://192.168.8.233:3000/ /tmp/perf.json
+
+# === DEVICE EMULATION ===
+node emulate.js resize http://192.168.8.233:3000/ 375 667
+
+# === PAGE MANAGEMENT ===
+node manage.js new http://192.168.8.233:3000/watchlist
+node manage.js list
 ```
 
 ## Appendix B: Selector Patterns That Work
 
 | Component Type | Selector Pattern | Notes |
 |---------------|------------------|-------|
-| Radix Tab | `text=TabName` | Use interact.js click |
+| Radix Tab | `text=TabName` | PRIMARY - simple and reliable |
+| Radix Tab (alt) | `[role='tab']:has-text('Name')` | More specific |
+| Radix Tab State | `[data-state='active']` | Check which tab is active |
 | Button | `button:has-text("Label")` | Works with Playwright |
 | Table Row | `tr:has-text("FEAT-001")` | Find by content |
 | Expandable | Click row, wait, screenshot | Multi-step |
+| Radix Accordion | `[data-state='open']` | Check expansion state |
+| Shadcn Select | `[role='combobox']` | Dropdown triggers |
 
 ## Appendix C: Wait Patterns
 

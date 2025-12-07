@@ -1,0 +1,947 @@
+{
+  "17": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Fear & Greed gauge displays real-time sentiment value 0-100", "verification": "curl -s http://localhost:8000/api/market/conditions | jq '.health'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Dashboard shows gauge widget with color gradient (red=greed, yellow=neutral, green=fear)", "verification": "screenshot /dashboard and verify Fear & Greed gauge visible with color coding", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-UX", "VG-INTEL"]
+  },
+  "18": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Technical indicators chart displays RSI, MACD, Bollinger Bands over time", "verification": "curl -s http://localhost:8000/api/indicators/AAPL | jq '.data[0] | keys'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Dashboard shows multi-line chart with legend for each indicator", "verification": "screenshot /dashboard and verify indicator chart visible", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-UX", "VG-INTEL"]
+  },
+  "19": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Sector performance breakdown shows leading/neutral/lagging groups with % change", "verification": "curl -s http://localhost:8000/api/market/conditions | jq '.sectors'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Dashboard card displays sectors sorted by performance with color coding", "verification": "screenshot /dashboard and verify sector rotation table visible", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-UX", "VG-INTEL"]
+  },
+  "20": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Top market movers endpoint returns symbols with highest % change", "verification": "curl -s http://localhost:8000/api/market/movers | jq '.movers[0:3]'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Dashboard shows movers card with symbol, change %, and sector rotation indicator", "verification": "screenshot /dashboard and verify Top Movers card with data visible", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-UX", "VG-INTEL"]
+  },
+  "21": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Dashboard card links to /paper-trading page", "verification": "verify href=/paper-trading in card component", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Clicking card navigates to paper trading interface", "verification": "screenshot /dashboard then click card and verify /paper-trading loaded", "type": "quality", "passed": null}
+    ],
+    "vision_goals": ["VG-UX"]
+  },
+  "22": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Dashboard card links to /backtest page", "verification": "verify href=/backtest in card component", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Clicking card navigates to backtest interface", "verification": "screenshot /dashboard then click card and verify /backtest loaded", "type": "quality", "passed": null}
+    ],
+    "vision_goals": ["VG-UX"]
+  },
+  "23": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "News feed combines articles from multiple sources (9+ RSS feeds)", "verification": "curl -s http://localhost:8000/api/news | jq '.articles[].source | unique'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Dashboard shows unified feed with articles, headlines, publish dates, and sentiment badges", "verification": "screenshot /dashboard and verify news feed with multiple articles visible", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-UX", "VG-INTEL"]
+  },
+  "24": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "News articles have sentiment labels (positive/neutral/negative) from FinBERT model", "verification": "curl -s http://localhost:8000/api/news | jq '.articles[0].sentiment'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Dashboard shows sentiment breakdown chart with counts and pie/bar visualization", "verification": "screenshot /dashboard and verify sentiment breakdown visualization visible", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-UX", "VG-INTEL"]
+  },
+  "25": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "News feed implements IntersectionObserver for lazy loading articles", "verification": "Code review: verify IntersectionObserver used in feed component", "type": "backend", "passed": null},
+      {"id": "ac-002", "criterion": "Scrolling to bottom auto-loads next batch of articles without page refresh", "verification": "screenshot /dashboard, scroll to bottom, verify new articles appear", "type": "quality", "passed": null}
+    ],
+    "vision_goals": ["VG-UX"]
+  },
+  "130": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Sparkline components render Fear & Greed 1-year trend data", "verification": "curl -s http://localhost:8000/api/market/fear-greed/history | jq '.data | length'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Dashboard displays compact sparkline charts showing market health trend", "verification": "screenshot /dashboard and verify sparklines visible in metric cards", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-UX", "VG-INTEL"]
+  },
+  "147": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "SentimentTrendChart component displays 1-year Fear & Greed historical data", "verification": "curl -s http://localhost:8000/api/market/fear-greed/history | jq '.data | length'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Dashboard shows line chart with Fear & Greed trend, hover tooltips, and 12-month span", "verification": "screenshot /dashboard and verify Fear Greed Trend Chart with historical data", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-UX", "VG-INTEL"]
+  },
+  "132": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Peer comparison returns symbol ranking within sector with relative performance percentile", "verification": "curl -s http://localhost:8000/api/analytics/peers/AAPL | jq '{percentile, peer_rank, peer_count}'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Analytics page shows peer performance table with 5d/20d returns vs sector average", "verification": "screenshot /analytics and verify peer comparison table with rankings visible", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-INTEL", "VG-UX"]
+  },
+  "133": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Sector rotation endpoint returns 5d and 20d momentum metrics for all sectors", "verification": "curl -s http://localhost:8000/api/analytics/sectors/rotation | jq '.sectors[0] | {momentum_5d, momentum_20d}'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Analytics page displays sectors sorted by momentum with leading/neutral/lagging classification", "verification": "screenshot /analytics and verify sector rotation table with momentum metrics", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-INTEL", "VG-UX"]
+  },
+  "141": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Valuation metrics endpoint returns P/E, P/B, P/S, PEG, dividend yield for symbol", "verification": "curl -s http://localhost:8000/api/valuation/AAPL | jq '{pe_ratio_trailing, pb_ratio, dividend_yield}'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Analytics page displays valuation metrics card with all metrics and last update date", "verification": "screenshot /analytics and verify valuation metrics table with values", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-INTEL", "VG-UX"]
+  },
+  "156": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Short interest data includes short ratio and percent of float per symbol", "verification": "curl -s http://localhost:8000/api/analytics/short-interest/AAPL | jq '{short_ratio, pct_float}'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Analytics page shows short interest table with historical trend and current values", "verification": "screenshot /analytics and verify short interest tracking data visible", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-INTEL", "VG-RELY"]
+  },
+  "28": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Search filters watchlist by symbol and note text with case-insensitive matching", "verification": "curl -s 'http://localhost:8000/api/watchlist' | jq '.items[] | select(.symbol | contains(\"AAPL\"))'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Search results persist in localStorage when page reloads", "verification": "screenshot /watchlist after entering search query and reloading page", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-UX"]
+  },
+  "29": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Clicking row expands to show detailed symbol info (price, technical, fundamental scores)", "verification": "screenshot /watchlist showing expanded row with ExpandedRow component visible", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Expansion state persists via query parameter (symbol=AAPL scrolls and expands)", "verification": "screenshot /watchlist?symbol=AAPL and verify expanded row", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-UX"]
+  },
+  "32": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Edit button in expanded row opens inline notes editor without modal", "verification": "screenshot /watchlist showing ExpandedRowNotes component with editable text field", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Notes update persists to database via PATCH /api/watchlist/{item_id}", "verification": "curl -X PATCH http://localhost:8000/api/watchlist/{id} -H 'Content-Type: application/json' -d '{\"note\":\"test note\"}' | jq '.note'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-UX"]
+  },
+  "33": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Sparkline chart renders historical 7-10 day price data per symbol", "verification": "screenshot /watchlist showing SparklineWithHistory components with candlestick paths", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Sparkline updates when new price data fetched via refresh", "verification": "curl -s http://localhost:8000/api/watchlist | jq '.items[0].current_score.price.metadata.price'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-UX", "VG-INTEL"]
+  },
+  "34": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Refresh All button fetches scores for all symbols with partial success handling", "verification": "curl -X POST http://localhost:8000/api/watchlist/refresh -H 'Content-Type: application/json' -d '{\"symbols\":[]}' | jq '{status, refreshed_count, failed_count}'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Failed symbols show in toast notification (max 3 names + count)", "verification": "screenshot /watchlist after refresh showing RefreshResponse with failed items", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-UX"]
+  },
+  "35": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Daily report endpoint returns symbols_added, symbols_removed, score_changes with timestamps", "verification": "curl -s http://localhost:8000/api/watchlist/daily-report | jq '{report_date, symbols_added, symbols_removed, score_changes}'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Report displays in WatchlistDailyReport component with stale flag for >48h reports", "verification": "screenshot /watchlist showing WatchlistDailyReport card", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-UX", "VG-INTEL"]
+  },
+  "37": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Run AI Agent button triggers StrategyReviewer for specific symbol", "verification": "curl -s http://localhost:8000/api/watchlist/AAPL/strategy | jq '.strategy_name'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Generated strategy displays with narrative_headline, entry_price, stop_loss, profit_target", "verification": "screenshot /watchlist showing expanded row with strategy details", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-INTEL"]
+  },
+  "38": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Backtest Symbol button initiates backtest via agent for single symbol", "verification": "curl -X POST http://localhost:8000/api/backtest -H 'Content-Type: application/json' -d '{\"symbol\":\"AAPL\"}' | jq '.id'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Backtest results show Sharpe ratio, return %, win rate in modal", "verification": "screenshot /watchlist after backtest showing results card", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-INTEL"]
+  },
+  "39": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Delete icon removes symbol from watchlist with confirmation dialog", "verification": "screenshot /watchlist showing ConfirmActionDialog before deletion", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "DELETE /api/watchlist/{item_id} removes item from database", "verification": "curl -X DELETE http://localhost:8000/api/watchlist/{id} && curl -s http://localhost:8000/api/watchlist | jq '.total_count'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-UX"]
+  },
+  "40": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Track in Portfolio button adds symbol to portfolio positions", "verification": "curl -s http://localhost:8000/api/portfolio | jq '.positions[] | .symbol'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Position dialog appears with account selection and cost basis entry", "verification": "screenshot /watchlist showing portfolio position form", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-PORT"]
+  },
+  "41": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Cell highlighting animates on price, score, or technical score changes", "verification": "screenshot /watchlist showing CSS highlight class on changed cells", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Highlighting persists for 2-3 seconds after update", "verification": "verify highlight animation duration in CSS/component", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-UX"]
+  },
+  "42": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Sort by overall, price, technical, news scores with asc/desc toggle", "verification": "curl -s 'http://localhost:8000/api/watchlist?sort=overall&order=desc' | jq '.items[0].current_score.overall'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Multi-column sort persists via query parameters or localStorage", "verification": "screenshot /watchlist?sort=overall with sort controls visible", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-UX"]
+  },
+  "126": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Score history endpoint returns 7-10 day timeline with daily aggregated scores", "verification": "curl -s http://localhost:8000/api/watchlist/{id}/score-history | jq '.timeline | length'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Trend visualization displays in ExpandedRow with sparkline or line chart", "verification": "screenshot /watchlist showing SparklineWithHistory with 7-10 day historical data points", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-UX", "VG-INTEL"]
+  },
+  "127": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Real-time refresh progress indicator shows count refreshed vs total symbols", "verification": "screenshot /watchlist during refresh showing ExpandedRowRefreshStatus component", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Progress updates via WebSocket or polling during refresh", "verification": "curl -s http://localhost:8000/api/watchlist/refresh/status | jq '{symbols_completed, symbols_total, percent_complete}'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-UX"]
+  },
+  "128": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Dual-provider reviews fetch Gemini + Claude consensus with agreement scoring", "verification": "curl -s http://localhost:8000/api/watchlist/{id}/reviews | jq '{gemini_review, claude_review, agreement_score}'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Reviews display with provider badges and agreement percentage in expanded row", "verification": "screenshot /watchlist showing DualReviewResult with ProviderReview cards", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-INTEL"]
+  },
+  "145": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Disagreements endpoint returns LLM analysis conflicts with severity levels", "verification": "curl -s http://localhost:8000/api/disagreements | jq '.disagreements[0] | {symbol, provider1, provider2, severity, consensus_rating}'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Disagreement cards display on watchlist page with color-coded severity", "verification": "screenshot /watchlist showing DisagreementAlert and DisagreementCard components", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-INTEL"]
+  },
+  "43": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Portfolio positions display with symbol, shares, current_price, current_value", "verification": "curl -s http://localhost:8000/api/portfolio | jq '.positions[] | {symbol, shares, current_price, current_value}'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "All positions grouped by account with account name headers", "verification": "screenshot /portfolio showing AccountsWithPositions with grouped positions", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-PORT"]
+  },
+  "44": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Portfolio metrics API returns total_value, total_gain, total_gain_pct, positions_count", "verification": "curl -s http://localhost:8000/api/portfolio | jq '{total_value, total_gain, total_gain_pct}'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "PortfolioStats component displays metrics with color coding (gain green, loss red)", "verification": "screenshot /portfolio showing PortfolioStats card with formatted values", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-PORT"]
+  },
+  "45": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Analytics dashboard endpoint returns beta, volatility, Sharpe ratio, concentration metrics", "verification": "curl -s http://localhost:8000/api/portfolio/analytics | jq '{beta, volatility, sharpe_ratio, concentration}'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Sector/asset allocation pie chart displays with position percentages", "verification": "screenshot /portfolio showing AssetAllocation component with pie chart", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-PORT", "VG-INTEL"]
+  },
+  "47": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Position form accepts symbol, shares, cost_basis with POST /api/portfolio/positions", "verification": "curl -X POST http://localhost:8000/api/portfolio/positions -H 'Content-Type: application/json' -d '{\"account_id\":\"...\",\"symbol\":\"AAPL\",\"shares\":100,\"cost_basis\":150.50}' | jq '.id'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Form dialog in portfolio page includes account dropdown and position type toggle", "verification": "screenshot /portfolio showing position form with fields", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-PORT"]
+  },
+  "48": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Position edit dialog updates cost_basis, shares via PATCH /api/portfolio/positions/{id}", "verification": "curl -X PATCH http://localhost:8000/api/portfolio/positions/{id} -H 'Content-Type: application/json' -d '{\"shares\":150}' | jq '.shares'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Edit modal accessible from position table with row action buttons", "verification": "screenshot /portfolio showing position row with edit/delete action buttons", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-PORT"]
+  },
+  "49": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Allocation pie chart displays sector and asset class breakdowns", "verification": "screenshot /portfolio showing AssetAllocation pie chart with sector labels and percentages", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Chart data calculated from portfolio analytics endpoint", "verification": "curl -s http://localhost:8000/api/portfolio/analytics | jq '.sector_allocation'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-PORT", "VG-UX"]
+  },
+  "50": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Benchmark comparison shows portfolio vs SPY, QQQ with return % and correlation", "verification": "curl -s http://localhost:8000/api/portfolio/analytics | jq '{portfolio_return, spy_return, qqq_return, correlation_spy}'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Line chart displays portfolio and benchmark performance over time", "verification": "screenshot /portfolio showing performance comparison chart", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-PORT", "VG-INTEL"]
+  },
+  "129": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Daily snapshot endpoint returns P&L and allocation state for historical tracking", "verification": "curl -s http://localhost:8000/api/portfolio/snapshots | jq '.snapshots[0] | {date, total_value, allocation}'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Snapshots stored daily via scheduled Celery task at 4:00 AM UTC", "verification": "grep -r 'maintain_portfolio_snapshots' backend/app/celery --include='*.py'", "type": "backend", "passed": null}
+    ],
+    "vision_goals": ["VG-PORT"]
+  },
+  "146": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "AI optimization endpoint analyzes portfolio and returns rebalancing suggestions", "verification": "curl -s http://localhost:8000/api/portfolio/optimizations | jq '.suggestions[0] | {action, symbol, weight_change, reasoning}'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Suggestions display in portfolio page with action buttons to accept/reject", "verification": "screenshot /portfolio showing optimization suggestions with approve buttons", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-PORT", "VG-INTEL"]
+  },
+  "53": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Paper Trading Dashboard loads and displays summary metrics", "verification": "screenshot http://192.168.8.233:3000/paper-trading", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Dashboard shows total trades, open positions, closed positions, and performance metrics", "verification": "curl -s http://localhost:8000/api/paper-trading/summary | jq '{total_trades, open_count, closed_count, total_return_pct}'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-VALID", "VG-UX"]
+  },
+  "54": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Open Trades Table displays all active positions with entry details", "verification": "curl -s http://localhost:8000/api/paper-trading/positions?status=open | jq '.positions[0] | {symbol, entry_price, shares, entry_date, current_price}'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "P&L columns show unrealized gain/loss and percentage return", "verification": "curl -s http://localhost:8000/api/paper-trading/positions | jq '.positions[0] | {unrealized_pnl, unrealized_pnl_pct}'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-VALID", "VG-UX"]
+  },
+  "55": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Closed Trades History displays exited positions with exit price and total PnL", "verification": "curl -s http://localhost:8000/api/paper-trading/positions?status=closed | jq '.positions | length'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "History table shows exit reason (target_hit, stop_hit, manual) and holding period", "verification": "curl -s http://localhost:8000/api/paper-trading/positions?status=closed | jq '.positions[0] | {exit_date, exit_price, exit_reason, holding_days}'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-VALID", "VG-UX"]
+  },
+  "56": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Performance metrics show win rate, average return, and maximum drawdown", "verification": "curl -s http://localhost:8000/api/paper-trading/metrics | jq '{win_rate, avg_return_pct, max_drawdown_pct, profit_factor}'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Metrics cards display on dashboard with proper formatting and color coding", "verification": "screenshot /paper-trading showing metrics cards", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-VALID"]
+  },
+  "57": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Manual Trade Entry form accepts symbol, action (buy/sell), thesis, and optional targets", "verification": "curl -X POST http://localhost:8000/api/paper-trading/trades -H 'Content-Type: application/json' -d '{\"symbol\":\"TEST\",\"action\":\"buy\",\"thesis\":\"test\"}' | jq '{status, trade_id}'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Manual trade creates entry in paper_trading_transactions and calculates position size", "verification": "curl -s http://localhost:8000/api/paper-trading/transactions | jq '.[] | select(.transaction_type==\"entry\") | {symbol, shares}'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-VALID", "VG-UX"]
+  },
+  "58": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Trade Journal form allows adding/editing notes on any trade", "verification": "curl -X PATCH http://localhost:8000/api/paper-trading/trades/{trade_id}/notes -H 'Content-Type: application/json' -d '{\"notes\":\"test note\"}' | jq '.notes'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Notes persist and display in trade history with timestamp", "verification": "curl -s http://localhost:8000/api/paper-trading/trades/{trade_id} | jq '{notes, notes_updated_at}'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-UX", "VG-INTEL"]
+  },
+  "59": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Risk Metrics Display shows position exposure and concentration analysis", "verification": "curl -s http://localhost:8000/api/paper-trading/risk-metrics | jq '{total_exposure_pct, largest_position_pct}'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Displays position sizing guidance based on account rules (max 5% per trade)", "verification": "curl -s http://localhost:8000/api/paper-trading/summary | jq '{max_position_pct, account_cash}'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-VALID", "VG-INTEL"]
+  },
+  "60": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Trade Tags/Categories allow assigning strategy type to each trade", "verification": "curl -X PATCH http://localhost:8000/api/paper-trading/trades/{trade_id} -H 'Content-Type: application/json' -d '{\"tags\":[\"momentum\",\"technical\"]}' | jq '.tags'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Filter and view trades by tag/category with aggregated performance per category", "verification": "curl -s http://localhost:8000/api/paper-trading/analysis/by-tag | jq '.tags'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-UX", "VG-VALID"]
+  },
+  "61": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Export Trade History generates CSV with symbol, entry/exit prices, PnL, duration", "verification": "curl -s 'http://localhost:8000/api/paper-trading/export?format=csv' | head -3", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Export to JSON format includes all trade details with metadata", "verification": "curl -s 'http://localhost:8000/api/paper-trading/export?format=json' | jq '.trades[0] | keys | length'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-UX"]
+  },
+  "62": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Trade Alert system monitors stop-loss and take-profit trigger levels", "verification": "curl -s http://localhost:8000/api/paper-trading/alerts | jq '.active_alerts'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Notifications delivered when price hits stop-loss or take-profit threshold", "verification": "curl -s http://localhost:8000/api/paper-trading/positions | jq '.positions[] | select(.alert_status!=null)'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-UX", "VG-VALID"]
+  },
+  "142": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Trade Entry Validation rejects trades outside market hours (9:30-16:00 ET)", "verification": "curl -X POST http://localhost:8000/api/paper-trading/trades -d '{\"symbol\":\"AAPL\"}' 2>&1 | grep -i 'market hours'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Position limits enforced: max 5% per symbol, no duplicate entries same day", "verification": "curl -s http://localhost:8000/api/paper-trading/validate-entry?symbol=AAPL&action=buy | jq '{valid, max_shares, reason}'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-VALID", "VG-QUAL"]
+  },
+  "70": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Comparison Mode allows selecting 2-5 backtest runs for side-by-side metrics", "verification": "curl -s 'http://localhost:8000/api/backtest/compare?run_ids=run1,run2' | jq '.metrics | length'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Normalized equity curves overlay on same chart with legend and color coding", "verification": "screenshot /backtest showing comparison chart with multiple runs", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-VALID", "VG-UX"]
+  },
+  "71": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "New Backtest Dialog loads with strategy selector and date pickers", "verification": "screenshot /backtest showing new backtest dialog", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Advanced Parameters section expands with stop-loss, profit target, holding days sliders", "verification": "curl -s http://localhost:8000/api/backtest/strategies | jq '.[] | {name, risk_level}'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-VALID", "VG-UX"]
+  },
+  "73": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Trade Distribution Chart shows histogram of win vs loss trades by PnL range", "verification": "curl -s http://localhost:8000/api/backtest/runs/{run_id} | jq '.trades | length'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Chart displays average win, average loss, and profit factor metrics", "verification": "curl -s http://localhost:8000/api/backtest/runs/{run_id} | jq '{avg_win, avg_loss, win_loss_ratio}'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-VALID", "VG-UX"]
+  },
+  "150": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Walk-Forward Analysis runs rolling out-of-sample test with train/validate/test splits", "verification": "curl -X POST http://localhost:8000/api/backtest/walk-forward -H 'Content-Type: application/json' -d '{\"symbol\":\"AAPL\"}' | jq '{num_folds, mean_return_pct}'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Validation results show per-fold metrics, Wilcoxon p-value, and % folds beating buy-and-hold", "verification": "curl -s http://localhost:8000/api/backtest/walk-forward-results/{run_id} | jq '{folds, pct_folds_beat_bh}'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-VALID", "VG-QUAL"]
+  },
+  "65": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Strategy Status Filter shows All/Testing/Active/Archived tabs", "verification": "screenshot /strategies showing filter tabs", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Filter updates table rows based on selection", "verification": "curl -s http://localhost:8000/api/strategies?status=active | jq '.strategies | length'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-UX"]
+  },
+  "66": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Strategy Table displays columns: Symbol, Name, Type, Status, Sharpe Ratio, Win Rate", "verification": "screenshot /strategies showing complete table", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "API returns all required strategy metrics", "verification": "curl -s http://localhost:8000/api/strategies | jq '.strategies[0] | keys'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-UX"]
+  },
+  "67": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Strategy Detail Modal opens with full rules and parameters", "verification": "screenshot /strategies with modal open showing rules", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Modal displays backtest performance and reasoning", "verification": "curl -s http://localhost:8000/api/strategies/{id} | jq '{backtest_metrics, reasoning}'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-INTEL"]
+  },
+  "74": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Recommendation Cards show signal strength and entry/exit prices", "verification": "screenshot /recommendations showing signal cards", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "API returns recommendation data with entry, exit, stop-loss", "verification": "curl -s http://localhost:8000/api/recommendations | jq '.recommendations[0] | {entry, exit, stop_loss}'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-INTEL"]
+  },
+  "75": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Signal Summary Cards display active signal count and strength score", "verification": "screenshot /recommendations showing summary cards", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Summary aggregates signal strength from 0-10 scale", "verification": "curl -s http://localhost:8000/api/recommendations/summary | jq '{total_signals, avg_strength}'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-INTEL"]
+  },
+  "76": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Signal Strength Filter slider accepts 0-10 range input", "verification": "screenshot /recommendations with filter slider", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Filter correctly reduces visible recommendations", "verification": "curl -s http://localhost:8000/api/recommendations?min_strength=7 | jq '.recommendations | length'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-UX"]
+  },
+  "77": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Portfolio Size Filter adjusts position sizing multiplier", "verification": "screenshot /recommendations showing size adjustment control", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Position size recalculated based on filter (confidence * multiplier)", "verification": "Code review: recommendation_executor.py POSITION_SIZE_MULTIPLIER", "type": "backend", "passed": null}
+    ],
+    "vision_goals": ["VG-PORT"]
+  },
+  "78": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Paper Trade button creates trade from recommendation", "verification": "Click button and verify trade created via curl -s http://localhost:8000/api/paper_trades | jq '.trades | last'", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Trade inherits entry/exit/stop values from recommendation", "verification": "POST /api/paper_trades and verify entry_price matches recommendation", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-VALID"]
+  },
+  "79": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Track in Portfolio links recommendation to real portfolio position", "verification": "POST /api/portfolio/{id}/link-recommendation creates link", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Portfolio page shows recommendation attribution for positions", "verification": "screenshot /portfolio showing recommendation_id field", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-PORT"]
+  },
+  "80": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Signal Reasons Display shows 3-5 reason badges per signal", "verification": "screenshot /recommendations showing reason tags", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Reasons stored as tags array in recommendation API", "verification": "curl -s http://localhost:8000/api/recommendations/{id} | jq '.reasons'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-INTEL"]
+  },
+  "139": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Strategy Performance Variance tracks expected vs live performance drift", "verification": "curl -s http://localhost:8000/api/strategies/{id}/variance | jq '{expected_sharpe, live_sharpe, variance_pct}'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Strategy auto-archives when variance exceeds threshold (>25%)", "verification": "Verify strategy status changes to archived and auto_archived=true", "type": "db", "passed": null}
+    ],
+    "vision_goals": ["VG-VALID"]
+  },
+  "140": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Force Generate Signals button creates new signals for strategy", "verification": "POST /api/strategies/{id}/generate-signals returns signal_count > 0", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Generated signals appear in signal history with timestamps", "verification": "curl -s http://localhost:8000/api/strategies/{id}/signals | jq '.signals[0] | {symbol, entry_price, created_at}'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-AUTO"]
+  },
+  "163": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Automation Pipeline executes end-to-end: strategy research -> signal generation -> paper trade", "verification": "Integration test: trigger pipeline and verify trades created in paper_trades table", "type": "test", "passed": null},
+      {"id": "ac-002", "criterion": "Pipeline runs on schedule (daily at 04:00 UTC) with error handling", "verification": "Verify scheduled task in beat_schedule and check celery logs", "type": "quality", "passed": null}
+    ],
+    "vision_goals": ["VG-AUTO"]
+  },
+  "112": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Daily Runs Chart visible on /agents page with 7-day default view", "verification": "screenshot /agents showing Daily Runs bar chart", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Daily run counts aggregated correctly from agent_runs table grouped by day", "verification": "curl -s http://localhost:8000/api/agents/telemetry/summary?days=7 | jq '.daily_data | length'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-AUTO"]
+  },
+  "113": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Token Usage LineChart displays token consumption over time on /agents", "verification": "screenshot /agents showing token usage chart", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "API returns total_tokens aggregated per day for selected timeframe", "verification": "curl -s http://localhost:8000/api/agents/telemetry/summary?days=14 | jq '.daily_data[].total_tokens'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-AUTO"]
+  },
+  "114": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Provider Metrics table shows per-provider statistics (runs, success rate, tokens, duration)", "verification": "curl -s http://localhost:8000/api/agents/telemetry/summary | jq '.by_provider[0] | keys'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Provider cards render on /agents page with color-coded status badges", "verification": "screenshot /agents showing provider metrics table", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-AUTO"]
+  },
+  "115": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Recent Runs table displays latest agent executions with status badges and sortable columns", "verification": "curl -s http://localhost:8000/api/agents/telemetry/history | jq '.runs | length'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Table columns include Agent, Provider, Status, Duration, Tokens, Started timestamp", "verification": "curl -s http://localhost:8000/api/agents/telemetry/history | jq '.runs[0] | keys'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-AUTO"]
+  },
+  "116": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Period selector buttons (7/14/30 days) switch between timeframes on /agents", "verification": "screenshot /agents showing period selector buttons", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Selected period updates all charts and tables (API receives days parameter)", "verification": "curl -s 'http://localhost:8000/api/agents/telemetry/summary?days=30' | jq '.period_days'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-AUTO"]
+  },
+  "93": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "System health overview displays service status cards on /status page", "verification": "screenshot /status showing service status cards", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Health endpoint returns service status with operational indicators", "verification": "curl -s http://localhost:8000/api/health | jq '.detail'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-RELY"]
+  },
+  "94": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Database metrics card displays PostgreSQL connection pool stats and query latency", "verification": "screenshot /status showing database metrics card", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "API exposes pool_size, checked_out connections, and overflow metrics", "verification": "curl -s http://localhost:8000/api/health/resources | jq '.database_pool | keys'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-RELY"]
+  },
+  "95": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Redis metrics display cache hit rates and memory usage on /status page", "verification": "screenshot /status showing Redis metrics card", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Cache statistics endpoint returns hit_ratio, memory_used_mb, evictions_24h", "verification": "curl -s http://localhost:8000/api/health/cache | jq '.hit_ratio'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-RELY"]
+  },
+  "96": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Celery Worker Status shows active/idle worker count with status indicators", "verification": "screenshot /status showing Celery worker status", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "API returns worker status from Celery inspect with active task counts", "verification": "curl -s http://localhost:8000/api/celery/workers | jq '.workers | length'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-RELY"]
+  },
+  "97": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Queue depth card displays message counts per queue (default, priority, etc)", "verification": "screenshot /status showing queue depth card", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Celery queue API returns queue lengths for monitoring", "verification": "curl -s http://localhost:8000/api/celery/queues | jq '.queues | keys'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-RELY"]
+  },
+  "98": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Beat schedule card displays scheduled task timeline with next run times", "verification": "screenshot /status showing beat schedule card", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "API provides scheduled tasks list with task name, schedule, and last_run_time", "verification": "curl -s http://localhost:8000/api/celery/schedule | jq '.tasks | length'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-RELY"]
+  },
+  "99": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "API Quotas card displays per-provider rate limit usage and remaining quota", "verification": "screenshot /status showing API quotas card", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Quotas endpoint returns provider, used_calls, daily_limit, reset_time for each provider", "verification": "curl -s http://localhost:8000/api/sources/quotas | jq '.providers[0] | keys'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-RELY"]
+  },
+  "101": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Workflow health card shows running/failed workflow counts on /status", "verification": "screenshot /status showing workflow health card", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Workflow metrics API returns active_workflows, failed_workflows, success_rate fields", "verification": "curl -s http://localhost:8000/api/health/workflows | jq '.active_workflows, .success_rate'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-RELY"]
+  },
+  "102": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Agent statistics card displays total runs, success rate, and token usage metrics", "verification": "screenshot /status showing agent statistics card", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "API returns agent execution summary with total_runs, success_rate, total_tokens", "verification": "curl -s http://localhost:8000/api/agents/telemetry/summary | jq '.total_runs, .success_rate, .total_tokens'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-RELY"]
+  },
+  "103": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Logs viewer displays application error logs with timestamp and filtering options", "verification": "screenshot /status showing logs viewer", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Logs API returns filtered entries with severity, service, and message fields", "verification": "curl -s http://localhost:8000/api/logs?limit=10 | jq '.logs | length'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-RELY"]
+  },
+  "104": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Service action buttons (Restart, Clear Cache) are visible on /status page", "verification": "screenshot /status showing service action buttons", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Service action endpoints accept POST requests and return success status", "verification": "curl -s -X POST http://localhost:8000/api/services/restart?service=frontend | jq '.status'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-RELY"]
+  },
+  "135": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "News health telemetry displays FinBERT availability status with headline count", "verification": "screenshot /status showing news health telemetry", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "News health API returns headlines_24h, finbert_available, fallback_rate_24h", "verification": "curl -s http://localhost:8000/api/news/health | jq '.headlines_24h, .finbert_available'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-RELY"]
+  },
+  "143": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Cache management card displays cache statistics (hit rate, size, entries)", "verification": "screenshot /status showing cache management card", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Cache clear endpoint accepts POST and returns updated cache stats", "verification": "curl -s -X POST http://localhost:8000/api/cache/clear | jq '.cleared_entries'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-RELY"]
+  },
+  "144": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Deletion rate monitor displays deletion counts by table over 24/7/30 day windows", "verification": "screenshot /status showing deletion rate monitor", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Deletion stats API returns table_name, deleted_24h, deleted_7d, spike_detected fields", "verification": "curl -s http://localhost:8000/api/health/deletions | jq '.tables[0] | keys'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-RELY"]
+  },
+  "148": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Celery task status table displays active tasks with status filtering options", "verification": "screenshot /status showing Celery task status table", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Celery tasks API returns task_id, name, status, worker, start_time, progress fields", "verification": "curl -s http://localhost:8000/api/celery/tasks | jq '.tasks[0] | keys'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-RELY"]
+  },
+  "84": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "API Endpoints Tab displays 58+ endpoint health checks", "verification": "curl -s http://localhost:8000/api/capabilities/api | jq '.endpoints | length'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Endpoint status colors match health (green/yellow/red)", "verification": "screenshot /capabilities with API Endpoints tab showing status indicators", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-RELY"]
+  },
+  "85": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Insights Tab loads AI-generated system insights with severity levels", "verification": "curl -s http://localhost:8000/api/capabilities/insights | jq '.insights | length'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Insight cards display finding, expected_behavior, actual_behavior fields", "verification": "screenshot /capabilities Insights tab showing insight details", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-INTEL"]
+  },
+  "86": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Gaps Tab shows trading capability gaps with status and priority", "verification": "curl -s http://localhost:8000/api/capabilities/gaps | jq '.gaps | length'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Gap cards show coverage percentage and provider recommendations", "verification": "screenshot /capabilities Gaps tab with expanded gap card", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-RELY"]
+  },
+  "90": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Scan System button triggers full capability scan with status queue response", "verification": "curl -s -X POST http://localhost:8000/api/capabilities/scan | jq '.status'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "UI shows scanning progress indicator while scan runs", "verification": "Click scan button and verify loading spinner displays for 5+ seconds", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-RELY"]
+  },
+  "91": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Insight status transitions between pending -> confirmed -> fixed", "verification": "PATCH /api/capabilities/insights/{id}/review with status=confirmed", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Review reason and timestamp recorded in database", "verification": "curl -s http://localhost:8000/api/capabilities/insights | jq '.insights[] | {status, reviewed_at}'", "type": "db", "passed": null}
+    ],
+    "vision_goals": ["VG-QUAL"]
+  },
+  "92": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Provider cards expand to show endpoint details and test status", "verification": "screenshot /capabilities Sources tab with provider card expanded", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Expanded detail shows last_check_at and available_endpoints count", "verification": "curl -s http://localhost:8000/api/sources/{provider} | jq '{last_checked, endpoints_count}'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-UX"]
+  },
+  "105": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Settings page layout loads with sidebar navigation", "verification": "screenshot /settings showing sidebar with menu items", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Settings sections accessible via sidebar links", "verification": "Click 3 different sidebar menu items and verify page content changes", "type": "quality", "passed": null}
+    ],
+    "vision_goals": ["VG-UX"]
+  },
+  "106": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Alert configuration form saves price/score/news alert thresholds", "verification": "curl -s http://localhost:8000/api/settings/alerts | jq '.alert_config'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "UI shows alert threshold sliders for each type", "verification": "screenshot /settings/alerts showing price, score, and news threshold controls", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-UX"]
+  },
+  "107": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Notification preferences save email/push toggle settings", "verification": "curl -s http://localhost:8000/api/settings/notifications | jq '.preferences'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "UI displays email and push notification toggle switches", "verification": "screenshot /settings/notifications showing toggle controls", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-UX"]
+  },
+  "108": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "API key management page allows add/edit/delete operations", "verification": "curl -s http://localhost:8000/api/settings/api-keys | jq '.keys | length'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "UI shows masked keys with copy/delete buttons", "verification": "screenshot /settings/api-keys showing key list with action buttons", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-UX"]
+  },
+  "109": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Theme setting persists light/dark mode selection", "verification": "curl -s http://localhost:8000/api/settings/theme | jq '.mode'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "UI applies theme colors to entire application on toggle", "verification": "Toggle theme and verify dark/light colors applied across all pages", "type": "quality", "passed": null}
+    ],
+    "vision_goals": ["VG-UX"]
+  },
+  "110": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Export/Import settings API endpoints work with JSON backup files", "verification": "curl -s -X POST http://localhost:8000/api/settings/export | jq '.filename'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "UI shows export button and import file upload control", "verification": "screenshot /settings showing export and import controls", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-QUAL"]
+  },
+  "117": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Loading skeleton displays while data fetches", "verification": "Load page and verify skeleton animations display briefly", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Skeleton structure matches final content layout", "verification": "Verify skeleton has same column count as loaded table", "type": "quality", "passed": null}
+    ],
+    "vision_goals": ["VG-UX"]
+  },
+  "118": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Error state displays with descriptive message and retry button", "verification": "Trigger API error and verify error boundary shows message", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Retry button refetches data and recovers from error", "verification": "Click retry and verify data loads successfully after error recovery", "type": "quality", "passed": null}
+    ],
+    "vision_goals": ["VG-RELY"]
+  },
+  "119": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Toast notifications display success/error/info messages", "verification": "Trigger action and verify toast appears with correct message type", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Toasts auto-dismiss after 3-5 seconds", "verification": "Create toast and verify it disappears within 5 seconds", "type": "quality", "passed": null}
+    ],
+    "vision_goals": ["VG-UX"]
+  },
+  "120": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Confirm dialog displays with title and action buttons", "verification": "Trigger delete/destructive action and verify confirmation dialog", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Confirm/Cancel buttons execute correct logic", "verification": "Click Cancel and verify action not executed, then click Confirm", "type": "quality", "passed": null}
+    ],
+    "vision_goals": ["VG-UX"]
+  },
+  "121": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Data table shows pagination controls with page/limit selectors", "verification": "screenshot /watchlist showing table pagination at bottom", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Pagination changes reflect in displayed rows and API calls", "verification": "Change page and verify row count matches selected limit", "type": "quality", "passed": null}
+    ],
+    "vision_goals": ["VG-UX"]
+  },
+  "122": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Recharts-based charts render correctly with data", "verification": "screenshot /dashboard showing multiple chart components", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Charts have tooltips, legends, and responsive sizing", "verification": "Hover over chart and verify tooltip appears with data", "type": "quality", "passed": null}
+    ],
+    "vision_goals": ["VG-UX"]
+  },
+  "123": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Form components validate input with react-hook-form", "verification": "Submit invalid data and verify error messages display", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Form submission sends correct data to API", "verification": "Submit form and verify API receives expected payload", "type": "quality", "passed": null}
+    ],
+    "vision_goals": ["VG-UX"]
+  },
+  "10": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "MCP Server starts and listens on port 8001", "verification": "curl -s http://localhost:8001/mcp/health | jq '.status'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "MCP Server routes tool calls to appropriate agent handlers", "verification": "Code review: backend/app/mcp/server.py has tool_schema registry", "type": "backend", "passed": null}
+    ],
+    "vision_goals": ["VG-AUTO"]
+  },
+  "11": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "LLM Provider layer supports Claude, Gemini, OpenAI with unified interface", "verification": "Code review: backend/app/llm/provider.py has LLMProvider abstract class", "type": "backend", "passed": null},
+      {"id": "ac-002", "criterion": "Failover activates when primary provider unavailable", "verification": "Unit test: pytest tests/llm/test_provider_failover.py", "type": "test", "passed": null}
+    ],
+    "vision_goals": ["VG-RELY"]
+  },
+  "12": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Agent state persists across context windows", "verification": "curl -s http://localhost:8000/api/agents/state/{agent_id} | jq '.session_data'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "State recovery works after service restart", "verification": "Integration test: save state, restart service, verify state restored", "type": "test", "passed": null}
+    ],
+    "vision_goals": ["VG-AUTO"]
+  },
+  "13": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Sequential orchestration executes agents in defined order", "verification": "Code review: backend/app/orchestration/sequential.py logs execution order", "type": "backend", "passed": null},
+      {"id": "ac-002", "criterion": "Parallel orchestration runs multiple agents concurrently", "verification": "Integration test: time parallel execution vs sequential", "type": "test", "passed": null}
+    ],
+    "vision_goals": ["VG-AUTO"]
+  },
+  "14": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Existing agents accept MCP protocol messages", "verification": "curl -s -X POST http://localhost:8001/mcp/tools/{tool_name} | jq '.result'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "All agents migrated from REST to MCP (Discovery, Portfolio Analyzer, Strategy Validator)", "verification": "Code review: backend/app/agents/ all agents inherit MCPAgent", "type": "backend", "passed": null}
+    ],
+    "vision_goals": ["VG-AUTO"]
+  },
+  "15": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "/task_it command creates feature via POST /api/capabilities/features/", "verification": "curl -s http://localhost:8000/api/capabilities/features/ | jq '.features | length'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "/do_it, /check_it, /pause_it use Feature API endpoints", "verification": "Code review: .claude/commands/do_it.md uses /api/capabilities endpoints", "type": "backend", "passed": null}
+    ],
+    "vision_goals": ["VG-QUAL"]
+  },
+  "165": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "All 164 features have acceptance_criteria populated", "verification": "curl -s http://localhost:8000/api/capabilities/features/ | jq '[.features[] | select(.acceptance_criteria == null or (.acceptance_criteria | length) == 0)] | length'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Each feature has minimum 2 testable criteria with verification method", "verification": "Code review: all features in database have ac-001 and ac-002 with type and verification", "type": "quality", "passed": null}
+    ],
+    "vision_goals": ["VG-QUAL"]
+  },
+  "3": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Rules Engine UI loads at /rules with rule editor visible", "verification": "screenshot /rules showing rule cards", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Rules CRUD operations work via PATCH /api/capabilities/rules/{rule_id}", "verification": "curl -s -X PATCH http://localhost:8000/api/capabilities/rules/position_sizing | jq '.status'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-RELY"]
+  },
+  "4": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Prompt Management stores prompts in database with version tracking", "verification": "curl -s http://localhost:8000/api/prompts/ | jq '.prompts[0] | {id, version, created_at}'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Each agent type has dedicated prompt in prompt_definitions table", "verification": "psql: SELECT agent_type, COUNT(*) FROM prompt_definitions GROUP BY agent_type", "type": "db", "passed": null}
+    ],
+    "vision_goals": ["VG-AUTO"]
+  },
+  "5": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Prompt Testing Framework accepts sample inputs and returns outputs", "verification": "curl -s -X POST http://localhost:8000/api/prompts/{id}/test -d '{\"input\": \"...\"}' | jq '.output'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Test results include execution time and token count", "verification": "Code review: backend/app/prompts/tester.py has test_prompt() with metrics", "type": "backend", "passed": null}
+    ],
+    "vision_goals": ["VG-QUAL"]
+  },
+  "6": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Prompt performance metrics tracked in prompt_test_results table", "verification": "curl -s http://localhost:8000/api/prompts/{id}/performance | jq '.avg_latency_ms'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Iteration history shows A/B comparison of prompt versions", "verification": "Code review: backend/app/prompts/optimizer.py has compare_versions()", "type": "backend", "passed": null}
+    ],
+    "vision_goals": ["VG-QUAL"]
+  },
+  "134": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "News search API returns articles without caching for ad-hoc queries", "verification": "curl -s http://localhost:8000/api/news/search?q=AAPL&cache=false | jq '.articles | length'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Search results display on frontend with timestamp validation", "verification": "screenshot /news showing search results with dates", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-INTEL"]
+  },
+  "152": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Multi-source news aggregation returns articles from 9+ RSS feeds", "verification": "curl -s http://localhost:8000/api/sources | jq '.providers | map(select(.type==\"rss\")) | length'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "News feed displays unified articles from all sources on /news page", "verification": "screenshot /news showing source diversity in article list", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-INTEL", "VG-RELY"]
+  },
+  "161": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "News quality scoring API returns quality ratings 0-100 for articles", "verification": "curl -s http://localhost:8000/api/news/quality-score | jq '.articles[] | {title, quality_score}'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "News articles filtered by quality score threshold in UI", "verification": "screenshot /news with quality filter showing filtered articles", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-INTEL", "VG-QUAL"]
+  },
+  "7": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Daily watchlist report generated with ticker changes and score deltas", "verification": "curl -s http://localhost:8000/api/watchlist/daily-report | jq '{added_tickers, removed_tickers, score_changes}'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Daily reports accessible and summarized on dashboard or watchlist page", "verification": "screenshot /watchlist showing daily summary panel with changes", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-INTEL", "VG-PORT"]
+  },
+  "136": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Article quality ML model integrated with automated retraining", "verification": "Code review: backend/app/models/news_quality_model.py has retrain_on_schedule()", "type": "backend", "passed": null},
+      {"id": "ac-002", "criterion": "Model accuracy metrics tracked in capabilities dashboard", "verification": "curl -s http://localhost:8000/api/capabilities/models | jq '.models[] | select(.name==\"article_quality\")'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-QUAL", "VG-AUTO"]
+  },
+  "153": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Options flow metrics API returns put/call ratios and sector concentration", "verification": "curl -s http://localhost:8000/api/market/options-flow | jq '{put_call_ratio, sector_concentration}'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Options metrics displayed in market analytics section", "verification": "screenshot /analytics showing put/call ratio and sector heatmap", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-INTEL", "VG-RELY"]
+  },
+  "154": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "FRED macro indicators API returns VIX, Treasury yields, HY spreads", "verification": "curl -s http://localhost:8000/api/market/macro-indicators | jq '{vix, treasury_rates, hy_spreads}'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Macro indicators displayed with 1-year historical charts", "verification": "screenshot /market-data showing macro indicator cards with charts", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-INTEL", "VG-RELY"]
+  },
+  "155": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Yield curve API returns Treasury rates across maturities with inversion detection", "verification": "curl -s http://localhost:8000/api/market/yield-curve | jq '{curve_data, inverted, inversion_magnitude}'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Yield curve visualization shows inversion status with alerts", "verification": "screenshot /market-data showing yield curve chart", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-INTEL", "VG-RELY"]
+  },
+  "157": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Cash flow metrics API returns FCF yield, operating cash flow, conversion ratio", "verification": "curl -s http://localhost:8000/api/fundamentals/AAPL/cash-flow | jq '{fcf_yield, operating_cf, cash_conversion_ratio}'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Cash flow metrics integrated into watchlist score breakdown", "verification": "curl -s http://localhost:8000/api/watchlist/AAPL | jq '.score_breakdown'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-INTEL", "VG-QUAL"]
+  },
+  "158": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "SEC Form 4 insider transactions API returns buy/sell tracking data", "verification": "curl -s http://localhost:8000/api/fundamentals/AAPL/insider-transactions | jq '.transactions[] | {insider_name, transaction_type}'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Insider activity summary displayed in fundamentals section", "verification": "screenshot /watchlist/{symbol} showing insider buy/sell activity", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-INTEL", "VG-QUAL"]
+  },
+  "159": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "13F institutional holdings API returns ownership percent and change tracking", "verification": "curl -s http://localhost:8000/api/fundamentals/AAPL/institutional-holdings | jq '.institutions[] | {name, percent_owned}'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Top institutional holders displayed with ownership change indicators", "verification": "screenshot /watchlist/{symbol} showing top 10 institutional holders", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-INTEL", "VG-QUAL"]
+  },
+  "160": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Earnings surprise API returns EPS/revenue surprise data with history", "verification": "curl -s http://localhost:8000/api/fundamentals/AAPL/earnings-surprises | jq '.history[] | {date, eps_surprise_pct}'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Earnings surprises integrated into catalyst scoring", "verification": "curl -s http://localhost:8000/api/watchlist/AAPL | jq '.score_breakdown.catalyst'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-INTEL", "VG-QUAL"]
+  },
+  "164": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Financial health scores API returns Piotroski F-Score and Altman Z-Score", "verification": "curl -s http://localhost:8000/api/fundamentals/AAPL/health-scores | jq '{piotroski_fscore, altman_zscore}'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Financial health scores integrated into fundamental component of watchlist scoring", "verification": "curl -s http://localhost:8000/api/watchlist/AAPL | jq '.score_breakdown.fundamental'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-INTEL", "VG-QUAL"]
+  },
+  "125": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Investment idea detail page loads with full thesis, action plan, risks", "verification": "screenshot /ideas/{id} showing thesis section, action plan, and risk analysis", "type": "ui", "passed": null},
+      {"id": "ac-002", "criterion": "Idea details API returns thesis, action_plan, risk_analysis, confidence_score", "verification": "curl -s http://localhost:8000/api/ideas/{id} | jq '{thesis, action_plan, risk_analysis}'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-INTEL", "VG-PORT"]
+  },
+  "137": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Data validation rules engine executes automated quality checks", "verification": "Code review: backend/app/services/data_validation.py has validate_market_data()", "type": "backend", "passed": null},
+      {"id": "ac-002", "criterion": "Validation failures logged and reported in health dashboard", "verification": "curl -s http://localhost:8000/api/status/health | jq '.validation_status'", "type": "api", "passed": null}
+    ],
+    "vision_goals": ["VG-RELY", "VG-QUAL"]
+  },
+  "138": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Anomaly detection algorithm identifies outliers in price/volume data", "verification": "Code review: backend/app/models/anomaly_detector.py has detect_outliers()", "type": "backend", "passed": null},
+      {"id": "ac-002", "criterion": "Anomalies flagged and displayed in watchlist alerts section", "verification": "screenshot /watchlist showing anomaly alerts for unusual price/volume", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-RELY", "VG-QUAL"]
+  },
+  "124": {
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "E2E test feature endpoint returns test status and execution history", "verification": "curl -s http://localhost:8000/api/test/feature | jq '{status, last_run, execution_count}'", "type": "api", "passed": null},
+      {"id": "ac-002", "criterion": "Test feature UI displays workflow validation results", "verification": "screenshot /capabilities Test tab showing test execution history", "type": "ui", "passed": null}
+    ],
+    "vision_goals": ["VG-QUAL"]
+  }
+}
