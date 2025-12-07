@@ -6,7 +6,7 @@ extracted from reference cache data.
 
 from __future__ import annotations
 
-from datetime import datetime
+import datetime as dt
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Path, Query
@@ -130,9 +130,13 @@ async def get_valuation_metrics(
             if payout is not None and not isinstance(payout, (int, float)):
                 raise HTTPException(status_code=500, detail="Invalid payout_ratio")
 
-            # Validate as_of_date
-            if not isinstance(as_of, str):
-                raise HTTPException(status_code=500, detail="Invalid as_of_date")
+            # Convert as_of_date to string if it's a date/datetime object
+            if isinstance(as_of, (dt.date, dt.datetime)):
+                as_of_str = as_of.isoformat() if hasattr(as_of, "isoformat") else str(as_of)
+            elif isinstance(as_of, str):
+                as_of_str = as_of
+            else:
+                raise HTTPException(status_code=500, detail="Invalid as_of_date type")
 
             return ValuationMetrics(
                 symbol=symbol_val,
@@ -143,7 +147,7 @@ async def get_valuation_metrics(
                 peg_ratio=peg if isinstance(peg, (int, float)) else None,
                 dividend_yield=div_yield if isinstance(div_yield, (int, float)) else None,
                 payout_ratio=payout if isinstance(payout, (int, float)) else None,
-                as_of_date=as_of,
+                as_of_date=as_of_str,
             )
 
     except HTTPException:
@@ -216,7 +220,13 @@ async def get_valuation_metrics_batch(
             # Cast list[str] to expected parameter type for type checking
             # This is safe since str is a valid ParameterValue
             params: list[
-                str | int | float | bool | datetime | list[str | int | float | bool | None] | None
+                str
+                | int
+                | float
+                | bool
+                | dt.datetime
+                | list[str | int | float | bool | None]
+                | None
             ] = list(symbol_list)
 
             results = conn.execute(query, params).fetchall()

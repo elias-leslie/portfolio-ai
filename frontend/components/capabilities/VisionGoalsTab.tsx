@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Table,
@@ -156,9 +156,8 @@ export function VisionGoalsTab() {
                   : defaultColor;
 
                 return (
-                  <>
+                  <Fragment key={goal.code}>
                     <TableRow
-                      key={goal.code}
                       className="cursor-pointer hover:bg-muted/50"
                       onClick={() => toggleGoal(goal.code)}
                     >
@@ -230,13 +229,13 @@ export function VisionGoalsTab() {
                     </TableRow>
                     {/* Expanded row showing linked features */}
                     {isExpanded && (
-                      <TableRow key={`${goal.code}-features`} className="bg-muted/30">
+                      <TableRow className="bg-muted/30">
                         <TableCell colSpan={6} className="py-3 px-4">
                           <ExpandedGoalFeatures code={goal.code} />
                         </TableCell>
                       </TableRow>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
             </TableBody>

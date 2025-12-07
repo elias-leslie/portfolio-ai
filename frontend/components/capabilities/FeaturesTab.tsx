@@ -140,7 +140,17 @@ export function FeaturesTab() {
     featureId: string;
     criterionId: string;
     criterionText: string;
-  }>({ open: false, featureId: "", criterionId: "", criterionText: "" });
+    verificationUrl: string;
+  }>({ open: false, featureId: "", criterionId: "", criterionText: "", verificationUrl: "" });
+
+  // Parse URL from verification text like "screenshot /agents showing..."
+  const parseVerificationUrl = (verification: string): string => {
+    const match = verification.match(/screenshot\s+(\/[^\s]+)/i);
+    if (match) {
+      return `http://192.168.8.233:3000${match[1]}`;
+    }
+    return "";
+  };
   const queryClient = useQueryClient();
 
   // Toggle row expansion
@@ -806,6 +816,7 @@ export function FeaturesTab() {
                                               featureId: feature.feature_id,
                                               criterionId: criterion.id,
                                               criterionText: criterion.criterion,
+                                              verificationUrl: parseVerificationUrl(criterion.verification || ""),
                                             });
                                           }}
                                         >
@@ -952,6 +963,7 @@ export function FeaturesTab() {
         featureId={evidenceModal.featureId}
         criterionId={evidenceModal.criterionId}
         criterionText={evidenceModal.criterionText}
+        verificationUrl={evidenceModal.verificationUrl}
       />
     </div>
   );

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { Brain, Plus, Sparkles } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import { StrategyDetailModal } from "@/components/strategies/StrategyDetailModal
 import { PageContainer } from "@/components/shared/PageContainer";
 
 export default function StrategiesPage() {
+  const searchParams = useSearchParams();
   const [selectedStrategyId, setSelectedStrategyId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | "testing" | "active" | "archived">(
     "all"
@@ -23,6 +25,25 @@ export default function StrategiesPage() {
     statusFilter === "all" ? undefined : { status: statusFilter }
   );
   const generateBatch = useGenerateStrategiesBatch();
+
+  // Auto-select strategy from query parameter (?id=xxx or ?id=first)
+  useEffect(() => {
+    const idParam = searchParams?.get("id");
+    const strategies = data?.strategies || [];
+
+    if (idParam && strategies.length > 0 && !selectedStrategyId) {
+      if (idParam === "first" || idParam === "latest") {
+        // Select the first strategy
+        setSelectedStrategyId(strategies[0].id);
+      } else {
+        // Check if specific ID exists
+        const targetStrategy = strategies.find((s) => s.id === idParam);
+        if (targetStrategy) {
+          setSelectedStrategyId(idParam);
+        }
+      }
+    }
+  }, [searchParams, data, selectedStrategyId]);
 
   const strategies = data?.strategies || [];
 

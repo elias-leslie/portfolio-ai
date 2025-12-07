@@ -353,11 +353,11 @@ def cleanup_orphaned_data_task(self: Task) -> dict[str, int | str | float]:
         storage = get_connection_manager()
 
         with storage.connection() as conn:
-            # Delete ideas with non-existent run_ids
+            # Delete ideas with non-existent agent_run_ids
             conn.execute(
                 """
                 DELETE FROM agent_ideas
-                WHERE run_id NOT IN (SELECT id FROM agent_runs)
+                WHERE agent_run_id NOT IN (SELECT id FROM agent_runs)
                 """
             )
             orphaned_ideas = conn._cursor.rowcount
@@ -377,6 +377,21 @@ def cleanup_orphaned_data_task(self: Task) -> dict[str, int | str | float]:
             )
             orphaned_insights = conn._cursor.rowcount
 
+            # Fix zombie agent runs - mark runs stuck in 'running' for >1 hour as 'failed'
+            cutoff = dt.datetime.now(dt.UTC) - dt.timedelta(hours=1)
+            conn.execute(
+                """
+                UPDATE agent_runs
+                SET status = 'failed',
+                    completed_at = NOW(),
+                    error_message = 'Marked as failed by cleanup task - run stuck in running state'
+                WHERE status IN ('running', 'error')
+                AND started_at < %s
+                """,
+                [cutoff],
+            )
+            zombie_runs_fixed = conn._cursor.rowcount
+
             conn.commit()
 
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
@@ -385,6 +400,7 @@ def cleanup_orphaned_data_task(self: Task) -> dict[str, int | str | float]:
             "task_id": task_id,
             "orphaned_ideas_deleted": orphaned_ideas,
             "orphaned_insights_deleted": orphaned_insights,
+            "zombie_runs_fixed": zombie_runs_fixed,
             "duration_seconds": round(duration, 2),
             "success": True,
         }

@@ -60,19 +60,25 @@ def fetch_peer_returns(
         ),
         price_5d AS (
             SELECT symbol, close as close_5d
-            FROM day_bars
-            WHERE date >= ?
-                AND date < ?
-                AND symbol IN (SELECT UNNEST(?))
-            QUALIFY ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date ASC) = 1
+            FROM (
+                SELECT symbol, close, ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date ASC) as rn
+                FROM day_bars
+                WHERE date >= ?
+                    AND date < ?
+                    AND symbol IN (SELECT UNNEST(?))
+            ) ranked
+            WHERE rn = 1
         ),
         price_20d AS (
             SELECT symbol, close as close_20d
-            FROM day_bars
-            WHERE date >= ?
-                AND date < ?
-                AND symbol IN (SELECT UNNEST(?))
-            QUALIFY ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date ASC) = 1
+            FROM (
+                SELECT symbol, close, ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date ASC) as rn
+                FROM day_bars
+                WHERE date >= ?
+                    AND date < ?
+                    AND symbol IN (SELECT UNNEST(?))
+            ) ranked
+            WHERE rn = 1
         )
         SELECT
             p.symbol,

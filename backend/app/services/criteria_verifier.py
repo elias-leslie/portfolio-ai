@@ -250,8 +250,14 @@ class CriteriaVerifier:
             curl -s http://localhost:8000/api/health | jq '.status'
             curl -s -X POST http://localhost:8000/api/data -d '{"key": "value"}'
             curl -s http://localhost:8000/api/market/fear-greed | jq '.tables | length'
+
+        Automatically resolves placeholders like {id}, {run_id}, {symbol} before
+        making the request.
         """
         verification = criterion.get("verification", "")
+
+        # Resolve any placeholders in the verification command
+        verification = await self._resolve_api_placeholders(verification)
 
         # Parse the curl command (method, url, data, jq_filter)
         parsed = self._parse_curl_command_full(verification)
@@ -456,7 +462,18 @@ class CriteriaVerifier:
                 "verification_output": f"Could not parse URL path: {verification}",
             }
 
-        full_url = f"http://192.168.8.233:3000{url_path}"
+        # Resolve placeholders like {id}, {symbol} to real values
+        resolved_path = await self._resolve_url_placeholders(url_path)
+        if not resolved_path:
+            return {
+                **criterion,
+                "passed": None,
+                "verified_at": datetime.now(UTC).isoformat(),
+                "verified_by": "manual_required",
+                "verification_output": f"URL has unresolved placeholder: {url_path}. Requires manual verification.",
+            }
+
+        full_url = f"http://192.168.8.233:3000{resolved_path}"
 
         try:
             # Capture evidence using new comprehensive script
@@ -786,13 +803,192 @@ class CriteriaVerifier:
         Examples:
             screenshot /dashboard and verify gauge visible
             screenshot /watchlist showing expanded row
+            screenshot / and verify gauge visible
 
         Returns:
-            URL path (e.g., /dashboard) or None if parsing fails
+            URL path (e.g., /dashboard, /) or None if parsing fails
         """
-        # Look for /path pattern
-        match = re.search(r"screenshot\s+(/[^\s]+)", verification, re.IGNORECASE)
-        return match.group(1) if match else None
+        # Look for /path pattern (allow just / for root path)
+        match = re.search(r"screenshot\s+(/[^\s]*)", verification, re.IGNORECASE)
+        if match:
+            path = match.group(1)
+            # If path is just / or /?, return /
+            return path if path else "/"
+        return None
+
+    async def _resolve_url_placeholders(self, url_path: str) -> str | None:
+        """Resolve placeholders like {id}, {symbol} in URL paths for screenshots.
+
+        UI Pattern Mappings:
+            /backtest/{id} -> /backtest (no dynamic route - uses sidebar selection)
+            /watchlist/{symbol} -> /watchlist?symbol=AAPL (uses query param for deep linking)
+            /ideas/{id} -> /ideas/abc123 (has actual dynamic route)
+
+        Returns:
+            Resolved URL path or None if placeholder can't be resolved.
+        """
+        if "{" not in url_path:
+            return url_path
+
+        try:
+            # /backtest/{id} - Use query param pattern: /backtest?runId=first
+            # The backtest page now supports ?runId=X for deep linking
+            if "/backtest/{id}" in url_path or ("/backtest/" in url_path and "{" in url_path):
+                # Use ?runId=first to auto-select the first run
+                resolved = "/backtest?runId=first"
+                logger.info(
+                    "backtest_url_resolved",
+                    original=url_path,
+                    resolved=resolved,
+                    reason="Using ?runId=first for auto-selection",
+                )
+                return resolved
+
+            # /watchlist/{symbol} - NO dynamic route. Uses query param for deep linking
+            if "/watchlist/{symbol}" in url_path:
+                async with httpx.AsyncClient(timeout=5) as client:
+                    resp = await client.get("http://localhost:8000/api/watchlist/")
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        items = data.get("items", data) if isinstance(data, dict) else data
+                        if items and len(items) > 0:
+                            symbol = items[0].get("symbol", "AAPL")
+                            resolved = f"/watchlist?symbol={symbol}"
+                            logger.info(
+                                "watchlist_url_resolved",
+                                original=url_path,
+                                resolved=resolved,
+                                reason="Using query param for row expansion",
+                            )
+                            return resolved
+                # Default if no watchlist items
+                return "/watchlist?symbol=AAPL"
+
+            # /ideas/{id} - Has actual dynamic route at /ideas/[id]
+            if "/ideas/{id}" in url_path:
+                async with httpx.AsyncClient(timeout=5) as client:
+                    resp = await client.get("http://localhost:8000/api/ideas/")
+                    if resp.status_code == 200:
+                        ideas = resp.json()
+                        if ideas and len(ideas) > 0:
+                            idea_id = str(ideas[0].get("id", ideas[0].get("idea_id", 1)))
+                            return url_path.replace("{id}", idea_id)
+                # No ideas - return None to skip (can't verify without data)
+                logger.warning("no_ideas_for_verification", url_path=url_path)
+                return None
+
+            # /strategies/{id} - Use query param for modal display
+            if "/strategies/{id}" in url_path or ("/strategies/" in url_path and "{" in url_path):
+                resolved = "/strategies?id=first"
+                logger.info(
+                    "strategies_url_resolved",
+                    original=url_path,
+                    resolved=resolved,
+                    reason="Using ?id=first for modal display",
+                )
+                return resolved
+
+            # /trading with tab - Use query param for tab selection
+            if "/trading/{tab}" in url_path or ("/trading/" in url_path and "{" in url_path):
+                # Default to closed tab to show historical trades
+                resolved = "/trading?tab=closed"
+                logger.info(
+                    "trading_url_resolved",
+                    original=url_path,
+                    resolved=resolved,
+                    reason="Using ?tab=closed for historical trades view",
+                )
+                return resolved
+
+            # Unresolved placeholder - return None to skip auto-capture
+            logger.warning("unresolved_url_placeholder", url_path=url_path)
+            return None
+
+        except Exception as e:
+            logger.warning("placeholder_resolution_failed", url_path=url_path, error=str(e))
+            return None
+
+    async def _resolve_api_placeholders(self, verification: str) -> str:
+        """Resolve placeholders like {id}, {run_id}, {symbol} in API verification commands.
+
+        Examples:
+            curl http://localhost:8000/api/backtest/runs/{id} -> curl .../runs/abc123
+            curl http://localhost:8000/api/backtest/monte-carlo/{run_id} -> curl .../monte-carlo/abc123
+
+        Returns:
+            Verification string with placeholders resolved, or original if resolution fails.
+        """
+        if "{" not in verification:
+            return verification
+
+        resolved = verification
+
+        try:
+            # Resolve {id} or {run_id} for backtest API endpoints
+            if "{id}" in resolved or "{run_id}" in resolved:
+                async with httpx.AsyncClient(timeout=5) as client:
+                    resp = await client.get("http://localhost:8000/api/backtest/runs")
+                    if resp.status_code == 200:
+                        runs = resp.json()
+                        if runs and len(runs) > 0:
+                            run_id = runs[0].get("id", "")
+                            resolved = resolved.replace("{id}", run_id)
+                            resolved = resolved.replace("{run_id}", run_id)
+                            logger.info(
+                                "api_placeholder_resolved",
+                                placeholder="{id}/{run_id}",
+                                value=run_id,
+                            )
+
+            # Resolve {symbol} for analytics/watchlist endpoints
+            if "{symbol}" in resolved:
+                async with httpx.AsyncClient(timeout=5) as client:
+                    resp = await client.get("http://localhost:8000/api/watchlist/")
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        items = data.get("items", data) if isinstance(data, dict) else data
+                        if items and len(items) > 0:
+                            symbol = items[0].get("symbol", "AAPL")
+                            resolved = resolved.replace("{symbol}", symbol)
+                            logger.info(
+                                "api_placeholder_resolved",
+                                placeholder="{symbol}",
+                                value=symbol,
+                            )
+
+            # Resolve {agent_id} for agent state endpoints
+            if "{agent_id}" in resolved:
+                async with httpx.AsyncClient(timeout=5) as client:
+                    resp = await client.get("http://localhost:8000/api/agents/telemetry/history?limit=1")
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        runs = data.get("runs", [])
+                        if runs and len(runs) > 0:
+                            agent_id = runs[0].get("id", "")
+                            resolved = resolved.replace("{agent_id}", agent_id)
+
+            # Resolve {provider} for source endpoints
+            if "{provider}" in resolved:
+                resolved = resolved.replace("{provider}", "yfinance")
+
+            # Resolve {tool_name} for MCP endpoints
+            if "{tool_name}" in resolved:
+                resolved = resolved.replace("{tool_name}", "list_tools")
+
+            # Resolve {task_id} with a placeholder (would need actual task)
+            if "{task_id}" in resolved:
+                # Can't resolve without context - leave as-is and let it fail gracefully
+                logger.warning("unresolved_task_id_placeholder", verification=verification)
+
+            return resolved
+
+        except Exception as e:
+            logger.warning(
+                "api_placeholder_resolution_failed",
+                verification=verification[:100],
+                error=str(e),
+            )
+            return verification  # Return original if resolution fails
 
     def _is_url_allowed(self, url: str) -> bool:
         """Check if URL matches allowed patterns."""

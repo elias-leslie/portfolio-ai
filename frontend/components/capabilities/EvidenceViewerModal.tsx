@@ -101,6 +101,7 @@ interface EvidenceViewerModalProps {
   featureId: string;
   criterionId: string;
   criterionText?: string;
+  verificationUrl?: string; // URL parsed from criterion verification text
 }
 
 export function EvidenceViewerModal({
@@ -109,6 +110,7 @@ export function EvidenceViewerModal({
   featureId,
   criterionId,
   criterionText,
+  verificationUrl,
 }: EvidenceViewerModalProps) {
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
   const [userNotes, setUserNotes] = useState("");
@@ -117,7 +119,8 @@ export function EvidenceViewerModal({
   const queryClient = useQueryClient();
 
   // Fetch artifact data
-  const { data, isLoading, error } = useQuery<ArtifactResponse>({
+  // IMPORTANT: Always refetch on mount to avoid stale cached 404 errors
+  const { data, isLoading, error, refetch } = useQuery<ArtifactResponse>({
     queryKey: ["artifact", featureId, criterionId, selectedVersion],
     queryFn: async () => {
       const params = new URLSearchParams({ include_evidence: "true" });
@@ -134,6 +137,9 @@ export function EvidenceViewerModal({
       return response.json();
     },
     enabled: open && !!featureId && !!criterionId,
+    staleTime: 0, // Always consider data stale
+    refetchOnMount: "always", // Always refetch when modal opens
+    retry: 1, // Only retry once on failure
   });
 
   // Set initial version from data
@@ -142,6 +148,15 @@ export function EvidenceViewerModal({
       setSelectedVersion(data.artifact.version);
     }
   }, [data, selectedVersion]);
+
+  // Reset state when modal closes to ensure fresh fetch on reopen
+  useEffect(() => {
+    if (!open) {
+      setSelectedVersion(null);
+      setUserNotes("");
+      setActiveTab("screenshot");
+    }
+  }, [open]);
 
   // Submit user review mutation
   const reviewMutation = useMutation({
@@ -199,7 +214,12 @@ export function EvidenceViewerModal({
 
   // Refresh evidence
   const handleRefresh = async () => {
-    if (!data?.evidence?.metadata.url) return;
+    // Use existing evidence URL, or fallback to parsed verification URL
+    const captureUrl = data?.evidence?.metadata.url || verificationUrl;
+    if (!captureUrl) {
+      toast.error("No URL available for capture");
+      return;
+    }
 
     setIsRefreshing(true);
     try {
@@ -209,7 +229,7 @@ export function EvidenceViewerModal({
         body: JSON.stringify({
           feature_id: featureId,
           criterion_id: criterionId,
-          url: data.evidence.metadata.url,
+          url: captureUrl,
         }),
       });
       if (!response.ok) throw new Error("Refresh failed");
@@ -217,9 +237,12 @@ export function EvidenceViewerModal({
       if (result.success) {
         toast.success(`Evidence refreshed (v${result.version})`);
         setSelectedVersion(result.version);
-        queryClient.invalidateQueries({
+        // Invalidate and refetch to show new evidence immediately
+        await queryClient.invalidateQueries({
           queryKey: ["artifact", featureId, criterionId],
         });
+        // Force refetch the current query
+        refetch();
       } else {
         toast.error(`Refresh failed: ${result.error}`);
       }

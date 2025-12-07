@@ -134,14 +134,26 @@ class GeminiCLIClient(LLMClient):
             # Extract response text
             content = str(response_data.get("response", ""))
 
-            # Extract usage stats
-            stats = response_data.get("stats", {}).get("models", {})
-            tokens = stats.get("tokens", {})
+            # Extract usage stats - aggregate across all models used
+            models_stats = response_data.get("stats", {}).get("models", {})
+            prompt_tokens = 0
+            completion_tokens = 0
+            total_tokens = 0
+            cached_tokens = 0
+
+            for model_data in models_stats.values():
+                if isinstance(model_data, dict):
+                    tokens = model_data.get("tokens", {})
+                    prompt_tokens += tokens.get("prompt", 0)
+                    completion_tokens += tokens.get("candidates", 0)
+                    total_tokens += tokens.get("total", 0)
+                    cached_tokens += tokens.get("cached", 0)
+
             usage = {
-                "prompt_tokens": tokens.get("prompt", 0),
-                "completion_tokens": tokens.get("candidates", 0),
-                "total_tokens": tokens.get("total", 0),
-                "cached_tokens": tokens.get("cached", 0),
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": total_tokens,
+                "cached_tokens": cached_tokens,
             }
 
             logger.info(

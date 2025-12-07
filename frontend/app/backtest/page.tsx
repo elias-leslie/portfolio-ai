@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { Plus, Sparkles, ExternalLink } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -14,12 +15,31 @@ import Link from "next/link";
 import { PageContainer } from "@/components/shared/PageContainer";
 
 export default function BacktestPage() {
+  const searchParams = useSearchParams();
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [newBacktestOpen, setNewBacktestOpen] = useState(false);
   const [comparisonMode, setComparisonMode] = useState(false);
   const [selectedRunIds, setSelectedRunIds] = useState<Set<string>>(new Set());
 
   const { data: runs, isLoading } = useBacktestRuns();
+
+  // Auto-select run from query parameter (?runId=xxx)
+  useEffect(() => {
+    const runIdParam = searchParams?.get("runId");
+    if (runIdParam && runs && runs.length > 0 && !selectedRunId) {
+      // Check if the run ID exists in the list
+      const targetRun = runs.find((run) => run.id === runIdParam);
+      if (targetRun) {
+        setSelectedRunId(runIdParam);
+      } else {
+        // If specific run not found, select the first run as fallback
+        // This handles cases where ?runId=first or invalid ID is passed
+        if (runIdParam === "first" || runIdParam === "latest") {
+          setSelectedRunId(runs[0].id);
+        }
+      }
+    }
+  }, [searchParams, runs, selectedRunId]);
   const generateBatch = useGenerateStrategiesBatch();
 
   // Handle run selection
