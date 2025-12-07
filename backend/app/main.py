@@ -15,6 +15,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.api import (
     agents,
     analytics,
+    artifacts,
     automation,
     backtest,
     capabilities,
@@ -173,6 +174,7 @@ app.include_router(automation.router)  # Manual pipeline triggers
 app.include_router(disagreements.router)  # Task 0003: Multi-LLM disagreement detection
 app.include_router(sources.router)  # Task 0088: API sources registry for agents
 app.include_router(rules.router)  # Trading rules viewer
+app.include_router(artifacts.router)  # UI verification evidence artifacts
 app.include_router(vision_goals_router, prefix="/api")  # Vision goals lookup table
 
 

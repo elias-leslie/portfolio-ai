@@ -857,4 +857,26 @@ def get_beat_schedule() -> dict[str, object]:
             # - Generates optimization recommendations
             # - Runs weekly to avoid over-fitting to short-term noise
         },
+        # ============================================================================
+        # ARTIFACT LIFECYCLE TASKS
+        # ============================================================================
+        "refresh-expired-artifacts": {
+            "task": "refresh_expired_artifacts",
+            "schedule": crontab(hour=5, minute=30),  # Daily at 05:30 UTC
+            "options": {"expires": 3600},
+            # Notes:
+            # - Marks expired UI verification artifacts as needing refresh
+            # - Runs daily during low-activity hours
+            # - Artifacts expire 24 hours after capture
+        },
+        "cleanup-old-artifact-versions": {
+            "task": "cleanup_old_versions",
+            "schedule": crontab(hour=6, minute=0),  # Daily at 06:00 UTC
+            "options": {"expires": 3600},
+            "kwargs": {"max_versions": 5, "dry_run": False},
+            # Notes:
+            # - Deletes old artifact versions beyond retention limit
+            # - Keeps last 5 versions per feature/criterion
+            # - Runs after refresh task completes
+        },
     }

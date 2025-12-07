@@ -35,7 +35,9 @@ import {
   FileText,
   Play,
   Target,
+  Eye,
 } from "lucide-react";
+import { EvidenceViewerModal } from "./EvidenceViewerModal";
 import {
   Tooltip,
   TooltipContent,
@@ -133,6 +135,12 @@ export function FeaturesTab() {
   const [currentPage, setCurrentPage] = useState(1);
   const [isVerifying, setIsVerifying] = useState(false);
   const [verifyTypeFilter, setVerifyTypeFilter] = useState("api");
+  const [evidenceModal, setEvidenceModal] = useState<{
+    open: boolean;
+    featureId: string;
+    criterionId: string;
+    criterionText: string;
+  }>({ open: false, featureId: "", criterionId: "", criterionText: "" });
   const queryClient = useQueryClient();
 
   // Toggle row expansion
@@ -786,6 +794,25 @@ export function FeaturesTab() {
                                           {criterion.type}
                                         </span>
                                       )}
+                                      {criterion.type === "ui" && (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-5 px-1.5 text-xs shrink-0"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setEvidenceModal({
+                                              open: true,
+                                              featureId: feature.feature_id,
+                                              criterionId: criterion.id,
+                                              criterionText: criterion.criterion,
+                                            });
+                                          }}
+                                        >
+                                          <Eye className="h-3 w-3 mr-1" />
+                                          Evidence
+                                        </Button>
+                                      )}
                                       <span className="flex-1 text-sm">
                                         {criterion.criterion}
                                       </span>
@@ -915,6 +942,17 @@ export function FeaturesTab() {
           </div>
         </div>
       )}
+
+      {/* Evidence Viewer Modal */}
+      <EvidenceViewerModal
+        open={evidenceModal.open}
+        onOpenChange={(open) =>
+          setEvidenceModal((prev) => ({ ...prev, open }))
+        }
+        featureId={evidenceModal.featureId}
+        criterionId={evidenceModal.criterionId}
+        criterionText={evidenceModal.criterionText}
+      />
     </div>
   );
 }

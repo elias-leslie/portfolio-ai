@@ -27,6 +27,7 @@ import httpx
 
 from ..logging_config import get_logger
 from ..storage.connection import get_connection_manager
+from . import artifact_manager
 
 logger = get_logger(__name__)
 
@@ -46,7 +47,6 @@ MAX_OUTPUT_LENGTH = 1000  # truncate output to this length
 # Paths
 BACKEND_DIR = Path("/home/kasadis/portfolio-ai/backend")
 BROWSER_SCRIPTS = Path("/home/kasadis/portfolio-ai/.claude/skills/browser-automation/scripts")
-SCREENSHOT_DIR = Path("/tmp/criteria-screenshots")
 
 # Auto-verifiable types
 AUTO_VERIFIABLE_TYPES = {"api", "test", "ui"}
@@ -59,8 +59,6 @@ class CriteriaVerifier:
     def __init__(self) -> None:
         """Initialize the verifier."""
         self.conn_mgr = get_connection_manager()
-        # Ensure screenshot directory exists
-        SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
 
     async def verify_criterion(
         self, feature_id: str, criterion: dict[str, Any]
@@ -428,14 +426,16 @@ class CriteriaVerifier:
     async def _verify_ui_criterion(
         self, feature_id: str, criterion: dict
     ) -> dict[str, Any]:
-        """Take screenshot for UI criterion and queue for visual verification.
+        """Capture evidence for UI criterion and queue for visual verification.
 
-        This method does NOT auto-pass. It:
-            1. Checks page returns 200 (not 404/500)
-            2. Takes screenshot
-            3. Marks as pending_visual_review for AI to verify
+        Uses capture-evidence.js to:
+            1. Take full-page screenshot
+            2. Capture console errors/warnings
+            3. Track network failures
+            4. Measure page state (element counts, text sample)
+            5. Record performance metrics
 
-        The AI must then visually inspect the screenshot and mark passed/failed.
+        The AI must then visually inspect the evidence and mark passed/failed.
 
         Parses commands like:
             screenshot /dashboard and verify gauge visible
@@ -456,84 +456,76 @@ class CriteriaVerifier:
                 "verification_output": f"Could not parse URL path: {verification}",
             }
 
-        screenshot_path = SCREENSHOT_DIR / f"{feature_id}-{criterion_id}.png"
         full_url = f"http://192.168.8.233:3000{url_path}"
 
         try:
-            # STEP 1: Check if page returns 200 before taking screenshot
-            page_check = await self._check_page_status(full_url)
-            if not page_check["ok"]:
-                return {
-                    **criterion,
-                    "passed": False,
-                    "verified_at": datetime.now(UTC).isoformat(),
-                    "verified_by": "browser",
-                    "verification_output": f"Page check failed: {page_check['error']}",
-                }
-
-            # STEP 2: Run screenshot script
-            proc = await asyncio.create_subprocess_exec(
-                "node",
-                str(BROWSER_SCRIPTS / "screenshot.js"),
-                full_url,
-                str(screenshot_path),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
+            # Capture evidence using new comprehensive script
+            result = await artifact_manager.capture_evidence(
+                url=full_url,
+                feature_id=feature_id,
+                criterion_id=criterion_id,
             )
 
-            try:
-                stdout, stderr = await asyncio.wait_for(
-                    proc.communicate(), timeout=MAX_UI_TIMEOUT
-                )
-            except TimeoutError:
-                proc.kill()
+            if not result.get("success"):
                 return {
                     **criterion,
                     "passed": False,
                     "verified_at": datetime.now(UTC).isoformat(),
                     "verified_by": "browser",
-                    "verification_output": f"Timeout after {MAX_UI_TIMEOUT}s",
+                    "verification_output": f"Evidence capture failed: {result.get('error', 'Unknown error')}",
                 }
 
-            # STEP 3: Check if screenshot was created
-            if not screenshot_path.exists():
+            # Save artifact record to database
+            version = result.get("version", 1)
+            file_size = sum(f.get("size", 0) for f in result.get("files", []))
+            evidence_data = result.get("evidence", {})
+
+            artifact_manager.save_artifact(
+                feature_id=feature_id,
+                criterion_id=criterion_id,
+                version=version,
+                file_path=f"{feature_id}/{criterion_id}/v{version}",
+                file_size_bytes=file_size,
+                evidence_data=evidence_data,
+            )
+
+            # Auto-detect failures from evidence
+            console_errors = evidence_data.get("console", {}).get("errorCount", 0)
+            network_failures = evidence_data.get("network", {}).get("failedRequests", 0)
+            page_state = evidence_data.get("pageState", {})
+            has_content = page_state.get("hasContent", True)
+            error_messages = page_state.get("keyElements", {}).get("errorMessages", 0)
+
+            # Auto-fail if obvious problems detected
+            if network_failures > 0 or error_messages > 0 or not has_content:
+                failure_reasons = []
+                if network_failures > 0:
+                    failures = evidence_data.get("network", {}).get("failures", [])
+                    failure_reasons.append(f"{network_failures} network failures: {failures[:2]}")
+                if error_messages > 0:
+                    failure_reasons.append(f"{error_messages} error elements visible")
+                if not has_content:
+                    failure_reasons.append("Page has no content")
+
                 return {
                     **criterion,
                     "passed": False,
                     "verified_at": datetime.now(UTC).isoformat(),
-                    "verified_by": "browser",
-                    "verification_output": f"Screenshot not created. stderr: {stderr.decode()[:500]}",
+                    "verified_by": "auto",
+                    "verification_output": f"Auto-failed: {'; '.join(failure_reasons)}. Artifact: {feature_id}/{criterion_id}/v{version}",
                 }
 
-            file_size = screenshot_path.stat().st_size
-            if file_size < 1000:
-                return {
-                    **criterion,
-                    "passed": False,
-                    "verified_at": datetime.now(UTC).isoformat(),
-                    "verified_by": "browser",
-                    "verification_output": f"Screenshot too small ({file_size} bytes)",
-                }
+            # Queue for visual verification
+            artifact_ref = f"{feature_id}/{criterion_id}/v{version}"
+            text_sample = page_state.get("visibleTextSample", "")[:100]
+            warning_note = f" ({console_errors} console errors)" if console_errors > 0 else ""
 
-            # STEP 4: Auto-fail obvious error pages (404 detection)
-            error_detection = await self._detect_error_screenshot(screenshot_path, stdout.decode())
-            if error_detection["is_error"]:
-                return {
-                    **criterion,
-                    "passed": False,
-                    "verified_at": datetime.now(UTC).isoformat(),
-                    "verified_by": "browser",
-                    "verification_output": f"Error page detected: {error_detection['reason']}",
-                }
-
-            # STEP 5: Queue for visual verification - DO NOT AUTO-PASS
-            # AI must visually verify the screenshot shows the expected content
             return {
                 **criterion,
-                "passed": None,  # Explicitly null - requires visual verification
+                "passed": None,  # Requires visual verification
                 "verified_at": datetime.now(UTC).isoformat(),
                 "verified_by": "pending_visual_review",
-                "verification_output": f"NEEDS_VISUAL_REVIEW: {screenshot_path} ({file_size} bytes). Criterion: {criterion.get('criterion', '')[:100]}",
+                "verification_output": f"NEEDS_VISUAL_REVIEW: {artifact_ref} ({file_size} bytes){warning_note}. Preview: {text_sample}",
             }
 
         except Exception as e:
@@ -547,6 +539,10 @@ class CriteriaVerifier:
 
     async def _check_page_status(self, url: str) -> dict[str, Any]:
         """Check if page returns 200 status before taking screenshot.
+
+        DEPRECATED: This method is no longer used. The new capture-evidence.js
+        script handles page status checking via network request tracking.
+        Kept for backward compatibility - will be removed in future version.
 
         Returns:
             Dict with ok=True if page loads, or ok=False with error message
@@ -576,6 +572,11 @@ class CriteriaVerifier:
 
     async def _detect_error_screenshot(self, screenshot_path: Path, script_output: str) -> dict[str, Any]:
         """Detect if screenshot shows an error page.
+
+        DEPRECATED: This method is no longer used. The new capture-evidence.js
+        script captures page state including error messages, network failures,
+        and console errors - providing much better error detection than file size heuristics.
+        Kept for backward compatibility - will be removed in future version.
 
         Checks:
             1. Known error page file sizes (404 pages are often consistent size)
