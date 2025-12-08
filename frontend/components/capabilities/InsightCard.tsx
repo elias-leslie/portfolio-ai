@@ -8,10 +8,8 @@ import { StatusBadge } from "./StatusBadge";
 import { Textarea } from "@/components/ui/textarea";
 import {
   AlertCircle,
-  CheckCircle,
   XCircle,
   Loader2,
-  MessageSquarePlus,
   Plus,
 } from "lucide-react";
 import type { CapabilityInsight } from "@/lib/api/capabilities";
@@ -21,10 +19,9 @@ interface InsightCardProps {
   insight: CapabilityInsight;
   onReview: (
     insightId: number,
-    status: "confirmed" | "dismissed" | "in_progress" | "fixed",
+    status: "dismissed" | "fixed",
     reason: string
   ) => Promise<void>;
-  onAddNote?: (insightId: number) => void;
   onCreateFeature?: (insight: CapabilityInsight) => void;
   isLoading?: boolean;
 }
@@ -32,11 +29,11 @@ interface InsightCardProps {
 /**
  * InsightCard component
  */
-export function InsightCard({ insight, onReview, onAddNote, onCreateFeature, isLoading = false }: InsightCardProps) {
+export function InsightCard({ insight, onReview, onCreateFeature, isLoading = false }: InsightCardProps) {
   const [isReviewing, setIsReviewing] = useState(false);
   const [reviewReason, setReviewReason] = useState("");
 
-  const handleReview = async (status: "confirmed" | "dismissed" | "in_progress" | "fixed") => {
+  const handleReview = async (status: "dismissed" | "fixed") => {
     setIsReviewing(true);
     try {
       await onReview(insight.id, status, reviewReason);
@@ -139,57 +136,28 @@ export function InsightCard({ insight, onReview, onAddNote, onCreateFeature, isL
             disabled={isReviewing || isLoading}
           />
 
-          {/* Action Buttons */}
+          {/* Action Buttons - Simplified: Dismiss + Create Feature only */}
           <div className="flex flex-wrap gap-2">
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => handleReview("confirmed")}
-              disabled={isReviewing || isLoading}
-            >
-              {isReviewing ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <CheckCircle className="mr-2 h-4 w-4" />
-              )}
-              Confirm
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleReview("in_progress")}
-              disabled={isReviewing || isLoading}
-            >
-              <Loader2 className="mr-2 h-4 w-4" />
-              In Progress
-            </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={() => handleReview("dismissed")}
               disabled={isReviewing || isLoading}
             >
-              <XCircle className="mr-2 h-4 w-4" />
+              {isReviewing ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <XCircle className="mr-2 h-4 w-4" />
+              )}
               Dismiss
             </Button>
-            {onAddNote && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onAddNote(insight.id)}
-                disabled={isReviewing || isLoading}
-              >
-                <MessageSquarePlus className="mr-2 h-4 w-4" />
-                Add Note
-              </Button>
-            )}
             {onCreateFeature && (
               <Button
                 variant="secondary"
                 size="sm"
                 onClick={() => onCreateFeature(insight)}
                 disabled={isReviewing || isLoading}
-                title="Create a feature task from this tech debt item"
+                title="Create a feature with tasks from this tech debt item"
               >
                 <Plus className="mr-2 h-4 w-4" />
                 Create Feature

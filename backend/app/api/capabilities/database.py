@@ -78,6 +78,8 @@ def capability_from_row(row: tuple[Any, ...], columns: list[str]) -> CapabilityD
 def insight_from_row(row: tuple[Any, ...], columns: list[str]) -> InsightDict:
     """Convert database row to InsightDict.
 
+    Maps ai_confidence -> confidence for frontend compatibility.
+
     Args:
         row: Database row tuple
         columns: Column names matching row values
@@ -87,10 +89,12 @@ def insight_from_row(row: tuple[Any, ...], columns: list[str]) -> InsightDict:
     """
     result: InsightDict = {}
     for key, value in zip(columns, row, strict=True):
+        # Map ai_confidence to confidence for frontend compatibility
+        output_key = "confidence" if key == "ai_confidence" else key
         if hasattr(value, "isoformat"):
-            result[key] = value.isoformat()  # type: ignore
+            result[output_key] = value.isoformat()  # type: ignore
         else:
-            result[key] = value  # type: ignore
+            result[output_key] = value  # type: ignore
     return result
 
 
