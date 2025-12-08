@@ -8,7 +8,7 @@
  * - Color-coded criticality badges
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   ChevronRight,
   ChevronDown,
@@ -19,15 +19,19 @@ import {
   Target,
   Lightbulb,
   ExternalLink,
+  Cloud,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import type { GapInfo } from "@/lib/api/gaps";
+import { fetchGapProviders, type GapProvidersResponse } from "@/lib/api/sources";
 
 interface GapsListProps {
   gaps: GapInfo[];
   onSelectionChange?: (selectedGapIds: string[]) => void;
+  providerCounts?: Record<string, { count: number; tier: string }>;
 }
 
 /**
@@ -100,6 +104,7 @@ function GapRow({
   isSelected,
   onToggle,
   onSelect,
+  providerCount,
 }: {
   gap: GapInfo;
   rank: number;
@@ -107,12 +112,30 @@ function GapRow({
   isSelected: boolean;
   onToggle: () => void;
   onSelect: (selected: boolean) => void;
+  providerCount?: { count: number; tier: string };
 }) {
+  const [providers, setProviders] = useState<GapProvidersResponse | null>(null);
+  const [loadingProviders, setLoadingProviders] = useState(false);
+  const [providersError, setProvidersError] = useState<string | null>(null);
+
+  const handleFindProviders = async () => {
+    setLoadingProviders(true);
+    setProvidersError(null);
+    try {
+      const result = await fetchGapProviders(gap.gap_id);
+      setProviders(result);
+    } catch (err) {
+      setProvidersError(err instanceof Error ? err.message : "Failed to fetch providers");
+    } finally {
+      setLoadingProviders(false);
+    }
+  };
+
   return (
     <div className="border-b border-border last:border-0">
       {/* Main row */}
       <div
-        className="grid grid-cols-[auto_60px_150px_200px_80px_120px_80px_auto] gap-3 px-4 py-3 hover:bg-surface-muted transition-colors cursor-pointer"
+        className="grid grid-cols-[auto_60px_150px_200px_80px_120px_80px_100px_auto] gap-3 px-4 py-3 hover:bg-surface-muted transition-colors cursor-pointer"
         onClick={onToggle}
       >
         {/* Checkbox + Expand icon */}
@@ -169,6 +192,30 @@ function GapRow({
           <Badge className={getEffortColor(gap.effort)} variant="outline">
             {gap.effort}
           </Badge>
+        </div>
+
+        {/* Provider Count */}
+        <div className="flex items-center">
+          {providerCount ? (
+            providerCount.count > 0 ? (
+              <Badge
+                variant="outline"
+                className={
+                  providerCount.tier === "FREE"
+                    ? "bg-gain/10 text-gain border-gain/20"
+                    : "bg-accent/10 text-accent border-accent/20"
+                }
+              >
+                {providerCount.count} {providerCount.count === 1 ? "provider" : "providers"}
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="bg-loss/10 text-loss border-loss/20">
+                ⚠️ No coverage
+              </Badge>
+            )
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
         </div>
 
         {/* Gap ID */}
@@ -268,6 +315,91 @@ function GapRow({
             </section>
           )}
 
+          {/* Available Providers Section */}
+          <section>
+            <h4 className="flex items-center gap-2 text-sm font-semibold text-text mb-3">
+              <Cloud className="h-4 w-4 text-primary" />
+              Available Data Providers
+            </h4>
+            <div className="rounded-lg border border-border bg-surface p-4">
+              {!providers && !loadingProviders && !providersError && (
+                <div className="flex flex-col items-center gap-3 py-2">
+                  <p className="text-sm text-muted-foreground">
+                    Click to find providers that can fulfill this requirement
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleFindProviders}
+                  >
+                    <Cloud className="mr-2 h-4 w-4" />
+                    Find Providers
+                  </Button>
+                </div>
+              )}
+
+              {loadingProviders && (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  <span className="ml-2 text-sm text-muted-foreground">Searching providers...</span>
+                </div>
+              )}
+
+              {providersError && (
+                <div className="text-sm text-loss py-2">
+                  {providersError}
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className="ml-2"
+                    onClick={handleFindProviders}
+                  >
+                    Retry
+                  </Button>
+                </div>
+              )}
+
+              {providers && providers.providers.length === 0 && (
+                <div className="text-sm text-muted-foreground py-2">
+                  No providers found for this requirement. Custom implementation may be needed.
+                </div>
+              )}
+
+              {providers && providers.providers.length > 0 && (
+                <div className="space-y-3">
+                  {providers.providers.map((provider) => (
+                    <div key={provider.provider} className="rounded-lg border border-border bg-surface-muted p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-text">{provider.provider}</span>
+                          <Badge
+                            variant="outline"
+                            className={provider.tier === "FREE" ? "bg-gain/10 text-gain border-gain/20" : "bg-accent/10 text-accent border-accent/20"}
+                          >
+                            {provider.tier}
+                          </Badge>
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          Priority: {provider.priority}
+                        </span>
+                      </div>
+                      <div className="space-y-1">
+                        {provider.endpoints.map((endpoint, idx) => (
+                          <div key={idx} className="text-xs">
+                            <code className="bg-surface px-1 py-0.5 rounded text-primary">
+                              {endpoint.path || endpoint.endpoint}
+                            </code>
+                            <span className="text-muted-foreground ml-2">{endpoint.description}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+
           {/* Recommendation Section */}
           <section>
             <h4 className="flex items-center gap-2 text-sm font-semibold text-text mb-3">
@@ -296,7 +428,7 @@ function GapRow({
 /**
  * Main GapsList component
  */
-export function GapsList({ gaps, onSelectionChange }: GapsListProps) {
+export function GapsList({ gaps, onSelectionChange, providerCounts }: GapsListProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [selectedGapIds, setSelectedGapIds] = useState<string[]>([]);
 
@@ -337,7 +469,7 @@ export function GapsList({ gaps, onSelectionChange }: GapsListProps) {
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-surface">
       {/* Header */}
-      <div className="grid grid-cols-[auto_60px_150px_200px_80px_120px_80px_auto] gap-3 border-b border-border bg-surface-muted px-4 py-3 text-xs font-medium text-muted-foreground">
+      <div className="grid grid-cols-[auto_60px_150px_200px_80px_120px_80px_100px_auto] gap-3 border-b border-border bg-surface-muted px-4 py-3 text-xs font-medium text-muted-foreground">
         <div className="flex items-center gap-2">
           <Checkbox
             checked={allSelected || someSelected}
@@ -350,6 +482,7 @@ export function GapsList({ gaps, onSelectionChange }: GapsListProps) {
         <div>Priority</div>
         <div>Severity</div>
         <div>Effort</div>
+        <div>Providers</div>
         <div className="text-right">Gap ID</div>
       </div>
 
@@ -364,6 +497,7 @@ export function GapsList({ gaps, onSelectionChange }: GapsListProps) {
             isSelected={selectedGapIds.includes(gap.gap_id)}
             onToggle={() => toggleExpand(gap.gap_id)}
             onSelect={(selected) => toggleSelection(gap.gap_id, selected)}
+            providerCount={providerCounts?.[gap.gap_id]}
           />
         ))}
       </div>

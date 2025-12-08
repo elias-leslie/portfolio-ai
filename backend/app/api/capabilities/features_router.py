@@ -45,6 +45,12 @@ class FeatureCreate(BaseModel):
     description: str | None = None
     task_file: str | None = None
     task_section: str | None = None
+    implementation_notes: dict[str, Any] | None = None  # Structured implementation context
+    # Enhanced fields for task file replacement
+    status: str | None = "pending"  # pending, in_progress, review_needed, deferred, blocked, complete
+    effort: str | None = None  # low, medium, high, very_high
+    source: str | None = None  # user_request, bug_report, audit, tech_debt, gap_analysis, enhancement
+    diagram: str | None = None  # Mermaid or ASCII diagram
 
 
 class FeaturePassesUpdate(BaseModel):
@@ -86,6 +92,11 @@ class TaskResponse(BaseModel):
     completed_by: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
+    # Enhanced fields for task file replacement
+    files: list[str] = []  # Files this subtask modifies
+    notes: str | None = None  # Free-form notes ("DEFERRED - optional", etc.)
+    status: str = "pending"  # pending, in_progress, deferred, blocked, complete
+    effort: str | None = None  # trivial, low, medium, high
 
 
 class TaskCreate(BaseModel):
@@ -94,6 +105,10 @@ class TaskCreate(BaseModel):
     task_id: str
     description: str
     order_num: int | None = None  # Auto-calculated if not provided
+    # Enhanced fields
+    files: list[str] | None = None  # Files this subtask modifies
+    notes: str | None = None  # Implementation notes
+    effort: str | None = None  # trivial, low, medium, high
 
 
 class TaskToggle(BaseModel):
@@ -147,6 +162,12 @@ class FeatureResponse(BaseModel):
     effective_priority: int = 5  # Calculated priority (1-5)
     acceptance_criteria: list[AcceptanceCriterion] = []  # Testable criteria
     vision_goals: list[str] = []  # Links to VISION.md goals
+    implementation_notes: dict[str, Any] = {}  # Structured implementation context
+    # Enhanced fields for task file replacement
+    status: str = "pending"  # Work status
+    effort: str | None = None  # Effort estimate
+    source: str | None = None  # Origin
+    diagram: str | None = None  # Architecture diagram
 
 
 class FeaturesListResponse(BaseModel):
@@ -231,6 +252,11 @@ def _feature_to_response(f: dict[str, Any]) -> FeatureResponse:
         effective_priority=f.get("effective_priority", 5),
         acceptance_criteria=acceptance_criteria,
         vision_goals=f.get("vision_goals", []),
+        implementation_notes=f.get("implementation_notes", {}),
+        status=f.get("status", "pending"),
+        effort=f.get("effort"),
+        source=f.get("source"),
+        diagram=f.get("diagram"),
     )
 
 
@@ -642,6 +668,7 @@ async def create_feature(feature: FeatureCreate) -> dict[str, Any]:
             description=feature.description,
             task_file=feature.task_file,
             task_section=feature.task_section,
+            implementation_notes=feature.implementation_notes,
         )
 
         if not success:
@@ -1157,6 +1184,424 @@ async def update_feature_vision_goals(
         logger.error(
             "update_feature_vision_goals_failed", feature_id=feature_id, error=str(e)
         )
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+class ImplementationNotesUpdate(BaseModel):
+    """Request model for updating implementation notes."""
+
+    implementation_notes: dict[str, Any]  # Full replacement of notes
+
+
+@router.patch("/{feature_id}/implementation-notes", response_model=dict[str, Any])
+async def update_feature_implementation_notes(
+    feature_id: str, update: ImplementationNotesUpdate
+) -> dict[str, Any]:
+    """Update the implementation notes for a feature.
+
+    Implementation notes store structured context for task files replacement:
+    - steps: List of implementation steps
+    - files: List of file paths to modify
+    - examples: Code examples or templates
+    - blockers: Known blockers or dependencies
+    - notes: Free-form notes
+    - context: Background/motivation
+
+    Args:
+        feature_id: Feature ID (e.g., FEAT-001)
+        update: New implementation notes dict
+    """
+    conn_mgr = get_connection_manager()
+
+    try:
+        with conn_mgr.connection() as conn:
+            result = conn.execute(
+                """
+                UPDATE feature_capabilities
+                SET implementation_notes = %s::jsonb, updated_at = NOW()
+                WHERE feature_id = %s
+                RETURNING feature_id, implementation_notes
+                """,
+                (json.dumps(update.implementation_notes), feature_id),
+            ).fetchone()
+            conn.commit()
+
+            if not result:
+                raise HTTPException(
+                    status_code=404, detail=f"Feature {feature_id} not found"
+                )
+
+        logger.info(
+            "feature_implementation_notes_updated",
+            feature_id=feature_id,
+        )
+
+        return {
+            "status": "updated",
+            "feature_id": feature_id,
+            "implementation_notes": result[1],
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "update_feature_implementation_notes_failed", feature_id=feature_id, error=str(e)
+        )
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+class FeatureStatusUpdate(BaseModel):
+    """Request model for updating feature status."""
+
+    status: str  # pending, in_progress, review_needed, deferred, blocked, complete
+
+
+@router.patch("/{feature_id}/status", response_model=dict[str, Any])
+async def update_feature_status(
+    feature_id: str, update: FeatureStatusUpdate
+) -> dict[str, Any]:
+    """Update the work status of a feature.
+
+    Status values:
+    - pending: Not started
+    - in_progress: Actively being worked on
+    - review_needed: Implementation done, needs review
+    - deferred: Intentionally postponed
+    - blocked: Waiting on dependencies
+    - complete: Done (use with passes=true for verified)
+    """
+    valid_statuses = {"pending", "in_progress", "review_needed", "deferred", "blocked", "complete"}
+    if update.status not in valid_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid status '{update.status}'. Must be one of: {valid_statuses}",
+        )
+
+    conn_mgr = get_connection_manager()
+
+    try:
+        with conn_mgr.connection() as conn:
+            result = conn.execute(
+                """
+                UPDATE feature_capabilities
+                SET status = %s, updated_at = NOW()
+                WHERE feature_id = %s
+                RETURNING feature_id, status
+                """,
+                (update.status, feature_id),
+            ).fetchone()
+            conn.commit()
+
+            if not result:
+                raise HTTPException(
+                    status_code=404, detail=f"Feature {feature_id} not found"
+                )
+
+        logger.info("feature_status_updated", feature_id=feature_id, status=update.status)
+
+        return {"status": "updated", "feature_id": feature_id, "new_status": result[1]}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("update_feature_status_failed", feature_id=feature_id, error=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+class FeatureEffortUpdate(BaseModel):
+    """Request model for updating feature effort."""
+
+    effort: str  # low, medium, high, very_high
+
+
+@router.patch("/{feature_id}/effort", response_model=dict[str, Any])
+async def update_feature_effort(
+    feature_id: str, update: FeatureEffortUpdate
+) -> dict[str, Any]:
+    """Update the effort estimate of a feature.
+
+    Effort values:
+    - low: <2 hours, straightforward
+    - medium: 2-8 hours, multiple components
+    - high: 1-3 days, complex dependencies
+    - very_high: 3+ days, architectural changes
+    """
+    valid_efforts = {"low", "medium", "high", "very_high"}
+    if update.effort not in valid_efforts:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid effort '{update.effort}'. Must be one of: {valid_efforts}",
+        )
+
+    conn_mgr = get_connection_manager()
+
+    try:
+        with conn_mgr.connection() as conn:
+            result = conn.execute(
+                """
+                UPDATE feature_capabilities
+                SET effort = %s, updated_at = NOW()
+                WHERE feature_id = %s
+                RETURNING feature_id, effort
+                """,
+                (update.effort, feature_id),
+            ).fetchone()
+            conn.commit()
+
+            if not result:
+                raise HTTPException(
+                    status_code=404, detail=f"Feature {feature_id} not found"
+                )
+
+        logger.info("feature_effort_updated", feature_id=feature_id, effort=update.effort)
+
+        return {"status": "updated", "feature_id": feature_id, "effort": result[1]}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("update_feature_effort_failed", feature_id=feature_id, error=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+class FeatureDiagramUpdate(BaseModel):
+    """Request model for updating feature diagram."""
+
+    diagram: str  # Mermaid or ASCII diagram
+
+
+@router.patch("/{feature_id}/diagram", response_model=dict[str, Any])
+async def update_feature_diagram(
+    feature_id: str, update: FeatureDiagramUpdate
+) -> dict[str, Any]:
+    """Update the architecture/flow diagram for a feature.
+
+    Recommended for features touching 3+ components.
+    Supports Mermaid syntax or ASCII art.
+    """
+    conn_mgr = get_connection_manager()
+
+    try:
+        with conn_mgr.connection() as conn:
+            result = conn.execute(
+                """
+                UPDATE feature_capabilities
+                SET diagram = %s, updated_at = NOW()
+                WHERE feature_id = %s
+                RETURNING feature_id
+                """,
+                (update.diagram, feature_id),
+            ).fetchone()
+            conn.commit()
+
+            if not result:
+                raise HTTPException(
+                    status_code=404, detail=f"Feature {feature_id} not found"
+                )
+
+        logger.info("feature_diagram_updated", feature_id=feature_id)
+
+        return {"status": "updated", "feature_id": feature_id}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("update_feature_diagram_failed", feature_id=feature_id, error=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+# =========================================================================
+# Feature Dependencies Endpoints
+# =========================================================================
+
+
+class DependencyCreate(BaseModel):
+    """Request model for creating a dependency."""
+
+    depends_on_feature_id: str  # The feature this one depends on
+    dependency_type: str = "blocks"  # blocks, soft, related
+    notes: str | None = None
+
+
+class DependencyResponse(BaseModel):
+    """Response model for a dependency."""
+
+    id: int
+    feature_id: str
+    depends_on_feature_id: str
+    depends_on_name: str
+    depends_on_status: str | None
+    depends_on_passes: bool | None
+    dependency_type: str
+    notes: str | None
+    is_satisfied: bool
+
+
+@router.get("/{feature_id}/dependencies", response_model=list[DependencyResponse])
+async def get_feature_dependencies(feature_id: str) -> list[DependencyResponse]:
+    """Get all dependencies for a feature (what it depends on)."""
+    conn_mgr = get_connection_manager()
+
+    try:
+        with conn_mgr.connection() as conn:
+            # First verify feature exists
+            feature_check = conn.execute(
+                "SELECT id FROM feature_capabilities WHERE feature_id = %s",
+                (feature_id,),
+            ).fetchone()
+
+            if not feature_check:
+                raise HTTPException(
+                    status_code=404, detail=f"Feature {feature_id} not found"
+                )
+
+            # Get dependencies via the view
+            rows = conn.execute(
+                """
+                SELECT id, feature, depends_on, depends_on_name, depends_on_status,
+                       depends_on_passes, dependency_type, notes, is_satisfied
+                FROM feature_dependency_view
+                WHERE feature = %s
+                """,
+                (feature_id,),
+            ).fetchall()
+
+        return [
+            DependencyResponse(
+                id=row[0],
+                feature_id=row[1],
+                depends_on_feature_id=row[2],
+                depends_on_name=row[3],
+                depends_on_status=row[4],
+                depends_on_passes=row[5],
+                dependency_type=row[6],
+                notes=row[7],
+                is_satisfied=row[8],
+            )
+            for row in rows
+        ]
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("get_feature_dependencies_failed", feature_id=feature_id, error=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.post("/{feature_id}/dependencies", response_model=dict[str, Any])
+async def add_feature_dependency(
+    feature_id: str, dependency: DependencyCreate
+) -> dict[str, Any]:
+    """Add a dependency to a feature.
+
+    dependency_type values:
+    - blocks: Hard dependency - depends_on must complete first
+    - soft: Nice to have completed first
+    - related: Just related, no ordering requirement
+    """
+    valid_types = {"blocks", "soft", "related"}
+    if dependency.dependency_type not in valid_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid dependency_type '{dependency.dependency_type}'. Must be one of: {valid_types}",
+        )
+
+    conn_mgr = get_connection_manager()
+
+    try:
+        with conn_mgr.connection() as conn:
+            # Get both feature IDs
+            feature_row = conn.execute(
+                "SELECT id FROM feature_capabilities WHERE feature_id = %s",
+                (feature_id,),
+            ).fetchone()
+            depends_on_row = conn.execute(
+                "SELECT id FROM feature_capabilities WHERE feature_id = %s",
+                (dependency.depends_on_feature_id,),
+            ).fetchone()
+
+            if not feature_row:
+                raise HTTPException(
+                    status_code=404, detail=f"Feature {feature_id} not found"
+                )
+            if not depends_on_row:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Depends-on feature {dependency.depends_on_feature_id} not found",
+                )
+
+            # Insert dependency
+            conn.execute(
+                """
+                INSERT INTO feature_dependencies (feature_id, depends_on_id, dependency_type, notes)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (feature_id, depends_on_id) DO UPDATE
+                SET dependency_type = EXCLUDED.dependency_type, notes = EXCLUDED.notes
+                """,
+                (feature_row[0], depends_on_row[0], dependency.dependency_type, dependency.notes),
+            )
+            conn.commit()
+
+        logger.info(
+            "feature_dependency_added",
+            feature_id=feature_id,
+            depends_on=dependency.depends_on_feature_id,
+            type=dependency.dependency_type,
+        )
+
+        return {
+            "status": "created",
+            "feature_id": feature_id,
+            "depends_on": dependency.depends_on_feature_id,
+            "dependency_type": dependency.dependency_type,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("add_feature_dependency_failed", feature_id=feature_id, error=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.delete("/{feature_id}/dependencies/{depends_on_feature_id}")
+async def remove_feature_dependency(
+    feature_id: str, depends_on_feature_id: str
+) -> dict[str, Any]:
+    """Remove a dependency from a feature."""
+    conn_mgr = get_connection_manager()
+
+    try:
+        with conn_mgr.connection() as conn:
+            result = conn.execute(
+                """
+                DELETE FROM feature_dependencies
+                WHERE feature_id = (SELECT id FROM feature_capabilities WHERE feature_id = %s)
+                AND depends_on_id = (SELECT id FROM feature_capabilities WHERE feature_id = %s)
+                RETURNING id
+                """,
+                (feature_id, depends_on_feature_id),
+            ).fetchone()
+            conn.commit()
+
+            if not result:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Dependency {feature_id} -> {depends_on_feature_id} not found",
+                )
+
+        logger.info(
+            "feature_dependency_removed",
+            feature_id=feature_id,
+            depends_on=depends_on_feature_id,
+        )
+
+        return {"status": "deleted", "feature_id": feature_id, "depends_on": depends_on_feature_id}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("remove_feature_dependency_failed", feature_id=feature_id, error=str(e))
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 

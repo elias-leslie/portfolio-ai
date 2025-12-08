@@ -46,10 +46,9 @@ def daily_rules_validation() -> dict[str, Any]:
         report = asyncio.run(validator.validate_rules())
 
         # Store validation report in database
-        with get_connection_manager().connection() as conn:
-            with conn._conn.cursor() as cur:
-                cur.execute(
-                    """
+        with get_connection_manager().connection() as conn, conn._conn.cursor() as cur:
+            cur.execute(
+                """
                     INSERT INTO rules_validation_reports (
                         rules_version,
                         validation_time,
@@ -62,33 +61,33 @@ def daily_rules_validation() -> dict[str, Any]:
                         summary
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
-                    (
-                        report.rules_version,
-                        report.timestamp,
-                        report.overall_status,
-                        sum(1 for e in report.errors if e.severity == "critical"),
-                        sum(1 for e in report.errors if e.severity == "warning"),
-                        sum(1 for e in report.errors if e.severity == "info"),
-                        Json(
-                            [
-                                {
-                                    "severity": e.severity,
-                                    "category": e.category,
-                                    "field_path": e.field_path,
-                                    "message": e.message,
-                                    "current_value": str(e.current_value)
-                                    if e.current_value is not None
-                                    else None,
-                                    "expected_range": e.expected_range,
-                                }
-                                for e in report.errors
-                            ]
-                        ),
-                        Json([]),  # Recommendations filled by weekly task
-                        report.summary,
+                (
+                    report.rules_version,
+                    report.timestamp,
+                    report.overall_status,
+                    sum(1 for e in report.errors if e.severity == "critical"),
+                    sum(1 for e in report.errors if e.severity == "warning"),
+                    sum(1 for e in report.errors if e.severity == "info"),
+                    Json(
+                        [
+                            {
+                                "severity": e.severity,
+                                "category": e.category,
+                                "field_path": e.field_path,
+                                "message": e.message,
+                                "current_value": str(e.current_value)
+                                if e.current_value is not None
+                                else None,
+                                "expected_range": e.expected_range,
+                            }
+                            for e in report.errors
+                        ]
                     ),
-                )
-                conn._conn.commit()
+                    Json([]),  # Recommendations filled by weekly task
+                    report.summary,
+                ),
+            )
+            conn._conn.commit()
 
         # Log results
         if report.overall_status == "valid":
@@ -208,10 +207,9 @@ def weekly_optimization_review() -> dict[str, Any]:
         )
 
         # Store recommendations in database (update most recent validation report)
-        with get_connection_manager().connection() as conn:
-            with conn._conn.cursor() as cur:
-                cur.execute(
-                    """
+        with get_connection_manager().connection() as conn, conn._conn.cursor() as cur:
+            cur.execute(
+                """
                     UPDATE rules_validation_reports
                     SET
                         recommendations = %s,
@@ -222,26 +220,26 @@ def weekly_optimization_review() -> dict[str, Any]:
                         LIMIT 1
                     )
                     """,
-                    (
-                        Json(
-                            [
-                                {
-                                    "priority": r.priority,
-                                    "category": r.category,
-                                    "field_path": r.field_path,
-                                    "recommendation": r.recommendation,
-                                    "rationale": r.rationale,
-                                    "suggested_value": str(r.suggested_value)
-                                    if r.suggested_value is not None
-                                    else None,
-                                }
-                                for r in recommendations
-                            ]
-                        ),
-                        Json(performance_data) if performance_data else None,
+                (
+                    Json(
+                        [
+                            {
+                                "priority": r.priority,
+                                "category": r.category,
+                                "field_path": r.field_path,
+                                "recommendation": r.recommendation,
+                                "rationale": r.rationale,
+                                "suggested_value": str(r.suggested_value)
+                                if r.suggested_value is not None
+                                else None,
+                            }
+                            for r in recommendations
+                        ]
                     ),
-                )
-                conn._conn.commit()
+                    Json(performance_data) if performance_data else None,
+                ),
+            )
+            conn._conn.commit()
 
         if recommendations:
             logger.info(

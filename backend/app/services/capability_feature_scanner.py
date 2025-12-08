@@ -96,7 +96,12 @@ class FeatureScanner:
                     COALESCE(f.test_count, 0) as test_count,
                     f.priority,
                     COALESCE(f.acceptance_criteria, '[]'::jsonb) as acceptance_criteria,
-                    COALESCE(f.vision_goals, '{}') as vision_goals
+                    COALESCE(f.vision_goals, '{}') as vision_goals,
+                    COALESCE(f.implementation_notes, '{}'::jsonb) as implementation_notes,
+                    COALESCE(f.status, 'pending') as status,
+                    f.effort,
+                    f.source,
+                    f.diagram
                 FROM feature_capabilities f
                 LEFT JOIN (
                     SELECT
@@ -152,6 +157,11 @@ class FeatureScanner:
             priority,
             acceptance_criteria,
             vision_goals,
+            implementation_notes,
+            status,
+            effort,
+            source,
+            diagram,
         ) = row
 
         # Use DB tasks if available (all-in-DB approach)
@@ -165,7 +175,7 @@ class FeatureScanner:
             task_rows = conn.execute(
                 """
                 SELECT task_id, description, completed, order_num,
-                       completed_at, completed_by
+                       completed_at, completed_by, files, notes, status, effort
                 FROM feature_tasks
                 WHERE feature_id = %s
                 ORDER BY order_num, task_id
@@ -180,6 +190,10 @@ class FeatureScanner:
                     "order_num": r[3],
                     "completed_at": r[4],
                     "completed_by": r[5],
+                    "files": r[6] if r[6] else [],
+                    "notes": r[7],
+                    "status": r[8] or "pending",
+                    "effort": r[9],
                 }
                 for r in task_rows
             ]
@@ -250,6 +264,11 @@ class FeatureScanner:
             "effective_priority": effective_priority,
             "acceptance_criteria": acceptance_criteria if acceptance_criteria else [],
             "vision_goals": vision_goals if vision_goals else [],
+            "implementation_notes": implementation_notes if implementation_notes else {},
+            "status": status or "pending",
+            "effort": effort,
+            "source": source,
+            "diagram": diagram,
         }
 
     def _parse_task_section(
@@ -444,6 +463,11 @@ class FeatureScanner:
         description: str | None = None,
         task_file: str | None = None,
         task_section: str | None = None,
+        implementation_notes: dict | None = None,
+        status: str = "pending",
+        effort: str | None = None,
+        source: str | None = None,
+        diagram: str | None = None,
     ) -> bool:
         """Add a new feature to the registry.
 
@@ -455,12 +479,19 @@ class FeatureScanner:
             name: Feature name
             category: Category (Dashboard, Watchlist, etc.)
             description: Optional description
-            task_file: Optional path to task file
-            task_section: Optional section in task file
+            task_file: Optional path to task file (deprecated)
+            task_section: Optional section in task file (deprecated)
+            implementation_notes: Structured implementation context
+            status: Work status (pending, in_progress, etc.)
+            effort: Effort estimate (low, medium, high, very_high)
+            source: Origin (user_request, audit, etc.)
+            diagram: Architecture/flow diagram (Mermaid or ASCII)
 
         Returns:
             True if insert succeeded, False otherwise
         """
+        import json
+
         logger.info(
             "adding_feature",
             feature_id=feature_id,
@@ -475,12 +506,25 @@ class FeatureScanner:
                     INSERT INTO feature_capabilities (
                         feature_id, name, category, description,
                         task_file, task_section, passes, health_status,
+                        implementation_notes, status, effort, source, diagram,
                         created_at, updated_at
                     ) VALUES (
-                        %s, %s, %s, %s, %s, %s, NULL, 'active', NOW(), NOW()
+                        %s, %s, %s, %s, %s, %s, NULL, 'active', %s, %s, %s, %s, %s, NOW(), NOW()
                     )
                     """,
-                    (feature_id, name, category, description, task_file, task_section),
+                    (
+                        feature_id,
+                        name,
+                        category,
+                        description,
+                        task_file,
+                        task_section,
+                        json.dumps(implementation_notes) if implementation_notes else "{}",
+                        status or "pending",
+                        effort,
+                        source,
+                        diagram,
+                    ),
                 )
                 conn.commit()
                 return True
@@ -591,7 +635,8 @@ class FeatureScanner:
             task_rows = conn.execute(
                 """
                 SELECT id, task_id, description, completed, order_num,
-                       completed_at, completed_by, created_at, updated_at
+                       completed_at, completed_by, created_at, updated_at,
+                       files, notes, status, effort
                 FROM feature_tasks
                 WHERE feature_id = %s
                 ORDER BY order_num, task_id
@@ -610,6 +655,10 @@ class FeatureScanner:
                     "completed_by": r[6],
                     "created_at": r[7],
                     "updated_at": r[8],
+                    "files": r[9] if r[9] else [],
+                    "notes": r[10],
+                    "status": r[11] or "pending",
+                    "effort": r[12],
                 }
                 for r in task_rows
             ]
@@ -620,6 +669,9 @@ class FeatureScanner:
         task_id: str,
         description: str,
         order_num: int | None = None,
+        files: list[str] | None = None,
+        notes: str | None = None,
+        effort: str | None = None,
     ) -> bool:
         """Add a subtask to a feature.
 
@@ -628,6 +680,9 @@ class FeatureScanner:
             task_id: Task ID within feature (e.g., "1.1", "2.0")
             description: What needs to be done
             order_num: Display order (auto-calculated if None)
+            files: List of files this subtask modifies
+            notes: Implementation notes
+            effort: Effort estimate (trivial, low, medium, high)
 
         Returns:
             True if insert succeeded, False otherwise
@@ -661,10 +716,11 @@ class FeatureScanner:
                     """
                     INSERT INTO feature_tasks (
                         feature_id, task_id, description, order_num,
-                        completed, created_at, updated_at
-                    ) VALUES (%s, %s, %s, %s, false, NOW(), NOW())
+                        completed, files, notes, status, effort,
+                        created_at, updated_at
+                    ) VALUES (%s, %s, %s, %s, false, %s, %s, 'pending', %s, NOW(), NOW())
                     """,
-                    (db_id, task_id, description, order_num),
+                    (db_id, task_id, description, order_num, files or [], notes, effort),
                 )
                 conn.commit()
                 return True

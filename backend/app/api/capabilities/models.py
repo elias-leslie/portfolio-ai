@@ -49,8 +49,10 @@ class InsightCreateRequest(BaseModel):
     capability_id: int | None = Field(default=None, description="Capability ID (optional)")
     table_name: str | None = Field(default=None, description="Table name for quick reference")
     insight_type: str = Field(
-        description="Insight type: broken_dependency, missing_data, data_quality, "
-        "missing_capability, performance"
+        description="Insight type. Original: broken_dependency, missing_data, data_quality, "
+        "missing_capability, performance, freshness. "
+        "Tech debt: dead_code, orphaned_infra, complexity, dry_violation, "
+        "test_coverage, dependency_issue, security_concern"
     )
     severity: str = Field(description="Severity: low, medium, high, critical")
     finding: str = Field(description="Concise description of the finding")

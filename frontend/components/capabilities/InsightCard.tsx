@@ -12,6 +12,7 @@ import {
   XCircle,
   Loader2,
   MessageSquarePlus,
+  Plus,
 } from "lucide-react";
 import type { CapabilityInsight } from "@/lib/api/capabilities";
 import { formatDistanceToNow } from "date-fns";
@@ -24,13 +25,14 @@ interface InsightCardProps {
     reason: string
   ) => Promise<void>;
   onAddNote?: (insightId: number) => void;
+  onCreateFeature?: (insight: CapabilityInsight) => void;
   isLoading?: boolean;
 }
 
 /**
  * InsightCard component
  */
-export function InsightCard({ insight, onReview, onAddNote, isLoading = false }: InsightCardProps) {
+export function InsightCard({ insight, onReview, onAddNote, onCreateFeature, isLoading = false }: InsightCardProps) {
   const [isReviewing, setIsReviewing] = useState(false);
   const [reviewReason, setReviewReason] = useState("");
 
@@ -179,6 +181,18 @@ export function InsightCard({ insight, onReview, onAddNote, isLoading = false }:
               >
                 <MessageSquarePlus className="mr-2 h-4 w-4" />
                 Add Note
+              </Button>
+            )}
+            {onCreateFeature && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => onCreateFeature(insight)}
+                disabled={isReviewing || isLoading}
+                title="Create a feature task from this tech debt item"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Create Feature
               </Button>
             )}
           </div>

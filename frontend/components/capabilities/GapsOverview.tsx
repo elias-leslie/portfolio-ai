@@ -1,10 +1,10 @@
 /**
- * Trading Intelligence Gaps Overview
+ * Trading Requirements Overview (formerly "Gaps")
  *
- * Displays gap analysis summary with:
- * - Total gaps by criticality (P0/P1/P2/P3)
+ * Displays trading data requirements analysis:
+ * - Total requirements by criticality (P0/P1/P2/P3)
  * - Coverage % per analysis type
- * - TOP 10 priority gaps
+ * - TOP 10 priority requirements to fill
  */
 
 "use client";
@@ -13,6 +13,7 @@ import { useState } from "react";
 import { AlertTriangle, TrendingUp, CheckCircle2, XCircle, List, FileText, Loader2, BarChart3 } from "lucide-react";
 import type { GapSummary, GapInfo, WatchlistGaps } from "@/lib/api/gaps";
 import { generateTaskList, fetchWatchlistGaps } from "@/lib/api/gaps";
+import { fetchGapProviderCounts } from "@/lib/api/sources";
 import { GapsList } from "./GapsList";
 import { WatchlistCoverage } from "./WatchlistCoverage";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,12 @@ export function GapsOverview({ data }: GapsOverviewProps) {
     queryKey: ["watchlist-gaps"],
     queryFn: fetchWatchlistGaps,
     enabled: showWatchlistCoverage,
+  });
+
+  // Fetch provider counts for all gaps (batch - one API call)
+  const { data: providerCounts } = useQuery({
+    queryKey: ["gap-provider-counts"],
+    queryFn: fetchGapProviderCounts,
   });
 
   // Get all gaps from analysis types
@@ -115,11 +122,11 @@ export function GapsOverview({ data }: GapsOverviewProps) {
     <div className="space-y-6">
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {/* Total Gaps */}
+        {/* Total Requirements */}
         <div className="rounded-lg border border-border bg-surface p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Total Gaps</p>
+              <p className="text-sm text-muted-foreground">Total Requirements</p>
               <p className="text-2xl font-bold mt-1">{data.total_gaps}</p>
             </div>
             <AlertTriangle className="h-8 w-8 text-muted-foreground opacity-50" />
@@ -306,6 +313,7 @@ export function GapsOverview({ data }: GapsOverviewProps) {
               <GapsList
                 gaps={allGaps}
                 onSelectionChange={setSelectedGapIds}
+                providerCounts={providerCounts}
               />
 
               {/* Generate Task List Button */}

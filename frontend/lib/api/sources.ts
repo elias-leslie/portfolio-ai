@@ -147,3 +147,37 @@ export async function fetchDataRouting(dataType: string): Promise<{ data_type: s
   }
   return response.json();
 }
+
+/**
+ * Get provider counts for all gaps (batch fetch).
+ * Returns a map of gap_id -> { count, providers } for efficient inline display.
+ */
+export async function fetchGapProviderCounts(): Promise<Record<string, { count: number; tier: string }>> {
+  const sourcesData = await fetchSources();
+
+  // Build a map of gap_id -> provider info
+  const gapCounts: Record<string, { count: number; hasFree: boolean }> = {};
+
+  for (const provider of sourcesData.providers) {
+    for (const gapId of provider.gap_coverage || []) {
+      if (!gapCounts[gapId]) {
+        gapCounts[gapId] = { count: 0, hasFree: false };
+      }
+      gapCounts[gapId].count++;
+      if (provider.tier === "FREE") {
+        gapCounts[gapId].hasFree = true;
+      }
+    }
+  }
+
+  // Convert to final format
+  const result: Record<string, { count: number; tier: string }> = {};
+  for (const [gapId, data] of Object.entries(gapCounts)) {
+    result[gapId] = {
+      count: data.count,
+      tier: data.hasFree ? "FREE" : "PREMIUM",
+    };
+  }
+
+  return result;
+}

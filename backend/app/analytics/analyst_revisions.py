@@ -41,7 +41,7 @@ class AnalystRevision(TypedDict):
     fetched_at: datetime
 
 
-def _get_finnhub_key(storage: "PortfolioStorage") -> str | None:
+def _get_finnhub_key(storage: PortfolioStorage) -> str | None:
     """Get Finnhub API key from database."""
     try:
         with storage.connection() as conn:

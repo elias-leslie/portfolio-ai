@@ -224,7 +224,7 @@ def cache_response(
             # Cache-Control: no-store prevents browser caching, server-side TTL handles freshness
             cache_headers = {
                 "X-Cache-Hit": "false",
-                "Cache-Control": f"no-store, max-age=0",
+                "Cache-Control": "no-store, max-age=0",
             }
             if isinstance(result, Response):
                 for key, value in cache_headers.items():

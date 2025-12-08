@@ -205,4 +205,4 @@ def get_trading_rules() -> dict[str, Any]:
         }
     except Exception as e:
         logger.error(f"Failed to load trading rules: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to load trading rules: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to load trading rules: {e!s}")

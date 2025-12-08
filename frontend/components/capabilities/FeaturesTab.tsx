@@ -36,6 +36,9 @@ import {
   Play,
   Target,
   Eye,
+  BookOpen,
+  Code,
+  AlertTriangle,
 } from "lucide-react";
 import { EvidenceViewerModal } from "./EvidenceViewerModal";
 import {
@@ -54,6 +57,11 @@ interface Task {
   order_num: number;
   completed_at: string | null;
   completed_by: string | null;
+  // Enhanced fields
+  files: string[];
+  notes: string | null;
+  status: string;
+  effort: string | null;
 }
 
 // Acceptance Criterion interface (matches backend AcceptanceCriterion model)
@@ -67,6 +75,16 @@ interface AcceptanceCriterion {
   verified_at: string | null;
   verified_by: string | null; // auto, manual, pytest, browser
   verification_output: string | null;
+}
+
+// Implementation Notes interface for structured task file replacement
+interface ImplementationNotes {
+  steps?: string[];
+  files?: string[];
+  examples?: { code?: string; description?: string };
+  blockers?: string[];
+  notes?: string;
+  context?: string;
 }
 
 interface Feature {
@@ -95,6 +113,12 @@ interface Feature {
   effective_priority: number;
   acceptance_criteria: AcceptanceCriterion[];
   vision_goals: string[];
+  implementation_notes: ImplementationNotes;
+  // Enhanced fields for task file replacement
+  status: string;
+  effort: string | null;
+  source: string | null;
+  diagram: string | null;
 }
 
 interface FeaturesResponse {
@@ -406,6 +430,62 @@ export function FeaturesTab() {
     );
   };
 
+  // Render effort badge
+  const renderEffortBadge = (effort: string | null) => {
+    if (!effort) return <span className="text-xs text-muted-foreground">—</span>;
+    const colors: Record<string, { bg: string; text: string; border: string }> = {
+      low: { bg: "#22c55e20", text: "#4ade80", border: "#22c55e40" },
+      medium: { bg: "#eab30820", text: "#facc15", border: "#eab30840" },
+      high: { bg: "#f9731620", text: "#fb923c", border: "#f9731640" },
+      very_high: { bg: "#ef444420", text: "#f87171", border: "#ef444440" },
+    };
+    const color = colors[effort] || colors.medium;
+    const labels: Record<string, string> = {
+      low: "L",
+      medium: "M",
+      high: "H",
+      very_high: "VH",
+    };
+    return (
+      <span
+        className="text-[10px] px-1 py-0.5 rounded border font-medium"
+        style={{ backgroundColor: color.bg, color: color.text, borderColor: color.border }}
+        title={`Effort: ${effort}`}
+      >
+        {labels[effort] || effort}
+      </span>
+    );
+  };
+
+  // Render status badge
+  const renderStatusBadge = (status: string) => {
+    const colors: Record<string, { bg: string; text: string; border: string }> = {
+      pending: { bg: "#71717a20", text: "#a1a1aa", border: "#71717a40" },
+      in_progress: { bg: "#3b82f620", text: "#60a5fa", border: "#3b82f640" },
+      review_needed: { bg: "#eab30820", text: "#facc15", border: "#eab30840" },
+      deferred: { bg: "#8b5cf620", text: "#a78bfa", border: "#8b5cf640" },
+      blocked: { bg: "#ef444420", text: "#f87171", border: "#ef444440" },
+      complete: { bg: "#22c55e20", text: "#4ade80", border: "#22c55e40" },
+    };
+    const color = colors[status] || colors.pending;
+    const labels: Record<string, string> = {
+      pending: "Pending",
+      in_progress: "In Progress",
+      review_needed: "Review",
+      deferred: "Deferred",
+      blocked: "Blocked",
+      complete: "Complete",
+    };
+    return (
+      <span
+        className="text-[10px] px-1.5 py-0.5 rounded border"
+        style={{ backgroundColor: color.bg, color: color.text, borderColor: color.border }}
+      >
+        {labels[status] || status}
+      </span>
+    );
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -602,12 +682,12 @@ export function FeaturesTab() {
               <TableRow>
                 <TableHead className="px-2 w-20">ID</TableHead>
                 <TableHead className="px-2 w-10 text-center">P</TableHead>
+                <TableHead className="px-2 w-8 text-center">E</TableHead>
                 <TableHead className="px-2 w-40">Name</TableHead>
                 <TableHead className="px-2 w-24">Category</TableHead>
-                <TableHead className="px-2 w-32">Layers</TableHead>
-                <TableHead className="px-2 w-12 text-center">Tests</TableHead>
+                <TableHead className="px-2 w-20">Work</TableHead>
                 <TableHead className="px-2 w-14 text-center">Criteria</TableHead>
-                <TableHead className="px-2 w-24">Status</TableHead>
+                <TableHead className="px-2 w-24">Verified</TableHead>
                 <TableHead className="px-2 w-20 text-right">Progress</TableHead>
               </TableRow>
             </TableHeader>
@@ -650,6 +730,9 @@ export function FeaturesTab() {
                       <TableCell className="px-2 align-top py-2 w-10 text-center">
                         {renderPriorityBadge(feature.priority, feature.effective_priority)}
                       </TableCell>
+                      <TableCell className="px-2 align-top py-2 w-8 text-center">
+                        {renderEffortBadge(feature.effort)}
+                      </TableCell>
                       <TableCell className="px-2 align-top py-2 w-40">
                         <div className="flex items-center gap-1">
                           {feature.needs_review && (
@@ -681,46 +764,8 @@ export function FeaturesTab() {
                           );
                         })()}
                       </TableCell>
-                      <TableCell className="px-2 align-top py-2 w-32">
-                        <div className="flex flex-wrap gap-0.5">
-                          {feature.layers?.map((layer) => {
-                            const result = feature.layer_results?.[layer];
-                            // Green for passed, red for failed, blue-gray for unverified
-                            const bgColor = result?.passed === true
-                              ? "#22c55e"  // green-500 (brighter)
-                              : result?.passed === false
-                              ? "#ef4444"  // red-500 (brighter)
-                              : "#475569"; // slate-600 (visible gray)
-                            const borderColor = result?.passed === true
-                              ? "#16a34a"  // green-600
-                              : result?.passed === false
-                              ? "#dc2626"  // red-600
-                              : "#64748b"; // slate-500
-                            const textColor = "#ffffff";
-                            return (
-                              <span
-                                key={layer}
-                                className="text-[10px] px-1 rounded border"
-                                style={{
-                                  backgroundColor: bgColor,
-                                  color: textColor,
-                                  borderColor: borderColor,
-                                }}
-                                title={result?.evidence || `${layer} - not verified`}
-                              >
-                                {layer}
-                              </span>
-                            );
-                          })}
-                          {(!feature.layers || feature.layers.length === 0) && (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="px-2 text-center align-top py-2 w-12">
-                        <span style={{ color: feature.test_count > 0 ? "#4ade80" : "#71717a" }}>
-                          {feature.test_count}
-                        </span>
+                      <TableCell className="px-2 align-top py-2 w-20">
+                        {renderStatusBadge(feature.status)}
                       </TableCell>
                       <TableCell className="px-2 text-center align-top py-2 w-14">
                         {renderCriteriaStatus(feature.acceptance_criteria)}
@@ -872,35 +917,151 @@ export function FeaturesTab() {
                                 </TooltipProvider>
                               </div>
                             )}
+                            {/* Implementation Notes Section */}
+                            {feature.implementation_notes && Object.keys(feature.implementation_notes).length > 0 && (
+                              <div className="space-y-2 border-t border-border/50 pt-3">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <BookOpen className="h-4 w-4 text-blue-400" />
+                                  <span className="text-xs font-medium text-muted-foreground">Implementation Notes</span>
+                                </div>
+                                {/* Context */}
+                                {feature.implementation_notes.context && (
+                                  <div className="bg-muted/30 rounded p-2">
+                                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Context</span>
+                                    <p className="text-sm mt-1">{feature.implementation_notes.context}</p>
+                                  </div>
+                                )}
+                                {/* Steps */}
+                                {feature.implementation_notes.steps && feature.implementation_notes.steps.length > 0 && (
+                                  <div className="bg-muted/30 rounded p-2">
+                                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Steps</span>
+                                    <ol className="list-decimal list-inside text-sm mt-1 space-y-0.5">
+                                      {feature.implementation_notes.steps.map((step, idx) => (
+                                        <li key={idx} className="text-sm">{step}</li>
+                                      ))}
+                                    </ol>
+                                  </div>
+                                )}
+                                {/* Files */}
+                                {feature.implementation_notes.files && feature.implementation_notes.files.length > 0 && (
+                                  <div className="bg-muted/30 rounded p-2">
+                                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+                                      <Code className="h-3 w-3" /> Files to Modify
+                                    </span>
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                      {feature.implementation_notes.files.map((file, idx) => (
+                                        <code key={idx} className="text-xs bg-surface px-1.5 py-0.5 rounded font-mono text-blue-400">
+                                          {file}
+                                        </code>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                {/* Blockers */}
+                                {feature.implementation_notes.blockers && feature.implementation_notes.blockers.length > 0 && (
+                                  <div className="bg-red-500/10 border border-red-500/20 rounded p-2">
+                                    <span className="text-[10px] uppercase tracking-wide text-red-400 flex items-center gap-1">
+                                      <AlertTriangle className="h-3 w-3" /> Blockers
+                                    </span>
+                                    <ul className="list-disc list-inside text-sm mt-1 text-red-400">
+                                      {feature.implementation_notes.blockers.map((blocker, idx) => (
+                                        <li key={idx}>{blocker}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                                {/* Notes */}
+                                {feature.implementation_notes.notes && (
+                                  <div className="bg-muted/30 rounded p-2">
+                                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Notes</span>
+                                    <p className="text-sm mt-1 whitespace-pre-wrap">{feature.implementation_notes.notes}</p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {/* Diagram Section */}
+                            {feature.diagram && (
+                              <div className="space-y-2 border-t border-border/50 pt-3">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Code className="h-4 w-4 text-cyan-400" />
+                                  <span className="text-xs font-medium text-muted-foreground">Architecture Diagram</span>
+                                </div>
+                                <pre className="bg-muted/30 rounded p-3 text-xs font-mono overflow-x-auto whitespace-pre">
+                                  {feature.diagram}
+                                </pre>
+                              </div>
+                            )}
                             {/* Subtasks Section */}
                             {hasTasks && (
-                              <div className="space-y-1">
+                              <div className="space-y-2 border-t border-border/50 pt-3">
                                 <div className="text-xs font-medium text-muted-foreground mb-2">
                                   Subtasks ({feature.completed_tasks}/{feature.total_tasks})
                                 </div>
                                 {feature.tasks.map((task) => (
                                   <div
                                     key={task.task_id}
-                                    className="flex items-center gap-2 py-1"
+                                    className="bg-muted/20 rounded p-2 space-y-1"
                                     onClick={(e) => e.stopPropagation()}
                                   >
-                                    <Checkbox
-                                      checked={task.completed}
-                                      onCheckedChange={(checked) =>
-                                        toggleTask(feature.feature_id, task.task_id, checked as boolean)
-                                      }
-                                      className="shrink-0"
-                                    />
-                                    <span className="font-mono text-xs text-muted-foreground shrink-0 min-w-[100px]">
-                                      {task.task_id}
-                                    </span>
-                                    <span className={`flex-1 ${task.completed ? "line-through text-muted-foreground" : ""}`}>
-                                      {task.description}
-                                    </span>
-                                    {task.completed_by && (
-                                      <span className="text-xs text-muted-foreground ml-2 shrink-0">
-                                        by {task.completed_by}
+                                    <div className="flex items-center gap-2">
+                                      <Checkbox
+                                        checked={task.completed}
+                                        onCheckedChange={(checked) =>
+                                          toggleTask(feature.feature_id, task.task_id, checked as boolean)
+                                        }
+                                        className="shrink-0"
+                                      />
+                                      <span className="font-mono text-xs text-muted-foreground shrink-0 min-w-[50px]">
+                                        {task.task_id}
                                       </span>
+                                      {task.status && task.status !== "pending" && (
+                                        <span
+                                          className="text-[10px] px-1 py-0.5 rounded border shrink-0"
+                                          style={{
+                                            backgroundColor: task.status === "complete" ? "#22c55e20" : task.status === "in_progress" ? "#3b82f620" : task.status === "deferred" ? "#8b5cf620" : task.status === "blocked" ? "#ef444420" : "#71717a20",
+                                            color: task.status === "complete" ? "#4ade80" : task.status === "in_progress" ? "#60a5fa" : task.status === "deferred" ? "#a78bfa" : task.status === "blocked" ? "#f87171" : "#a1a1aa",
+                                            borderColor: task.status === "complete" ? "#22c55e40" : task.status === "in_progress" ? "#3b82f640" : task.status === "deferred" ? "#8b5cf640" : task.status === "blocked" ? "#ef444440" : "#71717a40",
+                                          }}
+                                        >
+                                          {task.status}
+                                        </span>
+                                      )}
+                                      {task.effort && (
+                                        <span
+                                          className="text-[10px] px-1 py-0.5 rounded border shrink-0"
+                                          style={{
+                                            backgroundColor: task.effort === "low" ? "#22c55e20" : task.effort === "medium" ? "#eab30820" : task.effort === "high" ? "#f9731620" : "#71717a20",
+                                            color: task.effort === "low" ? "#4ade80" : task.effort === "medium" ? "#facc15" : task.effort === "high" ? "#fb923c" : "#a1a1aa",
+                                            borderColor: task.effort === "low" ? "#22c55e40" : task.effort === "medium" ? "#eab30840" : task.effort === "high" ? "#f9731640" : "#71717a40",
+                                          }}
+                                        >
+                                          {task.effort}
+                                        </span>
+                                      )}
+                                      <span className={`flex-1 ${task.completed ? "line-through text-muted-foreground" : ""}`}>
+                                        {task.description}
+                                      </span>
+                                      {task.completed_by && (
+                                        <span className="text-xs text-muted-foreground shrink-0">
+                                          by {task.completed_by}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {/* Subtask files */}
+                                    {task.files && task.files.length > 0 && (
+                                      <div className="ml-6 flex flex-wrap gap-1">
+                                        {task.files.map((file, idx) => (
+                                          <code key={idx} className="text-[10px] bg-surface px-1 py-0.5 rounded font-mono text-blue-400">
+                                            {file}
+                                          </code>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {/* Subtask notes */}
+                                    {task.notes && (
+                                      <div className="ml-6 text-xs text-muted-foreground italic">
+                                        {task.notes}
+                                      </div>
                                     )}
                                   </div>
                                 ))}

@@ -371,11 +371,11 @@ function CapabilitiesPageContent() {
           </TabsTrigger>
           <TabsTrigger value="sources">
             <Cloud className="mr-2 h-4 w-4" />
-            Sources
+            Data Sources
           </TabsTrigger>
           <TabsTrigger value="rules">
             <BookOpen className="mr-2 h-4 w-4" />
-            Rules
+            Trading Rules
           </TabsTrigger>
           <TabsTrigger value="database">
             <Database className="mr-2 h-4 w-4" />
@@ -400,7 +400,7 @@ function CapabilitiesPageContent() {
           </TabsTrigger>
           <TabsTrigger value="gaps">
             <TrendingUp className="mr-2 h-4 w-4" />
-            Gaps
+            Trading Reqs
             {gapsData && gapsData.total_gaps > 0 && (
               <span className="ml-2 rounded-full bg-accent/20 px-2 py-0.5 text-xs">
                 {gapsData.total_gaps}
@@ -409,7 +409,7 @@ function CapabilitiesPageContent() {
           </TabsTrigger>
           <TabsTrigger value="insights">
             <AlertTriangle className="mr-2 h-4 w-4" />
-            Insights
+            Tech Debt
             {(insightsCountData?.pending_count ?? insightsData?.pending_count ?? 0) > 0 && (
               <span className="ml-2 rounded-full bg-accent/20 px-2 py-0.5 text-xs">
                 {insightsCountData?.pending_count ?? insightsData?.pending_count}
@@ -564,7 +564,7 @@ function CapabilitiesPageContent() {
           <CapabilitiesTable capabilities={filteredCapabilities} />
         </TabsContent>
 
-        {/* Insights Tab */}
+        {/* Tech Debt Tab (formerly Insights) */}
         <TabsContent value="insights">
           {insightsLoading ? (
             <div className="flex items-center justify-center py-12">
@@ -586,12 +586,12 @@ function CapabilitiesPageContent() {
           ) : (
             <div className="rounded-lg border border-border bg-surface p-8 text-center">
               <AlertTriangle className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
-              <p className="mt-4 text-sm text-muted-foreground">No insights found</p>
+              <p className="mt-4 text-sm text-muted-foreground">No tech debt items found</p>
             </div>
           )}
         </TabsContent>
 
-        {/* Gaps Tab */}
+        {/* Trading Requirements Tab (formerly Gaps) */}
         <TabsContent value="gaps">
           {gapsLoading ? (
             <div className="flex items-center justify-center py-12">
@@ -602,17 +602,17 @@ function CapabilitiesPageContent() {
           ) : (
             <div className="rounded-lg border border-border bg-surface p-8 text-center">
               <TrendingUp className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
-              <p className="mt-4 text-sm text-muted-foreground">No gap data available</p>
+              <p className="mt-4 text-sm text-muted-foreground">No trading requirements data available</p>
             </div>
           )}
         </TabsContent>
 
-        {/* Sources Tab */}
+        {/* Data Sources Tab (formerly Sources) */}
         <TabsContent value="sources">
           <ApiSourcesOverview />
         </TabsContent>
 
-        {/* Rules Tab */}
+        {/* Trading Rules Tab (formerly Rules) */}
         <TabsContent value="rules">
           <RulesViewer />
         </TabsContent>
