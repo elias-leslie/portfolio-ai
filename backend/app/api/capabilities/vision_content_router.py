@@ -8,10 +8,13 @@ This module provides REST API endpoints for vision content:
 - GET /vision/success-metrics - Get success metrics
 - GET /vision/roadmap - Get roadmap phases
 - GET /vision/examples - Get principles in practice examples
+- PATCH /vision/content/{content_key} - Update any content by key
+- PATCH /vision/roadmap/{content_key} - Update roadmap phase status
 """
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
@@ -37,6 +40,22 @@ class VisionContent(BaseModel):
     metadata: dict[str, Any] | None = None
     created_at: str | None = None
     updated_at: str | None = None
+
+
+class VisionContentUpdate(BaseModel):
+    """Request model for updating vision content."""
+
+    title: str | None = None
+    content: str | None = None
+    metadata: dict[str, Any] | None = None
+    order_num: int | None = None
+
+
+class RoadmapStatusUpdate(BaseModel):
+    """Request model for updating roadmap phase status."""
+
+    status: str  # planned, in_progress, complete
+    features: list[str] | None = None  # Optional list of feature IDs
 
 
 @router.get("/", response_model=dict[str, Any])
@@ -422,4 +441,163 @@ async def get_vision_context() -> dict[str, Any]:
 
     except Exception as e:
         logger.error("get_vision_context_failed", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+# =========================================================================
+# Update Endpoints
+# =========================================================================
+
+
+@router.patch("/content/{content_key}", response_model=dict[str, Any])
+async def update_vision_content(
+    content_key: str, update: VisionContentUpdate
+) -> dict[str, Any]:
+    """Update any vision content by content_key.
+
+    Can update title, content, metadata, or order_num.
+    Only provided fields are updated.
+    """
+    conn_mgr = get_connection_manager()
+
+    try:
+        with conn_mgr.connection() as conn:
+            # Check content exists
+            existing = conn.execute(
+                "SELECT id, content_type FROM vision_content WHERE content_key = %s",
+                (content_key,),
+            ).fetchone()
+
+            if not existing:
+                raise HTTPException(
+                    status_code=404, detail=f"Content '{content_key}' not found"
+                )
+
+            # Build dynamic update
+            updates = []
+            values = []
+
+            if update.title is not None:
+                updates.append("title = %s")
+                values.append(update.title)
+            if update.content is not None:
+                updates.append("content = %s")
+                values.append(update.content)
+            if update.metadata is not None:
+                updates.append("metadata = %s::jsonb")
+                values.append(json.dumps(update.metadata))
+            if update.order_num is not None:
+                updates.append("order_num = %s")
+                values.append(update.order_num)
+
+            if not updates:
+                raise HTTPException(status_code=400, detail="No fields to update")
+
+            updates.append("updated_at = NOW()")
+            values.append(content_key)
+
+            query = f"""
+                UPDATE vision_content
+                SET {", ".join(updates)}
+                WHERE content_key = %s
+                RETURNING id, content_type, content_key, title, content, order_num, metadata
+            """
+
+            result = conn.execute(query, tuple(values)).fetchone()
+            conn.commit()
+
+            logger.info(
+                "vision_content_updated",
+                content_key=content_key,
+                content_type=existing[1],
+            )
+
+            return {
+                "status": "updated",
+                "id": result[0],
+                "content_type": result[1],
+                "content_key": result[2],
+                "title": result[3],
+                "content": result[4],
+                "order_num": result[5],
+                "metadata": result[6],
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("update_vision_content_failed", content_key=content_key, error=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.patch("/roadmap/{content_key}/status", response_model=dict[str, Any])
+async def update_roadmap_status(
+    content_key: str, update: RoadmapStatusUpdate
+) -> dict[str, Any]:
+    """Update roadmap phase status and optionally link features.
+
+    status values: planned, in_progress, complete
+    features: Optional list of feature IDs to associate with this phase
+    """
+    valid_statuses = {"planned", "in_progress", "complete"}
+    if update.status not in valid_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid status '{update.status}'. Must be one of: {valid_statuses}",
+        )
+
+    conn_mgr = get_connection_manager()
+
+    try:
+        with conn_mgr.connection() as conn:
+            # Check roadmap phase exists
+            existing = conn.execute(
+                """
+                SELECT id, metadata FROM vision_content
+                WHERE content_key = %s AND content_type = 'roadmap_phase'
+                """,
+                (content_key,),
+            ).fetchone()
+
+            if not existing:
+                raise HTTPException(
+                    status_code=404, detail=f"Roadmap phase '{content_key}' not found"
+                )
+
+            # Merge metadata
+            current_metadata = existing[1] or {}
+            current_metadata["status"] = update.status
+            if update.features is not None:
+                current_metadata["features"] = update.features
+
+            result = conn.execute(
+                """
+                UPDATE vision_content
+                SET metadata = %s::jsonb, updated_at = NOW()
+                WHERE content_key = %s
+                RETURNING id, content_key, title, metadata
+                """,
+                (json.dumps(current_metadata), content_key),
+            ).fetchone()
+            conn.commit()
+
+            logger.info(
+                "roadmap_status_updated",
+                content_key=content_key,
+                status=update.status,
+            )
+
+            return {
+                "status": "updated",
+                "id": result[0],
+                "content_key": result[1],
+                "title": result[2],
+                "phase_status": result[3].get("status") if result[3] else None,
+                "features": result[3].get("features", []) if result[3] else [],
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("update_roadmap_status_failed", content_key=content_key, error=str(e))
         raise HTTPException(status_code=500, detail=str(e)) from e
