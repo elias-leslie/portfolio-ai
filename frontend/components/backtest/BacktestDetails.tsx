@@ -43,6 +43,8 @@ import {
   useMonteCarloSimulation,
 } from "@/lib/hooks/useBacktestUI";
 import type { BacktestEquity, BacktestTrade, BacktestComparisonResponse, RunMetrics, MonteCarloResponse } from "@/lib/api/backtest-ui";
+import { TradeDistributionChart } from "./TradeDistributionChart";
+import { MonthlyReturnsHeatmap } from "./MonthlyReturnsHeatmap";
 
 // ============================================================================
 // Types
@@ -555,6 +557,17 @@ export function BacktestDetails({
           <div className="text-sm font-bold text-text capitalize">{run.strategy_name}</div>
         </Card>
       </div>
+
+      {/* Trade Distribution Chart */}
+      {trades.length > 0 && (
+        <TradeDistributionChart
+          trades={trades}
+          profitFactor={run.profit_factor ? parseFloat(String(run.profit_factor)) : null}
+        />
+      )}
+
+      {/* Monthly Returns Heatmap */}
+      {equity.length > 0 && <MonthlyReturnsHeatmap equityCurve={equity} />}
 
       {/* Trades Table */}
       {trades.length > 0 && (
