@@ -253,6 +253,56 @@ async def get_vision_goal(code: str) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
+@router.get("/{code}/details", response_model=list[dict[str, Any]])
+async def get_vision_goal_details(code: str) -> list[dict[str, Any]]:
+    """Get detailed content for a vision goal (objectives, features, success criteria).
+
+    This fetches from the vision_goal_details table which contains the rich
+    content from VISION.md (objectives, feature bullets, success criteria).
+    """
+    conn_mgr = get_connection_manager()
+
+    try:
+        with conn_mgr.connection() as conn:
+            # Verify goal exists
+            goal_check = conn.execute(
+                "SELECT code FROM vision_goals WHERE code = %s",
+                (code,),
+            ).fetchone()
+
+            if not goal_check:
+                raise HTTPException(status_code=404, detail=f"Vision goal {code} not found")
+
+            # Get details from vision_goal_details table
+            details = conn.execute(
+                """
+                SELECT id, goal_code, detail_type, content, order_num, metadata
+                FROM vision_goal_details
+                WHERE goal_code = %s
+                ORDER BY detail_type, order_num
+                """,
+                (code,),
+            ).fetchall()
+
+            return [
+                {
+                    "id": row[0],
+                    "goal_code": row[1],
+                    "detail_type": row[2],
+                    "content": row[3],
+                    "order_num": row[4],
+                    "metadata": row[5],
+                }
+                for row in details
+            ]
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("get_vision_goal_details_failed", code=code, error=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 @router.post("/", response_model=dict[str, Any])
 async def create_vision_goal(goal: VisionGoalCreate) -> dict[str, Any]:
     """Create a new vision goal."""

@@ -45,6 +45,7 @@ from app.api import (
     valuation,
     watchlist,
 )
+from app.api.capabilities.vision_content_router import router as vision_content_router
 from app.api.capabilities.vision_goals_router import router as vision_goals_router
 from app.logging_config import SyslogPrefixFormatter, configure_logging, get_logger
 from app.storage import get_storage
@@ -176,6 +177,7 @@ app.include_router(sources.router)  # Task 0088: API sources registry for agents
 app.include_router(rules.router)  # Trading rules viewer
 app.include_router(artifacts.router)  # UI verification evidence artifacts
 app.include_router(vision_goals_router, prefix="/api")  # Vision goals lookup table
+app.include_router(vision_content_router, prefix="/api")  # Vision content (mission, principles, roadmap)
 
 
 @app.get("/")

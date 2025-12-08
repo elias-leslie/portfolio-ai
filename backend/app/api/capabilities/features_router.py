@@ -1917,3 +1917,273 @@ async def verify_feature(feature_id: str) -> dict[str, Any]:
     except Exception as e:
         logger.error("queue_verification_failed", feature_id=feature_id, error=str(e))
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+# =========================================================================
+# Feature-Gap Mapping Endpoints
+# =========================================================================
+
+
+class GapMappingCreate(BaseModel):
+    """Request model for linking a feature to a trading gap."""
+
+    gap_id: str  # e.g., "GAP-001"
+    relationship_type: str = "resolves"  # resolves, blocked_by, related
+    notes: str | None = None
+
+
+class GapMappingResponse(BaseModel):
+    """Response model for a feature-gap mapping."""
+
+    id: int
+    feature_id: str
+    gap_id: str
+    gap_capability: str | None = None
+    gap_severity: str | None = None
+    gap_criticality: str | None = None
+    relationship_type: str
+    notes: str | None = None
+    linked_at: str | None = None
+    linked_by: str | None = None
+
+
+@router.get("/{feature_id}/gaps", response_model=list[GapMappingResponse])
+async def get_feature_gaps(feature_id: str) -> list[GapMappingResponse]:
+    """Get all trading gaps linked to a feature."""
+    conn_mgr = get_connection_manager()
+
+    try:
+        with conn_mgr.connection() as conn:
+            # Verify feature exists
+            feature_check = conn.execute(
+                "SELECT id FROM feature_capabilities WHERE feature_id = %s",
+                (feature_id,),
+            ).fetchone()
+
+            if not feature_check:
+                raise HTTPException(
+                    status_code=404, detail=f"Feature {feature_id} not found"
+                )
+
+            # Get gap mappings with gap details
+            rows = conn.execute(
+                """
+                SELECT
+                    fgm.id,
+                    fc.feature_id,
+                    fgm.gap_id,
+                    tg.capability,
+                    tg.severity,
+                    tg.criticality,
+                    fgm.relationship_type,
+                    fgm.notes,
+                    fgm.linked_at,
+                    fgm.linked_by
+                FROM feature_gap_mappings fgm
+                JOIN feature_capabilities fc ON fgm.feature_id = fc.id
+                JOIN trading_gaps tg ON fgm.gap_id = tg.gap_id
+                WHERE fc.feature_id = %s
+                ORDER BY fgm.linked_at DESC
+                """,
+                (feature_id,),
+            ).fetchall()
+
+        return [
+            GapMappingResponse(
+                id=int(row[0]) if row[0] is not None else 0,
+                feature_id=str(row[1]) if row[1] is not None else "",
+                gap_id=str(row[2]) if row[2] is not None else "",
+                gap_capability=str(row[3]) if row[3] else None,
+                gap_severity=str(row[4]) if row[4] else None,
+                gap_criticality=str(row[5]) if row[5] else None,
+                relationship_type=str(row[6]) if row[6] is not None else "resolves",
+                notes=str(row[7]) if row[7] else None,
+                linked_at=row[8].isoformat() if row[8] and hasattr(row[8], "isoformat") else None,
+                linked_by=str(row[9]) if row[9] else None,
+            )
+            for row in rows
+        ]
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("get_feature_gaps_failed", feature_id=feature_id, error=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.post("/{feature_id}/gaps", response_model=dict[str, Any])
+async def link_feature_to_gap(
+    feature_id: str, mapping: GapMappingCreate
+) -> dict[str, Any]:
+    """Link a feature to a trading gap.
+
+    relationship_type values:
+    - resolves: Feature resolves/addresses this gap
+    - blocked_by: Feature is blocked by this gap
+    - related: Feature is related to this gap (informational)
+    """
+    valid_types = {"resolves", "blocked_by", "related"}
+    if mapping.relationship_type not in valid_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid relationship_type '{mapping.relationship_type}'. Must be one of: {valid_types}",
+        )
+
+    conn_mgr = get_connection_manager()
+
+    try:
+        with conn_mgr.connection() as conn:
+            # Get feature ID
+            feature_row = conn.execute(
+                "SELECT id FROM feature_capabilities WHERE feature_id = %s",
+                (feature_id,),
+            ).fetchone()
+
+            if not feature_row:
+                raise HTTPException(
+                    status_code=404, detail=f"Feature {feature_id} not found"
+                )
+
+            # Verify gap exists
+            gap_row = conn.execute(
+                "SELECT gap_id FROM trading_gaps WHERE gap_id = %s",
+                (mapping.gap_id,),
+            ).fetchone()
+
+            if not gap_row:
+                raise HTTPException(
+                    status_code=404, detail=f"Gap {mapping.gap_id} not found"
+                )
+
+            # Insert mapping
+            conn.execute(
+                """
+                INSERT INTO feature_gap_mappings
+                    (feature_id, gap_id, relationship_type, notes, linked_by)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (feature_id, gap_id) DO UPDATE
+                SET relationship_type = EXCLUDED.relationship_type,
+                    notes = EXCLUDED.notes,
+                    linked_by = EXCLUDED.linked_by,
+                    linked_at = NOW()
+                """,
+                (feature_row[0], mapping.gap_id, mapping.relationship_type, mapping.notes, "manual"),
+            )
+            conn.commit()
+
+        logger.info(
+            "feature_gap_linked",
+            feature_id=feature_id,
+            gap_id=mapping.gap_id,
+            relationship_type=mapping.relationship_type,
+        )
+
+        return {
+            "status": "linked",
+            "feature_id": feature_id,
+            "gap_id": mapping.gap_id,
+            "relationship_type": mapping.relationship_type,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("link_feature_to_gap_failed", feature_id=feature_id, error=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.delete("/{feature_id}/gaps/{gap_id}", response_model=dict[str, Any])
+async def unlink_feature_from_gap(feature_id: str, gap_id: str) -> dict[str, Any]:
+    """Remove a feature-gap link."""
+    conn_mgr = get_connection_manager()
+
+    try:
+        with conn_mgr.connection() as conn:
+            result = conn.execute(
+                """
+                DELETE FROM feature_gap_mappings
+                WHERE feature_id = (SELECT id FROM feature_capabilities WHERE feature_id = %s)
+                AND gap_id = %s
+                RETURNING id
+                """,
+                (feature_id, gap_id),
+            ).fetchone()
+            conn.commit()
+
+            if not result:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Mapping {feature_id} -> {gap_id} not found",
+                )
+
+        logger.info("feature_gap_unlinked", feature_id=feature_id, gap_id=gap_id)
+
+        return {"status": "unlinked", "feature_id": feature_id, "gap_id": gap_id}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("unlink_feature_from_gap_failed", feature_id=feature_id, error=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+# =========================================================================
+# Features by Gap Endpoint (for gap resolution tracking)
+# =========================================================================
+
+
+@router.get("/by-gap/{gap_id}", response_model=list[dict[str, Any]])
+async def get_features_by_gap(gap_id: str) -> list[dict[str, Any]]:
+    """Get all features linked to a specific gap."""
+    conn_mgr = get_connection_manager()
+
+    try:
+        with conn_mgr.connection() as conn:
+            # Verify gap exists
+            gap_check = conn.execute(
+                "SELECT gap_id, capability, severity FROM trading_gaps WHERE gap_id = %s",
+                (gap_id,),
+            ).fetchone()
+
+            if not gap_check:
+                raise HTTPException(
+                    status_code=404, detail=f"Gap {gap_id} not found"
+                )
+
+            # Get features linked to this gap
+            rows = conn.execute(
+                """
+                SELECT
+                    fc.feature_id,
+                    fc.name,
+                    fc.status,
+                    fc.passes,
+                    fgm.relationship_type,
+                    fgm.notes,
+                    fgm.linked_at
+                FROM feature_gap_mappings fgm
+                JOIN feature_capabilities fc ON fgm.feature_id = fc.id
+                WHERE fgm.gap_id = %s
+                ORDER BY fgm.relationship_type, fc.feature_id
+                """,
+                (gap_id,),
+            ).fetchall()
+
+        return [
+            {
+                "feature_id": str(row[0]),
+                "name": str(row[1]),
+                "status": str(row[2]) if row[2] else None,
+                "passes": bool(row[3]) if row[3] is not None else None,
+                "relationship_type": str(row[4]),
+                "notes": str(row[5]) if row[5] else None,
+                "linked_at": row[6].isoformat() if row[6] and hasattr(row[6], "isoformat") else None,
+            }
+            for row in rows
+        ]
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("get_features_by_gap_failed", gap_id=gap_id, error=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
