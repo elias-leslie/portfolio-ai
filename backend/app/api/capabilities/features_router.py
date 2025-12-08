@@ -118,6 +118,15 @@ class TaskToggle(BaseModel):
     completed_by: str = "manual"
 
 
+class TaskUpdate(BaseModel):
+    """Request model for updating task metadata (files, notes, effort)."""
+
+    files: list[str] | None = None  # Files this subtask modifies
+    notes: str | None = None  # Implementation notes
+    effort: str | None = None  # trivial, low, medium, high
+    description: str | None = None  # Updated description
+
+
 class AcceptanceCriterion(BaseModel):
     """Model for a single acceptance criterion."""
 
@@ -202,6 +211,10 @@ def _feature_to_response(f: dict[str, Any]) -> FeatureResponse:
             completed_by=t.get("completed_by"),
             created_at=t["created_at"].isoformat() if t.get("created_at") else None,
             updated_at=t["updated_at"].isoformat() if t.get("updated_at") else None,
+            files=t.get("files", []),
+            notes=t.get("notes"),
+            status=t.get("status", "pending"),
+            effort=t.get("effort"),
         )
         for t in f.get("tasks", [])
     ]
@@ -1634,6 +1647,10 @@ async def get_feature_tasks(feature_id: str) -> list[TaskResponse]:
                 completed_by=t.get("completed_by"),
                 created_at=t["created_at"].isoformat() if t.get("created_at") else None,
                 updated_at=t["updated_at"].isoformat() if t.get("updated_at") else None,
+                files=t.get("files", []),
+                notes=t.get("notes"),
+                status=t.get("status", "pending"),
+                effort=t.get("effort"),
             )
             for t in tasks
         ]
@@ -1785,6 +1802,97 @@ async def delete_feature_task(feature_id: str, task_id: str) -> dict[str, Any]:
     except Exception as e:
         logger.error(
             "delete_task_failed",
+            feature_id=feature_id,
+            task_id=task_id,
+            error=str(e),
+        )
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.put("/{feature_id}/tasks/{task_id}", response_model=dict[str, Any])
+async def update_feature_task(
+    feature_id: str, task_id: str, update: TaskUpdate
+) -> dict[str, Any]:
+    """Update task metadata (files, notes, effort, description).
+
+    This endpoint is for enriching tasks with implementation details.
+
+    Args:
+        feature_id: Feature ID (e.g., FEAT-001)
+        task_id: Task ID within feature (e.g., 1.1)
+        update: Fields to update (all optional)
+    """
+    conn_mgr = get_connection_manager()
+
+    try:
+        with conn_mgr.connection() as conn:
+            # Build dynamic update query
+            updates = []
+            params: list[Any] = []
+
+            if update.files is not None:
+                updates.append("files = %s::text[]")
+                params.append(update.files)
+            if update.notes is not None:
+                updates.append("notes = %s")
+                params.append(update.notes)
+            if update.effort is not None:
+                updates.append("effort = %s")
+                params.append(update.effort)
+            if update.description is not None:
+                updates.append("description = %s")
+                params.append(update.description)
+
+            if not updates:
+                raise HTTPException(
+                    status_code=400,
+                    detail="No fields to update",
+                )
+
+            updates.append("updated_at = NOW()")
+            params.extend([feature_id, task_id])
+
+            query = f"""
+                UPDATE feature_tasks ft
+                SET {', '.join(updates)}
+                FROM feature_capabilities fc
+                WHERE ft.feature_id = fc.id
+                  AND fc.feature_id = %s
+                  AND ft.task_id = %s
+                RETURNING ft.task_id, ft.description, ft.files, ft.notes, ft.effort
+            """
+
+            result = conn.execute(query, params).fetchone()
+            conn.commit()
+
+            if not result:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Task {task_id} not found for feature {feature_id}",
+                )
+
+        logger.info(
+            "task_updated",
+            feature_id=feature_id,
+            task_id=task_id,
+            updated_fields=list(update.model_dump(exclude_none=True).keys()),
+        )
+
+        return {
+            "status": "updated",
+            "feature_id": feature_id,
+            "task_id": result[0],
+            "description": result[1],
+            "files": result[2] or [],
+            "notes": result[3],
+            "effort": result[4],
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "update_task_failed",
             feature_id=feature_id,
             task_id=task_id,
             error=str(e),
