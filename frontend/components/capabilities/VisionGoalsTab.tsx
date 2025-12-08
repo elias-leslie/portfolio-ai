@@ -95,7 +95,7 @@ export function VisionGoalsTab() {
   const { data: visionContent, isLoading: contentLoading } = useQuery<VisionContentResponse>({
     queryKey: ["vision-content"],
     queryFn: async () => {
-      const response = await fetch("/api/vision/");
+      const response = await fetch("/api/vision");
       if (!response.ok) throw new Error("Failed to fetch vision content");
       return response.json();
     },

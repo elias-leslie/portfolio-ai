@@ -24,6 +24,23 @@ const nextConfig: NextConfig = {
         source: "/api/vision-goals/:code",
         destination: "http://127.0.0.1:8000/api/vision-goals/:code",
       },
+      {
+        source: "/api/vision-goals/:code/details",
+        destination: "http://127.0.0.1:8000/api/vision-goals/:code/details",
+      },
+      // Vision content endpoints (need trailing slash for root)
+      {
+        source: "/api/vision",
+        destination: "http://127.0.0.1:8000/api/vision/",
+      },
+      {
+        source: "/api/vision/",
+        destination: "http://127.0.0.1:8000/api/vision/",
+      },
+      {
+        source: "/api/vision/:path*",
+        destination: "http://127.0.0.1:8000/api/vision/:path*",
+      },
       // General catch-all for all other API routes
       {
         source: "/api/:path*",
