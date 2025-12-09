@@ -2,8 +2,8 @@
 
 **Feature ID**: FEAT-WORKFLOW-VIZ
 **Created**: 2025-12-09
-**Status**: Phase 1 Complete
-**Effort**: MEDIUM (Phase 1) + LOW (Phase 2)
+**Status**: Phase 1 Complete, Phase 1.5 Pending
+**Effort**: MEDIUM (Phase 1) + MEDIUM (Phase 1.5) + LOW (Phase 2)
 **Priority**: HIGH
 **Phase 1 Commit**: 3558b40
 
@@ -14,6 +14,13 @@
 Implement n8n-inspired workflow visualization for scheduled tasks, automation pipelines, and multi-agent workflows using React Flow. This provides visual understanding of task dependencies, execution flow, and real-time status.
 
 **Key Principle**: This is a **visualization** feature, NOT a workflow builder. We visualize existing Celery schedules and workflows - we don't create new ones visually.
+
+**Critical Insight (discovered during Phase 1)**: The original approach assumed `depends_on_tasks` would be auto-populated via code analysis. This failed because:
+1. Beat schedule uses short task names (e.g., `refresh_watchlist_scores`) not full module paths
+2. Scanner's regex can't find source files without full paths
+3. Most dependencies are **implicit** (timing + data flow), not explicit code calls
+
+**Solution**: Infer dependencies from table relationships (writes → reads) + timing order, with manual overrides for edge cases.
 
 ---
 
@@ -344,6 +351,491 @@ Add to `mainLinks` array after Capabilities:
 ```
 
 Import `GitBranch` from lucide-react.
+
+---
+
+## Phase 1.5: Intelligent Dependency Detection (MEDIUM effort)
+
+**Goal**: Make workflow visualization show accurate dependencies by inferring them from table relationships and timing, with automatic auditing and manual overrides.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                     Dependency Resolution Flow                       │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  CeleryScanner                                                       │
+│  ├── _detect_populates_tables() ──► populates_tables (existing)     │
+│  └── _detect_reads_from_tables() ──► reads_from_tables (NEW)        │
+│                                                                      │
+│  Graph Endpoint                                                      │
+│  ├── Infer edges: If Task B reads table X AND Task A writes X       │
+│  │                AND Task A runs before Task B → Edge A→B          │
+│  ├── Apply overrides: dependency_overrides.add/remove               │
+│  └── Return final edges                                              │
+│                                                                      │
+│  /audit_it (enhanced)                                                │
+│  ├── Detect timing violations (reader before writer)                │
+│  ├── Detect orphaned tasks (no reads, no writes, no deps)          │
+│  ├── Suggest missing dependencies                                    │
+│  └── Auto-apply dependency_overrides                                 │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### 1.5.1 Database Migration: Add New Columns
+
+**File**: `backend/migrations/XXX_celery_reads_and_overrides.sql` (NEW)
+
+```sql
+-- Add reads_from_tables column (auto-detected by scanner)
+ALTER TABLE celery_capabilities
+ADD COLUMN IF NOT EXISTS reads_from_tables JSONB DEFAULT '[]'::jsonb;
+
+-- Add dependency_overrides column (manual corrections)
+-- Structure: {"add": ["task_a"], "remove": ["task_b"], "reason": "..."}
+ALTER TABLE celery_capabilities
+ADD COLUMN IF NOT EXISTS dependency_overrides JSONB DEFAULT '{}'::jsonb;
+
+-- Add index for dependency queries
+CREATE INDEX IF NOT EXISTS idx_celery_capabilities_reads
+ON celery_capabilities USING GIN (reads_from_tables);
+
+COMMENT ON COLUMN celery_capabilities.reads_from_tables IS
+'Tables this task reads from (auto-detected via SQL SELECT/JOIN patterns)';
+
+COMMENT ON COLUMN celery_capabilities.dependency_overrides IS
+'Manual dependency corrections: {add: [], remove: [], reason: ""}';
+```
+
+### 1.5.2 Enhance CeleryScanner: Detect Table Reads
+
+**File**: `backend/app/services/capability_celery_scanner.py` (UPDATE)
+
+**Add method** `_detect_reads_from_tables(task_path: str) -> list[str]`:
+
+```python
+def _detect_reads_from_tables(self, task_path: str) -> list[str]:
+    """Detect tables this task reads from via SQL patterns.
+
+    Searches for patterns like:
+    - SELECT ... FROM table_name
+    - JOIN table_name
+    - FROM table_name (in subqueries)
+
+    Returns:
+        Sorted list of table names read by this task
+    """
+    try:
+        # Convert import path to file path (same as _detect_populates_tables)
+        path_parts = task_path.split(".")
+        if len(path_parts) < 2:
+            return []
+
+        module_parts = path_parts[:-1]
+        file_path = Path(__file__).parent.parent / "/".join(module_parts[1:])
+        file_path = file_path.with_suffix(".py")
+
+        if not file_path.exists():
+            return []
+
+        content = file_path.read_text()
+        tables = set()
+
+        # Pattern 1: SELECT ... FROM table
+        # Handles: FROM table, FROM schema.table
+        from_pattern = r"FROM\s+([a-z_][a-z0-9_]*)"
+
+        # Pattern 2: JOIN table (LEFT, RIGHT, INNER, OUTER, etc.)
+        join_pattern = r"JOIN\s+([a-z_][a-z0-9_]*)"
+
+        # Pattern 3: Table in parentheses (subqueries, EXISTS)
+        # e.g., EXISTS (SELECT 1 FROM table WHERE...)
+
+        for match in re.finditer(from_pattern, content, re.IGNORECASE):
+            table = match.group(1).lower()
+            # Filter out SQL keywords that might match
+            if table not in ["select", "where", "and", "or", "not", "null",
+                            "true", "false", "dual", "information_schema"]:
+                tables.add(table)
+
+        for match in re.finditer(join_pattern, content, re.IGNORECASE):
+            table = match.group(1).lower()
+            if table not in ["select", "where", "and", "or", "lateral"]:
+                tables.add(table)
+
+        # Remove tables that this task writes to (self-references)
+        writes = set(self._detect_populates_tables(task_path))
+        reads_only = tables - writes
+
+        return sorted(reads_only)
+
+    except Exception as e:
+        logger.debug("failed_to_detect_reads_from_tables", task=task_path, error=str(e))
+        return []
+```
+
+**Update `_scan_single_task()`** to include `reads_from_tables`:
+
+```python
+# Around line 137, after depends_on_tasks detection:
+reads_from_tables = self._detect_reads_from_tables(task_path)
+
+# Add to return dict around line 165:
+return {
+    ...
+    "reads_from_tables": reads_from_tables,
+    ...
+}
+```
+
+**Update `save_capabilities()`** UPSERT to include new column.
+
+### 1.5.3 Update Graph Endpoint: Infer Dependencies
+
+**File**: `backend/app/api/workflow_graph.py` (UPDATE)
+
+**Add dependency inference function**:
+
+```python
+def _infer_dependencies(
+    tasks: list[dict],
+) -> list[tuple[str, str, str]]:
+    """Infer task dependencies from table relationships and timing.
+
+    Rules:
+    1. If Task B reads_from table X AND Task A populates table X
+       AND Task A scheduled before Task B → A depends on B (A→B edge)
+    2. Apply dependency_overrides (add/remove)
+
+    Returns:
+        List of (source_task, target_task, reason) tuples
+    """
+    edges = []
+
+    # Build lookup maps
+    writers = {}  # table -> [(task_name, schedule_time)]
+    for task in tasks:
+        for table in task.get("populates_tables", []):
+            if table not in writers:
+                writers[table] = []
+            writers[table].append((
+                task["task_name"],
+                _parse_schedule_time(task.get("schedule_crontab"),
+                                    task.get("schedule_interval_seconds"))
+            ))
+
+    # Find dependencies based on reads
+    for task in tasks:
+        task_name = task["task_name"]
+        task_time = _parse_schedule_time(
+            task.get("schedule_crontab"),
+            task.get("schedule_interval_seconds")
+        )
+
+        for table in task.get("reads_from_tables", []):
+            if table in writers:
+                for writer_name, writer_time in writers[table]:
+                    # Skip self-references
+                    if writer_name == task_name:
+                        continue
+                    # Check timing (writer should run before reader)
+                    if writer_time is not None and task_time is not None:
+                        if writer_time < task_time:
+                            edges.append((
+                                writer_name,
+                                task_name,
+                                f"writes→reads: {table}"
+                            ))
+
+        # Apply manual overrides
+        overrides = task.get("dependency_overrides", {})
+        for dep in overrides.get("add", []):
+            edges.append((dep, task_name, f"manual: {overrides.get('reason', 'override')}"))
+        # Remove edges will be filtered later
+
+    # Deduplicate
+    seen = set()
+    unique_edges = []
+    for source, target, reason in edges:
+        key = (source, target)
+        if key not in seen:
+            seen.add(key)
+            unique_edges.append((source, target, reason))
+
+    return unique_edges
+
+
+def _parse_schedule_time(crontab: str | None, interval_seconds: int | None) -> int | None:
+    """Convert schedule to minutes-from-midnight for comparison.
+
+    Returns None for interval-based schedules (can't determine order).
+    """
+    if crontab:
+        parts = crontab.split()
+        if len(parts) >= 2:
+            try:
+                minute = int(parts[0]) if parts[0] != "*" else 0
+                hour = int(parts[1]) if parts[1] != "*" else 0
+                return hour * 60 + minute
+            except ValueError:
+                pass
+    return None
+```
+
+**Update `get_workflow_graph()` to use inferred dependencies**:
+
+```python
+# After querying tasks, before building edges:
+inferred_deps = _infer_dependencies(tasks_data)
+
+# Build edges from inferred dependencies
+for source, target, reason in inferred_deps:
+    # Check if edge should be removed by override
+    target_task = next((t for t in tasks_data if t["task_name"] == target), None)
+    if target_task:
+        removes = target_task.get("dependency_overrides", {}).get("remove", [])
+        if source in removes:
+            continue  # Skip this edge
+
+    edge = WorkflowEdge(
+        id=f"e-{source}-{target}",
+        source=source,
+        target=target,
+        type="data-flow",
+        animated=source in active_tasks,
+    )
+    edges.append(edge)
+```
+
+### 1.5.4 Enhance /audit_it: Dependency Auditing
+
+**File**: `.claude/commands/audit_it.md` (UPDATE)
+
+**Add new audit phase** (insert after Phase 1.7, before Phase 2):
+
+```markdown
+### Phase 1.8: Dependency Audit (NEW)
+
+**Purpose**: Verify task dependencies are accurate and auto-correct issues.
+
+**Trigger capability scan first**:
+```bash
+curl -X POST http://localhost:8000/api/capabilities/scan
+```
+
+**Checks to perform**:
+
+1. **Timing Violations**: Reader runs before writer
+   ```sql
+   -- Find tasks that read from tables written by tasks that run LATER
+   SELECT
+       r.task_name as reader,
+       w.task_name as writer,
+       t.table_name,
+       r.schedule_crontab as reader_schedule,
+       w.schedule_crontab as writer_schedule
+   FROM celery_capabilities r
+   CROSS JOIN LATERAL jsonb_array_elements_text(r.reads_from_tables) as t(table_name)
+   JOIN celery_capabilities w ON w.populates_tables ? t.table_name
+   WHERE r.task_name != w.task_name
+   -- Compare schedules (simplified - real impl needs time parsing)
+   ```
+
+2. **Orphaned Tasks**: No reads, no writes, no dependencies
+   ```sql
+   SELECT task_name
+   FROM celery_capabilities
+   WHERE (populates_tables = '[]' OR populates_tables IS NULL)
+     AND (reads_from_tables = '[]' OR reads_from_tables IS NULL)
+     AND (depends_on_tasks = '[]' OR depends_on_tasks IS NULL);
+   ```
+
+3. **Missing Dependencies**: Task reads from table but no writer exists
+   ```sql
+   SELECT r.task_name, t.table_name as reads_from
+   FROM celery_capabilities r
+   CROSS JOIN LATERAL jsonb_array_elements_text(r.reads_from_tables) as t(table_name)
+   WHERE NOT EXISTS (
+       SELECT 1 FROM celery_capabilities w
+       WHERE w.populates_tables ? t.table_name
+   );
+   ```
+
+**Auto-correction actions**:
+
+For timing violations:
+```bash
+# Add override to move dependency
+curl -X PATCH "http://localhost:8000/api/capabilities/celery/{task_id}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "dependency_overrides": {
+      "remove": ["incorrectly_inferred_task"],
+      "reason": "Timing violation: reader runs at 02:00, writer at 04:00"
+    }
+  }'
+```
+
+For missing known dependencies (from system knowledge):
+```bash
+# Add manual dependency
+curl -X PATCH "http://localhost:8000/api/capabilities/celery/{task_id}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "dependency_overrides": {
+      "add": ["known_dependency_task"],
+      "reason": "Manual: reads Redis cache populated by this task"
+    }
+  }'
+```
+
+**Known dependencies to seed** (from system exploration):
+| Reader Task | Writer Task | Relationship |
+|-------------|-------------|--------------|
+| backfill_technical_indicators | refresh_daily_ohlcv | reads day_bars |
+| backfill_technical_indicators | refresh_watchlist_ohlcv | reads day_bars |
+| populate_fear_greed_inputs | backfill_technical_indicators | reads technical_indicators |
+| calculate_fear_greed | populate_fear_greed_inputs | reads fear_greed_inputs |
+| run_discovery_agent | calculate_fear_greed | runs after data ready |
+| run_portfolio_analyzer | calculate_fear_greed | runs after data ready |
+| generate_daily_strategy_signals | refresh_daily_ohlcv | reads day_bars |
+| auto_paper_trade_from_signals | generate_daily_strategy_signals | reads strategy_signals |
+| parse_valuation_metrics | refresh_yfinance_reference_data | reads reference_cache |
+| refresh_alphavantage_reference_backup | parse_valuation_metrics | runs after parse |
+
+**Output**: Report of issues found, corrections applied, remaining manual review items.
+```
+
+### 1.5.5 Add API Endpoint for Dependency Overrides
+
+**File**: `backend/app/api/workflow_graph.py` (UPDATE)
+
+**Add PATCH endpoint**:
+
+```python
+@router.patch("/tasks/{task_name}/dependencies")
+async def update_task_dependencies(
+    task_name: str,
+    overrides: DependencyOverrideRequest,
+) -> dict:
+    """Update dependency overrides for a task.
+
+    Used by /audit_it to auto-correct dependency issues.
+    """
+    conn_mgr = get_connection_manager()
+
+    with conn_mgr.connection() as conn:
+        # Merge with existing overrides
+        result = conn.execute(
+            """
+            UPDATE celery_capabilities
+            SET dependency_overrides = dependency_overrides || %s::jsonb,
+                updated_at = NOW()
+            WHERE task_name = %s
+            RETURNING id
+            """,
+            [json.dumps(overrides.model_dump()), task_name]
+        )
+
+        if result.rowcount == 0:
+            raise HTTPException(404, f"Task {task_name} not found")
+
+    return {"status": "updated", "task_name": task_name}
+
+
+class DependencyOverrideRequest(BaseModel):
+    add: list[str] = []
+    remove: list[str] = []
+    reason: str
+```
+
+### 1.5.6 Seed Initial Dependencies
+
+**File**: `backend/migrations/XXX_seed_workflow_dependencies.sql` (NEW)
+
+Based on the comprehensive system exploration, seed known dependencies:
+
+```sql
+-- Seed known dependencies that can't be auto-detected
+-- These are based on timing order and data flow analysis
+
+-- Technical indicators depend on OHLCV data
+UPDATE celery_capabilities
+SET dependency_overrides = jsonb_build_object(
+    'add', jsonb_build_array('refresh-daily-ohlcv', 'refresh-watchlist-ohlcv'),
+    'reason', 'Timing: runs at 02:30, needs day_bars from 02:00/02:15'
+)
+WHERE task_name = 'backfill-technical-indicators';
+
+-- Fear & Greed inputs depend on technical indicators
+UPDATE celery_capabilities
+SET dependency_overrides = jsonb_build_object(
+    'add', jsonb_build_array('backfill-technical-indicators'),
+    'reason', 'Timing: runs at 02:45, needs technical_indicators from 02:30'
+)
+WHERE task_name = 'populate-fear-greed-inputs';
+
+-- Fear & Greed calculation depends on inputs
+UPDATE celery_capabilities
+SET dependency_overrides = jsonb_build_object(
+    'add', jsonb_build_array('populate-fear-greed-inputs'),
+    'reason', 'Timing: runs at 03:00, needs fear_greed_inputs from 02:45'
+)
+WHERE task_name = 'calculate-fear-greed';
+
+-- Agents depend on all data being ready
+UPDATE celery_capabilities
+SET dependency_overrides = jsonb_build_object(
+    'add', jsonb_build_array('calculate-fear-greed', 'scan-system-capabilities'),
+    'reason', 'Timing: runs at 03:30, after all data refresh complete'
+)
+WHERE task_name IN ('run-discovery-agent', 'run-portfolio-analyzer');
+
+-- Strategy signals depend on market data
+UPDATE celery_capabilities
+SET dependency_overrides = jsonb_build_object(
+    'add', jsonb_build_array('refresh-daily-ohlcv'),
+    'reason', 'Timing: runs at 21:30, needs current day_bars'
+)
+WHERE task_name = 'generate-daily-strategy-signals';
+
+-- Paper trades depend on signals
+UPDATE celery_capabilities
+SET dependency_overrides = jsonb_build_object(
+    'add', jsonb_build_array('generate-daily-strategy-signals'),
+    'reason', 'Timing: runs at 21:45, needs strategy_signals from 21:30'
+)
+WHERE task_name = 'auto-paper-trade-from-signals';
+
+-- Valuation parsing depends on yfinance fetch
+UPDATE celery_capabilities
+SET dependency_overrides = jsonb_build_object(
+    'add', jsonb_build_array('refresh-yfinance-reference-data'),
+    'reason', 'Timing: runs at 04:30, needs reference_cache from 04:00'
+)
+WHERE task_name = 'parse-valuation-metrics';
+
+-- Alpha Vantage backup depends on parsing (to know what's missing)
+UPDATE celery_capabilities
+SET dependency_overrides = jsonb_build_object(
+    'add', jsonb_build_array('parse-valuation-metrics'),
+    'reason', 'Timing: runs at 04:45, fills gaps identified by 04:30 parse'
+)
+WHERE task_name = 'refresh-alphavantage-reference-backup';
+```
+
+### 1.5.7 Testing Checklist
+
+- [ ] Migration applies cleanly
+- [ ] `reads_from_tables` populated after scan
+- [ ] Dependencies inferred correctly in graph endpoint
+- [ ] Overrides apply (add/remove work)
+- [ ] Visualization shows proper edges
+- [ ] `/audit_it` detects timing violations
+- [ ] `/audit_it` auto-applies corrections
+- [ ] Seeded dependencies appear in visualization
 
 ---
 
