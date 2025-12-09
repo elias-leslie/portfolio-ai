@@ -1,7 +1,7 @@
 "use client";
 
-import { memo } from "react";
-import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { Handle, Position, type NodeProps, useViewport } from "@xyflow/react";
+import { useState, memo } from "react";
 import {
   Tooltip,
   TooltipContent,
@@ -13,11 +13,11 @@ import { cn } from "@/lib/utils";
 import type { NodeData } from "@/lib/api/workflows";
 
 const statusColors: Record<NodeData["status"], string> = {
-  running: "bg-blue-500 animate-pulse",
-  completed: "bg-green-500",
-  failed: "bg-red-500",
+  running: "bg-primary animate-pulse",
+  completed: "bg-green-500", // Keep specific green for success
+  failed: "bg-destructive",
   pending: "bg-yellow-500",
-  idle: "bg-gray-400",
+  idle: "bg-muted-foreground",
 };
 
 const statusLabels: Record<NodeData["status"], string> = {
@@ -53,18 +53,27 @@ function TaskNodeComponent({ data }: NodeProps) {
   const nodeData = data as unknown as NodeData;
   const { label, schedule, status, successRate, avgDuration, lastRun, nextRun, populatesTables } =
     nodeData;
+  const { zoom } = useViewport();
+  const [isHovered, setIsHovered] = useState(false);
+
+  const scale = isHovered ? Math.max(1.5, 1 / zoom) : 1;
 
   return (
     <TooltipProvider>
       <div
         className={cn(
           "rounded-lg border border-border shadow-sm min-w-[180px] max-w-[200px]",
-          "transition-all duration-300 ease-in-out hover:scale-[2.5] hover:z-50 hover:shadow-xl origin-center",
-          "bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100",
-          status === "running" && "ring-2 ring-blue-500 ring-offset-2 ring-offset-background",
-          (status === "failed" || successRate < 50) && "ring-2 ring-red-500 ring-offset-2 ring-offset-background",
+          "transition-all duration-300 ease-in-out hover:z-50 hover:shadow-xl origin-center",
+          "bg-card text-card-foreground",
+          status === "running" && "ring-2 ring-primary ring-offset-2 ring-offset-background",
+          (status === "failed" || successRate < 50) && "ring-2 ring-destructive ring-offset-2 ring-offset-background",
           (status !== "failed" && status !== "running" && successRate >= 50 && successRate < 80) && "ring-2 ring-yellow-500 ring-offset-2 ring-offset-background"
         )}
+        style={{
+          transform: `scale(${scale})`,
+        }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
       >
         {/* Left handle for incoming edges */}
         <Handle
@@ -74,7 +83,7 @@ function TaskNodeComponent({ data }: NodeProps) {
         />
 
         {/* Header */}
-        <div className="px-3 py-2 border-b border-border bg-zinc-100 dark:bg-zinc-700/50 rounded-t-lg">
+        <div className="px-3 py-2 border-b border-border bg-muted/50 rounded-t-lg">
           <div className="flex items-center gap-2">
             <div className={cn("w-2 h-2 rounded-full shrink-0", statusColors[status])} />
             <Tooltip>

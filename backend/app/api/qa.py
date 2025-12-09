@@ -104,6 +104,18 @@ class QAScanRequest(BaseModel):
     categories: list[str] | None = None  # Filter to specific categories
 
 
+class QAIssueCreate(BaseModel):
+    """Request model for creating a QA issue manually."""
+
+    category: str  # dead_code, dry_violation, security, orphan_file, schema_drift, stale_data, bloat, test_gap
+    severity: str  # critical, high, medium, low
+    description: str
+    file_path: str | None = None
+    line_start: int | None = None
+    line_end: int | None = None
+    detection_source: str = "manual"  # manual, audit_it, do_it, polish_it, clean_it
+
+
 # Helper functions
 def _row_to_issue_response(row: Any) -> QAIssueResponse:
     """Convert database row to QAIssueResponse."""
@@ -129,6 +141,103 @@ def _row_to_issue_response(row: Any) -> QAIssueResponse:
 
 
 # Endpoints
+@router.post("/issues", response_model=QAIssueResponse)
+async def create_issue(issue: QAIssueCreate) -> QAIssueResponse:
+    """Create a QA issue manually.
+
+    Used by commands like /audit_it, /do_it, /polish_it to record discovered issues.
+    Issues are deduplicated by category + file_path + line_start + description hash.
+    """
+    conn_mgr = get_connection_manager()
+
+    try:
+        with conn_mgr.connection() as conn:
+            # Generate next issue_id
+            max_row = conn.execute(
+                "SELECT issue_id FROM qa_issues ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+
+            if max_row and max_row[0]:
+                # Parse QA-XXX format
+                try:
+                    max_num = int(max_row[0].replace("QA-", ""))
+                    next_id = f"QA-{max_num + 1:03d}"
+                except ValueError:
+                    next_id = "QA-001"
+            else:
+                next_id = "QA-001"
+
+            # Check for duplicate (same category + file + line + description)
+            check_query = """
+                SELECT id, issue_id FROM qa_issues
+                WHERE category = %s AND description = %s
+                AND (file_path = %s OR (file_path IS NULL AND %s IS NULL))
+                AND (line_start = %s OR (line_start IS NULL AND %s IS NULL))
+                AND resolved_at IS NULL
+            """
+            existing = conn.execute(
+                check_query,
+                [
+                    issue.category,
+                    issue.description,
+                    issue.file_path,
+                    issue.file_path,
+                    issue.line_start,
+                    issue.line_start,
+                ],
+            ).fetchone()
+
+            if existing:
+                # Update last_detected_at for existing issue
+                conn.execute(
+                    "UPDATE qa_issues SET last_detected_at = NOW() WHERE id = %s",
+                    [existing[0]],
+                )
+                # Fetch and return the existing issue
+                row = conn.execute(
+                    """SELECT id, issue_id, category, severity, file_path, line_start, line_end,
+                              description, detection_source, first_detected_at, last_detected_at,
+                              resolved_at, resolved_by, resolution_notes, false_positive,
+                              created_at, updated_at
+                       FROM qa_issues WHERE id = %s""",
+                    [existing[0]],
+                ).fetchone()
+                logger.info("qa_issue_updated", issue_id=existing[1])
+                return _row_to_issue_response(row)
+
+            # Insert new issue
+            insert_query = """
+                INSERT INTO qa_issues (
+                    issue_id, category, severity, file_path, line_start, line_end,
+                    description, detection_source
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id, issue_id, category, severity, file_path, line_start, line_end,
+                          description, detection_source, first_detected_at, last_detected_at,
+                          resolved_at, resolved_by, resolution_notes, false_positive,
+                          created_at, updated_at
+            """
+            row = conn.execute(
+                insert_query,
+                [
+                    next_id,
+                    issue.category,
+                    issue.severity,
+                    issue.file_path,
+                    issue.line_start,
+                    issue.line_end,
+                    issue.description,
+                    issue.detection_source,
+                ],
+            ).fetchone()
+
+            logger.info("qa_issue_created", issue_id=next_id, category=issue.category)
+            return _row_to_issue_response(row)
+
+    except Exception as e:
+        logger.error("create_issue_failed", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 @router.get("/issues", response_model=QAIssuesListResponse)
 async def get_issues(
     category: str | None = Query(None, description="Filter by category"),

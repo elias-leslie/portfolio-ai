@@ -13,6 +13,11 @@
   --xy-controls-button-border-color: hsl(var(--border));
 }
 
+/* Force hovered nodes to be on top of everything inside the canvas */
+.react-flow__node:hover {
+  z-index: 1000 !important;
+}
+
 /* Ensure the canvas background follows theme */
 .react-flow__renderer {
   background-color: hsl(var(--muted) / 0.2);
