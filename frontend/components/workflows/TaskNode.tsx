@@ -58,7 +58,8 @@ function TaskNodeComponent({ data }: NodeProps) {
     <TooltipProvider>
       <div
         className={cn(
-          "rounded-lg border bg-card shadow-sm min-w-[180px] max-w-[200px]",
+          "rounded-lg border border-border shadow-sm min-w-[180px] max-w-[200px]",
+          "bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100",
           status === "running" && "ring-2 ring-blue-500 ring-offset-2 ring-offset-background"
         )}
       >
@@ -70,7 +71,7 @@ function TaskNodeComponent({ data }: NodeProps) {
         />
 
         {/* Header */}
-        <div className="px-3 py-2 border-b bg-muted/50 rounded-t-lg">
+        <div className="px-3 py-2 border-b border-border bg-zinc-100 dark:bg-zinc-700/50 rounded-t-lg">
           <div className="flex items-center gap-2">
             <div className={cn("w-2 h-2 rounded-full shrink-0", statusColors[status])} />
             <Tooltip>

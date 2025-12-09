@@ -14,6 +14,7 @@ import {
 } from "@xyflow/react";
 import dagre from "dagre";
 import "@xyflow/react/dist/style.css";
+import "./workflow-canvas.css";
 
 import { useWorkflowGraph } from "@/lib/hooks/useWorkflowGraph";
 import { TaskNode } from "./TaskNode";
@@ -98,7 +99,7 @@ function getMiniMapNodeColor(node: Node<NodeData>): string {
 }
 
 interface WorkflowCanvasProps {
-  category: string;
+  category?: string; // Optional - if not provided, shows ALL tasks
 }
 
 export function WorkflowCanvas({ category }: WorkflowCanvasProps) {
@@ -187,10 +188,11 @@ export function WorkflowCanvas({ category }: WorkflowCanvasProps) {
           onEdgesChange={onEdgesChange}
           nodeTypes={nodeTypes}
           fitView
-          fitViewOptions={{ padding: 0.2 }}
+          fitViewOptions={{ padding: 0.2, minZoom: 0.4, maxZoom: 1 }}
           proOptions={{ hideAttribution: true }}
-          minZoom={0.1}
+          minZoom={0.3}
           maxZoom={2}
+          defaultViewport={{ x: 0, y: 0, zoom: 0.6 }}
         >
           <Background gap={20} size={1} />
           <Controls />
