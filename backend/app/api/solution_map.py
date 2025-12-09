@@ -518,22 +518,53 @@ async def get_solution_map() -> SolutionMapResponse:
                 )
 
             # ==================================================================
-            # CALCULATE OVERALL HEALTH
+            # CALCULATE OVERALL HEALTH (with severity weighting)
             # ==================================================================
-            # Weight each layer equally and calculate health percentage
-            total_items = (
-                total_goals
-                + total_features
-                + total_tasks
-                + total_tables
-                + total_endpoints
-                + total_sources
-            )
-            healthy_items = (
-                healthy_goals + passed + active_tasks + active_tables + active_endpoints + free_sources
-            )
+            # Weights reflect business impact:
+            # - Vision Goals: Strategic alignment (weight 3)
+            # - Features: User-facing functionality (weight 4) - highest priority
+            # - Tasks: Execution infrastructure (weight 2)
+            # - Tables: Data layer (weight 2)
+            # - Endpoints: API layer (weight 2)
+            # - Sources: External integrations (weight 1) - lowest priority
+            weights = {
+                "vision_goals": 3,
+                "features": 4,
+                "tasks": 2,
+                "tables": 2,
+                "endpoints": 2,
+                "sources": 1,
+            }
 
-            overall_health = (healthy_items / total_items * 100) if total_items > 0 else 0.0
+            # Calculate weighted health score
+            weighted_healthy = 0.0
+            weighted_total = 0.0
+
+            if total_goals > 0:
+                weighted_healthy += (healthy_goals / total_goals) * weights["vision_goals"]
+                weighted_total += weights["vision_goals"]
+
+            if total_features > 0:
+                weighted_healthy += (passed / total_features) * weights["features"]
+                weighted_total += weights["features"]
+
+            if total_tasks > 0:
+                weighted_healthy += (active_tasks / total_tasks) * weights["tasks"]
+                weighted_total += weights["tasks"]
+
+            if total_tables > 0:
+                weighted_healthy += (active_tables / total_tables) * weights["tables"]
+                weighted_total += weights["tables"]
+
+            if total_endpoints > 0:
+                weighted_healthy += (active_endpoints / total_endpoints) * weights["endpoints"]
+                weighted_total += weights["endpoints"]
+
+            if total_sources > 0:
+                weighted_healthy += (free_sources / total_sources) * weights["sources"]
+                weighted_total += weights["sources"]
+
+            overall_health = (weighted_healthy / weighted_total * 100) if weighted_total > 0 else 0.0
 
             logger.info(
                 "solution_map_generated",

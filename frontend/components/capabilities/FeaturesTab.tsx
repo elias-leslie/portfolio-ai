@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Fragment } from "react";
+import { useState, Fragment, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -14,6 +14,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -42,6 +43,7 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  Download,
 } from "lucide-react";
 import { EvidenceViewerModal } from "./EvidenceViewerModal";
 import {
@@ -50,6 +52,88 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+
+/**
+ * Highlight search matches in text
+ */
+function HighlightMatch({ text, query }: { text: string; query: string }) {
+  if (!query || !text) return <>{text}</>;
+
+  const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi");
+  const parts = text.split(regex);
+
+  return (
+    <>
+      {parts.map((part, i) =>
+        regex.test(part) ? (
+          <mark key={i} className="bg-accent/40 text-accent-foreground rounded px-0.5">
+            {part}
+          </mark>
+        ) : (
+          part
+        )
+      )}
+    </>
+  );
+}
+
+/**
+ * Skeleton loading for FeaturesTab
+ */
+function FeaturesTabSkeleton() {
+  return (
+    <div className="space-y-4" aria-busy="true" aria-label="Loading features...">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-4 gap-4">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="rounded-lg border border-border bg-surface p-4">
+            <Skeleton className="h-8 w-16 mb-2" />
+            <Skeleton className="h-4 w-24" />
+          </div>
+        ))}
+      </div>
+
+      {/* Verification Summary */}
+      <div className="rounded-lg border border-border bg-surface p-4">
+        <Skeleton className="h-5 w-48 mb-3" />
+        <div className="grid grid-cols-3 gap-4">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <Skeleton className="h-4 w-4 rounded" />
+              <Skeleton className="h-6 w-12" />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3">
+        <Skeleton className="h-10 flex-1 min-w-[250px]" />
+        <Skeleton className="h-10 w-[180px]" />
+        <Skeleton className="h-10 w-[160px]" />
+      </div>
+
+      {/* Table */}
+      <div className="rounded-lg border border-border">
+        <div className="p-4 space-y-3">
+          {[...Array(10)].map((_, i) => (
+            <div key={i} className="flex items-center gap-4">
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-4 w-8" />
+              <Skeleton className="h-4 w-8" />
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-4 w-12" />
+              <Skeleton className="h-6 w-20" />
+              <Skeleton className="h-4 w-16 ml-auto" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Task interface for subtasks
 interface Task {
@@ -562,12 +646,68 @@ export function FeaturesTab() {
     return `${Math.floor(diffDays / 30)}mo`;
   };
 
+  // Export features to CSV
+  const handleExportCSV = () => {
+    if (!sortedFeatures.length) return;
+
+    const headers = ["Feature ID", "Name", "Category", "Status", "Priority", "Effort", "Progress %", "Tasks Completed", "Total Tasks", "Criteria Passed", "Total Criteria"];
+    const rows = sortedFeatures.map(f => [
+      f.feature_id,
+      f.name,
+      f.category || "",
+      f.passes === true ? "Verified" : f.passes === false ? "Failing" : "Unreviewed",
+      String(f.priority ?? f.effective_priority),
+      f.effort || "",
+      String(f.completion_pct),
+      String(f.completed_tasks),
+      String(f.total_tasks),
+      String(f.acceptance_criteria?.filter(c => c.passed === true).length ?? 0),
+      String(f.acceptance_criteria?.length ?? 0),
+    ]);
+
+    const csv = [headers, ...rows].map(row => row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `features-export-${new Date().toISOString().split("T")[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success("Features exported to CSV");
+  };
+
+  // Export features to JSON
+  const handleExportJSON = () => {
+    if (!sortedFeatures.length) return;
+
+    const exportData = sortedFeatures.map(f => ({
+      feature_id: f.feature_id,
+      name: f.name,
+      category: f.category,
+      status: f.passes === true ? "verified" : f.passes === false ? "failing" : "unreviewed",
+      priority: f.priority ?? f.effective_priority,
+      effort: f.effort,
+      completion_pct: f.completion_pct,
+      completed_tasks: f.completed_tasks,
+      total_tasks: f.total_tasks,
+      criteria_passed: f.acceptance_criteria?.filter(c => c.passed === true).length ?? 0,
+      criteria_total: f.acceptance_criteria?.length ?? 0,
+      vision_goals: f.vision_goals,
+    }));
+
+    const json = JSON.stringify(exportData, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `features-export-${new Date().toISOString().split("T")[0]}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success("Features exported to JSON");
+  };
+
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <FeaturesTabSkeleton />;
   }
 
   return (
@@ -740,6 +880,44 @@ export function FeaturesTab() {
             <SelectItem value="200">200</SelectItem>
           </SelectContent>
         </Select>
+
+        {/* Export buttons */}
+        <div className="flex gap-1 ml-auto">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportCSV}
+                  disabled={!sortedFeatures.length}
+                  aria-label="Export to CSV"
+                >
+                  <Download className="h-4 w-4 mr-1" />
+                  CSV
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Export filtered features to CSV</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportJSON}
+                  disabled={!sortedFeatures.length}
+                  aria-label="Export to JSON"
+                >
+                  <Download className="h-4 w-4 mr-1" />
+                  JSON
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Export filtered features to JSON</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
       </div>
 
       {/* Results count */}
@@ -838,13 +1016,25 @@ export function FeaturesTab() {
                 return (
                   <Fragment key={feature.feature_id}>
                     <TableRow
-                      className={(hasTasks || (feature.acceptance_criteria && feature.acceptance_criteria.length > 0)) ? "cursor-pointer hover:bg-muted/50" : ""}
+                      className={(hasTasks || (feature.acceptance_criteria && feature.acceptance_criteria.length > 0)) ? "cursor-pointer hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-accent" : ""}
                       onClick={() => (hasTasks || (feature.acceptance_criteria && feature.acceptance_criteria.length > 0)) && toggleRow(feature.feature_id)}
+                      onKeyDown={(e) => {
+                        if ((e.key === "Enter" || e.key === " ") && (hasTasks || (feature.acceptance_criteria && feature.acceptance_criteria.length > 0))) {
+                          e.preventDefault();
+                          toggleRow(feature.feature_id);
+                        }
+                      }}
+                      tabIndex={(hasTasks || (feature.acceptance_criteria && feature.acceptance_criteria.length > 0)) ? 0 : -1}
+                      role="row"
+                      aria-expanded={(hasTasks || (feature.acceptance_criteria && feature.acceptance_criteria.length > 0)) ? isExpanded : undefined}
                       style={{ backgroundColor: getRowBgColor(feature.passes) }}
                     >
                       <TableCell className="font-mono text-xs px-2 align-top py-2 w-20">
                         <div className="flex items-center gap-1">
-                          <span className="w-4 h-4 inline-flex items-center justify-center shrink-0">
+                          <span
+                            className="w-4 h-4 inline-flex items-center justify-center shrink-0"
+                            aria-hidden="true"
+                          >
                             {(hasTasks || (feature.acceptance_criteria && feature.acceptance_criteria.length > 0)) && (
                               isExpanded ? (
                                 <ChevronDown className="h-4 w-4 text-muted-foreground" />
@@ -862,7 +1052,7 @@ export function FeaturesTab() {
                                 : "#a1a1aa", // zinc-400
                             }}
                           >
-                            {feature.feature_id}
+                            <HighlightMatch text={feature.feature_id} query={searchQuery} />
                           </span>
                         </div>
                       </TableCell>
@@ -879,10 +1069,11 @@ export function FeaturesTab() {
                               className="w-2 h-2 rounded-full shrink-0"
                               style={{ backgroundColor: "#f59e0b" }}
                               title="Needs review"
+                              aria-label="Needs review"
                             />
                           )}
                           <span className="font-medium truncate" title={feature.name}>
-                            {feature.name}
+                            <HighlightMatch text={feature.name} query={searchQuery} />
                           </span>
                         </div>
                       </TableCell>

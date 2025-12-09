@@ -9,6 +9,7 @@ import { useSolutionMap } from "@/lib/hooks/useSolutionMap";
 import { LayerSummary, Blocker } from "@/lib/api/solutionMap";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Tooltip,
   TooltipContent,
@@ -24,8 +25,6 @@ import {
   Cloud,
   AlertTriangle,
   AlertCircle,
-  ChevronDown,
-  Loader2,
   ArrowDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -58,6 +57,31 @@ function getProgressColor(pct: number): string {
 }
 
 /**
+ * Skeleton for LayerCard during loading
+ */
+function LayerCardSkeleton() {
+  return (
+    <Card className="animate-pulse">
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-5 w-5 rounded" />
+            <Skeleton className="h-4 w-24" />
+          </div>
+          <Skeleton className="h-6 w-8" />
+        </div>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-2 w-12" />
+          <Skeleton className="h-2 w-12" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
  * Layer Card - clickable card representing a layer in the architecture
  */
 interface LayerCardProps {
@@ -77,10 +101,19 @@ function LayerCard({ layer, icon, onClick, className, showProgress = false }: La
         <TooltipTrigger asChild>
           <Card
             className={cn(
-              "cursor-pointer transition-all hover:border-accent hover:shadow-md",
+              "cursor-pointer transition-all hover:border-accent hover:shadow-md focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2",
               className
             )}
             onClick={onClick}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick?.();
+              }
+            }}
+            tabIndex={0}
+            role="button"
+            aria-label={`${layer.name}: ${layer.count} total, ${layer.healthy} healthy, ${layer.warning} warnings, ${layer.critical} critical. Click to view details.`}
           >
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
@@ -88,24 +121,24 @@ function LayerCard({ layer, icon, onClick, className, showProgress = false }: La
                   {icon}
                   <CardTitle className="text-sm font-medium">{layer.name}</CardTitle>
                 </div>
-                <span className="text-lg font-bold">{layer.count}</span>
+                <span className="text-lg font-bold" aria-label={`${layer.count} items`}>{layer.count}</span>
               </div>
             </CardHeader>
             <CardContent className="pt-0">
-              <div className="flex items-center gap-4 text-xs">
-                <span className="flex items-center gap-1">
-                  <span className="h-2 w-2 rounded-full bg-gain" />
+              <div className="flex items-center gap-4 text-xs" role="group" aria-label="Health breakdown">
+                <span className="flex items-center gap-1" aria-label={`${layer.healthy} healthy`}>
+                  <span className="h-2 w-2 rounded-full bg-gain" aria-hidden="true" />
                   {layer.healthy}
                 </span>
                 {layer.warning > 0 && (
-                  <span className="flex items-center gap-1">
-                    <span className="h-2 w-2 rounded-full bg-accent" />
+                  <span className="flex items-center gap-1" aria-label={`${layer.warning} warnings`}>
+                    <span className="h-2 w-2 rounded-full bg-accent" aria-hidden="true" />
                     {layer.warning}
                   </span>
                 )}
                 {layer.critical > 0 && (
-                  <span className="flex items-center gap-1">
-                    <span className="h-2 w-2 rounded-full bg-loss" />
+                  <span className="flex items-center gap-1" aria-label={`${layer.critical} critical`}>
+                    <span className="h-2 w-2 rounded-full bg-loss" aria-hidden="true" />
                     {layer.critical}
                   </span>
                 )}
@@ -115,6 +148,7 @@ function LayerCard({ layer, icon, onClick, className, showProgress = false }: La
                   <Progress
                     value={healthPct}
                     className="h-1.5"
+                    aria-label={`${healthPct}% healthy`}
                   />
                   <span className={cn("text-xs mt-1", getHealthColor(layer.healthy, layer.count))}>
                     {healthPct}% healthy
@@ -152,17 +186,26 @@ function BlockerItem({ blocker, onClick }: BlockerItemProps) {
   return (
     <div
       className={cn(
-        "flex items-start gap-2 rounded-md p-2 text-sm cursor-pointer transition-colors",
+        "flex items-start gap-2 rounded-md p-2 text-sm cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1",
         isCritical
           ? "bg-loss/10 hover:bg-loss/20"
           : "bg-accent/10 hover:bg-accent/20"
       )}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick?.();
+        }
+      }}
+      tabIndex={0}
+      role="button"
+      aria-label={`${isCritical ? "Critical" : "Warning"}: ${blocker.item_name} in ${blocker.layer}. ${blocker.issue}. Click to view.`}
     >
       {isCritical ? (
-        <AlertCircle className="h-4 w-4 text-loss shrink-0 mt-0.5" />
+        <AlertCircle className="h-4 w-4 text-loss shrink-0 mt-0.5" aria-hidden="true" />
       ) : (
-        <AlertTriangle className="h-4 w-4 text-accent shrink-0 mt-0.5" />
+        <AlertTriangle className="h-4 w-4 text-accent shrink-0 mt-0.5" aria-hidden="true" />
       )}
       <div className="flex-1 min-w-0">
         <span className="font-medium">{blocker.item_name}</span>
@@ -187,21 +230,70 @@ function ConnectionArrow() {
 /**
  * Main Solution Map Component
  */
+/**
+ * Skeleton loading state for Solution Map
+ */
+function SolutionMapSkeleton() {
+  return (
+    <div className="space-y-6" aria-busy="true" aria-label="Loading solution map...">
+      {/* Header skeleton */}
+      <div className="flex items-center justify-between">
+        <div>
+          <Skeleton className="h-6 w-48 mb-2" />
+          <Skeleton className="h-4 w-64" />
+        </div>
+        <div className="text-right">
+          <Skeleton className="h-8 w-16 ml-auto" />
+          <Skeleton className="h-3 w-24 mt-1 ml-auto" />
+        </div>
+      </div>
+
+      {/* Layer hierarchy skeletons */}
+      <div className="space-y-2">
+        <LayerCardSkeleton />
+        <div className="flex justify-center py-1">
+          <Skeleton className="h-4 w-4" />
+        </div>
+        <LayerCardSkeleton />
+        <div className="flex justify-center py-1">
+          <Skeleton className="h-4 w-4" />
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          <LayerCardSkeleton />
+          <LayerCardSkeleton />
+          <LayerCardSkeleton />
+        </div>
+        <div className="flex justify-center py-1">
+          <Skeleton className="h-4 w-4" />
+        </div>
+        <LayerCardSkeleton />
+      </div>
+
+      {/* Issues skeleton */}
+      <Card>
+        <CardHeader className="pb-2">
+          <Skeleton className="h-5 w-40" />
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export function SolutionMap({ onTabChange }: SolutionMapProps) {
   const { data, isLoading, error } = useSolutionMap();
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <SolutionMapSkeleton />;
   }
 
   if (error || !data) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <AlertCircle className="h-12 w-12 text-loss mb-4" />
+      <div className="flex flex-col items-center justify-center py-12 text-center" role="alert">
+        <AlertCircle className="h-12 w-12 text-loss mb-4" aria-hidden="true" />
         <p className="text-sm font-medium">Failed to load Solution Map</p>
         <p className="text-xs text-muted-foreground mt-1">
           {error instanceof Error ? error.message : "Unknown error"}

@@ -19,6 +19,7 @@ All-in-DB architecture:
 
 from __future__ import annotations
 
+import json
 import re
 from datetime import UTC, datetime
 from pathlib import Path
@@ -115,22 +116,56 @@ class FeatureScanner:
                 """
             ).fetchall()
 
+            # Batch load ALL tasks in one query to avoid N+1 (optimization)
+            all_tasks_rows = conn.execute(
+                """
+                SELECT
+                    ft.feature_id, ft.task_id, ft.description, ft.completed,
+                    ft.order_num, ft.completed_at, ft.completed_by,
+                    ft.files, ft.notes, ft.status, ft.effort
+                FROM feature_tasks ft
+                ORDER BY ft.feature_id, ft.order_num, ft.task_id
+                """
+            ).fetchall()
+
+            # Index tasks by feature DB id for O(1) lookup
+            tasks_by_feature: dict[int, list[dict[str, Any]]] = {}
+            for task_row in all_tasks_rows:
+                feature_db_id = task_row[0]
+                task_dict = {
+                    "task_id": task_row[1],
+                    "description": task_row[2],
+                    "completed": task_row[3],
+                    "order_num": task_row[4],
+                    "completed_at": task_row[5],
+                    "completed_by": task_row[6],
+                    "files": task_row[7] if task_row[7] else [],
+                    "notes": task_row[8],
+                    "status": task_row[9] or "pending",
+                    "effort": task_row[10],
+                }
+                if feature_db_id not in tasks_by_feature:
+                    tasks_by_feature[feature_db_id] = []
+                tasks_by_feature[feature_db_id].append(task_dict)
+
             for row in rows:
-                feature = self._validate_feature(conn, row)
+                feature = self._validate_feature(row, tasks_by_feature)
                 features.append(feature)
 
         logger.info("feature_scan_complete", features_scanned=len(features))
 
         return features
 
-    def _validate_feature(self, conn: Any, row: tuple[Any, ...]) -> dict[str, Any]:
+    def _validate_feature(
+        self, row: tuple[Any, ...], tasks_by_feature: dict[int, list[dict[str, Any]]]
+    ) -> dict[str, Any]:
         """Validate a single feature's completion status.
 
         Uses DB tasks if available, falls back to markdown parsing for migration.
 
         Args:
-            conn: Database connection
             row: Database row tuple with task counts
+            tasks_by_feature: Pre-fetched tasks indexed by feature DB id
 
         Returns:
             Feature dict with validation results
@@ -168,37 +203,12 @@ class FeatureScanner:
         total_tasks = db_total_tasks
         completed_tasks = db_completed_tasks
         task_file_exists = False
-        tasks: list[dict[str, Any]] = []
 
-        # Get subtasks from DB if any exist
-        if db_total_tasks > 0:
-            task_rows = conn.execute(
-                """
-                SELECT task_id, description, completed, order_num,
-                       completed_at, completed_by, files, notes, status, effort
-                FROM feature_tasks
-                WHERE feature_id = %s
-                ORDER BY order_num, task_id
-                """,
-                (db_id,),
-            ).fetchall()
-            tasks = [
-                {
-                    "task_id": r[0],
-                    "description": r[1],
-                    "completed": r[2],
-                    "order_num": r[3],
-                    "completed_at": r[4],
-                    "completed_by": r[5],
-                    "files": r[6] if r[6] else [],
-                    "notes": r[7],
-                    "status": r[8] or "pending",
-                    "effort": r[9],
-                }
-                for r in task_rows
-            ]
+        # Get subtasks from pre-fetched dict (O(1) lookup, no N+1 query)
+        tasks = tasks_by_feature.get(db_id, [])
+
         # Fall back to markdown parsing if no DB tasks (migration path)
-        elif task_file:
+        if not tasks and task_file:
             task_path = PROJECT_ROOT / task_file
             task_file_exists = task_path.exists()
 
@@ -490,8 +500,6 @@ class FeatureScanner:
         Returns:
             True if insert succeeded, False otherwise
         """
-        import json
-
         logger.info(
             "adding_feature",
             feature_id=feature_id,
