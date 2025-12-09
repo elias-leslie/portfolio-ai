@@ -22,6 +22,7 @@ import { FeaturesTab } from "@/components/capabilities/FeaturesTab";
 import { VisionGoalsTab } from "@/components/capabilities/VisionGoalsTab";
 import { RulesViewer } from "@/components/rules/RulesViewer";
 import { WorkflowCanvas } from "@/components/workflows/WorkflowCanvas";
+import { QATab } from "@/components/qa/QATab";
 import {
   RefreshCw,
   Search,
@@ -36,6 +37,7 @@ import {
   CheckSquare,
   Target,
   GitBranch,
+  ShieldCheck,
 } from "lucide-react";
 import {
   fetchCapabilities,
@@ -46,7 +48,7 @@ import {
 import { toast } from "sonner";
 import { PageContainer } from "@/components/shared/PageContainer";
 
-type TabValue = "dashboard" | "workflows" | "database" | "celery" | "api" | "sources" | "rules" | "features" | "vision";
+type TabValue = "dashboard" | "workflows" | "qa" | "database" | "celery" | "api" | "sources" | "rules" | "features" | "vision";
 
 function CapabilitiesPageContent() {
   const queryClient = useQueryClient();
@@ -137,7 +139,7 @@ function CapabilitiesPageContent() {
         limit: pageSize,
         offset: page * pageSize,
       }),
-    enabled: activeTab !== "dashboard" && activeTab !== "workflows" && activeTab !== "sources" && activeTab !== "rules",
+    enabled: activeTab !== "dashboard" && activeTab !== "workflows" && activeTab !== "sources" && activeTab !== "rules" && activeTab !== "qa",
   });
 
   // Trigger scan mutation
@@ -296,7 +298,7 @@ function CapabilitiesPageContent() {
 
       {/* Tabs - order: Dashboard, Vision, Features, Workflows, Data Sources, Trading Rules, Database, Tasks, Endpoints */}
       <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as TabValue)}>
-        <TabsList className="grid w-full grid-cols-9">
+        <TabsList className="grid w-full grid-cols-10">
           <TabsTrigger value="dashboard">
             Dashboard
           </TabsTrigger>
@@ -311,6 +313,10 @@ function CapabilitiesPageContent() {
           <TabsTrigger value="workflows">
             <GitBranch className="mr-2 h-4 w-4" />
             Workflows
+          </TabsTrigger>
+          <TabsTrigger value="qa">
+            <ShieldCheck className="mr-2 h-4 w-4" />
+            QA
           </TabsTrigger>
           <TabsTrigger value="sources">
             <Cloud className="mr-2 h-4 w-4" />
@@ -344,7 +350,7 @@ function CapabilitiesPageContent() {
         </TabsList>
 
         {/* Filters (for capability tabs) */}
-        {activeTab !== "dashboard" && activeTab !== "workflows" && activeTab !== "sources" && activeTab !== "rules" && activeTab !== "features" && activeTab !== "vision" && (
+        {activeTab !== "dashboard" && activeTab !== "workflows" && activeTab !== "sources" && activeTab !== "rules" && activeTab !== "features" && activeTab !== "vision" && activeTab !== "qa" && (
           <div className="space-y-3">
             <div className="flex flex-wrap gap-3">
               {/* Search */}
@@ -444,6 +450,11 @@ function CapabilitiesPageContent() {
           </div>
         </TabsContent>
 
+        {/* QA Tab */}
+        <TabsContent value="qa">
+          <QATab />
+        </TabsContent>
+
         {/* Database Tab */}
         <TabsContent value="database">
           <CapabilitiesTable capabilities={filteredCapabilities} />
@@ -489,6 +500,7 @@ function CapabilitiesPageContent() {
         activeTab !== "rules" &&
         activeTab !== "features" &&
         activeTab !== "vision" &&
+        activeTab !== "qa" &&
         capabilitiesData &&
         capabilitiesData.total > pageSize && (
           <div className="flex items-center justify-between">

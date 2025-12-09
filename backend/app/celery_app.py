@@ -73,6 +73,7 @@ from app.tasks import (  # noqa: E402, F401
     news_profiling_tasks,
     news_tasks,
     portfolio_tasks,
+    qa_tasks,  # NEW: QA system daily scans
     reference_tasks,
     rules_validation_tasks,  # NEW: Rules validation and optimization
     source_health_tasks,

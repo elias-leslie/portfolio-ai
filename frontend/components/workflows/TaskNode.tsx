@@ -59,8 +59,11 @@ function TaskNodeComponent({ data }: NodeProps) {
       <div
         className={cn(
           "rounded-lg border border-border shadow-sm min-w-[180px] max-w-[200px]",
+          "transition-all duration-300 ease-in-out hover:scale-[2.5] hover:z-50 hover:shadow-xl origin-center",
           "bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100",
-          status === "running" && "ring-2 ring-blue-500 ring-offset-2 ring-offset-background"
+          status === "running" && "ring-2 ring-blue-500 ring-offset-2 ring-offset-background",
+          (status === "failed" || successRate < 50) && "ring-2 ring-red-500 ring-offset-2 ring-offset-background",
+          (status !== "failed" && status !== "running" && successRate >= 50 && successRate < 80) && "ring-2 ring-yellow-500 ring-offset-2 ring-offset-background"
         )}
       >
         {/* Left handle for incoming edges */}

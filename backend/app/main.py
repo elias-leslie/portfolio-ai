@@ -35,6 +35,7 @@ from app.api import (
     paper_trading,
     portfolio,
     preferences,
+    qa,
     recommendations,
     rules,
     settings_profiles,
@@ -182,6 +183,7 @@ app.include_router(vision_goals_router, prefix="/api")  # Vision goals lookup ta
 app.include_router(vision_content_router, prefix="/api")  # Vision content (mission, principles, roadmap)
 app.include_router(workflow_graph.router)  # Workflow visualization graph API
 app.include_router(solution_map.router)  # Solution architecture map API
+app.include_router(qa.router)  # QA system - issue tracking, trends, scanning
 
 
 @app.get("/")

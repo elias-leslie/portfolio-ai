@@ -452,6 +452,29 @@ def get_beat_schedule() -> dict[str, object]:
         # AI analyzer and gap detection tasks removed - migrated to [DEBT] subtasks on features
         # See tasks/tasks-tech-debt-to-feature-subtasks-migration.md
         # ============================================================================
+        # QA SYSTEM DAILY SCANS
+        # ============================================================================
+        # Daily automated QA scanning for code quality issues
+        # ============================================================================
+        "daily-qa-scan": {
+            "task": "tasks.daily_qa_scan",
+            "schedule": crontab(hour=4, minute=30),  # Daily at 04:30 UTC
+            "options": {"expires": 3600},  # Task expires after 1 hour
+            # Notes:
+            # - Runs daily at 04:30 UTC (after capability scans complete at 03:00-03:05)
+            # - Scans for 6 issue categories:
+            #   * dead_code: Unused functions/classes/imports
+            #   * orphan_file: Unreferenced files
+            #   * schema_drift: Model vs DB mismatches
+            #   * stale_data: Tables not updated recently
+            #   * bloat: Functions/files exceeding size limits
+            #   * test_gap: Untested code
+            # - Upserts detected issues into qa_issues table
+            # - Auto-resolves issues no longer detected
+            # - Takes daily snapshot for trend tracking
+            # - Enables /qa dashboard monitoring
+        },
+        # ============================================================================
         # ACCEPTANCE CRITERIA AUTO-VERIFICATION
         # ============================================================================
         # These tasks auto-verify API/test/UI criteria on a schedule

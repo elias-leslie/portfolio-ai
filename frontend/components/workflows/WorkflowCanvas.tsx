@@ -40,7 +40,7 @@ function getLayoutedElements(
   g.setGraph({
     rankdir: "LR",        // Left to right flow
     nodesep: 200,         // Vertical spacing between nodes in same column
-    ranksep: 350,         // Horizontal spacing between columns
+    ranksep: 600,         // Horizontal spacing between columns
     marginx: 20,          // Margin on left/right
     marginy: 20,          // Margin on top/bottom
     // ranker: "tight-tree", // Removed to allow better spreading
