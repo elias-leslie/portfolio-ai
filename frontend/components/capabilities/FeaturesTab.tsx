@@ -457,33 +457,21 @@ export function FeaturesTab() {
     );
   };
 
-  // Render status badge
-  const renderStatusBadge = (status: string) => {
-    const colors: Record<string, { bg: string; text: string; border: string }> = {
-      pending: { bg: "#71717a20", text: "#a1a1aa", border: "#71717a40" },
-      in_progress: { bg: "#3b82f620", text: "#60a5fa", border: "#3b82f640" },
-      review_needed: { bg: "#eab30820", text: "#facc15", border: "#eab30840" },
-      deferred: { bg: "#8b5cf620", text: "#a78bfa", border: "#8b5cf640" },
-      blocked: { bg: "#ef444420", text: "#f87171", border: "#ef444440" },
-      complete: { bg: "#22c55e20", text: "#4ade80", border: "#22c55e40" },
-    };
-    const color = colors[status] || colors.pending;
-    const labels: Record<string, string> = {
-      pending: "Pending",
-      in_progress: "In Progress",
-      review_needed: "Review",
-      deferred: "Deferred",
-      blocked: "Blocked",
-      complete: "Complete",
-    };
-    return (
-      <span
-        className="text-[10px] px-1.5 py-0.5 rounded border"
-        style={{ backgroundColor: color.bg, color: color.text, borderColor: color.border }}
-      >
-        {labels[status] || status}
-      </span>
-    );
+  // Format relative time (e.g., "2h ago", "3d ago")
+  const formatRelativeTime = (dateString: string | null): string => {
+    if (!dateString) return "—";
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffMins < 1) return "now";
+    if (diffMins < 60) return `${diffMins}m`;
+    if (diffHours < 24) return `${diffHours}h`;
+    if (diffDays < 30) return `${diffDays}d`;
+    return `${Math.floor(diffDays / 30)}mo`;
   };
 
   if (isLoading) {
@@ -685,7 +673,7 @@ export function FeaturesTab() {
                 <TableHead className="px-2 w-8 text-center">E</TableHead>
                 <TableHead className="px-2 w-40">Name</TableHead>
                 <TableHead className="px-2 w-24">Category</TableHead>
-                <TableHead className="px-2 w-20">Work</TableHead>
+                <TableHead className="px-2 w-16 text-center">Checked</TableHead>
                 <TableHead className="px-2 w-14 text-center">Criteria</TableHead>
                 <TableHead className="px-2 w-24">Verified</TableHead>
                 <TableHead className="px-2 w-20 text-right">Progress</TableHead>
@@ -764,8 +752,13 @@ export function FeaturesTab() {
                           );
                         })()}
                       </TableCell>
-                      <TableCell className="px-2 align-top py-2 w-20">
-                        {renderStatusBadge(feature.status)}
+                      <TableCell className="px-2 align-top py-2 w-16 text-center">
+                        <span
+                          className="text-xs text-muted-foreground"
+                          title={feature.last_verified_at ? new Date(feature.last_verified_at).toLocaleString() : "Never verified"}
+                        >
+                          {formatRelativeTime(feature.last_verified_at)}
+                        </span>
                       </TableCell>
                       <TableCell className="px-2 text-center align-top py-2 w-14">
                         {renderCriteriaStatus(feature.acceptance_criteria)}
