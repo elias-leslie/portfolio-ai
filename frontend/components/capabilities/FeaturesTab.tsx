@@ -39,6 +39,9 @@ import {
   BookOpen,
   Code,
   AlertTriangle,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { EvidenceViewerModal } from "./EvidenceViewerModal";
 import {
@@ -149,6 +152,10 @@ interface VisionGoal {
   category: string | null;
 }
 
+// Sorting types
+type SortColumn = "feature_id" | "priority" | "effort" | "name" | "category" | "last_verified_at" | "criteria" | "passes" | "progress";
+type SortDirection = "asc" | "desc";
+
 export function FeaturesTab() {
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -159,6 +166,8 @@ export function FeaturesTab() {
   const [currentPage, setCurrentPage] = useState(1);
   const [isVerifying, setIsVerifying] = useState(false);
   const [verifyTypeFilter, setVerifyTypeFilter] = useState("api");
+  const [sortColumn, setSortColumn] = useState<SortColumn>("feature_id");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [evidenceModal, setEvidenceModal] = useState<{
     open: boolean;
     featureId: string;
@@ -290,6 +299,27 @@ export function FeaturesTab() {
     }
   };
 
+  // Toggle sort column/direction
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortColumn(column);
+      setSortDirection("asc");
+    }
+    setCurrentPage(1);
+  };
+
+  // Get sort icon for column header
+  const getSortIcon = (column: SortColumn) => {
+    if (sortColumn !== column) {
+      return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40" />;
+    }
+    return sortDirection === "asc"
+      ? <ArrowUp className="h-3 w-3 ml-1" />
+      : <ArrowDown className="h-3 w-3 ml-1" />;
+  };
+
   // Filter features by search query and vision goal
   const filteredFeatures = featuresData?.features.filter((f) => {
     // Vision goal filter
@@ -309,12 +339,70 @@ export function FeaturesTab() {
     );
   }) ?? [];
 
+  // Sort features
+  const sortedFeatures = [...filteredFeatures].sort((a, b) => {
+    let comparison = 0;
+
+    switch (sortColumn) {
+      case "feature_id":
+        // Natural sort for IDs like FEAT-001, FEAT-002, FEAT-GAP-001
+        comparison = a.feature_id.localeCompare(b.feature_id, undefined, { numeric: true });
+        break;
+      case "priority":
+        comparison = (a.priority ?? a.effective_priority) - (b.priority ?? b.effective_priority);
+        break;
+      case "effort": {
+        const effortOrder: Record<string, number> = { low: 1, medium: 2, high: 3, very_high: 4 };
+        const aEffort = effortOrder[a.effort ?? ""] ?? 5;
+        const bEffort = effortOrder[b.effort ?? ""] ?? 5;
+        comparison = aEffort - bEffort;
+        break;
+      }
+      case "name":
+        comparison = a.name.localeCompare(b.name);
+        break;
+      case "category":
+        comparison = (a.category ?? "").localeCompare(b.category ?? "");
+        break;
+      case "last_verified_at": {
+        const aDate = a.last_verified_at ? new Date(a.last_verified_at).getTime() : 0;
+        const bDate = b.last_verified_at ? new Date(b.last_verified_at).getTime() : 0;
+        comparison = aDate - bDate;
+        break;
+      }
+      case "criteria": {
+        const aPassed = a.acceptance_criteria?.filter(c => c.passed === true).length ?? 0;
+        const bPassed = b.acceptance_criteria?.filter(c => c.passed === true).length ?? 0;
+        const aTotal = a.acceptance_criteria?.length ?? 0;
+        const bTotal = b.acceptance_criteria?.length ?? 0;
+        // Sort by ratio, then by total
+        const aRatio = aTotal > 0 ? aPassed / aTotal : 0;
+        const bRatio = bTotal > 0 ? bPassed / bTotal : 0;
+        comparison = aRatio - bRatio || aTotal - bTotal;
+        break;
+      }
+      case "passes": {
+        // null=0, false=1, true=2 for ascending (unreviewed first, then failing, then verified)
+        const passesOrder = (p: boolean | null) => p === null ? 0 : p === false ? 1 : 2;
+        comparison = passesOrder(a.passes) - passesOrder(b.passes);
+        break;
+      }
+      case "progress":
+        comparison = a.completion_pct - b.completion_pct;
+        break;
+      default:
+        comparison = 0;
+    }
+
+    return sortDirection === "asc" ? comparison : -comparison;
+  });
+
   // Pagination calculations
-  const totalFiltered = filteredFeatures.length;
+  const totalFiltered = sortedFeatures.length;
   const totalPages = Math.ceil(totalFiltered / pageSize);
   const startIndex = (currentPage - 1) * pageSize;
   const endIndex = Math.min(startIndex + pageSize, totalFiltered);
-  const paginatedFeatures = filteredFeatures.slice(startIndex, endIndex);
+  const paginatedFeatures = sortedFeatures.slice(startIndex, endIndex);
 
   // Reset to page 1 when filters change
   const handlePageSizeChange = (newSize: string) => {
@@ -668,15 +756,78 @@ export function FeaturesTab() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="px-2 w-20">ID</TableHead>
-                <TableHead className="px-2 w-10 text-center">P</TableHead>
-                <TableHead className="px-2 w-8 text-center">E</TableHead>
-                <TableHead className="px-2 w-40">Name</TableHead>
-                <TableHead className="px-2 w-24">Category</TableHead>
-                <TableHead className="px-2 w-16 text-center">Checked</TableHead>
-                <TableHead className="px-2 w-14 text-center">Criteria</TableHead>
-                <TableHead className="px-2 w-24">Verified</TableHead>
-                <TableHead className="px-2 w-20 text-right">Progress</TableHead>
+                <TableHead
+                  className="px-2 w-20 cursor-pointer hover:bg-muted/50 select-none"
+                  onClick={() => handleSort("feature_id")}
+                >
+                  <div className="flex items-center">
+                    ID{getSortIcon("feature_id")}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="px-2 w-10 text-center cursor-pointer hover:bg-muted/50 select-none"
+                  onClick={() => handleSort("priority")}
+                >
+                  <div className="flex items-center justify-center">
+                    P{getSortIcon("priority")}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="px-2 w-8 text-center cursor-pointer hover:bg-muted/50 select-none"
+                  onClick={() => handleSort("effort")}
+                >
+                  <div className="flex items-center justify-center">
+                    E{getSortIcon("effort")}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="px-2 w-40 cursor-pointer hover:bg-muted/50 select-none"
+                  onClick={() => handleSort("name")}
+                >
+                  <div className="flex items-center">
+                    Name{getSortIcon("name")}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="px-2 w-24 cursor-pointer hover:bg-muted/50 select-none"
+                  onClick={() => handleSort("category")}
+                >
+                  <div className="flex items-center">
+                    Category{getSortIcon("category")}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="px-2 w-16 text-center cursor-pointer hover:bg-muted/50 select-none"
+                  onClick={() => handleSort("last_verified_at")}
+                >
+                  <div className="flex items-center justify-center">
+                    Checked{getSortIcon("last_verified_at")}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="px-2 w-14 text-center cursor-pointer hover:bg-muted/50 select-none"
+                  onClick={() => handleSort("criteria")}
+                >
+                  <div className="flex items-center justify-center">
+                    Criteria{getSortIcon("criteria")}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="px-2 w-24 cursor-pointer hover:bg-muted/50 select-none"
+                  onClick={() => handleSort("passes")}
+                >
+                  <div className="flex items-center">
+                    Verified{getSortIcon("passes")}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="px-2 w-20 text-right cursor-pointer hover:bg-muted/50 select-none"
+                  onClick={() => handleSort("progress")}
+                >
+                  <div className="flex items-center justify-end">
+                    Progress{getSortIcon("progress")}
+                  </div>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

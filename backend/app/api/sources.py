@@ -1,12 +1,12 @@
 """API Sources endpoint for programmatic access to data source capabilities.
 
 This endpoint provides agents and developers with comprehensive information
-about available data source APIs, their capabilities, rate limits, and
-GAP coverage.
+about available data source APIs, their capabilities, and rate limits.
 
 Usage by agents:
     GET /api/sources - List all sources with capabilities
     GET /api/sources/{provider} - Detailed endpoint info for specific provider
+    GET /api/sources/routing/{data_type} - Get routing recommendations for data type
 """
 
 from __future__ import annotations
@@ -203,64 +203,3 @@ def get_data_routing(data_type: str) -> dict[str, Any]:
         )
 
     return {"data_type": data_type, "routing": routing[data_type]}
-
-
-@router.get("/gap/{gap_id}")
-def get_gap_providers(gap_id: str) -> dict[str, Any]:
-    """Find providers that can address a specific trading gap.
-
-    Args:
-        gap_id: GAP identifier (e.g., 'GAP-003', 'GAP-006')
-
-    Returns:
-        Dict with providers and their endpoints that address this gap
-    """
-    try:
-        config = _load_sources_config()
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=500, detail="API sources config not found") from e
-
-    gap_id_upper = gap_id.upper()
-    results = []
-
-    for provider_name, provider in config.get("providers", {}).items():
-        matching_endpoints = []
-
-        for endpoint_name, endpoint in provider.get("endpoints", {}).items():
-            if not isinstance(endpoint, dict):
-                continue
-
-            endpoint_gap = endpoint.get("gap_id", "")
-            # Check if GAP ID matches (handle comma-separated IDs)
-            gap_ids = [g.strip().upper() for g in str(endpoint_gap).split(",")]
-            if gap_id_upper in gap_ids:
-                matching_endpoints.append(
-                    {
-                        "endpoint": endpoint_name,
-                        "path": endpoint.get("path") or endpoint.get("method"),
-                        "description": endpoint.get("description"),
-                        "notes": endpoint.get("notes"),
-                    }
-                )
-
-        if matching_endpoints:
-            results.append(
-                {
-                    "provider": provider_name,
-                    "tier": provider.get("tier", "FREE"),
-                    "priority": provider.get("priority", 99),
-                    "endpoints": matching_endpoints,
-                }
-            )
-
-    if not results:
-        return {
-            "gap_id": gap_id,
-            "message": f"No FREE tier providers found for {gap_id}",
-            "providers": [],
-        }
-
-    # Sort by priority
-    results.sort(key=lambda x: x["priority"])
-
-    return {"gap_id": gap_id, "providers": results}
