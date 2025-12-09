@@ -4,25 +4,17 @@
 
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+// Badge, ChevronRight, TrendingUp removed - no longer used after insights migration
 import {
-  ChevronRight,
   Loader2,
   Database,
   Zap,
   Globe,
-  TrendingUp,
   AlertTriangle,
   CheckSquare,
 } from "lucide-react";
-import {
-  fetchInsights,
-  type CapabilityInsight,
-  type InsightSeverity,
-} from "@/lib/api/capabilities";
 import { formatDistanceToNow } from "date-fns";
 
 interface HealthSummary {
@@ -68,37 +60,12 @@ interface FeaturesSummary {
   health_breakdown: Record<string, number>;
 }
 
-/**
- * Get badge variant based on severity
- */
-function getSeverityVariant(severity: InsightSeverity): "default" | "destructive" | "warning" {
-  switch (severity) {
-    case "critical":
-      return "destructive";
-    case "high":
-    case "medium":
-      return "warning";
-    default:
-      return "default";
-  }
-}
-
-/**
- * Determine capability name from insight
- */
-function getCapabilityName(insight: CapabilityInsight): string {
-  if (insight.table_name) return insight.table_name;
-  if (insight.task_name) return insight.task_name;
-  if (insight.endpoint_path) return insight.endpoint_path;
-  return "Unknown";
-}
+// getSeverityVariant and getCapabilityName removed - no longer needed after insights migration
 
 /**
  * CapabilitiesDashboard component
  */
 export function CapabilitiesDashboard() {
-  const router = useRouter();
-
   // Fetch health summary
   const { data: healthSummary, isLoading: healthLoading } = useQuery<HealthSummary>({
     queryKey: ["capabilities", "health-summary"],
@@ -123,51 +90,10 @@ export function CapabilitiesDashboard() {
     },
   });
 
-  // Fetch recent critical/warning insights - ONLY PENDING (not fixed/dismissed)
-  const { data: insightsData, isLoading: insightsLoading } = useQuery({
-    queryKey: ["capability-insights", "dashboard", "pending"],
-    queryFn: () =>
-      fetchInsights({
-        status: "pending",
-        limit: 10,
-        offset: 0,
-      }),
-  });
+  // Insights query removed - tech debt migrated to [DEBT] subtasks on features
+  // View debt items in Features tab with category filter "Tech Debt"
 
-  // Navigate to capability detail from insight
-  const navigateToInsight = (insight: CapabilityInsight) => {
-    // Determine tab based on capability_type
-    const tabMap: Record<string, string> = {
-      db: "database",
-      celery: "celery",
-      api: "api",
-    };
-
-    const tab = tabMap[insight.capability_type] || "all";
-
-    // Navigate with query params (expand will be handled by the target tab)
-    if (insight.capability_id) {
-      router.push(`/capabilities?tab=${tab}&expand=${insight.capability_id}`);
-    } else {
-      // If no capability_id (missing capability), go to gaps tab
-      router.push(`/capabilities?tab=gaps`);
-    }
-  };
-
-  // Filter insights to show only critical and high severity
-  const criticalInsights =
-    insightsData?.insights.filter(
-      (i) => i.severity === "critical" || i.severity === "high"
-    ) || [];
-
-  // Group insights by type for category breakdown
-  const insightsByType = insightsData?.insights.reduce((acc, insight) => {
-    const type = insight.insight_type || "unknown";
-    acc[type] = (acc[type] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>) || {};
-
-  // Tech debt type display names and colors
+  // Tech debt type display names and colors (kept for reference)
   const techDebtTypeConfig: Record<string, { label: string; color: string }> = {
     dead_code: { label: "Dead Code", color: "text-red-400" },
     orphaned_infra: { label: "Orphaned Infra", color: "text-orange-400" },
@@ -398,74 +324,24 @@ export function CapabilitiesDashboard() {
         </Card>
       </div>
 
-      {/* Critical Tech Debt (formerly Insights) */}
+      {/* Tech Debt - now tracked as [DEBT] subtasks on features */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-accent" />
-              <CardTitle>Critical Tech Debt</CardTitle>
-            </div>
-            {criticalInsights.length > 0 && (
-              <Badge variant="warning">{criticalInsights.length}</Badge>
-            )}
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-accent" />
+            <CardTitle>Tech Debt</CardTitle>
           </div>
-          {/* Category breakdown */}
-          {Object.keys(insightsByType).length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-2">
-              {Object.entries(insightsByType).map(([type, count]) => {
-                const config = techDebtTypeConfig[type] || { label: type, color: "text-muted-foreground" };
-                return (
-                  <span key={type} className={`text-xs ${config.color}`}>
-                    {config.label}: {count}
-                  </span>
-                );
-              })}
-            </div>
-          )}
         </CardHeader>
         <CardContent>
-          {insightsLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : criticalInsights.length > 0 ? (
-            <div className="space-y-2">
-              {criticalInsights.map((insight) => (
-                <div
-                  key={insight.id}
-                  className="flex cursor-pointer items-start gap-3 rounded-lg p-3 transition-colors hover:bg-surface-muted"
-                  onClick={() => navigateToInsight(insight)}
-                >
-                  <Badge variant={getSeverityVariant(insight.severity)} className="mt-0.5">
-                    {insight.severity.toUpperCase()}
-                  </Badge>
-                  <div className="flex-1 min-w-0">
-                    <div className="mb-1 flex items-center gap-2">
-                      <span className="text-sm font-medium text-text">
-                        {getCapabilityName(insight)}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {insight.capability_type}
-                      </span>
-                    </div>
-                    <p className="text-sm text-muted-foreground line-clamp-2">
-                      {insight.finding}
-                    </p>
-                  </div>
-                  <ChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground mt-1" />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <TrendingUp className="mb-3 h-12 w-12 text-gain opacity-50" />
-              <p className="text-sm font-medium text-text">All Clear!</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                No critical tech debt items detected
-              </p>
-            </div>
-          )}
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <CheckSquare className="mb-3 h-12 w-12 text-gain opacity-50" />
+            <p className="text-sm font-medium text-text">Migrated to Features</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Tech debt is now tracked as [DEBT] subtasks on features.
+              <br />
+              View in the Features tab with category &quot;Tech Debt&quot;.
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>

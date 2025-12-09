@@ -31,7 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { StatusBadge } from "./StatusBadge";
-import { InsightCard } from "./InsightCard";
+// InsightCard removed - insights migrated to [DEBT] subtasks on features
 import type {
   Capability,
   DbCapability,
@@ -41,7 +41,7 @@ import type {
 } from "@/lib/api/capabilities";
 import {
   fetchCapabilityDetail,
-  reviewInsight,
+  // reviewInsight removed - insights migrated to [DEBT] subtasks on features
   createNote,
 } from "@/lib/api/capabilities";
 import { formatDistanceToNow } from "date-fns";
@@ -807,29 +807,7 @@ export function CapabilitiesTable({ capabilities }: CapabilitiesTableProps) {
     enabled: !!expandedCapability,
   });
 
-  // Review insight mutation
-  const reviewMutation = useMutation({
-    mutationFn: ({
-      insightId,
-      status,
-      reason,
-    }: {
-      insightId: number;
-      status: "confirmed" | "dismissed" | "in_progress" | "fixed";
-      reason: string;
-    }) => reviewInsight(insightId, { status, status_reason: reason }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["capability-detail", expandedCapability?.capability_type, expandedCapability?.id],
-      });
-      queryClient.invalidateQueries({ queryKey: ["capabilities"] });
-      queryClient.invalidateQueries({ queryKey: ["insights"] });
-      toast.success("Insight updated successfully");
-    },
-    onError: (error: Error) => {
-      toast.error(`Failed to update insight: ${error.message}`);
-    },
-  });
+  // Review insight mutation removed - insights migrated to [DEBT] subtasks on features
 
   // Create note mutation
   const createNoteMutation = useMutation({
@@ -931,26 +909,7 @@ export function CapabilitiesTable({ capabilities }: CapabilitiesTableProps) {
                         </div>
                       )}
 
-                      {/* Insights Section */}
-                      {detailData?.insights && detailData.insights.length > 0 && (
-                        <div>
-                          <h4 className="text-sm font-semibold text-text mb-3">
-                            Insights ({detailData.insights.length})
-                          </h4>
-                          <div className="space-y-3">
-                            {detailData.insights.map((insight) => (
-                              <InsightCard
-                                key={insight.id}
-                                insight={insight}
-                                onReview={async (insightId, status, reason) => {
-                                  await reviewMutation.mutateAsync({ insightId, status, reason });
-                                }}
-                                isLoading={reviewMutation.isPending}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                      {/* Insights Section removed - migrated to [DEBT] subtasks on features */}
 
                       {/* Notes Section */}
                       <div>
@@ -1112,26 +1071,7 @@ export function CapabilitiesTable({ capabilities }: CapabilitiesTableProps) {
                             </div>
                           )}
 
-                          {/* Insights Section */}
-                          {detailData?.insights && detailData.insights.length > 0 && (
-                            <div>
-                              <h4 className="text-sm font-semibold text-text mb-3">
-                                Insights ({detailData.insights.length})
-                              </h4>
-                              <div className="space-y-3">
-                                {detailData.insights.map((insight) => (
-                                  <InsightCard
-                                    key={insight.id}
-                                    insight={insight}
-                                    onReview={async (insightId, status, reason) => {
-                                      await reviewMutation.mutateAsync({ insightId, status, reason });
-                                    }}
-                                    isLoading={reviewMutation.isPending}
-                                  />
-                                ))}
-                              </div>
-                            </div>
-                          )}
+                          {/* Insights Section removed - migrated to [DEBT] subtasks on features */}
 
                           {/* Notes Section */}
                           <div>
@@ -1292,26 +1232,7 @@ export function CapabilitiesTable({ capabilities }: CapabilitiesTableProps) {
                             </div>
                           )}
 
-                          {/* Insights Section */}
-                          {detailData?.insights && detailData.insights.length > 0 && (
-                            <div>
-                              <h4 className="text-sm font-semibold text-text mb-3">
-                                Insights ({detailData.insights.length})
-                              </h4>
-                              <div className="space-y-3">
-                                {detailData.insights.map((insight) => (
-                                  <InsightCard
-                                    key={insight.id}
-                                    insight={insight}
-                                    onReview={async (insightId, status, reason) => {
-                                      await reviewMutation.mutateAsync({ insightId, status, reason });
-                                    }}
-                                    isLoading={reviewMutation.isPending}
-                                  />
-                                ))}
-                              </div>
-                            </div>
-                          )}
+                          {/* Insights Section removed - migrated to [DEBT] subtasks on features */}
 
                           {/* Notes Section */}
                           <div>
