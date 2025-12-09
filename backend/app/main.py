@@ -38,6 +38,7 @@ from app.api import (
     recommendations,
     rules,
     settings_profiles,
+    solution_map,
     sources,
     status,
     status_stream,
@@ -180,6 +181,7 @@ app.include_router(artifacts.router)  # UI verification evidence artifacts
 app.include_router(vision_goals_router, prefix="/api")  # Vision goals lookup table
 app.include_router(vision_content_router, prefix="/api")  # Vision content (mission, principles, roadmap)
 app.include_router(workflow_graph.router)  # Workflow visualization graph API
+app.include_router(solution_map.router)  # Solution architecture map API
 
 
 @app.get("/")

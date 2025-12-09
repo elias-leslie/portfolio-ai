@@ -428,7 +428,7 @@ function CapabilitiesPageContent() {
 
         {/* Dashboard Tab */}
         <TabsContent value="dashboard">
-          <CapabilitiesDashboard />
+          <CapabilitiesDashboard onTabChange={(tab) => setActiveTab(tab)} />
         </TabsContent>
 
         {/* Database Tab */}
