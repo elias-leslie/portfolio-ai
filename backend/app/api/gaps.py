@@ -1,11 +1,20 @@
 """Trading Intelligence Gap Detection API.
 
-Endpoints:
+**DEPRECATED**: Trading requirements have been migrated to Features.
+Use the Features API at /api/capabilities/features/ with category filter "Data - *".
+
+This API is maintained for backwards compatibility only.
+Trading gaps are now tracked as features with source='trading_requirement'.
+
+Legacy Endpoints (deprecated):
 - GET /api/gaps/summary - System-wide gap summary with coverage %
 - GET /api/gaps/by-analysis - Gaps grouped by analysis type
 - GET /api/gaps/by-symbol/{symbol} - Per-symbol gap analysis
 - GET /api/gaps/watchlist - Gaps affecting current watchlist
 - POST /api/gaps/generate-task-list - Generate task list to fill specific gaps
+
+Migration date: 2025-12-08
+See: tasks/tasks-trading-reqs-to-features-migration.md
 """
 
 from __future__ import annotations
@@ -558,10 +567,12 @@ class ResolveGapResponse(BaseModel):
 
 @router.post("/{gap_id}/resolve", response_model=ResolveGapResponse)
 async def resolve_gap(gap_id: str, request: ResolveGapRequest | None = None) -> dict[str, str]:
-    """Mark a gap as resolved (remove from active list).
+    """Mark a gap as resolved by setting passes=true on the corresponding feature.
 
     Use this after implementing a capability to mark the gap as filled.
     Resolved gaps won't appear in the gap summary counts.
+
+    This updates the unified feature system (feature_capabilities table).
 
     Args:
         gap_id: Gap ID (e.g., GAP-020)
@@ -572,35 +583,57 @@ async def resolve_gap(gap_id: str, request: ResolveGapRequest | None = None) -> 
 
     Raises:
         HTTPException: 400 if invalid gap_id format
+        HTTPException: 404 if feature not found
         HTTPException: 500 if database operation fails
     """
     if not gap_id.startswith("GAP-"):
         raise HTTPException(status_code=400, detail=f"Invalid gap_id format: {gap_id}")
 
     notes = request.resolution_notes if request else None
+    feature_id = f"FEAT-{gap_id}"
 
-    logger.info("resolve_gap_request", gap_id=gap_id, notes=notes)
+    logger.info("resolve_gap_request", gap_id=gap_id, feature_id=feature_id, notes=notes)
 
     try:
         conn_mgr = ConnectionManager()
         with conn_mgr.connection() as conn:
-            # Upsert into trading_gaps (in case it doesn't exist yet)
-            conn.execute(
+            # Update the corresponding feature's passes status
+            result = conn.execute(
                 """
-                INSERT INTO trading_gaps (gap_id, capability, analysis_type, criticality,
-                    severity, current_state, desired_state, impact, recommendation, resolved_at, resolution_notes)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW() AT TIME ZONE 'UTC', %s)
-                ON CONFLICT (gap_id) DO UPDATE SET
-                    resolved_at = NOW() AT TIME ZONE 'UTC',
-                    resolution_notes = EXCLUDED.resolution_notes,
-                    updated_at = NOW() AT TIME ZONE 'UTC'
+                UPDATE feature_capabilities
+                SET passes = true,
+                    status = 'complete',
+                    verified_by = 'gap_resolution',
+                    last_verified_at = NOW(),
+                    updated_at = NOW()
+                WHERE feature_id = %s
+                RETURNING feature_id
                 """,
-                [gap_id, 'unknown', 'unknown', 'P1', 'limiting', '', '', '', 'Resolved', notes],
-            )
+                (feature_id,),
+            ).fetchone()
+
+            if not result:
+                # Feature doesn't exist - try legacy trading_gaps table as fallback
+                conn.execute(
+                    """
+                    INSERT INTO trading_gaps (gap_id, capability, analysis_type, criticality,
+                        severity, current_state, desired_state, impact, recommendation, resolved_at, resolution_notes)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW() AT TIME ZONE 'UTC', %s)
+                    ON CONFLICT (gap_id) DO UPDATE SET
+                        resolved_at = NOW() AT TIME ZONE 'UTC',
+                        resolution_notes = EXCLUDED.resolution_notes,
+                        updated_at = NOW() AT TIME ZONE 'UTC'
+                    """,
+                    [gap_id, 'unknown', 'unknown', 'P1', 'limiting', '', '', '', 'Resolved', notes],
+                )
+                conn.commit()
+                logger.info("gap_resolved_legacy", gap_id=gap_id)
+                return {"gap_id": gap_id, "status": "resolved", "message": f"Gap {gap_id} marked as resolved (legacy)"}
+
             conn.commit()
 
-        logger.info("gap_resolved", gap_id=gap_id)
-        return {"gap_id": gap_id, "status": "resolved", "message": f"Gap {gap_id} marked as resolved"}
+        logger.info("gap_resolved", gap_id=gap_id, feature_id=feature_id)
+        return {"gap_id": gap_id, "status": "resolved", "message": f"Gap {gap_id} resolved (feature {feature_id} passes=true)"}
 
     except Exception as e:
         logger.error("resolve_gap_failed", gap_id=gap_id, error=str(e))
@@ -609,7 +642,10 @@ async def resolve_gap(gap_id: str, request: ResolveGapRequest | None = None) -> 
 
 @router.get("/resolutions")
 async def get_gap_resolutions() -> dict[str, Any]:
-    """Get list of resolved gaps.
+    """Get list of resolved gaps from the unified feature system.
+
+    Returns features with source='trading_requirement' and passes=true,
+    converted back to gap format for compatibility.
 
     Returns:
         List of gap_ids that have been resolved and their resolution dates
@@ -617,20 +653,28 @@ async def get_gap_resolutions() -> dict[str, Any]:
     try:
         conn_mgr = ConnectionManager()
         with conn_mgr.connection() as conn:
+            # Query resolved gaps from features
             result = conn.execute(
                 """
-                SELECT gap_id, resolved_at, resolution_notes
-                FROM trading_gaps
-                WHERE resolved_at IS NOT NULL
-                ORDER BY resolved_at DESC
+                SELECT
+                    feature_id,
+                    last_verified_at,
+                    name,
+                    category
+                FROM feature_capabilities
+                WHERE source = 'trading_requirement'
+                  AND passes = true
+                ORDER BY last_verified_at DESC NULLS LAST
                 """
             ).fetchall()
 
         resolutions = [
             {
-                "gap_id": row[0],
-                "resolved_at": row[1].isoformat() if hasattr(row[1], "isoformat") else str(row[1]) if row[1] else None,
-                "notes": row[2],
+                "gap_id": str(row[0]).replace("FEAT-", "") if row[0] else None,
+                "feature_id": row[0],
+                "resolved_at": row[1].isoformat() if row[1] and hasattr(row[1], "isoformat") else None,
+                "name": row[2],
+                "category": row[3],
             }
             for row in result
         ]
@@ -638,6 +682,7 @@ async def get_gap_resolutions() -> dict[str, Any]:
         return {
             "resolved_count": len(resolutions),
             "resolutions": resolutions,
+            "source": "feature_capabilities",
         }
 
     except Exception as e:
@@ -646,12 +691,35 @@ async def get_gap_resolutions() -> dict[str, Any]:
 
 
 def get_resolved_gap_ids(conn_mgr: ConnectionManager) -> set[str]:
-    """Helper to get set of resolved gap IDs from database."""
+    """Helper to get set of resolved gap IDs from features with passes=true.
+
+    Uses the unified feature system: features with source='trading_requirement'
+    and passes=true are considered resolved gaps.
+    """
     try:
         with conn_mgr.connection() as conn:
+            # Query features that represent resolved gaps
+            # FEAT-GAP-003 → GAP-003
             result = conn.execute(
-                "SELECT gap_id FROM trading_gaps WHERE resolved_at IS NOT NULL"
+                """
+                SELECT feature_id FROM feature_capabilities
+                WHERE source = 'trading_requirement'
+                  AND passes = true
+                """
             ).fetchall()
-            return {str(row[0]) for row in result if row[0]}
+            # Convert FEAT-GAP-003 → GAP-003
+            return {
+                str(row[0]).replace("FEAT-", "")
+                for row in result
+                if row[0] and str(row[0]).startswith("FEAT-GAP-")
+            }
     except Exception:
-        return set()
+        # Fallback to legacy trading_gaps table
+        try:
+            with conn_mgr.connection() as conn:
+                result = conn.execute(
+                    "SELECT gap_id FROM trading_gaps WHERE resolved_at IS NOT NULL"
+                ).fetchall()
+                return {str(row[0]) for row in result if row[0]}
+        except Exception:
+            return set()

@@ -44,6 +44,7 @@ export interface CoverageResult {
 export interface GapSummary {
   timestamp: string;
   total_gaps: number;
+  resolved_count: number;  // Gaps resolved (tracked via feature passes=true)
   p0_gaps: number;
   p1_gaps: number;
   p2_gaps: number;

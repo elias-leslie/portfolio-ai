@@ -17,7 +17,7 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { CapabilitiesTable } from "@/components/capabilities/CapabilitiesTable";
 import { InsightCard } from "@/components/capabilities/InsightCard";
 import { CapabilitiesDashboard } from "@/components/capabilities/CapabilitiesDashboard";
-import { GapsOverview } from "@/components/capabilities/GapsOverview";
+// GapsOverview removed - trading requirements now in Features tab as "Data - *" categories
 import { ApiSourcesOverview } from "@/components/capabilities/ApiSourcesOverview";
 import { FeaturesTab } from "@/components/capabilities/FeaturesTab";
 import { VisionGoalsTab } from "@/components/capabilities/VisionGoalsTab";
@@ -30,7 +30,6 @@ import {
   Zap,
   Globe,
   AlertTriangle,
-  TrendingUp,
   Loader2,
   X,
   Cloud,
@@ -47,11 +46,11 @@ import {
   type InsightSeverity,
   type InsightStatus,
 } from "@/lib/api/capabilities";
-import { fetchGapSummary } from "@/lib/api/gaps";
+// fetchGapSummary removed - trading requirements now in Features tab
 import { toast } from "sonner";
 import { PageContainer } from "@/components/shared/PageContainer";
 
-type TabValue = "dashboard" | "database" | "celery" | "api" | "insights" | "gaps" | "sources" | "rules" | "features" | "vision";
+type TabValue = "dashboard" | "database" | "celery" | "api" | "insights" | "sources" | "rules" | "features" | "vision";
 
 function CapabilitiesPageContent() {
   const queryClient = useQueryClient();
@@ -143,7 +142,7 @@ function CapabilitiesPageContent() {
         limit: pageSize,
         offset: page * pageSize,
       }),
-    enabled: activeTab !== "dashboard" && activeTab !== "insights" && activeTab !== "gaps" && activeTab !== "sources" && activeTab !== "rules",
+    enabled: activeTab !== "dashboard" && activeTab !== "insights" && activeTab !== "sources" && activeTab !== "rules",
   });
 
   // Fetch insights count (always enabled for tab badge)
@@ -168,15 +167,7 @@ function CapabilitiesPageContent() {
     enabled: activeTab === "insights",
   });
 
-  // Fetch gaps (trading intelligence gaps) - always fetch for tab badge count
-  const {
-    data: gapsData,
-    isLoading: gapsLoading,
-  } = useQuery({
-    queryKey: ["gaps-summary"],
-    queryFn: fetchGapSummary,
-    staleTime: 60000, // Cache for 1 minute
-  });
+  // Gaps query removed - trading requirements now tracked in Features tab with "Data - *" categories
 
   // Trigger scan mutation
   const scanMutation = useMutation({
@@ -207,7 +198,7 @@ function CapabilitiesPageContent() {
     }) => reviewInsight(insightId, { status, status_reason: reason }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["insights"] });
-      queryClient.invalidateQueries({ queryKey: ["gaps"] });
+      queryClient.invalidateQueries({ queryKey: ["features"] });
       toast.success("Insight updated successfully");
     },
     onError: (error: Error) => {
@@ -357,7 +348,7 @@ function CapabilitiesPageContent() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as TabValue)}>
-        <TabsList className="grid w-full grid-cols-10">
+        <TabsList className="grid w-full grid-cols-9">
           <TabsTrigger value="dashboard">
             Dashboard
           </TabsTrigger>
@@ -398,15 +389,6 @@ function CapabilitiesPageContent() {
               {apiCount}
             </span>
           </TabsTrigger>
-          <TabsTrigger value="gaps">
-            <TrendingUp className="mr-2 h-4 w-4" />
-            Trading Reqs
-            {gapsData && gapsData.total_gaps > 0 && (
-              <span className="ml-2 rounded-full bg-accent/20 px-2 py-0.5 text-xs">
-                {gapsData.total_gaps}
-              </span>
-            )}
-          </TabsTrigger>
           <TabsTrigger value="insights">
             <AlertTriangle className="mr-2 h-4 w-4" />
             Tech Debt
@@ -419,7 +401,7 @@ function CapabilitiesPageContent() {
         </TabsList>
 
         {/* Filters (for capability tabs) */}
-        {activeTab !== "dashboard" && activeTab !== "insights" && activeTab !== "gaps" && activeTab !== "sources" && activeTab !== "rules" && activeTab !== "features" && activeTab !== "vision" && (
+        {activeTab !== "dashboard" && activeTab !== "insights" && activeTab !== "sources" && activeTab !== "rules" && activeTab !== "features" && activeTab !== "vision" && (
           <div className="space-y-3">
             <div className="flex flex-wrap gap-3">
               {/* Search */}
@@ -591,21 +573,7 @@ function CapabilitiesPageContent() {
           )}
         </TabsContent>
 
-        {/* Trading Requirements Tab (formerly Gaps) */}
-        <TabsContent value="gaps">
-          {gapsLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : gapsData ? (
-            <GapsOverview data={gapsData} />
-          ) : (
-            <div className="rounded-lg border border-border bg-surface p-8 text-center">
-              <TrendingUp className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
-              <p className="mt-4 text-sm text-muted-foreground">No trading requirements data available</p>
-            </div>
-          )}
-        </TabsContent>
+        {/* Trading Requirements Tab removed - now in Features tab with "Data - *" categories */}
 
         {/* Data Sources Tab (formerly Sources) */}
         <TabsContent value="sources">
@@ -631,7 +599,6 @@ function CapabilitiesPageContent() {
       {/* Pagination */}
       {((activeTab !== "dashboard" &&
         activeTab !== "insights" &&
-        activeTab !== "gaps" &&
         activeTab !== "sources" &&
         activeTab !== "rules" &&
         activeTab !== "features" &&
