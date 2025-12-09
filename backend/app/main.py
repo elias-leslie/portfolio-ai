@@ -21,7 +21,7 @@ from app.api import (
     capabilities,
     celery_endpoints,
     disagreements,
-    gaps,
+    # gaps removed - migrated to [DEBT] subtasks on features
     health,
     ideas,
     indicators,
@@ -163,7 +163,7 @@ app.include_router(valuation.router)
 app.include_router(watchlist.router)
 app.include_router(ml.router)
 app.include_router(capabilities.router)
-app.include_router(gaps.router)
+# gaps.router removed - trading requirements migrated to Features
 app.include_router(backtest.router)
 app.include_router(paper_trades.router)
 app.include_router(paper_trading.router)

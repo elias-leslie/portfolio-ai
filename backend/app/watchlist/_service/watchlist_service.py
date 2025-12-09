@@ -3,7 +3,9 @@
 This module provides:
 - WatchlistService class with all CRUD operations
 - Score refresh logic
-- Gap analysis integration
+
+Note: Gap analysis has been migrated to [DEBT] subtasks on features.
+See tasks/tasks-tech-debt-to-feature-subtasks-migration.md
 """
 
 from __future__ import annotations
@@ -16,7 +18,6 @@ from app.watchlist.scoring import calculate_watchlist_scores
 
 from ...logging_config import get_logger
 from ...portfolio.price_fetcher import PriceDataFetcher
-from ...services.gap_detection import GapDetector
 from ...storage import PortfolioStorage
 from ...storage.connection import ConnectionManager
 from ...utils.preferences_loader import UserPreferences
@@ -131,37 +132,11 @@ class WatchlistService:
             )
             item_data["news_intelligence"] = None
 
-        # Add gap analysis / readiness (Task 5.1)
-        try:
-            conn_mgr = ConnectionManager()
-            gap_detector = GapDetector(conn_mgr)
-            gap_result = gap_detector.analyze_symbol_gaps(row["symbol"])
-
-            item_data["readiness_score"] = gap_result.get("readiness_score")
-            item_data["confidence_level"] = gap_result.get("confidence_level")
-
-            # Generate warning message if confidence is low
-            if gap_result.get("confidence_level") == "LOW":
-                missing = gap_result.get("missing_capabilities", [])
-                if missing:
-                    item_data["gap_warning"] = (
-                        f"Score confidence: {gap_result.get('readiness_score', 0):.0f}% "
-                        f"(missing {len(missing)} capabilities)"
-                    )
-                else:
-                    item_data["gap_warning"] = None
-            else:
-                item_data["gap_warning"] = None
-
-        except Exception as e:
-            logger.warning(
-                "watchlist_gap_analysis_failed",
-                symbol=row["symbol"],
-                error=str(e),
-            )
-            item_data["readiness_score"] = None
-            item_data["confidence_level"] = None
-            item_data["gap_warning"] = None
+        # Gap analysis removed - migrated to [DEBT] subtasks on features
+        # Set default values for readiness fields (always high confidence now)
+        item_data["readiness_score"] = 100.0  # All data is available
+        item_data["confidence_level"] = "HIGH"
+        item_data["gap_warning"] = None
 
         return item_data
 

@@ -15,9 +15,8 @@ from typing import Any, TypedDict, cast
 
 from ..logging_config import get_logger
 from ..portfolio.models import PriceData
-from ..services.gap_detection import GapDetector
+# GapDetector removed - gap analysis migrated to [DEBT] subtasks on features
 from ..storage import PortfolioStorage
-from ..storage.connection import ConnectionManager
 from .calculator import (
     calculate_entry_price,
     calculate_position_size,
@@ -389,14 +388,8 @@ def generate_narrative_and_trade_levels(
             storage, symbol, price_data.price, signal_type, risk_budget
         )
 
-        # Gap analysis for data coverage warnings (Task 5.2)
-        gap_result = None
-        try:
-            conn_mgr = ConnectionManager()
-            gap_detector = GapDetector(conn_mgr)
-            gap_result = gap_detector.analyze_symbol_gaps(symbol)
-        except Exception as e:
-            logger.warning("gap_analysis_failed", symbol=symbol, error=str(e))
+        # Gap analysis removed - migrated to [DEBT] subtasks on features
+        gap_result = None  # Always None now - narrative will skip gap warnings
 
         action_plan, position_sizing, company_health_bullets, special_notes = (
             generate_narrative_texts(

@@ -15,7 +15,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { CapabilitiesTable } from "@/components/capabilities/CapabilitiesTable";
-import { InsightCard } from "@/components/capabilities/InsightCard";
 import { CapabilitiesDashboard } from "@/components/capabilities/CapabilitiesDashboard";
 // GapsOverview removed - trading requirements now in Features tab as "Data - *" categories
 import { ApiSourcesOverview } from "@/components/capabilities/ApiSourcesOverview";
@@ -29,7 +28,6 @@ import {
   Database,
   Zap,
   Globe,
-  AlertTriangle,
   Loader2,
   X,
   Cloud,
@@ -39,18 +37,14 @@ import {
 } from "lucide-react";
 import {
   fetchCapabilities,
-  fetchInsights,
-  reviewInsight,
   triggerScan,
   type CapabilityType,
-  type InsightSeverity,
-  type InsightStatus,
 } from "@/lib/api/capabilities";
 // fetchGapSummary removed - trading requirements now in Features tab
 import { toast } from "sonner";
 import { PageContainer } from "@/components/shared/PageContainer";
 
-type TabValue = "dashboard" | "database" | "celery" | "api" | "insights" | "sources" | "rules" | "features" | "vision";
+type TabValue = "dashboard" | "database" | "celery" | "api" | "sources" | "rules" | "features" | "vision";
 
 function CapabilitiesPageContent() {
   const queryClient = useQueryClient();
@@ -68,8 +62,6 @@ function CapabilitiesPageContent() {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [healthFilter, setHealthFilter] = useState<string>(initialHealthFilter);
-  const [severityFilter, setSeverityFilter] = useState<string>("all");
-  const [insightStatusFilter, setInsightStatusFilter] = useState<InsightStatus | "all">("all");
 
   // Pagination
   const [page, setPage] = useState(0);
@@ -142,32 +134,8 @@ function CapabilitiesPageContent() {
         limit: pageSize,
         offset: page * pageSize,
       }),
-    enabled: activeTab !== "dashboard" && activeTab !== "insights" && activeTab !== "sources" && activeTab !== "rules",
+    enabled: activeTab !== "dashboard" && activeTab !== "sources" && activeTab !== "rules",
   });
-
-  // Fetch insights count (always enabled for tab badge)
-  const { data: insightsCountData } = useQuery({
-    queryKey: ["insights-count"],
-    queryFn: () => fetchInsights({ limit: 1 }),
-  });
-
-  // Fetch insights for insights tab (full data when tab active)
-  const {
-    data: insightsData,
-    isLoading: insightsLoading,
-  } = useQuery({
-    queryKey: ["insights", severityFilter, insightStatusFilter, page, pageSize],
-    queryFn: () =>
-      fetchInsights({
-        severity: severityFilter !== "all" ? (severityFilter as InsightSeverity) : undefined,
-        status: insightStatusFilter !== "all" ? insightStatusFilter : undefined,
-        limit: pageSize,
-        offset: page * pageSize,
-      }),
-    enabled: activeTab === "insights",
-  });
-
-  // Gaps query removed - trading requirements now tracked in Features tab with "Data - *" categories
 
   // Trigger scan mutation
   const scanMutation = useMutation({
@@ -177,32 +145,10 @@ function CapabilitiesPageContent() {
       // Refresh data after a delay (scan runs async)
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ["capabilities"] });
-        queryClient.invalidateQueries({ queryKey: ["insights"] });
       }, 2000);
     },
     onError: (error: Error) => {
       toast.error(`Failed to trigger scan: ${error.message}`);
-    },
-  });
-
-  // Review insight mutation
-  const reviewMutation = useMutation({
-    mutationFn: ({
-      insightId,
-      status,
-      reason,
-    }: {
-      insightId: number;
-      status: InsightStatus;
-      reason: string;
-    }) => reviewInsight(insightId, { status, status_reason: reason }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["insights"] });
-      queryClient.invalidateQueries({ queryKey: ["features"] });
-      toast.success("Insight updated successfully");
-    },
-    onError: (error: Error) => {
-      toast.error(`Failed to update insight: ${error.message}`);
     },
   });
 
@@ -348,7 +294,7 @@ function CapabilitiesPageContent() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as TabValue)}>
-        <TabsList className="grid w-full grid-cols-9">
+        <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="dashboard">
             Dashboard
           </TabsTrigger>
@@ -389,19 +335,10 @@ function CapabilitiesPageContent() {
               {apiCount}
             </span>
           </TabsTrigger>
-          <TabsTrigger value="insights">
-            <AlertTriangle className="mr-2 h-4 w-4" />
-            Tech Debt
-            {(insightsCountData?.pending_count ?? insightsData?.pending_count ?? 0) > 0 && (
-              <span className="ml-2 rounded-full bg-accent/20 px-2 py-0.5 text-xs">
-                {insightsCountData?.pending_count ?? insightsData?.pending_count}
-              </span>
-            )}
-          </TabsTrigger>
         </TabsList>
 
         {/* Filters (for capability tabs) */}
-        {activeTab !== "dashboard" && activeTab !== "insights" && activeTab !== "sources" && activeTab !== "rules" && activeTab !== "features" && activeTab !== "vision" && (
+        {activeTab !== "dashboard" && activeTab !== "sources" && activeTab !== "rules" && activeTab !== "features" && activeTab !== "vision" && (
           <div className="space-y-3">
             <div className="flex flex-wrap gap-3">
               {/* Search */}
@@ -489,43 +426,6 @@ function CapabilitiesPageContent() {
           </div>
         )}
 
-        {/* Filters (for insights tab) */}
-        {activeTab === "insights" && (
-          <div className="flex flex-wrap gap-3">
-            {/* Severity Filter */}
-            <Select value={severityFilter} onValueChange={setSeverityFilter}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Severity" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Severities</SelectItem>
-                <SelectItem value="critical">Critical</SelectItem>
-                <SelectItem value="high">High</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="low">Low</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {/* Status Filter */}
-            <Select
-              value={insightStatusFilter}
-              onValueChange={(val) => setInsightStatusFilter(val as InsightStatus | "all")}
-            >
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="confirmed">Confirmed</SelectItem>
-                <SelectItem value="in_progress">In Progress</SelectItem>
-                <SelectItem value="fixed">Fixed</SelectItem>
-                <SelectItem value="dismissed">Dismissed</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
         {/* Dashboard Tab */}
         <TabsContent value="dashboard">
           <CapabilitiesDashboard />
@@ -546,34 +446,7 @@ function CapabilitiesPageContent() {
           <CapabilitiesTable capabilities={filteredCapabilities} />
         </TabsContent>
 
-        {/* Tech Debt Tab (formerly Insights) */}
-        <TabsContent value="insights">
-          {insightsLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : insightsData && insightsData.insights.length > 0 ? (
-            <div className="space-y-3">
-              {insightsData.insights.map((insight) => (
-                <InsightCard
-                  key={insight.id}
-                  insight={insight}
-                  onReview={async (insightId, status, reason) => {
-                    await reviewMutation.mutateAsync({ insightId, status, reason });
-                  }}
-                  isLoading={reviewMutation.isPending}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-lg border border-border bg-surface p-8 text-center">
-              <AlertTriangle className="mx-auto h-12 w-12 text-muted-foreground opacity-50" />
-              <p className="mt-4 text-sm text-muted-foreground">No tech debt items found</p>
-            </div>
-          )}
-        </TabsContent>
-
-        {/* Trading Requirements Tab removed - now in Features tab with "Data - *" categories */}
+        {/* Tech Debt Tab removed - migrated to [DEBT] subtasks on features */}
 
         {/* Data Sources Tab (formerly Sources) */}
         <TabsContent value="sources">
@@ -597,28 +470,18 @@ function CapabilitiesPageContent() {
       </Tabs>
 
       {/* Pagination */}
-      {((activeTab !== "dashboard" &&
-        activeTab !== "insights" &&
+      {activeTab !== "dashboard" &&
         activeTab !== "sources" &&
         activeTab !== "rules" &&
         activeTab !== "features" &&
         activeTab !== "vision" &&
         capabilitiesData &&
-        capabilitiesData.total > pageSize) ||
-        (activeTab === "insights" && insightsData && insightsData.total > pageSize)) && (
+        capabilitiesData.total > pageSize && (
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
               Showing {page * pageSize + 1} -{" "}
-              {Math.min(
-                (page + 1) * pageSize,
-                activeTab === "insights"
-                  ? insightsData?.total || 0
-                  : capabilitiesData?.total || 0
-              )}{" "}
-              of{" "}
-              {activeTab === "insights"
-                ? insightsData?.total || 0
-                : capabilitiesData?.total || 0}
+              {Math.min((page + 1) * pageSize, capabilitiesData?.total || 0)}{" "}
+              of {capabilitiesData?.total || 0}
             </p>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={() => setPage(page - 1)} disabled={page === 0}>
@@ -628,12 +491,7 @@ function CapabilitiesPageContent() {
                 variant="outline"
                 size="sm"
                 onClick={() => setPage(page + 1)}
-                disabled={
-                  (activeTab === "insights" &&
-                    (!insightsData || (page + 1) * pageSize >= insightsData.total)) ||
-                  ((activeTab === "database" || activeTab === "celery" || activeTab === "api") &&
-                    (!capabilitiesData || (page + 1) * pageSize >= capabilitiesData.total))
-                }
+                disabled={!capabilitiesData || (page + 1) * pageSize >= capabilitiesData.total}
               >
                 Next
               </Button>

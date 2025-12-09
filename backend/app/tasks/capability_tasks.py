@@ -1,7 +1,8 @@
-"""Celery tasks for system capability scanning and AI analysis.
+"""Celery tasks for system capability scanning.
 
-These tasks run on schedule to auto-discover system capabilities and
-generate AI-powered insights about data quality and gaps.
+These tasks run on schedule to auto-discover system capabilities.
+AI analysis (analyze_capabilities) has been removed - tech debt is now
+tracked as [DEBT] subtasks on features.
 """
 
 from __future__ import annotations
@@ -10,7 +11,6 @@ import time
 
 from ..celery_app import celery_app
 from ..logging_config import get_logger
-from ..services.ai_analyzer import CapabilityAnalyzer
 from ..services.capability_scanner import (
     APIScanner,
     CeleryScanner,
@@ -118,73 +118,8 @@ def scan_system_capabilities() -> CapabilityResultDict:
         )
 
 
-@celery_app.task(name="analyze_capabilities")  # type: ignore[misc]
-def analyze_capabilities() -> CapabilityResultDict:
-    """Run AI analysis on system capabilities to identify issues and gaps.
-
-    Runs automatically on schedule (daily at 03:15 UTC, 15 min after scan)
-    to generate insights about data quality, freshness, and missing capabilities.
-
-    Uses Claude Code CLI (zero API cost) for analysis. No ANTHROPIC_API_KEY required.
-    Claude CLI is auto-detected from PATH or CLAUDE_CLI_PATH environment variable.
-
-    Typical execution time: 2-5 minutes (CLI subprocess overhead ~200ms + analysis time)
-
-    Returns:
-        CapabilityResultDict with analysis results:
-            - status: "success" or "error"
-            - insights_generated: int
-            - insights_saved: int
-            - analysis_duration_seconds: float
-            - error: str | None
-    """
-    start_time = time.time()
-
-    logger.info("ai_capability_analysis_started")
-
-    try:
-        # Get connection manager
-        conn_mgr = get_connection_manager()
-
-        # Initialize analyzer
-        analyzer = CapabilityAnalyzer(conn_mgr)
-
-        # Run analysis
-        insights = analyzer.analyze()
-
-        # Calculate duration
-        duration = time.time() - start_time
-
-        result: CapabilityResultDict = {
-            "status": "success",
-            "insights_generated": len(insights),
-            "insights_saved": len(insights),
-            "analysis_duration_seconds": round(duration, 2),
-        }
-
-        logger.info(
-            "ai_capability_analysis_complete",
-            insights_generated=len(insights),
-            duration_seconds=round(duration, 2),
-        )
-
-        return result
-
-    except Exception as e:
-        duration = time.time() - start_time
-        logger.error(
-            "ai_capability_analysis_failed",
-            error=str(e),
-            duration_seconds=round(duration, 2),
-        )
-
-        return CapabilityResultDict(
-            status="error",
-            insights_generated=0,
-            insights_saved=0,
-            analysis_duration_seconds=round(duration, 2),
-            error=str(e),
-        )
+# analyze_capabilities task removed - tech debt is now tracked as [DEBT] subtasks on features
+# See tasks/tasks-tech-debt-to-feature-subtasks-migration.md
 
 
 @celery_app.task(name="scan_feature_capabilities")  # type: ignore[misc]
