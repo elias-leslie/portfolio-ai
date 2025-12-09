@@ -222,58 +222,185 @@ Then delete: `backend/app/tasks/gap_analysis_tasks.py`
 "alert_critical_gaps": {...}
 ```
 
-### 5.2 Modify AI Analyzer (output to subtasks, not insights)
+### 5.2 Replace AI Analyzer with Deterministic Scanner
 
-**KEEP but MODIFY:** `backend/app/services/ai_analyzer.py`
+**DELETE:** `backend/app/services/ai_analyzer.py` (LLM-based, non-deterministic)
 
-**Change behavior:**
-- Instead of creating `capability_insights`, create `[DEBT]` subtasks on features
-- Match finding to feature by table/endpoint/task name
-- Add `source: "scanner"` and `needs_verification: true` to subtask
+**CREATE:** `backend/scripts/tech_debt_scanner.py` (factual queries, no hallucination)
 
-**New output flow:**
+#### 5.2.1 Scanner Design Principles
+
+| Principle | Implementation |
+|-----------|----------------|
+| **Factual** | SQL queries, curl checks - no LLM |
+| **Deterministic** | Same input = same output |
+| **No false positives** | Exception list for known cases |
+| **Auditable** | Each finding includes verify_cmd |
+
+#### 5.2.2 Deterministic Checks
+
 ```python
-# Old: Creates capability_insight
-INSERT INTO capability_insights (finding, severity, ...)
+# backend/scripts/tech_debt_scanner.py
 
-# New: Creates [DEBT] subtask on matching feature
-POST /api/capabilities/features/{matched_feature_id}/tasks
+CHECKS = [
+    {
+        "id": "empty_table",
+        "name": "Empty Tables",
+        "query": "SELECT COUNT(*) FROM {table}",
+        "condition": lambda count: count == 0,
+        "severity": "high",
+        "message": "Table {table} has 0 rows",
+    },
+    {
+        "id": "stale_data",
+        "name": "Stale Data",
+        "query": "SELECT EXTRACT(EPOCH FROM (NOW() - MAX(updated_at)))/86400 FROM {table}",
+        "condition": lambda days: days > threshold_days,
+        "severity": "medium",
+        "message": "Table {table} not updated in {days} days",
+    },
+    {
+        "id": "failing_feature",
+        "name": "Failing Features",
+        "query": "SELECT feature_id, name FROM feature_capabilities WHERE passes = false",
+        "condition": lambda rows: len(rows) > 0,
+        "severity": "high",
+        "message": "Feature {feature_id} is marked as failing",
+    },
+    {
+        "id": "no_tests",
+        "name": "Features Without Tests",
+        "query": "SELECT feature_id, name FROM feature_capabilities WHERE test_count = 0 AND passes IS NOT NULL",
+        "condition": lambda rows: len(rows) > 0,
+        "severity": "medium",
+        "message": "Feature {feature_id} has no tests",
+    },
+    {
+        "id": "orphan_tasks",
+        "name": "Incomplete Tasks on Passing Features",
+        "query": """
+            SELECT f.feature_id, t.task_id
+            FROM feature_capabilities f
+            JOIN feature_tasks t ON f.id = t.feature_id
+            WHERE f.passes = true AND t.completed = false
+        """,
+        "condition": lambda rows: len(rows) > 0,
+        "severity": "low",
+        "message": "Feature {feature_id} passes but has incomplete task {task_id}",
+    },
+]
+```
+
+#### 5.2.3 Exception Mechanism (No False Positives)
+
+**Config file:** `backend/app/config/tech_debt_exceptions.yaml`
+
+```yaml
+# Tables that are expected to be empty or rarely updated
+exceptions:
+  empty_table:
+    - table: secure_credentials
+      reason: "Only updated when new API keys added"
+    - table: backtest_runs
+      reason: "Empty until user runs backtest"
+
+  stale_data:
+    - table: secure_credentials
+      max_days: 365  # Override default threshold
+      reason: "API keys rarely change"
+    - table: vision_goals
+      max_days: 30
+      reason: "Vision goals are stable"
+    - table: trading_rules
+      max_days: 30
+      reason: "Rules don't change often"
+
+  # Endpoints expected to return non-200
+  endpoint_check:
+    - path: /api/admin/*
+      reason: "Admin endpoints require auth"
+```
+
+**Database table for UI-managed exceptions:**
+
+```sql
+CREATE TABLE tech_debt_exceptions (
+    id SERIAL PRIMARY KEY,
+    check_type VARCHAR(50) NOT NULL,  -- empty_table, stale_data, etc.
+    entity VARCHAR(255) NOT NULL,      -- table name, endpoint, etc.
+    reason TEXT NOT NULL,
+    threshold_override JSONB,          -- {"max_days": 365}
+    created_by VARCHAR(100),
+    created_at TIMESTAMP DEFAULT NOW(),
+    expires_at TIMESTAMP               -- Optional: temporary exceptions
+);
+```
+
+**UI: Add to Capabilities page**
+- New "Exceptions" section or modal
+- List current exceptions with reasons
+- Add/remove exceptions
+- Shows which checks are skipped and why
+
+#### 5.2.4 Scanner Output
+
+```bash
+# Run scanner
+python backend/scripts/tech_debt_scanner.py --output json
+
+# Output
 {
-    "task_id": "DEBT-{timestamp}",
-    "description": "[DEBT] {finding}",
-    "notes": "Auto-detected by scanner. Verify before fixing.\nSeverity: {severity}\nSuggested fix: {suggested_fix}",
-    "effort": "{severity_to_effort}",
-    "source": "scanner",
-    "needs_verification": true
+  "scan_timestamp": "2025-12-08T12:00:00Z",
+  "checks_run": 5,
+  "exceptions_applied": 3,
+  "findings": [
+    {
+      "check_id": "empty_table",
+      "entity": "financial_health_scores",
+      "severity": "high",
+      "message": "Table financial_health_scores has 0 rows",
+      "verify_cmd": "SELECT COUNT(*) FROM financial_health_scores",
+      "suggested_fix": "Run ingest task or check data source"
+    }
+  ],
+  "skipped": [
+    {
+      "check_id": "stale_data",
+      "entity": "secure_credentials",
+      "reason": "Exception: Only updated when new API keys added"
+    }
+  ]
 }
 ```
 
-**Feature matching logic:**
+#### 5.2.5 Integration Points
+
+**Celery scheduled task (daily):**
 ```python
-def find_feature_for_debt(finding: str, metadata: dict) -> str | None:
-    # Match by table name
-    if "table" in metadata:
-        feature = find_feature_with_table(metadata["table"])
-        if feature: return feature.feature_id
-
-    # Match by endpoint
-    if "endpoint" in metadata:
-        feature = find_feature_with_endpoint(metadata["endpoint"])
-        if feature: return feature.feature_id
-
-    # Match by Celery task
-    if "task_name" in metadata:
-        feature = find_feature_with_task(metadata["task_name"])
-        if feature: return feature.feature_id
-
-    # No match - create FEAT-DEBT-XXX
-    return None
+@celery_app.task(name="scan_tech_debt")
+def scan_tech_debt():
+    result = subprocess.run(
+        ["python", "scripts/tech_debt_scanner.py", "--output", "json", "--create-tasks"],
+        capture_output=True
+    )
+    findings = json.loads(result.stdout)
+    # Creates [DEBT] subtasks on matching features
+    return {"findings": len(findings["findings"]), "skipped": len(findings["skipped"])}
 ```
 
-**Keep in Celery beat schedule:**
-```python
-# Keep this entry (modified behavior):
-"analyze_capabilities": {...}
+**/audit_it calls same script:**
+```bash
+# In audit_it Phase 1.6.4 (new):
+python backend/scripts/tech_debt_scanner.py --output json --dry-run
+# Review findings, then:
+python backend/scripts/tech_debt_scanner.py --create-tasks
+```
+
+**/do_it verifies before executing:**
+```bash
+# For [DEBT] task, run the verify_cmd first
+eval "$verify_cmd"  # e.g., SELECT COUNT(*) FROM financial_health_scores
+# If issue gone, auto-close task
 ```
 
 ### 5.3 Keep These Scanners (power Dashboard tabs)
@@ -441,14 +568,16 @@ curl -s 'http://localhost:8000/api/capabilities/insights/?status=pending' | jq '
 
 ### New Files
 - `backend/migrations/103_migrate_tech_debt_to_subtasks.py`
+- `backend/scripts/tech_debt_scanner.py` - Deterministic scanner (replaces LLM-based)
+- `backend/app/config/tech_debt_exceptions.yaml` - Exception config
+- `backend/migrations/104_tech_debt_exceptions.sql` - Exception table
 
 ### Modified Files
-- `frontend/app/capabilities/page.tsx` - Remove Tech Debt tab
+- `frontend/app/capabilities/page.tsx` - Remove Tech Debt tab, add Exceptions UI
 - `backend/app/api/capabilities/__init__.py` - Remove insights_router
-- `backend/app/tasks/capability_tasks.py` - Keep analyze_capabilities, it now creates subtasks
-- `backend/app/celery_schedules.py` - Remove gap tasks only (keep analyze_capabilities)
-- `backend/app/services/ai_analyzer.py` - Output to subtasks instead of insights
-- `.claude/commands/audit_it.md` - Remove Phase 1.8
+- `backend/app/tasks/capability_tasks.py` - Replace analyze_capabilities with scan_tech_debt
+- `backend/app/celery_schedules.py` - Remove gap tasks, update analyze task
+- `.claude/commands/audit_it.md` - Remove Phase 1.8, add Phase 1.6.4 (scanner call)
 - `.claude/commands/do_it.md` - Add scanner task verification step
 
 ### Files to DELETE
@@ -458,15 +587,12 @@ backend/app/services/gap_detection/  (entire directory)
 backend/app/tasks/gap_analysis_tasks.py
 backend/app/config/trading_requirements.yaml
 
+# LLM-based analyzer (replaced by deterministic scanner)
+backend/app/services/ai_analyzer.py
+
 # Tech Debt UI/API (subtasks replace insights table)
 backend/app/api/capabilities/insights_router.py
 frontend/components/capabilities/InsightCard.tsx
-```
-
-### Files to MODIFY (not delete)
-```
-# Scanner outputs to subtasks instead of insights table
-backend/app/services/ai_analyzer.py  (change output target)
 ```
 
 ### Keep (no changes)
