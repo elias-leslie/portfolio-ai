@@ -149,21 +149,12 @@ interface VisionGoal {
   category: string | null;
 }
 
-interface GapLink {
-  gap_id: string;
-  relationship_type: string;
-  linked_by: string;
-  linked_at: string;
-}
-
 export function FeaturesTab() {
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [passesFilter, setPassesFilter] = useState("all");
   const [visionGoalFilter, setVisionGoalFilter] = useState("all");
-  const [gapFilter, setGapFilter] = useState("all");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const [featureGaps, setFeatureGaps] = useState<Record<string, GapLink[]>>({});
   const [pageSize, setPageSize] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -186,31 +177,14 @@ export function FeaturesTab() {
   };
   const queryClient = useQueryClient();
 
-  // Fetch gaps for a feature
-  const fetchFeatureGaps = async (featureId: string) => {
-    try {
-      const response = await fetch(`/api/capabilities/features/${featureId}/gaps`);
-      if (response.ok) {
-        const gaps = await response.json();
-        setFeatureGaps((prev) => ({ ...prev, [featureId]: gaps }));
-      }
-    } catch {
-      // Silently fail - gaps are optional
-    }
-  };
-
   // Toggle row expansion
-  const toggleRow = async (featureId: string) => {
+  const toggleRow = (featureId: string) => {
     setExpandedRows((prev) => {
       const next = new Set(prev);
       if (next.has(featureId)) {
         next.delete(featureId);
       } else {
         next.add(featureId);
-        // Fetch gaps when expanding if not already loaded
-        if (!featureGaps[featureId]) {
-          fetchFeatureGaps(featureId);
-        }
       }
       return next;
     });
@@ -251,25 +225,7 @@ export function FeaturesTab() {
       params.set("limit", String(Math.min(total, 500)));
       const response = await fetch(`/api/capabilities/features/?${params}`);
       if (!response.ok) throw new Error("Failed to fetch features");
-      const data = await response.json();
-
-      // Pre-fetch gaps for all features to enable filtering
-      if (data.features && data.features.length > 0) {
-        const gapsPromises = data.features.map((f: Feature) =>
-          fetch(`/api/capabilities/features/${f.feature_id}/gaps`)
-            .then((r) => r.ok ? r.json() : [])
-            .then((gaps) => ({ featureId: f.feature_id, gaps }))
-            .catch(() => ({ featureId: f.feature_id, gaps: [] }))
-        );
-        const gapsResults = await Promise.all(gapsPromises);
-        const gapsMap: Record<string, GapLink[]> = {};
-        gapsResults.forEach(({ featureId, gaps }) => {
-          gapsMap[featureId] = gaps;
-        });
-        setFeatureGaps(gapsMap);
-      }
-
-      return data;
+      return response.json();
     },
   });
 
@@ -334,18 +290,11 @@ export function FeaturesTab() {
     }
   };
 
-  // Filter features by search query, vision goal, and gap
+  // Filter features by search query and vision goal
   const filteredFeatures = featuresData?.features.filter((f) => {
     // Vision goal filter
     if (visionGoalFilter !== "all") {
       if (!f.vision_goals || !f.vision_goals.includes(visionGoalFilter)) {
-        return false;
-      }
-    }
-    // Gap filter
-    if (gapFilter !== "all") {
-      const gaps = featureGaps[f.feature_id];
-      if (!gaps || !gaps.some((g) => g.gap_id === gapFilter)) {
         return false;
       }
     }
@@ -703,24 +652,6 @@ export function FeaturesTab() {
           </Select>
         )}
 
-        {/* Gap filter - shows gaps that are linked to features */}
-        {Object.values(featureGaps).flat().length > 0 && (
-          <Select value={gapFilter} onValueChange={(v) => { setGapFilter(v); setCurrentPage(1); }}>
-            <SelectTrigger className="w-[140px]">
-              <AlertTriangle className="mr-2 h-4 w-4" />
-              <SelectValue placeholder="Gap" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Gaps</SelectItem>
-              {Array.from(new Set(Object.values(featureGaps).flat().map(g => g.gap_id))).sort().map((gapId) => (
-                <SelectItem key={gapId} value={gapId}>
-                  {gapId}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-
         <Select value={String(pageSize)} onValueChange={handlePageSizeChange}>
           <SelectTrigger className="w-[80px]">
             <SelectValue placeholder="25" />
@@ -754,7 +685,6 @@ export function FeaturesTab() {
                 <TableHead className="px-2 w-8 text-center">E</TableHead>
                 <TableHead className="px-2 w-40">Name</TableHead>
                 <TableHead className="px-2 w-24">Category</TableHead>
-                <TableHead className="px-2 w-20">Gaps</TableHead>
                 <TableHead className="px-2 w-20">Work</TableHead>
                 <TableHead className="px-2 w-14 text-center">Criteria</TableHead>
                 <TableHead className="px-2 w-24">Verified</TableHead>
@@ -835,24 +765,6 @@ export function FeaturesTab() {
                         })()}
                       </TableCell>
                       <TableCell className="px-2 align-top py-2 w-20">
-                        {featureGaps[feature.feature_id] && featureGaps[feature.feature_id].length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {featureGaps[feature.feature_id].slice(0, 2).map((gap) => (
-                              <Badge key={gap.gap_id} variant="outline" className="text-[10px] px-1 py-0">
-                                {gap.gap_id}
-                              </Badge>
-                            ))}
-                            {featureGaps[feature.feature_id].length > 2 && (
-                              <span className="text-[10px] text-muted-foreground">
-                                +{featureGaps[feature.feature_id].length - 2}
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="px-2 align-top py-2 w-20">
                         {renderStatusBadge(feature.status)}
                       </TableCell>
                       <TableCell className="px-2 text-center align-top py-2 w-14">
@@ -891,7 +803,7 @@ export function FeaturesTab() {
                     {/* Expanded details row (subtasks + acceptance criteria) */}
                     {isExpanded && (hasTasks || (feature.acceptance_criteria && feature.acceptance_criteria.length > 0)) && (
                       <TableRow key={`${feature.feature_id}-details`} className="bg-muted/30">
-                        <TableCell colSpan={10} className="py-2 px-4">
+                        <TableCell colSpan={9} className="py-2 px-4">
                           <div className="pl-6 space-y-4">
                             {/* Acceptance Criteria Section */}
                             {feature.acceptance_criteria && feature.acceptance_criteria.length > 0 && (
