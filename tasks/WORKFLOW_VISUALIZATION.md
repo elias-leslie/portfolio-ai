@@ -2,10 +2,11 @@
 
 **Feature ID**: FEAT-WORKFLOW-VIZ
 **Created**: 2025-12-09
-**Status**: Phase 1 Complete, Phase 1.5 Pending
+**Status**: Phase 1.5 Complete, Phase 2 Pending
 **Effort**: MEDIUM (Phase 1) + MEDIUM (Phase 1.5) + LOW (Phase 2)
 **Priority**: HIGH
 **Phase 1 Commit**: 3558b40
+**Phase 1.5 Commit**: 244d432
 
 ---
 
@@ -828,14 +829,14 @@ WHERE task_name = 'refresh-alphavantage-reference-backup';
 
 ### 1.5.7 Testing Checklist
 
-- [ ] Migration applies cleanly
-- [ ] `reads_from_tables` populated after scan
-- [ ] Dependencies inferred correctly in graph endpoint
-- [ ] Overrides apply (add/remove work)
-- [ ] Visualization shows proper edges
-- [ ] `/audit_it` detects timing violations
-- [ ] `/audit_it` auto-applies corrections
-- [ ] Seeded dependencies appear in visualization
+- [x] Migration applies cleanly
+- [x] `reads_from_tables` populated after scan
+- [x] Dependencies inferred correctly in graph endpoint
+- [x] Overrides apply (add/remove work)
+- [x] Visualization shows proper edges
+- [ ] `/audit_it` detects timing violations (deferred to Phase 1.8)
+- [ ] `/audit_it` auto-applies corrections (deferred to Phase 1.8)
+- [x] Seeded dependencies appear in visualization
 
 ### 1.5.8 Feature Registry & Vision Goals
 
