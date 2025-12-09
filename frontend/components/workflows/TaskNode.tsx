@@ -64,10 +64,17 @@ function TaskNodeComponent({ data }: NodeProps) {
         className={cn(
           "rounded-lg border border-border shadow-sm min-w-[180px] max-w-[200px]",
           "transition-all duration-300 ease-in-out hover:z-50 hover:shadow-xl origin-center",
-          "bg-card text-card-foreground",
-          status === "running" && "ring-2 ring-primary ring-offset-2 ring-offset-background",
-          (status === "failed" || successRate < 50) && "ring-2 ring-destructive ring-offset-2 ring-offset-background",
-          (status !== "failed" && status !== "running" && successRate >= 50 && successRate < 80) && "ring-2 ring-yellow-500 ring-offset-2 ring-offset-background"
+          "transition-all duration-300 ease-in-out hover:z-50 hover:shadow-xl origin-center",
+          "text-card-foreground bg-card relative overflow-hidden",
+          // Borders
+          status === "failed" || successRate < 50 ? "border-destructive" :
+            (status !== "running" && successRate >= 50 && successRate < 80) ? "border-yellow-500" :
+              status === "running" ? "border-primary" : "border-border",
+
+          // Tints (using pseudo-elements to keep base opaque)
+          (status === "failed" || successRate < 50) && "after:absolute after:inset-0 after:bg-destructive/20 after:pointer-events-none",
+          (status !== "running" && successRate >= 50 && successRate < 80) && "after:absolute after:inset-0 after:bg-yellow-500/20 after:pointer-events-none",
+          status === "running" && "after:absolute after:inset-0 after:bg-primary/10 after:pointer-events-none"
         )}
         style={{
           transform: `scale(${scale})`,
@@ -83,7 +90,7 @@ function TaskNodeComponent({ data }: NodeProps) {
         />
 
         {/* Header */}
-        <div className="px-3 py-2 border-b border-border bg-muted/50 rounded-t-lg">
+        <div className="px-3 py-2 border-b border-inherit bg-muted/40 rounded-t-lg">
           <div className="flex items-center gap-2">
             <div className={cn("w-2 h-2 rounded-full shrink-0", statusColors[status])} />
             <Tooltip>
