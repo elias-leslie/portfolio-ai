@@ -63,10 +63,10 @@ function TaskNodeComponent({ data }: NodeProps) {
           status === "running" && "ring-2 ring-blue-500 ring-offset-2 ring-offset-background"
         )}
       >
-        {/* Top handle for incoming edges */}
+        {/* Left handle for incoming edges */}
         <Handle
           type="target"
-          position={Position.Top}
+          position={Position.Left}
           className="!bg-muted-foreground !border-background !w-3 !h-3"
         />
 
@@ -140,10 +140,10 @@ function TaskNodeComponent({ data }: NodeProps) {
           )}
         </div>
 
-        {/* Bottom handle for outgoing edges */}
+        {/* Right handle for outgoing edges */}
         <Handle
           type="source"
-          position={Position.Bottom}
+          position={Position.Right}
           className="!bg-muted-foreground !border-background !w-3 !h-3"
         />
       </div>

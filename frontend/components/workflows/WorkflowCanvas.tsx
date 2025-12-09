@@ -10,6 +10,7 @@ import {
   useEdgesState,
   type Node,
   type Edge,
+  Position,
 } from "@xyflow/react";
 import dagre from "dagre";
 import "@xyflow/react/dist/style.css";
@@ -38,11 +39,11 @@ function getLayoutedElements(
   g.setDefaultEdgeLabel(() => ({}));
   g.setGraph({
     rankdir: "LR",        // Left to right flow
-    nodesep: 120,         // Vertical spacing between nodes in same column
-    ranksep: 250,         // Horizontal spacing between columns
+    nodesep: 200,         // Vertical spacing between nodes in same column
+    ranksep: 350,         // Horizontal spacing between columns
     marginx: 20,          // Margin on left/right
     marginy: 20,          // Margin on top/bottom
-    ranker: "tight-tree", // Minimizes edge length, can reduce crossings
+    // ranker: "tight-tree", // Removed to allow better spreading
   });
 
   nodes.forEach((node) => {
@@ -65,6 +66,8 @@ function getLayoutedElements(
         y: nodeWithPosition.y - NODE_HEIGHT / 2,
       },
       data: node.data,
+      sourcePosition: Position.Right,
+      targetPosition: Position.Left,
     };
   });
 
