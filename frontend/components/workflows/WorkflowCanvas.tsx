@@ -6,7 +6,6 @@ import {
   ReactFlowProvider,
   Background,
   Controls,
-  MiniMap,
   useNodesState,
   useEdgesState,
   type Node,
@@ -28,10 +27,6 @@ const nodeTypes = {
   task: TaskNode,
 };
 
-// Dagre layout configuration
-const dagreGraph = new dagre.graphlib.Graph();
-dagreGraph.setDefaultEdgeLabel(() => ({}));
-
 const NODE_WIDTH = 180;
 const NODE_HEIGHT = 120;
 
@@ -41,7 +36,14 @@ function getLayoutedElements(
 ): { nodes: Node<NodeData>[]; edges: Edge[] } {
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: "LR", nodesep: 60, ranksep: 120 });
+  g.setGraph({
+    rankdir: "LR",        // Left to right flow
+    nodesep: 120,         // Vertical spacing between nodes in same column
+    ranksep: 250,         // Horizontal spacing between columns
+    marginx: 20,          // Margin on left/right
+    marginy: 20,          // Margin on top/bottom
+    ranker: "tight-tree", // Minimizes edge length, can reduce crossings
+  });
 
   nodes.forEach((node) => {
     g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
@@ -81,28 +83,13 @@ function getLayoutedElements(
   return { nodes: layoutedNodes, edges: layoutedEdges };
 }
 
-// Mini-map node color based on status
-function getMiniMapNodeColor(node: Node<NodeData>): string {
-  const status = node.data?.status;
-  switch (status) {
-    case "running":
-      return "#3b82f6"; // blue
-    case "failed":
-      return "#ef4444"; // red
-    case "completed":
-      return "#22c55e"; // green
-    case "pending":
-      return "#eab308"; // yellow
-    default:
-      return "#9ca3af"; // gray
-  }
-}
-
 interface WorkflowCanvasProps {
-  category?: string; // Optional - if not provided, shows ALL tasks
+  category?: string;
+  fullHeight?: boolean;
 }
 
-export function WorkflowCanvas({ category }: WorkflowCanvasProps) {
+export function WorkflowCanvas({ category, fullHeight = false }: WorkflowCanvasProps) {
+  const heightClass = fullHeight ? "h-full" : "h-[600px]";
   const { data, isLoading, error, refetch } = useWorkflowGraph(category);
 
   // Compute layout
@@ -131,7 +118,7 @@ export function WorkflowCanvas({ category }: WorkflowCanvasProps) {
 
   if (isLoading) {
     return (
-      <div className="h-[600px] w-full border rounded-lg bg-muted/20 flex items-center justify-center">
+      <div className={`${heightClass} w-full border rounded-lg bg-muted/20 flex items-center justify-center`}>
         <div className="flex flex-col items-center gap-4">
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-4 w-32" />
@@ -147,7 +134,7 @@ export function WorkflowCanvas({ category }: WorkflowCanvasProps) {
 
   if (error) {
     return (
-      <div className="h-[600px] w-full border rounded-lg bg-muted/20 flex items-center justify-center">
+      <div className={`${heightClass} w-full border rounded-lg bg-muted/20 flex items-center justify-center`}>
         <div className="flex flex-col items-center gap-4 text-center">
           <AlertCircle className="h-12 w-12 text-destructive" />
           <div>
@@ -167,11 +154,11 @@ export function WorkflowCanvas({ category }: WorkflowCanvasProps) {
 
   if (!data?.nodes || data.nodes.length === 0) {
     return (
-      <div className="h-[600px] w-full border rounded-lg bg-muted/20 flex items-center justify-center">
+      <div className={`${heightClass} w-full border rounded-lg bg-muted/20 flex items-center justify-center`}>
         <div className="text-center">
-          <p className="text-muted-foreground">No tasks found for this category</p>
+          <p className="text-muted-foreground">No tasks found</p>
           <p className="text-sm text-muted-foreground mt-1">
-            Try selecting a different category or check if tasks are configured
+            Check if tasks are configured in the system
           </p>
         </div>
       </div>
@@ -179,7 +166,7 @@ export function WorkflowCanvas({ category }: WorkflowCanvasProps) {
   }
 
   return (
-    <div className="h-[600px] w-full border rounded-lg overflow-hidden">
+    <div className={`${heightClass} w-full border rounded-lg overflow-hidden`}>
       <ReactFlowProvider>
         <ReactFlow
           nodes={nodes}
@@ -188,19 +175,13 @@ export function WorkflowCanvas({ category }: WorkflowCanvasProps) {
           onEdgesChange={onEdgesChange}
           nodeTypes={nodeTypes}
           fitView
-          fitViewOptions={{ padding: 0.2, minZoom: 0.4, maxZoom: 1 }}
+          fitViewOptions={{ padding: fullHeight ? 0.05 : 0.2, minZoom: 0.2, maxZoom: 1.5 }}
           proOptions={{ hideAttribution: true }}
-          minZoom={0.3}
+          minZoom={0.1}
           maxZoom={2}
-          defaultViewport={{ x: 0, y: 0, zoom: 0.6 }}
         >
           <Background gap={20} size={1} />
           <Controls />
-          <MiniMap
-            nodeColor={getMiniMapNodeColor}
-            maskColor="rgb(0, 0, 0, 0.1)"
-            className="!bg-background"
-          />
         </ReactFlow>
       </ReactFlowProvider>
     </div>

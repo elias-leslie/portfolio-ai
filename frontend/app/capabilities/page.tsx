@@ -21,6 +21,7 @@ import { ApiSourcesOverview } from "@/components/capabilities/ApiSourcesOverview
 import { FeaturesTab } from "@/components/capabilities/FeaturesTab";
 import { VisionGoalsTab } from "@/components/capabilities/VisionGoalsTab";
 import { RulesViewer } from "@/components/rules/RulesViewer";
+import { WorkflowCanvas } from "@/components/workflows/WorkflowCanvas";
 import {
   RefreshCw,
   Search,
@@ -34,6 +35,7 @@ import {
   BookOpen,
   CheckSquare,
   Target,
+  GitBranch,
 } from "lucide-react";
 import {
   fetchCapabilities,
@@ -44,18 +46,19 @@ import {
 import { toast } from "sonner";
 import { PageContainer } from "@/components/shared/PageContainer";
 
-type TabValue = "dashboard" | "database" | "celery" | "api" | "sources" | "rules" | "features" | "vision";
+type TabValue = "dashboard" | "workflows" | "database" | "celery" | "api" | "sources" | "rules" | "features" | "vision";
 
 function CapabilitiesPageContent() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Get initial health filter from URL
+  // Get initial values from URL
   const initialHealthFilter = searchParams.get("health") || "all";
+  const initialTab = (searchParams.get("tab") as TabValue) || "dashboard";
 
   // Tab state
-  const [activeTab, setActiveTab] = useState<TabValue>("dashboard");
+  const [activeTab, setActiveTab] = useState<TabValue>(initialTab);
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState("");
@@ -134,7 +137,7 @@ function CapabilitiesPageContent() {
         limit: pageSize,
         offset: page * pageSize,
       }),
-    enabled: activeTab !== "dashboard" && activeTab !== "sources" && activeTab !== "rules",
+    enabled: activeTab !== "dashboard" && activeTab !== "workflows" && activeTab !== "sources" && activeTab !== "rules",
   });
 
   // Trigger scan mutation
@@ -274,11 +277,10 @@ function CapabilitiesPageContent() {
     : 0;
 
   return (
-    <PageContainer className="min-h-screen space-y-10 py-10">
+    <PageContainer className="min-h-screen space-y-6 py-6">
       {/* Header */}
       <PageHeader
         title="System Capabilities Registry"
-        description="Comprehensive view of database tables, background tasks, and API endpoints"
         size="md"
         actions={
           <Button onClick={() => scanMutation.mutate()} disabled={scanMutation.isPending}>
@@ -292,9 +294,9 @@ function CapabilitiesPageContent() {
         }
       />
 
-      {/* Tabs */}
+      {/* Tabs - order: Dashboard, Vision, Features, Workflows, Data Sources, Trading Rules, Database, Tasks, Endpoints */}
       <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as TabValue)}>
-        <TabsList className="grid w-full grid-cols-8">
+        <TabsList className="grid w-full grid-cols-9">
           <TabsTrigger value="dashboard">
             Dashboard
           </TabsTrigger>
@@ -306,39 +308,43 @@ function CapabilitiesPageContent() {
             <CheckSquare className="mr-2 h-4 w-4" />
             Features
           </TabsTrigger>
+          <TabsTrigger value="workflows">
+            <GitBranch className="mr-2 h-4 w-4" />
+            Workflows
+          </TabsTrigger>
           <TabsTrigger value="sources">
             <Cloud className="mr-2 h-4 w-4" />
-            Data Sources
+            Sources
           </TabsTrigger>
           <TabsTrigger value="rules">
             <BookOpen className="mr-2 h-4 w-4" />
-            Trading Rules
+            Rules
           </TabsTrigger>
           <TabsTrigger value="database">
             <Database className="mr-2 h-4 w-4" />
-            Database
-            <span className="ml-2 rounded-full bg-surface-muted px-2 py-0.5 text-xs">
+            DB
+            <span className="ml-1 rounded-full bg-surface-muted px-1.5 py-0.5 text-xs">
               {dbCount}
             </span>
           </TabsTrigger>
           <TabsTrigger value="celery">
             <Zap className="mr-2 h-4 w-4" />
             Tasks
-            <span className="ml-2 rounded-full bg-surface-muted px-2 py-0.5 text-xs">
+            <span className="ml-1 rounded-full bg-surface-muted px-1.5 py-0.5 text-xs">
               {celeryCount}
             </span>
           </TabsTrigger>
           <TabsTrigger value="api">
             <Globe className="mr-2 h-4 w-4" />
-            Endpoints
-            <span className="ml-2 rounded-full bg-surface-muted px-2 py-0.5 text-xs">
+            API
+            <span className="ml-1 rounded-full bg-surface-muted px-1.5 py-0.5 text-xs">
               {apiCount}
             </span>
           </TabsTrigger>
         </TabsList>
 
         {/* Filters (for capability tabs) */}
-        {activeTab !== "dashboard" && activeTab !== "sources" && activeTab !== "rules" && activeTab !== "features" && activeTab !== "vision" && (
+        {activeTab !== "dashboard" && activeTab !== "workflows" && activeTab !== "sources" && activeTab !== "rules" && activeTab !== "features" && activeTab !== "vision" && (
           <div className="space-y-3">
             <div className="flex flex-wrap gap-3">
               {/* Search */}
@@ -431,6 +437,13 @@ function CapabilitiesPageContent() {
           <CapabilitiesDashboard onTabChange={(tab) => setActiveTab(tab)} />
         </TabsContent>
 
+        {/* Workflows Tab */}
+        <TabsContent value="workflows" className="mt-0">
+          <div className="h-[calc(100vh-240px)] min-h-[400px]">
+            <WorkflowCanvas fullHeight />
+          </div>
+        </TabsContent>
+
         {/* Database Tab */}
         <TabsContent value="database">
           <CapabilitiesTable capabilities={filteredCapabilities} />
@@ -471,6 +484,7 @@ function CapabilitiesPageContent() {
 
       {/* Pagination */}
       {activeTab !== "dashboard" &&
+        activeTab !== "workflows" &&
         activeTab !== "sources" &&
         activeTab !== "rules" &&
         activeTab !== "features" &&
