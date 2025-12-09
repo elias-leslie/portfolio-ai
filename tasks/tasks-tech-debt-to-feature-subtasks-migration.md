@@ -222,17 +222,57 @@ Then delete: `backend/app/tasks/gap_analysis_tasks.py`
 "alert_critical_gaps": {...}
 ```
 
-### 5.2 Remove AI Analyzer (creates tech debt insights)
+### 5.2 Modify AI Analyzer (output to subtasks, not insights)
 
-**Files to DELETE after migration:**
-- `backend/app/services/ai_analyzer.py`
+**KEEP but MODIFY:** `backend/app/services/ai_analyzer.py`
 
-**Task to REMOVE from `capability_tasks.py`:**
-- `analyze_capabilities` - creates `capability_insights`
+**Change behavior:**
+- Instead of creating `capability_insights`, create `[DEBT]` subtasks on features
+- Match finding to feature by table/endpoint/task name
+- Add `source: "scanner"` and `needs_verification: true` to subtask
 
-**Remove from Celery beat schedule:**
+**New output flow:**
 ```python
-# Remove this entry:
+# Old: Creates capability_insight
+INSERT INTO capability_insights (finding, severity, ...)
+
+# New: Creates [DEBT] subtask on matching feature
+POST /api/capabilities/features/{matched_feature_id}/tasks
+{
+    "task_id": "DEBT-{timestamp}",
+    "description": "[DEBT] {finding}",
+    "notes": "Auto-detected by scanner. Verify before fixing.\nSeverity: {severity}\nSuggested fix: {suggested_fix}",
+    "effort": "{severity_to_effort}",
+    "source": "scanner",
+    "needs_verification": true
+}
+```
+
+**Feature matching logic:**
+```python
+def find_feature_for_debt(finding: str, metadata: dict) -> str | None:
+    # Match by table name
+    if "table" in metadata:
+        feature = find_feature_with_table(metadata["table"])
+        if feature: return feature.feature_id
+
+    # Match by endpoint
+    if "endpoint" in metadata:
+        feature = find_feature_with_endpoint(metadata["endpoint"])
+        if feature: return feature.feature_id
+
+    # Match by Celery task
+    if "task_name" in metadata:
+        feature = find_feature_with_task(metadata["task_name"])
+        if feature: return feature.feature_id
+
+    # No match - create FEAT-DEBT-XXX
+    return None
+```
+
+**Keep in Celery beat schedule:**
+```python
+# Keep this entry (modified behavior):
 "analyze_capabilities": {...}
 ```
 
@@ -273,7 +313,54 @@ Remove `insights_router` import and registration.
 - Delete entire Phase 1.8 (Tech Debt Review)
 - No longer needed - tech debt is now subtasks on features
 
-### 5.7 Database Tables
+### 5.7 Update /do_it to verify scanner-generated tasks
+
+**Update `.claude/commands/do_it.md`:**
+
+Add verification step for `[DEBT]` tasks with `source: "scanner"`:
+
+```markdown
+## Scanner-Generated Task Verification
+
+Before executing any `[DEBT]` task with `source: "scanner"`:
+
+### Step 1: Verify issue still exists
+
+| Issue Type | Verification |
+|------------|--------------|
+| Empty table | `SELECT COUNT(*) FROM {table}` > 0? |
+| Stale data | `SELECT MAX(updated_at) FROM {table}` recent? |
+| Missing Celery task | Task exists in registry? |
+| Broken endpoint | `curl` returns 200? |
+
+### Step 2: Take action based on verification
+
+| Result | Action |
+|--------|--------|
+| Issue confirmed | Proceed with fix |
+| Issue no longer exists | Mark task complete: "Issue resolved (verified {date})" |
+| Cannot verify | Ask user for guidance |
+
+### Step 3: Example flow
+
+```bash
+# Task: [DEBT] financial_health_scores table is empty
+# Verification:
+curl -s "http://localhost:8000/api/..." | jq '.count'
+
+# If count > 0:
+#   → Mark complete: "Table now has {count} rows"
+# If count == 0:
+#   → Proceed with fix
+```
+```
+
+**Why this matters:**
+- Scanner may detect issues that get fixed before /do_it runs
+- Prevents wasted effort on false positives
+- Self-healing: outdated tasks auto-close
+
+### 5.8 Database Tables
 
 **Tables to DROP (after verification):**
 ```sql
@@ -291,7 +378,7 @@ DROP TABLE IF EXISTS feature_gap_mappings;
 - `feature_capabilities` - single source of truth
 - `feature_tasks` - subtasks including [DEBT] items
 
-### 5.8 Config Files
+### 5.9 Config Files
 
 **File to DELETE:**
 - `backend/app/config/trading_requirements.yaml` - migrated to features
@@ -358,9 +445,11 @@ curl -s 'http://localhost:8000/api/capabilities/insights/?status=pending' | jq '
 ### Modified Files
 - `frontend/app/capabilities/page.tsx` - Remove Tech Debt tab
 - `backend/app/api/capabilities/__init__.py` - Remove insights_router
-- `backend/app/tasks/capability_tasks.py` - Remove analyze_capabilities task
-- `backend/app/celery_schedules.py` - Remove gap/insight tasks from schedule
+- `backend/app/tasks/capability_tasks.py` - Keep analyze_capabilities, it now creates subtasks
+- `backend/app/celery_schedules.py` - Remove gap tasks only (keep analyze_capabilities)
+- `backend/app/services/ai_analyzer.py` - Output to subtasks instead of insights
 - `.claude/commands/audit_it.md` - Remove Phase 1.8
+- `.claude/commands/do_it.md` - Add scanner task verification step
 
 ### Files to DELETE
 ```
@@ -369,10 +458,15 @@ backend/app/services/gap_detection/  (entire directory)
 backend/app/tasks/gap_analysis_tasks.py
 backend/app/config/trading_requirements.yaml
 
-# Tech Debt / Insights (migrated to subtasks)
-backend/app/services/ai_analyzer.py
+# Tech Debt UI/API (subtasks replace insights table)
 backend/app/api/capabilities/insights_router.py
 frontend/components/capabilities/InsightCard.tsx
+```
+
+### Files to MODIFY (not delete)
+```
+# Scanner outputs to subtasks instead of insights table
+backend/app/services/ai_analyzer.py  (change output target)
 ```
 
 ### Keep (no changes)
