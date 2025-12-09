@@ -837,6 +837,125 @@ WHERE task_name = 'refresh-alphavantage-reference-backup';
 - [ ] `/audit_it` auto-applies corrections
 - [ ] Seeded dependencies appear in visualization
 
+### 1.5.8 Feature Registry & Vision Goals
+
+**After Phase 1.5 implementation is complete**, register the feature and link to vision goals.
+
+#### Create Feature Entry
+
+```bash
+curl -s -X POST 'http://localhost:8000/api/capabilities/features/' \
+  -H "Content-Type: application/json" \
+  -d '{
+    "feature_id": "FEAT-WORKFLOW-VIZ",
+    "name": "Workflow Visualization",
+    "description": "n8n-inspired visualization of scheduled tasks, automation pipelines, and multi-agent workflows using React Flow with intelligent dependency detection",
+    "category": "Architecture - Observability",
+    "status": "in_progress",
+    "effort": "medium",
+    "priority": "high",
+    "layers": ["Frontend", "Backend", "API", "DB"]
+  }'
+```
+
+#### Link Vision Goals
+
+This feature supports multiple vision goals:
+
+| Vision Goal | Code | Why It Applies |
+|-------------|------|----------------|
+| Autonomous Operation | VG-AUTO | Visualizes autonomous agent workflows and task orchestration |
+| Transparency Over Black Boxes | VG-TRANS | Makes task dependencies and execution flow visible and reviewable |
+| Reliability Through Redundancy | VG-RELY | Shows data pipeline health, identifies broken dependencies |
+| Developer Velocity | VG-DEV | Helps developers understand and debug task scheduling |
+
+```bash
+curl -s -X PATCH 'http://localhost:8000/api/capabilities/features/FEAT-WORKFLOW-VIZ/vision-goals' \
+  -H "Content-Type: application/json" \
+  -d '{"vision_goals": ["VG-AUTO", "VG-TRANS", "VG-RELY", "VG-DEV"]}'
+```
+
+#### Add Acceptance Criteria
+
+```bash
+# Phase 1 criteria (completed)
+curl -s -X PATCH 'http://localhost:8000/api/capabilities/features/FEAT-WORKFLOW-VIZ/acceptance-criteria' \
+  -H "Content-Type: application/json" \
+  -d '{
+    "acceptance_criteria": [
+      {"id": "ac-001", "criterion": "Workflow page loads at /workflows", "type": "ui", "passed": true},
+      {"id": "ac-002", "criterion": "React Flow canvas renders task nodes", "type": "ui", "passed": true},
+      {"id": "ac-003", "criterion": "4 tabs filter by category (Data Pipeline, Strategy, System, Multi-Agent)", "type": "ui", "passed": true},
+      {"id": "ac-004", "criterion": "/api/workflows/graph returns nodes with status, metrics, schedule", "type": "api", "passed": true},
+      {"id": "ac-005", "criterion": "MiniMap and Controls render", "type": "ui", "passed": true},
+      {"id": "ac-006", "criterion": "Navigation link appears in sidebar", "type": "ui", "passed": true}
+    ]
+  }'
+
+# Phase 1.5 criteria (pending)
+curl -s -X PATCH 'http://localhost:8000/api/capabilities/features/FEAT-WORKFLOW-VIZ/acceptance-criteria' \
+  -H "Content-Type: application/json" \
+  -d '{
+    "acceptance_criteria": [
+      {"id": "ac-007", "criterion": "reads_from_tables column populated by scanner", "type": "backend", "passed": null},
+      {"id": "ac-008", "criterion": "Dependencies inferred from table writes→reads", "type": "api", "passed": null},
+      {"id": "ac-009", "criterion": "dependency_overrides add/remove works via API", "type": "api", "passed": null},
+      {"id": "ac-010", "criterion": "Visualization shows edges between dependent tasks", "type": "ui", "passed": null},
+      {"id": "ac-011", "criterion": "/audit_it detects and auto-corrects timing violations", "type": "backend", "passed": null},
+      {"id": "ac-012", "criterion": "Seeded dependencies appear correctly in graph", "type": "ui", "passed": null}
+    ]
+  }'
+```
+
+#### Add Subtasks
+
+```bash
+# Phase 1.5 subtasks
+for task in \
+  '{"task_id": "1.5.1", "description": "Create migration for reads_from_tables and dependency_overrides columns", "effort": "low"}' \
+  '{"task_id": "1.5.2", "description": "Add _detect_reads_from_tables() to CeleryScanner", "effort": "medium"}' \
+  '{"task_id": "1.5.3", "description": "Update graph endpoint with dependency inference logic", "effort": "medium"}' \
+  '{"task_id": "1.5.4", "description": "Add Phase 1.8 (Dependency Audit) to /audit_it command", "effort": "medium"}' \
+  '{"task_id": "1.5.5", "description": "Add PATCH endpoint for dependency overrides", "effort": "low"}' \
+  '{"task_id": "1.5.6", "description": "Create seed migration for known dependencies", "effort": "low"}' \
+  '{"task_id": "1.5.7", "description": "Test and verify visualization shows accurate workflow", "effort": "medium"}'
+do
+  curl -s -X POST 'http://localhost:8000/api/capabilities/features/FEAT-WORKFLOW-VIZ/tasks' \
+    -H "Content-Type: application/json" \
+    -d "$task"
+done
+```
+
+#### Verify Registration
+
+```bash
+# Check feature was created with all data
+curl -s 'http://localhost:8000/api/capabilities/features/FEAT-WORKFLOW-VIZ' | jq '{
+  feature_id,
+  name,
+  status,
+  layers: .layers | length,
+  vision_goals: .vision_goals | length,
+  criteria: .acceptance_criteria | length,
+  tasks: .tasks | length,
+  passes
+}'
+```
+
+**Expected output:**
+```json
+{
+  "feature_id": "FEAT-WORKFLOW-VIZ",
+  "name": "Workflow Visualization",
+  "status": "in_progress",
+  "layers": 4,
+  "vision_goals": 4,
+  "criteria": 12,
+  "tasks": 7,
+  "passes": null
+}
+```
+
 ---
 
 ## Phase 2: Enhanced Features (LOW effort)
