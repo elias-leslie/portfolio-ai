@@ -2,6 +2,8 @@
 
 This module transforms celery_capabilities data into React Flow compatible
 graph format for workflow visualization.
+
+Phase 1.5 adds intelligent dependency inference from table relationships.
 """
 
 from __future__ import annotations
@@ -10,7 +12,7 @@ import json
 from datetime import UTC, datetime
 from typing import Any, Literal
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from ..logging_config import get_logger
@@ -99,6 +101,130 @@ def _task_name_to_label(task_name: str) -> str:
     return name.title()
 
 
+def _parse_schedule_time(crontab: str | None, interval_seconds: int | None) -> int | None:
+    """Convert schedule to minutes-from-midnight for timing comparison.
+
+    Returns None for interval-based schedules (can't determine fixed order).
+
+    Args:
+        crontab: Crontab string (e.g., "30 2 * * *")
+        interval_seconds: Interval in seconds
+
+    Returns:
+        Minutes from midnight, or None if not determinable
+    """
+    if crontab:
+        parts = crontab.split()
+        if len(parts) >= 2:
+            try:
+                minute = int(parts[0]) if parts[0] != "*" else 0
+                hour = int(parts[1]) if parts[1] != "*" else 0
+                return hour * 60 + minute
+            except ValueError:
+                pass
+    return None
+
+
+def _infer_dependencies(
+    tasks: list[dict[str, Any]],
+) -> list[tuple[str, str, str]]:
+    """Infer task dependencies from table relationships and timing.
+
+    Rules:
+    1. If Task B reads_from table X AND Task A populates table X
+       AND Task A scheduled before Task B → A→B edge
+    2. Apply dependency_overrides (add/remove)
+
+    Args:
+        tasks: List of task dicts with populates_tables, reads_from_tables, etc.
+
+    Returns:
+        List of (source_task, target_task, reason) tuples
+    """
+    edges: list[tuple[str, str, str]] = []
+
+    # Build lookup map: table -> [(task_name, schedule_time)]
+    writers: dict[str, list[tuple[str, int | None]]] = {}
+    for task in tasks:
+        task_name = task.get("task_name", "")
+        populates = task.get("populates_tables") or []
+        if isinstance(populates, str):
+            try:
+                populates = json.loads(populates)
+            except json.JSONDecodeError:
+                populates = []
+
+        schedule_time = _parse_schedule_time(
+            task.get("schedule_crontab"),
+            task.get("schedule_interval_seconds"),
+        )
+
+        for table in populates:
+            if table not in writers:
+                writers[table] = []
+            writers[table].append((task_name, schedule_time))
+
+    # Find dependencies based on reads
+    for task in tasks:
+        task_name = task.get("task_name", "")
+        reads = task.get("reads_from_tables") or []
+        if isinstance(reads, str):
+            try:
+                reads = json.loads(reads)
+            except json.JSONDecodeError:
+                reads = []
+
+        task_time = _parse_schedule_time(
+            task.get("schedule_crontab"),
+            task.get("schedule_interval_seconds"),
+        )
+
+        for table in reads:
+            if table in writers:
+                for writer_name, writer_time in writers[table]:
+                    # Skip self-references
+                    if writer_name == task_name:
+                        continue
+                    # Check timing (writer should run before reader)
+                    if writer_time is not None and task_time is not None:
+                        if writer_time < task_time:
+                            edges.append((
+                                writer_name,
+                                task_name,
+                                f"writes→reads: {table}",
+                            ))
+                    elif writer_time is None and task_time is None:
+                        # Both interval-based, include edge without timing check
+                        edges.append((
+                            writer_name,
+                            task_name,
+                            f"writes→reads: {table}",
+                        ))
+
+        # Apply manual overrides (add)
+        overrides = task.get("dependency_overrides") or {}
+        if isinstance(overrides, str):
+            try:
+                overrides = json.loads(overrides)
+            except json.JSONDecodeError:
+                overrides = {}
+
+        for dep in overrides.get("add", []):
+            reason = overrides.get("reason", "manual override")
+            edges.append((dep, task_name, f"manual: {reason}"))
+
+    # Deduplicate
+    seen: set[tuple[str, str]] = set()
+    unique_edges: list[tuple[str, str, str]] = []
+    for source, target, reason in edges:
+        key = (source, target)
+        if key not in seen:
+            seen.add(key)
+            unique_edges.append((source, target, reason))
+
+    return unique_edges
+
+
 @router.get("/graph", response_model=WorkflowGraphResponse)
 async def get_workflow_graph(
     category: str | None = Query(None, description="Comma-separated categories to filter"),
@@ -136,6 +262,7 @@ async def get_workflow_graph(
 
     with conn_mgr.connection() as conn:
         # Query celery_capabilities for tasks with dependencies
+        # Phase 1.5: Now includes reads_from_tables and dependency_overrides
         query = """
             SELECT
                 task_name,
@@ -147,7 +274,10 @@ async def get_workflow_graph(
                 success_rate_pct,
                 avg_duration_ms,
                 schedule_crontab,
-                schedule_description
+                schedule_description,
+                reads_from_tables,
+                dependency_overrides,
+                schedule_interval_seconds
             FROM celery_capabilities
             WHERE 1=1
         """
@@ -165,6 +295,9 @@ async def get_workflow_graph(
         result = conn.execute(query, params)
         rows = result.fetchall()
 
+        # Convert rows to list of dicts for dependency inference
+        tasks_data: list[dict[str, Any]] = []
+
         # Build nodes
         task_ids: set[str] = set()
         for row in rows:
@@ -178,6 +311,9 @@ async def get_workflow_graph(
             avg_duration = row[7] or 0.0
             cron_schedule = row[8]
             schedule_description = row[9]
+            reads_from = row[10] or []
+            dep_overrides = row[11] or {}
+            interval_seconds = row[12]
 
             # Parse JSON fields if needed
             if isinstance(depends_on, str):
@@ -190,9 +326,29 @@ async def get_workflow_graph(
                     populates = json.loads(populates)
                 except json.JSONDecodeError:
                     populates = []
+            if isinstance(reads_from, str):
+                try:
+                    reads_from = json.loads(reads_from)
+                except json.JSONDecodeError:
+                    reads_from = []
+            if isinstance(dep_overrides, str):
+                try:
+                    dep_overrides = json.loads(dep_overrides)
+                except json.JSONDecodeError:
+                    dep_overrides = {}
 
             task_ids.add(task_name)
             all_categories.add(task_category)
+
+            # Store for dependency inference
+            tasks_data.append({
+                "task_name": task_name,
+                "populates_tables": populates,
+                "reads_from_tables": reads_from,
+                "dependency_overrides": dep_overrides,
+                "schedule_crontab": cron_schedule,
+                "schedule_interval_seconds": interval_seconds,
+            })
 
             # Determine status
             status: Literal["idle", "running", "completed", "failed", "pending"] = "idle"
@@ -224,19 +380,39 @@ async def get_workflow_graph(
             )
             nodes.append(node)
 
-            # Build edges from dependencies
+            # Build edges from explicit dependencies (depends_on_tasks field)
             if depends_on:
                 for dep in depends_on:
-                    # Only create edge if dependency exists in our node set
-                    # (will be validated after all nodes are created)
                     edge = WorkflowEdge(
-                        id=f"e-{dep}-{task_name}",
+                        id=f"e-explicit-{dep}-{task_name}",
                         source=dep,
                         target=task_name,
                         type="dependency",
                         animated=dep in active_tasks,
                     )
                     edges.append(edge)
+
+        # Phase 1.5: Infer dependencies from table relationships
+        inferred_deps = _infer_dependencies(tasks_data)
+        for source, target, _reason in inferred_deps:
+            # Check if edge should be removed by override
+            target_task = next((t for t in tasks_data if t["task_name"] == target), None)
+            if target_task:
+                removes = target_task.get("dependency_overrides", {}).get("remove", [])
+                if source in removes:
+                    continue  # Skip this edge
+
+            # Only add if not already present (from explicit deps)
+            edge_id = f"e-inferred-{source}-{target}"
+            if not any(e.source == source and e.target == target for e in edges):
+                edge = WorkflowEdge(
+                    id=edge_id,
+                    source=source,
+                    target=target,
+                    type="data-flow",  # Inferred edges are data-flow type
+                    animated=source in active_tasks,
+                )
+                edges.append(edge)
 
         # Filter edges to only include those where both source and target exist
         edges = [e for e in edges if e.source in task_ids and e.target in task_ids]
@@ -246,4 +422,103 @@ async def get_workflow_graph(
         edges=edges,
         categories=sorted(all_categories),
         lastUpdated=datetime.now(UTC).isoformat(),
+    )
+
+
+# Phase 1.5: Dependency override models and endpoint
+class DependencyOverrideRequest(BaseModel):
+    """Request model for updating task dependency overrides."""
+
+    add: list[str] = []
+    remove: list[str] = []
+    reason: str
+
+
+class DependencyOverrideResponse(BaseModel):
+    """Response model for dependency override updates."""
+
+    status: str
+    task_name: str
+    overrides: dict[str, Any]
+
+
+@router.patch("/tasks/{task_name}/dependencies", response_model=DependencyOverrideResponse)
+async def update_task_dependencies(
+    task_name: str,
+    overrides: DependencyOverrideRequest,
+) -> DependencyOverrideResponse:
+    """Update dependency overrides for a task.
+
+    Used by /audit_it to auto-correct dependency issues, or manually to fix
+    incorrectly inferred dependencies.
+
+    Args:
+        task_name: The task name (beat schedule key)
+        overrides: Dependencies to add/remove and reason
+
+    Returns:
+        Updated override state
+    """
+    conn_mgr = get_connection_manager()
+
+    with conn_mgr.connection() as conn:
+        # First check if task exists
+        check = conn.execute(
+            "SELECT dependency_overrides FROM celery_capabilities WHERE task_name = %s",
+            [task_name],
+        )
+        row = check.fetchone()
+
+        if not row:
+            raise HTTPException(status_code=404, detail=f"Task {task_name} not found")
+
+        # Merge with existing overrides
+        existing = row[0] or {}
+        if isinstance(existing, str):
+            try:
+                existing = json.loads(existing)
+            except json.JSONDecodeError:
+                existing = {}
+
+        # Merge add/remove lists
+        existing_add = set(existing.get("add", []))
+        existing_remove = set(existing.get("remove", []))
+
+        existing_add.update(overrides.add)
+        existing_remove.update(overrides.remove)
+
+        # Remove any that are in both lists (cancel out)
+        conflicts = existing_add & existing_remove
+        existing_add -= conflicts
+        existing_remove -= conflicts
+
+        new_overrides = {
+            "add": sorted(existing_add),
+            "remove": sorted(existing_remove),
+            "reason": overrides.reason,
+        }
+
+        # Update database
+        conn.execute(
+            """
+            UPDATE celery_capabilities
+            SET dependency_overrides = %s::jsonb,
+                updated_at = NOW()
+            WHERE task_name = %s
+            """,
+            [json.dumps(new_overrides), task_name],
+        )
+        conn.raw_connection.commit()
+
+        logger.info(
+            "dependency_overrides_updated",
+            task_name=task_name,
+            add_count=len(new_overrides["add"]),
+            remove_count=len(new_overrides["remove"]),
+        )
+
+    return DependencyOverrideResponse(
+        status="updated",
+        task_name=task_name,
+        overrides=new_overrides,
     )

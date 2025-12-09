@@ -127,6 +127,9 @@ class CeleryScanner:
         # Detect populated tables (basic regex scan of task file)
         populates_tables = self._detect_populates_tables(task_path)
 
+        # Detect tables this task reads from (for dependency inference)
+        reads_from_tables = self._detect_reads_from_tables(task_path)
+
         # Categorize task
         category = categorize_by_name(task_name)
 
@@ -162,8 +165,9 @@ class CeleryScanner:
             "avg_duration_ms": avg_duration,
             "max_duration_ms": max_duration,
             "populates_tables": populates_tables,
+            "reads_from_tables": reads_from_tables,  # Phase 1.5: tables task reads from
             "depends_on_tasks": depends_on_tasks,
-            "called_by": called_by,  # NEW: files/tasks that call this task
+            "called_by": called_by,  # files/tasks that call this task
             "health_status": health_status,
         }
 
@@ -398,6 +402,85 @@ class CeleryScanner:
             logger.debug("failed_to_detect_populated_tables", task=task_path, error=str(e))
             return []
 
+    def _detect_reads_from_tables(self, task_path: str) -> list[str]:
+        """Detect tables this task reads from via SQL patterns.
+
+        Searches for patterns like:
+        - SELECT ... FROM table_name (inside SQL strings)
+        - JOIN table_name (inside SQL strings)
+
+        Only detects tables inside string literals (SQL queries).
+
+        Args:
+            task_path: Task import path
+
+        Returns:
+            Sorted list of table names read by this task (excludes tables it writes to)
+        """
+        try:
+            # Convert import path to file path (same as _detect_populates_tables)
+            path_parts = task_path.split(".")
+            if len(path_parts) < 2:
+                return []
+
+            module_parts = path_parts[:-1]
+            file_path = Path(__file__).parent.parent / "/".join(module_parts[1:])
+            file_path = file_path.with_suffix(".py")
+
+            if not file_path.exists():
+                return []
+
+            content = file_path.read_text()
+            tables = set()
+
+            # Extract SQL string literals (triple-quoted and single-quoted)
+            # Look for strings containing SQL keywords
+            sql_string_pattern = r'(?:"""|\'\'\')(.*?)(?:"""|\'\'\')|(?:"([^"\\]*(?:\\.[^"\\]*)*)"|\'([^\'\\]*(?:\\.[^\'\\]*)*)\')'
+            sql_strings = []
+
+            for match in re.finditer(sql_string_pattern, content, re.DOTALL):
+                s = match.group(1) or match.group(2) or match.group(3) or ""
+                # Only consider strings that look like SQL (contain SELECT, INSERT, UPDATE, etc.)
+                if re.search(r'\b(SELECT|INSERT|UPDATE|DELETE|WITH)\b', s, re.IGNORECASE):
+                    sql_strings.append(s)
+
+            # Now search for table names only in SQL strings
+            # Pattern: FROM table_name
+            from_pattern = r"\bFROM\s+([a-z_][a-z0-9_]*)\b"
+            # Pattern: JOIN table_name
+            join_pattern = r"\bJOIN\s+([a-z_][a-z0-9_]*)\b"
+
+            # SQL keywords and common false positives to filter out
+            sql_keywords = {
+                "select", "where", "and", "or", "not", "null",
+                "true", "false", "dual", "information_schema",
+                "lateral", "values", "unnest", "generate_series",
+                "excluded", "returning", "case", "when", "then",
+                "else", "end", "exists", "between", "like", "in",
+                "is", "as", "on", "set", "into", "table",
+            }
+
+            for sql in sql_strings:
+                for match in re.finditer(from_pattern, sql, re.IGNORECASE):
+                    table = match.group(1).lower()
+                    if table not in sql_keywords:
+                        tables.add(table)
+
+                for match in re.finditer(join_pattern, sql, re.IGNORECASE):
+                    table = match.group(1).lower()
+                    if table not in sql_keywords:
+                        tables.add(table)
+
+            # Remove tables that this task writes to (self-references)
+            writes = {t.lower() for t in self._detect_populates_tables(task_path)}
+            reads_only = tables - writes
+
+            return sorted(reads_only)
+
+        except Exception as e:
+            logger.debug("failed_to_detect_reads_from_tables", task=task_path, error=str(e))
+            return []
+
     def _detect_task_callers(self, task_name: str, task_path: str) -> list[str]:
         """Detect files/tasks that call this task.
 
@@ -526,6 +609,7 @@ class CeleryScanner:
             for cap in capabilities:
                 # Convert lists to JSON strings for JSONB columns
                 populates_tables_json = _to_json_string(cap["populates_tables"])
+                reads_from_tables_json = _to_json_string(cap["reads_from_tables"])
                 depends_on_tasks_json = _to_json_string(cap["depends_on_tasks"])
 
                 # UPSERT query
@@ -537,10 +621,10 @@ class CeleryScanner:
                         last_run_at, next_run_at,
                         success_count_7d, failure_count_7d, success_rate_pct,
                         avg_duration_ms, max_duration_ms,
-                        populates_tables, depends_on_tasks, health_status,
+                        populates_tables, reads_from_tables, depends_on_tasks, health_status,
                         last_scanned_at, created_at, updated_at
                     ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                     )
                     ON CONFLICT (task_name) DO UPDATE SET
                         category = EXCLUDED.category,
@@ -557,6 +641,7 @@ class CeleryScanner:
                         avg_duration_ms = EXCLUDED.avg_duration_ms,
                         max_duration_ms = EXCLUDED.max_duration_ms,
                         populates_tables = EXCLUDED.populates_tables,
+                        reads_from_tables = EXCLUDED.reads_from_tables,
                         depends_on_tasks = EXCLUDED.depends_on_tasks,
                         health_status = EXCLUDED.health_status,
                         last_scanned_at = EXCLUDED.last_scanned_at,
@@ -578,6 +663,7 @@ class CeleryScanner:
                         cap["avg_duration_ms"],
                         cap["max_duration_ms"],
                         populates_tables_json,
+                        reads_from_tables_json,
                         depends_on_tasks_json,
                         cap["health_status"],
                         datetime.now(UTC),  # last_scanned_at
