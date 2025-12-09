@@ -2,11 +2,29 @@
 
 **Feature ID**: FEAT-WORKFLOW-VIZ
 **Created**: 2025-12-09
-**Status**: Phase 1.5 Complete, Phase 2 Pending
+**Status**: Phase 1.5 Complete + UI Fixes, Phase 2 Pending
 **Effort**: MEDIUM (Phase 1) + MEDIUM (Phase 1.5) + LOW (Phase 2)
 **Priority**: HIGH
 **Phase 1 Commit**: 3558b40
 **Phase 1.5 Commit**: 244d432
+**UI Fixes Commit**: 529c5ba
+
+---
+
+## Current State (as of 529c5ba)
+
+### What's Working
+- **Unified "All Tasks" view** - Default tab shows all 57 tasks with 9 dependency edges
+- **Dark mode support** - Task nodes properly styled for dark theme
+- **Dependency inference** - Edges inferred from table writes→reads relationships
+- **Manual overrides** - PATCH endpoint for adding/removing dependencies
+- **Category filters** - Optional tabs for Data Pipeline, Strategy, System views
+
+### Known Issues to Address in Next Session
+1. **Zoom level** - With 57 nodes, fitView zooms out significantly making nodes small
+2. **More edges needed** - Only 9 edges currently; need more seed dependencies
+3. **Edge visibility** - Edges hard to see when nodes are spread out
+4. **No click-to-details** - Phase 2 feature (logs panel on node click)
 
 ---
 
