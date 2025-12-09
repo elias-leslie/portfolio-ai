@@ -106,6 +106,12 @@ categorization:
       - "maintenance"
       - "table_registry"
 
+  strategy:
+    patterns:
+      - "strategy"
+      - "backtest"
+      - "trade_signal"
+
 # Freshness calculation rules
 # Used to determine freshness_status based on expected_freshness and days_since_update
 freshness_rules:

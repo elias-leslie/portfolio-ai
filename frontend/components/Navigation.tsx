@@ -14,6 +14,7 @@ import {
   Bot,
   Brain,
   Target,
+  GitBranch,
 } from "lucide-react";
 
 import { MarketStatusBadge } from "@/components/market/MarketStatusBadge";
@@ -60,6 +61,11 @@ const mainLinks = [
     href: "/capabilities",
     label: "Capabilities",
     icon: Database,
+  },
+  {
+    href: "/workflows",
+    label: "Workflows",
+    icon: GitBranch,
   },
 ];
 
