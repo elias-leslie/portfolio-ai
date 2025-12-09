@@ -247,8 +247,8 @@ export function FeaturesTab() {
       const countData = await countResponse.json();
       const total = countData.total || 200;
 
-      // Fetch all features (max 200 per backend API limit)
-      params.set("limit", String(Math.min(total, 200)));
+      // Fetch all features (max 500 per backend API limit)
+      params.set("limit", String(Math.min(total, 500)));
       const response = await fetch(`/api/capabilities/features/?${params}`);
       if (!response.ok) throw new Error("Failed to fetch features");
       const data = await response.json();

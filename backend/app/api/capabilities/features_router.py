@@ -284,7 +284,7 @@ async def get_features(
         None, description="Filter by health: active, suspect, orphaned"
     ),
     needs_review: bool | None = Query(None, description="Filter by needs_review flag"),
-    limit: int = Query(50, ge=1, le=200, description="Results per page"),
+    limit: int = Query(50, ge=1, le=500, description="Results per page"),
     offset: int = Query(0, ge=0, description="Results offset"),
 ) -> FeaturesListResponse:
     """Get paginated list of features.
@@ -294,7 +294,7 @@ async def get_features(
         - passes: Filter by passes status (true|false|null)
         - health_status: Filter by health (active|suspect|orphaned)
         - needs_review: Filter by needs_review flag
-        - limit: Results per page (default 50, max 200)
+        - limit: Results per page (default 50, max 500)
         - offset: Results offset for pagination
     """
     conn_mgr = get_connection_manager()
