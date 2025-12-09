@@ -194,42 +194,107 @@ File: `frontend/app/capabilities/page.tsx`
 
 ## Phase 5: Backend Cleanup
 
-### 5.1 Deprecate insights API
+### 5.1 Remove Gap Detection System (already migrated)
 
-File: `backend/app/api/capabilities/insights_router.py`
-
-Add deprecation notice:
-```python
-"""
-**DEPRECATED**: Tech debt items migrated to feature subtasks.
-Use Features API: GET /api/capabilities/features/ with [DEBT] task filter.
-
-Migration date: 2025-12-08
-"""
+**Files to DELETE:**
+```
+backend/app/services/gap_detection/
+├── analyzer.py
+├── capability_checker.py
+├── gap_detector.py
+├── __init__.py
+├── requirements.py
+└── types.py
 ```
 
-### 5.2 Keep scanner running (modified)
+**Tasks to REMOVE from `gap_analysis_tasks.py`:**
+- `analyze_trading_gaps` - gaps migrated to features
+- `track_gap_trends` - no longer needed
+- `alert_critical_gaps` - no longer needed
 
-The capability scanner still finds issues, but Phase 1.8 of audit_it handles triage.
+Then delete: `backend/app/tasks/gap_analysis_tasks.py`
 
-Option A: Scanner creates insights → audit_it triages to features
-Option B: Scanner directly creates [DEBT] subtasks (more complex)
+**Remove from Celery beat schedule** (`celery_schedules.py`):
+```python
+# Remove these entries:
+"analyze_trading_gaps": {...}
+"track_gap_trends": {...}
+"alert_critical_gaps": {...}
+```
 
-**Recommendation**: Option A (less risky, scanner unchanged)
+### 5.2 Remove AI Analyzer (creates tech debt insights)
 
-### 5.3 Files to modify
+**Files to DELETE after migration:**
+- `backend/app/services/ai_analyzer.py`
 
-| File | Action |
-|------|--------|
-| `backend/app/api/capabilities/insights_router.py` | Add deprecation notice |
-| `frontend/app/capabilities/page.tsx` | Remove Tech Debt tab |
-| `frontend/components/capabilities/InsightCard.tsx` | Keep for now (may be used elsewhere) |
-| `.claude/commands/audit_it.md` | Update Phase 1.8 |
+**Task to REMOVE from `capability_tasks.py`:**
+- `analyze_capabilities` - creates `capability_insights`
 
-### 5.4 Tables
+**Remove from Celery beat schedule:**
+```python
+# Remove this entry:
+"analyze_capabilities": {...}
+```
 
-- `capability_insights` - Keep for scanner, mark migrated items
-- Add `migrated_to` column to track which feature/task received the debt
+### 5.3 Keep These Scanners (power Dashboard tabs)
+
+| File | Powers | Keep? |
+|------|--------|-------|
+| `capability_db_scanner.py` | Database tab (83 tables) | **YES** |
+| `capability_celery_scanner.py` | Tasks tab (64 tasks) | **YES** |
+| `capability_api_scanner.py` | Endpoints tab (37 endpoints) | **YES** |
+| `capability_feature_scanner.py` | Features tab (214 features) | **YES** |
+| `capability_tasks.py` → `scan_system_capabilities` | Runs above scanners | **YES** |
+| `capability_tasks.py` → `scan_feature_capabilities` | Validates features | **YES** |
+
+### 5.4 Remove Tech Debt API
+
+**File to DELETE:**
+- `backend/app/api/capabilities/insights_router.py`
+
+**Update `backend/app/api/capabilities/__init__.py`:**
+Remove `insights_router` import and registration.
+
+### 5.5 Remove Tech Debt UI
+
+**Update `frontend/app/capabilities/page.tsx`:**
+- Remove "insights" from TabValue type
+- Remove Tech Debt TabsTrigger
+- Remove Tech Debt TabsContent
+- Remove insights query
+- Update grid-cols from 9 to 8
+
+**Files to DELETE:**
+- `frontend/components/capabilities/InsightCard.tsx`
+
+### 5.6 Remove audit_it Phase 1.8
+
+**Update `.claude/commands/audit_it.md`:**
+- Delete entire Phase 1.8 (Tech Debt Review)
+- No longer needed - tech debt is now subtasks on features
+
+### 5.7 Database Tables
+
+**Tables to DROP (after verification):**
+```sql
+-- Only after confirming migration complete
+DROP TABLE IF EXISTS capability_insights;
+DROP TABLE IF EXISTS gap_analysis_history;
+DROP TABLE IF EXISTS trading_gaps;
+DROP TABLE IF EXISTS feature_gap_mappings;
+```
+
+**Tables to KEEP:**
+- `db_capabilities` - powers Database tab
+- `celery_capabilities` - powers Tasks tab
+- `api_capabilities` - powers Endpoints tab
+- `feature_capabilities` - single source of truth
+- `feature_tasks` - subtasks including [DEBT] items
+
+### 5.8 Config Files
+
+**File to DELETE:**
+- `backend/app/config/trading_requirements.yaml` - migrated to features
 
 ---
 
@@ -274,28 +339,47 @@ curl -s 'http://localhost:8000/api/capabilities/insights/?status=pending' | jq '
 
 ## Success Criteria
 
-- [ ] Zero pending tech debt items in old system
+- [ ] Zero pending tech debt items in old system (all migrated or dismissed)
 - [ ] All actionable debt visible as `[DEBT]` subtasks in Features tab
 - [ ] Tech Debt tab removed from /capabilities
-- [ ] /audit_it Phase 1.8 creates subtasks, not features
-- [ ] Features with debt subtasks show debt indicator
-- [ ] Scanner still runs, new findings get triaged by audit_it
+- [ ] Phase 1.8 removed from audit_it (no longer needed)
+- [ ] Gap detection system fully removed (files, tasks, schedules)
+- [ ] AI analyzer removed (no more auto-generated insights)
+- [ ] Deprecated tables dropped (capability_insights, trading_gaps, etc.)
+- [ ] Capability scanners still running (db/celery/api/feature tabs work)
 
 ---
 
-## Files to Create/Modify
+## Files to Create/Modify/Delete
 
 ### New Files
 - `backend/migrations/103_migrate_tech_debt_to_subtasks.py`
 
 ### Modified Files
-- `frontend/app/capabilities/page.tsx` (remove Tech Debt tab)
-- `backend/app/api/capabilities/insights_router.py` (deprecation notice)
-- `.claude/commands/audit_it.md` (update Phase 1.8)
+- `frontend/app/capabilities/page.tsx` - Remove Tech Debt tab
+- `backend/app/api/capabilities/__init__.py` - Remove insights_router
+- `backend/app/tasks/capability_tasks.py` - Remove analyze_capabilities task
+- `backend/app/celery_schedules.py` - Remove gap/insight tasks from schedule
+- `.claude/commands/audit_it.md` - Remove Phase 1.8
+
+### Files to DELETE
+```
+# Gap Detection (migrated to features)
+backend/app/services/gap_detection/  (entire directory)
+backend/app/tasks/gap_analysis_tasks.py
+backend/app/config/trading_requirements.yaml
+
+# Tech Debt / Insights (migrated to subtasks)
+backend/app/services/ai_analyzer.py
+backend/app/api/capabilities/insights_router.py
+frontend/components/capabilities/InsightCard.tsx
+```
 
 ### Keep (no changes)
-- `backend/app/services/capability_scanner.py` (scanner keeps running)
-- `frontend/components/capabilities/InsightCard.tsx` (may reuse)
+- `backend/app/services/capability_db_scanner.py` - Powers Database tab
+- `backend/app/services/capability_celery_scanner.py` - Powers Tasks tab
+- `backend/app/services/capability_api_scanner.py` - Powers Endpoints tab
+- `backend/app/services/capability_feature_scanner.py` - Powers Features tab
 
 ---
 
