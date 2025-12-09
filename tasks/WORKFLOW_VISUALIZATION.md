@@ -2,29 +2,47 @@
 
 **Feature ID**: FEAT-WORKFLOW-VIZ
 **Created**: 2025-12-09
-**Status**: Phase 1.5 Complete + UI Fixes, Phase 2 Pending
-**Effort**: MEDIUM (Phase 1) + MEDIUM (Phase 1.5) + LOW (Phase 2)
+**Status**: SUPERSEDED by Solution Architecture Map
+**Effort**: MEDIUM (Phase 1) + MEDIUM (Phase 1.5) + LOW (Phase 2) + MEDIUM (Solution Map)
 **Priority**: HIGH
 **Phase 1 Commit**: 3558b40
 **Phase 1.5 Commit**: 244d432
 **UI Fixes Commit**: 529c5ba
+**Solution Map Commit**: eb417ea
 
 ---
 
-## Current State (as of 529c5ba)
+## Current State (as of eb417ea) - SOLUTION MAP COMPLETE
 
-### What's Working
-- **Unified "All Tasks" view** - Default tab shows all 57 tasks with 9 dependency edges
-- **Dark mode support** - Task nodes properly styled for dark theme
-- **Dependency inference** - Edges inferred from table writes→reads relationships
-- **Manual overrides** - PATCH endpoint for adding/removing dependencies
-- **Category filters** - Optional tabs for Data Pipeline, Strategy, System views
+### What Was Built
 
-### Known Issues to Address in Next Session
-1. **Zoom level** - With 57 nodes, fitView zooms out significantly making nodes small
-2. **More edges needed** - Only 9 edges currently; need more seed dependencies
-3. **Edge visibility** - Edges hard to see when nodes are spread out
-4. **No click-to-details** - Phase 2 feature (logs panel on node click)
+The original workflow visualization (React Flow with task nodes) has been **superseded** by a higher-level **Solution Architecture Map** that provides better visibility into system health and component relationships.
+
+### Solution Architecture Map Features
+- **Hierarchical view**: Vision Goals (8) → Features (214) → Tasks (59) / Tables (86) / APIs (35) → Data Sources (17)
+- **Overall health**: 76% aggregate health score displayed prominently
+- **Per-layer metrics**: Healthy/warning/critical counts for each layer
+- **Blockers & warnings**: Critical issues surfaced at bottom (38 blockers, 1 warning)
+- **Click to navigate**: Click any layer card to jump to that tab (Vision, Features, Tasks, etc.)
+- **Dark mode support**: Fully styled for dark theme
+
+### New Components
+- **Backend**: `/api/solution-map` endpoint aggregating health from all capability tables
+- **Database**: `celery_feature_mappings` junction table linking 59 tasks to 66 features (103 mappings)
+- **Frontend**: `SolutionMap.tsx` component replacing `CapabilitiesDashboard`
+- **Audit**: `/audit_it` Phase 1.9 for maintaining task-feature connections
+
+### What This Replaces
+The original React Flow task graph is still accessible at `/workflows` but is now secondary. The Solution Map provides:
+- Higher-level view (goals → features → tasks, not just tasks)
+- Broader scope (includes tables, APIs, sources)
+- Better actionability (links to tabs, shows blockers)
+- Simpler interaction (no complex graph manipulation)
+
+### Remaining Work (Optional)
+1. **Click-to-view-logs on nodes** (Phase 2) - still available on /workflows page
+2. **Execution history timeline** (Phase 2) - would need separate implementation
+3. **Connection drill-down** - Could add expansion to see which tasks power which features
 
 ---
 
