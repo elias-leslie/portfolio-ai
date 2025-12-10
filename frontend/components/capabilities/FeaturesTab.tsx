@@ -424,6 +424,34 @@ export function FeaturesTab() {
     );
   }) ?? [];
 
+  // Compute verification status counts using new logic (tasks=0 AND all criteria passed)
+  const verificationCounts = useMemo(() => {
+    const features = featuresData?.features ?? [];
+    let verified = 0;
+    let needsReview = 0;
+    let hasTasks = 0;
+    let noCriteria = 0;
+
+    for (const f of features) {
+      const incompleteTasks = f.total_tasks - f.completed_tasks;
+      const criteria = f.acceptance_criteria ?? [];
+      const hasCriteria = criteria.length > 0;
+      const allPassed = hasCriteria && criteria.every((c) => c.passed === true);
+
+      if (incompleteTasks > 0) {
+        hasTasks++;
+      } else if (!hasCriteria) {
+        noCriteria++;
+      } else if (allPassed) {
+        verified++;
+      } else {
+        needsReview++;
+      }
+    }
+
+    return { verified, needsReview, hasTasks, noCriteria };
+  }, [featuresData?.features]);
+
   // Sort features
   const sortedFeatures = [...filteredFeatures].sort((a, b) => {
     let comparison = 0;
@@ -734,29 +762,35 @@ export function FeaturesTab() {
 
   return (
     <div className="space-y-4">
-      {/* Summary Cards - Features */}
-      <div className="grid grid-cols-4 gap-4">
+      {/* Summary Cards - Features (using new verification logic) */}
+      <div className="grid grid-cols-5 gap-4">
         <div className="rounded-lg border border-border bg-surface p-4">
           <div className="text-2xl font-bold">{summaryData?.total || 0}</div>
           <div className="text-sm text-muted-foreground">Total Features</div>
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
           <div className="text-2xl font-bold text-green-400">
-            {summaryData?.passes_breakdown?.passing || 0}
+            {verificationCounts.verified}
           </div>
           <div className="text-sm text-muted-foreground">Verified</div>
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
-          <div className="text-2xl font-bold text-red-400">
-            {summaryData?.passes_breakdown?.failing || 0}
+          <div className="text-2xl font-bold text-yellow-400">
+            {verificationCounts.needsReview}
           </div>
-          <div className="text-sm text-muted-foreground">Failing</div>
+          <div className="text-sm text-muted-foreground">Needs Review</div>
         </div>
         <div className="rounded-lg border border-border bg-surface p-4">
-          <div className="text-2xl font-bold text-yellow-400">
-            {summaryData?.passes_breakdown?.unreviewed || 0}
+          <div className="text-2xl font-bold text-orange-400">
+            {verificationCounts.hasTasks}
           </div>
-          <div className="text-sm text-muted-foreground">Unreviewed</div>
+          <div className="text-sm text-muted-foreground">Has Tasks</div>
+        </div>
+        <div className="rounded-lg border border-border bg-surface p-4">
+          <div className="text-2xl font-bold text-zinc-400">
+            {verificationCounts.noCriteria}
+          </div>
+          <div className="text-sm text-muted-foreground">No Criteria</div>
         </div>
       </div>
 
