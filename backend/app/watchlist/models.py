@@ -315,6 +315,7 @@ class WatchlistScoreInputs(BaseModel):
     symbol_in_active_sector: bool = (
         False  # GAP-031: True if symbol's sector has high options activity
     )
+    volume_relative: float | None = None  # RVOL: current volume / avg volume
     weights: ScoreWeights = Field(default_factory=ScoreWeights)
     now: datetime = Field(default_factory=lambda: datetime.now(UTC))
     stale_ttl_minutes: int = 15  # Default to 15 minutes (3x default 5min refresh)

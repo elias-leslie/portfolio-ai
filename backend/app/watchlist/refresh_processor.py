@@ -156,6 +156,12 @@ def process_symbol_snapshot(
     options_data = get_latest_options_flow(storage)
     symbol_in_active_sector_flag = is_symbol_in_active_sector(symbol, options_data)
 
+    # Step 4.6: Calculate volume relative (RVOL) for scoring (FEAT-130)
+    volume_rel = calculate_volume_relative(
+        current_volume=current_volume or 0,
+        avg_volume_50d=avg_volume_20d,  # Using 20d avg as proxy for 50d
+    )
+
     # Step 5: Calculate scores (5-pillar: price/technical/fundamental/catalyst/options_flow)
     breakdown = calculate_watchlist_scores(
         WatchlistScoreInputs(
@@ -166,6 +172,7 @@ def process_symbol_snapshot(
             news_articles=news_articles_for_catalyst,
             options_data=options_data,
             symbol_in_active_sector=symbol_in_active_sector_flag,
+            volume_relative=volume_rel,
             weights=default_weights,
             now=now,
             stale_ttl_minutes=stale_ttl_minutes,
@@ -200,10 +207,7 @@ def process_symbol_snapshot(
         sma_50=technical_snapshot.sma_50,
         sma_200=technical_snapshot.sma_200,
     )
-    volume_rel = calculate_volume_relative(
-        current_volume=current_volume or 0,
-        avg_volume_50d=avg_volume_20d,  # Using 20d avg as proxy for 50d
-    )
+    # volume_rel already calculated in Step 4.6 above
 
     # Step 7: Build and return final snapshot
     return build_watchlist_snapshot(

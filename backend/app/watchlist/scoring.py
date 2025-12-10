@@ -402,6 +402,10 @@ def calculate_watchlist_scores(inputs: WatchlistScoreInputs) -> ScoreBreakdown:
     )
     price_component.sub_scores = {"change_pct": price_component.score}
 
+    # Add RVOL to price metadata if available (FEAT-130)
+    if inputs.volume_relative is not None:
+        price_component.metadata["rvol"] = round(inputs.volume_relative, 2)
+
     # Technical component (with sub-scores)
     technical_component = _compute_technical_component(
         inputs.technical,
