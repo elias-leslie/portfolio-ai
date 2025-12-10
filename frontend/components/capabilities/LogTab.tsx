@@ -162,9 +162,9 @@ function ExpandableRow({ entry }: { entry: ProgressEntry }) {
               {entry.action && entry.action.length > 50 && (
                 <div className="space-y-1">
                   <span className="text-muted-foreground text-xs font-medium">Full Action:</span>
-                  <p className="text-sm bg-muted/50 px-3 py-2 rounded border">
+                  <div className="text-sm bg-muted/50 px-3 py-2 rounded border max-h-32 overflow-y-auto whitespace-pre-wrap break-words">
                     {entry.action}
-                  </p>
+                  </div>
                 </div>
               )}
 
