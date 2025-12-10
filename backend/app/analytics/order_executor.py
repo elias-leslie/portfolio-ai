@@ -2,7 +2,7 @@
 
 This module handles executing market orders (instant fills) for paper trading.
 Phase A MVP: Simple instant fills at current price, no order states.
-Phase B: Advanced order types (limit, stop), fill simulation with slippage.
+Phase B: Fill simulation with slippage using costs.py infrastructure.
 
 VISION.md P2 Compliance:
 - Max 5% of portfolio per position
@@ -11,14 +11,21 @@ VISION.md P2 Compliance:
 
 GAP-023 Compliance:
 - Portfolio-level trading halt at -10% drawdown
+
+FEAT-210 Compliance:
+- Track slippage (expected vs actual fill prices)
+- Store slippage metrics in transactions
 """
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import TYPE_CHECKING, Literal, TypedDict
 
 from app.analytics.cash_manager import CashManager
+from app.analytics.liquidity import calculate_adv
 from app.analytics.transaction_logger import TransactionLogger
+from app.backtest.costs import SlippageModel, calculate_slippage, get_default_costs
 from app.logging_config import get_logger
 from app.portfolio.drawdown import check_portfolio_drawdown_halt
 from app.portfolio.price_fetcher import PriceDataFetcher
@@ -41,10 +48,15 @@ class OrderExecutionResult(TypedDict, total=False):
     symbol: str
     action: str
     shares: int
-    price: float
+    price: float  # Actual fill price (after slippage)
+    expected_price: float  # Price before slippage
     amount: float
     cash_before: float
     cash_after: float
+    slippage_amount: float
+    slippage_bps: float
+    adv: float | None
+    slippage_model: str
     error: str | None
 
 
@@ -70,11 +82,12 @@ class OrderExecutor:
         account_id: str,
         trade_id: str | None = None,
         notes: str | None = None,
+        apply_slippage: bool = True,
     ) -> OrderExecutionResult:
-        """Execute a market order with instant fill at current price.
+        """Execute a market order with fill simulation including slippage.
 
-        Phase A: Simple instant fills, no slippage.
-        Phase B: Add fill simulation with slippage and spread.
+        Phase B: Fill simulation with slippage using costs.py infrastructure.
+        Slippage model uses FIXED_PCT (5 bps) by default, or DYNAMIC if ADV available.
 
         Args:
             symbol: Stock symbol
@@ -83,20 +96,10 @@ class OrderExecutor:
             account_id: Portfolio account ID
             trade_id: Optional trade ID for transaction logging
             notes: Optional notes for transaction log
+            apply_slippage: Whether to apply slippage (default True)
 
         Returns:
-            Dictionary with execution results:
-                {
-                    "filled": bool,
-                    "symbol": str,
-                    "action": str,
-                    "shares": int,
-                    "price": float,
-                    "amount": float,
-                    "cash_before": float,
-                    "cash_after": float,
-                    "error": str | None
-                }
+            Dictionary with execution results including slippage metrics
         """
         if shares <= 0:
             return {
@@ -104,10 +107,10 @@ class OrderExecutor:
                 "error": f"Invalid shares: {shares} (must be positive)",
             }
 
-        # Fetch current price
+        # Fetch current price (expected price before slippage)
         try:
             price_data_dict = self.price_fetcher.fetch_price_data([symbol])
-            current_price = price_data_dict[symbol].price
+            expected_price = price_data_dict[symbol].price
         except Exception as e:
             logger.error(f"Failed to fetch price for {symbol}: {e}")
             return {
@@ -115,8 +118,54 @@ class OrderExecutor:
                 "error": f"Failed to fetch price for {symbol}: {e}",
             }
 
-        # Calculate order amount
-        amount = shares * current_price
+        # Calculate slippage
+        slippage_per_share = Decimal("0")
+        slippage_bps = 0.0
+        adv: float | None = None
+        slippage_model_used = "NONE"
+
+        if apply_slippage:
+            # Try DYNAMIC slippage first (uses ADV)
+            adv = calculate_adv(self.storage, symbol)
+            costs = get_default_costs()
+
+            if adv is not None and adv > 0:
+                # Use DYNAMIC model when ADV is available
+                slippage_per_share = calculate_slippage(
+                    price=Decimal(str(expected_price)),
+                    shares=shares,
+                    model=SlippageModel.DYNAMIC,
+                    average_daily_volume=int(adv),
+                    dynamic_factor=costs.slippage_dynamic_factor,
+                )
+                slippage_model_used = "DYNAMIC"
+            else:
+                # Fall back to FIXED_PCT (5 bps)
+                slippage_per_share = calculate_slippage(
+                    price=Decimal(str(expected_price)),
+                    shares=shares,
+                    model=SlippageModel.FIXED_PCT,
+                    slippage_bps=costs.slippage_bps,
+                )
+                slippage_model_used = "FIXED_PCT"
+
+            # Calculate bps
+            if expected_price > 0:
+                slippage_bps = float(slippage_per_share / Decimal(str(expected_price)) * 10000)
+
+        # Apply slippage to price
+        # For buys: slippage increases price (we pay more)
+        # For sells: slippage decreases price (we receive less)
+        if action == "buy":
+            fill_price = expected_price + float(slippage_per_share)
+        else:
+            fill_price = expected_price - float(slippage_per_share)
+
+        # Calculate slippage amount (always positive cost)
+        slippage_amount = float(slippage_per_share) * shares
+
+        # Calculate order amount (based on fill price)
+        amount = shares * fill_price
 
         # Get cash balance before transaction
         try:
@@ -134,7 +183,8 @@ class OrderExecutor:
                     "symbol": symbol,
                     "action": action,
                     "shares": shares,
-                    "price": current_price,
+                    "price": fill_price,
+                    "expected_price": expected_price,
                     "amount": amount,
                     "cash_before": cash_before,
                     "error": halt_reason or "Trading halted due to portfolio drawdown",
@@ -147,7 +197,8 @@ class OrderExecutor:
                     "symbol": symbol,
                     "action": action,
                     "shares": shares,
-                    "price": current_price,
+                    "price": fill_price,
+                    "expected_price": expected_price,
                     "amount": amount,
                     "cash_before": cash_before,
                     "error": f"Insufficient cash: need ${amount:.2f}, have ${cash_before:.2f}",
@@ -162,14 +213,15 @@ class OrderExecutor:
                     "symbol": symbol,
                     "action": action,
                     "shares": shares,
-                    "price": current_price,
+                    "price": fill_price,
+                    "expected_price": expected_price,
                     "amount": amount,
                     "cash_before": cash_before,
                     "error": limit_error,
                 }
 
             # Deduct cash
-            reason = notes or f"Buy {shares} shares of {symbol} @ ${current_price:.2f}"
+            reason = notes or f"Buy {shares} shares of {symbol} @ ${fill_price:.2f}"
             success = self.cash_manager.deduct_cash(account_id, amount, reason)
 
             if not success:
@@ -182,7 +234,7 @@ class OrderExecutor:
 
         elif action == "sell":
             # Add cash
-            reason = notes or f"Sell {shares} shares of {symbol} @ ${current_price:.2f}"
+            reason = notes or f"Sell {shares} shares of {symbol} @ ${fill_price:.2f}"
             success = self.cash_manager.add_cash(account_id, amount, reason)
 
             if not success:
@@ -199,17 +251,22 @@ class OrderExecutor:
         # Get cash balance after transaction
         cash_after = self.cash_manager.get_cash_balance(account_id)
 
-        # Log transaction if trade_id provided
+        # Log transaction if trade_id provided (with slippage data)
         if trade_id:
             if action == "buy":
                 self.transaction_logger.log_entry(
                     trade_id=trade_id,
                     symbol=symbol,
                     shares=shares,
-                    price=current_price,
+                    price=fill_price,
                     cash_before=cash_before,
                     cash_after=cash_after,
                     notes=notes,
+                    expected_price=expected_price,
+                    slippage_amount=slippage_amount,
+                    slippage_bps=slippage_bps,
+                    adv=adv,
+                    slippage_model=slippage_model_used,
                 )
             else:  # sell
                 # Calculate P&L (requires entry price from trade record)
@@ -218,16 +275,25 @@ class OrderExecutor:
                     trade_id=trade_id,
                     symbol=symbol,
                     shares=shares,
-                    price=current_price,
+                    price=fill_price,
                     cash_before=cash_before,
                     cash_after=cash_after,
                     pnl=pnl,
                     notes=notes,
+                    expected_price=expected_price,
+                    slippage_amount=slippage_amount,
+                    slippage_bps=slippage_bps,
+                    adv=adv,
+                    slippage_model=slippage_model_used,
                 )
 
+        slippage_info = ""
+        if slippage_bps > 0:
+            slippage_info = f" [slippage: {slippage_bps:.1f}bps, ${slippage_amount:.2f}]"
+
         logger.info(
-            f"Market order filled: {action.upper()} {shares} {symbol} @ ${current_price:.2f} "
-            f"(${amount:.2f}, cash: ${cash_before:.2f} → ${cash_after:.2f})"
+            f"Market order filled: {action.upper()} {shares} {symbol} @ ${fill_price:.2f} "
+            f"(${amount:.2f}, cash: ${cash_before:.2f} → ${cash_after:.2f}){slippage_info}"
         )
 
         return {
@@ -235,10 +301,15 @@ class OrderExecutor:
             "symbol": symbol,
             "action": action,
             "shares": shares,
-            "price": current_price,
+            "price": fill_price,
+            "expected_price": expected_price,
             "amount": amount,
             "cash_before": cash_before,
             "cash_after": cash_after,
+            "slippage_amount": slippage_amount,
+            "slippage_bps": slippage_bps,
+            "adv": adv,
+            "slippage_model": slippage_model_used,
             "error": None,
         }
 
@@ -380,7 +451,9 @@ class OrderExecutor:
 
             # Check max single trade loss limit (from rules engine)
             rules = get_rules()
-            max_loss_pct = rules.risk_management.max_single_trade_loss_pct / 100.0  # Convert to decimal
+            max_loss_pct = (
+                rules.risk_management.max_single_trade_loss_pct / 100.0
+            )  # Convert to decimal
             max_allowed_loss = portfolio_value * max_loss_pct
 
             # Potential loss = position amount (worst case: 100% loss)

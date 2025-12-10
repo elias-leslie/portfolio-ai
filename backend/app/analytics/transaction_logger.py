@@ -38,18 +38,28 @@ class TransactionLogger:
         cash_after: float,
         notes: str | None = None,
         agent_run_id: str | None = None,
+        expected_price: float | None = None,
+        slippage_amount: float | None = None,
+        slippage_bps: float | None = None,
+        adv: float | None = None,
+        slippage_model: str | None = None,
     ) -> bool:
-        """Log a trade entry transaction.
+        """Log a trade entry transaction with slippage tracking.
 
         Args:
             trade_id: ID of the trade (idea_id from idea_outcomes)
             symbol: Stock symbol
             shares: Number of shares purchased
-            price: Entry price per share
+            price: Actual fill price per share
             cash_before: Cash balance before transaction
             cash_after: Cash balance after transaction
             notes: Optional transaction notes
             agent_run_id: Optional ID linking to agent workflow (P3 audit trail)
+            expected_price: Price at order time before slippage applied
+            slippage_amount: Total slippage cost in dollars (actual - expected) * shares
+            slippage_bps: Slippage in basis points
+            adv: Average Daily Volume at trade time
+            slippage_model: Slippage model used (NONE, FIXED_PCT, DYNAMIC)
 
         Returns:
             True if logged successfully, False otherwise
@@ -67,9 +77,14 @@ class TransactionLogger:
                 cash_before,
                 cash_after,
                 notes,
-                agent_run_id
+                agent_run_id,
+                expected_price,
+                slippage_amount,
+                slippage_bps,
+                adv,
+                slippage_model
             )
-            VALUES ($1, 'ENTRY', $2, $3, $4, $5, $6, $7, $8, $9)
+            VALUES ($1, 'ENTRY', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         """
 
         try:
@@ -86,13 +101,22 @@ class TransactionLogger:
                         cash_after,
                         notes or f"Entry: {symbol} {shares} shares @ ${price:.2f}",
                         agent_run_id,
+                        expected_price,
+                        slippage_amount,
+                        slippage_bps,
+                        adv,
+                        slippage_model,
                     ],
                 )
                 conn.commit()  # Commit INSERT to database
 
+            slippage_info = ""
+            if slippage_bps is not None:
+                slippage_info = f" [slippage: {slippage_bps:.1f}bps, ${slippage_amount:.2f}]"
+
             logger.info(
                 f"Logged ENTRY transaction: {trade_id} - {symbol} "
-                f"{shares} shares @ ${price:.2f} (${amount:.2f})"
+                f"{shares} shares @ ${price:.2f} (${amount:.2f}){slippage_info}"
                 + (f" [agent: {agent_run_id[:8]}...]" if agent_run_id else "")
             )
             return True
@@ -112,19 +136,29 @@ class TransactionLogger:
         pnl: float,
         notes: str | None = None,
         agent_run_id: str | None = None,
+        expected_price: float | None = None,
+        slippage_amount: float | None = None,
+        slippage_bps: float | None = None,
+        adv: float | None = None,
+        slippage_model: str | None = None,
     ) -> bool:
-        """Log a trade exit transaction.
+        """Log a trade exit transaction with slippage tracking.
 
         Args:
             trade_id: ID of the trade (idea_id from idea_outcomes)
             symbol: Stock symbol
             shares: Number of shares sold
-            price: Exit price per share
+            price: Actual fill price per share
             cash_before: Cash balance before transaction
             cash_after: Cash balance after transaction
             pnl: Realized profit/loss
             notes: Optional transaction notes (usually exit reason)
             agent_run_id: Optional ID linking to agent workflow (P3 audit trail)
+            expected_price: Price at order time before slippage applied
+            slippage_amount: Total slippage cost in dollars (expected - actual) * shares
+            slippage_bps: Slippage in basis points
+            adv: Average Daily Volume at trade time
+            slippage_model: Slippage model used (NONE, FIXED_PCT, DYNAMIC)
 
         Returns:
             True if logged successfully, False otherwise
@@ -147,9 +181,14 @@ class TransactionLogger:
                 cash_before,
                 cash_after,
                 notes,
-                agent_run_id
+                agent_run_id,
+                expected_price,
+                slippage_amount,
+                slippage_bps,
+                adv,
+                slippage_model
             )
-            VALUES ($1, 'EXIT', $2, $3, $4, $5, $6, $7, $8, $9)
+            VALUES ($1, 'EXIT', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         """
 
         try:
@@ -166,13 +205,22 @@ class TransactionLogger:
                         cash_after,
                         notes,
                         agent_run_id,
+                        expected_price,
+                        slippage_amount,
+                        slippage_bps,
+                        adv,
+                        slippage_model,
                     ],
                 )
                 conn.commit()  # Commit INSERT to database
 
+            slippage_info = ""
+            if slippage_bps is not None:
+                slippage_info = f" [slippage: {slippage_bps:.1f}bps, ${slippage_amount:.2f}]"
+
             logger.info(
                 f"Logged EXIT transaction: {trade_id} - {symbol} "
-                f"{shares} shares @ ${price:.2f} (${amount:.2f}, P&L: ${pnl:.2f})"
+                f"{shares} shares @ ${price:.2f} (${amount:.2f}, P&L: ${pnl:.2f}){slippage_info}"
                 + (f" [agent: {agent_run_id[:8]}...]" if agent_run_id else "")
             )
             return True
