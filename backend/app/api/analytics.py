@@ -15,6 +15,7 @@ from app.analytics import (
     get_peer_group_detail,
     get_sector_rotation,
 )
+from app.analytics.financial_health_scores import get_financial_health_scores
 from app.storage import get_storage
 from app.storage.connection import get_connection_manager
 
@@ -107,7 +108,9 @@ class ShortInterestResponse(BaseModel):
         None, description="Short percent of float", alias="short_percent_of_float"
     )
     pct_outstanding: float | None = Field(
-        None, description="Short percent of shares outstanding", alias="short_percent_of_outstanding"
+        None,
+        description="Short percent of shares outstanding",
+        alias="short_percent_of_outstanding",
     )
     short_prior_month: float | None = Field(None, description="Short shares prior month")
     pct_change: float | None = Field(None, description="Percent change from prior month")
@@ -125,7 +128,9 @@ class CashFlowMetricsResponse(BaseModel):
     fcf_yield: float | None = Field(None, description="FCF yield (FCF / Market Cap)")
     cash_flow_margin: float | None = Field(None, description="Cash flow margin (OCF / Revenue)")
     fcf_per_share: float | None = Field(None, description="Free cash flow per share")
-    cash_conversion_ratio: float | None = Field(None, description="Cash conversion ratio (OCF / Net Income)")
+    cash_conversion_ratio: float | None = Field(
+        None, description="Cash conversion ratio (OCF / Net Income)"
+    )
     source: str = Field("yfinance", description="Data source")
 
 
@@ -719,4 +724,63 @@ async def get_institutional_holdings(
         institutions_increased=summary_row[6] if summary_row else None,
         institutions_decreased=summary_row[7] if summary_row else None,
         top_holders=top_holders,
+    )
+
+
+# ============================================================================
+# Financial Health Scores (Piotroski F-Score & Altman Z-Score)
+# ============================================================================
+
+
+class FinancialHealthResponse(BaseModel):
+    """Response model for financial health scores."""
+
+    symbol: str = Field(..., description="Stock symbol")
+    piotroski_fscore: int | None = Field(
+        None, ge=0, le=9, description="Piotroski F-Score (0-9, higher is better)"
+    )
+    fscore_components: dict[str, int] | None = Field(
+        None, description="Individual F-Score component scores"
+    )
+    altman_zscore: float | None = Field(None, description="Altman Z-Score")
+    zscore_zone: str | None = Field(None, description="Z-Score zone: 'safe', 'grey', or 'distress'")
+    error: str | None = Field(None, description="Error message if calculation failed")
+
+
+@router.get(
+    "/health-scores/{symbol}",
+    response_model=FinancialHealthResponse,
+    summary="Get financial health scores for a symbol",
+    description="Returns Piotroski F-Score (0-9) and Altman Z-Score for bankruptcy risk assessment.",
+)
+async def get_health_scores(
+    symbol: Annotated[str, Path(description="Stock symbol (e.g., AAPL)")],
+) -> FinancialHealthResponse:
+    """Get financial health scores (Piotroski F-Score and Altman Z-Score).
+
+    Piotroski F-Score (0-9):
+    - 8-9: Strong fundamental quality
+    - 5-7: Average quality
+    - 0-4: Weak fundamentals
+
+    Altman Z-Score zones:
+    - >2.99: Safe zone (low bankruptcy risk)
+    - 1.81-2.99: Grey zone (moderate risk)
+    - <1.81: Distress zone (high bankruptcy risk)
+
+    Args:
+        symbol: Stock ticker symbol
+
+    Returns:
+        Financial health scores with component breakdown
+    """
+    scores = get_financial_health_scores(symbol.upper())
+
+    return FinancialHealthResponse(
+        symbol=scores.symbol,
+        piotroski_fscore=scores.f_score,
+        fscore_components=scores.f_score_components,
+        altman_zscore=scores.z_score,
+        zscore_zone=scores.z_score_zone,
+        error=scores.error,
     )
