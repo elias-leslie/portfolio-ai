@@ -56,6 +56,7 @@ class ScoreBreakdownResponse(BaseModel):
     technical: ScoreComponentResponse
     fundamental: ScoreComponentResponse | None = None
     catalyst: ScoreComponentResponse | None = None  # Fourth pillar (event-driven signals)
+    options_flow: ScoreComponentResponse | None = None  # Fifth pillar (GAP-031)
     overall: float
 
 
@@ -153,6 +154,9 @@ class WatchlistItemResponse(BaseModel):
                 else None,
                 catalyst=ScoreComponentResponse(**item["score"]["catalyst"])
                 if item["score"].get("catalyst")
+                else None,
+                options_flow=ScoreComponentResponse(**item["score"]["options_flow"])
+                if item["score"].get("options_flow")
                 else None,
                 overall=item["score"]["overall"],
             )

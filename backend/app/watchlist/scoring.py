@@ -12,6 +12,7 @@ from ..services.catalyst_scoring import (
     aggregate_catalyst_scores,
     get_active_catalysts_for_symbol,
 )
+from ..services.options_flow_service import OptionsFlowData
 from .fundamentals import FundamentalData
 from .models import (
     ScoreBreakdown,
@@ -314,8 +315,76 @@ def _compute_catalyst_component(
         )
 
 
+def _compute_options_flow_component(
+    options_data: OptionsFlowData | None,
+    symbol_in_active_sector: bool,
+    weight: float,
+) -> ScoreComponent:
+    """Compute options flow score component (GAP-031).
+
+    Scoring (0-100 scale):
+    - Base: 50 (neutral)
+    - Call % > 55%: Add points (bullish sentiment)
+    - Call % < 45%: Subtract points (bearish sentiment)
+    - Symbol in active sector: Bonus points
+
+    Args:
+        options_data: Latest options flow metrics
+        symbol_in_active_sector: Whether symbol's sector has high options activity
+        weight: Weight for this component (0.0-1.0)
+
+    Returns:
+        ScoreComponent with options flow score
+    """
+    if options_data is None or options_data.is_stale:
+        return ScoreComponent(
+            score=50.0,  # Neutral when no data
+            weight=weight,
+            stale=True,
+            metadata={"reason": "no_data" if options_data is None else "stale_data"},
+            sub_scores={},
+        )
+
+    call_pct = options_data.call_pct
+
+    # Base score: 50 (neutral)
+    # Map call_pct from 0.0-1.0 to 0-100 range
+    # 0.45 (45%) = 40, 0.50 (50%) = 50, 0.55 (55%) = 60, 0.60 (60%) = 70
+    # Linear mapping: score = (call_pct - 0.5) * 200 + 50
+    # This gives: 45% -> 40, 50% -> 50, 55% -> 60, 60% -> 70
+    base_score = (call_pct - 0.5) * 200 + 50
+
+    # Sector activity bonus: +5 if symbol's sector is highly active
+    sector_bonus = 5.0 if symbol_in_active_sector else 0.0
+
+    score = base_score + sector_bonus
+    score = max(0.0, min(100.0, score))
+
+    # Sub-scores for breakdown
+    sub_scores = {
+        "call_sentiment": base_score,
+        "sector_bonus": sector_bonus,
+    }
+
+    metadata: dict[str, str | int | float | bool | None] = {
+        "call_pct": call_pct,
+        "near_term_pct": options_data.near_term_pct,
+        "concentration_pct": options_data.concentration_pct,
+        "symbol_in_active_sector": symbol_in_active_sector,
+        "as_of_date": str(options_data.as_of_date) if options_data.as_of_date else None,
+    }
+
+    return ScoreComponent(
+        score=score,
+        weight=weight,
+        stale=False,
+        metadata=metadata,
+        sub_scores=sub_scores,
+    )
+
+
 def calculate_watchlist_scores(inputs: WatchlistScoreInputs) -> ScoreBreakdown:
-    """Compute watchlist price/technical/fundamental/catalyst scores and overall composite (4-pillar)."""
+    """Compute watchlist price/technical/fundamental/catalyst/options_flow scores (5-pillar)."""
     # Ensure timestamps are timezone-aware
     now = inputs.now if inputs.now.tzinfo is not None else inputs.now.replace(tzinfo=UTC)
 
@@ -370,6 +439,16 @@ def calculate_watchlist_scores(inputs: WatchlistScoreInputs) -> ScoreBreakdown:
             now=now,
         )
 
+    # Options flow component (GAP-031)
+    options_flow_component = None
+    if hasattr(inputs, "options_data"):
+        symbol_in_active_sector = getattr(inputs, "symbol_in_active_sector", False) or False
+        options_flow_component = _compute_options_flow_component(
+            options_data=inputs.options_data,
+            symbol_in_active_sector=symbol_in_active_sector,
+            weight=weights.get("options_flow", 0.1),  # Default 10% weight
+        )
+
     # Calculate overall score based on available components
     components_used = [
         (price_component, weights["price"], True),
@@ -380,6 +459,11 @@ def calculate_watchlist_scores(inputs: WatchlistScoreInputs) -> ScoreBreakdown:
             fundamental_component and not fundamental_component.stale,
         ),
         (catalyst_component, weights.get("catalyst", 0.0), catalyst_component is not None),
+        (
+            options_flow_component,
+            weights.get("options_flow", 0.0),
+            options_flow_component is not None and not options_flow_component.stale,
+        ),
     ]
 
     # Filter to only active components
@@ -410,6 +494,7 @@ def calculate_watchlist_scores(inputs: WatchlistScoreInputs) -> ScoreBreakdown:
         technical=technical_component,
         fundamental=fundamental_component,
         catalyst=catalyst_component,
+        options_flow=options_flow_component,
         overall=overall,
     )
 
@@ -421,6 +506,7 @@ def calculate_watchlist_scores(inputs: WatchlistScoreInputs) -> ScoreBreakdown:
         technical_score=breakdown.technical.score,
         fundamental_score=breakdown.fundamental.score if breakdown.fundamental else None,
         catalyst_score=breakdown.catalyst.score if breakdown.catalyst else None,
+        options_flow_score=breakdown.options_flow.score if breakdown.options_flow else None,
     )
 
     return breakdown

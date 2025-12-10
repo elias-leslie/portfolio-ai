@@ -22,6 +22,10 @@ from ..logging_config import get_logger
 from ..portfolio.models import PriceData
 from ..services import NewsService
 from ..services.news_models import NewsBundle
+from ..services.options_flow_service import (
+    get_latest_options_flow,
+    is_symbol_in_active_sector,
+)
 from ..storage import PortfolioStorage
 from .models import ScoreWeights, TechnicalSnapshot, WatchlistScoreInputs, WatchlistSnapshot
 from .refresh_builders import (
@@ -138,14 +142,20 @@ def process_symbol_snapshot(
     news_articles_for_catalyst: list[dict[str, str | datetime | float | None]] = []
     if news_bundle_result and news_bundle_result.articles:
         for article in news_bundle_result.articles:
-            news_articles_for_catalyst.append({
-                "headline": article.headline,
-                "summary": article.summary if hasattr(article, "summary") else None,
-                "published_at": article.published_at,
-                "filing_type": article.filing_type if hasattr(article, "filing_type") else None,
-            })
+            news_articles_for_catalyst.append(
+                {
+                    "headline": article.headline,
+                    "summary": article.summary if hasattr(article, "summary") else None,
+                    "published_at": article.published_at,
+                    "filing_type": article.filing_type if hasattr(article, "filing_type") else None,
+                }
+            )
 
-    # Step 5: Calculate scores (4-pillar: price/technical/fundamental/catalyst)
+    # Step 4.5: Fetch options flow data (GAP-031)
+    options_data = get_latest_options_flow(storage)
+    symbol_in_active_sector_flag = is_symbol_in_active_sector(symbol, options_data)
+
+    # Step 5: Calculate scores (5-pillar: price/technical/fundamental/catalyst/options_flow)
     breakdown = calculate_watchlist_scores(
         WatchlistScoreInputs(
             price=price_data,
@@ -153,6 +163,8 @@ def process_symbol_snapshot(
             technical=technical_snapshot,
             fundamental=fundamentals_data,
             news_articles=news_articles_for_catalyst,
+            options_data=options_data,
+            symbol_in_active_sector=symbol_in_active_sector_flag,
             weights=default_weights,
             now=now,
             stale_ttl_minutes=stale_ttl_minutes,

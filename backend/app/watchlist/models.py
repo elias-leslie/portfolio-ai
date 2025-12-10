@@ -249,12 +249,13 @@ class ScoreComponent(BaseModel):
 
 
 class ScoreBreakdown(BaseModel):
-    """Score breakdown for a watchlist item (4-pillar system)."""
+    """Score breakdown for a watchlist item (5-pillar system)."""
 
     price: ScoreComponent
     technical: ScoreComponent
     fundamental: ScoreComponent | None = None  # May be None if not fetched
-    catalyst: ScoreComponent | None = None  # NEW: Fourth pillar (may be None if no news)
+    catalyst: ScoreComponent | None = None  # Fourth pillar (may be None if no news)
+    options_flow: ScoreComponent | None = None  # Fifth pillar (GAP-031, may be None)
 
     overall: float
 
@@ -271,6 +272,9 @@ class ScoreBreakdown(BaseModel):
             "technical": self.technical.model_dump(mode="json"),
             "fundamental": self.fundamental.model_dump(mode="json") if self.fundamental else None,
             "catalyst": self.catalyst.model_dump(mode="json") if self.catalyst else None,
+            "options_flow": self.options_flow.model_dump(mode="json")
+            if self.options_flow
+            else None,
             "overall": self.overall,
         }
 
@@ -306,7 +310,11 @@ class WatchlistScoreInputs(BaseModel):
     fundamental: Any | None = None  # FundamentalData (avoid circular import)
     news_articles: list[dict[str, str | datetime | float | None]] = Field(
         default_factory=list
-    )  # NEW: For catalyst scoring
+    )  # For catalyst scoring
+    options_data: Any | None = None  # OptionsFlowData (GAP-031, avoid circular import)
+    symbol_in_active_sector: bool = (
+        False  # GAP-031: True if symbol's sector has high options activity
+    )
     weights: ScoreWeights = Field(default_factory=ScoreWeights)
     now: datetime = Field(default_factory=lambda: datetime.now(UTC))
     stale_ttl_minutes: int = 15  # Default to 15 minutes (3x default 5min refresh)

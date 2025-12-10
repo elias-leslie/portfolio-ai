@@ -59,6 +59,8 @@ def build_snapshot_data(
     price_data = raw_metrics.get("price")
     tech_data = raw_metrics.get("technical")
     fund_data = raw_metrics.get("fundamental")
+    catalyst_data = raw_metrics.get("catalyst")
+    options_flow_data = raw_metrics.get("options_flow")
 
     # Only include score if we have at least price or technical data with required fields
     if (price_data and "score" in price_data) or (tech_data and "score" in tech_data):
@@ -66,6 +68,10 @@ def build_snapshot_data(
             "price": price_data if (price_data and "score" in price_data) else {},
             "technical": tech_data if (tech_data and "score" in tech_data) else {},
             "fundamental": fund_data if (fund_data and "score" in fund_data) else {},
+            "catalyst": catalyst_data if (catalyst_data and "score" in catalyst_data) else None,
+            "options_flow": options_flow_data
+            if (options_flow_data and "score" in options_flow_data)
+            else None,
             "overall": row["overall_score"],
         }
     else:
