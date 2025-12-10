@@ -209,7 +209,7 @@ export function QAIssuesTable({ issues, isLoading }: QAIssuesTableProps) {
                 }}
               >
                 <TableCell className="font-mono text-xs align-top py-2">
-                  {issue.issue_id}
+                  {issue.id}
                 </TableCell>
                 <TableCell className="align-top py-2">
                   <span

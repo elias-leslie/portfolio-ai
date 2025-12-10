@@ -54,6 +54,10 @@ class NewsArticleResponse(BaseModel):
     # ML quality prediction
     quality_prediction: bool | None = None
     quality_confidence: float | None = None
+    # Story clustering metadata
+    story_id: str | None = None
+    is_primary_article: bool = False
+    coverage_count: int = 1
 
 
 class NewsSummaryResponse(BaseModel):
@@ -161,6 +165,10 @@ def _serialize_article(article: object) -> NewsArticleResponse:
         # ML quality prediction
         quality_prediction=getattr(article, "quality_prediction", None),
         quality_confidence=getattr(article, "quality_confidence", None),
+        # Story clustering metadata
+        story_id=getattr(article, "story_id", None),
+        is_primary_article=getattr(article, "is_primary_article", False),
+        coverage_count=getattr(article, "coverage_count", 1),
     )
 
 

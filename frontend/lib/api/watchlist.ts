@@ -64,6 +64,10 @@ export interface SentimentArticle {
     // AI-generated insights
     impact_summary?: string | null;
     actionable_insight?: string | null;
+    // Story clustering metadata
+    story_id?: string | null;
+    is_primary_article?: boolean;
+    coverage_count?: number;
 }
 
 export interface RecentNewsPayload {

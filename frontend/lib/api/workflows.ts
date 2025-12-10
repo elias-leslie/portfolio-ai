@@ -15,6 +15,7 @@ export interface NodeData {
   successRate: number;
   avgDuration: number; // milliseconds
   populatesTables: string[];
+  [key: string]: unknown; // Index signature for reactflow compatibility
 }
 
 export interface WorkflowNode {

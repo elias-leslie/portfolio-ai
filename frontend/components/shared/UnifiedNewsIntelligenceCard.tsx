@@ -45,6 +45,10 @@ interface NewsArticle {
   content_hash?: string;
   quality_prediction?: boolean | null;
   quality_confidence?: number | null;
+  // Story clustering metadata
+  story_id?: string | null;
+  is_primary_article?: boolean;
+  coverage_count?: number;
 }
 
 // Data structure types
@@ -472,6 +476,16 @@ export function UnifiedNewsIntelligenceCard({
                               className="text-[10px]"
                             >
                               Quality {Math.round(article.quality_confidence * 100)}%
+                            </Badge>
+                          )}
+                          {article.is_primary_article && (
+                            <Badge variant="success" className="text-[10px]">
+                              Primary
+                            </Badge>
+                          )}
+                          {article.coverage_count && article.coverage_count > 1 && (
+                            <Badge variant="secondary" className="text-[10px]">
+                              {article.coverage_count} sources
                             </Badge>
                           )}
                           {sentimentLabel && (

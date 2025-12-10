@@ -95,7 +95,7 @@ export function QATab() {
   });
 
   const handleScanNow = () => {
-    scanMutation.mutate();
+    scanMutation.mutate(undefined);
   };
 
   // Calculate trend indicator for resolved this week
