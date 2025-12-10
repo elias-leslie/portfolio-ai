@@ -33,7 +33,6 @@ import {
   RefreshCw,
   Clock,
   FileCode,
-  GitCommit,
 } from "lucide-react";
 
 interface ProgressEntry {
@@ -166,17 +165,6 @@ function ExpandableRow({ entry }: { entry: ProgressEntry }) {
                   <p className="text-sm bg-muted/50 px-3 py-2 rounded border">
                     {entry.action}
                   </p>
-                </div>
-              )}
-
-              {/* Commit SHA */}
-              {entry.git_commit && (
-                <div className="flex items-center gap-2">
-                  <GitCommit className="h-3 w-3 text-muted-foreground" />
-                  <span className="text-muted-foreground text-xs font-medium">Commit:</span>
-                  <code className="font-mono text-xs bg-muted px-2 py-1 rounded border">
-                    {entry.git_commit}
-                  </code>
                 </div>
               )}
 
