@@ -65,6 +65,8 @@ const ACTION_TYPE_COLORS: Record<string, string> = {
   pause: "bg-yellow-500/20 text-yellow-700 dark:text-yellow-400",
   plan: "bg-indigo-500/20 text-indigo-700 dark:text-indigo-400",
   test: "bg-gray-500/20 text-gray-700 dark:text-gray-400",
+  commit: "bg-cyan-500/20 text-cyan-700 dark:text-cyan-400",
+  checkpoint: "bg-amber-500/20 text-amber-700 dark:text-amber-400",
 };
 
 function formatDate(dateStr: string): string {
@@ -135,40 +137,63 @@ function ExpandableRow({ entry }: { entry: ProgressEntry }) {
 
       {expanded && (
         <TableRow className="bg-muted/30">
-          <TableCell colSpan={7}>
-            <div className="py-2 px-4 space-y-2 text-sm">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <TableCell colSpan={7} className="p-0">
+            <div className="py-4 px-6 space-y-4 text-sm">
+              {/* Session & Context Row */}
+              <div className="flex flex-wrap gap-x-8 gap-y-2">
                 {entry.session_id && (
-                  <div>
-                    <span className="text-muted-foreground">Session:</span>
-                    <span className="ml-2 font-mono text-xs">{entry.session_id}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground text-xs font-medium">Session:</span>
+                    <code className="font-mono text-xs bg-muted px-2 py-1 rounded">
+                      {entry.session_id.slice(0, 8)}...
+                    </code>
                   </div>
                 )}
                 {entry.context_percent !== null && (
-                  <div>
-                    <span className="text-muted-foreground">Context:</span>
-                    <span className="ml-2">{entry.context_percent}%</span>
-                  </div>
-                )}
-                {entry.git_commit && (
-                  <div>
-                    <span className="text-muted-foreground">Commit:</span>
-                    <code className="ml-2 bg-muted px-1 py-0.5 rounded text-xs">
-                      {entry.git_commit}
-                    </code>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground text-xs font-medium">Context:</span>
+                    <Badge variant="outline" className="text-xs">
+                      {entry.context_percent}%
+                    </Badge>
                   </div>
                 )}
               </div>
 
-              {entry.files_modified && entry.files_modified.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-1 text-muted-foreground mb-1">
-                    <FileCode className="h-3 w-3" />
-                    Files Modified ({entry.files_modified.length}):
+              {/* Full Action Text */}
+              {entry.action && entry.action.length > 50 && (
+                <div className="space-y-1">
+                  <span className="text-muted-foreground text-xs font-medium">Full Action:</span>
+                  <p className="text-sm bg-muted/50 px-3 py-2 rounded border">
+                    {entry.action}
+                  </p>
+                </div>
+              )}
+
+              {/* Commit Message (separate block if long) */}
+              {entry.git_commit && (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <GitCommit className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-muted-foreground text-xs font-medium">Commit Message:</span>
                   </div>
-                  <div className="flex flex-wrap gap-1">
+                  <pre className="text-xs bg-muted px-3 py-2 rounded border overflow-x-auto whitespace-pre-wrap break-words max-h-32 overflow-y-auto">
+                    {entry.git_commit}
+                  </pre>
+                </div>
+              )}
+
+              {/* Files Modified */}
+              {entry.files_modified && entry.files_modified.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <FileCode className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-muted-foreground text-xs font-medium">
+                      Files Modified ({entry.files_modified.length}):
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
                     {entry.files_modified.map((file, i) => (
-                      <code key={i} className="bg-muted px-1 py-0.5 rounded text-xs">
+                      <code key={i} className="bg-muted px-2 py-1 rounded text-xs border">
                         {file.split("/").pop()}
                       </code>
                     ))}
@@ -176,10 +201,11 @@ function ExpandableRow({ entry }: { entry: ProgressEntry }) {
                 </div>
               )}
 
+              {/* Details JSON */}
               {entry.details && Object.keys(entry.details).length > 0 && (
-                <div>
-                  <span className="text-muted-foreground">Details:</span>
-                  <pre className="mt-1 bg-muted p-2 rounded text-xs overflow-x-auto">
+                <div className="space-y-1">
+                  <span className="text-muted-foreground text-xs font-medium">Details:</span>
+                  <pre className="bg-muted p-3 rounded text-xs overflow-x-auto border max-h-40 overflow-y-auto">
                     {JSON.stringify(entry.details, null, 2)}
                   </pre>
                 </div>
@@ -285,6 +311,8 @@ export function LogTab() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Types</SelectItem>
+              <SelectItem value="commit">Commit</SelectItem>
+              <SelectItem value="checkpoint">Checkpoint</SelectItem>
               <SelectItem value="start">Start</SelectItem>
               <SelectItem value="progress">Progress</SelectItem>
               <SelectItem value="complete">Complete</SelectItem>
