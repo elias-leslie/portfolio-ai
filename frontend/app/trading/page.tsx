@@ -15,6 +15,7 @@ import { useGenerateStrategiesBatch } from "@/lib/hooks/useStrategies";
 import { PaperTradesTable } from "@/components/trading/PaperTradesTable";
 import { NewOrderDialog } from "@/components/trading/NewOrderDialog";
 import { PipelineControls } from "@/components/trading/PipelineControls";
+import { TransactionsList } from "@/components/trading/TransactionsList";
 import { ConfirmActionDialog } from "@/components/shared/ConfirmActionDialog";
 
 export default function TradingPage() {
@@ -303,6 +304,17 @@ export default function TradingPage() {
             )}
           </TabsContent>
         </Tabs>
+      </SectionCard>
+
+      {/* Transaction History */}
+      <SectionCard variant="surface" padding="none">
+        <div className="border-b border-border px-6 py-4">
+          <h2 className="text-xl font-semibold">Transaction History</h2>
+          <p className="text-sm text-text-muted">Complete log of all entry and exit transactions</p>
+        </div>
+        <div className="p-6">
+          <TransactionsList limit={50} />
+        </div>
       </SectionCard>
 
       {/* Reset Account Confirmation Dialog */}
