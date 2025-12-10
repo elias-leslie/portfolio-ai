@@ -259,7 +259,12 @@ class TransactionLogger:
                     t.cash_before,
                     t.cash_after,
                     t.timestamp,
-                    t.notes
+                    t.notes,
+                    t.expected_price,
+                    t.slippage_amount,
+                    t.slippage_bps,
+                    t.adv,
+                    t.slippage_model
                 FROM paper_trade_transactions t
                 WHERE t.trade_id = $1
                 ORDER BY t.timestamp DESC
@@ -283,7 +288,12 @@ class TransactionLogger:
                     cash_before,
                     cash_after,
                     timestamp,
-                    notes
+                    notes,
+                    expected_price,
+                    slippage_amount,
+                    slippage_bps,
+                    adv,
+                    slippage_model
                 FROM paper_trade_transactions
                 ORDER BY timestamp DESC
                 LIMIT $1
@@ -322,7 +332,12 @@ class TransactionLogger:
                 cash_before,
                 cash_after,
                 timestamp,
-                notes
+                notes,
+                expected_price,
+                slippage_amount,
+                slippage_bps,
+                adv,
+                slippage_model
             FROM paper_trade_transactions
             WHERE symbol = $1
             ORDER BY timestamp DESC

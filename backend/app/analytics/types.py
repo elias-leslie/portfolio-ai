@@ -136,6 +136,12 @@ class TransactionDict(TypedDict, total=False):
     cash_after: float
     timestamp: datetime  # datetime from database
     notes: str | None
+    # Slippage fields (FEAT-210)
+    expected_price: float | None
+    slippage_amount: float | None
+    slippage_bps: float | None
+    adv: float | None
+    slippage_model: str | None
 
 
 class PaperTradeStatsDict(TypedDict):

@@ -28,6 +28,12 @@ interface Transaction {
   cash_after: number;
   timestamp: string;
   notes?: string | null;
+  // Slippage fields (FEAT-210)
+  expected_price?: number | null;
+  slippage_amount?: number | null;
+  slippage_bps?: number | null;
+  adv?: number | null;
+  slippage_model?: string | null;
 }
 
 interface TransactionsListProps {
@@ -108,6 +114,21 @@ export function TransactionsList({ limit = 50 }: TransactionsListProps) {
     );
   }
 
+  // Format slippage for display
+  const formatSlippage = (tx: Transaction) => {
+    if (tx.slippage_bps === null || tx.slippage_bps === undefined) {
+      return <span className="text-text-muted">—</span>;
+    }
+    const bps = tx.slippage_bps;
+    const cost = tx.slippage_amount ?? 0;
+    const colorClass = bps > 0 ? "text-loss" : bps < 0 ? "text-gain" : "text-text-muted";
+    return (
+      <span className={colorClass} title={`Model: ${tx.slippage_model ?? "N/A"}`}>
+        {bps > 0 ? "+" : ""}{bps.toFixed(1)}bps (${Math.abs(cost).toFixed(2)})
+      </span>
+    );
+  };
+
   // Main render
   return (
     <div className="overflow-x-auto">
@@ -119,6 +140,7 @@ export function TransactionsList({ limit = 50 }: TransactionsListProps) {
             <TableHead>Symbol</TableHead>
             <TableHead className="text-right">Shares</TableHead>
             <TableHead className="text-right">Price</TableHead>
+            <TableHead className="text-right">Slippage</TableHead>
             <TableHead className="text-right">Amount</TableHead>
             <TableHead className="text-right">Cash After</TableHead>
           </TableRow>
@@ -137,6 +159,7 @@ export function TransactionsList({ limit = 50 }: TransactionsListProps) {
               <TableCell className="font-semibold">{tx.symbol}</TableCell>
               <TableCell className="text-right">{tx.shares}</TableCell>
               <TableCell className="text-right">{formatCurrency(tx.price)}</TableCell>
+              <TableCell className="text-right">{formatSlippage(tx)}</TableCell>
               <TableCell className="text-right">{formatCurrency(tx.amount)}</TableCell>
               <TableCell className="text-right">{formatCurrency(tx.cash_after)}</TableCell>
             </TableRow>

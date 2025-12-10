@@ -73,6 +73,12 @@ class TransactionResponse(BaseModel):
     cash_after: float
     timestamp: str
     notes: str | None
+    # Slippage fields (FEAT-210)
+    expected_price: float | None = None
+    slippage_amount: float | None = None
+    slippage_bps: float | None = None
+    adv: float | None = None
+    slippage_model: str | None = None
 
 
 # ============================================================================
