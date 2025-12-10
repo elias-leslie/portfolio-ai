@@ -149,6 +149,7 @@ interface Task {
   notes: string | null;
   status: string;
   effort: string | null;
+  task_type: string;  // implementation, fix, task_file, discovery
 }
 
 // Acceptance Criterion interface (matches backend AcceptanceCriterion model)
@@ -529,9 +530,36 @@ export function FeaturesTab() {
     return "transparent";
   };
 
-  // Render passes badge
-  const renderPassesBadge = (passes: boolean | null) => {
-    if (passes === true) {
+  // Render verified status badge
+  // Logic: "Verified" only when tasks=0 AND all criteria passed
+  const renderPassesBadge = (feature: Feature) => {
+    const incompleteTasks = feature.total_tasks - feature.completed_tasks;
+    const criteria = feature.acceptance_criteria || [];
+    const allCriteriaPassed = criteria.length > 0 && criteria.every(c => c.passed === true);
+    const hasCriteria = criteria.length > 0;
+
+    // Has incomplete tasks - show "Has Tasks"
+    if (incompleteTasks > 0) {
+      return (
+        <Badge variant="default" className="bg-orange-500/20 text-orange-400 border-orange-500/30">
+          <AlertTriangle className="mr-1 h-3 w-3" />
+          Has Tasks
+        </Badge>
+      );
+    }
+
+    // No criteria defined - show "No Criteria"
+    if (!hasCriteria) {
+      return (
+        <Badge variant="default" className="bg-zinc-500/20 text-zinc-400 border-zinc-500/30">
+          <HelpCircle className="mr-1 h-3 w-3" />
+          No Criteria
+        </Badge>
+      );
+    }
+
+    // Tasks=0, has criteria, all passed - show "Verified"
+    if (allCriteriaPassed) {
       return (
         <Badge variant="default" className="bg-green-500/20 text-green-400 border-green-500/30">
           <CheckCircle2 className="mr-1 h-3 w-3" />
@@ -539,18 +567,12 @@ export function FeaturesTab() {
         </Badge>
       );
     }
-    if (passes === false) {
-      return (
-        <Badge variant="default" className="bg-red-500/20 text-red-400 border-red-500/30">
-          <XCircle className="mr-1 h-3 w-3" />
-          Failing
-        </Badge>
-      );
-    }
+
+    // Tasks=0, has criteria, not all passed - show "Needs Review"
     return (
       <Badge variant="default" className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
         <HelpCircle className="mr-1 h-3 w-3" />
-        Unreviewed
+        Needs Review
       </Badge>
     );
   };
@@ -1003,7 +1025,7 @@ export function FeaturesTab() {
                   onClick={() => handleSort("progress")}
                 >
                   <div className="flex items-center justify-end">
-                    Progress{getSortIcon("progress")}
+                    Tasks{getSortIcon("progress")}
                   </div>
                 </TableHead>
               </TableRow>
@@ -1105,34 +1127,24 @@ export function FeaturesTab() {
                       <TableCell className="px-2 text-center align-top py-2 w-14">
                         {renderCriteriaStatus(feature.acceptance_criteria)}
                       </TableCell>
-                      <TableCell className="px-2 align-top py-2 w-24">{renderPassesBadge(feature.passes)}</TableCell>
+                      <TableCell className="px-2 align-top py-2 w-24">{renderPassesBadge(feature)}</TableCell>
                       <TableCell className="px-2 text-right align-top py-2 w-20">
-                        <div className="flex items-center justify-end gap-2">
-                          <div className="w-10 h-2 bg-muted rounded-full overflow-hidden">
-                            <div
-                              className={`h-full ${
-                                feature.completion_pct === 100
-                                  ? "bg-green-500"
-                                  : feature.completion_pct > 0
-                                  ? "bg-yellow-500"
-                                  : "bg-muted-foreground"
-                              }`}
-                              style={{ width: `${feature.completion_pct}%` }}
-                            />
-                          </div>
-                          <span
-                            className="text-xs"
-                            style={{
-                              color: feature.completion_pct === 100
-                                ? "#4ade80"  // green-400
-                                : feature.completion_pct > 0
-                                ? "#facc15"  // yellow-400
-                                : "#71717a", // zinc-500
-                            }}
-                          >
-                            {feature.completed_tasks}/{feature.total_tasks}
-                          </span>
-                        </div>
+                        {(() => {
+                          const incompleteTasks = feature.total_tasks - feature.completed_tasks;
+                          return (
+                            <span
+                              className="text-xs font-mono"
+                              style={{
+                                color: incompleteTasks === 0
+                                  ? "#4ade80"  // green-400 (no tasks)
+                                  : "#facc15", // yellow-400 (has tasks)
+                              }}
+                              title={`${feature.completed_tasks}/${feature.total_tasks} completed`}
+                            >
+                              {incompleteTasks}
+                            </span>
+                          );
+                        })()}
                       </TableCell>
                     </TableRow>
                     {/* Expanded details row (subtasks + acceptance criteria) */}
@@ -1371,6 +1383,18 @@ export function FeaturesTab() {
                                           }}
                                         >
                                           {task.effort}
+                                        </span>
+                                      )}
+                                      {task.task_type && task.task_type !== "implementation" && (
+                                        <span
+                                          className="text-[10px] px-1 py-0.5 rounded border shrink-0"
+                                          style={{
+                                            backgroundColor: task.task_type === "fix" ? "#ef444420" : task.task_type === "task_file" ? "#a855f720" : task.task_type === "discovery" ? "#f9731620" : "#71717a20",
+                                            color: task.task_type === "fix" ? "#f87171" : task.task_type === "task_file" ? "#c084fc" : task.task_type === "discovery" ? "#fb923c" : "#a1a1aa",
+                                            borderColor: task.task_type === "fix" ? "#ef444440" : task.task_type === "task_file" ? "#a855f740" : task.task_type === "discovery" ? "#f9731640" : "#71717a40",
+                                          }}
+                                        >
+                                          {task.task_type}
                                         </span>
                                       )}
                                       <span className={`flex-1 ${task.completed ? "line-through text-muted-foreground" : ""}`}>

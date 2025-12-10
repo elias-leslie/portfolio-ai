@@ -112,6 +112,7 @@ class TaskResponse(BaseModel):
     notes: str | None = None  # Free-form notes ("DEFERRED - optional", etc.)
     status: str = "pending"  # pending, in_progress, deferred, blocked, complete
     effort: str | None = None  # trivial, low, medium, high
+    task_type: str = "implementation"  # implementation, fix, task_file, discovery
 
 
 class TaskCreate(BaseModel):
@@ -124,6 +125,7 @@ class TaskCreate(BaseModel):
     files: list[str] | None = None  # Files this subtask modifies
     notes: str | None = None  # Implementation notes
     effort: str | None = None  # trivial, low, medium, high
+    task_type: str = "implementation"  # implementation, fix, task_file, discovery
 
 
 class TaskToggle(BaseModel):
@@ -140,6 +142,7 @@ class TaskUpdate(BaseModel):
     notes: str | None = None  # Implementation notes
     effort: str | None = None  # trivial, low, medium, high
     description: str | None = None  # Updated description
+    task_type: str | None = None  # implementation, fix, task_file, discovery
 
 
 class AcceptanceCriterion(BaseModel):
@@ -218,6 +221,7 @@ def _feature_to_response(f: dict[str, Any]) -> FeatureResponse:
             notes=t.get("notes"),
             status=t.get("status", "pending"),
             effort=t.get("effort"),
+            task_type=t.get("task_type", "implementation"),
         )
         for t in f.get("tasks", [])
     ]
@@ -252,9 +256,7 @@ def _feature_to_response(f: dict[str, Any]) -> FeatureResponse:
         completion_pct=f.get("completion_pct", 0),
         health_status=f.get("health_status", "unknown"),
         needs_review=f.get("needs_review", False),
-        last_verified_at=(
-            f["last_verified_at"].isoformat() if f.get("last_verified_at") else None
-        ),
+        last_verified_at=(f["last_verified_at"].isoformat() if f.get("last_verified_at") else None),
         created_at=f["created_at"].isoformat() if f.get("created_at") else None,
         updated_at=f["updated_at"].isoformat() if f.get("updated_at") else None,
         tasks=tasks,
@@ -300,23 +302,15 @@ async def get_features(
         filtered_features = all_features
 
         if category:
-            filtered_features = [
-                f for f in filtered_features if f.get("category") == category
-            ]
+            filtered_features = [f for f in filtered_features if f.get("category") == category]
 
         if passes is not None:
             if passes.lower() == "true":
-                filtered_features = [
-                    f for f in filtered_features if f.get("passes") is True
-                ]
+                filtered_features = [f for f in filtered_features if f.get("passes") is True]
             elif passes.lower() == "false":
-                filtered_features = [
-                    f for f in filtered_features if f.get("passes") is False
-                ]
+                filtered_features = [f for f in filtered_features if f.get("passes") is False]
             elif passes.lower() == "null":
-                filtered_features = [
-                    f for f in filtered_features if f.get("passes") is None
-                ]
+                filtered_features = [f for f in filtered_features if f.get("passes") is None]
 
         if health_status:
             filtered_features = [
@@ -333,9 +327,7 @@ async def get_features(
         paginated = filtered_features[offset : offset + limit]
 
         # Convert to response format
-        features_response = [
-            _feature_to_response(f) for f in paginated
-        ]
+        features_response = [_feature_to_response(f) for f in paginated]
 
         return FeaturesListResponse(
             features=features_response,
@@ -594,7 +586,9 @@ async def verify_all_features(
 
     try:
         task = verify_all_acceptance_criteria.delay(type_filter=type_filter, limit=limit)
-        logger.info("bulk_verification_queued", task_id=task.id, type_filter=type_filter, limit=limit)
+        logger.info(
+            "bulk_verification_queued", task_id=task.id, type_filter=type_filter, limit=limit
+        )
         return {"status": "queued", "task_id": task.id, "type_filter": type_filter, "limit": limit}
     except Exception as e:
         logger.error("queue_bulk_verification_failed", error=str(e))
@@ -609,7 +603,12 @@ async def verify_batch(feature_ids: list[str]) -> dict[str, Any]:
     try:
         task = verify_criteria_batch.delay(feature_ids)
         logger.info("batch_verification_queued", task_id=task.id, feature_count=len(feature_ids))
-        return {"status": "queued", "task_id": task.id, "feature_ids": feature_ids, "estimated_seconds": len(feature_ids) * 5}
+        return {
+            "status": "queued",
+            "task_id": task.id,
+            "feature_ids": feature_ids,
+            "estimated_seconds": len(feature_ids) * 5,
+        }
     except Exception as e:
         logger.error("queue_batch_verification_failed", error=str(e))
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -633,9 +632,7 @@ async def get_feature(feature_id: str) -> FeatureResponse:
     try:
         # Scan all features and find the one we want
         all_features = scanner.scan()
-        feature = next(
-            (f for f in all_features if f["feature_id"] == feature_id), None
-        )
+        feature = next((f for f in all_features if f["feature_id"] == feature_id), None)
 
         if not feature:
             raise HTTPException(status_code=404, detail=f"Feature {feature_id} not found")
@@ -727,9 +724,7 @@ async def delete_feature(feature_id: str) -> dict[str, Any]:
             ).fetchone()
 
             if not feature_check:
-                raise HTTPException(
-                    status_code=404, detail=f"Feature {feature_id} not found"
-                )
+                raise HTTPException(status_code=404, detail=f"Feature {feature_id} not found")
 
             feature_db_id = feature_check[0]
             feature_name = feature_check[1]
@@ -781,9 +776,7 @@ async def delete_feature(feature_id: str) -> dict[str, Any]:
 
 
 @router.patch("/{feature_id}/passes", response_model=dict[str, Any])
-async def update_feature_passes(
-    feature_id: str, update: FeaturePassesUpdate
-) -> dict[str, Any]:
+async def update_feature_passes(feature_id: str, update: FeaturePassesUpdate) -> dict[str, Any]:
     """Update the passes status for a feature.
 
     This endpoint is intended for the /do_it agent to verify features.
@@ -803,9 +796,7 @@ async def update_feature_passes(
         )
 
         if not success:
-            raise HTTPException(
-                status_code=404, detail=f"Feature {feature_id} not found"
-            )
+            raise HTTPException(status_code=404, detail=f"Feature {feature_id} not found")
 
         logger.info(
             "feature_passes_updated",
@@ -822,16 +813,50 @@ async def update_feature_passes(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(
-            "update_feature_passes_failed", feature_id=feature_id, error=str(e)
+        logger.error("update_feature_passes_failed", feature_id=feature_id, error=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.patch("/{feature_id}/verified", response_model=dict[str, Any])
+async def mark_feature_verified(feature_id: str) -> dict[str, Any]:
+    """Mark feature as verified (updates last_verified_at without changing passes).
+
+    This endpoint should be called by /verify_it at the end of verification,
+    regardless of whether the feature passes or fails. This ensures the
+    "Checked" column in the UI reflects when verification last ran.
+
+    Args:
+        feature_id: Feature ID (e.g., FEAT-001)
+    """
+    conn_mgr = get_connection_manager()
+    scanner = FeatureScanner(conn_mgr)
+
+    try:
+        success = scanner.update_last_verified(feature_id=feature_id)
+
+        if not success:
+            raise HTTPException(status_code=404, detail=f"Feature {feature_id} not found")
+
+        logger.info(
+            "feature_marked_verified",
+            feature_id=feature_id,
         )
+
+        return {
+            "status": "verified",
+            "feature_id": feature_id,
+            "last_verified_at": "now",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("mark_feature_verified_failed", feature_id=feature_id, error=str(e))
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.patch("/{feature_id}/layers", response_model=dict[str, Any])
-async def update_feature_layers(
-    feature_id: str, update: FeatureLayersUpdate
-) -> dict[str, Any]:
+async def update_feature_layers(feature_id: str, update: FeatureLayersUpdate) -> dict[str, Any]:
     """Update the verification layers for a feature.
 
     Args:
@@ -854,9 +879,7 @@ async def update_feature_layers(
             conn.commit()
 
             if not result:
-                raise HTTPException(
-                    status_code=404, detail=f"Feature {feature_id} not found"
-                )
+                raise HTTPException(status_code=404, detail=f"Feature {feature_id} not found")
 
         logger.info(
             "feature_layers_updated",
@@ -873,9 +896,7 @@ async def update_feature_layers(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(
-            "update_feature_layers_failed", feature_id=feature_id, error=str(e)
-        )
+        logger.error("update_feature_layers_failed", feature_id=feature_id, error=str(e))
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -910,9 +931,7 @@ async def update_feature_layer_result(
             conn.commit()
 
             if not result:
-                raise HTTPException(
-                    status_code=404, detail=f"Feature {feature_id} not found"
-                )
+                raise HTTPException(status_code=404, detail=f"Feature {feature_id} not found")
 
         logger.info(
             "feature_layer_result_updated",
@@ -933,9 +952,7 @@ async def update_feature_layer_result(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(
-            "update_feature_layer_result_failed", feature_id=feature_id, error=str(e)
-        )
+        logger.error("update_feature_layer_result_failed", feature_id=feature_id, error=str(e))
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -951,9 +968,7 @@ class FeaturePriorityUpdate(BaseModel):
 
 
 @router.patch("/{feature_id}/priority", response_model=dict[str, Any])
-async def update_feature_priority(
-    feature_id: str, update: FeaturePriorityUpdate
-) -> dict[str, Any]:
+async def update_feature_priority(feature_id: str, update: FeaturePriorityUpdate) -> dict[str, Any]:
     """Update the priority for a feature.
 
     Args:
@@ -976,9 +991,7 @@ async def update_feature_priority(
             conn.commit()
 
             if not result:
-                raise HTTPException(
-                    status_code=404, detail=f"Feature {feature_id} not found"
-                )
+                raise HTTPException(status_code=404, detail=f"Feature {feature_id} not found")
 
         logger.info(
             "feature_priority_updated",
@@ -995,9 +1008,7 @@ async def update_feature_priority(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(
-            "update_feature_priority_failed", feature_id=feature_id, error=str(e)
-        )
+        logger.error("update_feature_priority_failed", feature_id=feature_id, error=str(e))
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -1033,9 +1044,7 @@ async def update_feature_acceptance_criteria(
             conn.commit()
 
             if not result:
-                raise HTTPException(
-                    status_code=404, detail=f"Feature {feature_id} not found"
-                )
+                raise HTTPException(status_code=404, detail=f"Feature {feature_id} not found")
 
         logger.info(
             "feature_acceptance_criteria_updated",
@@ -1067,9 +1076,7 @@ class AcceptanceCriterionPassedUpdate(BaseModel):
     evidence: str | None = None  # Evidence for the pass/fail decision
 
 
-@router.patch(
-    "/{feature_id}/acceptance-criteria/{criterion_id}", response_model=dict[str, Any]
-)
+@router.patch("/{feature_id}/acceptance-criteria/{criterion_id}", response_model=dict[str, Any])
 async def update_acceptance_criterion_passed(
     feature_id: str, criterion_id: str, update: AcceptanceCriterionPassedUpdate
 ) -> dict[str, Any]:
@@ -1095,9 +1102,7 @@ async def update_acceptance_criterion_passed(
             ).fetchone()
 
             if not row:
-                raise HTTPException(
-                    status_code=404, detail=f"Feature {feature_id} not found"
-                )
+                raise HTTPException(status_code=404, detail=f"Feature {feature_id} not found")
 
             criteria = row[0] if row[0] else []
 
@@ -1162,9 +1167,7 @@ class VisionGoalsUpdate(BaseModel):
 
 
 @router.patch("/{feature_id}/vision-goals", response_model=dict[str, Any])
-async def update_feature_vision_goals(
-    feature_id: str, update: VisionGoalsUpdate
-) -> dict[str, Any]:
+async def update_feature_vision_goals(feature_id: str, update: VisionGoalsUpdate) -> dict[str, Any]:
     """Update the vision goals for a feature.
 
     Args:
@@ -1187,9 +1190,7 @@ async def update_feature_vision_goals(
             conn.commit()
 
             if not result:
-                raise HTTPException(
-                    status_code=404, detail=f"Feature {feature_id} not found"
-                )
+                raise HTTPException(status_code=404, detail=f"Feature {feature_id} not found")
 
         logger.info(
             "feature_vision_goals_updated",
@@ -1206,9 +1207,7 @@ async def update_feature_vision_goals(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(
-            "update_feature_vision_goals_failed", feature_id=feature_id, error=str(e)
-        )
+        logger.error("update_feature_vision_goals_failed", feature_id=feature_id, error=str(e))
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -1252,9 +1251,7 @@ async def get_feature_dependencies(feature_id: str) -> list[DependencyResponse]:
             ).fetchone()
 
             if not feature_check:
-                raise HTTPException(
-                    status_code=404, detail=f"Feature {feature_id} not found"
-                )
+                raise HTTPException(status_code=404, detail=f"Feature {feature_id} not found")
 
             # Get dependencies via the view
             rows = conn.execute(
@@ -1289,9 +1286,7 @@ async def get_feature_dependencies(feature_id: str) -> list[DependencyResponse]:
 
 
 @router.post("/{feature_id}/dependencies", response_model=dict[str, Any])
-async def add_feature_dependency(
-    feature_id: str, dependency: DependencyCreate
-) -> dict[str, Any]:
+async def add_feature_dependency(feature_id: str, dependency: DependencyCreate) -> dict[str, Any]:
     """Add a dependency to a feature.
 
     dependency_type values:
@@ -1321,9 +1316,7 @@ async def add_feature_dependency(
             ).fetchone()
 
             if not feature_row:
-                raise HTTPException(
-                    status_code=404, detail=f"Feature {feature_id} not found"
-                )
+                raise HTTPException(status_code=404, detail=f"Feature {feature_id} not found")
             if not depends_on_row:
                 raise HTTPException(
                     status_code=404,
@@ -1364,9 +1357,7 @@ async def add_feature_dependency(
 
 
 @router.delete("/{feature_id}/dependencies/{depends_on_feature_id}")
-async def remove_feature_dependency(
-    feature_id: str, depends_on_feature_id: str
-) -> dict[str, Any]:
+async def remove_feature_dependency(feature_id: str, depends_on_feature_id: str) -> dict[str, Any]:
     """Remove a dependency from a feature."""
     conn_mgr = get_connection_manager()
 
@@ -1437,6 +1428,7 @@ async def get_feature_tasks(feature_id: str) -> list[TaskResponse]:
                 notes=t.get("notes"),
                 status=t.get("status", "pending"),
                 effort=t.get("effort"),
+                task_type=t.get("task_type", "implementation"),
             )
             for t in tasks
         ]
@@ -1465,6 +1457,10 @@ async def create_feature_task(feature_id: str, task: TaskCreate) -> dict[str, An
             task_id=task.task_id,
             description=task.description,
             order_num=task.order_num,
+            files=task.files,
+            notes=task.notes,
+            effort=task.effort,
+            task_type=task.task_type,
         )
 
         if not success:
@@ -1499,9 +1495,7 @@ async def create_feature_task(feature_id: str, task: TaskCreate) -> dict[str, An
 
 
 @router.patch("/{feature_id}/tasks/{task_id}", response_model=dict[str, Any])
-async def toggle_feature_task(
-    feature_id: str, task_id: str, toggle: TaskToggle
-) -> dict[str, Any]:
+async def toggle_feature_task(feature_id: str, task_id: str, toggle: TaskToggle) -> dict[str, Any]:
     """Toggle completion status of a subtask.
 
     This endpoint is intended for the /do_it agent to track progress.
@@ -1596,9 +1590,7 @@ async def delete_feature_task(feature_id: str, task_id: str) -> dict[str, Any]:
 
 
 @router.put("/{feature_id}/tasks/{task_id}", response_model=dict[str, Any])
-async def update_feature_task(
-    feature_id: str, task_id: str, update: TaskUpdate
-) -> dict[str, Any]:
+async def update_feature_task(feature_id: str, task_id: str, update: TaskUpdate) -> dict[str, Any]:
     """Update task metadata (files, notes, effort, description).
 
     This endpoint is for enriching tasks with implementation details.
@@ -1640,7 +1632,7 @@ async def update_feature_task(
 
             query = f"""
                 UPDATE feature_tasks ft
-                SET {', '.join(updates)}
+                SET {", ".join(updates)}
                 FROM feature_capabilities fc
                 WHERE ft.feature_id = fc.id
                   AND fc.feature_id = %s

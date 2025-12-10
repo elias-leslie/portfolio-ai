@@ -108,7 +108,7 @@ class FeatureScanner:
                 SELECT
                     ft.feature_id, ft.task_id, ft.description, ft.completed,
                     ft.order_num, ft.completed_at, ft.completed_by,
-                    ft.files, ft.notes, ft.status, ft.effort
+                    ft.files, ft.notes, ft.status, ft.effort, ft.task_type
                 FROM feature_tasks ft
                 ORDER BY ft.feature_id, ft.order_num, ft.task_id
                 """
@@ -129,6 +129,7 @@ class FeatureScanner:
                     "notes": task_row[8],
                     "status": task_row[9] or "pending",
                     "effort": task_row[10],
+                    "task_type": task_row[11] or "implementation",
                 }
                 if feature_db_id not in tasks_by_feature:
                     tasks_by_feature[feature_db_id] = []
@@ -361,6 +362,37 @@ class FeatureScanner:
 
             return result.rowcount > 0 if hasattr(result, "rowcount") else True
 
+    def update_last_verified(self, feature_id: str) -> bool:
+        """Update last_verified_at timestamp without changing passes.
+
+        Use this when verification runs but doesn't change the pass status.
+        This ensures the "Checked" column in UI reflects when verification last ran.
+
+        Args:
+            feature_id: Feature ID (e.g., "FEAT-001")
+
+        Returns:
+            True if update succeeded, False otherwise
+        """
+        logger.info(
+            "updating_last_verified",
+            feature_id=feature_id,
+        )
+
+        with self.conn_mgr.connection() as conn:
+            result = conn.execute(
+                """
+                UPDATE feature_capabilities
+                SET last_verified_at = %s,
+                    updated_at = NOW()
+                WHERE feature_id = %s
+                """,
+                (datetime.now(UTC), feature_id),
+            )
+            conn.commit()
+
+            return result.rowcount > 0 if hasattr(result, "rowcount") else True
+
     def add_feature(
         self,
         feature_id: str,
@@ -441,9 +473,7 @@ class FeatureScanner:
         """
         with self.conn_mgr.connection() as conn:
             # Total count
-            total_row = conn.execute(
-                "SELECT COUNT(*) FROM feature_capabilities"
-            ).fetchone()
+            total_row = conn.execute("SELECT COUNT(*) FROM feature_capabilities").fetchone()
             total = total_row[0] if total_row else 0
 
             # By passes status
@@ -529,7 +559,7 @@ class FeatureScanner:
                 """
                 SELECT id, task_id, description, completed, order_num,
                        completed_at, completed_by, created_at, updated_at,
-                       files, notes, status, effort
+                       files, notes, status, effort, task_type
                 FROM feature_tasks
                 WHERE feature_id = %s
                 ORDER BY order_num, task_id
@@ -552,6 +582,7 @@ class FeatureScanner:
                     "notes": r[10],
                     "status": r[11] or "pending",
                     "effort": r[12],
+                    "task_type": r[13] or "implementation",
                 }
                 for r in task_rows
             ]
@@ -565,6 +596,7 @@ class FeatureScanner:
         files: list[str] | None = None,
         notes: str | None = None,
         effort: str | None = None,
+        task_type: str = "implementation",
     ) -> bool:
         """Add a subtask to a feature.
 
@@ -576,13 +608,12 @@ class FeatureScanner:
             files: List of files this subtask modifies
             notes: Implementation notes
             effort: Effort estimate (trivial, low, medium, high)
+            task_type: Task type (implementation, fix, task_file, discovery)
 
         Returns:
             True if insert succeeded, False otherwise
         """
-        logger.info(
-            "adding_task", feature_id=feature_id, task_id=task_id
-        )
+        logger.info("adding_task", feature_id=feature_id, task_id=task_id)
 
         with self.conn_mgr.connection() as conn:
             # Get feature DB id
@@ -609,11 +640,11 @@ class FeatureScanner:
                     """
                     INSERT INTO feature_tasks (
                         feature_id, task_id, description, order_num,
-                        completed, files, notes, status, effort,
+                        completed, files, notes, status, effort, task_type,
                         created_at, updated_at
-                    ) VALUES (%s, %s, %s, %s, false, %s, %s, 'pending', %s, NOW(), NOW())
+                    ) VALUES (%s, %s, %s, %s, false, %s, %s, 'pending', %s, %s, NOW(), NOW())
                     """,
-                    (db_id, task_id, description, order_num, files or [], notes, effort),
+                    (db_id, task_id, description, order_num, files or [], notes, effort, task_type),
                 )
                 conn.commit()
                 return True
