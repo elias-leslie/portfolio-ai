@@ -108,6 +108,11 @@ class WatchlistItemResponse(BaseModel):
         description="Priority indicators (🔥 hot, 📋 earnings, 📰 news, etc.)",
     )
 
+    # Timeframe alignment fields (FEAT-183)
+    timeframe_short_aligned: bool | None = Field(None, description="Price > SMA_20 > SMA_50")
+    timeframe_long_aligned: bool | None = Field(None, description="SMA_50 > SMA_200")
+    volume_relative: float | None = Field(None, description="Current volume / 50-day average")
+
     # Gap analysis / readiness fields (Task 5.1)
     readiness_score: float | None = Field(
         None, description="Analysis readiness score 0-100% (data completeness)"
@@ -198,6 +203,10 @@ class WatchlistItemResponse(BaseModel):
             news_intelligence=item.get("news_intelligence"),
             # Priority indicators
             priority_indicators=item.get("priority_indicators", []),
+            # Timeframe alignment (FEAT-183)
+            timeframe_short_aligned=item.get("timeframe_short_aligned"),
+            timeframe_long_aligned=item.get("timeframe_long_aligned"),
+            volume_relative=item.get("volume_relative"),
             # Gap analysis / readiness (Task 5.1)
             readiness_score=item.get("readiness_score"),
             confidence_level=item.get("confidence_level"),

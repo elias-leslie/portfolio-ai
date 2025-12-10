@@ -37,6 +37,7 @@ from .refresh_builders import (
 from .refresh_data_fetchers import fetch_auxiliary_data, fetch_fundamentals_and_earnings
 from .refresh_narrative import generate_narrative_and_trade_levels
 from .scoring import calculate_watchlist_scores
+from .timeframe import calculate_timeframe_alignment, calculate_volume_relative
 
 logger = get_logger(__name__)
 
@@ -192,6 +193,18 @@ def process_symbol_snapshot(
         risk_budget=risk_budget,
     )
 
+    # Step 6.5: Calculate timeframe alignment (GAP-FEAT-183)
+    timeframe_short, timeframe_long = calculate_timeframe_alignment(
+        price=price_data.price,
+        sma_20=technical_snapshot.sma_20,
+        sma_50=technical_snapshot.sma_50,
+        sma_200=technical_snapshot.sma_200,
+    )
+    volume_rel = calculate_volume_relative(
+        current_volume=current_volume or 0,
+        avg_volume_50d=avg_volume_20d,  # Using 20d avg as proxy for 50d
+    )
+
     # Step 7: Build and return final snapshot
     return build_watchlist_snapshot(
         item_id=item_id,
@@ -205,4 +218,7 @@ def process_symbol_snapshot(
         earnings_days_away_val=earnings_days_away_val,
         news_sentiment_value=news_sentiment_value,
         recent_news_value=recent_news_value,
+        timeframe_short_aligned=timeframe_short,
+        timeframe_long_aligned=timeframe_long,
+        volume_relative=volume_rel,
     )

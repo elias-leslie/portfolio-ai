@@ -45,7 +45,8 @@ class WatchlistRepository:
                    ws.narrative_action_plan, ws.narrative_position_sizing,
                    ws.narrative_company_health, ws.narrative_special_notes,
                    ws.company_health, ws.earnings_date, ws.earnings_days_away,
-                   ws.news_sentiment_score, ws.recent_news_headlines
+                   ws.news_sentiment_score, ws.recent_news_headlines,
+                   ws.timeframe_short_aligned, ws.timeframe_long_aligned, ws.volume_relative
             FROM watchlist_items wi
             LEFT JOIN LATERAL (
                 SELECT * FROM watchlist_snapshots_v WHERE item_id = wi.id

@@ -118,6 +118,11 @@ def build_snapshot_data(
         else news_payload
     )
 
+    # Timeframe alignment fields (FEAT-183)
+    item_data["timeframe_short_aligned"] = row.get("timeframe_short_aligned")
+    item_data["timeframe_long_aligned"] = row.get("timeframe_long_aligned")
+    item_data["volume_relative"] = row.get("volume_relative")
+
 
 __all__ = [
     "build_base_item_data",

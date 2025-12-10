@@ -201,6 +201,9 @@ def build_watchlist_snapshot(
     earnings_days_away_val: int | None,
     news_sentiment_value: float | None,
     recent_news_value: dict[str, Any] | None,
+    timeframe_short_aligned: bool = False,
+    timeframe_long_aligned: bool = False,
+    volume_relative: float | None = None,
 ) -> WatchlistSnapshot:
     """Build final WatchlistSnapshot from all processed data.
 
@@ -263,6 +266,10 @@ def build_watchlist_snapshot(
         # News/sentiment fields
         news_sentiment_score=news_sentiment_value,
         recent_news_headlines=recent_news_value,
+        # Timeframe alignment fields (FEAT-183)
+        timeframe_short_aligned=timeframe_short_aligned,
+        timeframe_long_aligned=timeframe_long_aligned,
+        volume_relative=volume_relative,
     )
 
     return snapshot
