@@ -2,6 +2,7 @@
 
 from datetime import date
 from decimal import Decimal
+from typing import Any
 
 import pytest
 
@@ -25,7 +26,7 @@ class TestMeanReversionStrategyEntry:
         )
 
     @pytest.fixture
-    def valid_entry_indicators(self) -> dict:
+    def valid_entry_indicators(self) -> dict[str, Any]:
         """Indicators that satisfy all entry conditions."""
         return {
             "rsi_14": 25.0,  # Oversold (< 30)
@@ -34,7 +35,7 @@ class TestMeanReversionStrategyEntry:
         }
 
     @pytest.fixture
-    def valid_entry_ohlcv(self) -> dict:
+    def valid_entry_ohlcv(self) -> dict[str, Any]:
         """OHLCV that satisfies all entry conditions."""
         return {
             "open": 100.0,
@@ -47,8 +48,8 @@ class TestMeanReversionStrategyEntry:
     def test_entry_signal_when_all_conditions_met(
         self,
         strategy: MeanReversionStrategy,
-        valid_entry_indicators: dict,
-        valid_entry_ohlcv: dict,
+        valid_entry_indicators: dict[str, Any],
+        valid_entry_ohlcv: dict[str, Any],
     ) -> None:
         """Should enter when RSI < 30, price > SMA_200, and volume >= 80%."""
         result = strategy.should_enter(
@@ -62,8 +63,8 @@ class TestMeanReversionStrategyEntry:
     def test_no_entry_when_rsi_above_threshold(
         self,
         strategy: MeanReversionStrategy,
-        valid_entry_indicators: dict,
-        valid_entry_ohlcv: dict,
+        valid_entry_indicators: dict[str, Any],
+        valid_entry_ohlcv: dict[str, Any],
     ) -> None:
         """Should not enter when RSI >= 30 (not oversold)."""
         indicators = valid_entry_indicators.copy()
@@ -80,8 +81,8 @@ class TestMeanReversionStrategyEntry:
     def test_no_entry_when_rsi_exactly_at_threshold(
         self,
         strategy: MeanReversionStrategy,
-        valid_entry_indicators: dict,
-        valid_entry_ohlcv: dict,
+        valid_entry_indicators: dict[str, Any],
+        valid_entry_ohlcv: dict[str, Any],
     ) -> None:
         """Should not enter when RSI = 30 (boundary condition)."""
         indicators = valid_entry_indicators.copy()
@@ -98,8 +99,8 @@ class TestMeanReversionStrategyEntry:
     def test_no_entry_when_price_below_sma_200(
         self,
         strategy: MeanReversionStrategy,
-        valid_entry_indicators: dict,
-        valid_entry_ohlcv: dict,
+        valid_entry_indicators: dict[str, Any],
+        valid_entry_ohlcv: dict[str, Any],
     ) -> None:
         """Should not enter when price <= SMA_200 (downtrend)."""
         indicators = valid_entry_indicators.copy()
@@ -116,8 +117,8 @@ class TestMeanReversionStrategyEntry:
     def test_no_entry_when_price_equals_sma_200(
         self,
         strategy: MeanReversionStrategy,
-        valid_entry_indicators: dict,
-        valid_entry_ohlcv: dict,
+        valid_entry_indicators: dict[str, Any],
+        valid_entry_ohlcv: dict[str, Any],
     ) -> None:
         """Should not enter when price = SMA_200 (boundary condition)."""
         indicators = valid_entry_indicators.copy()
@@ -134,8 +135,8 @@ class TestMeanReversionStrategyEntry:
     def test_no_entry_when_sma_200_is_zero(
         self,
         strategy: MeanReversionStrategy,
-        valid_entry_indicators: dict,
-        valid_entry_ohlcv: dict,
+        valid_entry_indicators: dict[str, Any],
+        valid_entry_ohlcv: dict[str, Any],
     ) -> None:
         """Should not enter when SMA_200 is missing or zero."""
         indicators = valid_entry_indicators.copy()
@@ -152,8 +153,8 @@ class TestMeanReversionStrategyEntry:
     def test_no_entry_when_volume_below_threshold(
         self,
         strategy: MeanReversionStrategy,
-        valid_entry_indicators: dict,
-        valid_entry_ohlcv: dict,
+        valid_entry_indicators: dict[str, Any],
+        valid_entry_ohlcv: dict[str, Any],
     ) -> None:
         """Should not enter when volume < 80% of average."""
         ohlcv = valid_entry_ohlcv.copy()
@@ -170,8 +171,8 @@ class TestMeanReversionStrategyEntry:
     def test_entry_when_volume_exactly_at_threshold(
         self,
         strategy: MeanReversionStrategy,
-        valid_entry_indicators: dict,
-        valid_entry_ohlcv: dict,
+        valid_entry_indicators: dict[str, Any],
+        valid_entry_ohlcv: dict[str, Any],
     ) -> None:
         """Should enter when volume = 80% of average (boundary condition)."""
         ohlcv = valid_entry_ohlcv.copy()
@@ -188,8 +189,8 @@ class TestMeanReversionStrategyEntry:
     def test_entry_when_volume_avg_is_zero(
         self,
         strategy: MeanReversionStrategy,
-        valid_entry_indicators: dict,
-        valid_entry_ohlcv: dict,
+        valid_entry_indicators: dict[str, Any],
+        valid_entry_ohlcv: dict[str, Any],
     ) -> None:
         """Should enter when volume_avg is 0 (skip volume check)."""
         indicators = valid_entry_indicators.copy()
@@ -232,7 +233,7 @@ class TestMeanReversionStrategyEntry:
     def test_handles_missing_indicator_fields(
         self,
         strategy: MeanReversionStrategy,
-        valid_entry_ohlcv: dict,
+        valid_entry_ohlcv: dict[str, Any],
     ) -> None:
         """Should handle missing indicator fields gracefully."""
         indicators = {
@@ -251,7 +252,7 @@ class TestMeanReversionStrategyEntry:
     def test_handles_none_indicator_values(
         self,
         strategy: MeanReversionStrategy,
-        valid_entry_ohlcv: dict,
+        valid_entry_ohlcv: dict[str, Any],
     ) -> None:
         """Should handle None indicator values gracefully."""
         indicators = {
@@ -295,14 +296,14 @@ class TestMeanReversionStrategyExit:
         )
 
     @pytest.fixture
-    def neutral_indicators(self) -> dict:
+    def neutral_indicators(self) -> dict[str, Any]:
         """Indicators that don't trigger signal exit."""
         return {
             "rsi_14": 45.0,  # Below exit threshold (50)
         }
 
     @pytest.fixture
-    def neutral_ohlcv(self) -> dict:
+    def neutral_ohlcv(self) -> dict[str, Any]:
         """OHLCV with no profit/loss."""
         return {
             "open": 100.0,
@@ -316,7 +317,7 @@ class TestMeanReversionStrategyExit:
         self,
         strategy: MeanReversionStrategy,
         position: Position,
-        neutral_ohlcv: dict,
+        neutral_ohlcv: dict[str, Any],
     ) -> None:
         """Should exit when RSI >= 50 (back to neutral)."""
         indicators = {"rsi_14": 52.0}
@@ -335,7 +336,7 @@ class TestMeanReversionStrategyExit:
         self,
         strategy: MeanReversionStrategy,
         position: Position,
-        neutral_ohlcv: dict,
+        neutral_ohlcv: dict[str, Any],
     ) -> None:
         """Should exit when RSI = 50 (boundary condition)."""
         indicators = {"rsi_14": 50.0}
@@ -354,8 +355,8 @@ class TestMeanReversionStrategyExit:
         self,
         strategy: MeanReversionStrategy,
         position: Position,
-        neutral_indicators: dict,
-        neutral_ohlcv: dict,
+        neutral_indicators: dict[str, Any],
+        neutral_ohlcv: dict[str, Any],
     ) -> None:
         """Should not exit when RSI < 50."""
         should_exit, reason = strategy.should_exit(
@@ -372,7 +373,7 @@ class TestMeanReversionStrategyExit:
         self,
         strategy: MeanReversionStrategy,
         position: Position,
-        neutral_indicators: dict,
+        neutral_indicators: dict[str, Any],
     ) -> None:
         """Should exit when profit >= 5% target."""
         ohlcv = {
@@ -393,7 +394,7 @@ class TestMeanReversionStrategyExit:
         self,
         strategy: MeanReversionStrategy,
         position: Position,
-        neutral_indicators: dict,
+        neutral_indicators: dict[str, Any],
     ) -> None:
         """Should exit when profit = 5% target (boundary condition)."""
         ohlcv = {
@@ -414,7 +415,7 @@ class TestMeanReversionStrategyExit:
         self,
         strategy: MeanReversionStrategy,
         position: Position,
-        neutral_indicators: dict,
+        neutral_indicators: dict[str, Any],
     ) -> None:
         """Should exit when loss >= 3% stop."""
         ohlcv = {
@@ -435,7 +436,7 @@ class TestMeanReversionStrategyExit:
         self,
         strategy: MeanReversionStrategy,
         position: Position,
-        neutral_indicators: dict,
+        neutral_indicators: dict[str, Any],
     ) -> None:
         """Should exit when loss = -3% stop (boundary condition)."""
         ohlcv = {
@@ -456,8 +457,8 @@ class TestMeanReversionStrategyExit:
         self,
         strategy: MeanReversionStrategy,
         position: Position,
-        neutral_indicators: dict,
-        neutral_ohlcv: dict,
+        neutral_indicators: dict[str, Any],
+        neutral_ohlcv: dict[str, Any],
     ) -> None:
         """Should exit when holding period >= 10 days."""
         should_exit, reason = strategy.should_exit(
@@ -474,8 +475,8 @@ class TestMeanReversionStrategyExit:
         self,
         strategy: MeanReversionStrategy,
         position: Position,
-        neutral_indicators: dict,
-        neutral_ohlcv: dict,
+        neutral_indicators: dict[str, Any],
+        neutral_ohlcv: dict[str, Any],
     ) -> None:
         """Should exit when holding period = 10 days (boundary condition)."""
         should_exit, reason = strategy.should_exit(
@@ -492,8 +493,8 @@ class TestMeanReversionStrategyExit:
         self,
         strategy: MeanReversionStrategy,
         position: Position,
-        neutral_indicators: dict,
-        neutral_ohlcv: dict,
+        neutral_indicators: dict[str, Any],
+        neutral_ohlcv: dict[str, Any],
     ) -> None:
         """Should not exit when holding period < 10 days."""
         should_exit, reason = strategy.should_exit(
@@ -633,10 +634,10 @@ class TestMeanReversionStrategyExit:
         self,
         strategy: MeanReversionStrategy,
         position: Position,
-        neutral_ohlcv: dict,
+        neutral_ohlcv: dict[str, Any],
     ) -> None:
         """Should use default RSI value of 50 when missing."""
-        indicators = {}  # Missing rsi_14
+        indicators: dict[str, Any] = {}  # Missing rsi_14
 
         should_exit, reason = strategy.should_exit(
             position=position,
@@ -653,7 +654,7 @@ class TestMeanReversionStrategyExit:
         self,
         strategy: MeanReversionStrategy,
         position: Position,
-        neutral_ohlcv: dict,
+        neutral_ohlcv: dict[str, Any],
     ) -> None:
         """Should use default RSI value of 50 when None."""
         indicators = {"rsi_14": None}
