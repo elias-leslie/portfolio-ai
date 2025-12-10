@@ -20,6 +20,7 @@ from app.analytics.transaction_logger import TransactionLogger
 from app.analytics.types import TransactionDict
 from app.logging_config import get_logger
 from app.storage import get_storage
+from app.utils.market_hours import is_market_open
 
 logger = get_logger(__name__)
 
@@ -108,6 +109,13 @@ async def create_paper_trade(request: CreateTradeRequest) -> CreateTradeResponse
         raise HTTPException(
             status_code=400,
             detail=f"Invalid action '{action}' (must be 'buy' or 'sell')",
+        )
+
+    # Check market hours
+    if not is_market_open():
+        raise HTTPException(
+            status_code=400,
+            detail="Market is closed. Paper trading is only available during market hours (9:30 AM - 4:00 PM ET, Mon-Fri, excluding holidays).",
         )
 
     # Calculate max affordable shares (5% of account)
