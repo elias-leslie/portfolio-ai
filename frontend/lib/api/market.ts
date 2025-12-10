@@ -91,6 +91,12 @@ export interface FearGreedResponse {
 }
 
 // Market Intelligence types (unified endpoint)
+export interface PutCallContext {
+  trend: "up" | "down" | "flat";
+  trend_pct: number;
+  percentile_rank: number;
+}
+
 export interface EnrichedIndicator {
   value: number;
   change_pct: number | null;
@@ -100,6 +106,7 @@ export interface EnrichedIndicator {
   signal: "Bullish" | "Neutral" | "Bearish";
   emoji: string;
   last_updated: string | null;
+  context?: PutCallContext;  // Optional: present on putcall indicator
 }
 
 export interface SectorInfo {

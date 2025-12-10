@@ -16,6 +16,7 @@ import { Card } from "@/components/ui/card";
 import { SentimentTrendChart } from "./SentimentTrendChart";
 import { IndicatorsTrendChart } from "./IndicatorsTrendChart";
 import { SectorPerformanceChart } from "./SectorPerformanceChart";
+import { OptionsIndicatorsCard } from "./OptionsIndicatorsCard";
 import { formatRelativeTime } from "@/lib/utils";
 
 // Sector colors matching SectorPerformanceChart
@@ -107,6 +108,9 @@ export function MarketIntelligence() {
         <div>
           <IndicatorsTrendChart />
         </div>
+
+        {/* Options Market Sentiment */}
+        <OptionsIndicatorsCard />
 
         {/* Sector Performance */}
         <div>
