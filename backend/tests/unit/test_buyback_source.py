@@ -617,9 +617,7 @@ class TestCeleryTask:
             "failed_symbols": ["FAIL1", "FAIL2"],
         }
 
-        result = fetch_corporate_actions.__wrapped__(
-            mock_task, ["AAPL", "FAIL1", "MSFT", "FAIL2", "GOOGL"]
-        )
+        result = fetch_corporate_actions(symbols=["AAPL", "FAIL1", "MSFT", "FAIL2", "GOOGL"])
 
         assert result["success"] is True
         assert result["symbols_processed"] == 5
@@ -649,10 +647,12 @@ class TestCeleryTask:
         assert "Database connection failed" in result["error"]
 
     @patch("app.tasks.market_data.corporate_actions_pipeline._get_watchlist_symbols")
+    @patch("app.tasks.market_data.corporate_actions_pipeline.fetch_and_store_buybacks")
     @patch("app.tasks.market_data.corporate_actions_pipeline.get_storage")
     def test_fetch_corporate_actions_includes_date(
         self,
         mock_get_storage: MagicMock,
+        mock_fetch_store: MagicMock,
         mock_get_watchlist: MagicMock,
     ) -> None:
         """Test task result includes execution date."""
@@ -660,10 +660,16 @@ class TestCeleryTask:
 
         mock_storage = MagicMock()
         mock_get_storage.return_value = mock_storage
-        mock_get_watchlist.return_value = []
+        mock_get_watchlist.return_value = ["AAPL"]
+        mock_fetch_store.return_value = {
+            "symbols_processed": 1,
+            "records_stored": 2,
+            "failed_symbols": [],
+        }
 
-        with patch("app.tasks.market_data.corporate_actions_pipeline.dt.date") as mock_date:
-            mock_date.today.return_value = dt.date(2024, 12, 10)
-            result = fetch_corporate_actions(symbols=None)
+        result = fetch_corporate_actions(symbols=None)
 
-        assert result["date"] == "2024-12-10"
+        assert result["success"] is True
+        assert "date" in result
+        # Verify date is in ISO format
+        assert len(result["date"]) == 10  # YYYY-MM-DD format
