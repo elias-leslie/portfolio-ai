@@ -11,6 +11,8 @@ from app.tasks import (
     refresh_watchlist_scores_task,
     update_technical_indicators,
 )
+from app.tasks.ingestion import ingest_fundamental_data, update_earnings_surprises
+from app.tasks.reference_tasks import refresh_yfinance_reference_data
 
 logger = get_logger(__name__)
 
@@ -49,6 +51,19 @@ def schedule_new_symbol_tasks(symbol: str) -> None:
         logger.info(
             "Triggered historical data ingestion", symbol=symbol, days=DEFAULT_BACKFILL_DAYS
         )
+
+        # Fetch fundamental data (reference, insider transactions, cash flow)
+        ingest_fundamental_data.delay(symbols=[symbol])
+        logger.info("Triggered fundamental data ingestion", symbol=symbol)
+
+        # Fetch earnings surprises (from Finnhub)
+        update_earnings_surprises.apply_async(args=[[symbol]], countdown=30)
+        logger.info("Scheduled earnings surprises fetch", symbol=symbol)
+
+        # Refresh yfinance reference data (valuation metrics)
+        # This updates reference_cache with latest valuation data
+        refresh_yfinance_reference_data.apply_async(countdown=60)
+        logger.info("Scheduled yfinance reference data refresh", symbol=symbol)
 
         # Calculate technical indicators (will run after ingestion completes)
         # Increased delay to allow 5-year data fetch to complete
