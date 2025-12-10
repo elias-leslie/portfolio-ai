@@ -2,12 +2,11 @@
 
 Validates features in feature_capabilities table:
 - Calculates completion from feature_tasks table (all-in-DB approach)
-- Falls back to task_file parsing if no DB tasks exist (migration path)
 - Updates health_status based on verification state
 
 Agent permissions (corruption protection):
-- Scanner can only modify: passes, health_status, last_verified_at
-- Other fields (name, description, task_file, task_section) are read-only
+- Scanner can only modify: passes, last_verified_at
+- Other fields (name, description) are read-only
 - Features can only be added via /task_it, deleted manually
 - Subtasks can be added/toggled via API
 
@@ -19,10 +18,7 @@ All-in-DB architecture:
 
 from __future__ import annotations
 
-import json
-import re
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from ..logging_config import get_logger
@@ -31,9 +27,6 @@ if TYPE_CHECKING:
     from ..storage.connection import ConnectionManager
 
 logger = get_logger(__name__)
-
-# Project root for resolving task file paths (fallback for markdown parsing)
-PROJECT_ROOT = Path(__file__).parent.parent.parent.parent.parent
 
 
 class FeatureScanner:
@@ -88,21 +81,14 @@ class FeatureScanner:
                 """
                 SELECT
                     f.id, f.feature_id, f.name, f.category, f.description,
-                    f.passes, f.task_file, f.task_section, f.health_status,
-                    f.last_verified_at, f.verified_by, f.created_at, f.updated_at,
+                    f.passes, f.last_verified_at, f.created_at, f.updated_at,
                     COALESCE(t.total_tasks, 0) as db_total_tasks,
                     COALESCE(t.completed_tasks, 0) as db_completed_tasks,
                     CASE WHEN f.layers IS NULL OR f.layers = '{}' THEN ARRAY['Frontend', 'Backend', 'UI'] ELSE f.layers END as layers,
                     COALESCE(f.layer_results, '{}'::jsonb) as layer_results,
-                    COALESCE(f.test_count, 0) as test_count,
                     f.priority,
                     COALESCE(f.acceptance_criteria, '[]'::jsonb) as acceptance_criteria,
-                    COALESCE(f.vision_goals, '{}') as vision_goals,
-                    COALESCE(f.implementation_notes, '{}'::jsonb) as implementation_notes,
-                    COALESCE(f.status, 'pending') as status,
-                    f.effort,
-                    f.source,
-                    f.diagram
+                    COALESCE(f.vision_goals, '{}') as vision_goals
                 FROM feature_capabilities f
                 LEFT JOIN (
                     SELECT
@@ -161,8 +147,6 @@ class FeatureScanner:
     ) -> dict[str, Any]:
         """Validate a single feature's completion status.
 
-        Uses DB tasks if available, falls back to markdown parsing for migration.
-
         Args:
             row: Database row tuple with task counts
             tasks_by_feature: Pre-fetched tasks indexed by feature DB id
@@ -177,45 +161,24 @@ class FeatureScanner:
             category,
             description,
             passes,
-            task_file,
-            task_section,
-            _health_status,  # From DB but recalculated by scanner
             last_verified_at,
-            verified_by,
             created_at,
             updated_at,
             db_total_tasks,
             db_completed_tasks,
             layers,
             layer_results,
-            test_count,
             priority,
             acceptance_criteria,
             vision_goals,
-            implementation_notes,
-            status,
-            effort,
-            source,
-            diagram,
         ) = row
 
-        # Use DB tasks if available (all-in-DB approach)
+        # Use DB tasks (all-in-DB approach)
         total_tasks = db_total_tasks
         completed_tasks = db_completed_tasks
-        task_file_exists = False
 
         # Get subtasks from pre-fetched dict (O(1) lookup, no N+1 query)
         tasks = tasks_by_feature.get(db_id, [])
-
-        # Fall back to markdown parsing if no DB tasks (migration path)
-        if not tasks and task_file:
-            task_path = PROJECT_ROOT / task_file
-            task_file_exists = task_path.exists()
-
-            if task_file_exists and task_section:
-                total_tasks, completed_tasks = self._parse_task_section(
-                    task_path, task_section
-                )
 
         # Calculate completion percentage
         completion_pct = 0
@@ -225,7 +188,7 @@ class FeatureScanner:
         # Calculate health status
         calculated_health = self._calculate_health_status(
             passes=passes,
-            task_file_exists=task_file_exists or db_total_tasks > 0,
+            has_tasks=db_total_tasks > 0,
             completion_pct=completion_pct,
             total_tasks=total_tasks,
         )
@@ -256,17 +219,12 @@ class FeatureScanner:
             "passes": passes,
             "layers": layers if layers else ["Frontend", "Backend", "UI"],
             "layer_results": layer_results if layer_results else {},
-            "test_count": test_count if test_count else 0,
-            "task_file": task_file,
-            "task_section": task_section,
-            "task_file_exists": task_file_exists,
             "total_tasks": total_tasks,
             "completed_tasks": completed_tasks,
             "completion_pct": completion_pct,
             "health_status": calculated_health,
             "needs_review": needs_review,
             "last_verified_at": last_verified_at,
-            "verified_by": verified_by,
             "created_at": created_at,
             "updated_at": updated_at,
             "tasks": tasks,
@@ -274,66 +232,12 @@ class FeatureScanner:
             "effective_priority": effective_priority,
             "acceptance_criteria": acceptance_criteria if acceptance_criteria else [],
             "vision_goals": vision_goals if vision_goals else [],
-            "implementation_notes": implementation_notes if implementation_notes else {},
-            "status": status or "pending",
-            "effort": effort,
-            "source": source,
-            "diagram": diagram,
         }
-
-    def _parse_task_section(
-        self, task_path: Path, task_section: str
-    ) -> tuple[int, int]:
-        """Parse task completion status from a markdown section.
-
-        Args:
-            task_path: Path to task markdown file
-            task_section: Section number (e.g., "1.0", "2.0")
-
-        Returns:
-            Tuple of (total_tasks, completed_tasks)
-        """
-        try:
-            content = task_path.read_text()
-        except Exception as e:
-            logger.warning(
-                "task_file_read_error",
-                path=str(task_path),
-                error=str(e),
-            )
-            return 0, 0
-
-        # Find section header pattern: ### 1.0 or ## 1.0
-        section_pattern = rf"^##+ {re.escape(task_section)}\s"
-        lines = content.split("\n")
-
-        in_section = False
-        total_tasks = 0
-        completed_tasks = 0
-
-        for line in lines:
-            # Check if we're entering the target section
-            if re.match(section_pattern, line):
-                in_section = True
-                continue
-
-            # Check if we've left the section (new ## or ### header)
-            if in_section and re.match(r"^##+ \d+\.\d+", line):
-                break
-
-            # Count tasks within section
-            # Match checkbox patterns: - [ ] or - [x]
-            if in_section and re.match(r"^\s*- \[[ x]\]", line):
-                total_tasks += 1
-                if re.match(r"^\s*- \[x\]", line, re.IGNORECASE):
-                    completed_tasks += 1
-
-        return total_tasks, completed_tasks
 
     def _calculate_health_status(
         self,
         passes: bool | None,
-        task_file_exists: bool,
+        has_tasks: bool,
         completion_pct: int,
         total_tasks: int,
     ) -> str:
@@ -341,20 +245,16 @@ class FeatureScanner:
 
         Args:
             passes: Current passes status
-            task_file_exists: Whether has DB tasks or linked task file exists
+            has_tasks: Whether has DB tasks
             completion_pct: Completion percentage of tasks
             total_tasks: Total tasks
 
         Returns:
-            Health status: 'active', 'suspect', 'orphaned', 'legacy'
+            Health status: 'active', 'suspect', 'orphaned'
         """
         # No tasks defined - orphaned
-        if not task_file_exists and total_tasks == 0:
+        if not has_tasks and total_tasks == 0:
             return "orphaned"
-
-        # Task file doesn't exist and no DB tasks - suspect
-        if not task_file_exists:
-            return "suspect"
 
         # Passes marked true but tasks incomplete - suspect
         if passes is True and completion_pct < 100:
@@ -427,7 +327,6 @@ class FeatureScanner:
         self,
         feature_id: str,
         passes: bool,
-        verified_by: str = "manual",
     ) -> bool:
         """Update the passes field for a feature.
 
@@ -437,7 +336,6 @@ class FeatureScanner:
         Args:
             feature_id: Feature ID (e.g., "FEAT-001")
             passes: New passes value (True = verified, False = failing)
-            verified_by: Who verified (default "manual")
 
         Returns:
             True if update succeeded, False otherwise
@@ -446,7 +344,6 @@ class FeatureScanner:
             "updating_feature_passes",
             feature_id=feature_id,
             passes=passes,
-            verified_by=verified_by,
         )
 
         with self.conn_mgr.connection() as conn:
@@ -455,11 +352,10 @@ class FeatureScanner:
                 UPDATE feature_capabilities
                 SET passes = %s,
                     last_verified_at = %s,
-                    verified_by = %s,
                     updated_at = NOW()
                 WHERE feature_id = %s
                 """,
-                (passes, datetime.now(UTC), verified_by, feature_id),
+                (passes, datetime.now(UTC), feature_id),
             )
             conn.commit()
 
@@ -471,13 +367,6 @@ class FeatureScanner:
         name: str,
         category: str,
         description: str | None = None,
-        task_file: str | None = None,
-        task_section: str | None = None,
-        implementation_notes: dict | None = None,
-        status: str = "pending",
-        effort: str | None = None,
-        source: str | None = None,
-        diagram: str | None = None,
     ) -> bool:
         """Add a new feature to the registry.
 
@@ -489,13 +378,6 @@ class FeatureScanner:
             name: Feature name
             category: Category (Dashboard, Watchlist, etc.)
             description: Optional description
-            task_file: Optional path to task file (deprecated)
-            task_section: Optional section in task file (deprecated)
-            implementation_notes: Structured implementation context
-            status: Work status (pending, in_progress, etc.)
-            effort: Effort estimate (low, medium, high, very_high)
-            source: Origin (user_request, audit, etc.)
-            diagram: Architecture/flow diagram (Mermaid or ASCII)
 
         Returns:
             True if insert succeeded, False otherwise
@@ -512,12 +394,10 @@ class FeatureScanner:
                 conn.execute(
                     """
                     INSERT INTO feature_capabilities (
-                        feature_id, name, category, description,
-                        task_file, task_section, passes, health_status,
-                        implementation_notes, status, effort, source, diagram,
+                        feature_id, name, category, description, passes,
                         created_at, updated_at
                     ) VALUES (
-                        %s, %s, %s, %s, %s, %s, NULL, 'active', %s, %s, %s, %s, %s, NOW(), NOW()
+                        %s, %s, %s, %s, NULL, NOW(), NOW()
                     )
                     """,
                     (
@@ -525,13 +405,6 @@ class FeatureScanner:
                         name,
                         category,
                         description,
-                        task_file,
-                        task_section,
-                        json.dumps(implementation_notes) if implementation_notes else "{}",
-                        status or "pending",
-                        effort,
-                        source,
-                        diagram,
                     ),
                 )
                 conn.commit()
@@ -600,12 +473,24 @@ class FeatureScanner:
             ).fetchall()
             category_breakdown = {row[0] or "Uncategorized": row[1] for row in category_rows}
 
-            # By health status
+            # By health status (calculated dynamically since column was dropped)
             health_rows = conn.execute(
                 """
-                SELECT health_status, COUNT(*)
-                FROM feature_capabilities
-                GROUP BY health_status
+                SELECT
+                    CASE
+                        WHEN t.total_tasks = 0 OR t.total_tasks IS NULL THEN 'orphaned'
+                        WHEN f.passes = true AND t.completed_tasks < t.total_tasks THEN 'suspect'
+                        ELSE 'active'
+                    END as health_status,
+                    COUNT(*)
+                FROM feature_capabilities f
+                LEFT JOIN (
+                    SELECT feature_id, COUNT(*) as total_tasks,
+                           COUNT(*) FILTER (WHERE completed = true) as completed_tasks
+                    FROM feature_tasks
+                    GROUP BY feature_id
+                ) t ON t.feature_id = f.id
+                GROUP BY 1
                 """
             ).fetchall()
             health_breakdown = {row[0] or "unknown": row[1] for row in health_rows}

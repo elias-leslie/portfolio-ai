@@ -67,14 +67,6 @@ class FeatureCreate(BaseModel):
     name: str
     category: str
     description: str | None = None
-    task_file: str | None = None
-    task_section: str | None = None
-    implementation_notes: dict[str, Any] | None = None  # Structured implementation context
-    # Enhanced fields for task file replacement
-    status: str | None = "pending"  # pending, in_progress, review_needed, deferred, blocked, complete
-    effort: str | None = None  # low, medium, high, very_high
-    source: str | None = None  # user_request, bug_report, audit, tech_debt, gap_analysis, enhancement
-    diagram: str | None = None  # Mermaid or ASCII diagram
 
 
 class FeaturePassesUpdate(BaseModel):
@@ -87,7 +79,6 @@ class FeaturePassesUpdate(BaseModel):
     """
 
     passes: bool | None
-    verified_by: str = "manual"
 
 
 class FeatureLayersUpdate(BaseModel):
@@ -161,7 +152,6 @@ class AcceptanceCriterion(BaseModel):
     passed: bool | None = None  # null = not checked, true/false = result
     # Verification tracking fields (added for auto-verification)
     verified_at: str | None = None  # ISO timestamp of last verification
-    verified_by: str | None = None  # auto, manual, pytest, browser
     verification_output: str | None = None  # Actual output (truncated)
 
 
@@ -176,31 +166,20 @@ class FeatureResponse(BaseModel):
     passes: bool | None
     layers: list[str] = []  # Verification layers: Frontend, Backend, UI, API, DB, Tasks
     layer_results: dict[str, dict] = {}  # Per-layer verification: {"UI": {"passed": true}}
-    test_count: int = 0  # Number of tests covering this feature
-    task_file: str | None = None  # Deprecated - for migration
-    task_section: str | None = None  # Deprecated - for migration
-    task_file_exists: bool = False  # Deprecated - for migration
-    total_tasks: int = 0  # From DB or markdown
-    completed_tasks: int = 0  # From DB or markdown
+    total_tasks: int = 0  # From DB
+    completed_tasks: int = 0  # From DB
     completion_pct: int = 0
-    health_status: str
+    health_status: str  # Calculated from passes status
     needs_review: bool
     last_verified_at: str | None = None
-    verified_by: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
     tasks: list[TaskResponse] = []  # Subtasks from DB
-    # New spec-driven fields
+    # Spec-driven fields
     priority: int | None = None  # User override (1-5), null = auto
     effective_priority: int = 5  # Calculated priority (1-5)
     acceptance_criteria: list[AcceptanceCriterion] = []  # Testable criteria
     vision_goals: list[str] = []  # Links to VISION.md goals
-    implementation_notes: dict[str, Any] = {}  # Structured implementation context
-    # Enhanced fields for task file replacement
-    status: str = "pending"  # Work status
-    effort: str | None = None  # Effort estimate
-    source: str | None = None  # Origin
-    diagram: str | None = None  # Architecture diagram
 
 
 class FeaturesListResponse(BaseModel):
@@ -253,7 +232,6 @@ def _feature_to_response(f: dict[str, Any]) -> FeatureResponse:
             type=c.get("type", ""),
             passed=c.get("passed"),
             verified_at=c.get("verified_at"),
-            verified_by=c.get("verified_by"),
             verification_output=c.get("verification_output"),
         )
         for c in raw_criteria
@@ -269,10 +247,6 @@ def _feature_to_response(f: dict[str, Any]) -> FeatureResponse:
         passes=f.get("passes"),
         layers=f.get("layers", []),
         layer_results=f.get("layer_results", {}),
-        test_count=f.get("test_count", 0),
-        task_file=f.get("task_file"),
-        task_section=f.get("task_section"),
-        task_file_exists=f.get("task_file_exists", False),
         total_tasks=f.get("total_tasks", 0),
         completed_tasks=f.get("completed_tasks", 0),
         completion_pct=f.get("completion_pct", 0),
@@ -281,7 +255,6 @@ def _feature_to_response(f: dict[str, Any]) -> FeatureResponse:
         last_verified_at=(
             f["last_verified_at"].isoformat() if f.get("last_verified_at") else None
         ),
-        verified_by=f.get("verified_by"),
         created_at=f["created_at"].isoformat() if f.get("created_at") else None,
         updated_at=f["updated_at"].isoformat() if f.get("updated_at") else None,
         tasks=tasks,
@@ -289,11 +262,6 @@ def _feature_to_response(f: dict[str, Any]) -> FeatureResponse:
         effective_priority=f.get("effective_priority", 5),
         acceptance_criteria=acceptance_criteria,
         vision_goals=f.get("vision_goals", []),
-        implementation_notes=f.get("implementation_notes", {}),
-        status=f.get("status", "pending"),
-        effort=f.get("effort"),
-        source=f.get("source"),
-        diagram=f.get("diagram"),
     )
 
 
@@ -689,7 +657,7 @@ async def create_feature(feature: FeatureCreate) -> dict[str, Any]:
     New features start with passes=NULL (not yet reviewed).
 
     Args:
-        feature: Feature data (name, category, description, task_file, task_section)
+        feature: Feature data (name, category, description)
     """
     conn_mgr = get_connection_manager()
     scanner = FeatureScanner(conn_mgr)
@@ -703,9 +671,6 @@ async def create_feature(feature: FeatureCreate) -> dict[str, Any]:
             name=feature.name,
             category=feature.category,
             description=feature.description,
-            task_file=feature.task_file,
-            task_section=feature.task_section,
-            implementation_notes=feature.implementation_notes,
         )
 
         if not success:
@@ -826,7 +791,7 @@ async def update_feature_passes(
 
     Args:
         feature_id: Feature ID (e.g., FEAT-001)
-        update: New passes value and verified_by
+        update: New passes value
     """
     conn_mgr = get_connection_manager()
     scanner = FeatureScanner(conn_mgr)
@@ -835,7 +800,6 @@ async def update_feature_passes(
         success = scanner.update_passes(
             feature_id=feature_id,
             passes=update.passes,
-            verified_by=update.verified_by,
         )
 
         if not success:
@@ -847,14 +811,12 @@ async def update_feature_passes(
             "feature_passes_updated",
             feature_id=feature_id,
             passes=update.passes,
-            verified_by=update.verified_by,
         )
 
         return {
             "status": "updated",
             "feature_id": feature_id,
             "passes": update.passes,
-            "verified_by": update.verified_by,
         }
 
     except HTTPException:
@@ -973,63 +935,6 @@ async def update_feature_layer_result(
     except Exception as e:
         logger.error(
             "update_feature_layer_result_failed", feature_id=feature_id, error=str(e)
-        )
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-
-class FeatureTestCountUpdate(BaseModel):
-    """Request model for updating feature test count."""
-
-    test_count: int  # Number of tests covering this feature
-
-
-@router.patch("/{feature_id}/test-count", response_model=dict[str, Any])
-async def update_feature_test_count(
-    feature_id: str, update: FeatureTestCountUpdate
-) -> dict[str, Any]:
-    """Update the test count for a feature.
-
-    Args:
-        feature_id: Feature ID (e.g., FEAT-001)
-        update: New test count
-    """
-    conn_mgr = get_connection_manager()
-
-    try:
-        with conn_mgr.connection() as conn:
-            result = conn.execute(
-                """
-                UPDATE feature_capabilities
-                SET test_count = %s, updated_at = NOW()
-                WHERE feature_id = %s
-                RETURNING feature_id, test_count
-                """,
-                (update.test_count, feature_id),
-            ).fetchone()
-            conn.commit()
-
-            if not result:
-                raise HTTPException(
-                    status_code=404, detail=f"Feature {feature_id} not found"
-                )
-
-        logger.info(
-            "feature_test_count_updated",
-            feature_id=feature_id,
-            test_count=update.test_count,
-        )
-
-        return {
-            "status": "updated",
-            "feature_id": feature_id,
-            "test_count": update.test_count,
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(
-            "update_feature_test_count_failed", feature_id=feature_id, error=str(e)
         )
         raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -1307,230 +1212,6 @@ async def update_feature_vision_goals(
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-class ImplementationNotesUpdate(BaseModel):
-    """Request model for updating implementation notes."""
-
-    implementation_notes: dict[str, Any]  # Full replacement of notes
-
-
-@router.patch("/{feature_id}/implementation-notes", response_model=dict[str, Any])
-async def update_feature_implementation_notes(
-    feature_id: str, update: ImplementationNotesUpdate
-) -> dict[str, Any]:
-    """Update the implementation notes for a feature.
-
-    Implementation notes store structured context for task files replacement:
-    - steps: List of implementation steps
-    - files: List of file paths to modify
-    - examples: Code examples or templates
-    - blockers: Known blockers or dependencies
-    - notes: Free-form notes
-    - context: Background/motivation
-
-    Args:
-        feature_id: Feature ID (e.g., FEAT-001)
-        update: New implementation notes dict
-    """
-    conn_mgr = get_connection_manager()
-
-    try:
-        with conn_mgr.connection() as conn:
-            result = conn.execute(
-                """
-                UPDATE feature_capabilities
-                SET implementation_notes = %s::jsonb, updated_at = NOW()
-                WHERE feature_id = %s
-                RETURNING feature_id, implementation_notes
-                """,
-                (json.dumps(update.implementation_notes), feature_id),
-            ).fetchone()
-            conn.commit()
-
-            if not result:
-                raise HTTPException(
-                    status_code=404, detail=f"Feature {feature_id} not found"
-                )
-
-        logger.info(
-            "feature_implementation_notes_updated",
-            feature_id=feature_id,
-        )
-
-        return {
-            "status": "updated",
-            "feature_id": feature_id,
-            "implementation_notes": result[1],
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(
-            "update_feature_implementation_notes_failed", feature_id=feature_id, error=str(e)
-        )
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-
-class FeatureStatusUpdate(BaseModel):
-    """Request model for updating feature status."""
-
-    status: str  # pending, in_progress, review_needed, deferred, blocked, complete
-
-
-@router.patch("/{feature_id}/status", response_model=dict[str, Any])
-async def update_feature_status(
-    feature_id: str, update: FeatureStatusUpdate
-) -> dict[str, Any]:
-    """Update the work status of a feature.
-
-    Status values:
-    - pending: Not started
-    - in_progress: Actively being worked on
-    - review_needed: Implementation done, needs review
-    - deferred: Intentionally postponed
-    - blocked: Waiting on dependencies
-    - complete: Done (use with passes=true for verified)
-    """
-    valid_statuses = {"pending", "in_progress", "review_needed", "deferred", "blocked", "complete"}
-    if update.status not in valid_statuses:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid status '{update.status}'. Must be one of: {valid_statuses}",
-        )
-
-    conn_mgr = get_connection_manager()
-
-    try:
-        with conn_mgr.connection() as conn:
-            result = conn.execute(
-                """
-                UPDATE feature_capabilities
-                SET status = %s, updated_at = NOW()
-                WHERE feature_id = %s
-                RETURNING feature_id, status
-                """,
-                (update.status, feature_id),
-            ).fetchone()
-            conn.commit()
-
-            if not result:
-                raise HTTPException(
-                    status_code=404, detail=f"Feature {feature_id} not found"
-                )
-
-        logger.info("feature_status_updated", feature_id=feature_id, status=update.status)
-
-        return {"status": "updated", "feature_id": feature_id, "new_status": result[1]}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("update_feature_status_failed", feature_id=feature_id, error=str(e))
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-
-class FeatureEffortUpdate(BaseModel):
-    """Request model for updating feature effort."""
-
-    effort: str  # low, medium, high, very_high
-
-
-@router.patch("/{feature_id}/effort", response_model=dict[str, Any])
-async def update_feature_effort(
-    feature_id: str, update: FeatureEffortUpdate
-) -> dict[str, Any]:
-    """Update the effort estimate of a feature.
-
-    Effort values:
-    - low: <2 hours, straightforward
-    - medium: 2-8 hours, multiple components
-    - high: 1-3 days, complex dependencies
-    - very_high: 3+ days, architectural changes
-    """
-    valid_efforts = {"low", "medium", "high", "very_high"}
-    if update.effort not in valid_efforts:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid effort '{update.effort}'. Must be one of: {valid_efforts}",
-        )
-
-    conn_mgr = get_connection_manager()
-
-    try:
-        with conn_mgr.connection() as conn:
-            result = conn.execute(
-                """
-                UPDATE feature_capabilities
-                SET effort = %s, updated_at = NOW()
-                WHERE feature_id = %s
-                RETURNING feature_id, effort
-                """,
-                (update.effort, feature_id),
-            ).fetchone()
-            conn.commit()
-
-            if not result:
-                raise HTTPException(
-                    status_code=404, detail=f"Feature {feature_id} not found"
-                )
-
-        logger.info("feature_effort_updated", feature_id=feature_id, effort=update.effort)
-
-        return {"status": "updated", "feature_id": feature_id, "effort": result[1]}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("update_feature_effort_failed", feature_id=feature_id, error=str(e))
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-
-class FeatureDiagramUpdate(BaseModel):
-    """Request model for updating feature diagram."""
-
-    diagram: str  # Mermaid or ASCII diagram
-
-
-@router.patch("/{feature_id}/diagram", response_model=dict[str, Any])
-async def update_feature_diagram(
-    feature_id: str, update: FeatureDiagramUpdate
-) -> dict[str, Any]:
-    """Update the architecture/flow diagram for a feature.
-
-    Recommended for features touching 3+ components.
-    Supports Mermaid syntax or ASCII art.
-    """
-    conn_mgr = get_connection_manager()
-
-    try:
-        with conn_mgr.connection() as conn:
-            result = conn.execute(
-                """
-                UPDATE feature_capabilities
-                SET diagram = %s, updated_at = NOW()
-                WHERE feature_id = %s
-                RETURNING feature_id
-                """,
-                (update.diagram, feature_id),
-            ).fetchone()
-            conn.commit()
-
-            if not result:
-                raise HTTPException(
-                    status_code=404, detail=f"Feature {feature_id} not found"
-                )
-
-        logger.info("feature_diagram_updated", feature_id=feature_id)
-
-        return {"status": "updated", "feature_id": feature_id}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("update_feature_diagram_failed", feature_id=feature_id, error=str(e))
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-
 # =========================================================================
 # Feature Dependencies Endpoints
 # =========================================================================
@@ -1551,7 +1232,6 @@ class DependencyResponse(BaseModel):
     feature_id: str
     depends_on_feature_id: str
     depends_on_name: str
-    depends_on_status: str | None
     depends_on_passes: bool | None
     dependency_type: str
     notes: str | None
@@ -1579,7 +1259,7 @@ async def get_feature_dependencies(feature_id: str) -> list[DependencyResponse]:
             # Get dependencies via the view
             rows = conn.execute(
                 """
-                SELECT id, feature, depends_on, depends_on_name, depends_on_status,
+                SELECT id, feature, depends_on, depends_on_name,
                        depends_on_passes, dependency_type, notes, is_satisfied
                 FROM feature_dependency_view
                 WHERE feature = %s
@@ -1593,11 +1273,10 @@ async def get_feature_dependencies(feature_id: str) -> list[DependencyResponse]:
                 feature_id=row[1],
                 depends_on_feature_id=row[2],
                 depends_on_name=row[3],
-                depends_on_status=row[4],
-                depends_on_passes=row[5],
-                dependency_type=row[6],
-                notes=row[7],
-                is_satisfied=row[8],
+                depends_on_passes=row[4],
+                dependency_type=row[5],
+                notes=row[6],
+                is_satisfied=row[7],
             )
             for row in rows
         ]
