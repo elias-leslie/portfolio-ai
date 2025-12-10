@@ -169,16 +169,14 @@ function ExpandableRow({ entry }: { entry: ProgressEntry }) {
                 </div>
               )}
 
-              {/* Commit Message (separate block if long) */}
+              {/* Commit SHA */}
               {entry.git_commit && (
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <GitCommit className="h-3 w-3 text-muted-foreground" />
-                    <span className="text-muted-foreground text-xs font-medium">Commit Message:</span>
-                  </div>
-                  <pre className="text-xs bg-muted px-3 py-2 rounded border overflow-x-auto whitespace-pre-wrap break-words max-h-32 overflow-y-auto">
+                <div className="flex items-center gap-2">
+                  <GitCommit className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-muted-foreground text-xs font-medium">Commit:</span>
+                  <code className="font-mono text-xs bg-muted px-2 py-1 rounded border">
                     {entry.git_commit}
-                  </pre>
+                  </code>
                 </div>
               )}
 
