@@ -163,6 +163,15 @@ def save_earnings_surprises(
     with storage.connection() as conn:
         for surprise in surprises:
             try:
+                # Ensure symbol exists in symbols table (FK constraint)
+                conn.execute(
+                    """
+                    INSERT INTO symbols (symbol, security_type, created_at)
+                    VALUES ($1, 'equity', NOW())
+                    ON CONFLICT (symbol) DO NOTHING
+                    """,
+                    [surprise.symbol],
+                )
                 conn.execute(
                     """
                     INSERT INTO earnings_surprises (

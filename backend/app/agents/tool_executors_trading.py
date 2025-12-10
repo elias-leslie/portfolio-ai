@@ -193,6 +193,18 @@ class TradingTools:
         }
 
         try:
+            # Ensure symbol exists in symbols table (FK constraint)
+            with self.storage.connection() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO symbols (symbol, security_type, created_at)
+                    VALUES (%s, 'equity', %s)
+                    ON CONFLICT (symbol) DO NOTHING
+                    """,
+                    [symbol, now.isoformat()],
+                )
+                conn.commit()
+
             self.storage.insert_dict(
                 "watchlist_items",
                 {

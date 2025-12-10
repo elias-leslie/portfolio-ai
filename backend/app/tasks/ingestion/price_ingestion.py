@@ -161,6 +161,19 @@ def _insert_ohlcv_data(storage: PortfolioStorage, result_df: Any, ingest_run_id:
         symbols=unique_symbols,
     )
 
+    # Ensure all symbols exist in symbols table (FK constraint)
+    with storage.connection() as conn:
+        for symbol in unique_symbols:
+            conn.execute(
+                """
+                INSERT INTO symbols (symbol, security_type, created_at)
+                VALUES (%s, 'equity', NOW())
+                ON CONFLICT (symbol) DO NOTHING
+                """,
+                [symbol],
+            )
+        conn.commit()
+
     # Use UPSERT mode to prevent deadlocks and preserve historical data
     # This replaces DELETE + INSERT pattern which caused PostgreSQL deadlocks
     # when multiple tasks ran concurrently

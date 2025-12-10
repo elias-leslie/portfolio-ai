@@ -43,8 +43,8 @@ def _get_drawdown_rules() -> tuple[float, float, float]:
 # Portfolio-level risk limits (GAP-023) - now from rules engine
 # Legacy constants kept for backwards compatibility
 PORTFOLIO_DRAWDOWN_HALT_PCT = 25.0  # Stop trading at -25% drawdown (updated from 10%)
-DRAWDOWN_WARNING_LEVEL_1 = 10.0    # First warning at -10% (updated from 5%)
-DRAWDOWN_WARNING_LEVEL_2 = 15.0    # Second warning at -15% (updated from 7.5%)
+DRAWDOWN_WARNING_LEVEL_1 = 10.0  # First warning at -10% (updated from 5%)
+DRAWDOWN_WARNING_LEVEL_2 = 15.0  # Second warning at -15% (updated from 7.5%)
 
 
 @dataclass
@@ -360,12 +360,15 @@ def save_portfolio_snapshot(
 
     drawdown_pct = calculate_drawdown(peak_equity, current_equity)
 
-    # Get cash and position breakdown
+    # Get cash and position breakdown, validate account exists (FK constraint)
     cash_query = """
         SELECT COALESCE(cash_balance, 0) as cash FROM portfolio_accounts
         WHERE id = $1
     """
     cash_result = storage.query(cash_query, [account_id])
+    if cash_result.is_empty():
+        logger.warning("portfolio_snapshot_skipped_no_account", account_id=account_id)
+        return
     cash = float(cash_result.get_column("cash")[0] or 0)
     position_value = current_equity - cash
 

@@ -167,8 +167,7 @@ def parse_recommendation_response(
 
         # Calculate total analysts
         total_analysts = sum(
-            current.get(k, 0) or 0
-            for k in ["strongBuy", "buy", "hold", "sell", "strongSell"]
+            current.get(k, 0) or 0 for k in ["strongBuy", "buy", "hold", "sell", "strongSell"]
         )
 
         revisions.append(
@@ -219,6 +218,15 @@ def save_analyst_revisions(
     saved = 0
     for rev in revisions:
         try:
+            # Ensure symbol exists in symbols table (FK constraint)
+            storage.execute(
+                """
+                INSERT INTO symbols (symbol, security_type, created_at)
+                VALUES (?, 'equity', NOW())
+                ON CONFLICT (symbol) DO NOTHING
+                """,
+                [rev["symbol"]],
+            )
             storage.execute(
                 """
                 INSERT INTO analyst_revisions

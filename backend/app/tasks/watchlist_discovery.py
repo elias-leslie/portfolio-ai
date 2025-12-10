@@ -222,6 +222,15 @@ def add_symbol_to_watchlist(
     try:
         with storage.connection() as conn:
             cursor = conn.cursor()
+            # Ensure symbol exists in symbols table (FK constraint)
+            cursor.execute(
+                """
+                INSERT INTO symbols (symbol, security_type, created_at)
+                VALUES (%s, 'equity', %s)
+                ON CONFLICT (symbol) DO NOTHING
+                """,
+                (symbol.upper(), now),
+            )
             cursor.execute(
                 """
                 INSERT INTO watchlist_items (id, symbol, source, added_by, metadata, created_at, updated_at)
@@ -552,7 +561,11 @@ def generate_daily_watchlist_report_task(
         )
         symbols_removed = []
         for row in removed_df.iter_rows(named=True):
-            record_data = json.loads(row["record_data"]) if isinstance(row["record_data"], str) else row["record_data"]
+            record_data = (
+                json.loads(row["record_data"])
+                if isinstance(row["record_data"], str)
+                else row["record_data"]
+            )
             symbols_removed.append(
                 {
                     "symbol": record_data.get("symbol", "UNKNOWN"),

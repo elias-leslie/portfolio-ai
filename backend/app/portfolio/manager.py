@@ -269,11 +269,20 @@ class PortfolioManager:
         now = datetime.now(UTC)
         with self.storage.connection() as conn:
             for symbol in symbols_to_add:
+                # Ensure symbol exists in symbols table (FK constraint)
+                conn.execute(
+                    """
+                    INSERT INTO symbols (symbol, security_type, created_at)
+                    VALUES (%s, 'equity', %s)
+                    ON CONFLICT (symbol) DO NOTHING
+                    """,
+                    [symbol, now],
+                )
                 item_id = str(uuid.uuid4())
                 conn.execute(
                     """
                     INSERT INTO watchlist_items (id, symbol, source, created_at, updated_at)
-                    VALUES (?, ?, 'portfolio', ?, ?)
+                    VALUES (%s, %s, 'portfolio', %s, %s)
                     ON CONFLICT (symbol) DO NOTHING
                     """,
                     [item_id, symbol, now, now],

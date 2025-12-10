@@ -45,6 +45,18 @@ def _to_python(value: Any) -> Any:
     return value
 
 
+def _ensure_symbol_exists(storage: PortfolioStorage, symbol: str) -> None:
+    """Ensure symbol exists in symbols table (FK constraint)."""
+    storage.execute(
+        """
+        INSERT INTO symbols (symbol, security_type, created_at)
+        VALUES ($1, 'equity', NOW())
+        ON CONFLICT (symbol) DO NOTHING
+        """,
+        [symbol],
+    )
+
+
 @celery_app.task(bind=True, max_retries=2)
 def ingest_fundamental_data(self, symbols: list[str] | None = None) -> dict:
     """Ingest fundamental data for watchlist symbols.
@@ -132,6 +144,7 @@ def ingest_fundamental_data(self, symbols: list[str] | None = None) -> dict:
 
 def _insert_cash_flow(storage: PortfolioStorage, data: dict, as_of_date: date) -> None:
     """Insert cash flow metrics."""
+    _ensure_symbol_exists(storage, data["symbol"])
     query = """
         INSERT INTO cash_flow_metrics (
             symbol, as_of_date, operating_cash_flow, free_cash_flow,
@@ -149,21 +162,25 @@ def _insert_cash_flow(storage: PortfolioStorage, data: dict, as_of_date: date) -
             cash_conversion_ratio = EXCLUDED.cash_conversion_ratio,
             updated_at = NOW()
     """
-    storage.execute(query, [
-        data["symbol"],
-        as_of_date,
-        _to_python(data.get("operating_cash_flow")),
-        _to_python(data.get("free_cash_flow")),
-        _to_python(data.get("capital_expenditure")),
-        _to_python(data.get("fcf_yield")),
-        _to_python(data.get("cash_flow_margin")),
-        _to_python(data.get("fcf_per_share")),
-        _to_python(data.get("cash_conversion_ratio")),
-    ])
+    storage.execute(
+        query,
+        [
+            data["symbol"],
+            as_of_date,
+            _to_python(data.get("operating_cash_flow")),
+            _to_python(data.get("free_cash_flow")),
+            _to_python(data.get("capital_expenditure")),
+            _to_python(data.get("fcf_yield")),
+            _to_python(data.get("cash_flow_margin")),
+            _to_python(data.get("fcf_per_share")),
+            _to_python(data.get("cash_conversion_ratio")),
+        ],
+    )
 
 
 def _insert_insider_transaction(storage: PortfolioStorage, data: dict) -> None:
     """Insert insider transaction."""
+    _ensure_symbol_exists(storage, data["symbol"])
     query = """
         INSERT INTO insider_transactions (
             symbol, insider_name, insider_title, transaction_type,
@@ -178,20 +195,24 @@ def _insert_insider_transaction(storage: PortfolioStorage, data: dict) -> None:
     elif hasattr(txn_date, "date"):
         txn_date = txn_date.date()
 
-    storage.execute(query, [
-        data["symbol"],
-        data.get("insider_name"),
-        data.get("insider_title"),
-        data.get("transaction_type"),
-        txn_date,
-        _to_python(data.get("shares")),
-        _to_python(data.get("value")),
-        _to_python(data.get("shares_owned_after")),
-    ])
+    storage.execute(
+        query,
+        [
+            data["symbol"],
+            data.get("insider_name"),
+            data.get("insider_title"),
+            data.get("transaction_type"),
+            txn_date,
+            _to_python(data.get("shares")),
+            _to_python(data.get("value")),
+            _to_python(data.get("shares_owned_after")),
+        ],
+    )
 
 
 def _insert_institutional_holding(storage: PortfolioStorage, data: dict) -> None:
     """Insert institutional holding."""
+    _ensure_symbol_exists(storage, data["symbol"])
     query = """
         INSERT INTO institutional_holdings (
             symbol, holder_name, shares, value, pct_held, report_date, source, updated_at
@@ -209,18 +230,22 @@ def _insert_institutional_holding(storage: PortfolioStorage, data: dict) -> None
     elif hasattr(report_date, "date"):
         report_date = report_date.date()
 
-    storage.execute(query, [
-        data["symbol"],
-        data.get("holder_name"),
-        _to_python(data.get("shares")),
-        _to_python(data.get("value")),
-        _to_python(data.get("pct_held")),
-        report_date,
-    ])
+    storage.execute(
+        query,
+        [
+            data["symbol"],
+            data.get("holder_name"),
+            _to_python(data.get("shares")),
+            _to_python(data.get("value")),
+            _to_python(data.get("pct_held")),
+            report_date,
+        ],
+    )
 
 
 def _insert_institutional_summary(storage: PortfolioStorage, data: dict, as_of_date: date) -> None:
     """Insert institutional ownership summary."""
+    _ensure_symbol_exists(storage, data["symbol"])
     query = """
         INSERT INTO institutional_ownership_summary (
             symbol, as_of_date, total_institutions, pct_held_institutions,
@@ -233,17 +258,21 @@ def _insert_institutional_summary(storage: PortfolioStorage, data: dict, as_of_d
             pct_held_insiders = EXCLUDED.pct_held_insiders,
             updated_at = NOW()
     """
-    storage.execute(query, [
-        data["symbol"],
-        as_of_date,
-        _to_python(data.get("total_institutions")),
-        _to_python(data.get("pct_held_institutions")),
-        _to_python(data.get("pct_held_insiders")),
-    ])
+    storage.execute(
+        query,
+        [
+            data["symbol"],
+            as_of_date,
+            _to_python(data.get("total_institutions")),
+            _to_python(data.get("pct_held_institutions")),
+            _to_python(data.get("pct_held_insiders")),
+        ],
+    )
 
 
 def _insert_short_interest(storage: PortfolioStorage, data: dict, as_of_date: date) -> None:
     """Insert short interest data."""
+    _ensure_symbol_exists(storage, data["symbol"])
     query = """
         INSERT INTO short_interest (
             symbol, as_of_date, short_shares, short_ratio,
@@ -259,15 +288,18 @@ def _insert_short_interest(storage: PortfolioStorage, data: dict, as_of_date: da
             short_prior_month = EXCLUDED.short_prior_month,
             updated_at = NOW()
     """
-    storage.execute(query, [
-        data["symbol"],
-        as_of_date,
-        _to_python(data.get("short_shares")),
-        _to_python(data.get("short_ratio")),
-        _to_python(data.get("short_percent_of_float")),
-        _to_python(data.get("short_percent_of_outstanding")),
-        _to_python(data.get("short_prior_month")),
-    ])
+    storage.execute(
+        query,
+        [
+            data["symbol"],
+            as_of_date,
+            _to_python(data.get("short_shares")),
+            _to_python(data.get("short_ratio")),
+            _to_python(data.get("short_percent_of_float")),
+            _to_python(data.get("short_percent_of_outstanding")),
+            _to_python(data.get("short_prior_month")),
+        ],
+    )
 
     # Dual-write to short_interest_summary table
     summary_query = """
@@ -281,13 +313,16 @@ def _insert_short_interest(storage: PortfolioStorage, data: dict, as_of_date: da
             short_percent_of_float = EXCLUDED.short_percent_of_float,
             updated_at = NOW()
     """
-    storage.execute(summary_query, [
-        data["symbol"],
-        as_of_date,
-        _to_python(data.get("short_shares")),
-        _to_python(data.get("short_ratio")),
-        _to_python(data.get("short_percent_of_float")),
-    ])
+    storage.execute(
+        summary_query,
+        [
+            data["symbol"],
+            as_of_date,
+            _to_python(data.get("short_shares")),
+            _to_python(data.get("short_ratio")),
+            _to_python(data.get("short_percent_of_float")),
+        ],
+    )
 
 
 @celery_app.task(bind=True, max_retries=2)
@@ -387,16 +422,19 @@ def _insert_yield_curve(storage: PortfolioStorage, data: dict, as_of_date: date)
             spread_10y_2y = EXCLUDED.spread_10y_2y,
             spread_10y_3m = EXCLUDED.spread_10y_3m
     """
-    storage.execute(query, [
-        as_of_date,
-        _to_python(data.get("yield_3m")),
-        _to_python(data.get("yield_2y")),
-        _to_python(data.get("yield_5y")),
-        _to_python(data.get("yield_10y")),
-        _to_python(data.get("yield_30y")),
-        _to_python(data.get("spread_10y_2y")),
-        _to_python(data.get("spread_10y_3m")),
-    ])
+    storage.execute(
+        query,
+        [
+            as_of_date,
+            _to_python(data.get("yield_3m")),
+            _to_python(data.get("yield_2y")),
+            _to_python(data.get("yield_5y")),
+            _to_python(data.get("yield_10y")),
+            _to_python(data.get("yield_30y")),
+            _to_python(data.get("spread_10y_2y")),
+            _to_python(data.get("spread_10y_3m")),
+        ],
+    )
 
 
 def _insert_macro_indicator(

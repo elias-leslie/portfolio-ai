@@ -108,9 +108,21 @@ async def get_daily_report() -> dict[str, object]:
         report_row = report_df.to_dicts()[0]
 
         # Parse JSON fields
-        symbols_added = json.loads(report_row["symbols_added"]) if isinstance(report_row["symbols_added"], str) else report_row["symbols_added"]
-        symbols_removed = json.loads(report_row["symbols_removed"]) if isinstance(report_row["symbols_removed"], str) else report_row["symbols_removed"]
-        score_changes = json.loads(report_row["score_changes"]) if isinstance(report_row["score_changes"], str) else report_row["score_changes"]
+        symbols_added = (
+            json.loads(report_row["symbols_added"])
+            if isinstance(report_row["symbols_added"], str)
+            else report_row["symbols_added"]
+        )
+        symbols_removed = (
+            json.loads(report_row["symbols_removed"])
+            if isinstance(report_row["symbols_removed"], str)
+            else report_row["symbols_removed"]
+        )
+        score_changes = (
+            json.loads(report_row["score_changes"])
+            if isinstance(report_row["score_changes"], str)
+            else report_row["score_changes"]
+        )
 
         # Check if report is stale (>48 hours old)
         generated_at = report_row["generated_at"]
@@ -119,7 +131,9 @@ async def get_daily_report() -> dict[str, object]:
         is_stale = (datetime.now(UTC) - generated_at).total_seconds() > 48 * 3600
 
         return {
-            "report_date": report_row["report_date"].isoformat() if report_row["report_date"] else None,
+            "report_date": report_row["report_date"].isoformat()
+            if report_row["report_date"]
+            else None,
             "generated_at": generated_at.isoformat() if generated_at else None,
             "symbols_added": symbols_added,
             "symbols_removed": symbols_removed,
@@ -156,17 +170,26 @@ async def create_watchlist_item(data: WatchlistItemCreate) -> WatchlistItemRespo
             [symbol],
         )
         if not existing_df.is_empty():
-            raise HTTPException(status_code=409, detail=f"Ticker {symbol} already in watchlist")
+            raise HTTPException(status_code=409, detail=f"Symbol {symbol} already in watchlist")
 
         # Create item
         item_id = str(uuid.uuid4())
         now = datetime.now(UTC).isoformat()
 
         with storage.connection() as conn:
+            # Ensure symbol exists in symbols table (FK constraint)
+            conn.execute(
+                """
+                INSERT INTO symbols (symbol, security_type, created_at)
+                VALUES (%s, 'equity', %s)
+                ON CONFLICT (symbol) DO NOTHING
+                """,
+                [symbol, now],
+            )
             conn.execute(
                 """
                 INSERT INTO watchlist_items (id, symbol, note, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s)
                 """,
                 [item_id, symbol, data.note, now, now],
             )

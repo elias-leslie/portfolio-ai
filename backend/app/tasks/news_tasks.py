@@ -63,6 +63,15 @@ def _record_summary(
     window_start = as_of - ttl
     model_breakdown = summary.model_breakdown or {}
     with storage.connection() as conn:
+        # Ensure symbol exists in symbols table (FK constraint)
+        conn.execute(
+            """
+            INSERT INTO symbols (symbol, security_type, created_at)
+            VALUES (%s, 'equity', NOW())
+            ON CONFLICT (symbol) DO NOTHING
+            """,
+            [summary.symbol],
+        )
         conn.execute(
             """
             INSERT INTO news_summary_log (
