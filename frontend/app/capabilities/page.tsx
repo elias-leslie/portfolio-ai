@@ -20,6 +20,7 @@ import { CapabilitiesDashboard } from "@/components/capabilities/CapabilitiesDas
 import { ApiSourcesOverview } from "@/components/capabilities/ApiSourcesOverview";
 import { FeaturesTab } from "@/components/capabilities/FeaturesTab";
 import { VisionGoalsTab } from "@/components/capabilities/VisionGoalsTab";
+import { LogTab } from "@/components/capabilities/LogTab";
 import { RulesViewer } from "@/components/rules/RulesViewer";
 import { WorkflowCanvas } from "@/components/workflows/WorkflowCanvas";
 import { QATab } from "@/components/qa/QATab";
@@ -38,6 +39,7 @@ import {
   Target,
   GitBranch,
   ShieldCheck,
+  Clock,
 } from "lucide-react";
 import {
   fetchCapabilities,
@@ -48,7 +50,7 @@ import {
 import { toast } from "sonner";
 import { PageContainer } from "@/components/shared/PageContainer";
 
-type TabValue = "dashboard" | "workflows" | "qa" | "database" | "celery" | "api" | "sources" | "rules" | "features" | "vision";
+type TabValue = "dashboard" | "workflows" | "qa" | "database" | "celery" | "api" | "sources" | "rules" | "features" | "vision" | "log";
 
 function CapabilitiesPageContent() {
   const queryClient = useQueryClient();
@@ -296,9 +298,9 @@ function CapabilitiesPageContent() {
         }
       />
 
-      {/* Tabs - order: Dashboard, Vision, Features, Workflows, Data Sources, Trading Rules, Database, Tasks, Endpoints */}
+      {/* Tabs - order: Dashboard, Vision, Features, Workflows, QA, Sources, Rules, DB, Log, Tasks, API */}
       <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as TabValue)}>
-        <TabsList className="grid w-full grid-cols-10">
+        <TabsList className="grid w-full grid-cols-11">
           <TabsTrigger value="dashboard">
             Dashboard
           </TabsTrigger>
@@ -333,6 +335,10 @@ function CapabilitiesPageContent() {
               {dbCount}
             </span>
           </TabsTrigger>
+          <TabsTrigger value="log">
+            <Clock className="mr-2 h-4 w-4" />
+            Log
+          </TabsTrigger>
           <TabsTrigger value="celery">
             <Zap className="mr-2 h-4 w-4" />
             Tasks
@@ -350,7 +356,7 @@ function CapabilitiesPageContent() {
         </TabsList>
 
         {/* Filters (for capability tabs) */}
-        {activeTab !== "dashboard" && activeTab !== "workflows" && activeTab !== "sources" && activeTab !== "rules" && activeTab !== "features" && activeTab !== "vision" && activeTab !== "qa" && (
+        {activeTab !== "dashboard" && activeTab !== "workflows" && activeTab !== "sources" && activeTab !== "rules" && activeTab !== "features" && activeTab !== "vision" && activeTab !== "qa" && activeTab !== "log" && (
           <div className="space-y-3">
             <div className="flex flex-wrap gap-3">
               {/* Search */}
@@ -491,6 +497,11 @@ function CapabilitiesPageContent() {
         <TabsContent value="vision">
           <VisionGoalsTab />
         </TabsContent>
+
+        {/* Claude Session Log Tab */}
+        <TabsContent value="log">
+          <LogTab />
+        </TabsContent>
       </Tabs>
 
       {/* Pagination */}
@@ -501,6 +512,7 @@ function CapabilitiesPageContent() {
         activeTab !== "features" &&
         activeTab !== "vision" &&
         activeTab !== "qa" &&
+        activeTab !== "log" &&
         capabilitiesData &&
         capabilitiesData.total > pageSize && (
           <div className="flex items-center justify-between">

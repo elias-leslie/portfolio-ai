@@ -162,16 +162,14 @@ async def get_solution_map() -> SolutionMapResponse:
             # ==================================================================
             # FEATURES LAYER
             # ==================================================================
+            # Health status is now calculated dynamically (column was dropped from feature_capabilities)
             features_data = conn.execute(
                 """
                 SELECT
                     COUNT(*) as total,
                     COUNT(*) FILTER (WHERE passes = true) as passed,
                     COUNT(*) FILTER (WHERE passes = false) as failed,
-                    COUNT(*) FILTER (WHERE passes IS NULL) as unreviewed,
-                    COUNT(*) FILTER (WHERE health_status = 'active') as active,
-                    COUNT(*) FILTER (WHERE health_status = 'orphaned') as orphaned,
-                    COUNT(*) FILTER (WHERE health_status = 'legacy') as legacy
+                    COUNT(*) FILTER (WHERE passes IS NULL) as unreviewed
                 FROM feature_capabilities
                 """
             ).fetchone()
@@ -181,10 +179,7 @@ async def get_solution_map() -> SolutionMapResponse:
                 passed,
                 failed,
                 unreviewed,
-                _active,
-                _orphaned,
-                _legacy,
-            ) = features_data or (0, 0, 0, 0, 0, 0, 0)
+            ) = features_data or (0, 0, 0, 0)
 
             # Type cast to int
             total_features = int(total_features) if total_features else 0

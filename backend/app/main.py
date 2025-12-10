@@ -20,6 +20,7 @@ from app.api import (
     backtest,
     capabilities,
     celery_endpoints,
+    claude_progress,
     disagreements,
     # gaps removed - migrated to [DEBT] subtasks on features
     health,
@@ -184,6 +185,7 @@ app.include_router(vision_content_router, prefix="/api")  # Vision content (miss
 app.include_router(workflow_graph.router)  # Workflow visualization graph API
 app.include_router(solution_map.router)  # Solution architecture map API
 app.include_router(qa.router)  # QA system - issue tracking, trends, scanning
+app.include_router(claude_progress.router)  # Claude session progress logging
 
 
 @app.get("/")
