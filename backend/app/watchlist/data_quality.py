@@ -26,6 +26,46 @@ PILLAR_WEIGHTS = {
     "price": 25.0,
 }
 
+# Pillars applicable by security type
+# ETFs don't have company-level fundamentals (P/E, margins, etc.)
+# Catalyst events like earnings/insider trades don't apply to ETFs
+APPLICABLE_PILLARS: dict[str, set[str]] = {
+    "equity": {"technical", "fundamental", "catalyst", "options", "price"},
+    "etf": {"technical", "options", "price"},  # No fundamentals or catalysts
+    "index": {"technical", "price"},  # Indices are reference only
+    "other": {"technical", "fundamental", "catalyst", "options", "price"},  # Default to all
+}
+
+# Default if security_type not found
+DEFAULT_SECURITY_TYPE = "equity"
+
+
+def _get_security_type(storage: PortfolioStorage, symbol: str) -> str:
+    """Get security type for a symbol from the symbols table.
+
+    Args:
+        storage: PortfolioStorage instance
+        symbol: Stock/ETF symbol
+
+    Returns:
+        Security type: 'equity', 'etf', 'index', or 'other'
+    """
+    try:
+        df = storage.query(
+            "SELECT security_type FROM symbols WHERE symbol = ?",
+            [symbol],
+        )
+        if df.is_empty():
+            return DEFAULT_SECURITY_TYPE
+
+        security_type = df.item(0, "security_type")
+        if security_type and security_type in APPLICABLE_PILLARS:
+            return str(security_type)
+        return DEFAULT_SECURITY_TYPE
+    except Exception as e:
+        logger.warning("security_type_lookup_failed", symbol=symbol, error=str(e))
+        return DEFAULT_SECURITY_TYPE
+
 
 @dataclass
 class PillarQuality:
@@ -185,7 +225,7 @@ def _check_fundamental_quality(
                 payload
             FROM reference_cache
             WHERE symbol = ?
-            AND source = 'yfinance_valuation'
+            AND source = 'yfinance'
             ORDER BY as_of_date DESC
             LIMIT 1
             """,
@@ -193,8 +233,10 @@ def _check_fundamental_quality(
         )
 
         if df.is_empty():
+            # No fundamental data - for equities this is "partial" (data exists but missing)
+            # The caller will mark it as "n/a" for ETFs based on security_type
             return PillarQuality(
-                status="n/a",
+                status="partial",
                 score=0.0,
                 details="No fundamental data",
             )
@@ -203,11 +245,11 @@ def _check_fundamental_quality(
         as_of_date = row.get("as_of_date")
         payload = row.get("payload") or {}
 
-        # Check for key valuation metrics
-        profit_margin = payload.get("profit_margin")
-        debt_to_equity = payload.get("debt_to_equity")
-        revenue_growth = payload.get("revenue_growth")
-        pe_ratio = payload.get("pe_ratio")
+        # Check for key valuation metrics (yfinance field names)
+        profit_margin = payload.get("profitMargins")
+        debt_to_equity = payload.get("debtToEquity")
+        revenue_growth = payload.get("revenueGrowth")
+        pe_ratio = payload.get("trailingPE") or payload.get("forwardPE")
 
         metrics = [profit_margin, debt_to_equity, revenue_growth, pe_ratio]
         non_null_count = sum(1 for m in metrics if m is not None)
@@ -559,6 +601,10 @@ def calculate_data_quality(storage: PortfolioStorage, symbols: list[str]) -> dic
 
     for symbol in symbols:
         try:
+            # Get security type to determine applicable pillars
+            security_type = _get_security_type(storage, symbol)
+            applicable_pillars = APPLICABLE_PILLARS.get(security_type, APPLICABLE_PILLARS["equity"])
+
             # Check each pillar
             technical = _check_technical_quality(storage, symbol, now)
             fundamental = _check_fundamental_quality(storage, symbol, now)
@@ -566,16 +612,42 @@ def calculate_data_quality(storage: PortfolioStorage, symbols: list[str]) -> dic
             options = _check_options_quality(storage, symbol, now)
             price = _check_price_quality(storage, symbol, now)
 
-            # Calculate weighted overall score
-            weighted_sum = (
-                technical.score * PILLAR_WEIGHTS["technical"]
-                + fundamental.score * PILLAR_WEIGHTS["fundamental"]
-                + catalyst.score * PILLAR_WEIGHTS["catalyst"]
-                + options.score * PILLAR_WEIGHTS["options"]
-                + price.score * PILLAR_WEIGHTS["price"]
-            )
-            total_weight = sum(PILLAR_WEIGHTS.values())
-            overall_pct = weighted_sum / total_weight
+            # Build pillars dict, marking non-applicable ones as N/A
+            pillars_data: dict[str, PillarQuality] = {}
+            all_pillars = {
+                "technical": technical,
+                "fundamental": fundamental,
+                "catalyst": catalyst,
+                "options": options,
+                "price": price,
+            }
+
+            for pillar_name, pillar_quality in all_pillars.items():
+                if pillar_name in applicable_pillars:
+                    pillars_data[pillar_name] = pillar_quality
+                else:
+                    # Mark as N/A for this security type (not missing, just not applicable)
+                    pillars_data[pillar_name] = PillarQuality(
+                        status="n/a",
+                        score=0.0,
+                        details=f"N/A for {security_type}",
+                    )
+
+            # Calculate weighted overall score using only applicable pillars
+            weighted_sum = 0.0
+            applicable_weight = 0.0
+
+            for pillar_name in applicable_pillars:
+                weight = PILLAR_WEIGHTS[pillar_name]
+                pillar_quality = pillars_data[pillar_name]
+                weighted_sum += pillar_quality.score * weight
+                applicable_weight += weight
+
+            # Calculate overall as percentage of applicable pillars only
+            if applicable_weight > 0:
+                overall_pct = weighted_sum / applicable_weight
+            else:
+                overall_pct = 0.0
 
             results[symbol] = DataQuality(
                 overall_pct=overall_pct,
