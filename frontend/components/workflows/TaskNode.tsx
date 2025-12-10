@@ -62,19 +62,37 @@ function TaskNodeComponent({ data }: NodeProps) {
     <TooltipProvider>
       <div
         className={cn(
-          "rounded-lg border border-border shadow-sm min-w-[180px] max-w-[200px]",
+          "rounded-lg border shadow-sm min-w-[180px] max-w-[200px]",
           "transition-all duration-300 ease-in-out hover:z-50 hover:shadow-xl origin-center",
-          "transition-all duration-300 ease-in-out hover:z-50 hover:shadow-xl origin-center",
-          "text-card-foreground bg-card relative overflow-hidden",
-          // Borders
-          status === "failed" || successRate < 50 ? "border-destructive" :
-            (status !== "running" && successRate >= 50 && successRate < 80) ? "border-yellow-500" :
-              status === "running" ? "border-primary" : "border-border",
+          "text-zinc-100 relative overflow-hidden",
 
-          // Tints (using pseudo-elements to keep base opaque)
-          (status === "failed" || successRate < 50) && "after:absolute after:inset-0 after:bg-destructive/20 after:pointer-events-none",
-          (status !== "running" && successRate >= 50 && successRate < 80) && "after:absolute after:inset-0 after:bg-yellow-500/20 after:pointer-events-none",
-          status === "running" && "after:absolute after:inset-0 after:bg-primary/10 after:pointer-events-none"
+          // Base background - grey for dark mode
+          "bg-zinc-800 dark:bg-zinc-800",
+
+          // Error/Critical state (failed OR very low success rate)
+          (status === "failed" || successRate < 50) && [
+            "!bg-red-950 dark:!bg-red-950",
+            "border-red-500 dark:border-red-500",
+            "border-2",
+          ],
+
+          // Warning state (moderate success rate)
+          (status !== "failed" && successRate >= 50 && successRate < 80) && [
+            "!bg-amber-950 dark:!bg-amber-950",
+            "border-amber-500 dark:border-amber-500",
+            "border-2",
+          ],
+
+          // Running state
+          (status === "running" && successRate >= 80) && [
+            "border-primary",
+            "border-2",
+          ],
+
+          // Normal state
+          (status !== "failed" && status !== "running" && successRate >= 80) && [
+            "border-zinc-600 dark:border-zinc-600",
+          ]
         )}
         style={{
           transform: `scale(${scale})`,
@@ -90,7 +108,7 @@ function TaskNodeComponent({ data }: NodeProps) {
         />
 
         {/* Header */}
-        <div className="px-3 py-2 border-b border-inherit bg-muted/40 rounded-t-lg">
+        <div className="px-3 py-2 border-b border-inherit bg-black/20 rounded-t-lg">
           <div className="flex items-center gap-2">
             <div className={cn("w-2 h-2 rounded-full shrink-0", statusColors[status])} />
             <Tooltip>
@@ -99,11 +117,11 @@ function TaskNodeComponent({ data }: NodeProps) {
               </TooltipTrigger>
               <TooltipContent>
                 <p>{label}</p>
-                <p className="text-xs text-muted-foreground">{statusLabels[status]}</p>
+                <p className="text-xs text-zinc-400">{statusLabels[status]}</p>
               </TooltipContent>
             </Tooltip>
           </div>
-          <Badge variant="outline" className="mt-1 text-[10px] h-5">
+          <Badge variant="outline" className="mt-1 text-[10px] h-5 border-zinc-500 text-zinc-300">
             {schedule}
           </Badge>
         </div>
@@ -111,26 +129,26 @@ function TaskNodeComponent({ data }: NodeProps) {
         {/* Metrics */}
         <div className="px-3 py-2 space-y-1 text-xs">
           <div className="flex justify-between items-center">
-            <span className="text-muted-foreground">Success</span>
+            <span className="text-zinc-400">Success</span>
             <span
               className={cn(
                 "font-medium",
-                successRate >= 90 && "text-green-600 dark:text-green-400",
-                successRate >= 70 && successRate < 90 && "text-yellow-600 dark:text-yellow-400",
-                successRate < 70 && "text-red-600 dark:text-red-400"
+                successRate >= 90 && "text-green-400",
+                successRate >= 70 && successRate < 90 && "text-yellow-400",
+                successRate < 70 && "text-red-400"
               )}
             >
               {successRate.toFixed(0)}%
             </span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-muted-foreground">Duration</span>
-            <span className="font-medium">{formatDuration(avgDuration)}</span>
+            <span className="text-zinc-400">Duration</span>
+            <span className="font-medium text-zinc-200">{formatDuration(avgDuration)}</span>
           </div>
           <div className="flex justify-between items-center text-[10px]">
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="text-muted-foreground cursor-default">
+                <span className="text-zinc-400 cursor-default">
                   Last: {formatTimeAgo(lastRun)}
                 </span>
               </TooltipTrigger>
@@ -142,7 +160,7 @@ function TaskNodeComponent({ data }: NodeProps) {
           {populatesTables && populatesTables.length > 0 && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className="text-[10px] text-muted-foreground truncate cursor-default">
+                <div className="text-[10px] text-zinc-400 truncate cursor-default">
                   → {populatesTables.slice(0, 2).join(", ")}
                   {populatesTables.length > 2 && ` +${populatesTables.length - 2}`}
                 </div>
