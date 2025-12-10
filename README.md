@@ -157,7 +157,7 @@ npm run build
 
 ## 📚 Documentation
 
-- **[docs/core/VISION.md](docs/core/VISION.md)** - Mission, vision, and strategic goals
+- **[/capabilities → Vision tab](http://localhost:3000/capabilities)** - Mission, vision, and strategic goals (DB-backed)
 - **[docs/core/ARCHITECTURE.md](docs/core/ARCHITECTURE.md)** - System design and components
 - **[docs/core/DEVELOPMENT.md](docs/core/DEVELOPMENT.md)** - Development workflows and standards
 - **[docs/core/SETUP.md](docs/core/SETUP.md)** - Installation and setup guide
