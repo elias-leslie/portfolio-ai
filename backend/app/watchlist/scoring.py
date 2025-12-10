@@ -149,6 +149,12 @@ def _compute_technical_component(
     if technical.bb_lower is not None:
         metadata["bb_lower"] = technical.bb_lower
 
+    # Stochastic Oscillator data for UI display
+    if technical.stoch_k is not None:
+        metadata["stoch_k"] = technical.stoch_k
+    if technical.stoch_d is not None:
+        metadata["stoch_d"] = technical.stoch_d
+
     if not component_scores:
         metadata["reason"] = "missing_indicators"
         return ScoreComponent(

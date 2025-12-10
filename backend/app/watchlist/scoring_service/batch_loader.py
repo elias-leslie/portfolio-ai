@@ -95,6 +95,8 @@ def load_latest_technical(
             bb_upper=row.get("bb_upper"),
             bb_middle=row.get("bb_middle"),
             bb_lower=row.get("bb_lower"),
+            stoch_k=row.get("stoch_k"),
+            stoch_d=row.get("stoch_d"),
             price=None,
             calculated_at=calculated_at,
         )

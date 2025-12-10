@@ -291,6 +291,8 @@ class TechnicalSnapshot(BaseModel):
     bb_upper: float | None = None  # Bollinger Band upper (20, 2.0)
     bb_middle: float | None = None  # Bollinger Band middle (SMA-20)
     bb_lower: float | None = None  # Bollinger Band lower (20, 2.0)
+    stoch_k: float | None = None  # Stochastic %K (14, 3, 3)
+    stoch_d: float | None = None  # Stochastic %D (signal line)
     price: float | None = None
     calculated_at: datetime | None = None
 
