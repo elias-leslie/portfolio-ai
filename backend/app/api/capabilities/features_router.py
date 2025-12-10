@@ -6,7 +6,7 @@ This module provides REST API endpoints for feature capabilities:
 - GET /features/summary - Get feature statistics
 - POST /features - Add new feature (task_it agent)
 - DELETE /features/{feature_id} - Delete a feature and its subtasks
-- PATCH /features/{feature_id}/passes - Update passes status (do_it agent)
+- PATCH /features/{feature_id}/verified - Mark verification timestamp
 - PATCH /features/{feature_id}/status - Update work status
 - PATCH /features/{feature_id}/effort - Update effort estimate
 - PATCH /features/{feature_id}/priority - Update priority
@@ -38,7 +38,7 @@ Verification endpoints:
 - GET /features/criteria/pending - List pending criteria
 
 Implements Anthropic's long-running agent patterns:
-- Restricted modification (passes field only for do_it agent)
+- Verification status calculated dynamically (tasks=0 AND all criteria passed)
 - All-in-DB task tracking (replaces markdown file parsing)
 """
 
@@ -67,18 +67,6 @@ class FeatureCreate(BaseModel):
     name: str
     category: str
     description: str | None = None
-
-
-class FeaturePassesUpdate(BaseModel):
-    """Request model for updating feature passes status.
-
-    passes can be:
-    - true: Feature verified working
-    - false: Feature known to be broken
-    - null: Feature needs review (unverified)
-    """
-
-    passes: bool | None
 
 
 class FeatureLayersUpdate(BaseModel):
@@ -166,14 +154,12 @@ class FeatureResponse(BaseModel):
     name: str
     category: str | None
     description: str | None
-    passes: bool | None
     layers: list[str] = []  # Verification layers: Frontend, Backend, UI, API, DB, Tasks
     layer_results: dict[str, dict] = {}  # Per-layer verification: {"UI": {"passed": true}}
     total_tasks: int = 0  # From DB
     completed_tasks: int = 0  # From DB
     completion_pct: int = 0
-    health_status: str  # Calculated from passes status
-    needs_review: bool
+    health_status: str  # active or orphaned (based on tasks)
     last_verified_at: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
@@ -197,7 +183,6 @@ class FeatureSummaryResponse(BaseModel):
     """Response model for feature statistics."""
 
     total: int
-    passes_breakdown: dict[str, int]
     category_breakdown: dict[str, int]
     health_breakdown: dict[str, int]
 
@@ -248,14 +233,12 @@ def _feature_to_response(f: dict[str, Any]) -> FeatureResponse:
         name=f["name"],
         category=f.get("category"),
         description=f.get("description"),
-        passes=f.get("passes"),
         layers=f.get("layers", []),
         layer_results=f.get("layer_results", {}),
         total_tasks=f.get("total_tasks", 0),
         completed_tasks=f.get("completed_tasks", 0),
         completion_pct=f.get("completion_pct", 0),
         health_status=f.get("health_status", "unknown"),
-        needs_review=f.get("needs_review", False),
         last_verified_at=(f["last_verified_at"].isoformat() if f.get("last_verified_at") else None),
         created_at=f["created_at"].isoformat() if f.get("created_at") else None,
         updated_at=f["updated_at"].isoformat() if f.get("updated_at") else None,
@@ -271,13 +254,7 @@ def _feature_to_response(f: dict[str, Any]) -> FeatureResponse:
 @router.get("/", response_model=FeaturesListResponse)
 async def get_features(
     category: str | None = Query(None, description="Filter by category"),
-    passes: str | None = Query(
-        None, description="Filter by passes: true, false, null (unreviewed)"
-    ),
-    health_status: str | None = Query(
-        None, description="Filter by health: active, suspect, orphaned"
-    ),
-    needs_review: bool | None = Query(None, description="Filter by needs_review flag"),
+    health_status: str | None = Query(None, description="Filter by health: active, orphaned"),
     limit: int = Query(50, ge=1, le=500, description="Results per page"),
     offset: int = Query(0, ge=0, description="Results offset"),
 ) -> FeaturesListResponse:
@@ -285,9 +262,7 @@ async def get_features(
 
     Query params:
         - category: Filter by category (Dashboard, Watchlist, etc.)
-        - passes: Filter by passes status (true|false|null)
-        - health_status: Filter by health (active|suspect|orphaned)
-        - needs_review: Filter by needs_review flag
+        - health_status: Filter by health (active|orphaned)
         - limit: Results per page (default 50, max 500)
         - offset: Results offset for pagination
     """
@@ -304,22 +279,9 @@ async def get_features(
         if category:
             filtered_features = [f for f in filtered_features if f.get("category") == category]
 
-        if passes is not None:
-            if passes.lower() == "true":
-                filtered_features = [f for f in filtered_features if f.get("passes") is True]
-            elif passes.lower() == "false":
-                filtered_features = [f for f in filtered_features if f.get("passes") is False]
-            elif passes.lower() == "null":
-                filtered_features = [f for f in filtered_features if f.get("passes") is None]
-
         if health_status:
             filtered_features = [
                 f for f in filtered_features if f.get("health_status") == health_status
-            ]
-
-        if needs_review is not None:
-            filtered_features = [
-                f for f in filtered_features if f.get("needs_review") == needs_review
             ]
 
         # Apply pagination
@@ -344,7 +306,7 @@ async def get_features(
 async def get_features_summary() -> FeatureSummaryResponse:
     """Get feature statistics summary.
 
-    Returns counts by passes status, category, and health status.
+    Returns counts by category and health status.
     """
     conn_mgr = get_connection_manager()
     scanner = FeatureScanner(conn_mgr)
@@ -354,7 +316,6 @@ async def get_features_summary() -> FeatureSummaryResponse:
 
         return FeatureSummaryResponse(
             total=summary["total"],
-            passes_breakdown=summary["passes_breakdown"],
             category_breakdown=summary["category_breakdown"],
             health_breakdown=summary["health_breakdown"],
         )
@@ -651,7 +612,7 @@ async def create_feature(feature: FeatureCreate) -> dict[str, Any]:
     """Create a new feature.
 
     This endpoint is intended for the /task_it agent to add new features.
-    New features start with passes=NULL (not yet reviewed).
+    New features start with no tasks (needs setup).
 
     Args:
         feature: Feature data (name, category, description)
@@ -775,55 +736,12 @@ async def delete_feature(feature_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-@router.patch("/{feature_id}/passes", response_model=dict[str, Any])
-async def update_feature_passes(feature_id: str, update: FeaturePassesUpdate) -> dict[str, Any]:
-    """Update the passes status for a feature.
-
-    This endpoint is intended for the /do_it agent to verify features.
-    This is the ONLY field that can be modified after creation.
-
-    Args:
-        feature_id: Feature ID (e.g., FEAT-001)
-        update: New passes value
-    """
-    conn_mgr = get_connection_manager()
-    scanner = FeatureScanner(conn_mgr)
-
-    try:
-        success = scanner.update_passes(
-            feature_id=feature_id,
-            passes=update.passes,
-        )
-
-        if not success:
-            raise HTTPException(status_code=404, detail=f"Feature {feature_id} not found")
-
-        logger.info(
-            "feature_passes_updated",
-            feature_id=feature_id,
-            passes=update.passes,
-        )
-
-        return {
-            "status": "updated",
-            "feature_id": feature_id,
-            "passes": update.passes,
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("update_feature_passes_failed", feature_id=feature_id, error=str(e))
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-
 @router.patch("/{feature_id}/verified", response_model=dict[str, Any])
 async def mark_feature_verified(feature_id: str) -> dict[str, Any]:
-    """Mark feature as verified (updates last_verified_at without changing passes).
+    """Mark feature verification timestamp.
 
-    This endpoint should be called by /verify_it at the end of verification,
-    regardless of whether the feature passes or fails. This ensures the
-    "Checked" column in the UI reflects when verification last ran.
+    This endpoint should be called by /verify_it at the end of verification.
+    Updates last_verified_at to track when verification last ran.
 
     Args:
         feature_id: Feature ID (e.g., FEAT-001)

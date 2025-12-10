@@ -43,7 +43,6 @@ interface VisionGoal {
 interface FeatureLink {
   feature_id: string;
   name: string;
-  passes: boolean | null;
   criteria_total: number;
   criteria_passed: number;
 }
@@ -545,9 +544,9 @@ function ExpandedGoalContent({ code, description }: { code: string; description:
                 key={f.feature_id}
                 className="flex items-center gap-2 text-sm py-1 px-2 rounded bg-muted/30"
               >
-                {f.passes === true ? (
+                {f.criteria_total > 0 && f.criteria_passed === f.criteria_total ? (
                   <CheckCircle2 className="h-3.5 w-3.5 text-green-400 shrink-0" />
-                ) : f.passes === false ? (
+                ) : f.criteria_total > 0 && f.criteria_passed < f.criteria_total ? (
                   <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />
                 ) : (
                   <HelpCircle className="h-3.5 w-3.5 text-yellow-500 shrink-0" />

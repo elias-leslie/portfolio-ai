@@ -181,7 +181,6 @@ interface Feature {
   name: string;
   category: string | null;
   description: string | null;
-  passes: boolean | null;
   layers: string[];
   layer_results: Record<string, { passed: boolean; evidence?: string }>;
   test_count: number;
@@ -192,7 +191,6 @@ interface Feature {
   completed_tasks: number;
   completion_pct: number;
   health_status: string;
-  needs_review: boolean;
   last_verified_at: string | null;
   verified_by: string | null;
   tasks: Task[];
@@ -238,7 +236,7 @@ interface VisionGoal {
 }
 
 // Sorting types
-type SortColumn = "feature_id" | "priority" | "name" | "category" | "last_verified_at" | "criteria" | "passes" | "progress";
+type SortColumn = "feature_id" | "priority" | "name" | "category" | "last_verified_at" | "criteria" | "verified" | "progress";
 type SortDirection = "asc" | "desc";
 
 export function FeaturesTab() {
@@ -302,11 +300,11 @@ export function FeaturesTab() {
 
   // Fetch features - first get total, then fetch all, then fetch gaps
   const { data: featuresData, isLoading } = useQuery<FeaturesResponse>({
-    queryKey: ["features", categoryFilter, passesFilter],
+    queryKey: ["features", categoryFilter],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (categoryFilter !== "all") params.set("category", categoryFilter);
-      if (passesFilter !== "all") params.set("passes", passesFilter);
+      // Note: verification status filtering is done client-side since it's computed dynamically
 
       // First request to get total count
       params.set("limit", "1");
@@ -405,13 +403,33 @@ export function FeaturesTab() {
       : <ArrowDown className="h-3 w-3 ml-1" />;
   };
 
-  // Filter features by search query and vision goal
+  // Helper to compute verification status for a feature
+  const getVerificationStatus = (f: Feature): "verified" | "needs-review" | "has-tasks" | "no-criteria" => {
+    const incompleteTasks = f.total_tasks - f.completed_tasks;
+    const criteria = f.acceptance_criteria ?? [];
+    const hasCriteria = criteria.length > 0;
+    const allPassed = hasCriteria && criteria.every((c) => c.passed === true);
+
+    if (incompleteTasks > 0) return "has-tasks";
+    if (!hasCriteria) return "no-criteria";
+    if (allPassed) return "verified";
+    return "needs-review";
+  };
+
+  // Filter features by search query, vision goal, and verification status
   const filteredFeatures = featuresData?.features.filter((f) => {
     // Vision goal filter
     if (visionGoalFilter !== "all") {
       if (!f.vision_goals || !f.vision_goals.includes(visionGoalFilter)) {
         return false;
       }
+    }
+    // Verification status filter (client-side computed)
+    if (passesFilter !== "all") {
+      const status = getVerificationStatus(f);
+      if (passesFilter === "true" && status !== "verified") return false;
+      if (passesFilter === "false" && status !== "needs-review" && status !== "has-tasks") return false;
+      if (passesFilter === "null" && status !== "no-criteria") return false;
     }
     // Search filter
     if (!searchQuery) return true;
@@ -487,10 +505,18 @@ export function FeaturesTab() {
         comparison = aRatio - bRatio || aTotal - bTotal;
         break;
       }
-      case "passes": {
-        // null=0, false=1, true=2 for ascending (unreviewed first, then failing, then verified)
-        const passesOrder = (p: boolean | null) => p === null ? 0 : p === false ? 1 : 2;
-        comparison = passesOrder(a.passes) - passesOrder(b.passes);
+      case "verified": {
+        // Sort by computed verification status: has-tasks=0, no-criteria=1, needs-review=2, verified=3
+        const statusOrder = (status: string) => {
+          switch(status) {
+            case "has-tasks": return 0;
+            case "no-criteria": return 1;
+            case "needs-review": return 2;
+            case "verified": return 3;
+            default: return 1;
+          }
+        };
+        comparison = statusOrder(getVerificationStatus(a)) - statusOrder(getVerificationStatus(b));
         break;
       }
       case "progress":
@@ -544,10 +570,11 @@ export function FeaturesTab() {
   };
   const defaultCategoryColor = { bg: "#71717a20", text: "#a1a1aa", border: "#71717a40" };
 
-  // Get row background color based on passes status
-  const getRowBgColor = (passes: boolean | null) => {
-    if (passes === true) return "rgba(34, 197, 94, 0.05)";  // green tint
-    if (passes === false) return "rgba(239, 68, 68, 0.08)"; // red tint
+  // Get row background color based on verification status
+  const getRowBgColor = (feature: Feature) => {
+    const status = getVerificationStatus(feature);
+    if (status === "verified") return "rgba(34, 197, 94, 0.05)";  // green tint
+    if (status === "has-tasks" || status === "needs-review") return "rgba(239, 68, 68, 0.08)"; // red tint
     return "transparent";
   };
 
@@ -1023,10 +1050,10 @@ export function FeaturesTab() {
                 </TableHead>
                 <TableHead
                   className="px-2 w-24 cursor-pointer hover:bg-muted/50 select-none"
-                  onClick={() => handleSort("passes")}
+                  onClick={() => handleSort("verified")}
                 >
                   <div className="flex items-center">
-                    Verified{getSortIcon("passes")}
+                    Verified{getSortIcon("verified")}
                   </div>
                 </TableHead>
                 <TableHead
@@ -1058,7 +1085,7 @@ export function FeaturesTab() {
                       tabIndex={(hasTasks || (feature.acceptance_criteria && feature.acceptance_criteria.length > 0)) ? 0 : -1}
                       role="row"
                       aria-expanded={(hasTasks || (feature.acceptance_criteria && feature.acceptance_criteria.length > 0)) ? isExpanded : undefined}
-                      style={{ backgroundColor: getRowBgColor(feature.passes) }}
+                      style={{ backgroundColor: getRowBgColor(feature) }}
                     >
                       <TableCell className="font-mono text-xs px-2 align-top py-2 w-20">
                         <div className="flex items-center gap-1">
@@ -1076,11 +1103,11 @@ export function FeaturesTab() {
                           </span>
                           <span
                             style={{
-                              color: feature.passes === true
+                              color: getVerificationStatus(feature) === "verified"
                                 ? "#4ade80"  // green-400
-                                : feature.passes === false
+                                : getVerificationStatus(feature) === "has-tasks" || getVerificationStatus(feature) === "needs-review"
                                 ? "#f87171"  // red-400
-                                : "#a1a1aa", // zinc-400
+                                : "#a1a1aa", // zinc-400 for no-criteria
                             }}
                           >
                             <HighlightMatch text={feature.feature_id} query={searchQuery} />
@@ -1092,7 +1119,7 @@ export function FeaturesTab() {
                       </TableCell>
                       <TableCell className="px-2 align-top py-2 w-40">
                         <div className="flex items-center gap-1">
-                          {feature.needs_review && (
+                          {getVerificationStatus(feature) === "needs-review" && (
                             <span
                               className="w-2 h-2 rounded-full shrink-0"
                               style={{ backgroundColor: "#f59e0b" }}

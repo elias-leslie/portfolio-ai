@@ -2,18 +2,19 @@
 
 Validates features in feature_capabilities table:
 - Calculates completion from feature_tasks table (all-in-DB approach)
-- Updates health_status based on verification state
+- Verification status calculated dynamically from tasks + acceptance criteria
 
 Agent permissions (corruption protection):
-- Scanner can only modify: passes, last_verified_at
+- Scanner can only modify: last_verified_at, acceptance_criteria
 - Other fields (name, description) are read-only
 - Features can only be added via /task_it, deleted manually
 - Subtasks can be added/toggled via API
 
 All-in-DB architecture:
-- feature_capabilities: Features with passes status
+- feature_capabilities: Features with acceptance_criteria
 - feature_tasks: Subtasks with completion status
 - Progress = COUNT(completed=true) / COUNT(*) from feature_tasks
+- Verified = tasks=0 AND all acceptance_criteria.passed=true (dynamic)
 """
 
 from __future__ import annotations
@@ -36,8 +37,8 @@ class FeatureScanner:
     existing features by checking their linked task files and completion status.
 
     Implements Anthropic's long-running agent patterns:
-    - Restricted field modification (passes, health_status only)
-    - Task file linkage validation
+    - Restricted field modification (last_verified_at, acceptance_criteria only)
+    - Verification status calculated dynamically
     - Section completion parsing from markdown
     """
 
@@ -60,16 +61,12 @@ class FeatureScanner:
                 - feature_id: str
                 - name: str
                 - category: str
-                - passes: bool | None
-                - task_file: str | None (deprecated - for migration)
-                - task_section: str | None (deprecated - for migration)
-                - task_file_exists: bool (deprecated - for migration)
-                - total_tasks: int (from DB or markdown)
-                - completed_tasks: int (from DB or markdown)
+                - total_tasks: int (from DB)
+                - completed_tasks: int (from DB)
                 - completion_pct: int
                 - health_status: str
-                - needs_review: bool
                 - tasks: list[dict] (subtasks from DB)
+                - acceptance_criteria: list[dict] (with passed status)
         """
         logger.info("scanning_features")
 
@@ -81,7 +78,7 @@ class FeatureScanner:
                 """
                 SELECT
                     f.id, f.feature_id, f.name, f.category, f.description,
-                    f.passes, f.last_verified_at, f.created_at, f.updated_at,
+                    f.last_verified_at, f.created_at, f.updated_at,
                     COALESCE(t.total_tasks, 0) as db_total_tasks,
                     COALESCE(t.completed_tasks, 0) as db_completed_tasks,
                     CASE WHEN f.layers IS NULL OR f.layers = '{}' THEN ARRAY['Frontend', 'Backend', 'UI'] ELSE f.layers END as layers,
@@ -161,7 +158,6 @@ class FeatureScanner:
             name,
             category,
             description,
-            passes,
             last_verified_at,
             created_at,
             updated_at,
@@ -186,29 +182,18 @@ class FeatureScanner:
         if total_tasks > 0:
             completion_pct = int((completed_tasks / total_tasks) * 100)
 
-        # Calculate health status
+        # Calculate health status (based on tasks only now)
         calculated_health = self._calculate_health_status(
-            passes=passes,
             has_tasks=db_total_tasks > 0,
             completion_pct=completion_pct,
-            total_tasks=total_tasks,
         )
 
-        # Determine if feature needs review
-        needs_review = False
-        if passes is True and completion_pct < 100:
-            needs_review = True  # Marked as passing but tasks incomplete
-        elif passes is None:
-            needs_review = True  # Not yet reviewed
-        elif passes is False and completion_pct == 100:
-            needs_review = True  # Tasks complete, may be ready to pass
-
-        # Calculate effective priority
+        # Calculate effective priority (based on layer progress)
         effective_priority = self._calculate_effective_priority(
             priority=priority,
-            passes=passes,
             layers=layers,
             layer_results=layer_results,
+            acceptance_criteria=acceptance_criteria,
         )
 
         return {
@@ -217,14 +202,12 @@ class FeatureScanner:
             "name": name,
             "category": category,
             "description": description,
-            "passes": passes,
             "layers": layers if layers else ["Frontend", "Backend", "UI"],
             "layer_results": layer_results if layer_results else {},
             "total_tasks": total_tasks,
             "completed_tasks": completed_tasks,
             "completion_pct": completion_pct,
             "health_status": calculated_health,
-            "needs_review": needs_review,
             "last_verified_at": last_verified_at,
             "created_at": created_at,
             "updated_at": updated_at,
@@ -237,61 +220,46 @@ class FeatureScanner:
 
     def _calculate_health_status(
         self,
-        passes: bool | None,
         has_tasks: bool,
         completion_pct: int,
-        total_tasks: int,
     ) -> str:
-        """Calculate health status based on feature validation.
+        """Calculate health status based on task state.
 
         Args:
-            passes: Current passes status
             has_tasks: Whether has DB tasks
             completion_pct: Completion percentage of tasks
-            total_tasks: Total tasks
 
         Returns:
-            Health status: 'active', 'suspect', 'orphaned'
+            Health status: 'active', 'orphaned'
         """
-        # No tasks defined - orphaned
-        if not has_tasks and total_tasks == 0:
+        # No tasks defined - orphaned (needs setup)
+        if not has_tasks:
             return "orphaned"
 
-        # Passes marked true but tasks incomplete - suspect
-        if passes is True and completion_pct < 100:
-            return "suspect"
-
-        # Passes marked false or null but tasks complete - active (ready for review)
-        if passes is not True and completion_pct == 100:
-            return "active"
-
-        # Passes true and tasks complete - active
-        if passes is True and completion_pct == 100:
-            return "active"
-
+        # Has tasks - active
         return "active"
 
     def _calculate_effective_priority(  # noqa: PLR0911
         self,
         priority: int | None,
-        passes: bool | None,
         layers: list[str] | None,
         layer_results: dict | None,
+        acceptance_criteria: list[dict[str, Any]] | None,
     ) -> int:
         """Calculate effective priority based on verification state.
 
-        Priority is auto-calculated from layer verification progress unless
-        a user override (priority field) is set.
+        Priority is auto-calculated from layer verification progress and
+        acceptance criteria status unless a user override is set.
 
         Args:
             priority: User override priority (1-5), or None for auto
-            passes: Current passes status
             layers: List of verification layers
             layer_results: Dict of layer verification results
+            acceptance_criteria: List of acceptance criteria dicts
 
         Returns:
             Effective priority 1-5:
-                1 = Critical (broken)
+                1 = Critical (failing criteria)
                 2 = High (almost verified)
                 3 = Medium (partially verified)
                 4 = Low (started)
@@ -301,8 +269,9 @@ class FeatureScanner:
         if priority is not None:
             return priority
 
-        # Broken features are highest priority
-        if passes is False:
+        # Check if any criteria are failing - highest priority
+        criteria = acceptance_criteria if acceptance_criteria else []
+        if criteria and any(c.get("passed") is False for c in criteria):
             return 1
 
         # Calculate layer verification progress
@@ -324,48 +293,10 @@ class FeatureScanner:
             return 4  # Started
         return 5  # Not started
 
-    def update_passes(
-        self,
-        feature_id: str,
-        passes: bool,
-    ) -> bool:
-        """Update the passes field for a feature.
-
-        This is the ONLY field modification allowed by the coding agent (/do_it).
-        Other fields require using /task_it.
-
-        Args:
-            feature_id: Feature ID (e.g., "FEAT-001")
-            passes: New passes value (True = verified, False = failing)
-
-        Returns:
-            True if update succeeded, False otherwise
-        """
-        logger.info(
-            "updating_feature_passes",
-            feature_id=feature_id,
-            passes=passes,
-        )
-
-        with self.conn_mgr.connection() as conn:
-            result = conn.execute(
-                """
-                UPDATE feature_capabilities
-                SET passes = %s,
-                    last_verified_at = %s,
-                    updated_at = NOW()
-                WHERE feature_id = %s
-                """,
-                (passes, datetime.now(UTC), feature_id),
-            )
-            conn.commit()
-
-            return result.rowcount > 0 if hasattr(result, "rowcount") else True
-
     def update_last_verified(self, feature_id: str) -> bool:
-        """Update last_verified_at timestamp without changing passes.
+        """Update last_verified_at timestamp.
 
-        Use this when verification runs but doesn't change the pass status.
+        Use this when verification runs to record when the feature was last checked.
         This ensures the "Checked" column in UI reflects when verification last ran.
 
         Args:
@@ -403,7 +334,7 @@ class FeatureScanner:
         """Add a new feature to the registry.
 
         Only allowed by the initializer agent (/task_it).
-        New features start with passes=NULL (not yet reviewed).
+        New features start with no tasks (needs setup).
 
         Args:
             feature_id: Feature ID (e.g., "FEAT-001")
@@ -426,10 +357,10 @@ class FeatureScanner:
                 conn.execute(
                     """
                     INSERT INTO feature_capabilities (
-                        feature_id, name, category, description, passes,
+                        feature_id, name, category, description,
                         created_at, updated_at
                     ) VALUES (
-                        %s, %s, %s, %s, NULL, NOW(), NOW()
+                        %s, %s, %s, %s, NOW(), NOW()
                     )
                     """,
                     (
@@ -476,22 +407,6 @@ class FeatureScanner:
             total_row = conn.execute("SELECT COUNT(*) FROM feature_capabilities").fetchone()
             total = total_row[0] if total_row else 0
 
-            # By passes status
-            passes_rows = conn.execute(
-                """
-                SELECT
-                    CASE
-                        WHEN passes IS NULL THEN 'unreviewed'
-                        WHEN passes = true THEN 'passing'
-                        ELSE 'failing'
-                    END as status,
-                    COUNT(*)
-                FROM feature_capabilities
-                GROUP BY 1
-                """
-            ).fetchall()
-            passes_breakdown = {row[0]: row[1] for row in passes_rows}
-
             # By category
             category_rows = conn.execute(
                 """
@@ -503,20 +418,18 @@ class FeatureScanner:
             ).fetchall()
             category_breakdown = {row[0] or "Uncategorized": row[1] for row in category_rows}
 
-            # By health status (calculated dynamically since column was dropped)
+            # By health status (based on tasks)
             health_rows = conn.execute(
                 """
                 SELECT
                     CASE
                         WHEN t.total_tasks = 0 OR t.total_tasks IS NULL THEN 'orphaned'
-                        WHEN f.passes = true AND t.completed_tasks < t.total_tasks THEN 'suspect'
                         ELSE 'active'
                     END as health_status,
                     COUNT(*)
                 FROM feature_capabilities f
                 LEFT JOIN (
-                    SELECT feature_id, COUNT(*) as total_tasks,
-                           COUNT(*) FILTER (WHERE completed = true) as completed_tasks
+                    SELECT feature_id, COUNT(*) as total_tasks
                     FROM feature_tasks
                     GROUP BY feature_id
                 ) t ON t.feature_id = f.id
@@ -527,7 +440,6 @@ class FeatureScanner:
 
             return {
                 "total": total,
-                "passes_breakdown": passes_breakdown,
                 "category_breakdown": category_breakdown,
                 "health_breakdown": health_breakdown,
             }
