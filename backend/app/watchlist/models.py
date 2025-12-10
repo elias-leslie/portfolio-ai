@@ -288,6 +288,9 @@ class TechnicalSnapshot(BaseModel):
     ema_200: float | None = None
     macd: float | None = None
     macd_signal: float | None = None
+    bb_upper: float | None = None  # Bollinger Band upper (20, 2.0)
+    bb_middle: float | None = None  # Bollinger Band middle (SMA-20)
+    bb_lower: float | None = None  # Bollinger Band lower (20, 2.0)
     price: float | None = None
     calculated_at: datetime | None = None
 
@@ -299,7 +302,9 @@ class WatchlistScoreInputs(BaseModel):
     price_change_pct: float | None = None
     technical: TechnicalSnapshot = Field(default_factory=TechnicalSnapshot)
     fundamental: Any | None = None  # FundamentalData (avoid circular import)
-    news_articles: list[dict[str, str | datetime | float | None]] = Field(default_factory=list)  # NEW: For catalyst scoring
+    news_articles: list[dict[str, str | datetime | float | None]] = Field(
+        default_factory=list
+    )  # NEW: For catalyst scoring
     weights: ScoreWeights = Field(default_factory=ScoreWeights)
     now: datetime = Field(default_factory=lambda: datetime.now(UTC))
     stale_ttl_minutes: int = 15  # Default to 15 minutes (3x default 5min refresh)

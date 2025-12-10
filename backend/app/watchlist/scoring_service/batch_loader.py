@@ -92,6 +92,9 @@ def load_latest_technical(
             ema_200=row.get("ema_200"),
             macd=row.get("macd"),
             macd_signal=row.get("macd_signal"),
+            bb_upper=row.get("bb_upper"),
+            bb_middle=row.get("bb_middle"),
+            bb_lower=row.get("bb_lower"),
             price=None,
             calculated_at=calculated_at,
         )

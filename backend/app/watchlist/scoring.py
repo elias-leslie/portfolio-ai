@@ -141,6 +141,14 @@ def _compute_technical_component(
     if technical.price is not None:
         metadata["price"] = technical.price
 
+    # Bollinger Bands data for UI display
+    if technical.bb_upper is not None:
+        metadata["bb_upper"] = technical.bb_upper
+    if technical.bb_middle is not None:
+        metadata["bb_middle"] = technical.bb_middle
+    if technical.bb_lower is not None:
+        metadata["bb_lower"] = technical.bb_lower
+
     if not component_scores:
         metadata["reason"] = "missing_indicators"
         return ScoreComponent(
@@ -360,20 +368,25 @@ def calculate_watchlist_scores(inputs: WatchlistScoreInputs) -> ScoreBreakdown:
     components_used = [
         (price_component, weights["price"], True),
         (technical_component, weights["technical"], True),
-        (fundamental_component, weights.get("fundamental", 0.0), fundamental_component and not fundamental_component.stale),
+        (
+            fundamental_component,
+            weights.get("fundamental", 0.0),
+            fundamental_component and not fundamental_component.stale,
+        ),
         (catalyst_component, weights.get("catalyst", 0.0), catalyst_component is not None),
     ]
 
     # Filter to only active components
-    active_components = [(comp, weight) for comp, weight, is_active in components_used if is_active and comp]
+    active_components = [
+        (comp, weight) for comp, weight, is_active in components_used if is_active and comp
+    ]
 
     if active_components:
         # Renormalize weights for active components only
         total_weight = sum(weight for _, weight in active_components)
         if total_weight > 0:
             overall = sum(
-                comp.score * (weight / total_weight)
-                for comp, weight in active_components
+                comp.score * (weight / total_weight) for comp, weight in active_components
             )
         else:
             # Fallback: equal weights if all weights are 0
