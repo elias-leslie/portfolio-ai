@@ -241,6 +241,15 @@ def save_backtest_trade(
     )
 
     with storage.connection() as conn:
+        # Ensure symbol exists in symbols table (FK constraint)
+        conn.execute(
+            """
+            INSERT INTO symbols (symbol, security_type, created_at)
+            VALUES (%s, 'equity', NOW())
+            ON CONFLICT (symbol) DO NOTHING
+            """,
+            (trade.symbol,),
+        )
         conn.execute(query, params)
         conn.commit()
 

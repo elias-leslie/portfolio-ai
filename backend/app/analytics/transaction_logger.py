@@ -89,6 +89,15 @@ class TransactionLogger:
 
         try:
             with self.storage.connection() as conn:
+                # Ensure symbol exists in symbols table (FK constraint)
+                conn.execute(
+                    """
+                    INSERT INTO symbols (symbol, security_type, created_at)
+                    VALUES ($1, 'equity', NOW())
+                    ON CONFLICT (symbol) DO NOTHING
+                    """,
+                    [symbol],
+                )
                 conn.execute(
                     insert_query,
                     [
@@ -193,6 +202,15 @@ class TransactionLogger:
 
         try:
             with self.storage.connection() as conn:
+                # Ensure symbol exists in symbols table (FK constraint)
+                conn.execute(
+                    """
+                    INSERT INTO symbols (symbol, security_type, created_at)
+                    VALUES ($1, 'equity', NOW())
+                    ON CONFLICT (symbol) DO NOTHING
+                    """,
+                    [symbol],
+                )
                 conn.execute(
                     insert_query,
                     [

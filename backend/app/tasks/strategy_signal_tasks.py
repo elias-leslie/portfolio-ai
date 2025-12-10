@@ -202,6 +202,15 @@ def store_signal(conn: Any, signal_data: dict[str, Any]) -> str | None:
         return None
 
     try:
+        # Ensure symbol exists in symbols table (FK constraint)
+        conn.execute(
+            """
+            INSERT INTO symbols (symbol, security_type, created_at)
+            VALUES (%s, 'equity', NOW())
+            ON CONFLICT (symbol) DO NOTHING
+            """,
+            (signal_data["symbol"],),
+        )
         result = conn.execute(
             """
             INSERT INTO strategy_signals (
