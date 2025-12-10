@@ -292,7 +292,7 @@ def calculate_indicators_from_df(
 
     return {
         "symbol": symbol,
-        "date": latest_date.strftime("%Y-%m-%d"),
+        "date": latest_date.date() if hasattr(latest_date, "date") else latest_date,
         "indicators": indicator_values,
         "interpretations": interpretations,
     }

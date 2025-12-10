@@ -16,10 +16,10 @@ from typing import Any, cast
 # Import from scoring.py (file, not scoring/ package)
 from app.watchlist.scoring import calculate_watchlist_scores
 
+from ...constants import DEFAULT_BACKFILL_DAYS
 from ...logging_config import get_logger
 from ...portfolio.price_fetcher import PriceDataFetcher
 from ...storage import PortfolioStorage
-from ...storage.connection import ConnectionManager
 from ...utils.preferences_loader import UserPreferences
 from ..data_loaders import (
     load_default_weights,
@@ -154,7 +154,7 @@ class WatchlistService:
             try:
                 from ...tasks.ingestion import ingest_historical_ohlcv  # noqa: PLC0415
 
-                ingest_historical_ohlcv.delay([symbol], days=252)
+                ingest_historical_ohlcv.delay([symbol], days=DEFAULT_BACKFILL_DAYS)
                 logger.info(
                     "watchlist_refresh_scores_queued_backfill",
                     symbol=symbol,

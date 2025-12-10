@@ -16,6 +16,7 @@ from typing import Any
 
 import polars as pl
 
+from ...constants import DEFAULT_BACKFILL_DAYS
 from ...logging_config import get_logger
 from ...portfolio.price_fetcher import PriceDataFetcher
 from ...services import NewsService
@@ -128,7 +129,7 @@ def trigger_auto_backfill(storage: PortfolioStorage, symbols: list[str]) -> None
             )
 
             # Trigger async backfill task (non-blocking)
-            ingest_historical_ohlcv.delay(symbols_needing_backfill, days=252)
+            ingest_historical_ohlcv.delay(symbols_needing_backfill, days=DEFAULT_BACKFILL_DAYS)
 
             logger.info(
                 "auto_backfill_task_dispatched",

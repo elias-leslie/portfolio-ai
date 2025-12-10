@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from app.constants import DEFAULT_BACKFILL_DAYS, DEFAULT_DAILY_REFRESH_DAYS
 from app.logging_config import get_logger
 from app.services.celery_inspector import should_skip_cascade
 from app.tasks import (
@@ -37,14 +38,17 @@ def schedule_new_symbol_tasks(symbol: str) -> None:
                 reason="queue_depth_exceeded",
             )
             # Still schedule data ingestion (critical for new symbol), skip the rest
-            ingest_historical_ohlcv.delay(symbols=[symbol], days=1300)
-            logger.info("Triggered historical data ingestion (5 years)", symbol=symbol)
+            ingest_historical_ohlcv.delay(symbols=[symbol], days=DEFAULT_BACKFILL_DAYS)
+            logger.info(
+                "Triggered historical data ingestion", symbol=symbol, days=DEFAULT_BACKFILL_DAYS
+            )
             return
 
-        # Ingest 5 years of historical OHLCV data (~1300 trading days)
-        # This ensures sufficient data for backtesting (1-year lookback)
-        ingest_historical_ohlcv.delay(symbols=[symbol], days=1300)
-        logger.info("Triggered historical data ingestion (5 years)", symbol=symbol)
+        # Ingest historical OHLCV data (configurable via DEFAULT_BACKFILL_DAYS)
+        ingest_historical_ohlcv.delay(symbols=[symbol], days=DEFAULT_BACKFILL_DAYS)
+        logger.info(
+            "Triggered historical data ingestion", symbol=symbol, days=DEFAULT_BACKFILL_DAYS
+        )
 
         # Calculate technical indicators (will run after ingestion completes)
         # Increased delay to allow 5-year data fetch to complete
@@ -91,8 +95,8 @@ def schedule_refresh_tasks(symbols: list[str]) -> None:
             )
             return
 
-        # Fetch latest OHLCV data (last 5 days to update recent bars)
-        ingest_historical_ohlcv.delay(symbols=symbols, days=5)
+        # Fetch latest OHLCV data to update recent bars
+        ingest_historical_ohlcv.delay(symbols=symbols, days=DEFAULT_DAILY_REFRESH_DAYS)
         logger.info("Triggered OHLCV data refresh", symbols=symbols)
 
         # Update technical indicators (will run after ingestion completes)

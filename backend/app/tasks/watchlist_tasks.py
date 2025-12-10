@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from celery import Task
 
 from app.celery_app import celery_app
+from app.constants import DEFAULT_BACKFILL_DAYS
 from app.logging_config import get_logger
 from app.storage import PortfolioStorage, get_storage
 from app.tasks.types import WatchlistResultDict
@@ -146,7 +147,7 @@ def _trigger_auto_backfill(storage: PortfolioStorage) -> None:
                 from .ingestion import ingest_historical_ohlcv  # noqa: PLC0415
 
                 # Trigger async backfill (non-blocking)
-                ingest_historical_ohlcv.delay(symbols_needing_backfill, days=252)
+                ingest_historical_ohlcv.delay(symbols_needing_backfill, days=DEFAULT_BACKFILL_DAYS)
 
                 logger.info(
                     "auto_backfill_task_dispatched_from_task",

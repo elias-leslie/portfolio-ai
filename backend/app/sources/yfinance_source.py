@@ -11,6 +11,7 @@ import datetime as dt
 import json
 import os
 from collections.abc import Iterable
+from pathlib import Path
 from typing import Any
 
 import polars as pl
@@ -20,10 +21,16 @@ import polars as pl
 if not os.environ.get("HOME"):
     os.environ["HOME"] = "/var/cache/portfolio-ai"
 
-import yfinance as yf  # yfinance doesn't ship type stubs
+import yfinance as yf
 
 from ..logging_config import get_logger
 from .base import BaseSource, DatasetRequest, standardize_dates
+
+# Configure yfinance cache location to avoid SQLite readonly errors in Celery workers
+# The default location may have permission issues or concurrent access conflicts
+_yf_cache_dir = Path(os.environ.get("HOME", "/tmp")) / ".cache" / "yfinance"
+_yf_cache_dir.mkdir(parents=True, exist_ok=True)
+yf.cache.set_cache_location(str(_yf_cache_dir))
 
 logger = get_logger(__name__)
 
@@ -434,16 +441,18 @@ class YFinanceSource(BaseSource):
 
             transactions = []
             for _, row in insiders.iterrows():
-                transactions.append({
-                    "symbol": symbol,
-                    "insider_name": row.get("Insider"),
-                    "insider_title": row.get("Position"),
-                    "transaction_type": row.get("Transaction"),
-                    "transaction_date": row.get("Start Date"),
-                    "shares": row.get("Shares"),
-                    "value": row.get("Value"),
-                    "shares_owned_after": row.get("Shares Owned After"),
-                })
+                transactions.append(
+                    {
+                        "symbol": symbol,
+                        "insider_name": row.get("Insider"),
+                        "insider_title": row.get("Position"),
+                        "transaction_type": row.get("Transaction"),
+                        "transaction_date": row.get("Start Date"),
+                        "shares": row.get("Shares"),
+                        "value": row.get("Value"),
+                        "shares_owned_after": row.get("Shares Owned After"),
+                    }
+                )
 
             logger.debug(f"Fetched {len(transactions)} insider transactions for {symbol}")
             return transactions
@@ -455,7 +464,9 @@ class YFinanceSource(BaseSource):
     # ============================================
     # GAP-007: Institutional Holdings
     # ============================================
-    def fetch_institutional_holders(self, symbol: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    def fetch_institutional_holders(
+        self, symbol: str
+    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         """Fetch institutional holders for a symbol.
 
         Args:
@@ -472,14 +483,16 @@ class YFinanceSource(BaseSource):
             holders = []
             if holders_df is not None and not holders_df.empty:
                 for _, row in holders_df.iterrows():
-                    holders.append({
-                        "symbol": symbol,
-                        "holder_name": row.get("Holder"),
-                        "shares": row.get("Shares"),
-                        "value": row.get("Value"),
-                        "pct_held": row.get("% Out"),
-                        "report_date": row.get("Date Reported"),
-                    })
+                    holders.append(
+                        {
+                            "symbol": symbol,
+                            "holder_name": row.get("Holder"),
+                            "shares": row.get("Shares"),
+                            "value": row.get("Value"),
+                            "pct_held": row.get("% Out"),
+                            "report_date": row.get("Date Reported"),
+                        }
+                    )
 
             # Summary from info
             summary = {
@@ -531,7 +544,9 @@ class YFinanceSource(BaseSource):
                 "short_percent_of_float": short_pct_float,
                 "short_percent_of_outstanding": short_pct_outstanding,
                 "short_prior_month": info.get("sharesShortPriorMonth"),
-                "short_pct_change": info.get("sharesShortPreviousMonthDate"),  # This is actually a date
+                "short_pct_change": info.get(
+                    "sharesShortPreviousMonthDate"
+                ),  # This is actually a date
             }
 
         except Exception as e:

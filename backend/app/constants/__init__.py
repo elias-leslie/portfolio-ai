@@ -62,6 +62,19 @@ PRICE_DECIMAL_PLACES = 2
 DEFAULT_RISK_FREE_RATE = 0.04
 
 # =============================================================================
+# DATA INGESTION
+# =============================================================================
+# Default days of historical OHLCV data to fetch for backfill operations.
+# 1300 trading days ≈ 5 years - provides enough data for:
+# - 200-day moving averages and all other technical indicators
+# - 1-year lookback for backtesting with sufficient warm-up period
+# - Historical volatility and risk calculations
+DEFAULT_BACKFILL_DAYS = 1300
+
+# Daily refresh only fetches recent data (last 5 days) to update existing bars
+DEFAULT_DAILY_REFRESH_DAYS = 5
+
+# =============================================================================
 # ENVIRONMENT VARIABLE NAMES
 # =============================================================================
 ENV_DB_PATH = "DB_PATH"
@@ -77,8 +90,10 @@ __all__ = [
     "DEFAULT_AGENT_COST_LIMIT_USD",
     "DEFAULT_AGENT_TIMEOUT_MINUTES",
     "DEFAULT_API_TIMEOUT_SECONDS",
+    "DEFAULT_BACKFILL_DAYS",
     "DEFAULT_BACKUP_DIR",
     "DEFAULT_CONFIG_DIR",
+    "DEFAULT_DAILY_REFRESH_DAYS",
     "DEFAULT_DB_PATH",
     "DEFAULT_LOG_DIR",
     "DEFAULT_PORTFOLIO_CONFIG_DIR",
