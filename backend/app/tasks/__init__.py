@@ -40,27 +40,28 @@ from .indicators import (
     update_technical_indicators,
 )
 from .ingestion import ingest_historical_ohlcv
-from .watchlist_tasks import refresh_watchlist_scores_task
+from .watchlist_tasks import refresh_single_symbol_scores_task, refresh_watchlist_scores_task
 
 __all__ = [
     # Modules
     "agent_tasks",
-    "capability_tasks",
-    "ingestion",
     # Individual tasks (backward compatibility)
     "backfill_technical_indicators",
     "calculate_fear_greed",
+    "capability_tasks",
     "ingest_historical_ohlcv",
+    "ingestion",
     "log_cleanup_tasks",
     "maintenance_tasks",
     "ml_training_tasks",
     "news_profiling_tasks",
     "news_tasks",
     "reference_tasks",
+    "refresh_single_symbol_scores_task",
     "refresh_watchlist_scores_task",
     "run_discovery_agent",
-    "strategy_monitoring_tasks",
     "run_portfolio_analyzer",
+    "strategy_monitoring_tasks",
     "update_paper_trades_task",
     "update_technical_indicators",
     "watchlist_tasks",

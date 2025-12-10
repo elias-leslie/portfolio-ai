@@ -188,7 +188,9 @@ def _build_skip_result(
 
 
 @celery_app.task(name="refresh_watchlist_scores", bind=True)  # type: ignore[misc]
-def refresh_watchlist_scores_task(self: Task, account_id: str | None = None) -> WatchlistResultDict:
+def refresh_watchlist_scores_task(
+    self: Task, account_id: str | None = None, force: bool = False
+) -> WatchlistResultDict:
     """Refresh watchlist scores for all items or a specific account.
 
     This task runs every 1 minute via Celery Beat, but respects the user's
@@ -222,7 +224,7 @@ def refresh_watchlist_scores_task(self: Task, account_id: str | None = None) -> 
             }
 
         return _refresh_watchlist_scores_impl(
-            self, account_id, skip_check_start, start_time, task_id
+            self, account_id, skip_check_start, start_time, task_id, force
         )
 
 
@@ -232,8 +234,13 @@ def _refresh_watchlist_scores_impl(
     skip_check_start: float,
     start_time: float,
     task_id: str,
+    force: bool = False,
 ) -> WatchlistResultDict:
-    """Implementation of watchlist score refresh (extracted for lock context)."""
+    """Implementation of watchlist score refresh (extracted for lock context).
+
+    Args:
+        force: If True, bypass rate limit check (used for new symbol adds)
+    """
     try:
         storage = get_storage()
 
@@ -245,7 +252,7 @@ def _refresh_watchlist_scores_impl(
 
         # Calculate time since last refresh
         now = dt.datetime.now(dt.UTC)
-        if last_refresh:
+        if last_refresh and not force:
             # Ensure last_refresh is timezone-aware
             if last_refresh.tzinfo is None:
                 last_refresh = last_refresh.replace(tzinfo=dt.UTC)
@@ -255,6 +262,7 @@ def _refresh_watchlist_scores_impl(
             minutes_since_refresh = (now - last_refresh).total_seconds() / 60.0
 
             # Skip if not enough time has passed (check BEFORE auto-backfill to avoid cascade spam)
+            # NOTE: force=True bypasses this check (used for new symbol adds)
             if minutes_since_refresh < refresh_interval_minutes:
                 skip_duration_ms = (time.perf_counter() - skip_check_start) * 1000
                 log_task_skip(
@@ -274,6 +282,13 @@ def _refresh_watchlist_scores_impl(
                     refresh_interval_minutes=refresh_interval_minutes,
                     start_time=start_time,
                 )
+        elif force:
+            logger.info(
+                "refresh_watchlist_scores_forced",
+                task_id=task_id,
+                account_id=account_id,
+                reason="force_flag_set",
+            )
 
         # AUTO-BACKFILL: Only trigger when we're actually going to refresh (not skipping)
         # This prevents cascade spam from 60-second Beat polling
@@ -327,3 +342,79 @@ def _refresh_watchlist_scores_impl(
             error=str(exc),
         )
         raise
+
+
+@celery_app.task(name="refresh_single_symbol_scores", bind=True)  # type: ignore[misc]
+def refresh_single_symbol_scores_task(self: Task, symbol: str) -> dict[str, object]:
+    """Refresh scores for a single symbol immediately (no rate limit check).
+
+    This task is designed for newly-added symbols that need immediate scoring.
+    It bypasses the global refresh interval check and only processes one symbol.
+
+    Args:
+        symbol: Stock symbol to refresh
+
+    Returns:
+        Dict with processing result for the single symbol
+    """
+    task_id = self.request.id
+    start_time = time.time()
+
+    # Use task lock to prevent duplicate concurrent executions for same symbol
+    lock_key = f"refresh_single_symbol:{symbol}"
+    with task_lock(lock_key, ttl=120) as acquired:  # 2-minute lock
+        if not acquired:
+            logger.info(
+                "refresh_single_symbol_skipped_duplicate",
+                task_id=task_id,
+                symbol=symbol,
+                reason="duplicate_task_running",
+            )
+            return {
+                "task_id": task_id,
+                "symbol": symbol,
+                "skipped": True,
+                "reason": "duplicate_task_running",
+            }
+
+        try:
+            storage = get_storage()
+
+            logger.info(
+                "refresh_single_symbol_started",
+                task_id=task_id,
+                symbol=symbol,
+            )
+
+            # Call scoring service with symbols_filter for just this one symbol
+            result = refresh_watchlist_scores_service(
+                storage,
+                symbols_filter=[symbol],
+                batch_size=1,  # Single symbol, minimal batch
+            )
+
+            duration = round(time.time() - start_time, 2)
+            logger.info(
+                "refresh_single_symbol_completed",
+                task_id=task_id,
+                symbol=symbol,
+                processed=result.get("processed", 0),
+                duration_seconds=duration,
+            )
+
+            return {
+                "task_id": task_id,
+                "symbol": symbol,
+                "processed": result.get("processed", 0),
+                "success": symbol in result.get("success", []),
+                "duration_seconds": duration,
+            }
+
+        except Exception as exc:
+            logger.error(
+                "refresh_single_symbol_failed",
+                task_id=task_id,
+                symbol=symbol,
+                error=str(exc),
+            )
+            raise

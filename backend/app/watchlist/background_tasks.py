@@ -6,6 +6,7 @@ from app.logging_config import get_logger
 from app.services.celery_inspector import should_skip_cascade
 from app.tasks import (
     ingest_historical_ohlcv,
+    refresh_single_symbol_scores_task,
     refresh_watchlist_scores_task,
     update_technical_indicators,
 )
@@ -52,11 +53,12 @@ def schedule_new_symbol_tasks(symbol: str) -> None:
         )  # Wait 2 min for ingestion
         logger.info("Scheduled technical indicators calculation", symbol=symbol)
 
-        # Refresh watchlist scores after data ingestion
-        # Note: The refresh logic now safely skips symbols without sufficient historical data,
-        # preventing score degradation for existing symbols
-        refresh_watchlist_scores_task.apply_async(countdown=180)  # Wait 3 min for everything
-        logger.info("Scheduled watchlist score refresh")
+        # Refresh scores for this specific symbol (bypasses global rate limit)
+        # Uses the dedicated single-symbol task for immediate feedback
+        refresh_single_symbol_scores_task.apply_async(
+            args=[symbol], countdown=180
+        )  # Wait 3 min for data ingestion
+        logger.info("Scheduled single-symbol score refresh", symbol=symbol)
 
     except Exception as bg_error:
         # Log but don't fail the request - background tasks are async
