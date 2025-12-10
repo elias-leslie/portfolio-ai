@@ -337,8 +337,7 @@ class QAScanner:
 
                     issue_id = self._generate_temp_id(issues)
                     description = (
-                        f"Table '{table_name}' has {health_status} status "
-                        f"with {row_count} rows"
+                        f"Table '{table_name}' has {health_status} status with {row_count} rows"
                     )
 
                     issues.append(
@@ -449,7 +448,10 @@ class QAScanner:
         return issues
 
     def scan_test_gaps(self) -> list[QAIssue]:
-        """Query feature_capabilities for features with test_count=0 and passes=true.
+        """Query feature_capabilities for features with test_count=0 and verified status.
+
+        Verified = tasks complete (0 incomplete) AND all criteria passed.
+        acceptance_criteria is JSONB array in feature_capabilities table.
 
         Returns:
             List of QAIssue objects for test gap issues
@@ -459,12 +461,22 @@ class QAScanner:
 
         try:
             with self.conn_mgr.connection() as conn:
+                # Verified features: 0 incomplete tasks AND all criteria passed (JSONB)
                 result = conn.execute(
                     """
-                    SELECT feature_id, name
-                    FROM feature_capabilities
-                    WHERE test_count = 0 AND passes = true
-                    ORDER BY feature_id
+                    SELECT fc.feature_id, fc.name
+                    FROM feature_capabilities fc
+                    WHERE COALESCE(fc.test_count, 0) = 0
+                      AND NOT EXISTS (
+                          SELECT 1 FROM feature_tasks ft
+                          WHERE ft.feature_id = fc.id AND ft.completed = false
+                      )
+                      AND jsonb_array_length(COALESCE(fc.acceptance_criteria, '[]'::jsonb)) > 0
+                      AND NOT EXISTS (
+                          SELECT 1 FROM jsonb_array_elements(COALESCE(fc.acceptance_criteria, '[]'::jsonb)) elem
+                          WHERE (elem->>'passed')::boolean IS DISTINCT FROM true
+                      )
+                    ORDER BY fc.feature_id
                     """
                 )
                 rows = result.fetchall()
@@ -587,8 +599,7 @@ class QAScanner:
 
         # Build set of current issue signatures
         current_signatures = {
-            (issue.file_path, issue.line_start, issue.category)
-            for issue in detected_issues
+            (issue.file_path, issue.line_start, issue.category) for issue in detected_issues
         }
 
         with self.conn_mgr.connection() as conn:

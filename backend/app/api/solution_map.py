@@ -162,15 +162,26 @@ async def get_solution_map() -> SolutionMapResponse:
             # ==================================================================
             # FEATURES LAYER
             # ==================================================================
-            # Health status is now calculated dynamically (column was dropped from feature_capabilities)
+            # Verification is calculated dynamically: tasks=0 AND all criteria passed
+            # acceptance_criteria is JSONB array in feature_capabilities table
             features_data = conn.execute(
                 """
+                WITH feature_status AS (
+                    SELECT
+                        fc.id,
+                        fc.feature_id,
+                        fc.name,
+                        (SELECT COUNT(*) FROM feature_tasks ft WHERE ft.feature_id = fc.id AND ft.completed = false) as incomplete_tasks,
+                        COALESCE(jsonb_array_length(fc.acceptance_criteria), 0) as criteria_count,
+                        (SELECT COUNT(*) FROM jsonb_array_elements(COALESCE(fc.acceptance_criteria, '[]'::jsonb)) elem WHERE (elem->>'passed')::boolean = true) as criteria_passed
+                    FROM feature_capabilities fc
+                )
                 SELECT
                     COUNT(*) as total,
-                    COUNT(*) FILTER (WHERE passes = true) as passed,
-                    COUNT(*) FILTER (WHERE passes = false) as failed,
-                    COUNT(*) FILTER (WHERE passes IS NULL) as unreviewed
-                FROM feature_capabilities
+                    COUNT(*) FILTER (WHERE incomplete_tasks = 0 AND criteria_count > 0 AND criteria_passed = criteria_count) as passed,
+                    COUNT(*) FILTER (WHERE criteria_count > 0 AND criteria_passed < criteria_count) as failed,
+                    COUNT(*) FILTER (WHERE criteria_count = 0 OR incomplete_tasks > 0) as unreviewed
+                FROM feature_status
                 """
             ).fetchone()
 
@@ -187,13 +198,16 @@ async def get_solution_map() -> SolutionMapResponse:
             failed = int(failed) if failed else 0
             unreviewed = int(unreviewed) if unreviewed else 0
 
-            # Get failed features for blockers
+            # Get failed features for blockers (features with failing criteria in JSONB)
             failed_features = conn.execute(
                 """
-                SELECT feature_id, name
-                FROM feature_capabilities
-                WHERE passes = false
-                ORDER BY feature_id
+                SELECT fc.feature_id, fc.name
+                FROM feature_capabilities fc
+                WHERE EXISTS (
+                    SELECT 1 FROM jsonb_array_elements(COALESCE(fc.acceptance_criteria, '[]'::jsonb)) elem
+                    WHERE (elem->>'passed')::boolean = false
+                )
+                ORDER BY fc.feature_id
                 LIMIT 10
                 """
             ).fetchall()
@@ -368,7 +382,12 @@ async def get_solution_map() -> SolutionMapResponse:
                 """
             ).fetchall()
 
-            for table_name_raw, health_status_raw, freshness_status, days_since_update in critical_tables:
+            for (
+                table_name_raw,
+                health_status_raw,
+                freshness_status,
+                days_since_update,
+            ) in critical_tables:
                 table_name = str(table_name_raw)
                 health_status = str(health_status_raw) if health_status_raw else ""
                 if health_status == "legacy":
@@ -444,7 +463,12 @@ async def get_solution_map() -> SolutionMapResponse:
                 """
             ).fetchall()
 
-            for endpoint_path_raw, http_method_raw, health_status_raw, _error_rate in critical_endpoints:
+            for (
+                endpoint_path_raw,
+                http_method_raw,
+                health_status_raw,
+                _error_rate,
+            ) in critical_endpoints:
                 endpoint_path = str(endpoint_path_raw)
                 http_method = str(http_method_raw)
                 health_status = str(health_status_raw) if health_status_raw else ""
@@ -559,7 +583,9 @@ async def get_solution_map() -> SolutionMapResponse:
                 weighted_healthy += (free_sources / total_sources) * weights["sources"]
                 weighted_total += weights["sources"]
 
-            overall_health = (weighted_healthy / weighted_total * 100) if weighted_total > 0 else 0.0
+            overall_health = (
+                (weighted_healthy / weighted_total * 100) if weighted_total > 0 else 0.0
+            )
 
             logger.info(
                 "solution_map_generated",
