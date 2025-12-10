@@ -62,7 +62,7 @@ function TaskNodeComponent({ data }: NodeProps) {
     <TooltipProvider>
       <div
         className={cn(
-          "rounded-lg border shadow-sm min-w-[180px] max-w-[200px]",
+          "rounded-lg border shadow-sm min-w-[180px] w-auto max-w-[280px]",
           "transition-all duration-300 ease-in-out hover:z-50 hover:shadow-xl origin-center",
           "text-zinc-100 relative overflow-hidden",
 
@@ -111,15 +111,7 @@ function TaskNodeComponent({ data }: NodeProps) {
         <div className="px-3 py-2 border-b border-inherit bg-black/20 rounded-t-lg">
           <div className="flex items-center gap-2">
             <div className={cn("w-2 h-2 rounded-full shrink-0", statusColors[status])} />
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="text-sm font-medium truncate cursor-default">{label}</span>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{label}</p>
-                <p className="text-xs text-zinc-400">{statusLabels[status]}</p>
-              </TooltipContent>
-            </Tooltip>
+            <span className="text-sm font-medium cursor-default break-words">{label}</span>
           </div>
           <Badge variant="outline" className="mt-1 text-[10px] h-5 border-zinc-500 text-zinc-300">
             {schedule}
