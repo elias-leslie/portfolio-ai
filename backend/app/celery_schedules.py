@@ -372,6 +372,17 @@ def get_beat_schedule() -> dict[str, object]:
             # - Uses yfinance as data source
             # - Weekly is sufficient since data updates quarterly/bi-weekly
         },
+        "fetch-corporate-actions-weekly": {
+            "task": "tasks.fetch_corporate_actions",
+            "schedule": crontab(hour=6, minute=30, day_of_week=0),  # Sundays at 06:30 UTC
+            "options": {"expires": 7200},  # Task expires after 2 hours
+            # Notes:
+            # - Runs weekly on Sundays at 06:30 UTC (FEAT-175)
+            # - Fetches share buyback data from yfinance cash flow
+            # - Uses quarterly_cashflow 'Repurchase Of Capital Stock' row
+            # - Stores in corporate_actions table
+            # - Weekly is sufficient since buybacks update quarterly
+        },
         "ingest-macro-indicators-daily": {
             "task": "app.tasks.ingestion.fundamental_ingestion.ingest_macro_indicators",
             "schedule": crontab(hour=6, minute=30),  # Daily at 06:30 UTC

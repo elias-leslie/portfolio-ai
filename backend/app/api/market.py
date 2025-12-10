@@ -669,3 +669,107 @@ async def get_sector_history(
         period_start=period_start,
         period_end=period_end,
     )
+
+
+# =============================================================================
+# CORPORATE ACTIONS (FEAT-175)
+# =============================================================================
+
+
+@router.get("/corporate-actions")
+async def get_corporate_actions(
+    symbol: str | None = Query(None, description="Filter by symbol"),
+    action_type: str = Query("buyback", description="Action type: buyback, dividend, split"),
+    limit: int = Query(50, ge=1, le=200),
+) -> dict[str, Any]:
+    """
+    Get corporate actions (buybacks, dividends, splits).
+
+    Returns:
+        List of corporate actions with amounts and dates.
+    """
+
+    sql = """
+        SELECT symbol, action_type, action_date, repurchase_amount,
+               shares_repurchased, dividend_amount, source, updated_at
+        FROM corporate_actions
+        WHERE action_type = %s
+    """
+    params: list[Any] = [action_type]
+
+    if symbol:
+        sql += " AND symbol = %s"
+        params.append(symbol.upper())
+
+    sql += " ORDER BY action_date DESC LIMIT %s"
+    params.append(limit)
+
+    with storage.connection() as conn:
+        rows = conn.execute(sql, params).fetchall()
+
+    actions = []
+    for row in rows:
+        actions.append(
+            {
+                "symbol": row[0],
+                "action_type": row[1],
+                "action_date": row[2].isoformat() if row[2] else None,
+                "repurchase_amount": float(row[3]) if row[3] else None,
+                "shares_repurchased": row[4],
+                "dividend_amount": float(row[5]) if row[5] else None,
+                "source": row[6],
+                "updated_at": row[7].isoformat() if row[7] else None,
+            }
+        )
+
+    return {
+        "actions": actions,
+        "total": len(actions),
+        "action_type": action_type,
+    }
+
+
+@router.get("/corporate-actions/summary")
+async def get_corporate_actions_summary(
+    symbol: str | None = Query(None, description="Filter by symbol"),
+) -> dict[str, Any]:
+    """
+    Get summary of corporate actions by symbol.
+
+    Returns:
+        Aggregated buyback totals and counts.
+    """
+
+    sql = """
+        SELECT symbol,
+               COUNT(*) FILTER (WHERE action_type = 'buyback') as buyback_count,
+               SUM(repurchase_amount) FILTER (WHERE action_type = 'buyback') as total_buybacks,
+               MAX(action_date) FILTER (WHERE action_type = 'buyback') as latest_buyback
+        FROM corporate_actions
+    """
+    params: list[Any] = []
+
+    if symbol:
+        sql += " WHERE symbol = %s"
+        params.append(symbol.upper())
+
+    sql += " GROUP BY symbol ORDER BY total_buybacks DESC NULLS LAST"
+
+    with storage.connection() as conn:
+        rows = conn.execute(sql, params).fetchall()
+
+    summaries = []
+    for row in rows:
+        summaries.append(
+            {
+                "symbol": row[0],
+                "buyback_count": row[1] or 0,
+                "total_buybacks": float(row[2]) if row[2] else 0,
+                "latest_buyback": row[3].isoformat() if row[3] else None,
+            }
+        )
+
+    return {
+        "summaries": summaries,
+        "total_symbols": len(summaries),
+    }
