@@ -144,7 +144,7 @@ function ExpandableRow({ entry }: { entry: ProgressEntry }) {
                   <div className="flex items-center gap-2">
                     <span className="text-muted-foreground text-xs font-medium">Session:</span>
                     <code className="font-mono text-xs bg-muted px-2 py-1 rounded">
-                      {entry.session_id.slice(0, 8)}...
+                      {entry.session_id}
                     </code>
                   </div>
                 )}
@@ -162,7 +162,7 @@ function ExpandableRow({ entry }: { entry: ProgressEntry }) {
               {entry.action && entry.action.length > 50 && (
                 <div className="space-y-1">
                   <span className="text-muted-foreground text-xs font-medium">Full Action:</span>
-                  <div className="text-sm bg-muted/50 px-3 py-2 rounded border max-h-32 overflow-y-auto whitespace-pre-wrap break-words">
+                  <div className="text-sm bg-muted/50 px-3 py-2 rounded border max-h-60 overflow-y-auto whitespace-pre-wrap break-words">
                     {entry.action}
                   </div>
                 </div>
