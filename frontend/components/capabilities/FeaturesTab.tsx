@@ -238,7 +238,7 @@ interface VisionGoal {
 }
 
 // Sorting types
-type SortColumn = "feature_id" | "priority" | "effort" | "name" | "category" | "last_verified_at" | "criteria" | "passes" | "progress";
+type SortColumn = "feature_id" | "priority" | "name" | "category" | "last_verified_at" | "criteria" | "passes" | "progress";
 type SortDirection = "asc" | "desc";
 
 export function FeaturesTab() {
@@ -464,13 +464,6 @@ export function FeaturesTab() {
       case "priority":
         comparison = (a.priority ?? a.effective_priority) - (b.priority ?? b.effective_priority);
         break;
-      case "effort": {
-        const effortOrder: Record<string, number> = { low: 1, medium: 2, high: 3, very_high: 4 };
-        const aEffort = effortOrder[a.effort ?? ""] ?? 5;
-        const bEffort = effortOrder[b.effort ?? ""] ?? 5;
-        comparison = aEffort - bEffort;
-        break;
-      }
       case "name":
         comparison = a.name.localeCompare(b.name);
         break;
@@ -652,32 +645,6 @@ export function FeaturesTab() {
     );
   };
 
-  // Render effort badge
-  const renderEffortBadge = (effort: string | null) => {
-    if (!effort) return <span className="text-xs text-muted-foreground">—</span>;
-    const colors: Record<string, { bg: string; text: string; border: string }> = {
-      low: { bg: "#22c55e20", text: "#4ade80", border: "#22c55e40" },
-      medium: { bg: "#eab30820", text: "#facc15", border: "#eab30840" },
-      high: { bg: "#f9731620", text: "#fb923c", border: "#f9731640" },
-      very_high: { bg: "#ef444420", text: "#f87171", border: "#ef444440" },
-    };
-    const color = colors[effort] || colors.medium;
-    const labels: Record<string, string> = {
-      low: "L",
-      medium: "M",
-      high: "H",
-      very_high: "VH",
-    };
-    return (
-      <span
-        className="text-[10px] px-1 py-0.5 rounded border font-medium"
-        style={{ backgroundColor: color.bg, color: color.text, borderColor: color.border }}
-        title={`Effort: ${effort}`}
-      >
-        {labels[effort] || effort}
-      </span>
-    );
-  };
 
   // Format relative time (e.g., "2h ago", "3d ago")
   const formatRelativeTime = (dateString: string | null): string => {
@@ -700,20 +667,28 @@ export function FeaturesTab() {
   const handleExportCSV = () => {
     if (!sortedFeatures.length) return;
 
-    const headers = ["Feature ID", "Name", "Category", "Status", "Priority", "Effort", "Progress %", "Tasks Completed", "Total Tasks", "Criteria Passed", "Total Criteria"];
-    const rows = sortedFeatures.map(f => [
-      f.feature_id,
-      f.name,
-      f.category || "",
-      f.passes === true ? "Verified" : f.passes === false ? "Failing" : "Unreviewed",
-      String(f.priority ?? f.effective_priority),
-      f.effort || "",
-      String(f.completion_pct),
-      String(f.completed_tasks),
-      String(f.total_tasks),
-      String(f.acceptance_criteria?.filter(c => c.passed === true).length ?? 0),
-      String(f.acceptance_criteria?.length ?? 0),
-    ]);
+    const headers = ["Feature ID", "Name", "Category", "Status", "Priority", "Incomplete Tasks", "Criteria Passed", "Total Criteria"];
+    const rows = sortedFeatures.map(f => {
+      const incompleteTasks = f.total_tasks - f.completed_tasks;
+      const criteria = f.acceptance_criteria ?? [];
+      const hasCriteria = criteria.length > 0;
+      const allPassed = hasCriteria && criteria.every(c => c.passed === true);
+      let status = "No Criteria";
+      if (incompleteTasks > 0) status = "Has Tasks";
+      else if (!hasCriteria) status = "No Criteria";
+      else if (allPassed) status = "Verified";
+      else status = "Needs Review";
+      return [
+        f.feature_id,
+        f.name,
+        f.category || "",
+        status,
+        String(f.priority ?? f.effective_priority),
+        String(incompleteTasks),
+        String(criteria.filter(c => c.passed === true).length),
+        String(criteria.length),
+      ];
+    });
 
     const csv = [headers, ...rows].map(row => row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -730,20 +705,28 @@ export function FeaturesTab() {
   const handleExportJSON = () => {
     if (!sortedFeatures.length) return;
 
-    const exportData = sortedFeatures.map(f => ({
-      feature_id: f.feature_id,
-      name: f.name,
-      category: f.category,
-      status: f.passes === true ? "verified" : f.passes === false ? "failing" : "unreviewed",
-      priority: f.priority ?? f.effective_priority,
-      effort: f.effort,
-      completion_pct: f.completion_pct,
-      completed_tasks: f.completed_tasks,
-      total_tasks: f.total_tasks,
-      criteria_passed: f.acceptance_criteria?.filter(c => c.passed === true).length ?? 0,
-      criteria_total: f.acceptance_criteria?.length ?? 0,
-      vision_goals: f.vision_goals,
-    }));
+    const exportData = sortedFeatures.map(f => {
+      const incompleteTasks = f.total_tasks - f.completed_tasks;
+      const criteria = f.acceptance_criteria ?? [];
+      const hasCriteria = criteria.length > 0;
+      const allPassed = hasCriteria && criteria.every(c => c.passed === true);
+      let status = "no_criteria";
+      if (incompleteTasks > 0) status = "has_tasks";
+      else if (!hasCriteria) status = "no_criteria";
+      else if (allPassed) status = "verified";
+      else status = "needs_review";
+      return {
+        feature_id: f.feature_id,
+        name: f.name,
+        category: f.category,
+        status,
+        priority: f.priority ?? f.effective_priority,
+        incomplete_tasks: incompleteTasks,
+        criteria_passed: criteria.filter(c => c.passed === true).length,
+        criteria_total: criteria.length,
+        vision_goals: f.vision_goals,
+      };
+    });
 
     const json = JSON.stringify(exportData, null, 2);
     const blob = new Blob([json], { type: "application/json" });
@@ -1007,14 +990,6 @@ export function FeaturesTab() {
                   </div>
                 </TableHead>
                 <TableHead
-                  className="px-2 w-8 text-center cursor-pointer hover:bg-muted/50 select-none"
-                  onClick={() => handleSort("effort")}
-                >
-                  <div className="flex items-center justify-center">
-                    E{getSortIcon("effort")}
-                  </div>
-                </TableHead>
-                <TableHead
                   className="px-2 w-40 cursor-pointer hover:bg-muted/50 select-none"
                   onClick={() => handleSort("name")}
                 >
@@ -1115,9 +1090,6 @@ export function FeaturesTab() {
                       <TableCell className="px-2 align-top py-2 w-10 text-center">
                         {renderPriorityBadge(feature.priority, feature.effective_priority)}
                       </TableCell>
-                      <TableCell className="px-2 align-top py-2 w-8 text-center">
-                        {renderEffortBadge(feature.effort)}
-                      </TableCell>
                       <TableCell className="px-2 align-top py-2 w-40">
                         <div className="flex items-center gap-1">
                           {feature.needs_review && (
@@ -1184,7 +1156,7 @@ export function FeaturesTab() {
                     {/* Expanded details row (subtasks + acceptance criteria) */}
                     {isExpanded && (hasTasks || (feature.acceptance_criteria && feature.acceptance_criteria.length > 0)) && (
                       <TableRow key={`${feature.feature_id}-details`} className="bg-muted/30">
-                        <TableCell colSpan={9} className="py-2 px-4">
+                        <TableCell colSpan={8} className="py-2 px-4">
                           <div className="pl-6 space-y-4">
                             {/* Acceptance Criteria Section */}
                             {feature.acceptance_criteria && feature.acceptance_criteria.length > 0 && (
