@@ -215,6 +215,10 @@ async def create_watchlist_item(data: WatchlistItemCreate) -> WatchlistItemRespo
             readiness_score=None,
             confidence_level=None,
             gap_warning=None,
+            timeframe_short_aligned=None,
+            timeframe_long_aligned=None,
+            volume_relative=None,
+            data_quality=None,
         )
     except HTTPException:
         raise

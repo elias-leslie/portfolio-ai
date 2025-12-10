@@ -11,6 +11,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { SparklineWithHistory } from "@/components/watchlist/SparklineWithHistory";
 import { ExpandedRow } from "@/components/watchlist/ExpandedRow";
 import { WatchlistCard } from "@/components/watchlist/WatchlistCard";
@@ -304,6 +310,33 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
     }
   };
 
+  // Get data quality color based on percentage
+  const getDataQualityColor = (pct: number): string => {
+    if (pct >= 80) return "text-gain"; // Green
+    if (pct >= 60) return "text-yellow-600 dark:text-yellow-500"; // Yellow
+    if (pct >= 40) return "text-orange-600 dark:text-orange-500"; // Orange
+    return "text-loss"; // Red
+  };
+
+  // Get data quality background color
+  const getDataQualityBgColor = (pct: number): string => {
+    if (pct >= 80) return "bg-green-50 dark:bg-green-950/20";
+    if (pct >= 60) return "bg-yellow-50 dark:bg-yellow-950/20";
+    if (pct >= 40) return "bg-orange-50 dark:bg-orange-950/20";
+    return "bg-red-50 dark:bg-red-950/20";
+  };
+
+  // Format pillar status
+  const formatPillarStatus = (status: string): string => {
+    const statusMap: Record<string, string> = {
+      complete: "✓ Complete",
+      partial: "◐ Partial",
+      stale: "⏱ Stale",
+      "n/a": "— N/A",
+    };
+    return statusMap[status] || status;
+  };
+
   // Get timezone abbreviation (EST, PST, etc.)
   const getTimezoneAbbreviation = (timezone: string): string => {
     const date = new Date();
@@ -486,6 +519,9 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                   </span>
                 )}
               </button>
+            </TableHead>
+            <TableHead>
+              <span className="font-medium">DQ</span>
             </TableHead>
             <TableHead>Score Trend</TableHead>
             <TableHead>
@@ -755,6 +791,42 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                     )}
                   </TableCell>
                   <TableCell data-slot="table-cell">
+                    {item.data_quality ? (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div
+                              className={cn(
+                                "inline-flex items-center justify-center rounded-md px-2 py-1 text-xs font-semibold cursor-help",
+                                getDataQualityBgColor(item.data_quality.overall_pct),
+                                getDataQualityColor(item.data_quality.overall_pct)
+                              )}
+                            >
+                              {item.data_quality.overall_pct.toFixed(0)}%
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="left" className="max-w-xs">
+                            <div className="space-y-1.5">
+                              <div className="font-semibold text-xs border-b border-border pb-1">
+                                Data Quality Breakdown
+                              </div>
+                              {Object.entries(item.data_quality.pillars).map(([pillar, data]) => (
+                                <div key={pillar} className="text-xs">
+                                  <div className="font-medium capitalize">{pillar}:</div>
+                                  <div className="text-text-muted ml-2">
+                                    {formatPillarStatus(data.status)} - {data.details}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ) : (
+                      <span className="text-text-muted">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell data-slot="table-cell">
                     {hasScore ? (
                       <SparklineWithHistory
                         itemId={item.id}
@@ -793,7 +865,7 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                 </TableRow>
                 {isExpanded && (
                   <TableRow id={`watchlist-row-${item.id}`} data-state="open">
-                    <TableCell colSpan={10} className="bg-surface-muted/20 p-4">
+                    <TableCell colSpan={11} className="bg-surface-muted/20 p-4">
                       <ExpandedRow item={item} refreshStatus={refreshStatus} />
                     </TableCell>
                   </TableRow>

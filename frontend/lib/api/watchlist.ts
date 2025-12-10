@@ -101,6 +101,19 @@ export interface PriorityIndicator {
     category: "time_sensitive" | "risk" | "opportunity" | "caution";
 }
 
+export interface PillarDataQuality {
+    status: "complete" | "partial" | "stale" | "n/a";
+    score: number;
+    details: string;
+}
+
+export interface DataQuality {
+    overall_pct: number;
+    pillars: {
+        [key: string]: PillarDataQuality;
+    };
+}
+
 export interface WatchlistItem {
     id: string;
     symbol: string;
@@ -130,6 +143,8 @@ export interface WatchlistItem {
     news_intelligence?: NewsIntelligence | null;
     // Priority indicators
     priority_indicators?: PriorityIndicator[];
+    // Data Quality
+    data_quality?: DataQuality | null;
 }
 
 export interface WatchlistListResponse {

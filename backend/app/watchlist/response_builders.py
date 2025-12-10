@@ -15,6 +15,47 @@ from pydantic import BaseModel, Field
 from .models import NarrativeBulletsDict, NewsIntelligenceDict, RecentNewsDict
 
 
+# Helper functions
+def _build_data_quality_response(data: dict[str, Any] | None) -> DataQualityResponse | None:
+    """
+    Build DataQualityResponse from dictionary.
+
+    Args:
+        data: Dictionary with overall_pct and pillars keys
+
+    Returns:
+        DataQualityResponse or None if data is invalid
+    """
+    if not data or "pillars" not in data:
+        return None
+
+    pillars = {}
+    for pillar_name, pillar_data in data["pillars"].items():
+        if isinstance(pillar_data, dict):
+            pillars[pillar_name] = PillarQualityResponse(**pillar_data)
+
+    return DataQualityResponse(overall_pct=data["overall_pct"], pillars=pillars)
+
+
+# Data Quality models
+class PillarQualityResponse(BaseModel):
+    """Response model for individual pillar data quality."""
+
+    status: str = Field(..., description="Quality status: complete, partial, stale, or n/a")
+    score: float = Field(..., description="Quality score 0-100")
+    details: str = Field(..., description="Human-readable quality details")
+
+
+class DataQualityResponse(BaseModel):
+    """Response model for overall data quality assessment."""
+
+    overall_pct: float = Field(..., description="Overall data quality percentage 0-100")
+    pillars: dict[str, PillarQualityResponse] = Field(
+        ...,
+        description="Quality breakdown by pillar (technical, fundamental, catalyst, options, price)",
+    )
+
+
 # Request models
 class WatchlistItemCreate(BaseModel):
     """Request model for creating a watchlist item."""
@@ -120,6 +161,11 @@ class WatchlistItemResponse(BaseModel):
     confidence_level: str | None = Field(None, description="Confidence level: LOW/MEDIUM/HIGH")
     gap_warning: str | None = Field(None, description="Warning message if data gaps exist")
 
+    # Data quality assessment
+    data_quality: DataQualityResponse | None = Field(
+        None, description="Data quality assessment by pillar"
+    )
+
     @classmethod
     def from_service_dict(cls, item: dict[str, Any]) -> WatchlistItemResponse:
         """
@@ -211,6 +257,10 @@ class WatchlistItemResponse(BaseModel):
             readiness_score=item.get("readiness_score"),
             confidence_level=item.get("confidence_level"),
             gap_warning=item.get("gap_warning"),
+            # Data quality
+            data_quality=_build_data_quality_response(item.get("data_quality"))
+            if item.get("data_quality")
+            else None,
         )
 
 

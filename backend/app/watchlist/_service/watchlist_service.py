@@ -26,6 +26,9 @@ from ..data_loaders import (
     load_latest_technical,
     load_stale_ttl_minutes,
 )
+
+# Import data quality function
+from ..data_quality import calculate_data_quality
 from ..models import (
     TechnicalSnapshot,
     WatchlistItemDict,
@@ -84,6 +87,33 @@ class WatchlistService:
                 )
                 item_data["news_intelligence"] = None
 
+            # Calculate data quality
+            try:
+                symbol = row["symbol"]
+                quality_map = calculate_data_quality(self.storage, [symbol])
+                dq = quality_map.get(symbol)
+                if dq:
+                    item_data["data_quality"] = {
+                        "overall_pct": dq.overall_pct,
+                        "pillars": {
+                            name: {
+                                "status": pq.status,
+                                "score": pq.score,
+                                "details": pq.details,
+                            }
+                            for name, pq in dq.pillars.items()
+                        },
+                    }
+                else:
+                    item_data["data_quality"] = None
+            except Exception as e:
+                logger.warning(
+                    "watchlist_data_quality_failed",
+                    symbol=row["symbol"],
+                    error=str(e),
+                )
+                item_data["data_quality"] = None
+
             results.append(item_data)
 
         # Calculate priority indicators
@@ -131,6 +161,33 @@ class WatchlistService:
                 error=str(e),
             )
             item_data["news_intelligence"] = None
+
+        # Calculate data quality
+        try:
+            symbol = row["symbol"]
+            quality_map = calculate_data_quality(self.storage, [symbol])
+            dq = quality_map.get(symbol)
+            if dq:
+                item_data["data_quality"] = {
+                    "overall_pct": dq.overall_pct,
+                    "pillars": {
+                        name: {
+                            "status": pq.status,
+                            "score": pq.score,
+                            "details": pq.details,
+                        }
+                        for name, pq in dq.pillars.items()
+                    },
+                }
+            else:
+                item_data["data_quality"] = None
+        except Exception as e:
+            logger.warning(
+                "watchlist_data_quality_failed",
+                symbol=row["symbol"],
+                error=str(e),
+            )
+            item_data["data_quality"] = None
 
         # Gap analysis removed - migrated to [DEBT] subtasks on features
         # Set default values for readiness fields (always high confidence now)
