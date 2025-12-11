@@ -18,8 +18,10 @@ from pydantic import BaseModel, Field
 
 from app.agents.workflows.strategy_research_workflow import strategy_research_workflow
 from app.logging_config import get_logger
+from app.storage.connection import get_connection_manager
 from app.strategies.storage import get_strategy_storage
 from app.tasks.strategy_monitoring_tasks import weekly_strategy_generation
+from app.tasks.strategy_signal_tasks import generate_signal_for_strategy, store_signal
 
 logger = get_logger(__name__)
 
@@ -184,6 +186,85 @@ async def list_strategies(
     except Exception as e:
         logger.exception("Failed to list strategies", error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to list strategies: {e!s}") from e
+
+
+class StrategySummary(BaseModel):
+    """Summary statistics for strategies."""
+
+    total: int
+    active: int
+    testing: int
+    archived: int
+    avg_expected_sharpe: float | None
+    avg_live_sharpe: float | None
+    total_trades: int
+    exceeding_count: int
+    meeting_count: int
+    underperforming_count: int
+
+
+@router.get("/summary", response_model=StrategySummary)
+async def get_strategy_summary() -> StrategySummary:
+    """Get strategy summary statistics.
+
+    Returns:
+        Summary with counts by status and average performance metrics
+    """
+    try:
+        storage = get_strategy_storage()
+        strategies = storage.list_strategies(limit=500)
+
+        total = len(strategies)
+        active = sum(1 for s in strategies if s.status == "active")
+        testing = sum(1 for s in strategies if s.status == "testing")
+        archived = sum(1 for s in strategies if s.status == "archived")
+
+        # Average expected Sharpe (excluding nulls)
+        expected_sharpes = [float(s.expected_sharpe) for s in strategies if s.expected_sharpe]
+        avg_expected = sum(expected_sharpes) / len(expected_sharpes) if expected_sharpes else None
+
+        # Average live Sharpe (excluding nulls)
+        live_sharpes = [float(s.live_sharpe_ratio) for s in strategies if s.live_sharpe_ratio]
+        avg_live = sum(live_sharpes) / len(live_sharpes) if live_sharpes else None
+
+        # Total trades
+        total_trades = sum(s.live_trades_count for s in strategies)
+
+        # Performance flags
+        exceeding = 0
+        meeting = 0
+        underperforming = 0
+
+        for s in strategies:
+            if s.live_trades_count == 0:
+                continue
+            expected = float(s.expected_sharpe) if s.expected_sharpe else None
+            live = float(s.live_sharpe_ratio) if s.live_sharpe_ratio else None
+            if expected and expected > 0 and live is not None:
+                variance = live / expected
+                if variance >= 0.9:
+                    exceeding += 1
+                elif variance >= 0.7:
+                    meeting += 1
+                else:
+                    underperforming += 1
+
+        return StrategySummary(
+            total=total,
+            active=active,
+            testing=testing,
+            archived=archived,
+            avg_expected_sharpe=round(avg_expected, 2) if avg_expected else None,
+            avg_live_sharpe=round(avg_live, 2) if avg_live else None,
+            total_trades=total_trades,
+            exceeding_count=exceeding,
+            meeting_count=meeting,
+            underperforming_count=underperforming,
+        )
+
+    except Exception as e:
+        logger.exception("Failed to get strategy summary", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to get strategy summary: {e!s}") from e
 
 
 @router.get("/{strategy_id}", response_model=StrategyDetail)
@@ -526,9 +607,6 @@ async def get_strategy_signal(strategy_id: str) -> dict[str, Any]:
     Returns:
         Current signal with type, strength, reasons, and timestamp
     """
-    from app.storage.connection import get_connection_manager
-    from app.tasks.strategy_signal_tasks import generate_signal_for_strategy
-
     try:
         storage = get_strategy_storage()
         strategy = storage.get_strategy_by_id(strategy_id)
@@ -593,9 +671,6 @@ async def generate_strategy_signal(strategy_id: str) -> dict[str, Any]:
     Returns:
         Newly generated signal
     """
-    from app.storage.connection import get_connection_manager
-    from app.tasks.strategy_signal_tasks import generate_signal_for_strategy, store_signal
-
     try:
         storage = get_strategy_storage()
         strategy = storage.get_strategy_by_id(strategy_id)
