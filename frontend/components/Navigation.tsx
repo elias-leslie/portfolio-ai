@@ -14,6 +14,7 @@ import {
   Bot,
   Brain,
   Target,
+  HardDrive,
 } from "lucide-react";
 
 import { MarketStatusBadge } from "@/components/market/MarketStatusBadge";
@@ -73,6 +74,11 @@ const utilityLinks = [
     href: "/status",
     label: "Status",
     icon: Activity,
+  },
+  {
+    href: "/backup",
+    label: "Backup",
+    icon: HardDrive,
   },
   {
     href: "/settings",

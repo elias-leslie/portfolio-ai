@@ -18,6 +18,7 @@ from app.api import (
     artifacts,
     automation,
     backtest,
+    backup,
     capabilities,
     celery_endpoints,
     claude_progress,
@@ -190,6 +191,7 @@ app.include_router(solution_map.router)  # Solution architecture map API
 app.include_router(qa.router)  # QA system - issue tracking, trends, scanning
 app.include_router(claude_progress.router)  # Claude session progress logging
 app.include_router(test_feature.router)  # FEAT-123: E2E test feature endpoint
+app.include_router(backup.router)  # Backup management API
 
 
 @app.get("/")
