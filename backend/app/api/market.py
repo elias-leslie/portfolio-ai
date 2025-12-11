@@ -475,7 +475,9 @@ async def get_market_status_endpoint(request: Request) -> MarketStatusResponse:
 @cache_response(ttl=60)  # 1 minute cache for fresh data
 async def get_fear_greed_history(
     request: Request,
-    days: int = Query(365, ge=7, le=730, description="Number of days of history"),
+    days: int = Query(
+        365, ge=30, le=1825, description="Number of days of history (30-1825, ~5 years max)"
+    ),
 ) -> FearGreedHistoryResponse:
     """Get Fear & Greed historical data for trend charts."""
     with storage.connection() as conn:
@@ -513,7 +515,9 @@ async def get_fear_greed_history(
 @cache_response(ttl=60)  # 1 minute cache
 async def get_news_sentiment_history(
     request: Request,
-    days: int = Query(30, ge=1, le=365, description="Number of days of history"),
+    days: int = Query(
+        30, ge=1, le=1825, description="Number of days of history (1-1825, ~5 years max)"
+    ),
     granularity: str = Query(
         "daily",
         description="Data granularity: 'daily' for day-level, 'hourly' for hour-level",
@@ -593,7 +597,9 @@ async def get_news_sentiment_history(
 @cache_response(ttl=60)  # 1 minute cache for fresh data
 async def get_indicator_history(
     request: Request,
-    days: int = Query(365, ge=7, le=730, description="Number of days of history"),
+    days: int = Query(
+        365, ge=30, le=1825, description="Number of days of history (30-1825, ~5 years max)"
+    ),
 ) -> IndicatorHistoryResponse:
     """Get key indicator historical data for trend charts."""
     indicators = {
