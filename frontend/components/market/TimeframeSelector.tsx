@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 
-export type Timeframe = "1W" | "1M" | "3M" | "6M" | "1Y";
+export type Timeframe = "1M" | "3M" | "6M" | "1Y" | "3Y" | "5Y";
 
 interface TimeframeSelectorProps {
   value: Timeframe;
@@ -11,11 +11,12 @@ interface TimeframeSelectorProps {
 }
 
 const TIMEFRAMES: { value: Timeframe; label: string; days: number }[] = [
-  { value: "1W", label: "1W", days: 7 },
   { value: "1M", label: "1M", days: 30 },
   { value: "3M", label: "3M", days: 90 },
   { value: "6M", label: "6M", days: 180 },
   { value: "1Y", label: "1Y", days: 365 },
+  { value: "3Y", label: "3Y", days: 1095 },
+  { value: "5Y", label: "5Y", days: 1825 },
 ];
 
 export function timeframeToDays(tf: Timeframe): number {

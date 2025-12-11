@@ -639,7 +639,9 @@ async def get_indicator_history(
 @cache_response(ttl=300)  # 5 minute cache (fetches from yfinance which is slower)
 async def get_sector_history(
     request: Request,
-    days: int = Query(365, ge=7, le=730, description="Number of days of history"),
+    days: int = Query(
+        365, ge=30, le=1825, description="Number of days of history (30-1825, ~5 years max)"
+    ),
 ) -> SectorHistoryResponse:
     """Get sector ETF historical data for performance charts.
 
