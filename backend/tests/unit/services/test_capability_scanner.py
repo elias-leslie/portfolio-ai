@@ -185,6 +185,11 @@ class TestDatabaseScanner:
         mock_conn = MagicMock()
         mock_conn_mgr.connection.return_value.__enter__.return_value = mock_conn
 
+        # Mock cleanup query to return no deleted rows
+        mock_delete_result = MagicMock()
+        mock_delete_result.fetchall.return_value = []
+        mock_conn.execute.return_value = mock_delete_result
+
         scanner = DatabaseScanner(mock_conn_mgr, config=mock_config)
 
         capabilities = [
@@ -209,8 +214,10 @@ class TestDatabaseScanner:
         count = scanner.save_capabilities(capabilities)
 
         assert count == 1
-        assert mock_conn.execute.call_count == 1
-        mock_conn.commit.assert_called_once()
+        # Now expects 2 calls: 1 for UPSERT, 1 for cleanup query
+        assert mock_conn.execute.call_count == 2
+        # Expects 2 commits: 1 after UPSERT, 1 after cleanup
+        assert mock_conn.commit.call_count == 2
 
     def test_save_capabilities_empty_list(
         self, mock_conn_mgr: MagicMock, mock_config: dict
