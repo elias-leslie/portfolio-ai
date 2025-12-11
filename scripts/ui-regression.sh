@@ -1,14 +1,14 @@
 #!/bin/bash
 # Full UI Regression Capture Script
-# Usage: bash ~/portfolio-ai/scripts/ui-regression.sh [--quick|--pages|--tabs|--expanded|--mobile]
+# Usage: bash ~/portfolio-ai/scripts/ui-regression.sh [--quick|--pages|--tabs|--expanded|--mobile|--full]
 #
 # Captures screenshots + JSON reports for all pages, tabs, expanded sections, and mobile views.
-# Output: /tmp/ui-regression/{timestamp}/
+# Output: ~/portfolio-ai/solution_state/{timestamp}/
 
 set -e
 
 BASE_URL="http://192.168.8.233:3000"
-OUT="/tmp/ui-regression/$(date +%Y%m%d-%H%M%S)"
+OUT="$HOME/portfolio-ai/solution_state/$(date +%Y%m%d-%H%M%S)"
 S="$HOME/portfolio-ai/.claude/skills/browser-automation/scripts"
 REGRESSION="node $S/regression-check.js"
 EMULATE="node $S/emulate.js"
@@ -45,12 +45,11 @@ capture_tabs() {
   echo "=== Capturing All Tabs ==="
 
   # Capabilities tabs (10 tabs)
-  # Actual names: Dashboard, Vision, Features, Workflows, Sources, Rules, DB, Log, Tasks, API
   for t in Dashboard Vision Features Workflows Sources Rules DB Log Tasks API; do
     $REGRESSION "$BASE_URL/capabilities" "$OUT/tabs" --click-tab "$t" --wait-ms 2000
   done
 
-  # Trading tabs (2) - actual names include counts like "Open Positions (12)"
+  # Trading tabs (2)
   $REGRESSION "$BASE_URL/trading" "$OUT/tabs" --click-tab "Open Positions" --wait-ms 2000
   $REGRESSION "$BASE_URL/trading" "$OUT/tabs" --click-tab "Closed Trades" --wait-ms 2000
 }
@@ -130,22 +129,76 @@ case "$MODE" in
 esac
 
 # ============================================
+# GENERATE REPORT
+# ============================================
+echo ""
+echo "=== Generating Report ==="
+
+SCREENSHOTS=$(find "$OUT" -name "*.png" 2>/dev/null | wc -l)
+REPORTS=$(find "$OUT" -name "*.json" 2>/dev/null | wc -l)
+ERRORS=$(find "$OUT" -name "*.json" -exec cat {} \; 2>/dev/null | jq -s '[.[].console.errorCount // 0] | add' 2>/dev/null || echo "0")
+WARNINGS=$(find "$OUT" -name "*.json" -exec cat {} \; 2>/dev/null | jq -s '[.[].console.warningCount // 0] | add' 2>/dev/null || echo "0")
+
+# Determine status
+if [ "$ERRORS" = "0" ] || [ "$ERRORS" = "null" ]; then
+  STATUS="PASS"
+else
+  STATUS="FAIL"
+fi
+
+# Generate REPORT.md
+cat > "$OUT/REPORT.md" << EOF
+# UI Regression Report
+
+**Date**: $(date '+%Y-%m-%d %H:%M:%S')
+**Command**: \`/test_it\` or \`bash scripts/ui-regression.sh $MODE\`
+**Status**: $STATUS
+
+---
+
+## Summary
+
+| Metric | Value |
+|--------|-------|
+| Screenshots | $SCREENSHOTS |
+| JSON Reports | $REPORTS |
+| Console Errors | $ERRORS |
+| Console Warnings | $WARNINGS |
+
+---
+
+## Coverage
+
+| Category | Count |
+|----------|-------|
+| Pages | $(ls "$OUT/pages"/*.png 2>/dev/null | wc -l)/9 |
+| Tabs | $(ls "$OUT/tabs"/*.png 2>/dev/null | wc -l)/12 |
+| Expanded | $(ls "$OUT/expanded"/*.png 2>/dev/null | wc -l) |
+| Mobile | $(ls "$OUT/mobile"/*.png 2>/dev/null | wc -l)/7 |
+
+---
+
+## Result
+
+$([ "$STATUS" = "PASS" ] && echo "All tests pass. No regressions detected." || echo "ERRORS DETECTED - Review JSON reports for details.")
+EOF
+
+# ============================================
 # SUMMARY
 # ============================================
 echo ""
 echo "=== Capture Complete ==="
-SCREENSHOTS=$(find "$OUT" -name "*.png" 2>/dev/null | wc -l)
-REPORTS=$(find "$OUT" -name "*.json" 2>/dev/null | wc -l)
-ERRORS=$(find "$OUT" -name "*.json" -exec cat {} \; 2>/dev/null | jq -s '[.[].console.errorCount // 0] | add' 2>/dev/null || echo "0")
-
 echo "Screenshots: $SCREENSHOTS"
 echo "Reports: $REPORTS"
 echo "Console Errors: $ERRORS"
+echo "Console Warnings: $WARNINGS"
+echo "Status: $STATUS"
 echo ""
 echo "Output directory: $OUT"
+echo "Report: $OUT/REPORT.md"
 
 # List any pages with errors
-if [ "$ERRORS" != "0" ] && [ "$ERRORS" != "null" ]; then
+if [ "$STATUS" = "FAIL" ]; then
   echo ""
   echo "Pages with errors:"
   find "$OUT" -name "*.json" -exec sh -c 'cat "$1" | jq -r "select(.console.errorCount > 0) | \"\(.pageName): \(.console.errorCount) errors\""' _ {} \; 2>/dev/null

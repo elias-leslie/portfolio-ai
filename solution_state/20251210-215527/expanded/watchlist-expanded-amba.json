@@ -1,0 +1,29 @@
+{
+  "url": "http://192.168.8.233:3000/watchlist",
+  "pageName": "watchlist-expanded-amba",
+  "capturedAt": "2025-12-11T02:58:07.863Z",
+  "durationMs": 8293,
+  "interaction": {
+    "type": "expand-row",
+    "target": "AMBA",
+    "success": true
+  },
+  "console": {
+    "errors": [],
+    "warnings": [],
+    "errorCount": 0,
+    "warningCount": 0
+  },
+  "network": {
+    "failures": [],
+    "failureCount": 0
+  },
+  "pageState": {
+    "title": "Portfolio AI Platform",
+    "hasContent": true,
+    "tables": 1,
+    "charts": 0,
+    "errorElements": 0,
+    "loadingElements": 0
+  }
+}

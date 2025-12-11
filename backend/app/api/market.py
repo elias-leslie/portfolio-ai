@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
+import yfinance as yf
 from fastapi import APIRouter, Query, Request
 
 from app.api.market_data_sources import (
@@ -35,6 +36,7 @@ from app.api.market_transformers import (
     sort_sectors_by_performance,
 )
 from app.constants import SECTOR_ETFS
+from app.logging_config import get_logger
 from app.market import intelligence, narrative_generator
 from app.market.fear_greed_stub import get_fear_greed_score
 from app.market.sentiment import calculate_market_health
@@ -61,6 +63,7 @@ from app.utils.market_hours import (
 )
 
 router = APIRouter(prefix="/api/market", tags=["market"])
+logger = get_logger(__name__)
 
 # Initialize services
 storage = get_storage()
@@ -633,33 +636,78 @@ async def get_indicator_history(
 
 
 @router.get("/sector-history", response_model=SectorHistoryResponse)
-@cache_response(ttl=60)  # 1 minute cache for fresh data
+@cache_response(ttl=300)  # 5 minute cache (fetches from yfinance which is slower)
 async def get_sector_history(
     request: Request,
     days: int = Query(365, ge=7, le=730, description="Number of days of history"),
 ) -> SectorHistoryResponse:
-    """Get sector ETF historical data for performance charts."""
+    """Get sector ETF historical data for performance charts.
+
+    Uses yfinance directly to ensure adjusted prices (accounting for splits/dividends).
+    This is necessary because DB stores prices at ingestion time which become stale
+    after corporate actions like stock splits.
+    """
     sectors: list[SectorHistory] = []
     period_start = ""
     period_end = ""
 
-    for symbol, name in SECTOR_ETFS.items():
-        with storage.connection() as conn:
-            query_result = conn.execute(
-                """
-                SELECT date, close
-                FROM day_bars
-                WHERE symbol = %s AND date >= CURRENT_DATE - %s
-                ORDER BY date ASC
-                """,
-                [symbol, days],
-            )
-            rows = query_result.fetchall()
+    # Calculate date range
+    end_date = date.today()
+    start_date = end_date - timedelta(days=days)
 
-        sector_history, period_start, period_end = build_sector_history(
-            symbol, name, rows, period_start, period_end
-        )
-        sectors.append(sector_history)
+    for symbol, name in SECTOR_ETFS.items():
+        try:
+            # Fetch fresh adjusted prices from yfinance
+            ticker = yf.Ticker(symbol)
+            hist = ticker.history(
+                start=start_date.isoformat(),
+                end=(end_date + timedelta(days=1)).isoformat(),
+                auto_adjust=True,  # Critical: get split/dividend adjusted prices
+            )
+
+            if hist.empty:
+                logger.warning("sector_history_no_data", symbol=symbol)
+                continue
+
+            # Convert to list of tuples (date, close) for build_sector_history
+            rows = [
+                (row.Index.date(), row.Close)
+                for row in hist.itertuples()
+                if row.Index is not None and row.Close is not None
+            ]
+
+            if not rows:
+                continue
+
+            # Validate: reject if pct change is unrealistic (> 60% loss or > 200% gain)
+            if len(rows) >= 2:
+                first_close = rows[0][1]
+                last_close = rows[-1][1]
+                pct_change = ((last_close - first_close) / first_close) * 100
+                if pct_change < -60 or pct_change > 200:
+                    logger.error(
+                        "sector_history_unrealistic_change",
+                        symbol=symbol,
+                        first_close=first_close,
+                        last_close=last_close,
+                        pct_change=pct_change,
+                    )
+                    # Skip this sector rather than show bad data
+                    continue
+
+            sector_history, period_start, period_end = build_sector_history(
+                symbol, name, rows, period_start, period_end
+            )
+            sectors.append(sector_history)
+
+        except Exception as e:
+            logger.error(
+                "sector_history_fetch_error",
+                symbol=symbol,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+            continue
 
     # Sort by current performance descending
     sectors = sort_sectors_by_performance(sectors)
