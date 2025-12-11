@@ -1,7 +1,8 @@
 "use client";
 
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, checkDataFreshness, formatDate } from "@/lib/utils";
+import { useMarketStatus } from "@/lib/hooks/useMarketIntelligence";
 
 // Sector colors matching SectorPerformanceChart
 const SECTOR_COLORS: Record<string, string> = {
@@ -35,6 +36,8 @@ interface SectorMoversTableProps {
 type SectorWithStatus = SectorInfo & { status: "leading" | "neutral" | "lagging" };
 
 export function SectorMoversTable({ leading, neutral, lagging, lastUpdated }: SectorMoversTableProps) {
+  const { data: marketStatus } = useMarketStatus();
+
   // Combine and sort all sectors by change_pct descending
   const allSectors: SectorWithStatus[] = [
     ...leading.map((s) => ({ ...s, status: "leading" as const })),
@@ -115,9 +118,15 @@ export function SectorMoversTable({ leading, neutral, lagging, lastUpdated }: Se
         </table>
       </div>
 
-      <div className="text-[10px] text-text-muted text-right">
-        {lastUpdated && `Data as of ${new Date(lastUpdated).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
-      </div>
+      {lastUpdated && (() => {
+        const dataDate = lastUpdated.split("T")[0];
+        const freshness = checkDataFreshness(dataDate, marketStatus?.expected_data_date);
+        return (
+          <div className="text-[10px] text-text-muted text-right" title={freshness.tooltip}>
+            Data as of {formatDate(dataDate, false)} {freshness.indicator}
+          </div>
+        );
+      })()}
     </div>
   );
 }

@@ -18,7 +18,9 @@ export function cn(...inputs: ClassValue[]) {
  */
 export function formatDate(dateStr: string | undefined | null, includeYear: boolean = true): string {
   if (!dateStr) return "-";
-  const date = new Date(dateStr);
+  // Append T12:00:00 to avoid timezone issues when parsing date-only strings
+  const normalizedStr = dateStr.includes("T") ? dateStr : `${dateStr}T12:00:00`;
+  const date = new Date(normalizedStr);
   if (isNaN(date.getTime())) return "-";
 
   return date.toLocaleDateString("en-US", {
@@ -65,4 +67,51 @@ export function formatRelativeTime(timestamp: string): string {
     hour: 'numeric',
     minute: '2-digit'
   })
+}
+
+/**
+ * Check if data is fresh compared to expected data date
+ * @param dataDate The date of the data (YYYY-MM-DD format)
+ * @param expectedDataDate The expected data date from market status API
+ * @returns Object with freshness status and display info
+ */
+export function checkDataFreshness(
+  dataDate: string | null | undefined,
+  expectedDataDate: string | null | undefined
+): { isFresh: boolean; indicator: string; tooltip: string } {
+  if (!dataDate || !expectedDataDate) {
+    return { isFresh: false, indicator: "⚠️", tooltip: "Unable to verify data freshness" };
+  }
+
+  // Extract just the date part (YYYY-MM-DD) for comparison
+  // This avoids timezone issues by comparing strings directly
+  const dataDateStr = dataDate.split("T")[0];
+  const expectedDateStr = expectedDataDate.split("T")[0];
+
+  // String comparison works for ISO date format (YYYY-MM-DD)
+  const isFresh = dataDateStr >= expectedDateStr;
+
+  return {
+    isFresh,
+    indicator: isFresh ? "✓" : "⚠️",
+    tooltip: isFresh
+      ? `Data is current (${formatDate(dataDate, false)})`
+      : `Data may be stale - expected ${formatDate(expectedDataDate, false)}, have ${formatDate(dataDate, false)}`,
+  };
+}
+
+/**
+ * Format data date with freshness indicator
+ * @param dataDate The date of the data
+ * @param expectedDataDate The expected data date from market status API
+ * @returns Formatted string like "Dec 10 ✓" or "Dec 10 ⚠️"
+ */
+export function formatDataDateWithFreshness(
+  dataDate: string | null | undefined,
+  expectedDataDate: string | null | undefined
+): string {
+  if (!dataDate) return "-";
+
+  const { indicator } = checkDataFreshness(dataDate, expectedDataDate);
+  return `${formatDate(dataDate, false)} ${indicator}`;
 }

@@ -204,6 +204,43 @@ def get_market_close_time(check_date: date | None = None) -> time:
     return EARLY_CLOSE if is_early else MARKET_CLOSE
 
 
+def get_expected_data_date(now: datetime | None = None) -> date:
+    """Get the date that market data SHOULD be available for.
+
+    Returns the most recent trading day where market has closed.
+    Used to determine if data is stale vs current.
+
+    Args:
+        now: The datetime to check. If None, uses current time in ET.
+
+    Returns:
+        The date data should be available for.
+
+    Examples:
+        - 8 AM Mon Dec 11: Returns Dec 10 (market hasn't opened yet)
+        - 12 PM Mon Dec 11: Returns Dec 10 (market open, today incomplete)
+        - 5 PM Mon Dec 11: Returns Dec 11 (market closed, today complete)
+        - 10 AM Sat Dec 13: Returns Dec 12 (Friday's data should exist)
+    """
+    if now is None:
+        now = datetime.now(NY_TZ)
+    else:
+        now = now.astimezone(NY_TZ)
+
+    today = now.date()
+    current_time = now.time()
+
+    # If today is a trading day and market has closed, expect today's data
+    if is_trading_day(today):
+        close_time = get_market_close_time(today)
+        if current_time >= close_time:
+            return today
+
+    # Otherwise, expect previous trading day's data
+    yesterday = today - timedelta(days=1)
+    return get_last_trading_day(yesterday)
+
+
 def get_market_status(now: datetime | None = None) -> MarketStatus:  # noqa: PLR0911
     """Get the current market status.
 

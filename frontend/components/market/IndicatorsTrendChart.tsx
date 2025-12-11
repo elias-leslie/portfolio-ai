@@ -11,9 +11,10 @@ import {
   ReferenceLine,
   Legend,
 } from "recharts";
-import { useIndicatorHistory } from "@/lib/hooks/useMarketIntelligence";
+import { useIndicatorHistory, useMarketStatus } from "@/lib/hooks/useMarketIntelligence";
 import { TimeframeSelector, Timeframe, timeframeToDays, formatChartDate, calculateTickInterval } from "./TimeframeSelector";
 import { Loader2 } from "lucide-react";
+import { checkDataFreshness, formatDate } from "@/lib/utils";
 
 const INDICATOR_CONFIG = {
   sp500: { name: "S&P 500", color: "#3B82F6" },
@@ -30,6 +31,7 @@ export function IndicatorsTrendChart() {
   const days = timeframeToDays(timeframe);
 
   const { data, isLoading, error } = useIndicatorHistory(days);
+  const { data: marketStatus } = useMarketStatus();
 
   // Transform data for Recharts - merge all indicators by date
   // Include both percentage change (for charting) and actual values (for tooltips)
@@ -183,9 +185,15 @@ export function IndicatorsTrendChart() {
             );
           })}
         </div>
-        <span className="text-[10px] text-text-muted">
-          {chartData.length > 0 && `Data as of ${new Date(chartData[chartData.length - 1].date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
-        </span>
+        {chartData.length > 0 && (() => {
+          const dataDate = chartData[chartData.length - 1].date.split("T")[0];
+          const freshness = checkDataFreshness(dataDate, marketStatus?.expected_data_date);
+          return (
+            <span className="text-[10px] text-text-muted" title={freshness.tooltip}>
+              Data as of {formatDate(dataDate, false)} {freshness.indicator}
+            </span>
+          );
+        })()}
       </div>
     </div>
   );

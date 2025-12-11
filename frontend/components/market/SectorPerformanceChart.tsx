@@ -11,9 +11,10 @@ import {
   Legend,
   ReferenceLine,
 } from "recharts";
-import { useSectorHistory } from "@/lib/hooks/useMarketIntelligence";
+import { useSectorHistory, useMarketStatus } from "@/lib/hooks/useMarketIntelligence";
 import { TimeframeSelector, Timeframe, timeframeToDays, formatChartDate, calculateTickInterval } from "./TimeframeSelector";
 import { Loader2 } from "lucide-react";
+import { checkDataFreshness, formatDate } from "@/lib/utils";
 
 // Distinct colors for each sector
 const SECTOR_COLORS: Record<string, string> = {
@@ -36,6 +37,7 @@ export function SectorPerformanceChart() {
   const days = timeframeToDays(timeframe);
 
   const { data, isLoading, error } = useSectorHistory(days);
+  const { data: marketStatus } = useMarketStatus();
 
   // Transform data for Recharts
   // Include both percentage change (for charting) and actual close price (for tooltips)
@@ -182,9 +184,14 @@ export function SectorPerformanceChart() {
             </button>
           ))}
         </div>
-        <span className="text-[10px] text-text-muted whitespace-nowrap ml-2">
-          {data.period_end && `Data as of ${new Date(data.period_end + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
-        </span>
+        {data.period_end && (() => {
+          const freshness = checkDataFreshness(data.period_end, marketStatus?.expected_data_date);
+          return (
+            <span className="text-[10px] text-text-muted whitespace-nowrap ml-2" title={freshness.tooltip}>
+              Data as of {formatDate(data.period_end, false)} {freshness.indicator}
+            </span>
+          );
+        })()}
       </div>
     </div>
   );

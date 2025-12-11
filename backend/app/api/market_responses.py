@@ -46,6 +46,9 @@ class MarketStatusResponse(BaseModel):
     last_trading_day: str = Field(..., description="Most recent trading day (ISO format)")
     next_trading_day: str = Field(..., description="Next trading day (ISO format)")
     current_time_et: str = Field(..., description="Current time in Eastern Time")
+    expected_data_date: str = Field(
+        ..., description="Date that market data SHOULD be available for (ISO format)"
+    )
     is_holiday: bool = Field(False, description="Whether today is a market holiday")
     holiday_name: str | None = Field(None, description="Holiday name if today is a holiday")
     is_early_close: bool = Field(False, description="Whether today is an early close day")

@@ -10,12 +10,14 @@ import {
   fetchIndicatorHistory,
   fetchSectorHistory,
   fetchMarketMovers,
+  fetchMarketStatus,
   type MarketIntelligenceResponse,
   type FearGreedHistoryResponse,
   type NewsSentimentHistoryResponse,
   type IndicatorHistoryResponse,
   type SectorHistoryResponse,
   type MarketMoversResponse,
+  type MarketStatusResponse,
 } from "../api/market";
 
 /**
@@ -110,6 +112,20 @@ export function useMarketMovers(
     queryFn: () => fetchMarketMovers(count),
     staleTime: 1000 * 60 * 15, // 15 minutes
     refetchInterval: 1000 * 60 * 15, // Auto-refetch every 15 minutes
+    refetchOnWindowFocus: true,
+  });
+}
+
+/**
+ * Hook to fetch market status (for staleness detection)
+ * Cached for 1 minute (matches backend cache)
+ */
+export function useMarketStatus(): UseQueryResult<MarketStatusResponse> {
+  return useQuery({
+    queryKey: ["market", "status"],
+    queryFn: fetchMarketStatus,
+    staleTime: 1000 * 60, // 1 minute
+    refetchInterval: 1000 * 60, // Auto-refetch every minute
     refetchOnWindowFocus: true,
   });
 }

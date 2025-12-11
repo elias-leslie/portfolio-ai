@@ -359,3 +359,27 @@ export async function fetchMarketMovers(
     `/api/market/movers?count=${count}`
   );
 }
+
+// ============================================================================
+// Market Status Types & Functions
+// ============================================================================
+
+export interface MarketStatusResponse {
+  status: "open" | "closed" | "pre_market" | "after_hours";
+  is_open: boolean;
+  last_trading_day: string;
+  next_trading_day: string;
+  current_time_et: string;
+  expected_data_date: string;
+  is_holiday: boolean;
+  holiday_name: string | null;
+  is_early_close: boolean;
+  early_close_name: string | null;
+}
+
+/**
+ * Get current market status including expected data date for staleness detection
+ */
+export async function fetchMarketStatus(): Promise<MarketStatusResponse> {
+  return apiRequest<MarketStatusResponse>("/api/market/status");
+}

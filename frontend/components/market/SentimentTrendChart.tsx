@@ -13,9 +13,10 @@ import {
   Line,
   ComposedChart,
 } from "recharts";
-import { useFearGreedHistory, useNewsSentimentHistory } from "@/lib/hooks/useMarketIntelligence";
+import { useFearGreedHistory, useNewsSentimentHistory, useMarketStatus } from "@/lib/hooks/useMarketIntelligence";
 import { TimeframeSelector, Timeframe, timeframeToDays, formatChartDate, calculateTickInterval } from "./TimeframeSelector";
 import { Loader2 } from "lucide-react";
+import { checkDataFreshness, formatDate } from "@/lib/utils";
 
 // Convert news sentiment (-1 to +1) to 0-100 scale for chart alignment
 function normalizeNewsSentiment(score: number): number {
@@ -28,6 +29,7 @@ export function SentimentTrendChart() {
 
   const { data: fearGreedData, isLoading: fgLoading, error: fgError } = useFearGreedHistory(days);
   const { data: newsData, isLoading: newsLoading } = useNewsSentimentHistory(days, "daily");
+  const { data: marketStatus } = useMarketStatus();
 
   // Merge Fear & Greed, News Sentiment, and P/C Ratio data by date
   const chartData = useMemo(() => {
@@ -226,9 +228,15 @@ export function SentimentTrendChart() {
             </span>
           )}
         </div>
-        <span className="text-[10px]">
-          {chartData.length > 0 && `Data as of ${new Date(chartData[chartData.length - 1].date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
-        </span>
+        {chartData.length > 0 && (() => {
+          const dataDate = chartData[chartData.length - 1].date.split("T")[0];
+          const freshness = checkDataFreshness(dataDate, marketStatus?.expected_data_date);
+          return (
+            <span className="text-[10px]" title={freshness.tooltip}>
+              Data as of {formatDate(dataDate, false)} {freshness.indicator}
+            </span>
+          );
+        })()}
       </div>
     </div>
   );

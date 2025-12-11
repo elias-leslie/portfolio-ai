@@ -56,6 +56,7 @@ from app.portfolio.price_fetcher import PriceDataFetcher
 from app.storage import get_storage
 from app.utils.market_hours import (
     NY_TZ,
+    get_expected_data_date,
     get_last_trading_day,
     get_market_status,
     get_next_trading_day,
@@ -417,12 +418,16 @@ async def get_market_status_endpoint(request: Request) -> MarketStatusResponse:
     is_holiday, holiday_name = is_market_holiday(today)
     is_early, early_name = is_early_close_day(today)
 
+    # Get expected data date (for staleness detection)
+    expected_data = get_expected_data_date(now)
+
     return MarketStatusResponse(
         status=status,
         is_open=status == "open",
         last_trading_day=last_trading.isoformat(),
         next_trading_day=next_trading.isoformat(),
         current_time_et=now.strftime("%Y-%m-%d %H:%M:%S ET"),
+        expected_data_date=expected_data.isoformat(),
         is_holiday=is_holiday,
         holiday_name=holiday_name,
         is_early_close=is_early,
