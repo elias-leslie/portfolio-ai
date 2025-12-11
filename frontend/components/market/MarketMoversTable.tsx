@@ -128,12 +128,7 @@ export function MarketMoversTable() {
       </div>
 
       <div className="text-[10px] text-text-muted text-right">
-        {data.last_updated && (
-          <span>
-            Updated {formatRelativeTime(data.last_updated)} •
-          </span>
-        )}
-        {data.source === "yahooquery" ? "Yahoo Finance" : "Alpaca"}
+        {data.last_updated && `Updated ${formatRelativeTime(data.last_updated)}`}
       </div>
     </div>
   );
