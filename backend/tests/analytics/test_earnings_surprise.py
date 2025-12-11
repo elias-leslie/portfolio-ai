@@ -149,7 +149,8 @@ class TestSaveEarningsSurprises:
         result = save_earnings_surprises(mock_storage, [surprise])
 
         assert result == 1
-        mock_conn.execute.assert_called_once()
+        # Implementation calls execute twice: once for symbol upsert, once for earnings insert
+        assert mock_conn.execute.call_count == 2
         mock_conn.commit.assert_called_once()
 
 
@@ -190,9 +191,7 @@ class TestGetRecentEarningsSurprises:
 class TestCalculateEarningsSurpriseScore:
     """Tests for earnings surprise scoring logic."""
 
-    def _mock_storage_with_surprises(
-        self, surprises: list[dict[str, Any]]
-    ) -> MagicMock:
+    def _mock_storage_with_surprises(self, surprises: list[dict[str, Any]]) -> MagicMock:
         """Create mock storage with specified surprise data."""
         mock_storage = MagicMock()
         mock_result = MagicMock()
@@ -236,7 +235,7 @@ class TestCalculateEarningsSurpriseScore:
         ]
         mock_storage = self._mock_storage_with_surprises(surprises)
 
-        score, reasons = calculate_earnings_surprise_score(mock_storage, "NVDA")
+        score, _reasons = calculate_earnings_surprise_score(mock_storage, "NVDA")
 
         assert score == 3
 
