@@ -78,8 +78,10 @@ def test_calculate_indicators_all_indicators(
     )
 
     # Verify structure
+    from datetime import date
+
     assert result["symbol"] == "AAPL"
-    assert result["date"] == "2025-02-05"
+    assert result["date"] == date(2025, 2, 5)
 
     # Verify key indicators are present
     indicators = result["indicators"]
@@ -398,8 +400,10 @@ def test_calculate_indicators_specific_date(
 
     # Verify the result uses the latest date from the returned data
     # The function queries data up to the target date and uses the latest available
+    from datetime import date as date_type
+
     assert result["date"] is not None
-    assert isinstance(result["date"], str)
+    assert isinstance(result["date"], date_type)
 
 
 def test_calculate_indicators_latest_date(
@@ -413,7 +417,9 @@ def test_calculate_indicators_latest_date(
     )
 
     # Should use latest date from sample data (2025-02-05)
-    assert result["date"] == "2025-02-05"
+    from datetime import date as date_type
+
+    assert result["date"] == date_type(2025, 2, 5)
 
 
 def test_calculate_indicators_with_date_object(
@@ -427,9 +433,11 @@ def test_calculate_indicators_with_date_object(
         storage=mock_storage, symbol="AAPL", indicators=["rsi"], as_of_date=target_date
     )
 
-    # Verify date object is accepted and result returns a date string
+    # Verify date object is accepted and result returns a date object
+    from datetime import date as date_type
+
     assert result["date"] is not None
-    assert isinstance(result["date"], str)
+    assert isinstance(result["date"], date_type)
 
 
 def test_calculate_indicators_price_vs_sma_200_interpretation(
