@@ -361,6 +361,18 @@ function BackupHistoryCard() {
                         Latest
                       </Badge>
                     )}
+                    {backup.verification && (
+                      <Badge
+                        variant={backup.verification.verified ? "success" : "destructive"}
+                        className="text-xs"
+                      >
+                        {backup.verification.verified ? (
+                          <><CheckCircle2 className="mr-1 size-3" />{backup.verification.total_files} files</>
+                        ) : (
+                          <><AlertCircle className="mr-1 size-3" />FAILED</>
+                        )}
+                      </Badge>
+                    )}
                   </div>
                   <div className="flex items-center gap-3 text-xs text-text-muted">
                     <span>{formatBackupAge(backup.timestamp)}</span>
@@ -369,30 +381,68 @@ function BackupHistoryCard() {
                 </div>
 
                 {expandedBackup === backup.name && (
-                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs border-t border-border pt-3">
-                    <div>
-                      <span className="text-text-muted">Timestamp:</span>{" "}
-                      <span className="font-mono">
-                        {new Date(backup.timestamp).toLocaleString()}
-                      </span>
+                  <div className="mt-3 space-y-3 border-t border-border pt-3">
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-text-muted">Timestamp:</span>{" "}
+                        <span className="font-mono">
+                          {new Date(backup.timestamp).toLocaleString()}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-text-muted">Archive Size:</span>{" "}
+                        <span>{formatBytes(backup.size_bytes)}</span>
+                      </div>
+                      <div>
+                        <span className="text-text-muted">DB Size:</span>{" "}
+                        <span>{formatBytes(backup.db_size_bytes)}</span>
+                      </div>
+                      <div>
+                        <span className="text-text-muted">Status:</span>{" "}
+                        <Badge
+                          variant={backup.status === "ok" ? "success" : "destructive"}
+                          className="text-xs"
+                        >
+                          {backup.status}
+                        </Badge>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-text-muted">Archive Size:</span>{" "}
-                      <span>{formatBytes(backup.size_bytes)}</span>
-                    </div>
-                    <div>
-                      <span className="text-text-muted">DB Size:</span>{" "}
-                      <span>{formatBytes(backup.db_size_bytes)}</span>
-                    </div>
-                    <div>
-                      <span className="text-text-muted">Status:</span>{" "}
-                      <Badge
-                        variant={backup.status === "ok" ? "success" : "destructive"}
-                        className="text-xs"
-                      >
-                        {backup.status}
-                      </Badge>
-                    </div>
+
+                    {backup.verification && (
+                      <div className="space-y-2">
+                        <div className="text-xs font-medium text-text-muted uppercase">
+                          Verification Details
+                        </div>
+
+                        {backup.verification.errors.length > 0 && (
+                          <div className="rounded-md border border-loss bg-loss/10 p-2 text-xs text-loss">
+                            {backup.verification.errors.map((err, i) => (
+                              <div key={i}>{err}</div>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-4 gap-2 text-xs rounded-md bg-surface-muted p-2">
+                          {Object.entries(backup.verification.tree)
+                            .sort(([, a], [, b]) => b.count - a.count)
+                            .map(([path, entry]) => (
+                              <div key={path} className="flex justify-between">
+                                <span className="text-text-muted truncate">{path}</span>
+                                <span className="font-mono ml-1">{entry.count}</span>
+                              </div>
+                            ))}
+                        </div>
+
+                        <div className="flex items-center gap-4 text-xs text-text-muted">
+                          <span>
+                            Total: <span className="font-mono">{backup.verification.total_files}</span> files
+                          </span>
+                          <span className="font-mono text-[10px] truncate">
+                            {backup.verification.checksum}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

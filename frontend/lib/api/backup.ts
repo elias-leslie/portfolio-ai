@@ -5,12 +5,26 @@
 import { get, post } from "./client";
 
 // Types
+export interface TreeEntry {
+  count: number;
+}
+
+export interface BackupVerification {
+  verified: boolean;
+  verified_at: string;
+  errors: string[];
+  tree: Record<string, TreeEntry>;
+  total_files: number;
+  checksum: string;
+}
+
 export interface BackupEntry {
   name: string;
   timestamp: string;
   size_bytes: number;
   db_size_bytes: number;
   status: "ok" | "failed" | "in_progress";
+  verification?: BackupVerification;
 }
 
 export interface BackupStatusResponse {

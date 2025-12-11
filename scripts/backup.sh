@@ -129,7 +129,7 @@ dump_database() {
     fi
 }
 
-# Create archive function
+# Create archive function (exclusion-based, dynamic)
 create_archive() {
     local archive_path="$1"
     local db_dump="$2"
@@ -139,37 +139,23 @@ create_archive() {
 
     cd "$PROJECT_DIR"
 
-    # Build list of files/dirs to include (only those that exist)
-    local include_list=()
-
-    [ -d "data/artifacts" ] && include_list+=("data/artifacts")
-    for f in data/*.json; do [ -f "$f" ] && include_list+=("$f"); done
-    for f in backups/*.sql.gz; do [ -f "$f" ] && include_list+=("$f"); done
-    [ -d "reports" ] && include_list+=("reports")
-    [ -d "solution_state" ] && include_list+=("solution_state")
-    [ -f ".claude/settings.local.json" ] && include_list+=(".claude/settings.local.json")
-    [ -d ".claude/state" ] && include_list+=(".claude/state")
-    [ -d ".claude/backups" ] && include_list+=(".claude/backups")
-    [ -f ".env" ] && include_list+=(".env")
-    [ -f "backend/.env" ] && include_list+=("backend/.env")
-    [ -f "frontend/.env.local" ] && include_list+=("frontend/.env.local")
+    # Build tar exclusion args from BACKUP_EXCLUDES
+    local exclude_args=()
+    for ex in "${BACKUP_EXCLUDES[@]}"; do
+        exclude_args+=(--exclude="$ex")
+    done
 
     # Ensure database dump is in staging dir with proper name
     if [ "$db_dump" != "$STAGING_DIR/database.sql.gz" ]; then
         cp "$db_dump" "$STAGING_DIR/database.sql.gz"
     fi
 
-    # Create tar archive (uncompressed first)
+    # Create archive of entire project (minus exclusions)
     tar --create \
         --file="$tar_path" \
-        --exclude='*.db' \
-        --exclude='*.db.backup.*' \
-        --exclude='__pycache__' \
-        --exclude='*.pyc' \
-        --exclude='*.pyo' \
-        --exclude='*.log' \
+        "${exclude_args[@]}" \
         --transform='s|^|portfolio-ai/|' \
-        "${include_list[@]}" 2>/dev/null || true
+        . 2>/dev/null || true
 
     # Add database dump to archive
     tar --append \
@@ -181,6 +167,35 @@ create_archive() {
     gzip -f "$tar_path"
 
     log_success "Archive created: $(du -h "$archive_path" | cut -f1)"
+}
+
+# Display verification results
+display_verification() {
+    local verification="$1"
+
+    local verified
+    verified=$(echo "$verification" | jq -r '.verified')
+
+    if [ "$verified" = "true" ]; then
+        log_success "Archive integrity verified!"
+    else
+        log_error "Verification FAILED!"
+        echo "$verification" | jq -r '.errors[]' | while read -r err; do
+            log_error "  - $err"
+        done
+    fi
+
+    # Display tree summary
+    echo ""
+    echo "  Contents by directory:"
+    echo "$verification" | jq -r '.tree | to_entries | sort_by(-.value.count) | .[] | "    \(.key): \(.value.count) files"'
+
+    local total_files checksum
+    total_files=$(echo "$verification" | jq -r '.total_files')
+    checksum=$(echo "$verification" | jq -r '.checksum')
+    echo "  ─────────────────────────────────────"
+    echo "  Total: $total_files files"
+    echo "  Checksum: $checksum"
 }
 
 # Main function
@@ -204,16 +219,28 @@ main() {
 
     # Dump database
     dump_database "$db_dump"
-    local db_size=$(stat -c%s "$db_dump" 2>/dev/null || stat -f%z "$db_dump" 2>/dev/null || echo "0")
+    local db_size
+    db_size=$(stat -c%s "$db_dump" 2>/dev/null || stat -f%z "$db_dump" 2>/dev/null || echo "0")
 
     # Create archive
+    log "Creating archive (this may take a moment)..."
     create_archive "$archive_path" "$db_dump"
-    local archive_size=$(stat -c%s "$archive_path" 2>/dev/null || stat -f%z "$archive_path" 2>/dev/null || echo "0")
+    local archive_size
+    archive_size=$(stat -c%s "$archive_path" 2>/dev/null || stat -f%z "$archive_path" 2>/dev/null || echo "0")
+
+    # Verify archive contents
+    log "Verifying backup..."
+    local verification
+    verification=$(verify_backup "$archive_path")
+
+    # Display verification results
+    display_verification "$verification"
 
     # Local only mode
     if [ "$LOCAL_ONLY" = true ]; then
         local final_path="$PROJECT_DIR/backups/$ARCHIVE_NAME"
         cp "$archive_path" "$final_path"
+        echo ""
         log_success "Local backup created: $final_path"
         echo ""
         echo "Archive: $final_path"
@@ -236,8 +263,8 @@ main() {
     # Apply retention policy
     apply_retention
 
-    # Update backup index
-    update_backup_index "$ARCHIVE_NAME" "$archive_size" "$db_size" "ok"
+    # Update backup index with verification results
+    update_backup_index "$ARCHIVE_NAME" "$archive_size" "$db_size" "ok" "$verification"
 
     echo ""
     echo "========================================"

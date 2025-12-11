@@ -34,6 +34,23 @@ _running_jobs: dict[str, dict[str, Any]] = {}
 
 
 # Response Models
+class TreeEntry(BaseModel):
+    """File count for a directory/file in the backup."""
+
+    count: int
+
+
+class BackupVerification(BaseModel):
+    """Verification results for a backup."""
+
+    verified: bool
+    verified_at: str
+    errors: list[str]
+    tree: dict[str, TreeEntry]
+    total_files: int
+    checksum: str
+
+
 class BackupEntry(BaseModel):
     """Individual backup entry."""
 
@@ -42,6 +59,7 @@ class BackupEntry(BaseModel):
     size_bytes: int
     db_size_bytes: int
     status: Literal["ok", "failed", "in_progress"]
+    verification: BackupVerification | None = None
 
 
 class BackupIndexResponse(BaseModel):

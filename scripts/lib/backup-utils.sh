@@ -25,6 +25,18 @@ export MAX_BACKUPS=30
 export DB_NAME="${DB_NAME:-portfolio_ai}"
 export DB_USER="${DB_USER:-portfolio_ai_user}"
 
+# Exclusions - only things that should NEVER be backed up (reproducible/cached)
+BACKUP_EXCLUDES=(
+    "backend/.venv"
+    "frontend/node_modules"
+    "frontend/.next"
+    ".git"
+    ".mypy_cache"
+    "__pycache__"
+    "*.pyc"
+    "*.pyo"
+)
+
 # Logging functions
 log() {
     printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
@@ -148,6 +160,7 @@ update_backup_index() {
     local backup_size="$2"
     local db_size="$3"
     local status="${4:-ok}"
+    local verification_json="${5:-null}"
     local timestamp=$(date -Iseconds)
 
     log "Updating backup index..."
@@ -156,7 +169,7 @@ update_backup_index() {
     if [ ! -f "$BACKUP_INDEX" ]; then
         cat > "$BACKUP_INDEX" << EOF
 {
-  "version": 1,
+  "version": 2,
   "retention": $MAX_BACKUPS,
   "destination": "//$SMB_HOST/$SMB_SHARE/$SMB_PATH",
   "backups": [],
@@ -165,15 +178,26 @@ update_backup_index() {
 EOF
     fi
 
-    # Add new backup entry using jq
+    # Add new backup entry using jq (with or without verification)
     local temp_file=$(mktemp)
-    jq --arg name "$backup_name" \
-       --arg ts "$timestamp" \
-       --argjson size "$backup_size" \
-       --argjson dbsize "$db_size" \
-       --arg status "$status" \
-       '.backups = [{"name": $name, "timestamp": $ts, "size_bytes": $size, "db_size_bytes": $dbsize, "status": $status}] + .backups | .last_updated = $ts' \
-       "$BACKUP_INDEX" > "$temp_file"
+    if [ "$verification_json" != "null" ] && [ -n "$verification_json" ]; then
+        jq --arg name "$backup_name" \
+           --arg ts "$timestamp" \
+           --argjson size "$backup_size" \
+           --argjson dbsize "$db_size" \
+           --arg status "$status" \
+           --argjson verification "$verification_json" \
+           '.version = 2 | .backups = [{"name": $name, "timestamp": $ts, "size_bytes": $size, "db_size_bytes": $dbsize, "status": $status, "verification": $verification}] + .backups | .last_updated = $ts' \
+           "$BACKUP_INDEX" > "$temp_file"
+    else
+        jq --arg name "$backup_name" \
+           --arg ts "$timestamp" \
+           --argjson size "$backup_size" \
+           --argjson dbsize "$db_size" \
+           --arg status "$status" \
+           '.version = 2 | .backups = [{"name": $name, "timestamp": $ts, "size_bytes": $size, "db_size_bytes": $dbsize, "status": $status}] + .backups | .last_updated = $ts' \
+           "$BACKUP_INDEX" > "$temp_file"
+    fi
 
     mv "$temp_file" "$BACKUP_INDEX"
     log_success "Backup index updated"
@@ -220,6 +244,126 @@ apply_retention() {
     log_success "Retention applied: now $MAX_BACKUPS backups"
 }
 
+# Build manifest by scanning entire project (dynamic discovery)
+build_backup_manifest() {
+    local manifest_file="$1"
+
+    cd "$PROJECT_DIR"
+
+    # Build find exclusion args
+    local exclude_args=()
+    for ex in "${BACKUP_EXCLUDES[@]}"; do
+        if [[ "$ex" == *"*"* ]]; then
+            # Glob pattern (e.g., *.pyc)
+            exclude_args+=(-not -name "$ex")
+        else
+            # Directory/path pattern
+            exclude_args+=(-not -path "./$ex" -not -path "./$ex/*")
+        fi
+    done
+
+    # Discover all files (excluding above)
+    local all_files
+    all_files=$(find . -type f "${exclude_args[@]}" 2>/dev/null | sed 's|^\./||' | sort)
+
+    # Build tree: group by top-level directory
+    local manifest_json
+    manifest_json=$(cat <<EOF
+{"generated_at":"$(date -Iseconds)","total_files":0,"total_size":0,"tree":{}}
+EOF
+)
+
+    # Get unique top-level paths (first component of each path)
+    local top_levels
+    top_levels=$(echo "$all_files" | cut -d'/' -f1 | sort -u)
+
+    for path in $top_levels; do
+        local count size
+        if [ -d "$path" ]; then
+            count=$(echo "$all_files" | grep -c "^$path/" || echo 0)
+            # Calculate size excluding the exclusions
+            size=$(find "$path" -type f "${exclude_args[@]}" -exec stat -c%s {} + 2>/dev/null | awk '{s+=$1}END{print s+0}')
+        else
+            count=1
+            size=$(stat -c%s "$path" 2>/dev/null || echo 0)
+        fi
+
+        manifest_json=$(echo "$manifest_json" | jq --arg p "$path" \
+            --argjson c "$count" --argjson s "${size:-0}" \
+            '.tree[$p] = {"file_count": $c, "size_bytes": $s}')
+    done
+
+    # Add totals
+    local total_count total_size
+    total_count=$(echo "$all_files" | wc -l)
+    total_size=$(echo "$all_files" | tr '\n' '\0' | xargs -0 stat -c%s 2>/dev/null | awk '{s+=$1}END{print s+0}')
+
+    manifest_json=$(echo "$manifest_json" | jq \
+        --argjson tc "$total_count" --argjson ts "${total_size:-0}" \
+        '.total_files = $tc | .total_size = $ts')
+
+    echo "$manifest_json" > "$manifest_file"
+}
+
+# Verify backup archive - check integrity and build tree from actual contents
+verify_backup() {
+    local archive_path="$1"
+
+    # Test archive integrity first
+    if ! tar -tzf "$archive_path" > /dev/null 2>&1; then
+        echo '{"verified":false,"verified_at":"'"$(date -Iseconds)"'","errors":["Archive integrity check failed"],"tree":{}}'
+        return 1
+    fi
+
+    # Build tree using awk (single pass, fast)
+    # Count files per top-level directory
+    local tree_json
+    tree_json=$(tar -tzf "$archive_path" 2>/dev/null | \
+        sed 's|^portfolio-ai/\./||;s|^portfolio-ai/||' | \
+        grep -v '/$' | grep -v '^$' | \
+        awk -F'/' '
+        {
+            if (NF == 1) {
+                # Root-level file
+                files[$1] = 1
+            } else {
+                # File in directory
+                dirs[$1]++
+            }
+        }
+        END {
+            printf "{"
+            first = 1
+            for (d in dirs) {
+                if (!first) printf ","
+                printf "\"%s\":{\"count\":%d}", d, dirs[d]
+                first = 0
+            }
+            for (f in files) {
+                if (!first) printf ","
+                printf "\"%s\":{\"count\":1}", f
+                first = 0
+            }
+            printf "}"
+        }')
+
+    # Count total files and calculate checksum
+    local total_files checksum has_db
+    total_files=$(tar -tzf "$archive_path" | grep -v '/$' | wc -l | tr -d ' ')
+    checksum=$(sha256sum "$archive_path" | cut -d' ' -f1)
+    has_db=$(tar -tzf "$archive_path" | grep -c "database.sql.gz" || echo "0")
+
+    # Build final result
+    local verified="true"
+    local errors="[]"
+    if [ "$has_db" -eq 0 ]; then
+        verified="false"
+        errors='["Critical: database.sql.gz missing"]'
+    fi
+
+    echo "{\"verified\":$verified,\"verified_at\":\"$(date -Iseconds)\",\"errors\":$errors,\"tree\":$tree_json,\"total_files\":$total_files,\"checksum\":\"sha256:$checksum\"}"
+}
+
 # Pre-backup checkpoint hook for use by other commands
 backup_checkpoint() {
     local description="${1:-pre-operation}"
@@ -242,3 +386,4 @@ export -f ensure_smb_credentials test_smb_connection
 export -f smb_upload smb_download smb_delete smb_list_backups
 export -f update_backup_index get_backup_count remove_oldest_from_index
 export -f apply_retention backup_checkpoint
+export -f build_backup_manifest verify_backup
