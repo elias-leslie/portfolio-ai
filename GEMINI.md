@@ -17,7 +17,7 @@ The "Portfolio AI Platform" is a full-stack application designed for investment 
     *   Celery (Worker & Beat) for asynchronous tasks and scheduling
     *   Modular LLM Clients (`backend/app/agents/clients/`) supporting Anthropic (Claude) and Google (Gemini)
 *   **Frontend:**
-    *   Next.js 14
+    *   Next.js 16
     *   React 19
     *   TypeScript
     *   React Query for data fetching

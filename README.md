@@ -90,7 +90,7 @@ Then open `https://<your-machine>.tail-scale.net` on your phone.
 See **[docs/core/ARCHITECTURE.md](./docs/core/ARCHITECTURE.md)** for comprehensive system design.
 
 **High-level stack**:
-- **Frontend**: Next.js 14, React Query, shadcn/ui, Tailwind CSS
+- **Frontend**: Next.js 16, React Query, shadcn/ui, Tailwind CSS
 - **Backend**: FastAPI, PostgreSQL 16, SQLAlchemy, Pydantic
 - **AI**: Anthropic Claude API
 - **Data**: Multi-source failover (YFinance, TwelveData, FMP, Polygon, Finnhub, AlphaVantage), FRED, Google News RSS
@@ -147,7 +147,7 @@ npm run build
 │   ├── tests/            # 145 tests (100% passing, 85% coverage)
 │   ├── migrations/       # Database schema migrations
 │   └── data/             # Database backups only (PostgreSQL managed externally)
-├── frontend/             # Next.js 14 application
+├── frontend/             # Next.js 16 application
 │   ├── app/              # Pages (dashboard, portfolio, settings, ideas)
 │   ├── components/       # React components
 │   └── lib/              # API clients & hooks
