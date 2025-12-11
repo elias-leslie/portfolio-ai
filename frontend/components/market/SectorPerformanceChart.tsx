@@ -14,6 +14,7 @@ import {
 import { useSectorHistory } from "@/lib/hooks/useMarketIntelligence";
 import { TimeframeSelector, Timeframe, timeframeToDays, formatChartDate, calculateTickInterval } from "./TimeframeSelector";
 import { Loader2 } from "lucide-react";
+import { formatRelativeTime } from "@/lib/utils";
 
 // Distinct colors for each sector
 const SECTOR_COLORS: Record<string, string> = {
@@ -35,7 +36,7 @@ export function SectorPerformanceChart() {
   const [highlightedSector, setHighlightedSector] = useState<string | null>(null);
   const days = timeframeToDays(timeframe);
 
-  const { data, isLoading, error } = useSectorHistory(days);
+  const { data, isLoading, error, dataUpdatedAt } = useSectorHistory(days);
 
   // Transform data for Recharts
   // Include both percentage change (for charting) and actual close price (for tooltips)
@@ -183,7 +184,7 @@ export function SectorPerformanceChart() {
           ))}
         </div>
         <span className="text-[10px] text-text-muted whitespace-nowrap ml-2">
-          Through {data.period_end ? new Date(data.period_end + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}
+          {dataUpdatedAt ? `Updated ${formatRelativeTime(new Date(dataUpdatedAt).toISOString())}` : ""}
         </span>
       </div>
     </div>

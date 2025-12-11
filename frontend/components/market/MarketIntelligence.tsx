@@ -17,7 +17,6 @@ import { IndicatorsTrendChart } from "./IndicatorsTrendChart";
 import { SectorPerformanceChart } from "./SectorPerformanceChart";
 import { MarketMoversTable } from "./MarketMoversTable";
 import { SectorMoversTable } from "./SectorMoversTable";
-import { formatRelativeTime } from "@/lib/utils";
 
 export function MarketIntelligence() {
   const { data, isLoading, error } = useMarketIntelligence();
@@ -45,18 +44,15 @@ export function MarketIntelligence() {
     );
   }
 
-  const { fear_greed, sector_rotation, last_updated } = data;
+  const { fear_greed, sector_rotation } = data;
 
   return (
     <Card className="p-6 shadow-lg">
-      {/* Header with last updated */}
-      <div className="flex items-center justify-between mb-6">
+      {/* Header */}
+      <div className="mb-6">
         <h2 className="text-lg font-semibold text-text bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
           Market Conditions
         </h2>
-        <span className="text-xs text-text-muted">
-          Updated {formatRelativeTime(last_updated)}
-        </span>
       </div>
 
       {/* Fear & Greed Alert if stale */}

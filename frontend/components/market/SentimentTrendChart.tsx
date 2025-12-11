@@ -16,6 +16,7 @@ import {
 import { useFearGreedHistory, useNewsSentimentHistory } from "@/lib/hooks/useMarketIntelligence";
 import { TimeframeSelector, Timeframe, timeframeToDays, formatChartDate, calculateTickInterval } from "./TimeframeSelector";
 import { Loader2 } from "lucide-react";
+import { formatRelativeTime } from "@/lib/utils";
 
 // Convert news sentiment (-1 to +1) to 0-100 scale for chart alignment
 function normalizeNewsSentiment(score: number): number {
@@ -26,7 +27,7 @@ export function SentimentTrendChart() {
   const [timeframe, setTimeframe] = useState<Timeframe>("1Y");
   const days = timeframeToDays(timeframe);
 
-  const { data: fearGreedData, isLoading: fgLoading, error: fgError } = useFearGreedHistory(days);
+  const { data: fearGreedData, isLoading: fgLoading, error: fgError, dataUpdatedAt } = useFearGreedHistory(days);
   const { data: newsData, isLoading: newsLoading } = useNewsSentimentHistory(days, "daily");
 
   // Merge Fear & Greed, News Sentiment, and P/C Ratio data by date
@@ -227,7 +228,7 @@ export function SentimentTrendChart() {
           )}
         </div>
         <span className="text-[10px]">
-          Through {chartData.length > 0 ? new Date(chartData[chartData.length - 1].date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}
+          {dataUpdatedAt ? `Updated ${formatRelativeTime(new Date(dataUpdatedAt).toISOString())}` : ""}
         </span>
       </div>
     </div>
