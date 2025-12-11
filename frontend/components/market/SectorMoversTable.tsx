@@ -48,41 +48,41 @@ export function SectorMoversTable({ leading, neutral, lagging, lastUpdated }: Se
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "leading":
-        return <TrendingUp className="h-3 w-3 text-gain" />;
+        return <TrendingUp className="h-4 w-4 text-gain" />;
       case "lagging":
-        return <TrendingDown className="h-3 w-3 text-loss" />;
+        return <TrendingDown className="h-4 w-4 text-loss" />;
       default:
-        return <Minus className="h-3 w-3 text-text-muted" />;
+        return <Minus className="h-4 w-4 text-text-muted" />;
     }
   };
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-xs font-semibold text-text">Sector Movers</h3>
-        <div className="flex gap-2 text-[10px] text-text-muted">
-          <span className="flex items-center gap-0.5">
-            <TrendingUp className="h-2.5 w-2.5 text-gain" />
+        <h3 className="text-sm font-semibold text-text">Sector Movers</h3>
+        <div className="flex gap-2 text-xs text-text-muted">
+          <span className="flex items-center gap-1">
+            <TrendingUp className="h-3 w-3 text-gain" />
             {leading.length}
           </span>
-          <span className="flex items-center gap-0.5">
-            <Minus className="h-2.5 w-2.5" />
+          <span className="flex items-center gap-1">
+            <Minus className="h-3 w-3" />
             {neutral.length}
           </span>
-          <span className="flex items-center gap-0.5">
-            <TrendingDown className="h-2.5 w-2.5 text-loss" />
+          <span className="flex items-center gap-1">
+            <TrendingDown className="h-3 w-3 text-loss" />
             {lagging.length}
           </span>
         </div>
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-xs">
+        <table className="w-full text-sm">
           <thead>
             <tr className="text-text-muted border-b border-border/50">
-              <th className="text-left py-1.5 font-medium">Sector</th>
-              <th className="text-right py-1.5 font-medium">Change</th>
-              <th className="text-center py-1.5 font-medium w-8">Status</th>
+              <th className="text-left py-2 font-medium">Sector</th>
+              <th className="text-right py-2 font-medium">Change</th>
+              <th className="text-center py-2 font-medium w-10">Status</th>
             </tr>
           </thead>
           <tbody>
@@ -91,10 +91,10 @@ export function SectorMoversTable({ leading, neutral, lagging, lastUpdated }: Se
                 key={sector.symbol}
                 className="border-b border-border/30 hover:bg-surface-muted/50 transition-colors"
               >
-                <td className="py-1.5">
+                <td className="py-2">
                   <div className="flex items-center gap-2">
                     <span
-                      className="w-2 h-2 rounded-full flex-shrink-0"
+                      className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                       style={{ backgroundColor: SECTOR_COLORS[sector.symbol] || "#888" }}
                     />
                     <span className="font-medium text-text">{sector.name}</span>
@@ -102,14 +102,14 @@ export function SectorMoversTable({ leading, neutral, lagging, lastUpdated }: Se
                 </td>
                 <td
                   className={cn(
-                    "text-right py-1.5 font-semibold",
+                    "text-right py-2 font-semibold",
                     (sector.change_pct ?? 0) >= 0 ? "text-gain" : "text-loss"
                   )}
                 >
                   {(sector.change_pct ?? 0) >= 0 ? "+" : ""}
                   {(sector.change_pct ?? 0).toFixed(2)}%
                 </td>
-                <td className="text-center py-1.5">
+                <td className="text-center py-2">
                   {getStatusIcon(sector.status)}
                 </td>
               </tr>
