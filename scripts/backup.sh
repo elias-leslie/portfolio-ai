@@ -133,15 +133,35 @@ dump_database() {
 create_archive() {
     local archive_path="$1"
     local db_dump="$2"
+    local tar_path="${archive_path%.gz}"  # Remove .gz for initial tar
 
     log "Creating archive..."
 
     cd "$PROJECT_DIR"
 
-    # Create tar archive with specific includes and exclusions
+    # Build list of files/dirs to include (only those that exist)
+    local include_list=()
+
+    [ -d "data/artifacts" ] && include_list+=("data/artifacts")
+    for f in data/*.json; do [ -f "$f" ] && include_list+=("$f"); done
+    for f in backups/*.sql.gz; do [ -f "$f" ] && include_list+=("$f"); done
+    [ -d "reports" ] && include_list+=("reports")
+    [ -d "solution_state" ] && include_list+=("solution_state")
+    [ -f ".claude/settings.local.json" ] && include_list+=(".claude/settings.local.json")
+    [ -d ".claude/state" ] && include_list+=(".claude/state")
+    [ -d ".claude/backups" ] && include_list+=(".claude/backups")
+    [ -f ".env" ] && include_list+=(".env")
+    [ -f "backend/.env" ] && include_list+=("backend/.env")
+    [ -f "frontend/.env.local" ] && include_list+=("frontend/.env.local")
+
+    # Ensure database dump is in staging dir with proper name
+    if [ "$db_dump" != "$STAGING_DIR/database.sql.gz" ]; then
+        cp "$db_dump" "$STAGING_DIR/database.sql.gz"
+    fi
+
+    # Create tar archive (uncompressed first)
     tar --create \
-        --gzip \
-        --file="$archive_path" \
+        --file="$tar_path" \
         --exclude='*.db' \
         --exclude='*.db.backup.*' \
         --exclude='__pycache__' \
@@ -149,28 +169,16 @@ create_archive() {
         --exclude='*.pyo' \
         --exclude='*.log' \
         --transform='s|^|portfolio-ai/|' \
-        data/artifacts \
-        data/*.json \
-        backups/*.sql.gz \
-        reports \
-        solution_state \
-        .claude/settings.local.json \
-        .claude/state \
-        .claude/backups \
-        .env \
-        backend/.env \
-        frontend/.env.local \
-        2>/dev/null || true
+        "${include_list[@]}" 2>/dev/null || true
 
     # Add database dump to archive
-    tar --append --file="${archive_path%.gz}" \
-        --transform="s|.*|portfolio-ai/database.sql.gz|" \
-        -C "$(dirname "$db_dump")" "$(basename "$db_dump")" 2>/dev/null || true
+    tar --append \
+        --file="$tar_path" \
+        --transform="s|^|portfolio-ai/|" \
+        -C "$STAGING_DIR" "database.sql.gz"
 
-    # Re-gzip if we appended
-    if [ -f "${archive_path%.gz}" ]; then
-        gzip -f "${archive_path%.gz}"
-    fi
+    # Now gzip the archive
+    gzip -f "$tar_path"
 
     log_success "Archive created: $(du -h "$archive_path" | cut -f1)"
 }
