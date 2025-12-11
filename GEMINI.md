@@ -8,18 +8,13 @@ The "Portfolio AI Platform" is a full-stack application designed for investment 
 
 **Key Technologies:**
 
-*   **Backend:**
-    *   Python 3.13+
-    *   FastAPI
-    *   PostgreSQL 16
-    *   SQLAlchemy
-    *   Pydantic
+*   **Backend:** (see [STACK.md](docs/core/STACK.md) for versions)
+    *   Python, FastAPI, PostgreSQL
+    *   SQLAlchemy, Pydantic
     *   Celery (Worker & Beat) for asynchronous tasks and scheduling
     *   Modular LLM Clients (`backend/app/agents/clients/`) supporting Anthropic (Claude) and Google (Gemini)
-*   **Frontend:**
-    *   Next.js 16
-    *   React 19
-    *   TypeScript
+*   **Frontend:** (see [STACK.md](docs/core/STACK.md) for versions)
+    *   Next.js, React, TypeScript
     *   React Query for data fetching
     *   shadcn/ui and Tailwind CSS for styling
 *   **Data Sources:**
@@ -38,9 +33,9 @@ The application follows a client-server architecture with a Next.js frontend com
 
 ### Prerequisites
 
-*   Python 3.13+
-*   Node.js 18+
-*   PostgreSQL 16
+See [docs/core/STACK.md](docs/core/STACK.md) for current version requirements.
+
+*   Python, Node.js, PostgreSQL (versions in STACK.md)
 *   Anthropic API key (optional if using Gemini CLI)
 
 ### Backend Setup

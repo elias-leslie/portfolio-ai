@@ -12,7 +12,7 @@ AI-led investment intelligence platform combining portfolio analytics with auton
 - ✅ Full-stack application (FastAPI + Next.js)
 - ✅ Portfolio management with real-time analytics
 - ✅ AI agent system (Discovery Agent + Portfolio Analyzer)
-- ✅ PostgreSQL 16 migration with connection pooling (4x concurrency)
+- ✅ PostgreSQL migration with connection pooling (4x concurrency)
 - ✅ Multi-source data failover (6 operational adapters)
 - ✅ Watchlist Intelligence Hub with narrative system
 - ✅ **Narrative Intelligence System** (PRD #0021 100% complete):
@@ -33,9 +33,10 @@ AI-led investment intelligence platform combining portfolio analytics with auton
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.13+
-- Node.js 18+
-- PostgreSQL 16
+
+See [docs/core/STACK.md](docs/core/STACK.md) for current versions.
+
+- Python, Node.js, PostgreSQL (versions in STACK.md)
 - Anthropic API key (for AI agents)
 
 ### Backend Setup
@@ -89,9 +90,9 @@ Then open `https://<your-machine>.tail-scale.net` on your phone.
 
 See **[docs/core/ARCHITECTURE.md](./docs/core/ARCHITECTURE.md)** for comprehensive system design.
 
-**High-level stack**:
-- **Frontend**: Next.js 16, React Query, shadcn/ui, Tailwind CSS
-- **Backend**: FastAPI, PostgreSQL 16, SQLAlchemy, Pydantic
+**High-level stack** (see [STACK.md](docs/core/STACK.md) for versions):
+- **Frontend**: Next.js, React Query, shadcn/ui, Tailwind CSS
+- **Backend**: FastAPI, PostgreSQL, SQLAlchemy, Pydantic
 - **AI**: Anthropic Claude API
 - **Data**: Multi-source failover (YFinance, TwelveData, FMP, Polygon, Finnhub, AlphaVantage), FRED, Google News RSS
 
@@ -147,7 +148,7 @@ npm run build
 │   ├── tests/            # 145 tests (100% passing, 85% coverage)
 │   ├── migrations/       # Database schema migrations
 │   └── data/             # Database backups only (PostgreSQL managed externally)
-├── frontend/             # Next.js 16 application
+├── frontend/             # Next.js application
 │   ├── app/              # Pages (dashboard, portfolio, settings, ideas)
 │   ├── components/       # React components
 │   └── lib/              # API clients & hooks
