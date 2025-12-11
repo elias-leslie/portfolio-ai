@@ -190,10 +190,13 @@ def calculate_beta(
     mean_market = sum(aligned_market) / n
 
     # Calculate covariance and variance
-    cov = sum(
-        (s - mean_stock) * (m - mean_market)
-        for s, m in zip(aligned_stock, aligned_market, strict=True)
-    ) / n
+    cov = (
+        sum(
+            (s - mean_stock) * (m - mean_market)
+            for s, m in zip(aligned_stock, aligned_market, strict=True)
+        )
+        / n
+    )
     var_market = sum((m - mean_market) ** 2 for m in aligned_market) / n
 
     if var_market == 0:
@@ -331,9 +334,7 @@ def calculate_portfolio_var(
         return None, None
 
     # Find common dates across all positions
-    common_dates = set.intersection(
-        *(set(returns.keys()) for returns in all_returns.values())
-    )
+    common_dates = set.intersection(*(set(returns.keys()) for returns in all_returns.values()))
 
     if len(common_dates) < 30:
         return None, None
@@ -341,10 +342,7 @@ def calculate_portfolio_var(
     # Calculate portfolio returns for each date
     portfolio_returns = []
     for d in sorted(common_dates):
-        port_return = sum(
-            weight * all_returns[symbol].get(d, 0.0)
-            for symbol, weight in positions
-        )
+        port_return = sum(weight * all_returns[symbol].get(d, 0.0) for symbol, weight in positions)
         portfolio_returns.append(port_return)
 
     return calculate_var_cvar(portfolio_returns, VAR_CONFIDENCE_95)

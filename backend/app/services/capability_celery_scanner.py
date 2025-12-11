@@ -441,7 +441,7 @@ class CeleryScanner:
             for match in re.finditer(sql_string_pattern, content, re.DOTALL):
                 s = match.group(1) or match.group(2) or match.group(3) or ""
                 # Only consider strings that look like SQL (contain SELECT, INSERT, UPDATE, etc.)
-                if re.search(r'\b(SELECT|INSERT|UPDATE|DELETE|WITH)\b', s, re.IGNORECASE):
+                if re.search(r"\b(SELECT|INSERT|UPDATE|DELETE|WITH)\b", s, re.IGNORECASE):
                     sql_strings.append(s)
 
             # Now search for table names only in SQL strings
@@ -452,12 +452,37 @@ class CeleryScanner:
 
             # SQL keywords and common false positives to filter out
             sql_keywords = {
-                "select", "where", "and", "or", "not", "null",
-                "true", "false", "dual", "information_schema",
-                "lateral", "values", "unnest", "generate_series",
-                "excluded", "returning", "case", "when", "then",
-                "else", "end", "exists", "between", "like", "in",
-                "is", "as", "on", "set", "into", "table",
+                "select",
+                "where",
+                "and",
+                "or",
+                "not",
+                "null",
+                "true",
+                "false",
+                "dual",
+                "information_schema",
+                "lateral",
+                "values",
+                "unnest",
+                "generate_series",
+                "excluded",
+                "returning",
+                "case",
+                "when",
+                "then",
+                "else",
+                "end",
+                "exists",
+                "between",
+                "like",
+                "in",
+                "is",
+                "as",
+                "on",
+                "set",
+                "into",
+                "table",
             }
 
             for sql in sql_strings:

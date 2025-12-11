@@ -296,6 +296,4 @@ class TradingRules:
     market: MarketConditionRules = field(default_factory=MarketConditionRules)
     paper_trading: PaperTradingRules = field(default_factory=PaperTradingRules)
     catalyst_impacts: dict[str, CatalystImpact] = field(default_factory=dict)
-    watchlist_management: WatchlistManagementRules = field(
-        default_factory=WatchlistManagementRules
-    )
+    watchlist_management: WatchlistManagementRules = field(default_factory=WatchlistManagementRules)

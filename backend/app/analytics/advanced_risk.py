@@ -235,7 +235,9 @@ def check_exposure_budgets(
         if sector not in sector_exposures:
             sector_exposures[sector] = {"weight": 0.0, "positions": []}
         weight_in_sector = sector_exposures[sector]["weight"]
-        current_weight = float(weight_in_sector) if isinstance(weight_in_sector, (int, float)) else 0.0
+        current_weight = (
+            float(weight_in_sector) if isinstance(weight_in_sector, (int, float)) else 0.0
+        )
         sector_exposures[sector]["weight"] = current_weight + weight
         pos_list = sector_exposures[sector]["positions"]
         if isinstance(pos_list, list):

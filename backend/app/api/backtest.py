@@ -817,7 +817,9 @@ class WalkForwardRequest(BaseModel):
     # Window configuration
     train_days: int = Field(default=180, ge=60, le=365, description="Training period days")
     val_days: int = Field(default=60, ge=30, le=180, description="Validation period days")
-    test_days: int = Field(default=210, ge=200, le=365, description="Test period days (min 200 for indicator lookback)")
+    test_days: int = Field(
+        default=210, ge=200, le=365, description="Test period days (min 200 for indicator lookback)"
+    )
     gap_days: int = Field(default=10, ge=1, le=30, description="Gap between periods")
     step_days: int = Field(default=60, ge=30, le=120, description="Roll-forward step size")
     # Strategy parameters

@@ -227,7 +227,7 @@ def get_behavioral_guidance(metrics: PerformanceMetrics) -> str:
     if not guidance_lines:
         guidance_lines.append("- Performance on track. Maintain current approach.")
 
-    return "\n".join(["BEHAVIORAL CALIBRATION:"] + guidance_lines)
+    return "\n".join(["BEHAVIORAL CALIBRATION:", *guidance_lines])
 
 
 def get_full_performance_prompt_section(storage: PortfolioStorage, days: int = 30) -> str:

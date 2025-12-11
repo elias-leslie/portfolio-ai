@@ -250,11 +250,10 @@ def calculate_momentum_score(
         momentum.momentum_60d is not None
         and momentum.momentum_20d is not None
         and momentum.momentum_5d is not None
-    ):
-        if momentum.momentum_5d > momentum.momentum_20d > 0:
-            # Short-term catching up to medium-term = acceleration
-            score += 1
-            reasons.append("Momentum accelerating (5d > 20d)")
+    ) and momentum.momentum_5d > momentum.momentum_20d > 0:
+        # Short-term catching up to medium-term = acceleration
+        score += 1
+        reasons.append("Momentum accelerating (5d > 20d)")
 
     # Clamp to 0-5 range
     score = max(0, min(5, score))

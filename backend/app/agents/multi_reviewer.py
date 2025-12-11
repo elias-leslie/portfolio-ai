@@ -103,10 +103,22 @@ class MultiReviewer:
             storage: PortfolioStorage instance for performance metrics
         """
         self.storage = storage
-        self._clients: dict[str, LLMClient] = {
-            "gemini": GeminiCLIClient(),
-            "claude": ClaudeCLIClient(),
-        }
+        self._clients: dict[str, LLMClient | None] = {}
+
+    def _get_client(self, name: str) -> LLMClient | None:
+        """Lazy-load LLM client to avoid import-time failures."""
+        if name not in self._clients:
+            try:
+                if name == "gemini":
+                    self._clients[name] = GeminiCLIClient()
+                elif name == "claude":
+                    self._clients[name] = ClaudeCLIClient()
+                else:
+                    self._clients[name] = None
+            except RuntimeError:
+                logger.warning("llm_client_unavailable", client=name)
+                self._clients[name] = None
+        return self._clients[name]
 
     async def review_signal_dual(self, signal_data: dict[str, Any]) -> DualReviewResult:
         """Review a trading signal using both providers in parallel.
@@ -209,7 +221,9 @@ class MultiReviewer:
             ProviderReview with result or error
         """
         try:
-            client = self._clients[provider]
+            client = self._get_client(provider)
+            if client is None:
+                raise RuntimeError(f"{provider} client not available")
             response: LLMResponse = await asyncio.to_thread(
                 client.generate,
                 prompt=prompt,

@@ -271,7 +271,9 @@ class StrategyEvolutionAgent:
         Returns:
             List of proposed mutations (max 5)
         """
-        logger.info(f"Proposing mutations for {strategy.symbol} (Sharpe: {analysis.actual_sharpe:.2f})")
+        logger.info(
+            f"Proposing mutations for {strategy.symbol} (Sharpe: {analysis.actual_sharpe:.2f})"
+        )
 
         # Build LLM prompt
         prompt = f"""You are a quantitative trading strategist analyzing an underperforming strategy.
@@ -478,7 +480,7 @@ Return JSON array with this schema:
         # MAS check
         mas_threshold = max(
             analysis.expected_sharpe * 0.9,  # 90% of parent
-            analysis.buy_hold_sharpe,         # OR beat benchmark
+            analysis.buy_hold_sharpe,  # OR beat benchmark
         )
 
         if best_sharpe < mas_threshold:
@@ -664,13 +666,13 @@ Focus on actionable insights (e.g., "too aggressive entries", "holding too long"
 
         mean_return = sum(returns) / len(returns)
         variance = sum((r - mean_return) ** 2 for r in returns) / len(returns)
-        std_dev = variance ** 0.5
+        std_dev = variance**0.5
 
         if std_dev == 0:
             return 0.0
 
         # Annualize (252 trading days)
-        sharpe = (mean_return / std_dev) * (252 ** 0.5)
+        sharpe = (mean_return / std_dev) * (252**0.5)
         return sharpe
 
     def _save_lineage(

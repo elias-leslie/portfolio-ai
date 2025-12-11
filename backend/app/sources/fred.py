@@ -305,9 +305,7 @@ class FREDSource:
             logger.error(f"Failed to parse latest value for {indicator}: {e}")
             return None
 
-    def fetch_yield_curve(
-        self, as_of_date: date | None = None
-    ) -> dict[str, float | bool | None]:
+    def fetch_yield_curve(self, as_of_date: date | None = None) -> dict[str, float | bool | None]:
         """Fetch complete yield curve data.
 
         Args:

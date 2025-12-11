@@ -84,7 +84,10 @@ def scan_system_capabilities() -> CapabilityResultDict:
             "celery_tasks_scanned": len(celery_caps),
             "api_endpoints_scanned": len(api_caps),
             "features_scanned": len(feature_caps),
-            "total_capabilities": len(db_caps) + len(celery_caps) + len(api_caps) + len(feature_caps),
+            "total_capabilities": len(db_caps)
+            + len(celery_caps)
+            + len(api_caps)
+            + len(feature_caps),
             "scan_duration_seconds": round(duration, 2),
         }
 

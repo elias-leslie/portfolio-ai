@@ -568,7 +568,7 @@ async def get_news_sentiment_history(
     for row in rows:
         period, avg_score, pos_count, neg_count, total_count = row
         if period and avg_score is not None:
-            if isinstance(period, datetime) or isinstance(period, date):
+            if isinstance(period, (datetime, date)):
                 dates.append(period.isoformat())
             else:
                 dates.append(str(period))

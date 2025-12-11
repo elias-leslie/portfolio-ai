@@ -181,7 +181,9 @@ app.include_router(sources.router)  # Task 0088: API sources registry for agents
 app.include_router(rules.router)  # Trading rules viewer
 app.include_router(artifacts.router)  # UI verification evidence artifacts
 app.include_router(vision_goals_router, prefix="/api")  # Vision goals lookup table
-app.include_router(vision_content_router, prefix="/api")  # Vision content (mission, principles, roadmap)
+app.include_router(
+    vision_content_router, prefix="/api"
+)  # Vision content (mission, principles, roadmap)
 app.include_router(workflow_graph.router)  # Workflow visualization graph API
 app.include_router(solution_map.router)  # Solution architecture map API
 app.include_router(qa.router)  # QA system - issue tracking, trends, scanning

@@ -73,9 +73,7 @@ class RulesValidatorAgent:
         """Initialize validator."""
         self.rules: TradingRules | None = None
 
-    async def validate_rules(
-        self, rules: TradingRules | None = None
-    ) -> ValidationReport:
+    async def validate_rules(self, rules: TradingRules | None = None) -> ValidationReport:
         """Validate trading rules configuration.
 
         Args:
@@ -126,11 +124,9 @@ class RulesValidatorAgent:
             return errors
 
         tech = self.rules.technical_thresholds
-        fund = self.rules.fundamentals
         signals = self.rules.signals
         position = self.rules.position_sizing
         risk = self.rules.risk_management
-        fees = self.rules.fees
 
         # RSI thresholds (0-100)
         if not (0 <= tech.rsi_oversold <= 100):
@@ -280,11 +276,7 @@ class RulesValidatorAgent:
             )
 
         # Scoring weights must sum to 100
-        total_weight = (
-            scoring.price_weight
-            + scoring.technical_weight
-            + scoring.fundamental_weight
-        )
+        total_weight = scoring.price_weight + scoring.technical_weight + scoring.fundamental_weight
         if not (99.5 <= total_weight <= 100.5):  # Allow for rounding
             errors.append(
                 ValidationError(

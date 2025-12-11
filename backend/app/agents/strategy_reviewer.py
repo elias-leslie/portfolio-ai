@@ -28,9 +28,7 @@ logger = get_logger(__name__)
 class StrategyReviewer:
     """LLM-powered strategy reviewer with automatic failover."""
 
-    def __init__(
-        self, storage: PortfolioStorage, primary_provider: str = "gemini"
-    ) -> None:
+    def __init__(self, storage: PortfolioStorage, primary_provider: str = "gemini") -> None:
         """Initialize reviewer with provider preference.
 
         Args:
@@ -39,10 +37,22 @@ class StrategyReviewer:
         """
         self.storage = storage
         self.primary_provider = primary_provider
-        self._clients: dict[str, LLMClient] = {
-            "gemini": GeminiCLIClient(),
-            "claude": ClaudeCLIClient(),
-        }
+        self._clients: dict[str, LLMClient | None] = {}
+
+    def _get_client(self, name: str) -> LLMClient | None:
+        """Lazy-load LLM client to avoid import-time failures."""
+        if name not in self._clients:
+            try:
+                if name == "gemini":
+                    self._clients[name] = GeminiCLIClient()
+                elif name == "claude":
+                    self._clients[name] = ClaudeCLIClient()
+                else:
+                    self._clients[name] = None
+            except RuntimeError:
+                logger.warning("llm_client_unavailable", client=name)
+                self._clients[name] = None
+        return self._clients[name]
 
     async def review_signal(self, signal_data: dict[str, Any]) -> dict[str, Any]:
         """Review a trading signal and return analysis.
@@ -123,7 +133,9 @@ class StrategyReviewer:
         last_error = None
         for provider in providers:
             try:
-                client = self._clients[provider]
+                client = self._get_client(provider)
+                if client is None:
+                    raise RuntimeError(f"{provider} client not available")
                 response: LLMResponse = await asyncio.to_thread(
                     client.generate,
                     prompt=prompt,

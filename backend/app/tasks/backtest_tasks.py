@@ -162,7 +162,9 @@ def _save_backtest_results(
         alpha=benchmark_metrics.get("alpha") if benchmark_metrics else None,
         information_ratio=benchmark_metrics.get("information_ratio") if benchmark_metrics else None,
         beta=benchmark_metrics.get("beta") if benchmark_metrics else None,
-        benchmark_symbol=benchmark_metrics.get("benchmark_symbol", "SPY") if benchmark_metrics else "SPY",
+        benchmark_symbol=benchmark_metrics.get("benchmark_symbol", "SPY")
+        if benchmark_metrics
+        else "SPY",
     )
 
 
@@ -278,7 +280,9 @@ def run_backtest_task(  # type: ignore[no-untyped-def]
                 logger.info(
                     f"Benchmark comparison: B&H={comparison.metrics.benchmark_return_pct:.2f}% | "
                     f"Excess={comparison.metrics.outperformance_pct:.2f}% | "
-                    f"Alpha={comparison.metrics.alpha:.4f}" if comparison.metrics.alpha else ""
+                    f"Alpha={comparison.metrics.alpha:.4f}"
+                    if comparison.metrics.alpha
+                    else ""
                 )
             except Exception as bench_err:
                 logger.warning(f"Benchmark comparison failed (non-fatal): {bench_err}")

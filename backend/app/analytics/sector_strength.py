@@ -189,10 +189,10 @@ def calculate_sector_relative_strength(
         target_date = date.today()
 
     # Get longest horizon + buffer
-    lookback = max(RS_HORIZONS) + 10
+    max(RS_HORIZONS) + 10
 
     # Fetch all sector ETFs and SPY
-    symbols = list(SECTOR_ETFS.keys()) + [BENCHMARK]
+    symbols = [*list(SECTOR_ETFS.keys()), BENCHMARK]
     placeholders = ", ".join(f"${i + 1}" for i in range(len(symbols)))
 
     query = f"""

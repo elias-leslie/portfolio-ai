@@ -124,8 +124,10 @@ class TestTransactionLoggerSlippage:
 
         assert result is True
         # Verify execute was called with slippage params
-        mock_conn.execute.assert_called_once()
-        call_args = mock_conn.execute.call_args[0]
+        # Called twice: symbol upsert + transaction insert
+        assert mock_conn.execute.call_count == 2
+        # Get the transaction insert call (second call)
+        call_args = mock_conn.execute.call_args_list[1][0]
         params = call_args[1]
         # Check slippage fields are in params (indices 9-13)
         assert params[9] == 150.00  # expected_price
@@ -161,8 +163,10 @@ class TestTransactionLoggerSlippage:
         )
 
         assert result is True
-        mock_conn.execute.assert_called_once()
-        call_args = mock_conn.execute.call_args[0]
+        # Called twice: symbol upsert + transaction insert
+        assert mock_conn.execute.call_count == 2
+        # Get the transaction insert call (second call)
+        call_args = mock_conn.execute.call_args_list[1][0]
         params = call_args[1]
         # Check slippage fields
         assert params[9] == 160.00  # expected_price

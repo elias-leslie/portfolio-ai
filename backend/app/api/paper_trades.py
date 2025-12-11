@@ -324,7 +324,7 @@ async def get_paper_trade_summary() -> PaperTradeSummaryResponse:
             total_closed_with_returns = int(stats[0]) if stats[0] else 0  # type: ignore[index]
             wins = int(stats[1]) if stats[1] else 0  # type: ignore[index]
             avg_return = float(stats[2]) if stats[2] else 0.0  # type: ignore[index]
-            total_return = float(stats[3]) if stats[3] else 0.0  # type: ignore[index]
+            float(stats[3]) if stats[3] else 0.0  # type: ignore[index]
             best_trade = float(stats[4]) if stats[4] is not None else None  # type: ignore[index]
             worst_trade = float(stats[5]) if stats[5] is not None else None  # type: ignore[index]
 

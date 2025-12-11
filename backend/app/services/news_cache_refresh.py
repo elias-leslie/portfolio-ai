@@ -170,9 +170,7 @@ class NewsCacheRefresher:
 
         # Apply AI features
         articles = self.ai_features.apply_story_clustering(articles)
-        articles = self.ai_features.apply_insight_generation(
-            articles, watchlist_symbols=None
-        )
+        articles = self.ai_features.apply_insight_generation(articles, watchlist_symbols=None)
 
         # Save to cache
         self.cache_manager.save_articles(articles)

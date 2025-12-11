@@ -666,7 +666,7 @@ def weekly_strategy_evolution() -> dict[str, Any]:
 
     try:
         evolution_agent = get_strategy_evolution_agent()
-        strategy_storage = get_strategy_storage()
+        get_strategy_storage()
 
         # Find underperforming active strategies (performance < 90% of expected)
         with get_connection_manager().connection() as conn:

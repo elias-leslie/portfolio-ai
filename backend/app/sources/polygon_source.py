@@ -265,7 +265,6 @@ class PolygonSource(BaseSource):
 
         return pl.DataFrame(records)
 
-
     # ============================================
     # GAP-001: Intraday Data
     # ============================================
@@ -303,18 +302,20 @@ class PolygonSource(BaseSource):
             for bar in results:
                 timestamp_ms = bar.get("t", 0)
                 bar_time = dt.datetime.fromtimestamp(timestamp_ms / 1000, tz=dt.UTC)
-                records.append({
-                    "symbol": symbol,
-                    "timestamp": bar_time,
-                    "open": bar.get("o"),
-                    "high": bar.get("h"),
-                    "low": bar.get("l"),
-                    "close": bar.get("c"),
-                    "volume": bar.get("v"),
-                    "vwap": bar.get("vw"),
-                    "trade_count": bar.get("n"),
-                    "source": "polygon",
-                })
+                records.append(
+                    {
+                        "symbol": symbol,
+                        "timestamp": bar_time,
+                        "open": bar.get("o"),
+                        "high": bar.get("h"),
+                        "low": bar.get("l"),
+                        "close": bar.get("c"),
+                        "volume": bar.get("v"),
+                        "vwap": bar.get("vw"),
+                        "trade_count": bar.get("n"),
+                        "source": "polygon",
+                    }
+                )
 
             df = pl.DataFrame(records)
             logger.info(
@@ -370,15 +371,17 @@ class PolygonSource(BaseSource):
             for trade in results:
                 timestamp_ns = trade.get("sip_timestamp", 0)
                 trade_time = dt.datetime.fromtimestamp(timestamp_ns / 1e9, tz=dt.UTC)
-                records.append({
-                    "symbol": symbol,
-                    "timestamp": trade_time,
-                    "price": trade.get("price"),
-                    "size": trade.get("size"),
-                    "exchange": trade.get("exchange"),
-                    "conditions": trade.get("conditions"),
-                    "source": "polygon",
-                })
+                records.append(
+                    {
+                        "symbol": symbol,
+                        "timestamp": trade_time,
+                        "price": trade.get("price"),
+                        "size": trade.get("size"),
+                        "exchange": trade.get("exchange"),
+                        "conditions": trade.get("conditions"),
+                        "source": "polygon",
+                    }
+                )
 
             df = pl.DataFrame(records)
             logger.info(
@@ -425,14 +428,10 @@ class PolygonSource(BaseSource):
         afterhours_start = dt.time(21, 0)  # 4:00 PM ET = 21:00 UTC
 
         # Filter for pre-market
-        premarket = full_day.filter(
-            pl.col("timestamp").dt.time() < premarket_end
-        )
+        premarket = full_day.filter(pl.col("timestamp").dt.time() < premarket_end)
 
         # Filter for after-hours
-        afterhours = full_day.filter(
-            pl.col("timestamp").dt.time() >= afterhours_start
-        )
+        afterhours = full_day.filter(pl.col("timestamp").dt.time() >= afterhours_start)
 
         logger.info(
             "polygon_extended_hours_fetched",

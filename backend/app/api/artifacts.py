@@ -46,7 +46,9 @@ class RefreshRequest(BaseModel):
 class UserReviewRequest(BaseModel):
     """Request to submit user review."""
 
-    approved: bool | None = Field(None, description="True=approved, False=rejected, None=just notes")
+    approved: bool | None = Field(
+        None, description="True=approved, False=rejected, None=just notes"
+    )
     notes: str | None = Field(None, description="User feedback/notes")
 
 

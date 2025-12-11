@@ -103,9 +103,7 @@ def daily_rules_validation() -> dict[str, Any]:
                 f"Rules validation completed with warnings: {report.summary}",
                 extra={
                     "rules_version": report.rules_version,
-                    "warning_count": sum(
-                        1 for e in report.errors if e.severity == "warning"
-                    ),
+                    "warning_count": sum(1 for e in report.errors if e.severity == "warning"),
                     "errors": [
                         {
                             "severity": e.severity,
@@ -121,9 +119,7 @@ def daily_rules_validation() -> dict[str, Any]:
                 f"CRITICAL: Rules validation failed: {report.summary}",
                 extra={
                     "rules_version": report.rules_version,
-                    "critical_count": sum(
-                        1 for e in report.errors if e.severity == "critical"
-                    ),
+                    "critical_count": sum(1 for e in report.errors if e.severity == "critical"),
                     "errors": [
                         {
                             "severity": e.severity,
@@ -328,9 +324,7 @@ def _get_recent_performance_data() -> dict[str, Any]:
 
                 return {
                     "period_days": 30,
-                    "trade_stats": (
-                        dict(trade_stats) if trade_stats else {}
-                    ),
+                    "trade_stats": (dict(trade_stats) if trade_stats else {}),
                     "signal_stats": [dict(row) for row in signal_stats],
                 }
 
