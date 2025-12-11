@@ -14,7 +14,7 @@ import {
   ComposedChart,
 } from "recharts";
 import { useFearGreedHistory, useNewsSentimentHistory } from "@/lib/hooks/useMarketIntelligence";
-import { TimeframeSelector, Timeframe, timeframeToDays } from "./TimeframeSelector";
+import { TimeframeSelector, Timeframe, timeframeToDays, formatChartDate, calculateTickInterval } from "./TimeframeSelector";
 import { Loader2 } from "lucide-react";
 
 // Convert news sentiment (-1 to +1) to 0-100 scale for chart alignment
@@ -66,12 +66,9 @@ export function SentimentTrendChart() {
   const minScore = chartData.length > 0 ? Math.min(...chartData.map((d) => d.score)) : 0;
   const maxScore = chartData.length > 0 ? Math.max(...chartData.map((d) => d.score)) : 100;
 
-  // Format date for X axis
-  const formatXAxis = (date: string) => {
-    // Append T12:00:00 to avoid timezone shift
-    const d = new Date(date + "T12:00:00");
-    return d.toLocaleDateString("en-US", { month: "short" });
-  };
+  // Use shared date formatting and tick calculation
+  const formatXAxis = (date: string) => formatChartDate(date, days);
+  const tickInterval = useMemo(() => calculateTickInterval(chartData.length), [chartData.length]);
 
   // Get latest news sentiment for summary
   const latestNewsSentiment = chartData.length > 0 ? chartData[chartData.length - 1].newsRaw : null;
@@ -143,7 +140,7 @@ export function SentimentTrendChart() {
               tick={{ fontSize: 10, fill: "var(--color-text-muted)" }}
               axisLine={{ stroke: "var(--color-border)" }}
               tickLine={false}
-              interval="preserveStartEnd"
+              interval={tickInterval}
             />
             <YAxis
               domain={[0, 100]}

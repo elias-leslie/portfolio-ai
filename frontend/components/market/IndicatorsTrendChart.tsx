@@ -12,7 +12,7 @@ import {
   Legend,
 } from "recharts";
 import { useIndicatorHistory } from "@/lib/hooks/useMarketIntelligence";
-import { TimeframeSelector, Timeframe, timeframeToDays } from "./TimeframeSelector";
+import { TimeframeSelector, Timeframe, timeframeToDays, formatChartDate, calculateTickInterval } from "./TimeframeSelector";
 import { Loader2 } from "lucide-react";
 
 const INDICATOR_CONFIG = {
@@ -62,11 +62,9 @@ export function IndicatorsTrendChart() {
     };
   }, [data]);
 
-  const formatXAxis = (date: string) => {
-    // Append T12:00:00 to avoid timezone shift
-    const d = new Date(date + "T12:00:00");
-    return d.toLocaleDateString("en-US", { month: "short" });
-  };
+  // Use shared date formatting and tick calculation
+  const formatXAxis = (date: string) => formatChartDate(date, days);
+  const tickInterval = useMemo(() => calculateTickInterval(chartData.length), [chartData.length]);
 
   if (isLoading) {
     return (
@@ -100,7 +98,7 @@ export function IndicatorsTrendChart() {
               tick={{ fontSize: 10, fill: "var(--color-text-muted)" }}
               axisLine={{ stroke: "var(--color-border)" }}
               tickLine={false}
-              interval="preserveStartEnd"
+              interval={tickInterval}
             />
             <YAxis
               tickFormatter={(v) => `${v}%`}

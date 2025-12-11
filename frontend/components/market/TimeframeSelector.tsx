@@ -23,6 +23,37 @@ export function timeframeToDays(tf: Timeframe): number {
   return TIMEFRAMES.find((t) => t.value === tf)?.days ?? 365;
 }
 
+/**
+ * Format date for X axis based on timeframe duration.
+ * - Short (≤90 days): "Dec 15"
+ * - Medium (≤365 days): "Jan '24"
+ * - Long (>365 days): "Jan '22"
+ */
+export function formatChartDate(date: string, days: number): string {
+  // Append T12:00:00 to avoid timezone shift
+  const d = new Date(date + "T12:00:00");
+
+  if (days <= 90) {
+    // Short timeframes: "Dec 15"
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  } else {
+    // 1 year+: "Jan '24" - show month + year
+    const month = d.toLocaleDateString("en-US", { month: "short" });
+    const year = d.getFullYear().toString().slice(-2);
+    return `${month} '${year}`;
+  }
+}
+
+/**
+ * Calculate tick interval to show ~6-8 ticks regardless of data density.
+ */
+export function calculateTickInterval(dataPoints: number): number {
+  if (dataPoints <= 30) return 0; // Show all for short timeframes
+  if (dataPoints <= 90) return Math.floor(dataPoints / 6);
+  if (dataPoints <= 365) return Math.floor(dataPoints / 6);
+  return Math.floor(dataPoints / 7); // ~7 ticks for multi-year
+}
+
 export function TimeframeSelector({
   value,
   onChange,
