@@ -29,7 +29,7 @@ export function SentimentTrendChart() {
   const { data: fearGreedData, isLoading: fgLoading, error: fgError } = useFearGreedHistory(days);
   const { data: newsData, isLoading: newsLoading } = useNewsSentimentHistory(days, "daily");
 
-  // Merge Fear & Greed and News Sentiment data by date
+  // Merge Fear & Greed, News Sentiment, and P/C Ratio data by date
   const chartData = useMemo(() => {
     if (!fearGreedData?.dates?.length) return [];
 
@@ -46,12 +46,16 @@ export function SentimentTrendChart() {
     return fearGreedData.dates.map((date, idx) => {
       const dateKey = date.split("T")[0];
       const newsScore = newsMap.get(dateKey);
+      const pcRatio = fearGreedData.put_call_ratios?.[idx];
       return {
         date,
         score: fearGreedData.scores[idx],
         label: fearGreedData.labels[idx],
         newsSentiment: newsScore !== undefined ? normalizeNewsSentiment(newsScore) : null,
         newsRaw: newsScore, // Keep raw score for tooltip
+        // P/C Ratio: scale to 0-100 range (0.5-1.5 typical range → 0-100)
+        pcRatioScaled: pcRatio !== null && pcRatio !== undefined ? Math.min(100, Math.max(0, (pcRatio - 0.5) * 100)) : null,
+        pcRatioRaw: pcRatio, // Keep raw for tooltip
       };
     });
   }, [fearGreedData, newsData]);
@@ -89,14 +93,18 @@ export function SentimentTrendChart() {
     );
   }
 
-  // Custom tooltip to show both metrics
-  const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number; dataKey: string; payload: { newsRaw?: number; label?: string } }>; label?: string }) => {
+  // Get latest P/C ratio for summary
+  const latestPcRatio = chartData.length > 0 ? chartData[chartData.length - 1].pcRatioRaw : null;
+
+  // Custom tooltip to show all metrics
+  const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number; dataKey: string; payload: { newsRaw?: number; label?: string; pcRatioRaw?: number | null } }>; label?: string }) => {
     if (!active || !payload?.length) return null;
     const dateStr = typeof label === "string"
       ? new Date(label + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
       : "";
     const fgValue = payload.find(p => p.dataKey === "score");
     const newsValue = payload.find(p => p.dataKey === "newsSentiment");
+    const pcValue = payload.find(p => p.dataKey === "pcRatioScaled");
 
     return (
       <div className="bg-surface border border-border rounded-lg p-2 text-xs shadow-lg">
@@ -111,6 +119,12 @@ export function SentimentTrendChart() {
           <div className="flex justify-between gap-4">
             <span className="text-cyan-400">News Sentiment:</span>
             <span className="font-semibold">{newsValue.payload.newsRaw > 0 ? "+" : ""}{(newsValue.payload.newsRaw * 100).toFixed(0)}%</span>
+          </div>
+        )}
+        {pcValue && pcValue.payload.pcRatioRaw !== null && pcValue.payload.pcRatioRaw !== undefined && (
+          <div className="flex justify-between gap-4">
+            <span className="text-orange-400">Put/Call Ratio:</span>
+            <span className="font-semibold">{pcValue.payload.pcRatioRaw.toFixed(2)}</span>
           </div>
         )}
       </div>
@@ -177,6 +191,17 @@ export function SentimentTrendChart() {
               connectNulls
               name="News Sentiment"
             />
+            {/* Put/Call Ratio line overlay */}
+            <Line
+              type="monotone"
+              dataKey="pcRatioScaled"
+              stroke="#f97316"
+              strokeWidth={1.5}
+              strokeDasharray="4 2"
+              dot={false}
+              connectNulls
+              name="Put/Call Ratio"
+            />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
@@ -192,6 +217,12 @@ export function SentimentTrendChart() {
             <span className="flex items-center gap-1">
               <span className="w-3 h-0.5 bg-cyan-400 rounded"></span>
               <span>News: <span className="font-semibold text-text">{latestNewsSentiment > 0 ? "+" : ""}{(latestNewsSentiment * 100).toFixed(0)}%</span></span>
+            </span>
+          )}
+          {latestPcRatio !== null && latestPcRatio !== undefined && (
+            <span className="flex items-center gap-1">
+              <span className="w-3 h-0.5 bg-orange-500 rounded border-dashed"></span>
+              <span>P/C: <span className="font-semibold text-text">{latestPcRatio.toFixed(2)}</span></span>
             </span>
           )}
         </div>

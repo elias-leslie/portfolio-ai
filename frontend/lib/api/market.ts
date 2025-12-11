@@ -237,6 +237,7 @@ export interface FearGreedHistoryResponse {
   dates: string[];
   scores: number[];
   labels: string[];
+  put_call_ratios: (number | null)[];
 }
 
 export interface NewsSentimentHistoryResponse {

@@ -59,6 +59,10 @@ class FearGreedHistoryResponse(BaseModel):
     dates: list[str] = Field(..., description="ISO date strings")
     scores: list[float] = Field(..., description="Fear & Greed scores (0-100)")
     labels: list[str] = Field(..., description="Labels (Extreme Fear, Fear, etc.)")
+    put_call_ratios: list[float | None] = Field(
+        default_factory=list,
+        description="Put/Call ratios (null if not available for that date)",
+    )
 
 
 class NewsSentimentHistoryResponse(BaseModel):

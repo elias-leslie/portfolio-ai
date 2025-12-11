@@ -16,8 +16,6 @@ import { Card } from "@/components/ui/card";
 import { SentimentTrendChart } from "./SentimentTrendChart";
 import { IndicatorsTrendChart } from "./IndicatorsTrendChart";
 import { SectorPerformanceChart } from "./SectorPerformanceChart";
-import { OptionsIndicatorsCard } from "./OptionsIndicatorsCard";
-import { BuybackSummaryCard } from "./BuybackSummaryCard";
 import { formatRelativeTime } from "@/lib/utils";
 
 // Sector colors matching SectorPerformanceChart
@@ -108,12 +106,6 @@ export function MarketIntelligence() {
         {/* Key Indicators */}
         <div>
           <IndicatorsTrendChart />
-        </div>
-
-        {/* Options Market Sentiment + Buybacks Row */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <OptionsIndicatorsCard />
-          <BuybackSummaryCard />
         </div>
 
         {/* Sector Performance */}

@@ -479,14 +479,19 @@ async def get_fear_greed_history(
         365, ge=30, le=1825, description="Number of days of history (30-1825, ~5 years max)"
     ),
 ) -> FearGreedHistoryResponse:
-    """Get Fear & Greed historical data for trend charts."""
+    """Get Fear & Greed historical data for trend charts.
+
+    Includes put/call ratio overlay data when available.
+    """
     with storage.connection() as conn:
+        # Join with fear_greed_inputs to get put_call_ratio
         result = conn.execute(
             """
-            SELECT as_of_date, score, label
-            FROM fear_greed_daily
-            WHERE as_of_date >= CURRENT_DATE - %s
-            ORDER BY as_of_date ASC
+            SELECT d.as_of_date, d.score, d.label, i.put_call_ratio
+            FROM fear_greed_daily d
+            LEFT JOIN fear_greed_inputs i ON d.as_of_date = i.as_of_date
+            WHERE d.as_of_date >= CURRENT_DATE - %s
+            ORDER BY d.as_of_date ASC
             """,
             [days],
         )
@@ -495,6 +500,7 @@ async def get_fear_greed_history(
     dates: list[str] = []
     scores: list[float] = []
     labels: list[str] = []
+    put_call_ratios: list[float | None] = []
     for row in rows:
         if row[0] and row[1] is not None:
             # row[0] is date from SQL - handle as datetime/date object
@@ -507,8 +513,12 @@ async def get_fear_greed_history(
                 continue  # Skip if not a valid date type
             scores.append(float(row[1]))
             labels.append(str(row[2]) if row[2] else "Unknown")
+            # P/C ratio may be null for dates before we started collecting
+            put_call_ratios.append(float(row[3]) if row[3] is not None else None)
 
-    return FearGreedHistoryResponse(dates=dates, scores=scores, labels=labels)
+    return FearGreedHistoryResponse(
+        dates=dates, scores=scores, labels=labels, put_call_ratios=put_call_ratios
+    )
 
 
 @router.get("/news-sentiment-history", response_model=NewsSentimentHistoryResponse)
