@@ -342,6 +342,7 @@ export interface MarketMoverItem {
   market_cap: number | null;
   avg_volume: number | null;
   rvol: number | null;
+  sector: string | null;
 }
 
 export interface MarketMoversResponse {

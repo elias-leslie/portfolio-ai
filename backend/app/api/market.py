@@ -843,6 +843,7 @@ async def get_market_movers(
             market_cap=m.market_cap,
             avg_volume=m.avg_volume,
             rvol=m.rvol,
+            sector=m.sector,
         )
 
     return MarketMoversResponse(

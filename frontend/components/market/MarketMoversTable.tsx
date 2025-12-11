@@ -134,7 +134,7 @@ export function MarketMoversTable() {
               ) : (
                 <th className="text-right py-1 font-medium hidden sm:table-cell">Volume</th>
               )}
-              <th className="text-right py-1 font-medium hidden md:table-cell">Mkt Cap</th>
+              <th className="text-left py-1 font-medium hidden lg:table-cell">Sector</th>
             </tr>
           </thead>
           <tbody>
@@ -174,8 +174,8 @@ export function MarketMoversTable() {
                     {formatVolume(item.volume)}
                   </td>
                 )}
-                <td className="text-right py-1 text-text-muted hidden md:table-cell">
-                  {formatMarketCap(item.market_cap)}
+                <td className="text-left py-1 text-text-muted hidden lg:table-cell truncate max-w-[100px]" title={item.sector || undefined}>
+                  {item.sector ? (item.sector.length > 12 ? `${item.sector.slice(0, 12)}...` : item.sector) : "-"}
                 </td>
               </tr>
             ))}

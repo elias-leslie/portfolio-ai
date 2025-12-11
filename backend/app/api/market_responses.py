@@ -136,6 +136,7 @@ class MarketMoverItem(BaseModel):
     market_cap: int | None = Field(None, description="Market capitalization")
     avg_volume: int | None = Field(None, description="Average daily volume (3 month)")
     rvol: float | None = Field(None, description="Relative volume (volume / avg_volume)")
+    sector: str | None = Field(None, description="Sector (e.g., Technology, Healthcare)")
 
 
 class MarketMoversResponse(BaseModel):

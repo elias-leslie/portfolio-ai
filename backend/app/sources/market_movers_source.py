@@ -35,6 +35,7 @@ class MarketMover:
     market_cap: int | None
     avg_volume: int | None = None  # For RVOL calculation
     rvol: float | None = None  # Relative volume (volume / avg_volume)
+    sector: str | None = None  # e.g., "Technology", "Healthcare"
 
 
 @dataclass
@@ -110,6 +111,21 @@ def fetch_from_yahooquery(count: int = 10) -> MarketMoversResult | None:
         for mover in gainers + losers + most_active:
             if mover.symbol and mover.symbol not in all_stocks:
                 all_stocks[mover.symbol] = mover
+
+        # Batch-fetch sector data for all unique symbols
+        try:
+            from yahooquery import Ticker  # noqa: PLC0415
+
+            symbols = list(all_stocks.keys())
+            if symbols:
+                t = Ticker(symbols)
+                profiles = t.asset_profile
+                if isinstance(profiles, dict):
+                    for sym, mover in all_stocks.items():
+                        if sym in profiles and isinstance(profiles[sym], dict):
+                            mover.sector = profiles[sym].get("sector")
+        except Exception as e:
+            logger.warning("sector_fetch_failed", error=str(e))
 
         # Sort by RVOL descending, filter out None
         top_rvol = sorted(
