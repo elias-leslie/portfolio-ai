@@ -1,11 +1,10 @@
 /**
- * MarketIntelligence Component (Redesigned)
+ * MarketIntelligence Component
  *
- * New layout focused on trends and what's changed:
- * - Dynamic narrative (what changed this week)
- * - Fear & Greed 1-year trend chart
- * - Key Indicators 1-year trend chart
- * - Sector Performance 1-year chart
+ * Visual-first market conditions display:
+ * - Market Sentiment trend chart (Fear & Greed + News + P/C Ratio)
+ * - Key Indicators trend chart (S&P 500, VIX, 10Y, Dollar)
+ * - Sector Performance chart
  * - Today's movers summary
  */
 
@@ -59,7 +58,7 @@ export function MarketIntelligence() {
     );
   }
 
-  const { narrative, fear_greed, sector_rotation, last_updated } = data;
+  const { fear_greed, sector_rotation, last_updated } = data;
 
   // Build today's movers from sector rotation
   const leadingSectors = sector_rotation.leading.slice(0, 3);
@@ -76,17 +75,6 @@ export function MarketIntelligence() {
         <span className="text-xs text-text-muted">
           Updated {formatRelativeTime(last_updated)}
         </span>
-      </div>
-
-      {/* Market Overview Narrative */}
-      <div className="mb-6 p-4 bg-surface-muted/40 rounded-xl border border-border/50">
-        <div className="flex items-start gap-3">
-          <span className="text-lg">📊</span>
-          <div>
-            <h3 className="text-sm font-semibold text-text mb-1">Market Overview</h3>
-            <p className="text-sm text-text-muted leading-relaxed">{narrative}</p>
-          </div>
-        </div>
       </div>
 
       {/* Fear & Greed Alert if stale */}

@@ -10,7 +10,6 @@ from fastapi import APIRouter, Query, Request
 
 from app.api.market_data_sources import (
     calculate_daily_change_pct,
-    calculate_weekly_change_pct,
     fetch_sector_data_with_changes,
     get_actual_data_dates,
     get_market_data_timestamp,
@@ -37,7 +36,7 @@ from app.api.market_transformers import (
 )
 from app.constants import SECTOR_ETFS
 from app.logging_config import get_logger
-from app.market import intelligence, narrative_generator
+from app.market import intelligence
 from app.market.fear_greed_stub import get_fear_greed_score
 from app.market.sentiment import calculate_market_health
 from app.middleware.cache import cache_response
@@ -230,42 +229,6 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
         sector_data_list
     )
 
-    # Extract leading sector names for narrative
-    leading_sector_names = [s.name for s in leading_sectors[:3]]  # Top 3
-
-    # Calculate weekly changes for dynamic narrative
-    weekly_changes = narrative_generator.WeeklyChanges(
-        vix=calculate_weekly_change_pct(storage, "^VIX", vix_data.price) if vix_data else None,
-        sp500=calculate_weekly_change_pct(storage, "^GSPC", sp500_data.price)
-        if sp500_data
-        else None,
-        tnx=calculate_weekly_change_pct(storage, "^TNX", tnx_data.price) if tnx_data else None,
-        dxy=calculate_weekly_change_pct(storage, "DX-Y.NYB", dxy_data.price) if dxy_data else None,
-    )
-
-    # Build sector weekly changes with friendly names (all sectors, sorted by perf)
-    all_sectors = leading_sectors + neutral_sectors + lagging_sectors
-    sector_changes = [
-        narrative_generator.SectorWeeklyChange(
-            name=s.name,
-            change_pct=calculate_weekly_change_pct(storage, s.symbol, s.price) if s.price else None,
-        )
-        for s in all_sectors
-    ]
-
-    # Generate narrative with dynamic weekly data
-    narrative = narrative_generator.generate_market_narrative(
-        health_score=health_score_data.overall_score,
-        fg_score=int(fg_reading.score),
-        vix_price=vix_data.price if vix_data else None,
-        sp500_price=sp500_data.price if sp500_data else None,
-        tnx_yield=tnx_data.price if tnx_data else None,
-        dxy_price=dxy_data.price if dxy_data else None,
-        leading_sectors=leading_sector_names,
-        weekly_changes=weekly_changes,
-        sector_changes=sector_changes,
-    )
-
     # Enrich indicators with plain-language labels using intelligence helpers
     # Calculate daily change percentages from day_bars historical data
     # Use actual data timestamps (from day_bars) instead of cache timestamps
@@ -342,7 +305,6 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
 
     # Build response
     return MarketIntelligenceResponse(
-        narrative=narrative,
         market_health=MarketHealthScoreResponse(
             overall_score=health_score_data.overall_score,
             overall_label=health_score_data.overall_label,

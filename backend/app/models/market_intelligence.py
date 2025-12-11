@@ -105,11 +105,11 @@ class OptionsActivityMetrics(BaseModel):
 class MarketIntelligenceResponse(BaseModel):
     """Unified market intelligence response.
 
-    Combines Market Health, Fear & Greed, Narrative, Indicators, Sector Rotation, and Options Activity.
+    Combines Market Health, Fear & Greed, Indicators, Sector Rotation, and Options Activity.
     """
 
-    # Narrative (top of UI)
-    narrative: str = Field(..., description="Plain-language actionable narrative (3-4 sentences)")
+    # Narrative (deprecated - kept for backward compatibility)
+    narrative: str = Field(default="", description="Deprecated - no longer used")
 
     # Dual scoring
     market_health: MarketHealthScore = Field(..., description="Market Health score (4 indicators)")
