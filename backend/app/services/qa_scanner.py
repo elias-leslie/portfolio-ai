@@ -113,7 +113,7 @@ class QAScanner:
             List of QAIssue objects for unused imports and variables
         """
         logger.info("scanning_dead_code")
-        issues = []
+        issues: list[QAIssue] = []
 
         backend_path = self.project_root / "backend" / "app"
         if not backend_path.exists():
@@ -185,7 +185,7 @@ class QAScanner:
             List of QAIssue objects for orphan files
         """
         logger.info("scanning_orphan_files")
-        issues = []
+        issues: list[QAIssue] = []
 
         backend_path = self.project_root / "backend" / "app"
         if not backend_path.exists():
@@ -271,7 +271,7 @@ class QAScanner:
             List of QAIssue objects for security findings
         """
         logger.info("scanning_security")
-        issues = []
+        issues: list[QAIssue] = []
 
         security_script = self.project_root / "scripts" / "check-security.sh"
         if not security_script.exists():
@@ -315,7 +315,7 @@ class QAScanner:
             List of QAIssue objects for schema drift issues
         """
         logger.info("scanning_schema_drift")
-        issues = []
+        issues: list[QAIssue] = []
 
         try:
             with self.conn_mgr.connection() as conn:
@@ -363,7 +363,7 @@ class QAScanner:
             List of QAIssue objects for stale data issues
         """
         logger.info("scanning_stale_data")
-        issues = []
+        issues: list[QAIssue] = []
 
         try:
             with self.conn_mgr.connection() as conn:
@@ -412,7 +412,7 @@ class QAScanner:
             List of QAIssue objects for bloat issues
         """
         logger.info("scanning_bloat")
-        issues = []
+        issues: list[QAIssue] = []
 
         backend_path = self.project_root / "backend" / "app"
         if not backend_path.exists():
@@ -457,7 +457,7 @@ class QAScanner:
             List of QAIssue objects for test gap issues
         """
         logger.info("scanning_test_gaps")
-        issues = []
+        issues: list[QAIssue] = []
 
         try:
             with self.conn_mgr.connection() as conn:
@@ -740,7 +740,7 @@ class QAScanner:
                     table_count = EXCLUDED.table_count
                 """,
                 [
-                    datetime.now(UTC).date(),
+                    datetime.now(UTC).date().isoformat(),
                     total,
                     critical,
                     high,
@@ -805,8 +805,11 @@ class QAScanner:
                 last_id = row[0]
                 # Parse number from QA-XXX
                 try:
-                    num = int(last_id.split("-")[1])
-                    next_num = num + 1
+                    if isinstance(last_id, str):
+                        num = int(last_id.split("-")[1])
+                        next_num = num + 1
+                    else:
+                        next_num = 1
                 except (IndexError, ValueError):
                     next_num = 1
             else:

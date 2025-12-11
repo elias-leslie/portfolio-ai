@@ -12,6 +12,8 @@ import asyncio
 from datetime import UTC, datetime
 from typing import Any
 
+from celery import Task
+
 from ..celery_app import celery_app
 from ..logging_config import get_logger
 from ..services.criteria_verifier import CriteriaVerifier
@@ -20,9 +22,9 @@ from ..storage.connection import get_connection_manager
 logger = get_logger(__name__)
 
 
-@celery_app.task(bind=True, name="verify_all_acceptance_criteria")
+@celery_app.task(bind=True, name="verify_all_acceptance_criteria")  # type: ignore[misc]
 def verify_all_acceptance_criteria(
-    self, type_filter: str | None = None, limit: int | None = None
+    self: Task, type_filter: str | None = None, limit: int | None = None
 ) -> dict[str, Any]:
     """Verify all auto-verifiable acceptance criteria.
 
@@ -65,8 +67,8 @@ def verify_all_acceptance_criteria(
         return {"error": str(e), "status": "failed"}
 
 
-@celery_app.task(bind=True, name="verify_feature_criteria")
-def verify_feature_criteria(self, feature_id: str) -> dict[str, Any]:
+@celery_app.task(bind=True, name="verify_feature_criteria")  # type: ignore[misc]
+def verify_feature_criteria(self: Task, feature_id: str) -> dict[str, Any]:
     """Verify all criteria for a single feature.
 
     Args:
@@ -116,8 +118,8 @@ def verify_feature_criteria(self, feature_id: str) -> dict[str, Any]:
         return {"feature_id": feature_id, "error": str(e), "status": "failed"}
 
 
-@celery_app.task(bind=True, name="verify_criteria_batch")
-def verify_criteria_batch(self, feature_ids: list[str]) -> dict[str, Any]:
+@celery_app.task(bind=True, name="verify_criteria_batch")  # type: ignore[misc]
+def verify_criteria_batch(self: Task, feature_ids: list[str]) -> dict[str, Any]:
     """Verify criteria for multiple features.
 
     Args:
@@ -161,14 +163,20 @@ def _record_verification_run(result: dict[str, Any]) -> None:
         conn_mgr = get_connection_manager()
         with conn_mgr.connection() as conn:
             # Check if table exists first
-            exists = conn.execute(
+            exists_result = conn.execute(
                 """
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables
                     WHERE table_name = 'criteria_verification_runs'
                 )
                 """
-            ).fetchone()[0]
+            ).fetchone()
+
+            if exists_result is None:
+                logger.error("table_existence_check_failed")
+                return
+
+            exists = exists_result[0]
 
             if not exists:
                 # Create table if it doesn't exist

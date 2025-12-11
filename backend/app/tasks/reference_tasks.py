@@ -912,7 +912,7 @@ def refresh_risk_metrics(self: Task) -> dict[str, int | str]:
                         """,
                         [
                             symbol,
-                            as_of_date,
+                            as_of_date.isoformat(),
                             var_result.var_95,
                             var_result.var_99,
                             var_result.cvar_95,

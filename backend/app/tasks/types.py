@@ -106,6 +106,10 @@ class CapabilityResultDict(TaskResultDict, total=False):
     insights_generated: int
     insights_saved: int
     analysis_duration_seconds: float
+    features_scanned: int
+    needs_review_count: int
+    total_features: int
+    passes_breakdown: dict[str, int]
 
 
 class WatchlistResultDict(TaskResultDict, total=False):

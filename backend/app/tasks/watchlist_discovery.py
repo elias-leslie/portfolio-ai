@@ -221,7 +221,7 @@ def add_symbol_to_watchlist(
 
     try:
         with storage.connection() as conn:
-            cursor = conn.cursor()
+            cursor = conn.raw_connection.cursor()
             # Ensure symbol exists in symbols table (FK constraint)
             cursor.execute(
                 """
@@ -326,7 +326,7 @@ def remove_symbol_from_watchlist(
     """Remove symbol from watchlist."""
     try:
         with storage.connection() as conn:
-            cursor = conn.cursor()
+            cursor = conn.raw_connection.cursor()
             # Delete snapshots first (FK constraint)
             cursor.execute("DELETE FROM watchlist_snapshots_core WHERE item_id = %s", (item_id,))
             # Delete item
@@ -353,7 +353,7 @@ def remove_symbol_from_watchlist(
 # =============================================================================
 
 
-@shared_task(name="discover_watchlist_candidates", bind=True)
+@shared_task(name="discover_watchlist_candidates", bind=True)  # type: ignore[misc]
 def discover_watchlist_candidates_task(
     self: Any,
 ) -> dict[str, Any]:
@@ -450,7 +450,7 @@ def discover_watchlist_candidates_task(
         return {"status": "error", "error": str(e)}
 
 
-@shared_task(name="trim_underperforming_watchlist", bind=True)
+@shared_task(name="trim_underperforming_watchlist", bind=True)  # type: ignore[misc]
 def trim_underperforming_watchlist_task(
     self: Any,
 ) -> dict[str, Any]:
@@ -515,7 +515,7 @@ def trim_underperforming_watchlist_task(
         return {"status": "error", "error": str(e)}
 
 
-@shared_task(name="generate_daily_watchlist_report", bind=True)
+@shared_task(name="generate_daily_watchlist_report", bind=True)  # type: ignore[misc]
 def generate_daily_watchlist_report_task(
     self: Any,
 ) -> dict[str, Any]:
@@ -623,7 +623,7 @@ def generate_daily_watchlist_report_task(
         report_id = str(uuid4())
         report_date = now.date()
         with storage.connection() as conn:
-            cursor = conn.cursor()
+            cursor = conn.raw_connection.cursor()
             cursor.execute(
                 """
                 INSERT INTO watchlist_daily_reports (

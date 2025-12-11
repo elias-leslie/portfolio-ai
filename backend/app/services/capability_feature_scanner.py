@@ -114,8 +114,8 @@ class FeatureScanner:
             # Index tasks by feature DB id for O(1) lookup
             tasks_by_feature: dict[int, list[dict[str, Any]]] = {}
             for task_row in all_tasks_rows:
-                feature_db_id = task_row[0]
-                task_dict = {
+                feature_db_id = int(task_row[0])
+                task_dict: dict[str, Any] = {
                     "task_id": task_row[1],
                     "description": task_row[2],
                     "completed": task_row[3],
@@ -243,7 +243,7 @@ class FeatureScanner:
         self,
         priority: int | None,
         layers: list[str] | None,
-        layer_results: dict | None,
+        layer_results: dict[str, Any] | None,
         acceptance_criteria: list[dict[str, Any]] | None,
     ) -> int:
         """Calculate effective priority based on verification state.
@@ -394,7 +394,7 @@ class FeatureScanner:
             ).fetchone()
 
             max_num = row[0] if row and row[0] else 0
-            return f"FEAT-{max_num + 1:03d}"
+            return f"FEAT-{int(max_num) + 1:03d}"
 
     def get_summary(self) -> dict[str, Any]:
         """Get summary statistics for features.
@@ -545,7 +545,7 @@ class FeatureScanner:
                     "SELECT MAX(order_num) FROM feature_tasks WHERE feature_id = %s",
                     (db_id,),
                 ).fetchone()
-                order_num = (max_row[0] or -1) + 1
+                order_num = (int(max_row[0]) if max_row and max_row[0] is not None else -1) + 1
 
             try:
                 conn.execute(
@@ -556,7 +556,16 @@ class FeatureScanner:
                         created_at, updated_at
                     ) VALUES (%s, %s, %s, %s, false, %s, %s, 'pending', %s, %s, NOW(), NOW())
                     """,
-                    (db_id, task_id, description, order_num, files or [], notes, effort, task_type),
+                    (
+                        int(db_id),
+                        task_id,
+                        description,
+                        int(order_num),
+                        files or [],
+                        notes,
+                        effort,
+                        task_type,
+                    ),
                 )
                 conn.commit()
                 return True

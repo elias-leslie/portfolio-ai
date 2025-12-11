@@ -7,7 +7,8 @@ Replaces text-based claude-progress.txt with queryable database.
 from __future__ import annotations
 
 import json
-from typing import Any
+from datetime import datetime
+from typing import Any, cast
 
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
@@ -77,7 +78,7 @@ async def log_progress(entry: ProgressEntry) -> dict[str, str]:
                     entry.action_type,
                     entry.feature_id,
                     entry.task_file,
-                    entry.files_modified,
+                    json.dumps(entry.files_modified) if entry.files_modified else None,
                     json.dumps(entry.details) if entry.details else None,
                     entry.git_commit,
                     entry.context_percent,
@@ -161,7 +162,7 @@ async def get_progress(
                 {
                     "id": r[0],
                     "session_id": r[1],
-                    "logged_at": r[2].isoformat() if r[2] else None,
+                    "logged_at": cast(datetime, r[2]).isoformat() if r[2] else None,
                     "action": r[3],
                     "action_type": r[4],
                     "feature_id": r[5],
@@ -211,7 +212,7 @@ async def get_latest_session() -> dict[str, Any]:
                 {
                     "id": r[0],
                     "session_id": r[1],
-                    "logged_at": r[2].isoformat() if r[2] else None,
+                    "logged_at": cast(datetime, r[2]).isoformat() if r[2] else None,
                     "action": r[3],
                     "action_type": r[4],
                     "feature_id": r[5],

@@ -139,7 +139,14 @@ def get_symbol_sentiment(
     try:
         result = storage.query(
             query,
-            [as_of_date, as_of_date, as_of_date, as_of_date, symbol, as_of_date],
+            [
+                as_of_date.isoformat(),
+                as_of_date.isoformat(),
+                as_of_date.isoformat(),
+                as_of_date.isoformat(),
+                symbol,
+                as_of_date.isoformat(),
+            ],
         )
 
         if result.is_empty():

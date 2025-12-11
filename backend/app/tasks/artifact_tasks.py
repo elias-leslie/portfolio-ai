@@ -15,8 +15,8 @@ from ..services import artifact_manager
 logger = get_logger(__name__)
 
 
-@shared_task(name="refresh_expired_artifacts")
-def refresh_expired_artifacts() -> dict:
+@shared_task(name="refresh_expired_artifacts")  # type: ignore[misc]
+def refresh_expired_artifacts() -> dict[str, int | str]:
     """Refresh artifacts that have expired and need new evidence capture.
 
     This task runs daily to keep evidence fresh.
@@ -91,8 +91,10 @@ def refresh_expired_artifacts() -> dict:
     }
 
 
-@shared_task(name="cleanup_old_versions")
-def cleanup_old_versions(max_versions: int = 5, dry_run: bool = False) -> dict:
+@shared_task(name="cleanup_old_versions")  # type: ignore[misc]
+def cleanup_old_versions(
+    max_versions: int = 5, dry_run: bool = False
+) -> dict[str, int | str | bool]:
     """Delete old artifact versions beyond retention limit.
 
     This task runs daily to manage storage.

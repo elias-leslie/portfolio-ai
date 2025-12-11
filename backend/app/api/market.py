@@ -713,12 +713,12 @@ async def get_corporate_actions(
             {
                 "symbol": row[0],
                 "action_type": row[1],
-                "action_date": row[2].isoformat() if row[2] else None,
+                "action_date": row[2].isoformat() if isinstance(row[2], (date, datetime)) else None,
                 "repurchase_amount": float(row[3]) if row[3] else None,
                 "shares_repurchased": row[4],
                 "dividend_amount": float(row[5]) if row[5] else None,
                 "source": row[6],
-                "updated_at": row[7].isoformat() if row[7] else None,
+                "updated_at": row[7].isoformat() if isinstance(row[7], (date, datetime)) else None,
             }
         )
 
@@ -765,7 +765,9 @@ async def get_corporate_actions_summary(
                 "symbol": row[0],
                 "buyback_count": row[1] or 0,
                 "total_buybacks": float(row[2]) if row[2] else 0,
-                "latest_buyback": row[3].isoformat() if row[3] else None,
+                "latest_buyback": row[3].isoformat()
+                if isinstance(row[3], (date, datetime))
+                else None,
             }
         )
 

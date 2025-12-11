@@ -72,8 +72,7 @@ def daily_qa_scan(self: Task) -> dict[str, Any]:
             scanner.upsert_issues(issues)
 
             # Auto-resolve issues no longer detected
-            detected_ids = [i.issue_id for i in issues]
-            scanner.auto_resolve_missing(detected_ids)
+            scanner.auto_resolve_missing(issues)
 
             # Take daily snapshot for trend tracking
             snapshot_result = scanner.take_snapshot()
