@@ -6,8 +6,6 @@ import { UnifiedNewsIntelligenceCard } from "@/components/shared/UnifiedNewsInte
 import { PageHeader } from "@/components/shared/PageHeader";
 import { PageContainer } from "@/components/shared/PageContainer";
 import { useNewsIntelligence } from "@/lib/hooks/useNews";
-import { PaperTradingCard } from "@/components/trading/PaperTradingCard";
-import { BacktestCard } from "@/components/backtest/BacktestCard";
 import { Loader2 } from "lucide-react";
 
 function SectionContentSkeleton({ rows = 3 }: { rows?: number }) {
@@ -136,12 +134,6 @@ export default function Dashboard() {
       <Suspense fallback={<SectionLoadingState label="Loading market intelligence" rows={5} />}>
         <MarketIntelligence />
       </Suspense>
-
-      {/* AI Trading & Backtesting Cards */}
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        <PaperTradingCard />
-        <BacktestCard />
-      </div>
 
       <MarketNewsSection />
 
