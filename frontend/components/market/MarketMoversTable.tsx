@@ -69,7 +69,7 @@ export function MarketMoversTable() {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <h3 className="text-xs font-semibold text-text">Market Movers</h3>
+        <h3 className="text-sm font-semibold text-text">Market Movers</h3>
         <div className="flex gap-0.5 bg-surface-muted rounded-lg p-0.5">
           <button
             onClick={() => setActiveTab("gainers")}
@@ -123,7 +123,7 @@ export function MarketMoversTable() {
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-[10px]">
+        <table className="w-full text-[11px]">
           <thead>
             <tr className="text-text-muted border-b border-border/50">
               <th className="text-left py-1 font-medium">Symbol</th>
@@ -183,7 +183,7 @@ export function MarketMoversTable() {
         </table>
       </div>
 
-      <div className="text-[9px] text-text-muted text-right">
+      <div className="text-[10px] text-text-muted text-right">
         {data.last_updated && `Updated ${formatRelativeTime(data.last_updated)}`}
       </div>
     </div>
