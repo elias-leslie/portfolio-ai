@@ -216,6 +216,36 @@ def get_beat_schedule() -> dict[str, object]:
             # - Invalidates Redis cache automatically after successful calculation
         },
         # Additional intraday runs to ensure data stays current during market hours
+        # 10:00 AM ET refresh - get "today's" data early in the trading day
+        "refresh-market-ohlcv-morning": {
+            "task": "refresh_daily_ohlcv",
+            "schedule": crontab(hour=15, minute=0),  # Daily at 15:00 UTC (10:00 AM ET)
+            "args": [ALL_MARKET_SYMBOLS],
+            "options": {"expires": 3600},
+            # Notes:
+            # - Early morning refresh to show TODAY's date on dashboard ASAP
+            # - 30 min after market open - enough for initial price discovery
+            # - Complements midday (12 PM) refresh which has more meaningful data
+        },
+        "refresh-fear-greed-morning": {
+            "task": "populate_fear_greed_inputs",
+            "schedule": crontab(hour=15, minute=15),  # Daily at 15:15 UTC (10:15 AM ET)
+            "args": [7],
+            "options": {"expires": 3600},
+            # Notes:
+            # - Early Fear & Greed update with morning market data
+            # - Runs after morning OHLCV refresh completes
+        },
+        "calculate-fear-greed-morning": {
+            "task": "calculate_fear_greed",
+            "schedule": crontab(hour=15, minute=30),  # Daily at 15:30 UTC (10:30 AM ET)
+            "args": [None],
+            "options": {"expires": 3600},
+            # Notes:
+            # - Early Fear & Greed calculation
+            # - Dashboard shows "today's" data by 10:30 AM ET
+        },
+        # 12:00 PM ET refresh - half-day data with more meaningful signals
         "refresh-market-ohlcv-midday": {
             "task": "refresh_daily_ohlcv",
             "schedule": crontab(hour=17, minute=0),  # Daily at 17:00 UTC (12:00 PM ET, midday)
