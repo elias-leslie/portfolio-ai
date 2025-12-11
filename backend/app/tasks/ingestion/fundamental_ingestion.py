@@ -17,6 +17,7 @@ from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+from celery import Task
 
 from app.celery_app import celery_app
 from app.logging_config import get_logger
@@ -57,8 +58,8 @@ def _ensure_symbol_exists(storage: PortfolioStorage, symbol: str) -> None:
     )
 
 
-@celery_app.task(bind=True, max_retries=2)
-def ingest_fundamental_data(self, symbols: list[str] | None = None) -> dict:
+@celery_app.task(bind=True, max_retries=2)  # type: ignore[misc]
+def ingest_fundamental_data(self: Task, symbols: list[str] | None = None) -> dict[str, Any]:
     """Ingest fundamental data for watchlist symbols.
 
     Fetches and stores:
@@ -85,7 +86,7 @@ def ingest_fundamental_data(self, symbols: list[str] | None = None) -> dict:
         logger.info("No symbols to process for fundamental ingestion")
         return {"status": "skipped", "reason": "no_symbols"}
 
-    stats = {
+    stats: dict[str, Any] = {
         "symbols_processed": 0,
         "cash_flow_inserted": 0,
         "insider_transactions_inserted": 0,
@@ -142,7 +143,7 @@ def ingest_fundamental_data(self, symbols: list[str] | None = None) -> dict:
     return stats
 
 
-def _insert_cash_flow(storage: PortfolioStorage, data: dict, as_of_date: date) -> None:
+def _insert_cash_flow(storage: PortfolioStorage, data: dict[str, Any], as_of_date: date) -> None:
     """Insert cash flow metrics."""
     _ensure_symbol_exists(storage, data["symbol"])
     query = """
@@ -166,7 +167,7 @@ def _insert_cash_flow(storage: PortfolioStorage, data: dict, as_of_date: date) -
         query,
         [
             data["symbol"],
-            as_of_date,
+            datetime.combine(as_of_date, datetime.min.time()),
             _to_python(data.get("operating_cash_flow")),
             _to_python(data.get("free_cash_flow")),
             _to_python(data.get("capital_expenditure")),
@@ -178,7 +179,7 @@ def _insert_cash_flow(storage: PortfolioStorage, data: dict, as_of_date: date) -
     )
 
 
-def _insert_insider_transaction(storage: PortfolioStorage, data: dict) -> None:
+def _insert_insider_transaction(storage: PortfolioStorage, data: dict[str, Any]) -> None:
     """Insert insider transaction."""
     _ensure_symbol_exists(storage, data["symbol"])
     query = """
@@ -190,10 +191,15 @@ def _insert_insider_transaction(storage: PortfolioStorage, data: dict) -> None:
         DO NOTHING
     """
     txn_date = data.get("transaction_date")
+    txn_date_converted: datetime | None = None
     if isinstance(txn_date, str):
-        txn_date = datetime.fromisoformat(txn_date).date()
-    elif hasattr(txn_date, "date"):
-        txn_date = txn_date.date()
+        txn_date_converted = datetime.fromisoformat(txn_date)
+    elif isinstance(txn_date, datetime):
+        txn_date_converted = txn_date
+    elif isinstance(txn_date, date):
+        txn_date_converted = datetime.combine(txn_date, datetime.min.time())
+    elif txn_date is not None and hasattr(txn_date, "date"):
+        txn_date_converted = datetime.combine(txn_date.date(), datetime.min.time())
 
     storage.execute(
         query,
@@ -202,7 +208,7 @@ def _insert_insider_transaction(storage: PortfolioStorage, data: dict) -> None:
             data.get("insider_name"),
             data.get("insider_title"),
             data.get("transaction_type"),
-            txn_date,
+            txn_date_converted,
             _to_python(data.get("shares")),
             _to_python(data.get("value")),
             _to_python(data.get("shares_owned_after")),
@@ -210,7 +216,7 @@ def _insert_insider_transaction(storage: PortfolioStorage, data: dict) -> None:
     )
 
 
-def _insert_institutional_holding(storage: PortfolioStorage, data: dict) -> None:
+def _insert_institutional_holding(storage: PortfolioStorage, data: dict[str, Any]) -> None:
     """Insert institutional holding."""
     _ensure_symbol_exists(storage, data["symbol"])
     query = """
@@ -225,10 +231,15 @@ def _insert_institutional_holding(storage: PortfolioStorage, data: dict) -> None
             updated_at = NOW()
     """
     report_date = data.get("report_date")
+    report_date_converted: datetime | None = None
     if isinstance(report_date, str):
-        report_date = datetime.fromisoformat(report_date).date()
-    elif hasattr(report_date, "date"):
-        report_date = report_date.date()
+        report_date_converted = datetime.fromisoformat(report_date)
+    elif isinstance(report_date, datetime):
+        report_date_converted = report_date
+    elif isinstance(report_date, date):
+        report_date_converted = datetime.combine(report_date, datetime.min.time())
+    elif report_date is not None and hasattr(report_date, "date"):
+        report_date_converted = datetime.combine(report_date.date(), datetime.min.time())
 
     storage.execute(
         query,
@@ -238,12 +249,14 @@ def _insert_institutional_holding(storage: PortfolioStorage, data: dict) -> None
             _to_python(data.get("shares")),
             _to_python(data.get("value")),
             _to_python(data.get("pct_held")),
-            report_date,
+            report_date_converted,
         ],
     )
 
 
-def _insert_institutional_summary(storage: PortfolioStorage, data: dict, as_of_date: date) -> None:
+def _insert_institutional_summary(
+    storage: PortfolioStorage, data: dict[str, Any], as_of_date: date
+) -> None:
     """Insert institutional ownership summary."""
     _ensure_symbol_exists(storage, data["symbol"])
     query = """
@@ -262,7 +275,7 @@ def _insert_institutional_summary(storage: PortfolioStorage, data: dict, as_of_d
         query,
         [
             data["symbol"],
-            as_of_date,
+            datetime.combine(as_of_date, datetime.min.time()),
             _to_python(data.get("total_institutions")),
             _to_python(data.get("pct_held_institutions")),
             _to_python(data.get("pct_held_insiders")),
@@ -270,7 +283,9 @@ def _insert_institutional_summary(storage: PortfolioStorage, data: dict, as_of_d
     )
 
 
-def _insert_short_interest(storage: PortfolioStorage, data: dict, as_of_date: date) -> None:
+def _insert_short_interest(
+    storage: PortfolioStorage, data: dict[str, Any], as_of_date: date
+) -> None:
     """Insert short interest data."""
     _ensure_symbol_exists(storage, data["symbol"])
     query = """
@@ -288,11 +303,12 @@ def _insert_short_interest(storage: PortfolioStorage, data: dict, as_of_date: da
             short_prior_month = EXCLUDED.short_prior_month,
             updated_at = NOW()
     """
+    as_of_datetime = datetime.combine(as_of_date, datetime.min.time())
     storage.execute(
         query,
         [
             data["symbol"],
-            as_of_date,
+            as_of_datetime,
             _to_python(data.get("short_shares")),
             _to_python(data.get("short_ratio")),
             _to_python(data.get("short_percent_of_float")),
@@ -317,7 +333,7 @@ def _insert_short_interest(storage: PortfolioStorage, data: dict, as_of_date: da
         summary_query,
         [
             data["symbol"],
-            as_of_date,
+            as_of_datetime,
             _to_python(data.get("short_shares")),
             _to_python(data.get("short_ratio")),
             _to_python(data.get("short_percent_of_float")),
@@ -325,8 +341,8 @@ def _insert_short_interest(storage: PortfolioStorage, data: dict, as_of_date: da
     )
 
 
-@celery_app.task(bind=True, max_retries=2)
-def ingest_macro_indicators(self) -> dict:
+@celery_app.task(bind=True, max_retries=2)  # type: ignore[misc]
+def ingest_macro_indicators(self: Task) -> dict[str, Any]:
     """Ingest macro economic indicators from FRED.
 
     Fetches and stores:
@@ -347,7 +363,7 @@ def ingest_macro_indicators(self) -> dict:
         logger.warning("FRED API key not configured, skipping macro ingestion")
         return {"status": "skipped", "reason": "no_api_key"}
 
-    stats = {
+    stats: dict[str, Any] = {
         "yield_curve_updated": False,
         "inflation_updated": False,
         "fed_funds_updated": False,
@@ -405,7 +421,7 @@ def ingest_macro_indicators(self) -> dict:
     return stats
 
 
-def _insert_yield_curve(storage: PortfolioStorage, data: dict, as_of_date: date) -> None:
+def _insert_yield_curve(storage: PortfolioStorage, data: dict[str, Any], as_of_date: date) -> None:
     """Insert yield curve data."""
     query = """
         INSERT INTO yield_curve (
@@ -425,7 +441,7 @@ def _insert_yield_curve(storage: PortfolioStorage, data: dict, as_of_date: date)
     storage.execute(
         query,
         [
-            as_of_date,
+            datetime.combine(as_of_date, datetime.min.time()),
             _to_python(data.get("yield_3m")),
             _to_python(data.get("yield_2y")),
             _to_python(data.get("yield_5y")),
@@ -451,4 +467,12 @@ def _insert_macro_indicator(
         ON CONFLICT (indicator_name, observation_date)
         DO UPDATE SET value = EXCLUDED.value
     """
-    storage.execute(query, [indicator, series_id, as_of_date, _to_python(value)])
+    storage.execute(
+        query,
+        [
+            indicator,
+            series_id,
+            datetime.combine(as_of_date, datetime.min.time()),
+            _to_python(value),
+        ],
+    )

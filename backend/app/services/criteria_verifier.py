@@ -60,9 +60,7 @@ class CriteriaVerifier:
         """Initialize the verifier."""
         self.conn_mgr = get_connection_manager()
 
-    async def verify_criterion(
-        self, feature_id: str, criterion: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def verify_criterion(self, feature_id: str, criterion: dict[str, Any]) -> dict[str, Any]:
         """Verify a single criterion based on its type.
 
         Args:
@@ -154,8 +152,16 @@ class CriteriaVerifier:
             criteria = row[0]
 
         # Verify each criterion
-        results = []
-        for criterion in criteria:
+        results: list[dict[str, Any]] = []
+        # Handle DatabaseValue type - criteria should be a list from JSONB
+        if not isinstance(criteria, list):
+            logger.warning(
+                "unexpected_criteria_type", feature_id=feature_id, type=type(criteria).__name__
+            )
+            return []
+
+        criteria_list: list[dict[str, Any]] = criteria
+        for criterion in criteria_list:
             result = await self.verify_criterion(feature_id, criterion)
             results.append(result)
 
@@ -191,15 +197,29 @@ class CriteriaVerifier:
             ).fetchall()
 
         # Collect all criteria to verify
-        to_verify: list[tuple[str, dict]] = []
-        for feature_id, criteria in rows:
-            for criterion in criteria:
-                ctype = criterion.get("type", "").lower()
+        to_verify: list[tuple[str, dict[str, Any]]] = []
+        for feature_id_val, criteria_val in rows:
+            feature_id_str = str(feature_id_val) if feature_id_val else ""
+
+            # Handle DatabaseValue type - criteria should be a list from JSONB
+            if not isinstance(criteria_val, list):
+                logger.warning(
+                    "unexpected_criteria_type",
+                    feature_id=feature_id_str,
+                    type=type(criteria_val).__name__,
+                )
+                continue
+
+            criteria_list: list[dict[str, Any]] = criteria_val
+            for criterion in criteria_list:
+                if not isinstance(criterion, dict):
+                    continue
+                ctype = str(criterion.get("type", "")).lower()
                 if ctype not in AUTO_VERIFIABLE_TYPES:
                     continue
                 if type_filter and ctype != type_filter:
                     continue
-                to_verify.append((feature_id, criterion))
+                to_verify.append((feature_id_str, criterion))
 
         if limit:
             to_verify = to_verify[:limit]
@@ -214,7 +234,7 @@ class CriteriaVerifier:
         semaphore = asyncio.Semaphore(MAX_CONCURRENT)
         results = {"passed": 0, "failed": 0, "errors": 0}
 
-        async def verify_with_semaphore(feature_id: str, criterion: dict) -> None:
+        async def verify_with_semaphore(feature_id: str, criterion: dict[str, Any]) -> None:
             async with semaphore:
                 result = await self.verify_criterion(feature_id, criterion)
                 await self._save_criterion_result(feature_id, result)
@@ -243,7 +263,7 @@ class CriteriaVerifier:
         logger.info("bulk_verification_complete", **summary)
         return summary
 
-    async def _verify_api_criterion(self, criterion: dict) -> dict[str, Any]:
+    async def _verify_api_criterion(self, criterion: dict[str, Any]) -> dict[str, Any]:
         """Verify an API criterion by making HTTP request.
 
         Parses curl commands like:
@@ -351,7 +371,7 @@ class CriteriaVerifier:
                 "verification_output": f"Error: {str(e)[:MAX_OUTPUT_LENGTH]}",
             }
 
-    async def _verify_test_criterion(self, criterion: dict) -> dict[str, Any]:
+    async def _verify_test_criterion(self, criterion: dict[str, Any]) -> dict[str, Any]:
         """Verify a test criterion by running pytest.
 
         Parses commands like:
@@ -430,7 +450,7 @@ class CriteriaVerifier:
             }
 
     async def _verify_ui_criterion(
-        self, feature_id: str, criterion: dict
+        self, feature_id: str, criterion: dict[str, Any]
     ) -> dict[str, Any]:
         """Capture evidence for UI criterion and queue for visual verification.
 
@@ -577,7 +597,9 @@ class CriteriaVerifier:
 
                 # Check for Next.js 404 page in HTML content
                 content = response.text[:2000].lower()
-                if "404" in content and ("not found" in content or "page could not be found" in content):
+                if "404" in content and (
+                    "not found" in content or "page could not be found" in content
+                ):
                     return {"ok": False, "error": "Page contains 404 error content"}
 
                 return {"ok": True, "status": response.status_code}
@@ -587,7 +609,9 @@ class CriteriaVerifier:
         except Exception as e:
             return {"ok": False, "error": f"Error checking page: {str(e)[:100]}"}
 
-    async def _detect_error_screenshot(self, screenshot_path: Path, script_output: str) -> dict[str, Any]:
+    async def _detect_error_screenshot(
+        self, screenshot_path: Path, script_output: str
+    ) -> dict[str, Any]:
         """Detect if screenshot shows an error page.
 
         DEPRECATED: This method is no longer used. The new capture-evidence.js
@@ -628,7 +652,7 @@ class CriteriaVerifier:
 
         return {"is_error": False, "reason": None}
 
-    def _handle_manual_criterion(self, criterion: dict) -> dict[str, Any]:
+    def _handle_manual_criterion(self, criterion: dict[str, Any]) -> dict[str, Any]:
         """Mark a criterion as requiring manual verification."""
         ctype = criterion.get("type", "unknown")
         return {
@@ -721,9 +745,7 @@ class CriteriaVerifier:
             )
 
             input_data = json.dumps(data).encode()
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(input=input_data), timeout=5
-            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(input=input_data), timeout=5)
 
             if proc.returncode != 0:
                 logger.warning(
@@ -959,7 +981,9 @@ class CriteriaVerifier:
             # Resolve {agent_id} for agent state endpoints
             if "{agent_id}" in resolved:
                 async with httpx.AsyncClient(timeout=5) as client:
-                    resp = await client.get("http://localhost:8000/api/agents/telemetry/history?limit=1")
+                    resp = await client.get(
+                        "http://localhost:8000/api/agents/telemetry/history?limit=1"
+                    )
                     if resp.status_code == 200:
                         data = resp.json()
                         runs = data.get("runs", [])
@@ -1042,9 +1066,7 @@ class CriteriaVerifier:
 
         return data
 
-    async def _save_criterion_result(
-        self, feature_id: str, result: dict[str, Any]
-    ) -> bool:
+    async def _save_criterion_result(self, feature_id: str, result: dict[str, Any]) -> bool:
         """Save verification result to database."""
         criterion_id = result.get("id")
         if not criterion_id:

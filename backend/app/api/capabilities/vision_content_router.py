@@ -15,7 +15,8 @@ This module provides REST API endpoints for vision content:
 from __future__ import annotations
 
 import json
-from typing import Any
+from datetime import datetime
+from typing import Any, cast
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -77,21 +78,23 @@ async def get_all_vision_content() -> dict[str, Any]:
             # Group by content_type
             grouped: dict[str, list[dict[str, Any]]] = {}
             for row in rows:
-                content_type = row[1]
+                content_type = cast(str, row[1])
                 if content_type not in grouped:
                     grouped[content_type] = []
 
-                grouped[content_type].append({
-                    "id": row[0],
-                    "content_type": row[1],
-                    "content_key": row[2],
-                    "title": row[3],
-                    "content": row[4],
-                    "order_num": row[5],
-                    "metadata": row[6],
-                    "created_at": row[7].isoformat() if row[7] else None,
-                    "updated_at": row[8].isoformat() if row[8] else None,
-                })
+                grouped[content_type].append(
+                    {
+                        "id": row[0],
+                        "content_type": row[1],
+                        "content_key": row[2],
+                        "title": row[3],
+                        "content": row[4],
+                        "order_num": row[5],
+                        "metadata": row[6],
+                        "created_at": cast(datetime, row[7]).isoformat() if row[7] else None,
+                        "updated_at": cast(datetime, row[8]).isoformat() if row[8] else None,
+                    }
+                )
 
             return {
                 "content_types": list(grouped.keys()),
@@ -129,8 +132,8 @@ async def get_mission_statement() -> dict[str, Any]:
                 "title": row[2],
                 "content": row[3],
                 "metadata": row[4],
-                "created_at": row[5].isoformat() if row[5] else None,
-                "updated_at": row[6].isoformat() if row[6] else None,
+                "created_at": cast(datetime, row[5]).isoformat() if row[5] else None,
+                "updated_at": cast(datetime, row[6]).isoformat() if row[6] else None,
             }
 
     except HTTPException:
@@ -167,8 +170,8 @@ async def get_vision_narrative() -> dict[str, Any]:
                         "title": row[2],
                         "content": row[3],
                         "metadata": row[4],
-                        "created_at": row[5].isoformat() if row[5] else None,
-                        "updated_at": row[6].isoformat() if row[6] else None,
+                        "created_at": cast(datetime, row[5]).isoformat() if row[5] else None,
+                        "updated_at": cast(datetime, row[6]).isoformat() if row[6] else None,
                     }
                     for row in rows
                 ],
@@ -207,8 +210,8 @@ async def get_core_principles() -> dict[str, Any]:
                         "content": row[3],
                         "order_num": row[4],
                         "metadata": row[5],
-                        "created_at": row[6].isoformat() if row[6] else None,
-                        "updated_at": row[7].isoformat() if row[7] else None,
+                        "created_at": cast(datetime, row[6]).isoformat() if row[6] else None,
+                        "updated_at": cast(datetime, row[7]).isoformat() if row[7] else None,
                     }
                     for row in rows
                 ],
@@ -244,9 +247,11 @@ async def get_success_metrics() -> dict[str, Any]:
                         "title": row[2],
                         "content": row[3],
                         "order_num": row[4],
-                        "metrics": row[5].get("metrics", []) if row[5] else [],
-                        "created_at": row[6].isoformat() if row[6] else None,
-                        "updated_at": row[7].isoformat() if row[7] else None,
+                        "metrics": cast(dict[str, Any], row[5]).get("metrics", [])
+                        if row[5]
+                        else [],
+                        "created_at": cast(datetime, row[6]).isoformat() if row[6] else None,
+                        "updated_at": cast(datetime, row[7]).isoformat() if row[7] else None,
                     }
                     for row in rows
                 ],
@@ -282,10 +287,14 @@ async def get_roadmap() -> dict[str, Any]:
                         "title": row[2],
                         "content": row[3],
                         "phase_number": row[4],
-                        "status": row[5].get("status", "unknown") if row[5] else "unknown",
-                        "features": row[5].get("features", []) if row[5] else [],
-                        "created_at": row[6].isoformat() if row[6] else None,
-                        "updated_at": row[7].isoformat() if row[7] else None,
+                        "status": cast(dict[str, Any], row[5]).get("status", "unknown")
+                        if row[5]
+                        else "unknown",
+                        "features": cast(dict[str, Any], row[5]).get("features", [])
+                        if row[5]
+                        else [],
+                        "created_at": cast(datetime, row[6]).isoformat() if row[6] else None,
+                        "updated_at": cast(datetime, row[7]).isoformat() if row[7] else None,
                     }
                     for row in rows
                 ],
@@ -321,9 +330,13 @@ async def get_principles_in_practice() -> dict[str, Any]:
                         "title": row[2],
                         "content": row[3],
                         "order_num": row[4],
-                        "principles_applied": row[5].get("principles_applied", []) if row[5] else [],
-                        "created_at": row[6].isoformat() if row[6] else None,
-                        "updated_at": row[7].isoformat() if row[7] else None,
+                        "principles_applied": cast(dict[str, Any], row[5]).get(
+                            "principles_applied", []
+                        )
+                        if row[5]
+                        else [],
+                        "created_at": cast(datetime, row[6]).isoformat() if row[6] else None,
+                        "updated_at": cast(datetime, row[7]).isoformat() if row[7] else None,
                     }
                     for row in rows
                 ],
@@ -360,8 +373,8 @@ async def get_closing_statement() -> dict[str, Any]:
                 "title": row[2],
                 "content": row[3],
                 "metadata": row[4],
-                "created_at": row[5].isoformat() if row[5] else None,
-                "updated_at": row[6].isoformat() if row[6] else None,
+                "created_at": cast(datetime, row[5]).isoformat() if row[5] else None,
+                "updated_at": cast(datetime, row[6]).isoformat() if row[6] else None,
             }
 
     except HTTPException:
@@ -421,10 +434,7 @@ async def get_vision_context() -> dict[str, Any]:
 
             return {
                 "mission": mission[0] if mission else None,
-                "principles": [
-                    {"title": p[0], "content": p[1]}
-                    for p in principles
-                ],
+                "principles": [{"title": p[0], "content": p[1]} for p in principles],
                 "goals": [
                     {
                         "code": g[0],
@@ -433,7 +443,9 @@ async def get_vision_context() -> dict[str, Any]:
                         "feature_count": g[3],
                         "criteria_passed": g[4] or 0,
                         "criteria_total": g[5] or 0,
-                        "progress_pct": round((g[4] or 0) / (g[5] or 1) * 100, 1),
+                        "progress_pct": round(
+                            (cast(int, g[4]) or 0) / (cast(int, g[5]) or 1) * 100, 1
+                        ),
                     }
                     for g in goals
                 ],
@@ -450,9 +462,7 @@ async def get_vision_context() -> dict[str, Any]:
 
 
 @router.patch("/content/{content_key}", response_model=dict[str, Any])
-async def update_vision_content(
-    content_key: str, update: VisionContentUpdate
-) -> dict[str, Any]:
+async def update_vision_content(content_key: str, update: VisionContentUpdate) -> dict[str, Any]:
     """Update any vision content by content_key.
 
     Can update title, content, metadata, or order_num.
@@ -469,13 +479,11 @@ async def update_vision_content(
             ).fetchone()
 
             if not existing:
-                raise HTTPException(
-                    status_code=404, detail=f"Content '{content_key}' not found"
-                )
+                raise HTTPException(status_code=404, detail=f"Content '{content_key}' not found")
 
             # Build dynamic update
-            updates = []
-            values = []
+            updates: list[str] = []
+            values: list[str | int] = []
 
             if update.title is not None:
                 updates.append("title = %s")
@@ -506,6 +514,9 @@ async def update_vision_content(
             result = conn.execute(query, tuple(values)).fetchone()
             conn.commit()
 
+            if not result:
+                raise HTTPException(status_code=500, detail="Update failed")
+
             logger.info(
                 "vision_content_updated",
                 content_key=content_key,
@@ -531,9 +542,7 @@ async def update_vision_content(
 
 
 @router.patch("/roadmap/{content_key}/status", response_model=dict[str, Any])
-async def update_roadmap_status(
-    content_key: str, update: RoadmapStatusUpdate
-) -> dict[str, Any]:
+async def update_roadmap_status(content_key: str, update: RoadmapStatusUpdate) -> dict[str, Any]:
     """Update roadmap phase status and optionally link features.
 
     status values: planned, in_progress, complete
@@ -565,7 +574,9 @@ async def update_roadmap_status(
                 )
 
             # Merge metadata
-            current_metadata = existing[1] or {}
+            current_metadata: dict[str, Any] = (
+                cast(dict[str, Any], existing[1]) if existing[1] else {}
+            )
             current_metadata["status"] = update.status
             if update.features is not None:
                 current_metadata["features"] = update.features
@@ -581,6 +592,9 @@ async def update_roadmap_status(
             ).fetchone()
             conn.commit()
 
+            if not result:
+                raise HTTPException(status_code=500, detail="Update failed")
+
             logger.info(
                 "roadmap_status_updated",
                 content_key=content_key,
@@ -592,8 +606,12 @@ async def update_roadmap_status(
                 "id": result[0],
                 "content_key": result[1],
                 "title": result[2],
-                "phase_status": result[3].get("status") if result[3] else None,
-                "features": result[3].get("features", []) if result[3] else [],
+                "phase_status": cast(dict[str, Any], result[3]).get("status")
+                if result[3]
+                else None,
+                "features": cast(dict[str, Any], result[3]).get("features", [])
+                if result[3]
+                else [],
             }
 
     except HTTPException:

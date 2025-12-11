@@ -89,7 +89,8 @@ async def capture_evidence(
                 break
 
         if result_line:
-            return json.loads(result_line)
+            parsed: dict[str, Any] = json.loads(result_line)
+            return parsed
 
         return {
             "success": False,
@@ -183,10 +184,18 @@ def save_artifact(
             version=version,
         )
 
+        # Type narrowing: result[2] is DatabaseValue, need to cast to datetime
+        from datetime import datetime as dt
+
+        captured_ts = result[2]
+        captured_iso: str | None = None
+        if captured_ts is not None and isinstance(captured_ts, dt):
+            captured_iso = captured_ts.isoformat()
+
         return {
             "id": result[0],
             "artifact_id": result[1],
-            "captured_at": result[2].isoformat() if result[2] else None,
+            "captured_at": captured_iso,
             "version": version,
             "file_path": file_path,
         }
@@ -556,11 +565,14 @@ def cleanup_old_versions(
             ).fetchall()
 
             for row in old_versions:
-                art_id, _artifact_id, _file_path, size, version = row
+                art_id, _artifact_id, _file_path, size, version_val = row
 
                 if not dry_run:
-                    # Delete files
-                    version_dir = ARTIFACTS_BASE_DIR / feat_id / crit_id / f"v{version}"
+                    # Delete files - cast version_val to str for path construction
+                    version_str = str(version_val) if version_val is not None else "0"
+                    version_dir = (
+                        ARTIFACTS_BASE_DIR / str(feat_id) / str(crit_id) / f"v{version_str}"
+                    )
                     if version_dir.exists():
                         shutil.rmtree(version_dir)
 
@@ -571,7 +583,11 @@ def cleanup_old_versions(
                     )
 
                 deleted_count += 1
-                deleted_size += size or 0
+                # Cast size to int for addition
+                if isinstance(size, (int, float)):
+                    deleted_size += int(size)
+                elif size is not None:
+                    deleted_size += 0
 
         if not dry_run:
             conn.commit()
@@ -600,9 +616,12 @@ def get_summary() -> dict[str, Any]:
 
     with storage.connection() as conn:
         # Total count
-        total = conn.execute(
+        total_row = conn.execute(
             "SELECT COUNT(*) FROM artifacts WHERE is_current = TRUE"
-        ).fetchone()[0]
+        ).fetchone()
+        total = 0
+        if total_row and isinstance(total_row[0], (int, float)):
+            total = int(total_row[0])
 
         # By status
         status_rows = conn.execute(
@@ -613,30 +632,42 @@ def get_summary() -> dict[str, Any]:
             GROUP BY quality_status
             """,
         ).fetchall()
-        by_status = {row[0]: row[1] for row in status_rows}
+        by_status = {}
+        for row in status_rows:
+            if isinstance(row[1], (int, float)):
+                by_status[str(row[0])] = int(row[1])
 
         # Expired count
-        expired = conn.execute(
+        expired_row = conn.execute(
             """
             SELECT COUNT(*) FROM artifacts
             WHERE is_current = TRUE AND expires_at < NOW()
             """,
-        ).fetchone()[0]
+        ).fetchone()
+        expired = 0
+        if expired_row and isinstance(expired_row[0], (int, float)):
+            expired = int(expired_row[0])
 
         # With user feedback
-        with_notes = conn.execute(
+        notes_row = conn.execute(
             """
             SELECT COUNT(*) FROM artifacts
             WHERE is_current = TRUE AND user_notes IS NOT NULL
             """,
-        ).fetchone()[0]
+        ).fetchone()
+        with_notes = 0
+        if notes_row and isinstance(notes_row[0], (int, float)):
+            with_notes = int(notes_row[0])
 
         # Total storage size
-        total_size = conn.execute(
+        size_row = conn.execute(
             """
             SELECT COALESCE(SUM(file_size_bytes), 0) FROM artifacts
             """
-        ).fetchone()[0]
+        ).fetchone()
+        total_size = 0
+        if size_row and isinstance(size_row[0], (int, float)):
+            total_size = int(size_row[0])
 
         return {
             "total_current": total,
@@ -663,7 +694,9 @@ def read_evidence_file(
         Parsed evidence.json data or None
     """
     if version:
-        evidence_path = ARTIFACTS_BASE_DIR / feature_id / criterion_id / f"v{version}" / "evidence.json"
+        evidence_path = (
+            ARTIFACTS_BASE_DIR / feature_id / criterion_id / f"v{version}" / "evidence.json"
+        )
     else:
         evidence_path = ARTIFACTS_BASE_DIR / feature_id / criterion_id / "current" / "evidence.json"
 
@@ -672,13 +705,14 @@ def read_evidence_file(
 
     try:
         with evidence_path.open() as f:
-            return json.load(f)
+            data: dict[str, Any] = json.load(f)
+            return data
     except Exception as e:
         logger.error("read_evidence_failed", path=str(evidence_path), error=str(e))
         return None
 
 
-def _row_to_artifact(row: tuple) -> dict[str, Any]:
+def _row_to_artifact(row: tuple[Any, ...]) -> dict[str, Any]:
     """Convert database row to artifact dict."""
     return {
         "id": row[0],

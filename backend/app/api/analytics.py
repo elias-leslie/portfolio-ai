@@ -545,16 +545,28 @@ async def get_short_interest(
             detail=f"No short interest data found for {symbol.upper()}",
         )
 
+    # Cast DatabaseValue types to expected types
+    as_of_date_val = row[1]
+    as_of_date_str: str | None = None
+    if as_of_date_val is not None and hasattr(as_of_date_val, "isoformat"):
+        as_of_date_str = as_of_date_val.isoformat()
+
     return ShortInterestResponse(
-        symbol=row[0],
-        as_of_date=row[1].isoformat() if row[1] else None,
-        short_shares=row[2],
-        short_ratio=row[3],
-        pct_float=row[4],
-        pct_outstanding=row[5],
-        short_prior_month=row[6],
-        pct_change=row[7],
-        source=row[8] or "yfinance",
+        symbol=str(row[0]) if row[0] is not None else "",
+        as_of_date=as_of_date_str or "",
+        short_shares=float(row[2]) if row[2] is not None and not isinstance(row[2], bool) else None,
+        short_ratio=float(row[3]) if row[3] is not None and not isinstance(row[3], bool) else None,
+        short_percent_of_float=float(row[4])
+        if row[4] is not None and not isinstance(row[4], bool)
+        else None,
+        short_percent_of_outstanding=float(row[5])
+        if row[5] is not None and not isinstance(row[5], bool)
+        else None,
+        short_prior_month=float(row[6])
+        if row[6] is not None and not isinstance(row[6], bool)
+        else None,
+        pct_change=float(row[7]) if row[7] is not None and not isinstance(row[7], bool) else None,
+        source=str(row[8]) if row[8] is not None else "yfinance",
     )
 
 
@@ -588,17 +600,35 @@ async def get_cash_flow_metrics(
             detail=f"No cash flow metrics found for {symbol.upper()}",
         )
 
+    # Cast DatabaseValue types to expected types
+    as_of_date_val = row[1]
+    as_of_date_str: str | None = None
+    if as_of_date_val is not None and hasattr(as_of_date_val, "isoformat"):
+        as_of_date_str = as_of_date_val.isoformat()
+
     return CashFlowMetricsResponse(
-        symbol=row[0],
-        as_of_date=row[1].isoformat() if row[1] else None,
-        operating_cash_flow=row[2],
-        free_cash_flow=row[3],
-        capital_expenditure=row[4],
-        fcf_yield=row[5],
-        cash_flow_margin=row[6],
-        fcf_per_share=row[7],
-        cash_conversion_ratio=row[8],
-        source=row[9] or "yfinance",
+        symbol=str(row[0]) if row[0] is not None else "",
+        as_of_date=as_of_date_str or "",
+        operating_cash_flow=float(row[2])
+        if row[2] is not None and not isinstance(row[2], bool)
+        else None,
+        free_cash_flow=float(row[3])
+        if row[3] is not None and not isinstance(row[3], bool)
+        else None,
+        capital_expenditure=float(row[4])
+        if row[4] is not None and not isinstance(row[4], bool)
+        else None,
+        fcf_yield=float(row[5]) if row[5] is not None and not isinstance(row[5], bool) else None,
+        cash_flow_margin=float(row[6])
+        if row[6] is not None and not isinstance(row[6], bool)
+        else None,
+        fcf_per_share=float(row[7])
+        if row[7] is not None and not isinstance(row[7], bool)
+        else None,
+        cash_conversion_ratio=float(row[8])
+        if row[8] is not None and not isinstance(row[8], bool)
+        else None,
+        source=str(row[9]) if row[9] is not None else "yfinance",
     )
 
 
@@ -626,27 +656,43 @@ async def get_insider_transactions(
         )
         rows = result.fetchall()
 
-    def safe_float(val: float | None) -> float | None:
-        """Convert NaN to None for JSON serialization."""
-        if val is None:
+    def safe_float(val: str | int | float | bool | None) -> float | None:
+        """Convert DatabaseValue to float, handling NaN for JSON serialization."""
+        if val is None or isinstance(val, bool):
             return None
-        if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
+        try:
+            f_val = float(val)
+            if math.isnan(f_val) or math.isinf(f_val):
+                return None
+            return f_val
+        except (ValueError, TypeError):
             return None
-        return val
 
-    transactions = [
-        InsiderTransactionResponse(
-            symbol=row[0],
-            insider_name=row[1],
-            insider_title=row[2],
-            transaction_type=row[3],
-            transaction_date=row[4].isoformat() if row[4] else None,
-            shares=safe_float(row[5]),
-            value=safe_float(row[6]),
-            shares_owned_after=safe_float(row[7]),
+    transactions = []
+    for row in rows:
+        transaction_date_val = row[4]
+        transaction_date_str: str | None = None
+        if transaction_date_val is not None and hasattr(transaction_date_val, "isoformat"):
+            transaction_date_str = transaction_date_val.isoformat()
+
+        transactions.append(
+            InsiderTransactionResponse(
+                symbol=str(row[0]) if row[0] is not None else "",
+                insider_name=str(row[1])
+                if row[1] is not None and not isinstance(row[1], bool)
+                else None,
+                insider_title=str(row[2])
+                if row[2] is not None and not isinstance(row[2], bool)
+                else None,
+                transaction_type=str(row[3])
+                if row[3] is not None and not isinstance(row[3], bool)
+                else None,
+                transaction_date=transaction_date_str,
+                shares=safe_float(row[5]),
+                value=safe_float(row[6]),
+                shares_owned_after=safe_float(row[7]),
+            )
         )
-        for row in rows
-    ]
 
     return InsiderTransactionsListResponse(
         symbol=symbol.upper(),
@@ -695,18 +741,34 @@ async def get_institutional_holdings(
         )
         holder_rows = holders_result.fetchall()
 
-    top_holders = [
-        InstitutionalHoldingResponse(
-            symbol=row[0],
-            holder_name=row[1],
-            shares=row[2],
-            value=row[3],
-            pct_held=row[4],
-            pct_change=row[5],
-            report_date=row[6].isoformat() if row[6] else None,
+    top_holders = []
+    for row in holder_rows:
+        report_date_val = row[6]
+        report_date_str: str | None = None
+        if report_date_val is not None and hasattr(report_date_val, "isoformat"):
+            report_date_str = report_date_val.isoformat()
+
+        top_holders.append(
+            InstitutionalHoldingResponse(
+                symbol=str(row[0]) if row[0] is not None else "",
+                holder_name=str(row[1])
+                if row[1] is not None and not isinstance(row[1], bool)
+                else None,
+                shares=float(row[2])
+                if row[2] is not None and not isinstance(row[2], bool)
+                else None,
+                value=float(row[3])
+                if row[3] is not None and not isinstance(row[3], bool)
+                else None,
+                pct_held=float(row[4])
+                if row[4] is not None and not isinstance(row[4], bool)
+                else None,
+                pct_change=float(row[5])
+                if row[5] is not None and not isinstance(row[5], bool)
+                else None,
+                report_date=report_date_str,
+            )
         )
-        for row in holder_rows
-    ]
 
     if summary_row is None and not top_holders:
         raise HTTPException(
@@ -714,15 +776,33 @@ async def get_institutional_holdings(
             detail=f"No institutional holdings found for {symbol.upper()}",
         )
 
+    # Cast summary row DatabaseValue types
+    as_of_date_val = summary_row[1] if summary_row else None
+    as_of_date_str: str | None = None
+    if as_of_date_val is not None and hasattr(as_of_date_val, "isoformat"):
+        as_of_date_str = as_of_date_val.isoformat()
+
     return InstitutionalSummaryResponse(
         symbol=symbol.upper(),
-        as_of_date=summary_row[1].isoformat() if summary_row and summary_row[1] else None,
-        total_institutions=summary_row[2] if summary_row else None,
-        total_shares_held=summary_row[3] if summary_row else None,
-        pct_held_institutions=summary_row[4] if summary_row else None,
-        pct_held_insiders=summary_row[5] if summary_row else None,
-        institutions_increased=summary_row[6] if summary_row else None,
-        institutions_decreased=summary_row[7] if summary_row else None,
+        as_of_date=as_of_date_str,
+        total_institutions=int(summary_row[2])
+        if summary_row and summary_row[2] is not None and not isinstance(summary_row[2], bool)
+        else None,
+        total_shares_held=float(summary_row[3])
+        if summary_row and summary_row[3] is not None and not isinstance(summary_row[3], bool)
+        else None,
+        pct_held_institutions=float(summary_row[4])
+        if summary_row and summary_row[4] is not None and not isinstance(summary_row[4], bool)
+        else None,
+        pct_held_insiders=float(summary_row[5])
+        if summary_row and summary_row[5] is not None and not isinstance(summary_row[5], bool)
+        else None,
+        institutions_increased=int(summary_row[6])
+        if summary_row and summary_row[6] is not None and not isinstance(summary_row[6], bool)
+        else None,
+        institutions_decreased=int(summary_row[7])
+        if summary_row and summary_row[7] is not None and not isinstance(summary_row[7], bool)
+        else None,
         top_holders=top_holders,
     )
 

@@ -160,7 +160,8 @@ async def create_issue(issue: QAIssueCreate) -> QAIssueResponse:
             if max_row and max_row[0]:
                 # Parse QA-XXX format
                 try:
-                    max_num = int(max_row[0].replace("QA-", ""))
+                    issue_id_str = str(max_row[0])
+                    max_num = int(issue_id_str.replace("QA-", ""))
                     next_id = f"QA-{max_num + 1:03d}"
                 except ValueError:
                     next_id = "QA-001"
@@ -288,10 +289,14 @@ async def get_issues(
             # Get total count
             count_query = f"SELECT COUNT(*) FROM qa_issues {where_clause}"
             total_row = conn.execute(count_query, params).fetchone()
-            total = total_row[0] if total_row else 0
+            total_count = (
+                int(total_row[0])
+                if (total_row and isinstance(total_row[0], (int, float, str)))
+                else 0
+            )
 
             # Get filtered count (same as total in this case)
-            filtered = total
+            filtered_count = total_count
 
             # Get paginated results
             params.extend([limit, offset])
@@ -312,8 +317,8 @@ async def get_issues(
 
             return QAIssuesListResponse(
                 issues=issues,
-                total=total,
-                filtered=filtered,
+                total=total_count,
+                filtered=filtered_count,
             )
 
     except Exception as e:
@@ -391,10 +396,19 @@ async def resolve_issue(issue_id: str, update: QAIssueResolve) -> dict[str, Any]
             resolved_by=update.resolved_by,
         )
 
+        from datetime import datetime as dt
+
+        resolved_at_value = result[1]
+        resolved_at_str = (
+            resolved_at_value.isoformat()
+            if isinstance(resolved_at_value, dt)
+            else str(resolved_at_value)
+        )
+
         return {
             "status": "resolved",
             "issue_id": result[0],
-            "resolved_at": result[1].isoformat(),
+            "resolved_at": resolved_at_str,
             "resolved_by": update.resolved_by,
         }
 
@@ -406,9 +420,7 @@ async def resolve_issue(issue_id: str, update: QAIssueResolve) -> dict[str, Any]
 
 
 @router.patch("/issues/{issue_id}/false-positive", response_model=dict[str, Any])
-async def mark_false_positive(
-    issue_id: str, update: QAIssueFalsePositive
-) -> dict[str, Any]:
+async def mark_false_positive(issue_id: str, update: QAIssueFalsePositive) -> dict[str, Any]:
     """Mark an issue as false positive.
 
     Args:
@@ -531,7 +543,11 @@ async def get_summary() -> QASummaryResponse:
                   AND resolved_at IS NULL
                 """
             ).fetchone()
-            total = total_row[0] if total_row else 0
+            total_issues = (
+                int(total_row[0])
+                if (total_row and isinstance(total_row[0], (int, float, str)))
+                else 0
+            )
 
             # Get by severity
             severity_rows = conn.execute(
@@ -544,14 +560,19 @@ async def get_summary() -> QASummaryResponse:
                 """
             ).fetchall()
 
-            by_severity = {
+            by_severity: dict[str, int] = {
                 "critical": 0,
                 "high": 0,
                 "medium": 0,
                 "low": 0,
             }
             for row in severity_rows:
-                by_severity[row[0]] = row[1]
+                severity_key = str(row[0])
+                severity_value = row[1]
+                severity_count = (
+                    int(severity_value) if isinstance(severity_value, (int, float, str)) else 0
+                )
+                by_severity[severity_key] = severity_count
 
             # Get by category
             category_rows = conn.execute(
@@ -564,7 +585,12 @@ async def get_summary() -> QASummaryResponse:
                 """
             ).fetchall()
 
-            by_category = {row[0]: row[1] for row in category_rows}
+            by_category: dict[str, int] = {}
+            for row in category_rows:
+                cat_key = str(row[0])
+                cat_value = row[1]
+                cat_count = int(cat_value) if isinstance(cat_value, (int, float, str)) else 0
+                by_category[cat_key] = cat_count
 
             # Get issues resolved this week
             week_ago = datetime.now() - timedelta(days=7)
@@ -576,7 +602,10 @@ async def get_summary() -> QASummaryResponse:
                 """,
                 (week_ago,),
             ).fetchone()
-            resolved_this_week = resolved_row[0] if resolved_row else 0
+            resolved_value = resolved_row[0] if resolved_row else 0
+            resolved_this_week = (
+                int(resolved_value) if isinstance(resolved_value, (int, float, str)) else 0
+            )
 
             # Get issues added this week
             added_row = conn.execute(
@@ -588,7 +617,8 @@ async def get_summary() -> QASummaryResponse:
                 """,
                 (week_ago,),
             ).fetchone()
-            added_this_week = added_row[0] if added_row else 0
+            added_value = added_row[0] if added_row else 0
+            added_this_week = int(added_value) if isinstance(added_value, (int, float, str)) else 0
 
             # Calculate trend (improving/degrading/stable)
             if resolved_this_week > added_this_week * 1.2:
@@ -599,7 +629,7 @@ async def get_summary() -> QASummaryResponse:
                 trend = "stable"
 
             return QASummaryResponse(
-                total=total,
+                total=total_issues,
                 by_severity=by_severity,
                 by_category=by_category,
                 trend=trend,
@@ -630,6 +660,8 @@ async def get_trends(
         with conn_mgr.connection() as conn:
             # Get snapshots from the last N days
             cutoff_date = date.today() - timedelta(days=days)
+            # Convert date to datetime for database query parameter compatibility
+            cutoff_datetime = datetime.combine(cutoff_date, datetime.min.time())
 
             rows = conn.execute(
                 """
@@ -640,12 +672,14 @@ async def get_trends(
                 WHERE snapshot_date >= %s
                 ORDER BY snapshot_date ASC
                 """,
-                (cutoff_date,),
+                [cutoff_datetime],
             ).fetchall()
 
-            snapshots = [
+            from datetime import date as date_type
+
+            snapshots: list[dict[str, Any]] = [
                 {
-                    "date": row[0].isoformat(),
+                    "date": row[0].isoformat() if isinstance(row[0], date_type) else str(row[0]),
                     "total": row[1],
                     "critical": row[2],
                     "high": row[3],

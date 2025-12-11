@@ -11,7 +11,8 @@ This module provides REST API endpoints for vision goals:
 
 from __future__ import annotations
 
-from typing import Any
+from datetime import datetime
+from typing import Any, cast
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -96,31 +97,43 @@ async def get_vision_goals() -> list[VisionGoalWithStats]:
             ).fetchall()
 
             # Build stats lookup
-            stats_map = {
+            stats_map: dict[Any, dict[str, int]] = {
                 row[0]: {
-                    "feature_count": row[1],
-                    "criteria_total": row[2] or 0,
-                    "criteria_passed": row[3] or 0,
+                    "feature_count": int(row[1] or 0),
+                    "criteria_total": int(row[2] or 0),
+                    "criteria_passed": int(row[3] or 0),
                 }
                 for row in stats
             }
 
-            result = []
+            result: list[VisionGoalWithStats] = []
             for g in goals:
-                code = g[0]
-                s = stats_map.get(code, {"feature_count": 0, "criteria_total": 0, "criteria_passed": 0})
-                pass_rate = s["criteria_passed"] / s["criteria_total"] if s["criteria_total"] > 0 else 0.0
+                code_val = cast(str, g[0])
+                s = stats_map.get(
+                    code_val, {"feature_count": 0, "criteria_total": 0, "criteria_passed": 0}
+                )
+                criteria_total = s["criteria_total"]
+                criteria_passed = s["criteria_passed"]
+                pass_rate = criteria_passed / criteria_total if criteria_total > 0 else 0.0
+
+                created_at_val = g[4]
+                updated_at_val = g[5]
+
                 result.append(
                     VisionGoalWithStats(
-                        code=code,
-                        name=g[1],
-                        description=g[2],
-                        category=g[3],
-                        created_at=g[4].isoformat() if g[4] else None,
-                        updated_at=g[5].isoformat() if g[5] else None,
+                        code=code_val,
+                        name=cast(str, g[1]),
+                        description=cast(str | None, g[2]),
+                        category=cast(str | None, g[3]),
+                        created_at=cast(datetime, created_at_val).isoformat()
+                        if created_at_val
+                        else None,
+                        updated_at=cast(datetime, updated_at_val).isoformat()
+                        if updated_at_val
+                        else None,
                         feature_count=s["feature_count"],
-                        criteria_total=s["criteria_total"],
-                        criteria_passed=s["criteria_passed"],
+                        criteria_total=criteria_total,
+                        criteria_passed=criteria_passed,
                         pass_rate=round(pass_rate, 3),
                     )
                 )
@@ -140,7 +153,8 @@ async def get_vision_goals_summary() -> dict[str, Any]:
     try:
         with conn_mgr.connection() as conn:
             # Get goal count
-            goal_count = conn.execute("SELECT COUNT(*) FROM vision_goals").fetchone()[0]
+            goal_count_row = conn.execute("SELECT COUNT(*) FROM vision_goals").fetchone()
+            goal_count = int(cast(int, goal_count_row[0])) if goal_count_row else 0
 
             # Get per-goal stats
             stats = conn.execute(
@@ -162,19 +176,23 @@ async def get_vision_goals_summary() -> dict[str, Any]:
                 """
             ).fetchall()
 
-            goals = []
+            goals: list[dict[str, Any]] = []
             for row in stats:
-                criteria_total = row[3] or 0
-                criteria_passed = row[4] or 0
-                pass_rate = criteria_passed / criteria_total if criteria_total > 0 else 0.0
-                goals.append({
-                    "code": row[0],
-                    "name": row[1],
-                    "feature_count": row[2],
-                    "criteria_total": criteria_total,
-                    "criteria_passed": criteria_passed,
-                    "pass_rate": round(pass_rate, 3),
-                })
+                criteria_total_val = int(row[3] or 0)
+                criteria_passed_val = int(row[4] or 0)
+                pass_rate = (
+                    criteria_passed_val / criteria_total_val if criteria_total_val > 0 else 0.0
+                )
+                goals.append(
+                    {
+                        "code": row[0],
+                        "name": row[1],
+                        "feature_count": row[2],
+                        "criteria_total": criteria_total_val,
+                        "criteria_passed": criteria_passed_val,
+                        "pass_rate": round(pass_rate, 3),
+                    }
+                )
 
             return {
                 "total_goals": goal_count,
@@ -226,13 +244,20 @@ async def get_vision_goal(code: str) -> dict[str, Any]:
                 (code,),
             ).fetchall()
 
+            created_at_val = goal[4]
+            updated_at_val = goal[5]
+
             return {
                 "code": goal[0],
                 "name": goal[1],
                 "description": goal[2],
                 "category": goal[3],
-                "created_at": goal[4].isoformat() if goal[4] else None,
-                "updated_at": goal[5].isoformat() if goal[5] else None,
+                "created_at": cast(datetime, created_at_val).isoformat()
+                if created_at_val
+                else None,
+                "updated_at": cast(datetime, updated_at_val).isoformat()
+                if updated_at_val
+                else None,
                 "feature_count": len(features),
                 "features": [
                     {
@@ -322,6 +347,9 @@ async def create_vision_goal(goal: VisionGoalCreate) -> dict[str, Any]:
 
             logger.info("vision_goal_created", code=goal.code, name=goal.name)
 
+            if not result:
+                raise HTTPException(status_code=500, detail="Failed to create vision goal")
+
             return {
                 "status": "created",
                 "code": result[0],
@@ -332,7 +360,9 @@ async def create_vision_goal(goal: VisionGoalCreate) -> dict[str, Any]:
 
     except Exception as e:
         if "duplicate key" in str(e).lower():
-            raise HTTPException(status_code=409, detail=f"Vision goal {goal.code} already exists") from e
+            raise HTTPException(
+                status_code=409, detail=f"Vision goal {goal.code} already exists"
+            ) from e
         logger.error("create_vision_goal_failed", error=str(e))
         raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -401,14 +431,19 @@ async def delete_vision_goal(code: str) -> dict[str, Any]:
     try:
         with conn_mgr.connection() as conn:
             # Check if any features are linked
-            linked_count = conn.execute(
+            linked_count_row = conn.execute(
                 """
                 SELECT COUNT(*)
                 FROM feature_capabilities
                 WHERE %s = ANY(vision_goals)
                 """,
                 (code,),
-            ).fetchone()[0]
+            ).fetchone()
+
+            if not linked_count_row:
+                raise HTTPException(status_code=500, detail="Failed to check linked features")
+
+            linked_count = int(cast(int, linked_count_row[0]))
 
             if linked_count > 0:
                 raise HTTPException(

@@ -45,7 +45,8 @@ Implements Anthropic's long-running agent patterns:
 from __future__ import annotations
 
 import json
-from typing import Any
+from datetime import datetime
+from typing import Any, cast
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
@@ -155,7 +156,9 @@ class FeatureResponse(BaseModel):
     category: str | None
     description: str | None
     layers: list[str] = []  # Verification layers: Frontend, Backend, UI, API, DB, Tasks
-    layer_results: dict[str, dict] = {}  # Per-layer verification: {"UI": {"passed": true}}
+    layer_results: dict[
+        str, dict[str, Any]
+    ] = {}  # Per-layer verification: {"UI": {"passed": true}}
     total_tasks: int = 0  # From DB
     completed_tasks: int = 0  # From DB
     completion_pct: int = 0
@@ -367,10 +370,10 @@ async def get_verification_summary() -> VerificationSummary:
                 """
             ).fetchone()
 
-            total = row[0] or 0
-            passed = row[1] or 0
-            failed = row[2] or 0
-            pending = total - passed - failed
+            total_val: int = int(row[0]) if row and row[0] else 0
+            passed_val: int = int(row[1]) if row and row[1] else 0
+            failed_val: int = int(row[2]) if row and row[2] else 0
+            pending_val: int = total_val - passed_val - failed_val
 
             # Get by-type breakdown
             type_rows = conn.execute(
@@ -386,17 +389,21 @@ async def get_verification_summary() -> VerificationSummary:
                 """
             ).fetchall()
 
-            by_type = {}
+            by_type: dict[str, dict[str, int]] = {}
             for r in type_rows:
-                ctype = r[0] or "unknown"
+                ctype = str(r[0]) if r[0] else "unknown"
+                type_total = int(r[1]) if r[1] else 0
+                type_passed = int(r[2]) if r[2] else 0
+                type_failed = int(r[3]) if r[3] else 0
                 by_type[ctype] = {
-                    "total": r[1],
-                    "passed": r[2],
-                    "failed": r[3],
-                    "pending": r[1] - r[2] - r[3],
+                    "total": type_total,
+                    "passed": type_passed,
+                    "failed": type_failed,
+                    "pending": type_total - type_passed - type_failed,
                 }
 
             # Get last run timestamp
+            last_run_at: str | None
             try:
                 last_run = conn.execute(
                     """
@@ -406,15 +413,22 @@ async def get_verification_summary() -> VerificationSummary:
                     LIMIT 1
                     """
                 ).fetchone()
-                last_run_at = last_run[0].isoformat() if last_run else None
+                if last_run and last_run[0]:
+                    run_at_val = last_run[0]
+                    if isinstance(run_at_val, datetime):
+                        last_run_at = run_at_val.isoformat()
+                    else:
+                        last_run_at = None
+                else:
+                    last_run_at = None
             except Exception:
                 last_run_at = None
 
             return VerificationSummary(
-                total_criteria=total,
-                passed=passed,
-                failed=failed,
-                pending=pending,
+                total_criteria=total_val,
+                passed=passed_val,
+                failed=failed_val,
+                pending=pending_val,
                 by_type=by_type,
                 last_run_at=last_run_at,
             )
@@ -785,6 +799,7 @@ async def update_feature_layers(feature_id: str, update: FeatureLayersUpdate) ->
 
     try:
         with conn_mgr.connection() as conn:
+            params: tuple[list[str], str] = (update.layers, feature_id)
             result = conn.execute(
                 """
                 UPDATE feature_capabilities
@@ -792,7 +807,19 @@ async def update_feature_layers(feature_id: str, update: FeatureLayersUpdate) ->
                 WHERE feature_id = %s
                 RETURNING feature_id
                 """,
-                (update.layers, feature_id),
+                cast(
+                    tuple[
+                        str
+                        | int
+                        | float
+                        | bool
+                        | datetime
+                        | list[str | int | float | bool | None]
+                        | None,
+                        ...,
+                    ],
+                    params,
+                ),
             ).fetchone()
             conn.commit()
 
@@ -1022,12 +1049,14 @@ async def update_acceptance_criterion_passed(
             if not row:
                 raise HTTPException(status_code=404, detail=f"Feature {feature_id} not found")
 
-            criteria = row[0] if row[0] else []
+            criteria_raw: Any = row[0] if row[0] else []
+            # Ensure we have a list of dicts
+            criteria: list[dict[str, Any]] = criteria_raw if isinstance(criteria_raw, list) else []
 
             # Find and update the specific criterion
             found = False
             for c in criteria:
-                if c.get("id") == criterion_id:
+                if isinstance(c, dict) and c.get("id") == criterion_id:
                     c["passed"] = update.passed
                     if update.evidence:
                         c["evidence"] = update.evidence
@@ -1096,6 +1125,7 @@ async def update_feature_vision_goals(feature_id: str, update: VisionGoalsUpdate
 
     try:
         with conn_mgr.connection() as conn:
+            params: tuple[list[str], str] = (update.vision_goals, feature_id)
             result = conn.execute(
                 """
                 UPDATE feature_capabilities
@@ -1103,7 +1133,19 @@ async def update_feature_vision_goals(feature_id: str, update: VisionGoalsUpdate
                 WHERE feature_id = %s
                 RETURNING feature_id, vision_goals
                 """,
-                (update.vision_goals, feature_id),
+                cast(
+                    tuple[
+                        str
+                        | int
+                        | float
+                        | bool
+                        | datetime
+                        | list[str | int | float | bool | None]
+                        | None,
+                        ...,
+                    ],
+                    params,
+                ),
             ).fetchone()
             conn.commit()
 
@@ -1184,14 +1226,14 @@ async def get_feature_dependencies(feature_id: str) -> list[DependencyResponse]:
 
         return [
             DependencyResponse(
-                id=row[0],
-                feature_id=row[1],
-                depends_on_feature_id=row[2],
-                depends_on_name=row[3],
-                depends_on_passes=row[4],
-                dependency_type=row[5],
-                notes=row[6],
-                is_satisfied=row[7],
+                id=int(row[0]) if row[0] else 0,
+                feature_id=str(row[1]) if row[1] else "",
+                depends_on_feature_id=str(row[2]) if row[2] else "",
+                depends_on_name=str(row[3]) if row[3] else "",
+                depends_on_passes=bool(row[4]) if row[4] is not None else None,
+                dependency_type=str(row[5]) if row[5] else "",
+                notes=str(row[6]) if row[6] else None,
+                is_satisfied=bool(row[7]) if row[7] is not None else False,
             )
             for row in rows
         ]

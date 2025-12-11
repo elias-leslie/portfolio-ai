@@ -188,18 +188,22 @@ def _infer_dependencies(
                     # Check timing (writer should run before reader)
                     if writer_time is not None and task_time is not None:
                         if writer_time < task_time:
-                            edges.append((
+                            edges.append(
+                                (
+                                    writer_name,
+                                    task_name,
+                                    f"writes→reads: {table}",
+                                )
+                            )
+                    elif writer_time is None and task_time is None:
+                        # Both interval-based, include edge without timing check
+                        edges.append(
+                            (
                                 writer_name,
                                 task_name,
                                 f"writes→reads: {table}",
-                            ))
-                    elif writer_time is None and task_time is None:
-                        # Both interval-based, include edge without timing check
-                        edges.append((
-                            writer_name,
-                            task_name,
-                            f"writes→reads: {table}",
-                        ))
+                            )
+                        )
 
         # Apply manual overrides (add)
         overrides = task.get("dependency_overrides") or {}
@@ -251,12 +255,12 @@ async def get_workflow_graph(
     try:
         unified_tasks = get_unified_task_list(status="all", limit=100)
         for task in unified_tasks:
-            task_name = task.get("name", "")
+            live_task_name = task.get("name", "")
             status = task.get("status", "").upper()
             if status == "ACTIVE":
-                active_tasks[task_name] = "running"
+                active_tasks[live_task_name] = "running"
             elif status == "PENDING":
-                pending_tasks.add(task_name)
+                pending_tasks.add(live_task_name)
     except Exception as e:
         logger.warning("failed_to_get_live_tasks", error=str(e))
 
@@ -301,18 +305,18 @@ async def get_workflow_graph(
         # Build nodes
         task_ids: set[str] = set()
         for row in rows:
-            task_name = row[0]
-            task_category = row[1] or "uncategorized"
-            depends_on = row[2] or []
-            populates = row[3] or []
+            task_name: str = str(row[0])
+            task_category: str = str(row[1]) if row[1] else "uncategorized"
+            depends_on: Any = row[2] or []
+            populates: Any = row[3] or []
             last_run = row[4]
             next_run = row[5]
             success_rate = row[6] or 0.0
             avg_duration = row[7] or 0.0
-            cron_schedule = row[8]
-            schedule_description = row[9]
-            reads_from = row[10] or []
-            dep_overrides = row[11] or {}
+            cron_schedule: str | None = str(row[8]) if row[8] else None
+            schedule_description: str | None = str(row[9]) if row[9] else None
+            reads_from: Any = row[10] or []
+            dep_overrides: Any = row[11] or {}
             interval_seconds = row[12]
 
             # Parse JSON fields if needed
@@ -337,41 +341,62 @@ async def get_workflow_graph(
                 except json.JSONDecodeError:
                     dep_overrides = {}
 
-            task_ids.add(task_name)
-            all_categories.add(task_category)
+            if isinstance(task_name, str):
+                task_ids.add(task_name)
+            if isinstance(task_category, str):
+                all_categories.add(task_category)
 
             # Store for dependency inference
-            tasks_data.append({
-                "task_name": task_name,
-                "populates_tables": populates,
-                "reads_from_tables": reads_from,
-                "dependency_overrides": dep_overrides,
-                "schedule_crontab": cron_schedule,
-                "schedule_interval_seconds": interval_seconds,
-            })
+            tasks_data.append(
+                {
+                    "task_name": task_name,
+                    "populates_tables": populates,
+                    "reads_from_tables": reads_from,
+                    "dependency_overrides": dep_overrides,
+                    "schedule_crontab": cron_schedule,
+                    "schedule_interval_seconds": interval_seconds,
+                }
+            )
 
             # Determine status
-            status: Literal["idle", "running", "completed", "failed", "pending"] = "idle"
+            node_status: Literal["idle", "running", "completed", "failed", "pending"] = "idle"
             if task_name in active_tasks:
-                status = "running"
+                node_status = "running"
             elif task_name in pending_tasks:
-                status = "pending"
+                node_status = "pending"
             elif last_run and isinstance(last_run, datetime):
                 # Check if recently completed (within last hour)
                 age = (datetime.now(UTC) - last_run.replace(tzinfo=UTC)).total_seconds()
                 if age < 3600:
-                    status = "completed"
+                    node_status = "completed"
+
+            # Convert schedule and category to strings
+            schedule_str: str = (
+                str(schedule_description)
+                if schedule_description
+                else _humanize_schedule(task_name, cron_schedule)
+            )
+            category_str: str = str(task_category)
+
+            # Handle datetime fields
+            last_run_str: str | None = None
+            if last_run and isinstance(last_run, datetime):
+                last_run_str = last_run.isoformat()
+
+            next_run_str: str | None = None
+            if next_run and isinstance(next_run, datetime):
+                next_run_str = next_run.isoformat()
 
             node = WorkflowNode(
                 id=task_name,
                 type="task",
                 data=NodeData(
                     label=_task_name_to_label(task_name),
-                    schedule=schedule_description or _humanize_schedule(task_name, cron_schedule),
-                    category=task_category,
-                    status=status,
-                    lastRun=last_run.isoformat() if last_run else None,
-                    nextRun=next_run.isoformat() if next_run else None,
+                    schedule=schedule_str,
+                    category=category_str,
+                    status=node_status,
+                    lastRun=last_run_str,
+                    nextRun=next_run_str,
                     successRate=float(success_rate),
                     avgDuration=float(avg_duration),
                     populatesTables=populates if isinstance(populates, list) else [],
@@ -381,7 +406,7 @@ async def get_workflow_graph(
             nodes.append(node)
 
             # Build edges from explicit dependencies (depends_on_tasks field)
-            if depends_on:
+            if depends_on and isinstance(depends_on, list):
                 for dep in depends_on:
                     edge = WorkflowEdge(
                         id=f"e-explicit-{dep}-{task_name}",
@@ -473,12 +498,15 @@ async def update_task_dependencies(
             raise HTTPException(status_code=404, detail=f"Task {task_name} not found")
 
         # Merge with existing overrides
-        existing = row[0] or {}
-        if isinstance(existing, str):
+        raw_existing: Any = row[0] or {}
+        existing: dict[str, Any] = {}
+        if isinstance(raw_existing, str):
             try:
-                existing = json.loads(existing)
+                existing = json.loads(raw_existing)
             except json.JSONDecodeError:
                 existing = {}
+        elif isinstance(raw_existing, dict):
+            existing = raw_existing
 
         # Merge add/remove lists
         existing_add = set(existing.get("add", []))

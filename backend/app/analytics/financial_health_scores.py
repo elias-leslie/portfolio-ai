@@ -28,13 +28,15 @@ class FinancialHealthScores:
 
     symbol: str
     f_score: int | None = None  # 0-9 (higher = better quality)
-    f_score_components: dict | None = None  # Individual F-Score components
+    f_score_components: dict[str, int] | None = None  # Individual F-Score components
     z_score: float | None = None  # >2.99 safe, 1.81-2.99 grey, <1.81 distress
     z_score_zone: str | None = None  # "safe", "grey", "distress"
     error: str | None = None
 
 
-def calculate_piotroski_f_score(symbol: str) -> tuple[int | None, dict | None, str | None]:
+def calculate_piotroski_f_score(
+    symbol: str,
+) -> tuple[int | None, dict[str, int] | None, str | None]:
     """Calculate Piotroski F-Score (9-point fundamental quality score).
 
     The F-Score assesses financial strength using 9 binary criteria:
@@ -90,8 +92,8 @@ def calculate_piotroski_f_score(symbol: str) -> tuple[int | None, dict | None, s
         curr_cf = cf.iloc[:, 0]
 
         # Helper to safely get values
-        def get_val(series, key, default=0):
-            return series.get(key, default) or default
+        def get_val(series: object, key: str, default: float = 0) -> float:
+            return series.get(key, default) or default  # type: ignore[attr-defined]
 
         # Calculate metrics
         total_assets_curr = get_val(curr_bs, "Total Assets", 1)
@@ -209,8 +211,8 @@ def calculate_altman_z_score(symbol: str) -> tuple[float | None, str | None, str
         curr_inc = income.iloc[:, 0]
 
         # Helper to safely get values
-        def get_val(series, key, default=0):
-            return series.get(key, default) or default
+        def get_val(series: object, key: str, default: float = 0) -> float:
+            return series.get(key, default) or default  # type: ignore[attr-defined]
 
         # Extract required values
         total_assets = get_val(curr_bs, "Total Assets")
