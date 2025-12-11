@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Generator
+from contextlib import contextmanager
 from datetime import datetime
 from unittest.mock import patch
 
@@ -9,6 +11,29 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.utils.market_hours import NY_TZ
+
+
+@contextmanager
+def mock_market_time(mock_time: datetime) -> Generator[None]:
+    """Mock datetime in both api.market and utils.market_hours modules."""
+    with (
+        patch("app.api.market.datetime") as mock_datetime_api,
+        patch("app.utils.market_hours.datetime") as mock_datetime_utils,
+        patch("app.middleware.cache.CACHE_ENABLED", False),  # Disable cache for tests
+    ):
+        # Mock datetime.now() in both modules
+        mock_datetime_api.now.return_value = mock_time
+        mock_datetime_utils.now.return_value = mock_time
+
+        # Preserve datetime.combine for market_hours calculations
+        mock_datetime_utils.combine = datetime.combine
+        mock_datetime_api.combine = datetime.combine
+
+        # Allow datetime constructor calls to work
+        mock_datetime_utils.side_effect = lambda *args, **kw: datetime(*args, **kw)
+        mock_datetime_api.side_effect = lambda *args, **kw: datetime(*args, **kw)
+
+        yield
 
 
 class TestMarketStatusAPI:
@@ -27,18 +52,7 @@ class TestMarketStatusAPI:
         # Wednesday, October 29, 2025, 10:30 AM ET (mid-trading day)
         mock_time = datetime(2025, 10, 29, 10, 30, tzinfo=NY_TZ)
 
-        with (
-            patch("app.utils.market_hours.datetime") as mock_datetime_utils,
-            patch("app.api.market.datetime") as mock_datetime_api,
-        ):
-            # Mock both datetime.now() calls
-            mock_datetime_utils.now.return_value = mock_time
-            mock_datetime_api.now.return_value = mock_time
-
-            # Mock datetime constructor for combine() calls
-            mock_datetime_utils.combine = datetime.combine
-            mock_datetime_utils.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
-
+        with mock_market_time(mock_time):
             response = client.get("/api/market/status")
 
             assert response.status_code == 200
@@ -59,15 +73,7 @@ class TestMarketStatusAPI:
         # Wednesday, October 29, 2025, 9:00 PM ET (after after-hours close)
         mock_time = datetime(2025, 10, 29, 21, 0, tzinfo=NY_TZ)
 
-        with (
-            patch("app.api.market.datetime") as mock_datetime_api,
-            patch("app.utils.market_hours.datetime") as mock_datetime_utils,
-        ):
-            mock_datetime_api.now.return_value = mock_time
-            mock_datetime_utils.now.return_value = mock_time
-            mock_datetime_utils.combine = datetime.combine
-            mock_datetime_utils.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
-
+        with mock_market_time(mock_time):
             response = client.get("/api/market/status")
 
             assert response.status_code == 200
@@ -82,15 +88,7 @@ class TestMarketStatusAPI:
         # Wednesday, October 29, 2025, 8:00 AM ET (pre-market hours)
         mock_time = datetime(2025, 10, 29, 8, 0, tzinfo=NY_TZ)
 
-        with (
-            patch("app.api.market.datetime") as mock_datetime_api,
-            patch("app.utils.market_hours.datetime") as mock_datetime_utils,
-        ):
-            mock_datetime_api.now.return_value = mock_time
-            mock_datetime_utils.now.return_value = mock_time
-            mock_datetime_utils.combine = datetime.combine
-            mock_datetime_utils.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
-
+        with mock_market_time(mock_time):
             response = client.get("/api/market/status")
 
             assert response.status_code == 200
@@ -105,15 +103,7 @@ class TestMarketStatusAPI:
         # Wednesday, October 29, 2025, 5:00 PM ET (after-hours trading)
         mock_time = datetime(2025, 10, 29, 17, 0, tzinfo=NY_TZ)
 
-        with (
-            patch("app.api.market.datetime") as mock_datetime_api,
-            patch("app.utils.market_hours.datetime") as mock_datetime_utils,
-        ):
-            mock_datetime_api.now.return_value = mock_time
-            mock_datetime_utils.now.return_value = mock_time
-            mock_datetime_utils.combine = datetime.combine
-            mock_datetime_utils.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
-
+        with mock_market_time(mock_time):
             response = client.get("/api/market/status")
 
             assert response.status_code == 200
@@ -128,15 +118,7 @@ class TestMarketStatusAPI:
         # Saturday, November 1, 2025, 10:30 AM ET
         mock_time = datetime(2025, 11, 1, 10, 30, tzinfo=NY_TZ)
 
-        with (
-            patch("app.api.market.datetime") as mock_datetime_api,
-            patch("app.utils.market_hours.datetime") as mock_datetime_utils,
-        ):
-            mock_datetime_api.now.return_value = mock_time
-            mock_datetime_utils.now.return_value = mock_time
-            mock_datetime_utils.combine = datetime.combine
-            mock_datetime_utils.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
-
+        with mock_market_time(mock_time):
             response = client.get("/api/market/status")
 
             assert response.status_code == 200
@@ -151,9 +133,7 @@ class TestMarketStatusAPI:
         # Wednesday, January 1, 2025, 10:30 AM ET (New Year's Day)
         mock_time = datetime(2025, 1, 1, 10, 30, tzinfo=NY_TZ)
 
-        with patch("app.api.market.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_time
-
+        with mock_market_time(mock_time):
             response = client.get("/api/market/status")
 
             assert response.status_code == 200
@@ -170,9 +150,7 @@ class TestMarketStatusAPI:
         # Thursday, December 25, 2025, 10:30 AM ET (Christmas Day)
         mock_time = datetime(2025, 12, 25, 10, 30, tzinfo=NY_TZ)
 
-        with patch("app.api.market.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_time
-
+        with mock_market_time(mock_time):
             response = client.get("/api/market/status")
 
             assert response.status_code == 200
@@ -188,9 +166,7 @@ class TestMarketStatusAPI:
         # Thursday, November 27, 2025, 10:30 AM ET (Thanksgiving)
         mock_time = datetime(2025, 11, 27, 10, 30, tzinfo=NY_TZ)
 
-        with patch("app.api.market.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_time
-
+        with mock_market_time(mock_time):
             response = client.get("/api/market/status")
 
             assert response.status_code == 200
@@ -206,9 +182,7 @@ class TestMarketStatusAPI:
         # Friday, November 28, 2025, 10:30 AM ET (Black Friday - early close)
         mock_time = datetime(2025, 11, 28, 10, 30, tzinfo=NY_TZ)
 
-        with patch("app.api.market.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_time
-
+        with mock_market_time(mock_time):
             response = client.get("/api/market/status")
 
             assert response.status_code == 200
@@ -226,9 +200,7 @@ class TestMarketStatusAPI:
         # Friday, November 28, 2025, 2:00 PM ET (Black Friday after 1 PM close)
         mock_time = datetime(2025, 11, 28, 14, 0, tzinfo=NY_TZ)
 
-        with patch("app.api.market.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_time
-
+        with mock_market_time(mock_time):
             response = client.get("/api/market/status")
 
             assert response.status_code == 200
@@ -244,9 +216,7 @@ class TestMarketStatusAPI:
         # Wednesday, December 24, 2025, 11:00 AM ET (Christmas Eve)
         mock_time = datetime(2025, 12, 24, 11, 0, tzinfo=NY_TZ)
 
-        with patch("app.api.market.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_time
-
+        with mock_market_time(mock_time):
             response = client.get("/api/market/status")
 
             assert response.status_code == 200
@@ -262,9 +232,7 @@ class TestMarketStatusAPI:
         # Wednesday, October 29, 2025, 10:30 AM ET
         mock_time = datetime(2025, 10, 29, 10, 30, tzinfo=NY_TZ)
 
-        with patch("app.api.market.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_time
-
+        with mock_market_time(mock_time):
             response = client.get("/api/market/status")
 
             assert response.status_code == 200
@@ -279,9 +247,7 @@ class TestMarketStatusAPI:
         # Friday, October 31, 2025, 10:30 AM ET
         mock_time = datetime(2025, 10, 31, 10, 30, tzinfo=NY_TZ)
 
-        with patch("app.api.market.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_time
-
+        with mock_market_time(mock_time):
             response = client.get("/api/market/status")
 
             assert response.status_code == 200
@@ -296,9 +262,7 @@ class TestMarketStatusAPI:
         # Saturday, November 1, 2025, 10:30 AM ET
         mock_time = datetime(2025, 11, 1, 10, 30, tzinfo=NY_TZ)
 
-        with patch("app.api.market.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_time
-
+        with mock_market_time(mock_time):
             response = client.get("/api/market/status")
 
             assert response.status_code == 200
@@ -313,9 +277,7 @@ class TestMarketStatusAPI:
         # Sunday, November 2, 2025, 10:30 AM ET
         mock_time = datetime(2025, 11, 2, 10, 30, tzinfo=NY_TZ)
 
-        with patch("app.api.market.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_time
-
+        with mock_market_time(mock_time):
             response = client.get("/api/market/status")
 
             assert response.status_code == 200
@@ -330,9 +292,7 @@ class TestMarketStatusAPI:
         # Tuesday, December 23, 2025, 10:30 AM ET (day before Christmas Eve)
         mock_time = datetime(2025, 12, 23, 10, 30, tzinfo=NY_TZ)
 
-        with patch("app.api.market.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_time
-
+        with mock_market_time(mock_time):
             response = client.get("/api/market/status")
 
             assert response.status_code == 200
@@ -347,9 +307,7 @@ class TestMarketStatusAPI:
         # Thursday, December 25, 2025, 10:30 AM ET (Christmas Day)
         mock_time = datetime(2025, 12, 25, 10, 30, tzinfo=NY_TZ)
 
-        with patch("app.api.market.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_time
-
+        with mock_market_time(mock_time):
             response = client.get("/api/market/status")
 
             assert response.status_code == 200
@@ -365,9 +323,7 @@ class TestMarketStatusAPI:
         # Wednesday, October 29, 2025, 10:30:45 AM ET
         mock_time = datetime(2025, 10, 29, 10, 30, 45, tzinfo=NY_TZ)
 
-        with patch("app.api.market.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_time
-
+        with mock_market_time(mock_time):
             response = client.get("/api/market/status")
 
             assert response.status_code == 200
@@ -381,9 +337,7 @@ class TestMarketStatusAPI:
         # Wednesday, October 29, 2025, 9:30 AM ET (exact market open)
         mock_time = datetime(2025, 10, 29, 9, 30, tzinfo=NY_TZ)
 
-        with patch("app.api.market.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_time
-
+        with mock_market_time(mock_time):
             response = client.get("/api/market/status")
 
             assert response.status_code == 200
@@ -397,9 +351,7 @@ class TestMarketStatusAPI:
         # Wednesday, October 29, 2025, 4:00 PM ET (exact market close)
         mock_time = datetime(2025, 10, 29, 16, 0, tzinfo=NY_TZ)
 
-        with patch("app.api.market.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_time
-
+        with mock_market_time(mock_time):
             response = client.get("/api/market/status")
 
             assert response.status_code == 200
@@ -414,9 +366,7 @@ class TestMarketStatusAPI:
         # Friday, July 4, 2025, 10:30 AM ET (Independence Day)
         mock_time = datetime(2025, 7, 4, 10, 30, tzinfo=NY_TZ)
 
-        with patch("app.api.market.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_time
-
+        with mock_market_time(mock_time):
             response = client.get("/api/market/status")
 
             assert response.status_code == 200
@@ -432,9 +382,7 @@ class TestMarketStatusAPI:
         # Thursday, July 3, 2025, 10:30 AM ET (day before Independence Day)
         mock_time = datetime(2025, 7, 3, 10, 30, tzinfo=NY_TZ)
 
-        with patch("app.api.market.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_time
-
+        with mock_market_time(mock_time):
             response = client.get("/api/market/status")
 
             assert response.status_code == 200
@@ -450,9 +398,7 @@ class TestMarketStatusAPI:
         # Wednesday, October 29, 2025, 10:30 AM ET
         mock_time = datetime(2025, 10, 29, 10, 30, tzinfo=NY_TZ)
 
-        with patch("app.api.market.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_time
-
+        with mock_market_time(mock_time):
             response = client.get("/api/market/status")
 
             assert response.status_code == 200
@@ -479,9 +425,7 @@ class TestMarketStatusAPI:
         # Wednesday, October 29, 2025, 10:30 AM ET
         mock_time = datetime(2025, 10, 29, 10, 30, tzinfo=NY_TZ)
 
-        with patch("app.api.market.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_time
-
+        with mock_market_time(mock_time):
             response = client.get("/api/market/status")
 
             assert response.status_code == 200
