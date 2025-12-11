@@ -677,7 +677,7 @@ Focus on actionable insights (e.g., "too aggressive entries", "holding too long"
             return 0.0
         returns = [(prices[i] - prices[i - 1]) / prices[i - 1] for i in range(1, len(prices))]
 
-        # Sharpe = mean / std (annualized)
+        # Calculate Sharpe ratio using mean return divided by standard deviation, then annualized
         if len(returns) < 2:
             return 0.0
 

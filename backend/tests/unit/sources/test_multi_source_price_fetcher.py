@@ -82,25 +82,3 @@ class TestSourceInitialization:
             assert YFinanceSource in source_types
             assert PolygonSource in source_types
             assert FinnhubSource in source_types
-
-    def test_has_api_key_returns_true_for_existing_key(self, mock_storage: MagicMock) -> None:
-        """Test _has_api_key returns True when API key exists and is non-empty."""
-        env = {"POLYGON_API_KEY": "test_key_value"}
-
-        with patch.dict(os.environ, env, clear=True):
-            fetcher = PriceDataFetcher(mock_storage)
-            assert fetcher._has_api_key("POLYGON_API_KEY") is True
-
-    def test_has_api_key_returns_false_for_missing_key(self, mock_storage: MagicMock) -> None:
-        """Test _has_api_key returns False when API key does not exist."""
-        with patch.dict(os.environ, {}, clear=True):
-            fetcher = PriceDataFetcher(mock_storage)
-            assert fetcher._has_api_key("POLYGON_API_KEY") is False
-
-    def test_has_api_key_returns_false_for_empty_key(self, mock_storage: MagicMock) -> None:
-        """Test _has_api_key returns False when API key is empty string."""
-        env = {"POLYGON_API_KEY": ""}
-
-        with patch.dict(os.environ, env, clear=True):
-            fetcher = PriceDataFetcher(mock_storage)
-            assert fetcher._has_api_key("POLYGON_API_KEY") is False

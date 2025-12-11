@@ -187,13 +187,13 @@ class FeeRules:
     slippage_dynamic_factor: float = 0.1
     slippage_institutional_bps: float = 2.0
 
-    # Commission (retail)
+    # Retail trading commission settings
     commission_per_share: float = 0.005
     commission_per_trade: float = 1.00
     commission_pct: float = 0.001
     commission_minimum: float = 1.00
 
-    # Commission (institutional)
+    # Institutional trading commission settings
     commission_per_share_institutional: float = 0.001
     commission_minimum_institutional: float = 0.50
 

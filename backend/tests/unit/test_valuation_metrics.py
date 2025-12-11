@@ -132,9 +132,19 @@ class TestUpdateValuationMetrics:
     @pytest.fixture(autouse=True)
     def setup_test_data(self, clean_database: None) -> None:
         """Set up test data before each test."""
-        # Insert test cache entry
+        # Insert test cache entry (FK requires symbol in symbols table first)
         cm = ConnectionManager()
         with cm.connection() as conn:
+            # First, insert into symbols table (FK parent)
+            conn.execute(
+                """
+                INSERT INTO symbols (symbol, company_name)
+                VALUES (%s, %s)
+                ON CONFLICT (symbol) DO NOTHING
+                """,
+                ["NVDA", "NVIDIA Corporation"],
+            )
+            # Then insert into reference_cache
             conn.execute(
                 """
                 INSERT INTO reference_cache

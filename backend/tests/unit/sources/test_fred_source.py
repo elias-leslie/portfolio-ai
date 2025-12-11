@@ -19,32 +19,29 @@ class TestFREDSource:
     def test_initialization_with_api_key(self) -> None:
         """Test FREDSource initialization with explicit API key."""
         source = FREDSource(api_key="test_key_123")
-        assert source.api_key == "test_key_123"
+        assert source._api_key == "test_key_123"
         assert source.is_enabled() is True
 
     def test_initialization_without_api_key(self) -> None:
         """Test FREDSource initialization without API key."""
         with patch.dict("os.environ", {}, clear=True):
             source = FREDSource()
-            assert source.api_key is None
+            assert source._api_key is None
             assert source.is_enabled() is False
 
     def test_initialization_with_env_var(self) -> None:
         """Test FREDSource reads API key from environment."""
         with patch.dict("os.environ", {"FRED_API_KEY": "env_key_456"}):
             source = FREDSource()
-            assert source.api_key == "env_key_456"
+            assert source._api_key == "env_key_456"
             assert source.is_enabled() is True
 
-    @patch("httpx.get")
-    def test_fetch_latest_success(self, mock_get: MagicMock) -> None:
+    @patch("app.sources.fred.get_fred_client")
+    def test_fetch_latest_success(self, mock_get_client: MagicMock) -> None:
         """Test successful fetch of latest indicator value."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "observations": [{"date": "2024-11-14", "value": "4.25"}]
-        }
-        mock_response.raise_for_status = MagicMock()
-        mock_get.return_value = mock_response
+        mock_client = MagicMock()
+        mock_client.get.return_value = {"observations": [{"date": "2024-11-14", "value": "4.25"}]}
+        mock_get_client.return_value = mock_client
 
         source = FREDSource(api_key="test_key")
         result = source.fetch_latest("HY_SPREAD")
@@ -84,11 +81,11 @@ class TestFREDSource:
 
         assert result is None
 
-    @patch("httpx.get")
-    def test_fetch_series_success(self, mock_get: MagicMock) -> None:
+    @patch("app.sources.fred.get_fred_client")
+    def test_fetch_series_success(self, mock_get_client: MagicMock) -> None:
         """Test successful fetch of time series data."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
+        mock_client = MagicMock()
+        mock_client.get.return_value = {
             "observations": [
                 {"date": "2024-11-01", "value": "4.10"},
                 {"date": "2024-11-04", "value": "4.15"},
@@ -96,8 +93,7 @@ class TestFREDSource:
                 {"date": "2024-11-06", "value": "4.20"},
             ]
         }
-        mock_response.raise_for_status = MagicMock()
-        mock_get.return_value = mock_response
+        mock_get_client.return_value = mock_client
 
         source = FREDSource(api_key="test_key")
         result = source.fetch_series("HY_SPREAD", "2024-11-01", "2024-11-06")
@@ -107,15 +103,12 @@ class TestFREDSource:
         assert result[1] == (date(2024, 11, 4), 4.15)
         assert result[2] == (date(2024, 11, 6), 4.20)
 
-    @patch("httpx.get")
-    def test_fetch_series_with_date_objects(self, mock_get: MagicMock) -> None:
+    @patch("app.sources.fred.get_fred_client")
+    def test_fetch_series_with_date_objects(self, mock_get_client: MagicMock) -> None:
         """Test fetch_series with date objects instead of strings."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "observations": [{"date": "2024-11-01", "value": "4.10"}]
-        }
-        mock_response.raise_for_status = MagicMock()
-        mock_get.return_value = mock_response
+        mock_client = MagicMock()
+        mock_client.get.return_value = {"observations": [{"date": "2024-11-01", "value": "4.10"}]}
+        mock_get_client.return_value = mock_client
 
         source = FREDSource(api_key="test_key")
         result = source.fetch_series(
@@ -128,24 +121,24 @@ class TestFREDSource:
         assert result[0] == (date(2024, 11, 1), 4.10)
 
         # Verify correct date format in API call
-        call_args = mock_get.call_args
-        params = call_args.kwargs["params"]
+        call_args = mock_client.get.call_args
+        # call_args is (args, kwargs) tuple - params is the second positional arg to get()
+        params = call_args[0][1]  # First call, second argument to get()
         assert params["observation_start"] == "2024-11-01"
         assert params["observation_end"] == "2024-11-06"
 
-    @patch("httpx.get")
-    def test_fetch_series_filters_missing_values(self, mock_get: MagicMock) -> None:
+    @patch("app.sources.fred.get_fred_client")
+    def test_fetch_series_filters_missing_values(self, mock_get_client: MagicMock) -> None:
         """Test that fetch_series filters out missing values (.)."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
+        mock_client = MagicMock()
+        mock_client.get.return_value = {
             "observations": [
                 {"date": "2024-11-01", "value": "."},
                 {"date": "2024-11-02", "value": ""},
                 {"date": "2024-11-03", "value": "4.15"},
             ]
         }
-        mock_response.raise_for_status = MagicMock()
-        mock_get.return_value = mock_response
+        mock_get_client.return_value = mock_client
 
         source = FREDSource(api_key="test_key")
         result = source.fetch_series("HY_SPREAD")
@@ -173,15 +166,12 @@ class TestFREDSource:
 
         assert result == []
 
-    @patch("httpx.get")
-    def test_get_latest_value_success(self, mock_get: MagicMock) -> None:
+    @patch("app.sources.fred.get_fred_client")
+    def test_get_latest_value_success(self, mock_get_client: MagicMock) -> None:
         """Test successful get_latest_value."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "observations": [{"date": "2024-11-14", "value": "4.25"}]
-        }
-        mock_response.raise_for_status = MagicMock()
-        mock_get.return_value = mock_response
+        mock_client = MagicMock()
+        mock_client.get.return_value = {"observations": [{"date": "2024-11-14", "value": "4.25"}]}
+        mock_get_client.return_value = mock_client
 
         source = FREDSource(api_key="test_key")
         result = source.get_latest_value("HY_SPREAD")
@@ -224,15 +214,12 @@ class TestFREDSource:
         """Test that HY_SPREAD maps to correct FRED series."""
         assert FREDSource.INDICATORS["HY_SPREAD"] == "BAMLH0A0HYM2"
 
-    @patch("httpx.get")
-    def test_fetch_multiple_success(self, mock_get: MagicMock) -> None:
+    @patch("app.sources.fred.get_fred_client")
+    def test_fetch_multiple_success(self, mock_get_client: MagicMock) -> None:
         """Test fetching multiple indicators."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "observations": [{"date": "2024-11-14", "value": "4.25"}]
-        }
-        mock_response.raise_for_status = MagicMock()
-        mock_get.return_value = mock_response
+        mock_client = MagicMock()
+        mock_client.get.return_value = {"observations": [{"date": "2024-11-14", "value": "4.25"}]}
+        mock_get_client.return_value = mock_client
 
         source = FREDSource(api_key="test_key")
         result = source.fetch_multiple(["HY_SPREAD", "VIX"])
@@ -240,4 +227,4 @@ class TestFREDSource:
         assert len(result) == 2
         assert "HY_SPREAD" in result
         assert "VIX" in result
-        assert mock_get.call_count == 2
+        assert mock_client.get.call_count == 2
