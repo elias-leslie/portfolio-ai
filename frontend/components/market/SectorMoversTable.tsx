@@ -57,19 +57,19 @@ export function SectorMoversTable({ leading, neutral, lagging, lastUpdated }: Se
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-text">Sector Movers</h3>
+        <h3 className="text-xs font-semibold text-text">Sector Movers</h3>
         <div className="flex gap-2 text-[10px] text-text-muted">
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-0.5">
             <TrendingUp className="h-2.5 w-2.5 text-gain" />
             {leading.length}
           </span>
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-0.5">
             <Minus className="h-2.5 w-2.5" />
             {neutral.length}
           </span>
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-0.5">
             <TrendingDown className="h-2.5 w-2.5 text-loss" />
             {lagging.length}
           </span>

@@ -340,11 +340,15 @@ export interface MarketMoverItem {
   change_pct: number;
   volume: number | null;
   market_cap: number | null;
+  avg_volume: number | null;
+  rvol: number | null;
 }
 
 export interface MarketMoversResponse {
   gainers: MarketMoverItem[];
   losers: MarketMoverItem[];
+  most_active: MarketMoverItem[];
+  top_rvol: MarketMoverItem[];
   source: string;
   last_updated: string | null;
 }

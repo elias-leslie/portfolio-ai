@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import requests
 
@@ -33,6 +33,8 @@ class MarketMover:
     change_pct: float
     volume: int | None
     market_cap: int | None
+    avg_volume: int | None = None  # For RVOL calculation
+    rvol: float | None = None  # Relative volume (volume / avg_volume)
 
 
 @dataclass
@@ -41,8 +43,32 @@ class MarketMoversResult:
 
     gainers: list[MarketMover]
     losers: list[MarketMover]
+    most_active: list[MarketMover]  # Top volume
+    top_rvol: list[MarketMover]  # Highest relative volume
     source: str  # "yahooquery" or "alpaca"
     last_updated: str | None
+
+
+def _parse_quote(q: dict[str, Any]) -> MarketMover:
+    """Parse a Yahoo Finance quote into a MarketMover."""
+    volume = int(q.get("regularMarketVolume", 0)) if q.get("regularMarketVolume") else None
+    avg_volume = (
+        int(q.get("averageDailyVolume3Month", 0)) if q.get("averageDailyVolume3Month") else None
+    )
+    rvol = None
+    if volume and avg_volume and avg_volume > 0:
+        rvol = round(volume / avg_volume, 2)
+
+    return MarketMover(
+        symbol=q.get("symbol", ""),
+        name=q.get("shortName") or q.get("longName"),
+        price=float(q.get("regularMarketPrice", 0)),
+        change_pct=float(q.get("regularMarketChangePercent", 0)),
+        volume=volume,
+        market_cap=int(q.get("marketCap", 0)) if q.get("marketCap") else None,
+        avg_volume=avg_volume,
+        rvol=rvol,
+    )
 
 
 def fetch_from_yahooquery(count: int = 10) -> MarketMoversResult | None:
@@ -58,42 +84,39 @@ def fetch_from_yahooquery(count: int = 10) -> MarketMoversResult | None:
         from yahooquery import Screener  # type: ignore[import-not-found]  # noqa: PLC0415
 
         s = Screener()
-        data = s.get_screeners(["day_gainers", "day_losers"], count=count)
+        data = s.get_screeners(["day_gainers", "day_losers", "most_actives"], count=count)
 
         gainers: list[MarketMover] = []
         losers: list[MarketMover] = []
+        most_active: list[MarketMover] = []
 
         # Parse gainers
         if "day_gainers" in data and "quotes" in data["day_gainers"]:
             for q in data["day_gainers"]["quotes"][:count]:
-                gainers.append(
-                    MarketMover(
-                        symbol=q.get("symbol", ""),
-                        name=q.get("shortName") or q.get("longName"),
-                        price=float(q.get("regularMarketPrice", 0)),
-                        change_pct=float(q.get("regularMarketChangePercent", 0)),
-                        volume=int(q.get("regularMarketVolume", 0))
-                        if q.get("regularMarketVolume")
-                        else None,
-                        market_cap=int(q.get("marketCap", 0)) if q.get("marketCap") else None,
-                    )
-                )
+                gainers.append(_parse_quote(q))
 
         # Parse losers
         if "day_losers" in data and "quotes" in data["day_losers"]:
             for q in data["day_losers"]["quotes"][:count]:
-                losers.append(
-                    MarketMover(
-                        symbol=q.get("symbol", ""),
-                        name=q.get("shortName") or q.get("longName"),
-                        price=float(q.get("regularMarketPrice", 0)),
-                        change_pct=float(q.get("regularMarketChangePercent", 0)),
-                        volume=int(q.get("regularMarketVolume", 0))
-                        if q.get("regularMarketVolume")
-                        else None,
-                        market_cap=int(q.get("marketCap", 0)) if q.get("marketCap") else None,
-                    )
-                )
+                losers.append(_parse_quote(q))
+
+        # Parse most active (top volume)
+        if "most_actives" in data and "quotes" in data["most_actives"]:
+            for q in data["most_actives"]["quotes"][:count]:
+                most_active.append(_parse_quote(q))
+
+        # Calculate top RVOL from all unique stocks across screens
+        all_stocks: dict[str, MarketMover] = {}
+        for mover in gainers + losers + most_active:
+            if mover.symbol and mover.symbol not in all_stocks:
+                all_stocks[mover.symbol] = mover
+
+        # Sort by RVOL descending, filter out None
+        top_rvol = sorted(
+            [m for m in all_stocks.values() if m.rvol is not None],
+            key=lambda x: x.rvol or 0,
+            reverse=True,
+        )[:count]
 
         from datetime import datetime  # noqa: PLC0415
 
@@ -101,11 +124,15 @@ def fetch_from_yahooquery(count: int = 10) -> MarketMoversResult | None:
             "yahooquery_movers_fetched",
             gainers_count=len(gainers),
             losers_count=len(losers),
+            most_active_count=len(most_active),
+            top_rvol_count=len(top_rvol),
         )
 
         return MarketMoversResult(
             gainers=gainers,
             losers=losers,
+            most_active=most_active,
+            top_rvol=top_rvol,
             source="yahooquery",
             last_updated=datetime.now(UTC).isoformat(),
         )
@@ -207,6 +234,8 @@ def fetch_from_alpaca(
         return MarketMoversResult(
             gainers=gainers,
             losers=losers,
+            most_active=[],  # Alpaca doesn't provide this
+            top_rvol=[],  # Alpaca doesn't provide avg volume for RVOL
             source="alpaca",
             last_updated=data.get("last_updated"),
         )
@@ -244,6 +273,8 @@ def fetch_market_movers(storage: PortfolioStorage, count: int = 10) -> MarketMov
     return MarketMoversResult(
         gainers=[],
         losers=[],
+        most_active=[],
+        top_rvol=[],
         source="none",
         last_updated=None,
     )

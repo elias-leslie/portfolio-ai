@@ -829,33 +829,27 @@ async def get_market_movers(
     Returns:
         MarketMoversResponse with top gainers and losers
     """
-    from app.sources.market_movers_source import fetch_market_movers  # noqa: PLC0415
+    from app.sources.market_movers_source import MarketMover, fetch_market_movers  # noqa: PLC0415
 
     result = fetch_market_movers(storage, count=count)
 
+    def to_item(m: MarketMover) -> MarketMoverItem:
+        return MarketMoverItem(
+            symbol=m.symbol,
+            name=m.name,
+            price=m.price,
+            change_pct=m.change_pct,
+            volume=m.volume,
+            market_cap=m.market_cap,
+            avg_volume=m.avg_volume,
+            rvol=m.rvol,
+        )
+
     return MarketMoversResponse(
-        gainers=[
-            MarketMoverItem(
-                symbol=m.symbol,
-                name=m.name,
-                price=m.price,
-                change_pct=m.change_pct,
-                volume=m.volume,
-                market_cap=m.market_cap,
-            )
-            for m in result.gainers
-        ],
-        losers=[
-            MarketMoverItem(
-                symbol=m.symbol,
-                name=m.name,
-                price=m.price,
-                change_pct=m.change_pct,
-                volume=m.volume,
-                market_cap=m.market_cap,
-            )
-            for m in result.losers
-        ],
+        gainers=[to_item(m) for m in result.gainers],
+        losers=[to_item(m) for m in result.losers],
+        most_active=[to_item(m) for m in result.most_active],
+        top_rvol=[to_item(m) for m in result.top_rvol],
         source=result.source,
         last_updated=result.last_updated,
     )

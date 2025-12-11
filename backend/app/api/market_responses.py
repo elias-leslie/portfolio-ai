@@ -134,12 +134,20 @@ class MarketMoverItem(BaseModel):
     change_pct: float = Field(..., description="Percent change")
     volume: int | None = Field(None, description="Trading volume")
     market_cap: int | None = Field(None, description="Market capitalization")
+    avg_volume: int | None = Field(None, description="Average daily volume (3 month)")
+    rvol: float | None = Field(None, description="Relative volume (volume / avg_volume)")
 
 
 class MarketMoversResponse(BaseModel):
-    """Response model for market movers (gainers/losers)."""
+    """Response model for market movers (gainers/losers/volume/rvol)."""
 
     gainers: list[MarketMoverItem] = Field(..., description="Top gaining stocks")
     losers: list[MarketMoverItem] = Field(..., description="Top losing stocks")
+    most_active: list[MarketMoverItem] = Field(
+        default_factory=list, description="Most active by volume"
+    )
+    top_rvol: list[MarketMoverItem] = Field(
+        default_factory=list, description="Highest relative volume"
+    )
     source: str = Field(..., description="Data source (yahooquery or alpaca)")
     last_updated: str | None = Field(None, description="Last update timestamp")
