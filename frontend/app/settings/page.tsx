@@ -25,7 +25,6 @@ import {
 } from "@/components/settings/DEFAULTS";
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { TIMEZONE_OPTIONS } from "@/components/settings/sections/DisplaySettings";
-import { useTheme } from "@/lib/hooks/useTheme";
 
 const PRICE_SUB_WEIGHTS = { change_pct: 100 } as const;
 
@@ -111,17 +110,6 @@ const describeRiskTolerance = (value: number) => {
 const formatTimezoneLabel = (timezone: string) =>
   TIMEZONE_OPTIONS[timezone as keyof typeof TIMEZONE_OPTIONS] ?? timezone;
 
-const formatThemeLabel = (theme: string | undefined) => {
-  switch (theme) {
-    case "dark":
-      return "Dark";
-    case "light":
-      return "Light";
-    default:
-      return "System";
-  }
-};
-
 const buildEditableFromResponse = (
   prefs: PreferencesResponse,
 ): EditablePreferences => ({
@@ -200,7 +188,6 @@ import { PageContainer } from "@/components/shared/PageContainer";
 export default function SettingsPage() {
   const { data: preferences, isLoading } = usePreferences();
   const updatePreferences = useUpdatePreferences();
-  const { theme } = useTheme();
 
   // Trading & Risk state
   const [riskTolerance, setRiskTolerance] = useState<number>(5);
@@ -332,9 +319,7 @@ export default function SettingsPage() {
     `${enabledInstrumentCount}/5 instruments`,
   ].join(" • ");
 
-  const displaySummary = [`Theme: ${formatThemeLabel(theme)}`, `TZ: ${formatTimezoneLabel(currentEditable.displayTimezone)}`].join(
-    " • ",
-  );
+  const displaySummary = `TZ: ${formatTimezoneLabel(currentEditable.displayTimezone)}`;
 
   const watchlistSummary = [
     `Refresh ${currentEditable.defaultRefreshMinutes}m`,
@@ -487,7 +472,7 @@ export default function SettingsPage() {
 
         <SettingsSection
           title="Display & Interface"
-          description="Choose your timezone and presentation theme."
+          description="Choose your preferred timezone."
           summary={displaySummary}
         >
           <DisplaySettings

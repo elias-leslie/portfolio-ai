@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 
 import { MarketStatusBadge } from "@/components/market/MarketStatusBadge";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { cn } from "@/lib/utils";
 
 const mainLinks = [
@@ -158,10 +157,6 @@ export function Navigation() {
                   </Link>
                 );
               })}
-              <div className="mx-1 h-4 w-px bg-border/50" aria-hidden="true" />
-              <div className="px-1">
-                <ThemeToggle />
-              </div>
             </div>
             <div className="hidden sm:block">
               <MarketStatusBadge />
