@@ -41,9 +41,6 @@ export function SectorMoversTable({ leading, neutral, lagging }: SectorMoversTab
     ...lagging.map((s) => ({ ...s, status: "lagging" as const })),
   ].sort((a, b) => (b.change_pct ?? 0) - (a.change_pct ?? 0));
 
-  // Show top 5 performers (mix of leading/neutral) at minimum
-  const displaySectors = allSectors.slice(0, 6);
-
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "leading":
@@ -85,7 +82,7 @@ export function SectorMoversTable({ leading, neutral, lagging }: SectorMoversTab
             </tr>
           </thead>
           <tbody>
-            {displaySectors.map((sector) => (
+            {allSectors.map((sector) => (
               <tr
                 key={sector.symbol}
                 className="border-b border-border/30 hover:bg-surface-muted/50 transition-colors"
