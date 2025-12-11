@@ -44,7 +44,7 @@ export function MarketIntelligence() {
     );
   }
 
-  const { fear_greed, sector_rotation } = data;
+  const { fear_greed, sector_rotation, last_updated } = data;
 
   return (
     <Card className="p-6 shadow-lg">
@@ -75,6 +75,7 @@ export function MarketIntelligence() {
             leading={sector_rotation.leading}
             neutral={sector_rotation.neutral}
             lagging={sector_rotation.lagging}
+            lastUpdated={last_updated}
           />
         </div>
       </div>

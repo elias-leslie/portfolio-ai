@@ -29,11 +29,12 @@ interface SectorMoversTableProps {
   leading: SectorInfo[];
   neutral: SectorInfo[];
   lagging: SectorInfo[];
+  lastUpdated?: string;
 }
 
 type SectorWithStatus = SectorInfo & { status: "leading" | "neutral" | "lagging" };
 
-export function SectorMoversTable({ leading, neutral, lagging }: SectorMoversTableProps) {
+export function SectorMoversTable({ leading, neutral, lagging, lastUpdated }: SectorMoversTableProps) {
   // Combine and sort all sectors by change_pct descending
   const allSectors: SectorWithStatus[] = [
     ...leading.map((s) => ({ ...s, status: "leading" as const })),
@@ -115,7 +116,7 @@ export function SectorMoversTable({ leading, neutral, lagging }: SectorMoversTab
       </div>
 
       <div className="text-[10px] text-text-muted text-right">
-        11 sector ETFs tracked
+        {lastUpdated && `Data as of ${new Date(lastUpdated).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
       </div>
     </div>
   );

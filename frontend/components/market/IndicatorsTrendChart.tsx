@@ -14,7 +14,6 @@ import {
 import { useIndicatorHistory } from "@/lib/hooks/useMarketIntelligence";
 import { TimeframeSelector, Timeframe, timeframeToDays, formatChartDate, calculateTickInterval } from "./TimeframeSelector";
 import { Loader2 } from "lucide-react";
-import { formatRelativeTime } from "@/lib/utils";
 
 const INDICATOR_CONFIG = {
   sp500: { name: "S&P 500", color: "#3B82F6" },
@@ -30,7 +29,7 @@ export function IndicatorsTrendChart() {
   const [highlighted, setHighlighted] = useState<IndicatorKey | null>(null);
   const days = timeframeToDays(timeframe);
 
-  const { data, isLoading, error, dataUpdatedAt } = useIndicatorHistory(days);
+  const { data, isLoading, error } = useIndicatorHistory(days);
 
   // Transform data for Recharts - merge all indicators by date
   // Include both percentage change (for charting) and actual values (for tooltips)
@@ -185,7 +184,7 @@ export function IndicatorsTrendChart() {
           })}
         </div>
         <span className="text-[10px] text-text-muted">
-          {dataUpdatedAt ? `Updated ${formatRelativeTime(new Date(dataUpdatedAt).toISOString())}` : ""}
+          {chartData.length > 0 && `Data as of ${new Date(chartData[chartData.length - 1].date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
         </span>
       </div>
     </div>
