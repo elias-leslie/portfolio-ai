@@ -328,3 +328,34 @@ export async function fetchSectorHistory(
     `/api/market/sector-history?days=${days}`
   );
 }
+
+// ============================================================================
+// Market Movers Types & Functions
+// ============================================================================
+
+export interface MarketMoverItem {
+  symbol: string;
+  name: string | null;
+  price: number;
+  change_pct: number;
+  volume: number | null;
+  market_cap: number | null;
+}
+
+export interface MarketMoversResponse {
+  gainers: MarketMoverItem[];
+  losers: MarketMoverItem[];
+  source: string;
+  last_updated: string | null;
+}
+
+/**
+ * Get top market movers (gainers and losers)
+ */
+export async function fetchMarketMovers(
+  count: number = 10
+): Promise<MarketMoversResponse> {
+  return apiRequest<MarketMoversResponse>(
+    `/api/market/movers?count=${count}`
+  );
+}

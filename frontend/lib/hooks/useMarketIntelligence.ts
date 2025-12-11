@@ -9,11 +9,13 @@ import {
   fetchNewsSentimentHistory,
   fetchIndicatorHistory,
   fetchSectorHistory,
+  fetchMarketMovers,
   type MarketIntelligenceResponse,
   type FearGreedHistoryResponse,
   type NewsSentimentHistoryResponse,
   type IndicatorHistoryResponse,
   type SectorHistoryResponse,
+  type MarketMoversResponse,
 } from "../api/market";
 
 /**
@@ -93,5 +95,21 @@ export function useSectorHistory(
     staleTime: 1000 * 60 * 2, // 2 minutes - consider stale quickly
     refetchInterval: 1000 * 60 * 5, // Auto-refetch every 5 minutes
     refetchOnWindowFocus: true, // Refetch when user returns to tab
+  });
+}
+
+/**
+ * Hook to fetch market movers (top gainers and losers)
+ * Cached for 15 minutes (matches backend)
+ */
+export function useMarketMovers(
+  count: number = 10
+): UseQueryResult<MarketMoversResponse> {
+  return useQuery({
+    queryKey: ["market", "movers", count],
+    queryFn: () => fetchMarketMovers(count),
+    staleTime: 1000 * 60 * 15, // 15 minutes
+    refetchInterval: 1000 * 60 * 15, // Auto-refetch every 15 minutes
+    refetchOnWindowFocus: true,
   });
 }

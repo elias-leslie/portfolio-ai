@@ -119,3 +119,24 @@ class SectorHistoryResponse(BaseModel):
     sectors: list[SectorHistory]
     period_start: str
     period_end: str
+
+
+# Market movers endpoint
+class MarketMoverItem(BaseModel):
+    """Single market mover entry."""
+
+    symbol: str = Field(..., description="Stock symbol")
+    name: str | None = Field(None, description="Company name")
+    price: float = Field(..., description="Current price")
+    change_pct: float = Field(..., description="Percent change")
+    volume: int | None = Field(None, description="Trading volume")
+    market_cap: int | None = Field(None, description="Market capitalization")
+
+
+class MarketMoversResponse(BaseModel):
+    """Response model for market movers (gainers/losers)."""
+
+    gainers: list[MarketMoverItem] = Field(..., description="Top gaining stocks")
+    losers: list[MarketMoverItem] = Field(..., description="Top losing stocks")
+    source: str = Field(..., description="Data source (yahooquery or alpaca)")
+    last_updated: str | None = Field(None, description="Last update timestamp")

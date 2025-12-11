@@ -21,6 +21,8 @@ from app.api.market_responses import (
     IndicatorDataPoint,
     IndicatorHistoryResponse,
     MarketConditionsResponse,
+    MarketMoverItem,
+    MarketMoversResponse,
     MarketStatusResponse,
     NewsSentimentHistoryResponse,
     PriceResponse,
@@ -803,3 +805,52 @@ async def get_corporate_actions_summary(
         "summaries": summaries,
         "total_symbols": len(summaries),
     }
+
+
+@router.get("/movers", response_model=MarketMoversResponse)
+@cache_response(ttl=900)  # 15 minute cache
+async def get_market_movers(
+    request: Request,
+    count: int = Query(10, ge=1, le=25, description="Number of gainers/losers to return"),
+) -> MarketMoversResponse:
+    """Get top market movers (gainers and losers).
+
+    Uses yahooquery (Yahoo Finance) as primary source with Alpaca as fallback.
+    Data is cached for 15 minutes.
+
+    Args:
+        count: Number of gainers and losers to return (1-25)
+
+    Returns:
+        MarketMoversResponse with top gainers and losers
+    """
+    from app.sources.market_movers_source import fetch_market_movers  # noqa: PLC0415
+
+    result = fetch_market_movers(storage, count=count)
+
+    return MarketMoversResponse(
+        gainers=[
+            MarketMoverItem(
+                symbol=m.symbol,
+                name=m.name,
+                price=m.price,
+                change_pct=m.change_pct,
+                volume=m.volume,
+                market_cap=m.market_cap,
+            )
+            for m in result.gainers
+        ],
+        losers=[
+            MarketMoverItem(
+                symbol=m.symbol,
+                name=m.name,
+                price=m.price,
+                change_pct=m.change_pct,
+                volume=m.volume,
+                market_cap=m.market_cap,
+            )
+            for m in result.losers
+        ],
+        source=result.source,
+        last_updated=result.last_updated,
+    )

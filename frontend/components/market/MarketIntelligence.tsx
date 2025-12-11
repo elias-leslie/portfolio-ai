@@ -2,10 +2,10 @@
  * MarketIntelligence Component
  *
  * Visual-first market conditions display:
+ * - Market Movers (top gainers/losers) + Sector Movers at top
  * - Market Sentiment trend chart (Fear & Greed + News + P/C Ratio)
  * - Key Indicators trend chart (S&P 500, VIX, 10Y, Dollar)
  * - Sector Performance chart
- * - Today's movers summary
  */
 
 "use client";
@@ -15,6 +15,7 @@ import { Card } from "@/components/ui/card";
 import { SentimentTrendChart } from "./SentimentTrendChart";
 import { IndicatorsTrendChart } from "./IndicatorsTrendChart";
 import { SectorPerformanceChart } from "./SectorPerformanceChart";
+import { MarketMoversTable } from "./MarketMoversTable";
 import { formatRelativeTime } from "@/lib/utils";
 
 // Sector colors matching SectorPerformanceChart
@@ -84,6 +85,86 @@ export function MarketIntelligence() {
         </div>
       )}
 
+      {/* Top Section: Market Movers (Stocks) + Sector Movers */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        {/* Stock Movers */}
+        <div className="bg-surface-muted/30 rounded-xl p-4 border border-border/30">
+          <MarketMoversTable />
+        </div>
+
+        {/* Sector Movers */}
+        <div className="bg-surface-muted/30 rounded-xl p-4 border border-border/30">
+          <h3 className="text-sm font-semibold text-text mb-3">Sector Movers</h3>
+          <div className="space-y-2 text-xs">
+            {/* Leading */}
+            {leadingSectors.length > 0 && (
+              <div className="flex items-start gap-2">
+                <span className="text-success font-medium w-16">▲ Leading</span>
+                <div className="flex flex-wrap gap-x-2">
+                  {leadingSectors.map((s, i) => (
+                    <span key={s.symbol}>
+                      <span style={{ color: SECTOR_COLORS[s.symbol] || "#888" }} className="font-medium">
+                        {s.name}
+                      </span>
+                      {s.change_pct !== null && (
+                        <span className={s.change_pct >= 0 ? "text-gain" : "text-loss"}>
+                          {` ${s.change_pct >= 0 ? "+" : ""}${s.change_pct.toFixed(2)}%`}
+                        </span>
+                      )}
+                      {i < leadingSectors.length - 1 && <span className="text-text-muted"> │</span>}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Neutral */}
+            {neutralSectors.length > 0 && (
+              <div className="flex items-start gap-2">
+                <span className="text-text-muted font-medium w-16">→ Neutral</span>
+                <div className="flex flex-wrap gap-x-2">
+                  {neutralSectors.map((s, i) => (
+                    <span key={s.symbol}>
+                      <span style={{ color: SECTOR_COLORS[s.symbol] || "#888" }} className="font-medium">
+                        {s.name}
+                      </span>
+                      {s.change_pct !== null && (
+                        <span className={s.change_pct >= 0 ? "text-gain" : "text-loss"}>
+                          {` ${s.change_pct >= 0 ? "+" : ""}${s.change_pct.toFixed(2)}%`}
+                        </span>
+                      )}
+                      {i < neutralSectors.length - 1 && <span className="text-text-muted"> │</span>}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Lagging */}
+            {laggingSectors.length > 0 && (
+              <div className="flex items-start gap-2">
+                <span className="text-destructive font-medium w-16">▼ Lagging</span>
+                <div className="flex flex-wrap gap-x-2">
+                  {laggingSectors.map((s, i) => (
+                    <span key={s.symbol}>
+                      <span style={{ color: SECTOR_COLORS[s.symbol] || "#888" }} className="font-medium">
+                        {s.name}
+                      </span>
+                      {s.change_pct !== null && (
+                        <span className={s.change_pct >= 0 ? "text-gain" : "text-loss"}>
+                          {` ${s.change_pct >= 0 ? "+" : ""}${s.change_pct.toFixed(2)}%`}
+                        </span>
+                      )}
+                      {i < laggingSectors.length - 1 && <span className="text-text-muted"> │</span>}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Charts Section */}
       <div className="space-y-8">
         {/* Sentiment Trend */}
@@ -99,78 +180,6 @@ export function MarketIntelligence() {
         {/* Sector Performance */}
         <div>
           <SectorPerformanceChart />
-        </div>
-      </div>
-
-      {/* Today's Movers */}
-      <div className="mt-8 pt-4 border-t border-border/50">
-        <h3 className="text-sm font-semibold text-text mb-3">Today&apos;s Movers</h3>
-        <div className="space-y-2 text-xs">
-          {/* Leading */}
-          {leadingSectors.length > 0 && (
-            <div className="flex items-start gap-2">
-              <span className="text-success font-medium w-16">▲ Leading</span>
-              <div className="flex flex-wrap gap-x-2">
-                {leadingSectors.map((s, i) => (
-                  <span key={s.symbol}>
-                    <span style={{ color: SECTOR_COLORS[s.symbol] || "#888" }} className="font-medium">
-                      {s.name}
-                    </span>
-                    {s.change_pct !== null && (
-                      <span className={s.change_pct >= 0 ? "text-gain" : "text-loss"}>
-                        {` ${s.change_pct >= 0 ? "+" : ""}${s.change_pct.toFixed(2)}%`}
-                      </span>
-                    )}
-                    {i < leadingSectors.length - 1 && <span className="text-text-muted"> │</span>}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Neutral */}
-          {neutralSectors.length > 0 && (
-            <div className="flex items-start gap-2">
-              <span className="text-text-muted font-medium w-16">→ Neutral</span>
-              <div className="flex flex-wrap gap-x-2">
-                {neutralSectors.map((s, i) => (
-                  <span key={s.symbol}>
-                    <span style={{ color: SECTOR_COLORS[s.symbol] || "#888" }} className="font-medium">
-                      {s.name}
-                    </span>
-                    {s.change_pct !== null && (
-                      <span className={s.change_pct >= 0 ? "text-gain" : "text-loss"}>
-                        {` ${s.change_pct >= 0 ? "+" : ""}${s.change_pct.toFixed(2)}%`}
-                      </span>
-                    )}
-                    {i < neutralSectors.length - 1 && <span className="text-text-muted"> │</span>}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Lagging */}
-          {laggingSectors.length > 0 && (
-            <div className="flex items-start gap-2">
-              <span className="text-destructive font-medium w-16">▼ Lagging</span>
-              <div className="flex flex-wrap gap-x-2">
-                {laggingSectors.map((s, i) => (
-                  <span key={s.symbol}>
-                    <span style={{ color: SECTOR_COLORS[s.symbol] || "#888" }} className="font-medium">
-                      {s.name}
-                    </span>
-                    {s.change_pct !== null && (
-                      <span className={s.change_pct >= 0 ? "text-gain" : "text-loss"}>
-                        {` ${s.change_pct >= 0 ? "+" : ""}${s.change_pct.toFixed(2)}%`}
-                      </span>
-                    )}
-                    {i < laggingSectors.length - 1 && <span className="text-text-muted"> │</span>}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </Card>
