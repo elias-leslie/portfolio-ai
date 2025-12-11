@@ -45,6 +45,7 @@ from app.api import (
     status,
     status_stream,
     strategies,
+    test_feature,
     valuation,
     watchlist,
     workflow_graph,
@@ -188,6 +189,7 @@ app.include_router(workflow_graph.router)  # Workflow visualization graph API
 app.include_router(solution_map.router)  # Solution architecture map API
 app.include_router(qa.router)  # QA system - issue tracking, trends, scanning
 app.include_router(claude_progress.router)  # Claude session progress logging
+app.include_router(test_feature.router)  # FEAT-123: E2E test feature endpoint
 
 
 @app.get("/")
