@@ -154,33 +154,38 @@ export function IndicatorsTrendChart() {
       </div>
 
       {/* Interactive legend with current values */}
-      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
-        {(Object.keys(INDICATOR_CONFIG) as IndicatorKey[]).map((key) => {
-          const config = INDICATOR_CONFIG[key];
-          const current = currentValues?.[key];
-          const pct = current?.pct_change ?? 0;
-          return (
-            <button
-              key={key}
-              onClick={() => setHighlighted(highlighted === key ? null : key)}
-              className={`flex items-center gap-1 transition-opacity ${
-                highlighted !== null && highlighted !== key ? "opacity-40" : ""
-              }`}
-            >
-              <span
-                className="w-2 h-2 rounded-full"
-                style={{ backgroundColor: config.color }}
-              />
-              <span className="text-text-muted">
-                {config.name}{" "}
-                <span className={pct >= 0 ? "text-success" : "text-destructive"}>
-                  {pct >= 0 ? "+" : ""}
-                  {pct.toFixed(1)}%
+      <div className="flex items-center justify-between">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+          {(Object.keys(INDICATOR_CONFIG) as IndicatorKey[]).map((key) => {
+            const config = INDICATOR_CONFIG[key];
+            const current = currentValues?.[key];
+            const pct = current?.pct_change ?? 0;
+            return (
+              <button
+                key={key}
+                onClick={() => setHighlighted(highlighted === key ? null : key)}
+                className={`flex items-center gap-1 transition-opacity ${
+                  highlighted !== null && highlighted !== key ? "opacity-40" : ""
+                }`}
+              >
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: config.color }}
+                />
+                <span className="text-text-muted">
+                  {config.name}{" "}
+                  <span className={pct >= 0 ? "text-success" : "text-destructive"}>
+                    {pct >= 0 ? "+" : ""}
+                    {pct.toFixed(1)}%
+                  </span>
                 </span>
-              </span>
-            </button>
-          );
-        })}
+              </button>
+            );
+          })}
+        </div>
+        <span className="text-[10px] text-text-muted">
+          Through {chartData.length > 0 ? new Date(chartData[chartData.length - 1].date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}
+        </span>
       </div>
     </div>
   );

@@ -146,40 +146,45 @@ export function SectorPerformanceChart() {
       </div>
 
       {/* Interactive Legend */}
-      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
-        {data.sectors.map((sector) => (
-          <button
-            key={sector.symbol}
-            onClick={() =>
-              setHighlightedSector(
-                highlightedSector === sector.symbol ? null : sector.symbol
-              )
-            }
-            className={`transition-opacity ${
-              highlightedSector !== null && highlightedSector !== sector.symbol
-                ? "opacity-40"
-                : ""
-            }`}
-          >
-            <span
-              className="font-medium"
-              style={{ color: SECTOR_COLORS[sector.symbol] || "#888" }}
+      <div className="flex items-center justify-between">
+        <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+          {data.sectors.map((sector) => (
+            <button
+              key={sector.symbol}
+              onClick={() =>
+                setHighlightedSector(
+                  highlightedSector === sector.symbol ? null : sector.symbol
+                )
+              }
+              className={`transition-opacity ${
+                highlightedSector !== null && highlightedSector !== sector.symbol
+                  ? "opacity-40"
+                  : ""
+              }`}
             >
-              {sector.name}
-            </span>
-            <span>
-              {" "}
               <span
-                className={
-                  sector.current_pct >= 0 ? "text-gain" : "text-loss"
-                }
+                className="font-medium"
+                style={{ color: SECTOR_COLORS[sector.symbol] || "#888" }}
               >
-                {sector.current_pct >= 0 ? "+" : ""}
-                {sector.current_pct.toFixed(1)}%
+                {sector.name}
               </span>
-            </span>
-          </button>
-        ))}
+              <span>
+                {" "}
+                <span
+                  className={
+                    sector.current_pct >= 0 ? "text-gain" : "text-loss"
+                  }
+                >
+                  {sector.current_pct >= 0 ? "+" : ""}
+                  {sector.current_pct.toFixed(1)}%
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+        <span className="text-[10px] text-text-muted whitespace-nowrap ml-2">
+          Through {data.period_end ? new Date(data.period_end + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}
+        </span>
       </div>
     </div>
   );

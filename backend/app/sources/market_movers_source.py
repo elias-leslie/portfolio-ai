@@ -10,6 +10,7 @@ quality filtering (excludes penny stocks, warrants).
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC
 from typing import TYPE_CHECKING
 
 import requests
@@ -94,6 +95,8 @@ def fetch_from_yahooquery(count: int = 10) -> MarketMoversResult | None:
                     )
                 )
 
+        from datetime import datetime  # noqa: PLC0415
+
         logger.info(
             "yahooquery_movers_fetched",
             gainers_count=len(gainers),
@@ -104,7 +107,7 @@ def fetch_from_yahooquery(count: int = 10) -> MarketMoversResult | None:
             gainers=gainers,
             losers=losers,
             source="yahooquery",
-            last_updated=None,  # yahooquery doesn't provide timestamp
+            last_updated=datetime.now(UTC).isoformat(),
         )
 
     except Exception as e:

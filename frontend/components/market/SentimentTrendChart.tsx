@@ -226,8 +226,8 @@ export function SentimentTrendChart() {
             </span>
           )}
         </div>
-        <span>
-          Range: {minScore.toFixed(0)}–{maxScore.toFixed(0)}
+        <span className="text-[10px]">
+          Through {chartData.length > 0 ? new Date(chartData[chartData.length - 1].date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}
         </span>
       </div>
     </div>

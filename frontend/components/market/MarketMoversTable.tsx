@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMarketMovers } from "@/lib/hooks/useMarketIntelligence";
 import { Loader2, TrendingUp, TrendingDown } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatRelativeTime } from "@/lib/utils";
 
 type Tab = "gainers" | "losers";
 
@@ -128,7 +128,12 @@ export function MarketMoversTable() {
       </div>
 
       <div className="text-[10px] text-text-muted text-right">
-        Source: {data.source === "yahooquery" ? "Yahoo Finance" : "Alpaca"} • Updates every 15 min
+        {data.last_updated && (
+          <span>
+            Updated {formatRelativeTime(data.last_updated)} •
+          </span>
+        )}
+        {data.source === "yahooquery" ? "Yahoo Finance" : "Alpaca"}
       </div>
     </div>
   );
