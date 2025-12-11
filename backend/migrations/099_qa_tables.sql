@@ -86,7 +86,4 @@ CREATE TRIGGER trigger_qa_issues_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_qa_issues_updated_at();
 
--- Record migration
-INSERT INTO schema_migrations (version, description, applied_at, checksum)
-VALUES (99, 'Create QA system tables for issue tracking and trend analysis', NOW(), md5('099_qa_tables'))
-ON CONFLICT (version) DO NOTHING;
+-- Migration tracking handled by MigrationManager

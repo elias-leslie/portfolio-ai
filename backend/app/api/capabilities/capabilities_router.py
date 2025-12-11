@@ -15,6 +15,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from ...logging_config import get_logger
 from ...storage.connection import get_connection_manager
+
 # analyze_capabilities removed - AI analysis migrated to [DEBT] subtasks on features
 from ...tasks.capability_tasks import scan_system_capabilities
 from ..types import DependenciesDict, HealthSummaryDict

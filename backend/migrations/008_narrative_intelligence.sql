@@ -101,7 +101,4 @@ CREATE INDEX IF NOT EXISTS idx_watchlist_snapshots_company_health
   ON watchlist_snapshots(item_id, company_health, fetched_at DESC)
   WHERE company_health IS NOT NULL;
 
--- Record migration in schema_migrations table
-INSERT INTO schema_migrations (version, description, applied_at, checksum)
-VALUES (8, 'Add narrative intelligence columns', NOW(), 'manual')
-ON CONFLICT (version) DO NOTHING;
+-- Migration tracking handled by MigrationManager

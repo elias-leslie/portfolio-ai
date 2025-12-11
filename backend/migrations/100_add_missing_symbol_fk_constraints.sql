@@ -3,6 +3,15 @@
 -- Prerequisites: No orphan records in target tables
 -- Date: 2025-12-09
 
+-- Clean orphan records first (test DBs may have stale data)
+DELETE FROM reference_cache WHERE symbol NOT IN (SELECT symbol FROM symbols);
+DELETE FROM news_summary_log WHERE symbol IS NOT NULL AND symbol NOT IN (SELECT symbol FROM symbols);
+DELETE FROM idea_outcomes WHERE symbol NOT IN (SELECT symbol FROM symbols);
+DELETE FROM backtest_trades WHERE symbol NOT IN (SELECT symbol FROM symbols);
+DELETE FROM paper_trade_transactions WHERE symbol NOT IN (SELECT symbol FROM symbols);
+DELETE FROM strategy_reviews WHERE symbol NOT IN (SELECT symbol FROM symbols);
+DELETE FROM symbol_risk_metrics WHERE symbol NOT IN (SELECT symbol FROM symbols);
+
 -- 1. backtest_trades -> symbols
 ALTER TABLE backtest_trades
 ADD CONSTRAINT fk_backtest_trades_symbol

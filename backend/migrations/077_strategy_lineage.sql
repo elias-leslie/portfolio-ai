@@ -28,7 +28,4 @@ CREATE INDEX IF NOT EXISTS idx_lineage_child ON strategy_lineage(child_strategy_
 CREATE INDEX IF NOT EXISTS idx_lineage_parent ON strategy_lineage(parent_strategy_id);
 CREATE INDEX IF NOT EXISTS idx_lineage_created ON strategy_lineage(created_at DESC);
 
--- Migration tracking
-INSERT INTO schema_migrations (version, description, applied_at, checksum)
-VALUES (76, 'Create strategy_lineage table for evolution tracking', NOW(), 'manual')
-ON CONFLICT (version) DO NOTHING;
+-- Migration tracking handled by MigrationManager

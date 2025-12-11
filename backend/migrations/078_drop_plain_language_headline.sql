@@ -8,7 +8,4 @@
 -- Drop the column (safe since nothing uses it)
 ALTER TABLE news_cache DROP COLUMN IF EXISTS plain_language_headline;
 
--- Track migration
-INSERT INTO schema_migrations (version, description, applied_at, checksum)
-VALUES (78, 'Drop unused plain_language_headline column', NOW(), 'manual')
-ON CONFLICT (version) DO NOTHING;
+-- Migration tracking handled by MigrationManager

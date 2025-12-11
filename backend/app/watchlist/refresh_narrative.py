@@ -15,6 +15,7 @@ from typing import Any, TypedDict, cast
 
 from ..logging_config import get_logger
 from ..portfolio.models import PriceData
+
 # GapDetector removed - gap analysis migrated to [DEBT] subtasks on features
 from ..storage import PortfolioStorage
 from .calculator import (

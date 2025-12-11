@@ -65,7 +65,4 @@ CREATE TRIGGER trigger_artifacts_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_artifacts_updated_at();
 
--- Record migration
-INSERT INTO schema_migrations (version, description, applied_at, checksum)
-VALUES (84, 'Create artifacts table for UI verification evidence', NOW(), md5('084_artifacts_table'))
-ON CONFLICT (version) DO NOTHING;
+-- Migration tracking handled by MigrationManager
