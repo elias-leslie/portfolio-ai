@@ -126,14 +126,14 @@ export function MarketMoversTable() {
         <table className="w-full text-[11px]">
           <thead>
             <tr className="text-text-muted border-b border-border/50">
-              <th className="text-left py-1 font-medium w-20">Symbol</th>
-              <th className="text-left py-1 font-medium hidden md:table-cell">Sector</th>
-              <th className="text-right py-1 font-medium w-16">Price</th>
-              <th className="text-right py-1 font-medium w-16">Change</th>
+              <th className="text-left py-1 font-medium">Symbol</th>
+              <th className="text-left py-1 font-medium hidden md:table-cell whitespace-nowrap">Sector</th>
+              <th className="text-right py-1 font-medium whitespace-nowrap">Price</th>
+              <th className="text-right py-1 font-medium whitespace-nowrap">Change</th>
               {showRvolColumn ? (
-                <th className="text-right py-1 font-medium w-14">RVOL</th>
+                <th className="text-right py-1 font-medium whitespace-nowrap">RVOL</th>
               ) : (
-                <th className="text-right py-1 font-medium w-16 hidden sm:table-cell">Volume</th>
+                <th className="text-right py-1 font-medium whitespace-nowrap hidden sm:table-cell">Volume</th>
               )}
             </tr>
           </thead>
@@ -143,25 +143,25 @@ export function MarketMoversTable() {
                 key={item.symbol}
                 className="border-b border-border/30 hover:bg-surface-muted/50 transition-colors"
               >
-                <td className="py-1 w-20">
+                <td className="py-1">
                   <div className="flex flex-col">
                     <span className="font-semibold text-text">{item.symbol}</span>
                     {item.name && (
-                      <span className="text-text-muted truncate max-w-[80px]" title={item.name}>
-                        {item.name.length > 12 ? `${item.name.slice(0, 12)}...` : item.name}
+                      <span className="text-text-muted truncate max-w-[140px]" title={item.name}>
+                        {item.name}
                       </span>
                     )}
                   </div>
                 </td>
-                <td className="py-1 text-text-muted hidden md:table-cell" title={item.sector || undefined}>
+                <td className="py-1 text-text-muted hidden md:table-cell whitespace-nowrap" title={item.sector || undefined}>
                   {item.sector || "-"}
                 </td>
-                <td className="text-right py-1 text-text w-16">
+                <td className="text-right py-1 text-text whitespace-nowrap">
                   ${item.price.toFixed(2)}
                 </td>
                 <td
                   className={cn(
-                    "text-right py-1 font-semibold w-16",
+                    "text-right py-1 font-semibold whitespace-nowrap",
                     item.change_pct >= 0 ? "text-gain" : "text-loss"
                   )}
                 >
@@ -169,11 +169,11 @@ export function MarketMoversTable() {
                   {item.change_pct.toFixed(2)}%
                 </td>
                 {showRvolColumn ? (
-                  <td className="text-right py-1 text-text font-semibold w-14">
+                  <td className="text-right py-1 text-text font-semibold whitespace-nowrap">
                     {formatRvol(item.rvol)}
                   </td>
                 ) : (
-                  <td className="text-right py-1 text-text-muted w-16 hidden sm:table-cell">
+                  <td className="text-right py-1 text-text-muted whitespace-nowrap hidden sm:table-cell">
                     {formatVolume(item.volume)}
                   </td>
                 )}
