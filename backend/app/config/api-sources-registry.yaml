@@ -17,6 +17,8 @@ version: "1.1.0"
 # | Provider      | Tier | Rate Limit      | Best For                        |
 # |---------------|------|-----------------|----------------------------------|
 # | yfinance      | FREE | No key needed   | OHLCV, fundamentals, earnings   |
+# | yahooquery    | FREE | No key needed   | Market screeners, gainers/losers|
+# | Alpaca        | FREE | 200/min         | Market movers (fallback)        |
 # | Finnhub       | FREE | 60/min          | Earnings, insiders, news        |
 # | Polygon       | FREE | 5/min, 15m delay| Grouped daily bars, news        |
 # | FRED          | FREE | Unlimited       | Economic indicators (VIX, rates)|
@@ -274,6 +276,115 @@ providers:
       - "GAP-007: Institutional ownership (institutional_holders)"
       - "GAP-004/008/009: Financial statements for F-Score, Z-Score, FCF"
       - "GAP-033: Options data for put/call ratio"
+
+  # ---------------------------------------------------------------------------
+  # YAHOOQUERY (Market Screeners - No API Key Required)
+  # ---------------------------------------------------------------------------
+  yahooquery:
+    name: "Yahoo Finance Screener (yahooquery)"
+    tier: FREE
+    api_key_required: false
+    priority: 1  # Highest for screener data
+    rate_limits:
+      per_minute: null
+      per_day: null
+      notes: "Unofficial API - no guaranteed SLA, but reliable in practice"
+
+    capabilities:
+      ohlcv: false
+      fundamentals: false
+      news: false
+      screeners: true  # Primary capability
+
+    endpoints:
+      day_gainers:
+        method: "Screener().get_screeners(['day_gainers'])"
+        description: "Top stocks by daily % gain"
+        fields_returned:
+          - symbol
+          - regularMarketChangePercent
+          - regularMarketPrice
+          - regularMarketVolume
+          - marketCap
+          - shortName
+        example: "Screener().get_screeners(['day_gainers'], count=10)"
+        notes: "Pre-filtered for quality - excludes penny stocks, requires $2B+ market cap"
+
+      day_losers:
+        method: "Screener().get_screeners(['day_losers'])"
+        description: "Top stocks by daily % loss"
+        fields_returned:
+          - symbol
+          - regularMarketChangePercent
+          - regularMarketPrice
+          - regularMarketVolume
+          - marketCap
+          - shortName
+        example: "Screener().get_screeners(['day_losers'], count=10)"
+        notes: "Pre-filtered for quality - excludes penny stocks"
+
+      most_actives:
+        method: "Screener().get_screeners(['most_actives'])"
+        description: "Most actively traded stocks by volume"
+        fields_returned:
+          - symbol
+          - regularMarketVolume
+          - regularMarketChangePercent
+          - regularMarketPrice
+        example: "Screener().get_screeners(['most_actives'], count=10)"
+
+      available_screeners:
+        method: "Screener().available_screeners"
+        description: "List all available predefined screeners"
+        example: "['day_gainers', 'day_losers', 'most_actives', 'aggressive_small_caps', ...]"
+        notes: "50+ predefined screeners available"
+
+    use_cases:
+      - "Primary source for market movers (gainers/losers)"
+      - "Pre-filtered data excludes penny stocks and warrants"
+      - "High-quality results suitable for dashboard display"
+      - "No API key required"
+
+  # ---------------------------------------------------------------------------
+  # ALPACA (Market Data API - Backup for Market Movers)
+  # ---------------------------------------------------------------------------
+  alpaca:
+    name: "Alpaca Markets Data API"
+    tier: FREE
+    api_key_required: true
+    env_var: "APCA_API_KEY_ID"
+    db_key: "alpaca.key_id"
+    priority: 20  # Fallback for screeners
+    rate_limits:
+      per_minute: 200
+      per_day: null
+      notes: "Generous rate limits, requires API key"
+
+    capabilities:
+      ohlcv: true
+      fundamentals: false
+      news: true
+      screeners: true
+
+    endpoints:
+      movers:
+        method: "GET /v1beta1/screener/stocks/movers"
+        description: "Top gainers and losers by % change"
+        fields_returned:
+          - symbol
+          - percent_change
+          - price
+          - change (absolute)
+        example: "https://data.alpaca.markets/v1beta1/screener/stocks/movers?top=20"
+        notes: |
+          WARNING: Includes penny stocks and warrants.
+          Filter results to price > $5 for quality display.
+          Use as fallback when yahooquery fails.
+
+    use_cases:
+      - "Fallback source for market movers"
+      - "Real-time data with good reliability"
+      - "Requires client-side filtering for quality"
 
   # ---------------------------------------------------------------------------
   # FINNHUB (60 calls/min - Good for profiles and news)
