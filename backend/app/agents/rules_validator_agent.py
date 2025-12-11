@@ -98,6 +98,7 @@ class RulesValidatorAgent:
         has_critical = any(e.severity == "critical" for e in errors)
         has_warnings = any(e.severity == "warning" for e in errors)
 
+        status: Literal["valid", "warnings", "critical"]
         if has_critical:
             status = "critical"
         elif has_warnings:

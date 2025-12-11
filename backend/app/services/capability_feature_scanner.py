@@ -114,7 +114,12 @@ class FeatureScanner:
             # Index tasks by feature DB id for O(1) lookup
             tasks_by_feature: dict[int, list[dict[str, Any]]] = {}
             for task_row in all_tasks_rows:
-                feature_db_id = int(task_row[0])
+                # Type narrow: feature_id column is INTEGER NOT NULL
+                feature_db_id_raw = task_row[0]
+                if not isinstance(feature_db_id_raw, int):
+                    logger.warning("unexpected_feature_id_type", value=feature_db_id_raw)
+                    continue
+                feature_db_id = feature_db_id_raw
                 task_dict: dict[str, Any] = {
                     "task_id": task_row[1],
                     "description": task_row[2],
@@ -545,7 +550,20 @@ class FeatureScanner:
                     "SELECT MAX(order_num) FROM feature_tasks WHERE feature_id = %s",
                     (db_id,),
                 ).fetchone()
-                order_num = (int(max_row[0]) if max_row and max_row[0] is not None else -1) + 1
+                # Type narrow: order_num column is INTEGER
+                max_order_raw = max_row[0] if max_row else None
+                if max_order_raw is not None and isinstance(max_order_raw, int):
+                    order_num = max_order_raw + 1
+                else:
+                    order_num = 0
+
+            # Type narrow: db_id from row[0] should be int
+            if not isinstance(db_id, int):
+                logger.error("invalid_db_id_type", db_id=db_id, feature_id=feature_id)
+                return False
+
+            # Prepare files list with proper typing for execute (list is invariant, so cast explicitly)
+            files_list: list[str | int | float | bool | None] = list(files) if files else []
 
             try:
                 conn.execute(
@@ -557,11 +575,11 @@ class FeatureScanner:
                     ) VALUES (%s, %s, %s, %s, false, %s, %s, 'pending', %s, %s, NOW(), NOW())
                     """,
                     (
-                        int(db_id),
+                        db_id,
                         task_id,
                         description,
-                        int(order_num),
-                        files or [],
+                        order_num,
+                        files_list,
                         notes,
                         effort,
                         task_type,

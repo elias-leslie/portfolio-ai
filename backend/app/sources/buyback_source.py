@@ -7,7 +7,7 @@ FEAT-175: Share Buybacks
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import yfinance as yf
 
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-def fetch_buyback_data(symbol: str) -> list[dict]:
+def fetch_buyback_data(symbol: str) -> list[dict[str, Any]]:
     """
     Fetch buyback (share repurchase) data from yfinance cash flow.
 
@@ -79,7 +79,7 @@ def fetch_buyback_data(symbol: str) -> list[dict]:
 
 def store_buyback_data(
     storage: PortfolioStorage,
-    buybacks: list[dict],
+    buybacks: list[dict[str, Any]],
 ) -> int:
     """
     Store buyback data in corporate_actions table.
@@ -126,7 +126,7 @@ def store_buyback_data(
 def fetch_and_store_buybacks(
     storage: PortfolioStorage,
     symbols: list[str],
-) -> dict:
+) -> dict[str, Any]:
     """
     Fetch and store buyback data for multiple symbols.
 

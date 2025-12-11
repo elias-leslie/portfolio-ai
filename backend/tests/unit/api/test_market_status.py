@@ -59,8 +59,14 @@ class TestMarketStatusAPI:
         # Wednesday, October 29, 2025, 9:00 PM ET (after after-hours close)
         mock_time = datetime(2025, 10, 29, 21, 0, tzinfo=NY_TZ)
 
-        with patch("app.api.market.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_time
+        with (
+            patch("app.api.market.datetime") as mock_datetime_api,
+            patch("app.utils.market_hours.datetime") as mock_datetime_utils,
+        ):
+            mock_datetime_api.now.return_value = mock_time
+            mock_datetime_utils.now.return_value = mock_time
+            mock_datetime_utils.combine = datetime.combine
+            mock_datetime_utils.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
 
             response = client.get("/api/market/status")
 
@@ -76,8 +82,14 @@ class TestMarketStatusAPI:
         # Wednesday, October 29, 2025, 8:00 AM ET (pre-market hours)
         mock_time = datetime(2025, 10, 29, 8, 0, tzinfo=NY_TZ)
 
-        with patch("app.api.market.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_time
+        with (
+            patch("app.api.market.datetime") as mock_datetime_api,
+            patch("app.utils.market_hours.datetime") as mock_datetime_utils,
+        ):
+            mock_datetime_api.now.return_value = mock_time
+            mock_datetime_utils.now.return_value = mock_time
+            mock_datetime_utils.combine = datetime.combine
+            mock_datetime_utils.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
 
             response = client.get("/api/market/status")
 
@@ -93,8 +105,14 @@ class TestMarketStatusAPI:
         # Wednesday, October 29, 2025, 5:00 PM ET (after-hours trading)
         mock_time = datetime(2025, 10, 29, 17, 0, tzinfo=NY_TZ)
 
-        with patch("app.api.market.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_time
+        with (
+            patch("app.api.market.datetime") as mock_datetime_api,
+            patch("app.utils.market_hours.datetime") as mock_datetime_utils,
+        ):
+            mock_datetime_api.now.return_value = mock_time
+            mock_datetime_utils.now.return_value = mock_time
+            mock_datetime_utils.combine = datetime.combine
+            mock_datetime_utils.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
 
             response = client.get("/api/market/status")
 
@@ -110,8 +128,14 @@ class TestMarketStatusAPI:
         # Saturday, November 1, 2025, 10:30 AM ET
         mock_time = datetime(2025, 11, 1, 10, 30, tzinfo=NY_TZ)
 
-        with patch("app.api.market.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_time
+        with (
+            patch("app.api.market.datetime") as mock_datetime_api,
+            patch("app.utils.market_hours.datetime") as mock_datetime_utils,
+        ):
+            mock_datetime_api.now.return_value = mock_time
+            mock_datetime_utils.now.return_value = mock_time
+            mock_datetime_utils.combine = datetime.combine
+            mock_datetime_utils.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
 
             response = client.get("/api/market/status")
 

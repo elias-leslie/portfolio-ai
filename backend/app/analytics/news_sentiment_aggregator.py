@@ -13,6 +13,7 @@ from datetime import date
 from typing import TYPE_CHECKING
 
 from app.logging_config import get_logger
+from app.storage.types import ParameterValue
 
 if TYPE_CHECKING:
     from app.storage import PortfolioStorage
@@ -244,7 +245,14 @@ def get_batch_sentiment(
         GROUP BY symbol
     """
 
-    params = [as_of_date, as_of_date, as_of_date, as_of_date, *symbols, as_of_date]
+    params: list[ParameterValue] = [
+        as_of_date.isoformat(),
+        as_of_date.isoformat(),
+        as_of_date.isoformat(),
+        as_of_date.isoformat(),
+        *symbols,
+        as_of_date.isoformat(),
+    ]
 
     try:
         result = storage.query(query, params)

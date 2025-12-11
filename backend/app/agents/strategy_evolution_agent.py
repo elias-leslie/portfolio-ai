@@ -205,14 +205,21 @@ class StrategyEvolutionAgent:
                 FROM strategy_performance
                 WHERE strategy_id = %s AND date >= %s
                 """,
-                (strategy_id, cutoff_date),
+                [strategy_id, cutoff_date.isoformat()],
             ).fetchone()
 
-        if not result or result[0] == 0:
+        if not result:
             # No trades in period
             raise ValueError(f"No performance data for strategy {strategy_id} in last {days} days")
 
-        trades_count = int(result[0])
+        # Type narrowing for result[0] - COUNT(*) returns int, never None
+        trade_count_raw = result[0]
+        if trade_count_raw is None or (
+            isinstance(trade_count_raw, (int, float, str)) and int(trade_count_raw) == 0
+        ):
+            raise ValueError(f"No performance data for strategy {strategy_id} in last {days} days")
+
+        trades_count = int(trade_count_raw)
         win_rate = float(result[1] or 0.0)
         avg_pnl = float(result[2] or 0.0)
         actual_sharpe = float(result[3] or 0.0)
@@ -656,8 +663,18 @@ Focus on actionable insights (e.g., "too aggressive entries", "holding too long"
             logger.warning(f"Insufficient data for buy-hold calculation ({len(result)} days)")
             return 0.0
 
-        # Calculate daily returns
-        prices = [float(row[0]) for row in result]
+        # Calculate daily returns - type narrowing for row[0]
+        prices: list[float] = []
+        for row in result:
+            price_val = row[0]
+            if price_val is not None:
+                prices.append(float(price_val))
+
+        if len(prices) < 2:
+            logger.warning(
+                f"Insufficient non-null prices for buy-hold calculation ({len(prices)} prices)"
+            )
+            return 0.0
         returns = [(prices[i] - prices[i - 1]) / prices[i - 1] for i in range(1, len(prices))]
 
         # Sharpe = mean / std (annualized)
@@ -673,7 +690,7 @@ Focus on actionable insights (e.g., "too aggressive entries", "holding too long"
 
         # Annualize (252 trading days)
         sharpe = (mean_return / std_dev) * (252**0.5)
-        return sharpe
+        return float(sharpe)
 
     def _save_lineage(
         self,
