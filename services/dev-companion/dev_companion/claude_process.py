@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from pathlib import Path
-from typing import AsyncIterator
+from typing import AsyncIterator, Callable, Any
 
 from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
 from claude_agent_sdk.types import (
@@ -14,11 +14,18 @@ from claude_agent_sdk.types import (
     TextBlock,
     ToolUseBlock,
     ToolResultBlock,
+    PermissionResultAllow,
+    PermissionResultDeny,
+    ToolPermissionContext,
 )
 
 from .stream_parser import StreamMessage, ContentBlock, MessageType, ContentType
 
 logger = logging.getLogger(__name__)
+
+
+# Type for permission request callback
+PermissionCallback = Callable[[str, dict[str, Any], ToolPermissionContext], asyncio.Future[bool]]
 
 
 class ClaudeProcessError(Exception):
@@ -37,12 +44,16 @@ class ClaudeSession:
         self,
         session_id: str,
         working_dir: str | Path = ".",
+        permission_callback: PermissionCallback | None = None,
     ):
         """Initialize session.
 
         Args:
             session_id: Unique session identifier
             working_dir: Working directory for this session
+            permission_callback: Callback for handling permission requests.
+                                 Called with (tool_name, input, context).
+                                 Should return a Future[bool] for allow/deny.
         """
         self.session_id = session_id
         self.working_dir = Path(working_dir).resolve()
@@ -51,6 +62,8 @@ class ClaudeSession:
         self._connected = False
         self._sdk_session_id: str | None = None  # Track SDK's internal session ID
         self._active_client: ClaudeSDKClient | None = None  # Client during active query
+        self._permission_callback = permission_callback
+        self._pending_permission: asyncio.Future[bool] | None = None
 
     async def start(self) -> None:
         """Start the session by initializing the SDK client."""
@@ -91,6 +104,8 @@ class ClaudeSession:
                 cli_path="/home/kasadis/.local/bin/claude",
                 # Resume previous conversation if we have a session ID
                 resume=self._sdk_session_id,
+                # Permission callback for handling dangerous operations
+                can_use_tool=self._handle_permission_request if self._permission_callback else None,
             )
 
             client = ClaudeSDKClient(options=options)
@@ -219,6 +234,74 @@ class ClaudeSession:
         except Exception as e:
             logger.error(f"[{self.session_id}] Failed to interrupt: {e}")
             return False
+
+    async def _handle_permission_request(
+        self,
+        tool_name: str,
+        tool_input: dict[str, Any],
+        context: ToolPermissionContext,
+    ) -> PermissionResultAllow | PermissionResultDeny:
+        """Handle permission requests from Claude SDK.
+
+        Called when Claude wants to use a tool that requires permission.
+        Sends request to the callback (which sends to WebSocket) and waits for response.
+        """
+        logger.info(f"[{self.session_id}] Permission request for tool: {tool_name}")
+
+        if not self._permission_callback:
+            # No callback configured - deny by default for safety
+            logger.warning(f"[{self.session_id}] No permission callback - denying {tool_name}")
+            return PermissionResultDeny(message="No permission handler configured")
+
+        try:
+            # Create a future that the WebSocket handler will resolve
+            loop = asyncio.get_event_loop()
+            self._pending_permission = loop.create_future()
+
+            # Call the callback which sends to WebSocket and returns immediately
+            # The callback should store this future so WebSocket can resolve it
+            await self._permission_callback(tool_name, tool_input, context)
+
+            # Wait for user response (with timeout)
+            try:
+                allowed = await asyncio.wait_for(self._pending_permission, timeout=300)  # 5 min timeout
+            except asyncio.TimeoutError:
+                logger.warning(f"[{self.session_id}] Permission request timed out for {tool_name}")
+                return PermissionResultDeny(message="Permission request timed out")
+
+            if allowed:
+                logger.info(f"[{self.session_id}] Permission ALLOWED for {tool_name}")
+                return PermissionResultAllow()
+            else:
+                logger.info(f"[{self.session_id}] Permission DENIED for {tool_name}")
+                return PermissionResultDeny(message="User denied permission")
+
+        except Exception as e:
+            logger.error(f"[{self.session_id}] Error handling permission: {e}")
+            return PermissionResultDeny(message=f"Permission error: {e}")
+        finally:
+            self._pending_permission = None
+
+    def resolve_permission(self, allowed: bool) -> bool:
+        """Resolve a pending permission request.
+
+        Called by WebSocket handler when user responds to permission prompt.
+
+        Args:
+            allowed: True if user allowed, False if denied
+
+        Returns:
+            True if there was a pending request to resolve
+        """
+        if self._pending_permission and not self._pending_permission.done():
+            self._pending_permission.set_result(allowed)
+            return True
+        return False
+
+    @property
+    def has_pending_permission(self) -> bool:
+        """Check if there's a pending permission request."""
+        return self._pending_permission is not None and not self._pending_permission.done()
 
     async def stop(self) -> None:
         """Stop the session."""

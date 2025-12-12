@@ -20,10 +20,18 @@ interface StreamMessage {
   session_id?: string | null;
 }
 
+interface PermissionRequest {
+  tool_name: string;
+  tool_input: Record<string, unknown>;
+}
+
 interface WebSocketMessage {
-  type: 'stream' | 'done' | 'error' | 'pong';
+  type: 'stream' | 'done' | 'error' | 'pong' | 'permission_request' | 'interrupt_ack';
   data?: StreamMessage;
   message?: string;
+  tool_name?: string;
+  tool_input?: Record<string, unknown>;
+  success?: boolean;
 }
 
 interface ChatMessage {
@@ -45,6 +53,7 @@ export default function ChatPanel({ sessionId, serverUrl = 'ws://localhost:9999'
   const [isLoading, setIsLoading] = useState(false);
   const [currentResponse, setCurrentResponse] = useState<ContentBlock[]>([]);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [pendingPermission, setPendingPermission] = useState<PermissionRequest | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -164,6 +173,22 @@ export default function ChatPanel({ sessionId, serverUrl = 'ws://localhost:9999'
             },
           ]);
           setIsLoading(false);
+          setPendingPermission(null);
+          break;
+
+        case 'permission_request':
+          // Show permission prompt to user
+          if (msg.tool_name && msg.tool_input) {
+            setPendingPermission({
+              tool_name: msg.tool_name,
+              tool_input: msg.tool_input,
+            });
+          }
+          break;
+
+        case 'interrupt_ack':
+          // Interrupt acknowledged
+          setPendingPermission(null);
           break;
       }
     };
@@ -217,6 +242,29 @@ export default function ChatPanel({ sessionId, serverUrl = 'ws://localhost:9999'
 
     wsRef.current.send(JSON.stringify({ type: 'interrupt' }));
     setIsLoading(false);
+    setPendingPermission(null);
+  };
+
+  // Handle permission response
+  const handlePermissionResponse = (allowed: boolean) => {
+    if (!wsRef.current || !pendingPermission) return;
+
+    wsRef.current.send(JSON.stringify({
+      type: 'permission_response',
+      allowed,
+    }));
+
+    // Add to messages for visibility
+    setMessages(prev => [
+      ...prev,
+      {
+        role: 'system',
+        content: `Permission ${allowed ? 'ALLOWED' : 'DENIED'} for: ${pendingPermission.tool_name}`,
+        timestamp: new Date(),
+      },
+    ]);
+
+    setPendingPermission(null);
   };
 
   // Handle key press
@@ -265,6 +313,44 @@ export default function ChatPanel({ sessionId, serverUrl = 'ws://localhost:9999'
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Permission Request Modal */}
+      {pendingPermission && (
+        <div className="border-t border-yellow-600 bg-yellow-900/30 p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 text-2xl">&#9888;</div>
+            <div className="flex-1">
+              <h4 className="font-semibold text-yellow-200 mb-2">
+                Permission Required
+              </h4>
+              <p className="text-sm text-yellow-100 mb-2">
+                Claude wants to use: <span className="font-mono font-bold">{pendingPermission.tool_name}</span>
+              </p>
+              {pendingPermission.tool_input && Object.keys(pendingPermission.tool_input).length > 0 && (
+                <div className="bg-gray-800/50 rounded p-2 mb-3 max-h-32 overflow-y-auto">
+                  <pre className="text-xs text-gray-300 whitespace-pre-wrap font-mono">
+                    {JSON.stringify(pendingPermission.tool_input, null, 2)}
+                  </pre>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handlePermissionResponse(true)}
+                  className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-medium"
+                >
+                  Allow
+                </button>
+                <button
+                  onClick={() => handlePermissionResponse(false)}
+                  className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-medium"
+                >
+                  Deny
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Input */}
       <div className="border-t border-gray-700 p-4">
         <div className="flex gap-2">
@@ -273,8 +359,8 @@ export default function ChatPanel({ sessionId, serverUrl = 'ws://localhost:9999'
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder={isConnected ? "Type a message..." : "Connecting..."}
-            disabled={!isConnected || isLoading}
+            placeholder={pendingPermission ? "Waiting for permission response..." : isConnected ? "Type a message..." : "Connecting..."}
+            disabled={!isConnected || isLoading || !!pendingPermission}
             className="flex-1 bg-gray-800 border border-gray-600 rounded px-3 py-2 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500 disabled:opacity-50"
           />
           {isLoading ? (
@@ -287,7 +373,7 @@ export default function ChatPanel({ sessionId, serverUrl = 'ws://localhost:9999'
           ) : (
             <button
               onClick={sendMessage}
-              disabled={!isConnected || !input.trim()}
+              disabled={!isConnected || !input.trim() || !!pendingPermission}
               className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Send

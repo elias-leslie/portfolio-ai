@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from .database import Database
 from .session_bridge import SessionBridge
 from .stream_parser import message_to_dict
+from .claude_process import ClaudeSession
 
 # Configure logging
 logging.basicConfig(
@@ -201,7 +202,9 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
     Protocol:
     - Client sends: {"type": "message", "content": "user message"}
+    - Client sends: {"type": "permission_response", "allowed": true/false}
     - Server sends: {"type": "stream", "data": <StreamMessage as dict>}
+    - Server sends: {"type": "permission_request", "tool_name": "...", "tool_input": {...}}
     - Server sends: {"type": "done"} when response complete
     - Server sends: {"type": "error", "message": "error details"}
     """
@@ -211,6 +214,33 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
     await websocket.accept()
     logger.info(f"WebSocket connected for session {session_id}")
+
+    # Track the current WebSocket for permission callbacks
+    active_websocket: WebSocket | None = websocket
+
+    async def permission_callback(tool_name: str, tool_input: dict[str, Any], context: Any) -> None:
+        """Send permission request to WebSocket client."""
+        nonlocal active_websocket
+        if active_websocket:
+            # Format tool input for display (truncate long values)
+            display_input = {}
+            for key, value in tool_input.items():
+                if isinstance(value, str) and len(value) > 200:
+                    display_input[key] = value[:200] + "..."
+                elif isinstance(value, (dict, list)):
+                    serialized = json.dumps(value)
+                    if len(serialized) > 500:
+                        display_input[key] = serialized[:500] + "..."
+                    else:
+                        display_input[key] = value
+                else:
+                    display_input[key] = value
+
+            await active_websocket.send_json({
+                "type": "permission_request",
+                "tool_name": tool_name,
+                "tool_input": display_input,
+            })
 
     try:
         # Ensure session exists or create it
@@ -246,8 +276,10 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     })
                     continue
 
-                # Get or start Claude session
-                session = await bridge.get_session(session_id)
+                # Get or start Claude session with permission callback
+                session = await get_or_create_session_with_permissions(
+                    bridge, session_id, permission_callback
+                )
                 if not session:
                     await websocket.send_json({
                         "type": "error",
@@ -300,10 +332,23 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                         "message": str(e),
                     })
 
+            elif msg_type == "permission_response":
+                # Handle permission response from user
+                allowed = msg.get("allowed", False)
+                session = bridge._active_sessions.get(session_id)
+                if session:
+                    resolved = session.resolve_permission(allowed)
+                    logger.info(f"Permission response: allowed={allowed}, resolved={resolved}")
+                else:
+                    logger.warning(f"No session for permission response: {session_id}")
+
             elif msg_type == "interrupt":
                 # Handle interrupt signal
                 session = bridge._active_sessions.get(session_id)
                 if session:
+                    # Also cancel any pending permission
+                    if session.has_pending_permission:
+                        session.resolve_permission(False)
                     success = await session.interrupt()
                     await websocket.send_json({
                         "type": "interrupt_ack",
@@ -330,8 +375,51 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
     finally:
+        active_websocket = None
         # Don't stop the Claude session - it can be reconnected
         pass
+
+
+async def get_or_create_session_with_permissions(
+    bridge: SessionBridge,
+    session_id: str,
+    permission_callback: Any,
+) -> ClaudeSession | None:
+    """Get or create a Claude session with permission callback.
+
+    This is a custom version that injects the permission callback.
+    """
+    # Check if already active
+    if session_id in bridge._active_sessions:
+        session = bridge._active_sessions[session_id]
+        if session.is_active:
+            # Update permission callback for this WebSocket connection
+            session._permission_callback = permission_callback
+            return session
+        # Clean up dead session
+        del bridge._active_sessions[session_id]
+
+    # Look up in database
+    db_session = await bridge.db.get_session(session_id)
+    if not db_session:
+        return None
+
+    # Create Claude session with permission callback
+    session = ClaudeSession(
+        session_id=session_id,
+        working_dir=db_session["working_dir"],
+        permission_callback=permission_callback,
+    )
+    await session.start()
+
+    # Restore SDK session ID if we have one
+    metadata = db_session.get("metadata", {})
+    if metadata.get("sdk_session_id"):
+        session._sdk_session_id = metadata["sdk_session_id"]
+        logger.info(f"Restored SDK session ID: {session._sdk_session_id}")
+
+    bridge._active_sessions[session_id] = session
+    return session
 
 
 def main():
