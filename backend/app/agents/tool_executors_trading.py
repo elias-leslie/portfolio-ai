@@ -199,12 +199,12 @@ class TradingTools:
 
         logger.info(f"Stored strategy seed {seed_id}: {symbol} (confidence: {confidence})")
 
-        # Auto-trigger strategy workflow for high-confidence seeds
+        # Emit seed_created event for downstream triggers (auto-003)
+        # This replaces direct task calls with centralized event handling
         workflow_triggered = False
         if confidence >= 7.0:
             try:
-                # Lazy import to avoid circular dependency
-                from app.tasks.strategy_monitoring_tasks import trigger_strategy_from_seed
+                from app.tasks.triggers import emit_event
 
                 # Update seed status to processing
                 with self.storage.connection() as conn:
@@ -214,12 +214,18 @@ class TradingTools:
                     )
                     conn.commit()
 
-                # Trigger async workflow
-                trigger_strategy_from_seed.delay(seed_id=seed_id, symbol=symbol)
-                workflow_triggered = True
-                logger.info(
-                    f"Triggered strategy workflow for seed {seed_id} (confidence: {confidence})"
+                # Emit event (triggers strategy workflow via centralized handler)
+                emit_event(
+                    "seed_created",
+                    {
+                        "seed_id": seed_id,
+                        "symbol": symbol,
+                        "confidence": confidence,
+                        "thesis": thesis[:200] if thesis else "",
+                    },
                 )
+                workflow_triggered = True
+                logger.info(f"Emitted seed_created event for {seed_id} (confidence: {confidence})")
 
             except Exception as e:
                 logger.warning(f"Failed to trigger strategy workflow for seed {seed_id}: {e}")

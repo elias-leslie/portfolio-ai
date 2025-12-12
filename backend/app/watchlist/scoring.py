@@ -383,8 +383,54 @@ def _compute_options_flow_component(
     )
 
 
+def _compute_performance_factor_component(
+    strategy_sharpe: float | None,
+    weight: float,
+) -> ScoreComponent | None:
+    """Compute performance_factor pillar based on active strategy's 30-day Sharpe (auto-002).
+
+    Score formula: min(strategy_sharpe / 2.0, 1.0) * 100
+    - Sharpe 0.0 → score 0
+    - Sharpe 1.0 → score 50
+    - Sharpe 2.0+ → score 100
+
+    Args:
+        strategy_sharpe: 30-day rolling Sharpe ratio from active strategy (None = no strategy)
+        weight: Weight for this component (0.0-1.0)
+
+    Returns:
+        ScoreComponent with performance factor score, or None if no strategy exists
+    """
+    if strategy_sharpe is None:
+        # No strategy for this symbol - return None (pillar excluded from overall calc)
+        return None
+
+    # Score formula: min(sharpe / 2.0, 1.0) * 100
+    # This maps Sharpe 0.0-2.0 to score 0-100
+    normalized_sharpe = max(0.0, min(strategy_sharpe / 2.0, 1.0))
+    score = normalized_sharpe * 100.0
+
+    # Sub-scores for breakdown
+    sub_scores = {
+        "sharpe_30d": round(strategy_sharpe, 3),
+    }
+
+    metadata: dict[str, str | int | float | bool | None] = {
+        "strategy_sharpe": round(strategy_sharpe, 3),
+        "formula": "min(sharpe / 2.0, 1.0) * 100",
+    }
+
+    return ScoreComponent(
+        score=score,
+        weight=weight,
+        stale=False,
+        metadata=metadata,
+        sub_scores=sub_scores,
+    )
+
+
 def calculate_watchlist_scores(inputs: WatchlistScoreInputs) -> ScoreBreakdown:
-    """Compute watchlist price/technical/fundamental/catalyst/options_flow scores (5-pillar)."""
+    """Compute watchlist price/technical/fundamental/catalyst/options_flow/performance scores (6-pillar)."""
     # Ensure timestamps are timezone-aware
     now = inputs.now if inputs.now.tzinfo is not None else inputs.now.replace(tzinfo=UTC)
 
@@ -450,7 +496,15 @@ def calculate_watchlist_scores(inputs: WatchlistScoreInputs) -> ScoreBreakdown:
         options_flow_component = _compute_options_flow_component(
             options_data=inputs.options_data,
             symbol_in_active_sector=symbol_in_active_sector,
-            weight=weights.get("options_flow", 0.1),  # Default 10% weight
+            weight=weights.get("options_flow", 0.08),  # Default 8% weight
+        )
+
+    # Performance factor component (auto-002)
+    performance_factor_component = None
+    if hasattr(inputs, "strategy_sharpe") and inputs.strategy_sharpe is not None:
+        performance_factor_component = _compute_performance_factor_component(
+            strategy_sharpe=inputs.strategy_sharpe,
+            weight=weights.get("performance_factor", 0.05),  # Default 5% weight
         )
 
     # Calculate overall score based on available components
@@ -467,6 +521,11 @@ def calculate_watchlist_scores(inputs: WatchlistScoreInputs) -> ScoreBreakdown:
             options_flow_component,
             weights.get("options_flow", 0.0),
             options_flow_component is not None and not options_flow_component.stale,
+        ),
+        (
+            performance_factor_component,
+            weights.get("performance_factor", 0.0),
+            performance_factor_component is not None,
         ),
     ]
 
@@ -499,6 +558,7 @@ def calculate_watchlist_scores(inputs: WatchlistScoreInputs) -> ScoreBreakdown:
         fundamental=fundamental_component,
         catalyst=catalyst_component,
         options_flow=options_flow_component,
+        performance_factor=performance_factor_component,
         overall=overall,
     )
 
@@ -511,6 +571,9 @@ def calculate_watchlist_scores(inputs: WatchlistScoreInputs) -> ScoreBreakdown:
         fundamental_score=breakdown.fundamental.score if breakdown.fundamental else None,
         catalyst_score=breakdown.catalyst.score if breakdown.catalyst else None,
         options_flow_score=breakdown.options_flow.score if breakdown.options_flow else None,
+        performance_factor_score=breakdown.performance_factor.score
+        if breakdown.performance_factor
+        else None,
     )
 
     return breakdown

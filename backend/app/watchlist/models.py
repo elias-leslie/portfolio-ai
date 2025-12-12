@@ -205,27 +205,54 @@ class SignalClassification(BaseModel):
 
 
 class ScoreWeights(BaseModel):
-    """Weights used to compute overall watchlist score (4-pillar system)."""
+    """Weights used to compute overall watchlist score (6-pillar system).
 
-    price: float = 25.0
-    technical: float = 25.0
-    fundamental: float = 30.0
-    catalyst: float = 20.0  # NEW: Fourth pillar (event-driven signals)
+    Pillars:
+    - price: Price momentum and change
+    - technical: RSI, MACD, trend indicators
+    - fundamental: Financials, profitability
+    - catalyst: News, events
+    - options_flow: Options sentiment
+    - performance_factor: Strategy Sharpe ratio (auto-002)
+    """
+
+    price: float = 22.0  # Reduced from 25% to accommodate performance_factor
+    technical: float = 22.0  # Reduced from 25%
+    fundamental: float = 26.0  # Reduced from 30%
+    catalyst: float = 17.0  # Reduced from 20%
+    options_flow: float = 8.0  # Explicit (was default 10%)
+    performance_factor: float = 5.0  # NEW: Strategy performance pillar (auto-002)
 
     @property
     def total(self) -> float:
-        return self.price + self.technical + self.fundamental + self.catalyst
+        return (
+            self.price
+            + self.technical
+            + self.fundamental
+            + self.catalyst
+            + self.options_flow
+            + self.performance_factor
+        )
 
     def normalized(self) -> dict[str, float]:
         """Normalize weights to sum to 1.0."""
         total = self.total
         if total <= 0:
-            return {"price": 0.25, "technical": 0.25, "fundamental": 0.30, "catalyst": 0.20}
+            return {
+                "price": 0.22,
+                "technical": 0.22,
+                "fundamental": 0.26,
+                "catalyst": 0.17,
+                "options_flow": 0.08,
+                "performance_factor": 0.05,
+            }
         return {
             "price": self.price / total,
             "technical": self.technical / total,
             "fundamental": self.fundamental / total,
             "catalyst": self.catalyst / total,
+            "options_flow": self.options_flow / total,
+            "performance_factor": self.performance_factor / total,
         }
 
 
@@ -249,13 +276,14 @@ class ScoreComponent(BaseModel):
 
 
 class ScoreBreakdown(BaseModel):
-    """Score breakdown for a watchlist item (5-pillar system)."""
+    """Score breakdown for a watchlist item (6-pillar system)."""
 
     price: ScoreComponent
     technical: ScoreComponent
     fundamental: ScoreComponent | None = None  # May be None if not fetched
     catalyst: ScoreComponent | None = None  # Fourth pillar (may be None if no news)
     options_flow: ScoreComponent | None = None  # Fifth pillar (GAP-031, may be None)
+    performance_factor: ScoreComponent | None = None  # Sixth pillar (auto-002, strategy Sharpe)
 
     overall: float
 
@@ -274,6 +302,9 @@ class ScoreBreakdown(BaseModel):
             "catalyst": self.catalyst.model_dump(mode="json") if self.catalyst else None,
             "options_flow": self.options_flow.model_dump(mode="json")
             if self.options_flow
+            else None,
+            "performance_factor": self.performance_factor.model_dump(mode="json")
+            if self.performance_factor
             else None,
             "overall": self.overall,
         }
@@ -316,6 +347,7 @@ class WatchlistScoreInputs(BaseModel):
         False  # GAP-031: True if symbol's sector has high options activity
     )
     volume_relative: float | None = None  # RVOL: current volume / avg volume
+    strategy_sharpe: float | None = None  # auto-002: 30-day Sharpe from active strategy
     weights: ScoreWeights = Field(default_factory=ScoreWeights)
     now: datetime = Field(default_factory=lambda: datetime.now(UTC))
     stale_ttl_minutes: int = 15  # Default to 15 minutes (3x default 5min refresh)

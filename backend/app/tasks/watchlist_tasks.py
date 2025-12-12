@@ -101,6 +101,39 @@ def _get_last_refresh_time(storage: PortfolioStorage) -> dt.datetime | None:
         return None
 
 
+def _trigger_strategy_generation_for_top_symbols() -> None:
+    """Trigger async strategy generation for top watchlist symbols (auto-001).
+
+    Dispatches the trigger_strategies_for_top_watchlist task with backpressure check.
+    The task itself handles rate limiting (max 3/day).
+    """
+    try:
+        from ..services.celery_inspector import should_skip_cascade
+
+        # Check queue backpressure before scheduling strategy generation
+        if should_skip_cascade():
+            logger.info(
+                "strategy_generation_skipped_backpressure",
+                reason="queue_depth_exceeded",
+            )
+            return
+
+        # Import and dispatch strategy generation task
+        from .strategy_monitoring_tasks import (
+            trigger_strategies_for_top_watchlist,
+        )
+
+        trigger_strategies_for_top_watchlist.delay()
+        logger.info("strategy_generation_triggered_from_watchlist")
+
+    except Exception as e:
+        logger.warning(
+            "strategy_generation_trigger_failed",
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+
+
 def _trigger_auto_backfill(storage: PortfolioStorage) -> None:
     """Check for missing historical data and trigger backfill if needed.
 
@@ -110,8 +143,8 @@ def _trigger_auto_backfill(storage: PortfolioStorage) -> None:
         storage: Storage instance for database operations
     """
     try:
-        from ..services.celery_inspector import should_skip_cascade  # noqa: PLC0415
-        from ..watchlist.service import detect_missing_historical_data  # noqa: PLC0415
+        from ..services.celery_inspector import should_skip_cascade
+        from ..watchlist.service import detect_missing_historical_data
 
         # Check queue backpressure before scheduling more work
         if should_skip_cascade():
@@ -144,7 +177,7 @@ def _trigger_auto_backfill(storage: PortfolioStorage) -> None:
                 )
 
                 # Import here to avoid circular dependency
-                from .ingestion import ingest_historical_ohlcv  # noqa: PLC0415
+                from .ingestion import ingest_historical_ohlcv
 
                 # Trigger async backfill (non-blocking)
                 ingest_historical_ohlcv.delay(symbols_needing_backfill, days=DEFAULT_BACKFILL_DAYS)
@@ -323,6 +356,12 @@ def _refresh_watchlist_scores_impl(
                 processed=result.get("processed", 0),
                 markets_open=markets_open,
             )
+
+            # AUTO-001: Trigger strategy generation for top watchlist symbols
+            # Only trigger if we actually processed items (not a skip/error)
+            if result.get("processed", 0) > 0:
+                _trigger_strategy_generation_for_top_symbols()
+
             # Cast to proper type for return
             typed_result: WatchlistResultDict = {
                 "task_id": task_id,

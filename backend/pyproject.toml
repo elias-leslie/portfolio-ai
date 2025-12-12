@@ -122,6 +122,8 @@ ignore = [
 "app/main.py" = ["ARG001", "E402"]
 "tests/**/*.py" = ["PLC0415", "F841", "RUF043"]  # Test-specific: imports in fixtures, unused vars, raw regex in pytest.raises
 "app/api/**/*.py" = ["B008"]  # FastAPI Depends/Query in argument defaults is intentional
+"app/tasks/**/*.py" = ["PLC0415"]  # Task-specific: lazy imports to avoid circular dependencies
+"app/agents/**/*.py" = ["PLC0415", "PLR0911"]  # Agent-specific: lazy imports, many return statements in tool executors
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
@@ -158,7 +160,7 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["app.tasks", "app.tasks.*"]
-disable_error_code = ["misc"]  # celery.task decorator has no type stubs
+disable_error_code = ["misc", "has-type"]  # celery.task decorator has no type stubs
 
 [[tool.mypy.overrides]]
 module = ["yfinance", "yfinance.*"]

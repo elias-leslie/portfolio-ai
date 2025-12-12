@@ -133,6 +133,20 @@ def evaluate_strategy_performance() -> dict[str, Any]:
                         status=status,
                     )
 
+                    # Emit event for downstream triggers (auto-003)
+                    from app.tasks.triggers import emit_event
+
+                    emit_event(
+                        "strategy_performance_updated",
+                        {
+                            "strategy_id": strategy.id,
+                            "symbol": strategy.symbol,
+                            "sharpe_30d": actual_sharpe,
+                            "performance_ratio": performance_ratio,
+                            "status": status,
+                        },
+                    )
+
                 except Exception as e:
                     logger.exception(
                         "Failed to evaluate strategy",
@@ -768,6 +782,149 @@ def weekly_strategy_evolution() -> dict[str, Any]:
 
     except Exception as e:
         logger.exception("Weekly strategy evolution failed", error=str(e))
+        return {"status": "failed", "error": str(e)}
+
+
+@celery_app.task(name="app.tasks.strategy_monitoring_tasks.trigger_strategies_for_top_watchlist")
+def trigger_strategies_for_top_watchlist(
+    top_n: int = 10,
+    max_per_day: int = 3,
+) -> dict[str, Any]:
+    """Generate strategies for top watchlist symbols that don't have one.
+
+    Triggered automatically after watchlist scoring completes (auto-001).
+    Rate-limited to max_per_day new strategies per day.
+
+    Args:
+        top_n: Number of top symbols to consider (default 10)
+        max_per_day: Maximum strategies to generate per day (default 3)
+
+    Returns:
+        Summary dict with generation results
+    """
+    import redis
+
+    logger.info(
+        "trigger_strategies_for_top_watchlist_started",
+        top_n=top_n,
+        max_per_day=max_per_day,
+    )
+
+    # Import here to avoid circular dependency
+    from app.agents.workflows.strategy_research_workflow import (
+        strategy_research_workflow,
+    )
+
+    # Rate limit key - resets daily at midnight UTC
+    rate_key = f"strategy_gen_daily:{date.today().isoformat()}"
+
+    try:
+        # Check and update daily rate limit via Redis
+        redis_url = __import__("os").getenv("REDIS_URL", "redis://localhost:6379")
+        r = redis.Redis.from_url(redis_url, decode_responses=True)
+
+        # Get current count for today
+        current_count = int(r.get(rate_key) or 0)
+        if current_count >= max_per_day:
+            logger.info(
+                "trigger_strategies_rate_limited",
+                current_count=current_count,
+                max_per_day=max_per_day,
+            )
+            return {
+                "status": "rate_limited",
+                "generated": 0,
+                "reason": f"Daily limit reached ({current_count}/{max_per_day})",
+            }
+
+        remaining_budget = max_per_day - current_count
+
+        with get_connection_manager().connection() as conn:
+            strategy_storage = get_strategy_storage()
+
+            # Get top N watchlist symbols by composite score
+            top_symbols = conn.execute(
+                """
+                WITH latest_scores AS (
+                    SELECT DISTINCT ON (wi.symbol)
+                        wi.symbol,
+                        ws.overall_score
+                    FROM watchlist_items wi
+                    LEFT JOIN watchlist_snapshots_v ws ON wi.id = ws.item_id
+                    ORDER BY wi.symbol, ws.fetched_at DESC
+                )
+                SELECT symbol, overall_score
+                FROM latest_scores
+                WHERE overall_score IS NOT NULL
+                ORDER BY overall_score DESC
+                LIMIT %s
+                """,
+                (top_n,),
+            ).fetchall()
+
+            if not top_symbols:
+                logger.info("trigger_strategies_no_watchlist_symbols")
+                return {"status": "completed", "generated": 0, "reason": "No watchlist symbols"}
+
+            generated_count = 0
+            results = []
+
+            for row in top_symbols:
+                if generated_count >= remaining_budget:
+                    break
+
+                symbol = str(row[0])
+
+                # Check if active strategy exists
+                existing = strategy_storage.get_active_strategy(symbol)
+                if existing:
+                    logger.debug(f"Skipping {symbol}: active strategy exists")
+                    continue
+
+                # Generate strategy
+                try:
+                    logger.info(f"Auto-generating strategy for {symbol}")
+                    result = asyncio.run(
+                        strategy_research_workflow(symbol=symbol, force_regenerate=False)
+                    )
+
+                    if result["status"] == "completed":
+                        generated_count += 1
+                        # Increment Redis counter
+                        r.incr(rate_key)
+                        r.expire(rate_key, 86400)  # Expire after 24 hours
+                        results.append(f"Generated for {symbol}: {result.get('strategy_id')}")
+                        logger.info(
+                            "strategy_auto_generated",
+                            symbol=symbol,
+                            strategy_id=result.get("strategy_id"),
+                        )
+                    else:
+                        results.append(f"Skipped {symbol}: {result.get('message', 'blocked')}")
+
+                except Exception as e:
+                    logger.warning(
+                        "strategy_auto_generation_failed",
+                        symbol=symbol,
+                        error=str(e),
+                    )
+                    results.append(f"Error for {symbol}: {str(e)[:50]}")
+
+            logger.info(
+                "trigger_strategies_for_top_watchlist_completed",
+                generated=generated_count,
+                remaining_budget=remaining_budget - generated_count,
+            )
+
+            return {
+                "status": "completed",
+                "generated": generated_count,
+                "checked": len(top_symbols),
+                "details": results,
+            }
+
+    except Exception as e:
+        logger.exception("trigger_strategies_for_top_watchlist_failed", error=str(e))
         return {"status": "failed", "error": str(e)}
 
 
