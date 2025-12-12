@@ -82,8 +82,24 @@ const utilityLinks = [
   },
 ];
 
+/**
+ * Navigation wrapper - hides nav on popup routes like /agent-hub
+ */
 export function Navigation() {
   const pathname = usePathname();
+
+  // Don't render navigation on popup window routes
+  if (pathname === '/agent-hub') {
+    return null;
+  }
+
+  return <NavigationContent pathname={pathname} />;
+}
+
+/**
+ * Actual navigation content - only rendered on main app routes
+ */
+function NavigationContent({ pathname }: { pathname: string }) {
   const { togglePanel, isOpen } = useAgent();
 
   return (

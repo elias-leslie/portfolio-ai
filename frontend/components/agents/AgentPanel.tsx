@@ -66,6 +66,8 @@ interface AgentPanelProps {
     path: string;
     data?: Record<string, unknown>;
   };
+  /** When true, renders as full-page content without fixed positioning (for popup window) */
+  standalone?: boolean;
 }
 
 // Get server URL based on current hostname
@@ -75,7 +77,7 @@ const getServerUrl = () => {
   return process.env.NEXT_PUBLIC_DEV_COMPANION_URL || `http://${host}:9999`;
 };
 
-export function AgentPanel({ open, onOpenChange, pageContext }: AgentPanelProps) {
+export function AgentPanel({ open, onOpenChange, pageContext, standalone = false }: AgentPanelProps) {
   // Settings (includes llmProvider)
   const settings = useAgentSettings();
 
@@ -403,24 +405,28 @@ export function AgentPanel({ open, onOpenChange, pageContext }: AgentPanelProps)
     }
   };
 
-  // Don't render anything if closed (FEAT-220: side panel behavior)
-  if (!open) return (
+  // Don't render anything if closed (unless standalone mode - always render)
+  if (!open && !standalone) return (
     <>
       <SettingsModal open={showSettings} onOpenChange={setShowSettings} />
       <StatusModal open={showStatus} onOpenChange={setShowStatus} />
     </>
   );
 
+  // Standalone mode: full-page content for popup window
+  // Panel mode: fixed side panel attached to right
+  const wrapperClasses = standalone
+    ? "h-full w-full flex flex-col bg-gray-900 text-gray-100"
+    : cn(
+        "fixed top-16 right-0 z-40 h-[calc(100vh-4rem)] w-[500px] flex flex-col bg-gray-900 text-gray-100 border-l border-gray-700 shadow-2xl",
+        "transition-transform duration-300 ease-in-out",
+        open ? "translate-x-0" : "translate-x-full"
+      );
+
   return (
     <>
-      {/* Side Panel - No overlay, attached to right (FEAT-220) */}
-      <div
-        className={cn(
-          "fixed top-16 right-0 z-40 h-[calc(100vh-4rem)] w-[500px] flex flex-col bg-gray-900 text-gray-100 border-l border-gray-700 shadow-2xl",
-          "transition-transform duration-300 ease-in-out",
-          open ? "translate-x-0" : "translate-x-full"
-        )}
-      >
+      {/* Side Panel or Standalone Content (FEAT-220) */}
+      <div className={wrapperClasses}>
         {/* Header */}
         <div className="p-4 border-b border-gray-700 space-y-2">
           <div className="flex items-center justify-between">
@@ -469,15 +475,18 @@ export function AgentPanel({ open, onOpenChange, pageContext }: AgentPanelProps)
               >
                 <Settings className="h-4 w-4" />
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onOpenChange(false)}
-                className="h-8 w-8 p-0 text-gray-400 hover:text-gray-100"
-                title="Close"
-              >
-                <X className="h-4 w-4" />
-              </Button>
+              {/* Hide close button in standalone/popup mode - user closes window directly */}
+              {!standalone && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onOpenChange(false)}
+                  className="h-8 w-8 p-0 text-gray-400 hover:text-gray-100"
+                  title="Close"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           </div>
           <p className="text-gray-500 text-xs">
