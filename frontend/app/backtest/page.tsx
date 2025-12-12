@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Plus, Sparkles, ExternalLink } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -14,7 +14,8 @@ import Link from "next/link";
 
 import { PageContainer } from "@/components/shared/PageContainer";
 
-export default function BacktestPage() {
+// Wrapper component that uses search params
+function BacktestPageContent() {
   const searchParams = useSearchParams();
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [newBacktestOpen, setNewBacktestOpen] = useState(false);
@@ -133,5 +134,14 @@ export default function BacktestPage() {
       {/* New Backtest Dialog */}
       <NewBacktestDialog open={newBacktestOpen} onOpenChange={setNewBacktestOpen} />
     </PageContainer>
+  );
+}
+
+// Main export wrapped in Suspense for useSearchParams
+export default function BacktestPage() {
+  return (
+    <Suspense fallback={<div className="p-10">Loading...</div>}>
+      <BacktestPageContent />
+    </Suspense>
   );
 }

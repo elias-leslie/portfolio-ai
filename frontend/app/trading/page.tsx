@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { TrendingUp, DollarSign, Target, Plus, Sparkles, ExternalLink, Wallet, PieChart, RotateCcw } from "lucide-react";
 import Link from "next/link";
@@ -18,7 +18,7 @@ import { PipelineControls } from "@/components/trading/PipelineControls";
 import { TransactionsList } from "@/components/trading/TransactionsList";
 import { ConfirmActionDialog } from "@/components/shared/ConfirmActionDialog";
 
-export default function TradingPage() {
+function TradingPageContent() {
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<"open" | "closed">("open");
   const [isNewOrderOpen, setIsNewOrderOpen] = useState(false);
@@ -333,5 +333,13 @@ export default function TradingPage() {
         tone="destructive"
       />
     </PageContainer>
+  );
+}
+
+export default function TradingPage() {
+  return (
+    <Suspense fallback={<div className="p-10">Loading...</div>}>
+      <TradingPageContent />
+    </Suspense>
   );
 }

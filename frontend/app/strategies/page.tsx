@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Brain, Plus, Sparkles } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -14,7 +14,7 @@ import { StrategyDetailModal } from "@/components/strategies/StrategyDetailModal
 
 import { PageContainer } from "@/components/shared/PageContainer";
 
-export default function StrategiesPage() {
+function StrategiesPageContent() {
   const searchParams = useSearchParams();
   const [selectedStrategyId, setSelectedStrategyId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | "testing" | "active" | "archived">(
@@ -164,5 +164,13 @@ export default function StrategiesPage() {
         onOpenChange={(open) => !open && setSelectedStrategyId(null)}
       />
     </PageContainer>
+  );
+}
+
+export default function StrategiesPage() {
+  return (
+    <Suspense fallback={<div className="p-10">Loading...</div>}>
+      <StrategiesPageContent />
+    </Suspense>
   );
 }

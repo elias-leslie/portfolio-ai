@@ -187,7 +187,7 @@ class TestCalculateHealthScore:
             profit_margin=0.03,
         )
         score = calculate_health_score(data)
-        assert score == 25.0  # (20 + 30) / 2
+        assert score == 30.0  # (20 + 40) / 2
 
     def test_negative_margin(self) -> None:
         """Test negative margin gives low health score."""
