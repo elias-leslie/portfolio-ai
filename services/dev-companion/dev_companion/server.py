@@ -16,6 +16,7 @@ from .database import Database
 from .session_bridge import SessionBridge
 from .stream_parser import message_to_dict
 from .claude_process import ClaudeSession
+from .gemini_process import GeminiSession
 
 # Configure logging
 logging.basicConfig(
@@ -197,8 +198,11 @@ async def get_session_history(session_id: str, limit: int = 100):
 
 # WebSocket endpoint for real-time communication
 @app.websocket("/ws/{session_id}")
-async def websocket_endpoint(websocket: WebSocket, session_id: str):
-    """WebSocket endpoint for real-time Claude communication.
+async def websocket_endpoint(websocket: WebSocket, session_id: str, provider: str = "claude"):
+    """WebSocket endpoint for real-time LLM communication.
+
+    Query params:
+    - provider: "claude" (default) or "gemini"
 
     Protocol:
     - Client sends: {"type": "message", "content": "user message"}
@@ -207,13 +211,23 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     - Server sends: {"type": "permission_request", "tool_name": "...", "tool_input": {...}}
     - Server sends: {"type": "done"} when response complete
     - Server sends: {"type": "error", "message": "error details"}
+    - Server sends: {"type": "provider", "name": "claude"|"gemini"} on connect
     """
     if not bridge:
         await websocket.close(code=1011, reason="Service not ready")
         return
 
     await websocket.accept()
-    logger.info(f"WebSocket connected for session {session_id}")
+    logger.info(f"WebSocket connected for session {session_id}, provider={provider}")
+
+    # Validate and normalize provider
+    provider = provider.lower() if provider else "claude"
+    if provider not in ("claude", "gemini"):
+        logger.warning(f"Unknown provider '{provider}', defaulting to claude")
+        provider = "claude"
+
+    # Send provider confirmation to client
+    await websocket.send_json({"type": "provider", "name": provider})
 
     # Track the current WebSocket for permission callbacks
     active_websocket: WebSocket | None = websocket
@@ -289,14 +303,19 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     })
                     continue
 
-                # Get or start Claude session with permission callback
-                session = await get_or_create_session_with_permissions(
-                    bridge, session_id, permission_callback
-                )
+                # Get or start session based on provider
+                if provider == "gemini":
+                    session = await get_or_create_gemini_session(
+                        bridge, session_id
+                    )
+                else:
+                    session = await get_or_create_session_with_permissions(
+                        bridge, session_id, permission_callback
+                    )
                 if not session:
                     await safe_send_json({
                         "type": "error",
-                        "message": "Failed to start Claude session",
+                        "message": f"Failed to start {provider} session",
                     })
                     continue
 
@@ -333,11 +352,17 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                             content="".join(response_text_parts),
                         )
 
-                    # Persist SDK session ID for conversation continuity
-                    if session._sdk_session_id:
+                    # Persist SDK/Gemini session ID for conversation continuity
+                    sdk_id = getattr(session, "sdk_session_id", None) or getattr(
+                        session, "_sdk_session_id", None
+                    )
+                    if sdk_id:
                         await bridge.db.update_session(
                             session_id=session_id,
-                            metadata={"sdk_session_id": session._sdk_session_id},
+                            metadata={
+                                "sdk_session_id": sdk_id,
+                                "provider": provider,
+                            },
                         )
 
                     await safe_send_json({"type": "done"})
@@ -397,6 +422,46 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         ws_closed = True
         active_websocket = None
         # Don't stop the Claude session - it can be reconnected
+
+
+async def get_or_create_gemini_session(
+    bridge: SessionBridge,
+    session_id: str,
+) -> GeminiSession | None:
+    """Get or create a Gemini session.
+
+    Uses a separate namespace to avoid conflicts with Claude sessions.
+    """
+    gemini_key = f"gemini:{session_id}"
+
+    # Check if already active
+    if gemini_key in bridge._active_sessions:
+        session = bridge._active_sessions[gemini_key]
+        if session.is_active:
+            return session
+        # Clean up dead session
+        del bridge._active_sessions[gemini_key]
+
+    # Look up in database
+    db_session = await bridge.db.get_session(session_id)
+    if not db_session:
+        return None
+
+    # Create Gemini session
+    session = GeminiSession(
+        session_id=session_id,
+        working_dir=db_session["working_dir"],
+    )
+    await session.start()
+
+    # Restore Gemini session ID if we have one
+    metadata = db_session.get("metadata", {})
+    if metadata.get("sdk_session_id") and metadata.get("provider") == "gemini":
+        session.sdk_session_id = metadata["sdk_session_id"]
+        logger.info(f"Restored Gemini session ID: {session.sdk_session_id}")
+
+    bridge._active_sessions[gemini_key] = session
+    return session
 
 
 async def get_or_create_session_with_permissions(

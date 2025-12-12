@@ -281,7 +281,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                     {settings.llmProvider === 'gemini' && (
                       <span className="text-xs bg-green-600 px-2 py-0.5 rounded">Active</span>
                     )}
-                    <span className="text-xs bg-yellow-600/50 px-2 py-0.5 rounded text-yellow-200">Beta</span>
+                    <span className="text-xs bg-green-600/50 px-2 py-0.5 rounded text-green-200">Free</span>
                   </div>
                   <p className="text-xs text-gray-500">
                     Free via local Gemini CLI with cached OAuth credentials
@@ -289,9 +289,9 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                 </button>
               </div>
               {settings.llmProvider === 'gemini' && (
-                <div className="mt-4 p-3 bg-yellow-900/30 border border-yellow-700 rounded text-sm text-yellow-200">
-                  <strong>Note:</strong> Gemini integration requires dev-companion backend update.
-                  Currently, only Claude is fully functional.
+                <div className="mt-4 p-3 bg-blue-900/30 border border-blue-700 rounded text-sm text-blue-200">
+                  <strong>Note:</strong> Gemini uses local CLI with cached OAuth credentials.
+                  Free tier, no API costs.
                 </div>
               )}
             </>

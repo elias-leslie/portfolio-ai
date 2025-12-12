@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { SettingsModal } from './SettingsModal';
+import { SettingsModal, useAgentSettings, LLMProvider } from './SettingsModal';
 import { StatusModal } from './StatusModal';
 
 // Types from ChatPanel
@@ -38,12 +38,13 @@ interface PermissionRequest {
 }
 
 interface WebSocketMessage {
-  type: 'stream' | 'done' | 'error' | 'pong' | 'permission_request' | 'interrupt_ack';
+  type: 'stream' | 'done' | 'error' | 'pong' | 'permission_request' | 'interrupt_ack' | 'provider';
   data?: StreamMessage;
   message?: string;
   tool_name?: string;
   tool_input?: Record<string, unknown>;
   success?: boolean;
+  name?: string;  // For provider confirmation
 }
 
 interface ChatMessage {
@@ -81,11 +82,15 @@ const getServerUrl = () => {
 };
 
 export function AgentPanel({ open, onOpenChange, pageContext }: AgentPanelProps) {
+  // Settings (includes llmProvider)
+  const settings = useAgentSettings();
+
   // Server/connection state
   const [serverUrl, setServerUrl] = useState<string | null>(null);
   const [wsUrl, setWsUrl] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [activeProvider, setActiveProvider] = useState<LLMProvider>('claude');
 
   // Session state
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -197,7 +202,7 @@ export function AgentPanel({ open, onOpenChange, pageContext }: AgentPanelProps)
       return;
     }
 
-    const ws = new WebSocket(`${wsUrl}/ws/${currentSessionId}`);
+    const ws = new WebSocket(`${wsUrl}/ws/${currentSessionId}?provider=${settings.llmProvider}`);
 
     ws.onopen = () => {
       setIsConnected(true);
@@ -269,11 +274,18 @@ export function AgentPanel({ open, onOpenChange, pageContext }: AgentPanelProps)
         case 'interrupt_ack':
           setPendingPermission(null);
           break;
+
+        case 'provider':
+          // Server confirms which provider is active
+          if (msg.name) {
+            setActiveProvider(msg.name as LLMProvider);
+          }
+          break;
       }
     };
 
     wsRef.current = ws;
-  }, [wsUrl, currentSessionId, open]);
+  }, [wsUrl, currentSessionId, open, settings.llmProvider]);
 
   // Connect/disconnect based on panel state
   useEffect(() => {
@@ -409,6 +421,16 @@ export function AgentPanel({ open, onOpenChange, pageContext }: AgentPanelProps)
                 "w-2 h-2 rounded-full",
                 isConnected ? "bg-green-500" : "bg-red-500"
               )} />
+              {isConnected && (
+                <span className={cn(
+                  "text-xs px-1.5 py-0.5 rounded font-medium",
+                  activeProvider === 'gemini'
+                    ? "bg-green-600/30 text-green-300 border border-green-600"
+                    : "bg-blue-600/30 text-blue-300 border border-blue-600"
+                )}>
+                  {activeProvider === 'gemini' ? 'Gemini' : 'Claude'}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-1">
               <Button
