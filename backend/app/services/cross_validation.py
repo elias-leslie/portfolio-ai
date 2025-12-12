@@ -426,6 +426,7 @@ class CrossValidationService:
                         json.dumps(result.metadata),
                     ),
                 )
+                conn.commit()
         except Exception as e:
             logger.error("save_validation_result_failed", error=str(e))
 
@@ -507,6 +508,7 @@ class CrossValidationService:
                         validation_id,
                     ),
                 )
+                conn.commit()
 
                 result.status = new_status
                 result.resolved_at = now

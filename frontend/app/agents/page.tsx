@@ -32,6 +32,7 @@ import {
 import { Activity, Cpu, Clock, CheckCircle2, XCircle } from "lucide-react";
 
 import { PageContainer } from "@/components/shared/PageContainer";
+import { ReviewQueue } from "@/components/agents/ReviewQueue";
 
 export default function AgentsPage() {
   const [days, setDays] = useState(7);
@@ -214,6 +215,11 @@ export default function AgentsPage() {
             )}
           </div>
         )}
+      </SectionCard>
+
+      {/* Cross-Validation Review Queue */}
+      <SectionCard title="Cross-Validation Review Queue">
+        <ReviewQueue />
       </SectionCard>
 
       {/* Recent Runs */}
