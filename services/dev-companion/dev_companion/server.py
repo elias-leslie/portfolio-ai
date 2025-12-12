@@ -284,6 +284,13 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                             content="".join(response_text_parts),
                         )
 
+                    # Persist SDK session ID for conversation continuity
+                    if session._sdk_session_id:
+                        await bridge.db.update_session(
+                            session_id=session_id,
+                            metadata={"sdk_session_id": session._sdk_session_id},
+                        )
+
                     await websocket.send_json({"type": "done"})
 
                 except Exception as e:

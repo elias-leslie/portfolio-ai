@@ -94,6 +94,12 @@ class SessionBridge:
         )
         await session.start()
 
+        # Restore SDK session ID if we have one
+        metadata = db_session.get("metadata", {})
+        if metadata.get("sdk_session_id"):
+            session._sdk_session_id = metadata["sdk_session_id"]
+            logger.info(f"Restored SDK session ID: {session._sdk_session_id}")
+
         self._active_sessions[session_id] = session
         return session
 
