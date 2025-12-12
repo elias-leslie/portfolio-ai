@@ -57,8 +57,8 @@ class ClaudeSession:
             cwd=str(self.working_dir),
             # Use default permission mode (will prompt for dangerous operations)
             permission_mode="default",
-            # Load user settings to enable OAuth credentials from ~/.claude/.credentials.json
-            setting_sources=["user"],
+            # Load user AND project settings for OAuth + custom slash commands
+            setting_sources=["user", "project"],
             # Use system CLI instead of bundled (bundled 2.0.62 has OAuth issues)
             cli_path="/home/kasadis/.local/bin/claude",
         )
@@ -85,7 +85,8 @@ class ClaudeSession:
             options = ClaudeAgentOptions(
                 cwd=str(self.working_dir),
                 permission_mode="default",
-                setting_sources=["user"],
+                # Load user AND project settings for custom slash commands
+                setting_sources=["user", "project"],
                 cli_path="/home/kasadis/.local/bin/claude",
                 # Resume previous conversation if we have a session ID
                 resume=self._sdk_session_id,
@@ -96,6 +97,10 @@ class ClaudeSession:
                 await client.query(message)
 
                 async for msg in client.receive_response():
+                    # Log all message types for debugging
+                    msg_type = type(msg).__name__
+                    logger.info(f"[{self.session_id}] Received: {msg_type}")
+
                     # Capture SDK session ID from init message
                     if isinstance(msg, SystemMessage) and msg.subtype == 'init':
                         self._sdk_session_id = msg.data.get('session_id')
@@ -104,6 +109,8 @@ class ClaudeSession:
                     stream_msg = self._convert_message(msg)
                     if stream_msg:
                         yield stream_msg
+                    else:
+                        logger.debug(f"[{self.session_id}] Skipped {msg_type}: {str(msg)[:200]}")
 
         except Exception as e:
             logger.error(f"Error in Claude session: {e}")
