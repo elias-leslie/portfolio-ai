@@ -48,6 +48,10 @@ class ClaudeSession:
             cwd=str(self.working_dir),
             # Use default permission mode (will prompt for dangerous operations)
             permission_mode="default",
+            # Load user settings to enable OAuth credentials from ~/.claude/.credentials.json
+            setting_sources=["user"],
+            # Use system CLI instead of bundled (bundled 2.0.62 has OAuth issues)
+            cli_path="/home/kasadis/.local/bin/claude",
         )
         self._client = ClaudeSDKClient(options=self._options)
         self._connected = True
