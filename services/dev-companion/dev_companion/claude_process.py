@@ -43,6 +43,7 @@ class ClaudeProcess:
         self.claude_path = claude_path or self._find_claude()
         self.process: asyncio.subprocess.Process | None = None
         self._running = False
+        self._read_lock = asyncio.Lock()
 
     def _find_claude(self) -> str:
         """Find the claude binary."""
@@ -122,10 +123,20 @@ class ClaudeProcess:
         if not self.process or not self.process.stdout:
             raise ClaudeProcessError("Process not started")
 
-        async for line in self.process.stdout:
-            msg = parse_stream_line(line)
-            if msg:
-                yield msg
+        async with self._read_lock:
+            while True:
+                try:
+                    line = await self.process.stdout.readline()
+                    if not line:
+                        break
+                    msg = parse_stream_line(line)
+                    if msg:
+                        yield msg
+                except asyncio.CancelledError:
+                    break
+                except Exception as e:
+                    logger.error(f"Error reading stdout: {e}")
+                    break
 
     async def stream_stderr(self) -> AsyncIterator[str]:
         """Stream stderr output (errors, warnings).
