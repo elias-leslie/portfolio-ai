@@ -1,192 +1,28 @@
-"""Manage Claude Code CLI process."""
+"""Manage Claude Code via the official Claude Agent SDK."""
 
 import asyncio
 import logging
-import os
-import shutil
 from pathlib import Path
 from typing import AsyncIterator
 
-from .stream_parser import StreamMessage, parse_stream_line
+from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
+from claude_agent_sdk.types import AssistantMessage, TextBlock, ToolUseBlock, ToolResultBlock
+
+from .stream_parser import StreamMessage, ContentBlock, MessageType, ContentType
 
 logger = logging.getLogger(__name__)
 
 
 class ClaudeProcessError(Exception):
     """Error from Claude process."""
-
     pass
 
 
-class ClaudeProcess:
-    """Manages a Claude Code CLI process.
-
-    This class spawns and manages the real `claude` CLI binary,
-    streaming its output back to callers.
-    """
-
-    def __init__(
-        self,
-        working_dir: str | Path = ".",
-        session_id: str | None = None,
-        claude_path: str | None = None,
-    ):
-        """Initialize Claude process manager.
-
-        Args:
-            working_dir: Working directory for Claude operations
-            session_id: Optional session ID to resume
-            claude_path: Path to claude binary (auto-detected if None)
-        """
-        self.working_dir = Path(working_dir).resolve()
-        self.session_id = session_id
-        self.claude_path = claude_path or self._find_claude()
-        self.process: asyncio.subprocess.Process | None = None
-        self._running = False
-        self._read_lock = asyncio.Lock()
-
-    def _find_claude(self) -> str:
-        """Find the claude binary."""
-        # Check common locations
-        paths_to_check = [
-            "claude",  # In PATH
-            "/usr/local/bin/claude",
-            "/usr/bin/claude",
-            os.path.expanduser("~/.local/bin/claude"),
-            os.path.expanduser("~/.npm-global/bin/claude"),
-        ]
-
-        for path in paths_to_check:
-            if path == "claude":
-                found = shutil.which("claude")
-                if found:
-                    return found
-            elif os.path.isfile(path) and os.access(path, os.X_OK):
-                return path
-
-        raise ClaudeProcessError(
-            "Claude CLI not found. Please install it: npm install -g @anthropic-ai/claude-code"
-        )
-
-    async def start(self) -> None:
-        """Start the Claude process."""
-        if self._running:
-            raise ClaudeProcessError("Process already running")
-
-        # Build command
-        cmd = [
-            self.claude_path,
-            "--output-format",
-            "stream-json",
-        ]
-
-        # Add session resume if specified
-        if self.session_id:
-            cmd.extend(["--resume", self.session_id])
-
-        # Environment - ensure we use OAuth, not API key
-        env = os.environ.copy()
-        env.pop("ANTHROPIC_API_KEY", None)  # Force OAuth auth
-
-        logger.info(f"Starting Claude process: {' '.join(cmd)}")
-        logger.info(f"Working directory: {self.working_dir}")
-
-        self.process = await asyncio.create_subprocess_exec(
-            *cmd,
-            cwd=str(self.working_dir),
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env=env,
-        )
-        self._running = True
-
-    async def send_message(self, message: str) -> None:
-        """Send a message to Claude.
-
-        Args:
-            message: The message to send
-        """
-        if not self.process or not self.process.stdin:
-            raise ClaudeProcessError("Process not started")
-
-        # Send the message followed by newline
-        self.process.stdin.write(f"{message}\n".encode())
-        await self.process.stdin.drain()
-
-    async def stream_output(self) -> AsyncIterator[StreamMessage]:
-        """Stream parsed output from Claude.
-
-        Yields:
-            StreamMessage objects parsed from Claude's output
-        """
-        if not self.process or not self.process.stdout:
-            raise ClaudeProcessError("Process not started")
-
-        async with self._read_lock:
-            while True:
-                try:
-                    line = await self.process.stdout.readline()
-                    if not line:
-                        break
-                    msg = parse_stream_line(line)
-                    if msg:
-                        yield msg
-                except asyncio.CancelledError:
-                    break
-                except Exception as e:
-                    logger.error(f"Error reading stdout: {e}")
-                    break
-
-    async def stream_stderr(self) -> AsyncIterator[str]:
-        """Stream stderr output (errors, warnings).
-
-        Yields:
-            Lines from stderr
-        """
-        if not self.process or not self.process.stderr:
-            return
-
-        async for line in self.process.stderr:
-            yield line.decode("utf-8", errors="replace").strip()
-
-    async def stop(self) -> int:
-        """Stop the Claude process.
-
-        Returns:
-            Exit code
-        """
-        if not self.process:
-            return 0
-
-        self._running = False
-
-        # Try graceful shutdown first
-        if self.process.stdin:
-            try:
-                self.process.stdin.close()
-            except Exception:
-                pass
-
-        try:
-            # Wait a bit for graceful exit
-            return await asyncio.wait_for(self.process.wait(), timeout=5.0)
-        except asyncio.TimeoutError:
-            # Force kill
-            self.process.kill()
-            return await self.process.wait()
-
-    @property
-    def is_running(self) -> bool:
-        """Check if process is running."""
-        return self._running and self.process is not None and self.process.returncode is None
-
-
 class ClaudeSession:
-    """Manages a Claude conversation session.
+    """Manages a Claude conversation session using the official SDK.
 
-    Handles starting, stopping, and communicating with Claude,
-    plus session persistence.
+    Uses ClaudeSDKClient for proper streaming, session management,
+    and all Claude Code features (slash commands, skills, etc.).
     """
 
     def __init__(
@@ -202,16 +38,20 @@ class ClaudeSession:
         """
         self.session_id = session_id
         self.working_dir = Path(working_dir).resolve()
-        self.process: ClaudeProcess | None = None
-        self._message_queue: asyncio.Queue[str] = asyncio.Queue()
+        self._client: ClaudeSDKClient | None = None
+        self._options: ClaudeAgentOptions | None = None
+        self._connected = False
 
     async def start(self) -> None:
-        """Start the session."""
-        self.process = ClaudeProcess(
-            working_dir=self.working_dir,
-            session_id=self.session_id,
+        """Start the session by initializing the SDK client."""
+        self._options = ClaudeAgentOptions(
+            cwd=str(self.working_dir),
+            # Use default permission mode (will prompt for dangerous operations)
+            permission_mode="default",
         )
-        await self.process.start()
+        self._client = ClaudeSDKClient(options=self._options)
+        self._connected = True
+        logger.info(f"Session {self.session_id} started in {self.working_dir}")
 
     async def send(self, message: str) -> AsyncIterator[StreamMessage]:
         """Send a message and stream the response.
@@ -222,25 +62,89 @@ class ClaudeSession:
         Yields:
             StreamMessage objects from Claude's response
         """
-        if not self.process:
+        if not self._client:
             raise ClaudeProcessError("Session not started")
 
-        await self.process.send_message(message)
+        logger.info(f"Sending message to Claude: {message[:100]}...")
 
-        async for msg in self.process.stream_output():
-            yield msg
+        try:
+            async with self._client as client:
+                await client.query(message)
 
-            # Check for end of response
-            if msg.stop_reason:
-                break
+                async for msg in client.receive_response():
+                    stream_msg = self._convert_message(msg)
+                    if stream_msg:
+                        yield stream_msg
+
+        except Exception as e:
+            logger.error(f"Error in Claude session: {e}")
+            yield StreamMessage(
+                type=MessageType.SYSTEM,
+                content=[ContentBlock(type=ContentType.TEXT, text=f"Error: {e}")],
+            )
+
+    def _convert_message(self, msg) -> StreamMessage | None:
+        """Convert SDK message to our StreamMessage format."""
+        content_blocks = []
+
+        if isinstance(msg, AssistantMessage):
+            for block in msg.content:
+                if isinstance(block, TextBlock):
+                    content_blocks.append(ContentBlock(
+                        type=ContentType.TEXT,
+                        text=block.text,
+                    ))
+                elif isinstance(block, ToolUseBlock):
+                    content_blocks.append(ContentBlock(
+                        type=ContentType.TOOL_USE,
+                        tool_name=block.name,
+                        tool_input=block.input if hasattr(block, 'input') else None,
+                        tool_use_id=block.id if hasattr(block, 'id') else None,
+                    ))
+                elif isinstance(block, ToolResultBlock):
+                    content_blocks.append(ContentBlock(
+                        type=ContentType.TOOL_RESULT,
+                        text=str(block.content) if hasattr(block, 'content') else None,
+                        tool_use_id=block.tool_use_id if hasattr(block, 'tool_use_id') else None,
+                    ))
+
+            if content_blocks:
+                return StreamMessage(
+                    type=MessageType.ASSISTANT,
+                    content=content_blocks,
+                    stop_reason=msg.stop_reason if hasattr(msg, 'stop_reason') else None,
+                )
+
+        # Handle other message types
+        elif hasattr(msg, 'type'):
+            msg_type = getattr(msg, 'type', 'system')
+            if msg_type == 'result':
+                # Final result message
+                result_text = getattr(msg, 'result', None)
+                if result_text:
+                    content_blocks.append(ContentBlock(
+                        type=ContentType.TEXT,
+                        text=str(result_text),
+                    ))
+                    return StreamMessage(
+                        type=MessageType.RESULT,
+                        content=content_blocks,
+                        stop_reason="end_turn",
+                    )
+
+        return None
 
     async def stop(self) -> None:
         """Stop the session."""
-        if self.process:
-            await self.process.stop()
-            self.process = None
+        self._connected = False
+        self._client = None
+        logger.info(f"Session {self.session_id} stopped")
 
     @property
     def is_active(self) -> bool:
         """Check if session is active."""
-        return self.process is not None and self.process.is_running
+        return self._connected and self._client is not None
+
+
+# Keep old class name for backwards compatibility
+ClaudeProcess = ClaudeSession
