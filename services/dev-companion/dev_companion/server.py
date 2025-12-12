@@ -217,11 +217,24 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
     # Track the current WebSocket for permission callbacks
     active_websocket: WebSocket | None = websocket
+    ws_closed = False  # Track if WebSocket has been closed
+
+    async def safe_send_json(data: dict) -> bool:
+        """Send JSON to WebSocket, return False if closed."""
+        nonlocal ws_closed
+        if ws_closed:
+            return False
+        try:
+            await websocket.send_json(data)
+            return True
+        except Exception:
+            ws_closed = True
+            return False
 
     async def permission_callback(tool_name: str, tool_input: dict[str, Any], context: Any) -> None:
         """Send permission request to WebSocket client."""
-        nonlocal active_websocket
-        if active_websocket:
+        nonlocal active_websocket, ws_closed
+        if active_websocket and not ws_closed:
             # Format tool input for display (truncate long values)
             display_input = {}
             for key, value in tool_input.items():
@@ -236,7 +249,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 else:
                     display_input[key] = value
 
-            await active_websocket.send_json({
+            await safe_send_json({
                 "type": "permission_request",
                 "tool_name": tool_name,
                 "tool_input": display_input,
@@ -259,7 +272,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             try:
                 msg = json.loads(data)
             except json.JSONDecodeError:
-                await websocket.send_json({
+                await safe_send_json({
                     "type": "error",
                     "message": "Invalid JSON",
                 })
@@ -270,7 +283,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             if msg_type == "message":
                 content = msg.get("content", "").strip()
                 if not content:
-                    await websocket.send_json({
+                    await safe_send_json({
                         "type": "error",
                         "message": "Empty message",
                     })
@@ -281,7 +294,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     bridge, session_id, permission_callback
                 )
                 if not session:
-                    await websocket.send_json({
+                    await safe_send_json({
                         "type": "error",
                         "message": "Failed to start Claude session",
                     })
@@ -298,11 +311,15 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 try:
                     response_text_parts = []
                     async for stream_msg in session.send(content):
+                        if ws_closed:
+                            logger.info(f"WebSocket closed during streaming for {session_id}")
+                            break
                         msg_dict = message_to_dict(stream_msg)
-                        await websocket.send_json({
+                        if not await safe_send_json({
                             "type": "stream",
                             "data": msg_dict,
-                        })
+                        }):
+                            break  # WebSocket closed
                         # Collect text for storage
                         for block in msg_dict.get("content", []):
                             if block.get("type") == "text" and block.get("text"):
@@ -323,11 +340,11 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                             metadata={"sdk_session_id": session._sdk_session_id},
                         )
 
-                    await websocket.send_json({"type": "done"})
+                    await safe_send_json({"type": "done"})
 
                 except Exception as e:
                     logger.error(f"Error streaming response: {e}")
-                    await websocket.send_json({
+                    await safe_send_json({
                         "type": "error",
                         "message": str(e),
                     })
@@ -350,34 +367,36 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     if session.has_pending_permission:
                         session.resolve_permission(False)
                     success = await session.interrupt()
-                    await websocket.send_json({
+                    await safe_send_json({
                         "type": "interrupt_ack",
                         "success": success,
                     })
                 else:
-                    await websocket.send_json({
+                    await safe_send_json({
                         "type": "interrupt_ack",
                         "success": False,
                         "message": "No active session",
                     })
 
             elif msg_type == "ping":
-                await websocket.send_json({"type": "pong"})
+                await safe_send_json({"type": "pong"})
 
             else:
-                await websocket.send_json({
+                await safe_send_json({
                     "type": "error",
                     "message": f"Unknown message type: {msg_type}",
                 })
 
     except WebSocketDisconnect:
+        ws_closed = True
         logger.info(f"WebSocket disconnected for session {session_id}")
     except Exception as e:
+        ws_closed = True
         logger.error(f"WebSocket error: {e}")
     finally:
+        ws_closed = True
         active_websocket = None
         # Don't stop the Claude session - it can be reconnected
-        pass
 
 
 async def get_or_create_session_with_permissions(

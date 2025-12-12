@@ -132,7 +132,16 @@ class ClaudeSession:
             finally:
                 self._active_client = None
 
+        except GeneratorExit:
+            # Consumer closed the generator - clean exit, don't yield anything
+            logger.info(f"[{self.session_id}] Generator closed by consumer")
+            return
         except Exception as e:
+            # Only yield error if it's not a cancellation/cleanup issue
+            error_str = str(e)
+            if "GeneratorExit" in error_str or "cancel" in error_str.lower():
+                logger.info(f"[{self.session_id}] Session cancelled: {e}")
+                return
             logger.error(f"Error in Claude session: {e}")
             yield StreamMessage(
                 type=MessageType.SYSTEM,
