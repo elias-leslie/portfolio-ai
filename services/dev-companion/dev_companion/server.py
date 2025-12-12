@@ -300,6 +300,22 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                         "message": str(e),
                     })
 
+            elif msg_type == "interrupt":
+                # Handle interrupt signal
+                session = bridge._active_sessions.get(session_id)
+                if session:
+                    success = await session.interrupt()
+                    await websocket.send_json({
+                        "type": "interrupt_ack",
+                        "success": success,
+                    })
+                else:
+                    await websocket.send_json({
+                        "type": "interrupt_ack",
+                        "success": False,
+                        "message": "No active session",
+                    })
+
             elif msg_type == "ping":
                 await websocket.send_json({"type": "pong"})
 

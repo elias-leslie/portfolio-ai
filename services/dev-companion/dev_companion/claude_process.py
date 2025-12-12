@@ -50,6 +50,7 @@ class ClaudeSession:
         self._options: ClaudeAgentOptions | None = None
         self._connected = False
         self._sdk_session_id: str | None = None  # Track SDK's internal session ID
+        self._active_client: ClaudeSDKClient | None = None  # Client during active query
 
     async def start(self) -> None:
         """Start the session by initializing the SDK client."""
@@ -93,24 +94,28 @@ class ClaudeSession:
             )
 
             client = ClaudeSDKClient(options=options)
-            async with client:
-                await client.query(message)
+            self._active_client = client  # Track for interrupt capability
+            try:
+                async with client:
+                    await client.query(message)
 
-                async for msg in client.receive_response():
-                    # Log all message types for debugging
-                    msg_type = type(msg).__name__
-                    logger.info(f"[{self.session_id}] Received: {msg_type}")
+                    async for msg in client.receive_response():
+                        # Log all message types for debugging
+                        msg_type = type(msg).__name__
+                        logger.info(f"[{self.session_id}] Received: {msg_type}")
 
-                    # Capture SDK session ID from init message
-                    if isinstance(msg, SystemMessage) and msg.subtype == 'init':
-                        self._sdk_session_id = msg.data.get('session_id')
-                        logger.info(f"SDK session ID: {self._sdk_session_id}")
+                        # Capture SDK session ID from init message
+                        if isinstance(msg, SystemMessage) and msg.subtype == 'init':
+                            self._sdk_session_id = msg.data.get('session_id')
+                            logger.info(f"SDK session ID: {self._sdk_session_id}")
 
-                    stream_msg = self._convert_message(msg)
-                    if stream_msg:
-                        yield stream_msg
-                    else:
-                        logger.debug(f"[{self.session_id}] Skipped {msg_type}: {str(msg)[:200]}")
+                        stream_msg = self._convert_message(msg)
+                        if stream_msg:
+                            yield stream_msg
+                        else:
+                            logger.debug(f"[{self.session_id}] Skipped {msg_type}: {str(msg)[:200]}")
+            finally:
+                self._active_client = None
 
         except Exception as e:
             logger.error(f"Error in Claude session: {e}")
@@ -197,10 +202,29 @@ class ClaudeSession:
 
         return None
 
+    async def interrupt(self) -> bool:
+        """Send interrupt signal to stop current query.
+
+        Returns:
+            True if interrupt was sent, False if no active query
+        """
+        if not self._active_client:
+            logger.warning(f"[{self.session_id}] No active query to interrupt")
+            return False
+
+        try:
+            await self._active_client.interrupt()
+            logger.info(f"[{self.session_id}] Interrupt signal sent")
+            return True
+        except Exception as e:
+            logger.error(f"[{self.session_id}] Failed to interrupt: {e}")
+            return False
+
     async def stop(self) -> None:
         """Stop the session."""
         self._connected = False
         self._client = None
+        self._active_client = None
         logger.info(f"Session {self.session_id} stopped")
 
     @property

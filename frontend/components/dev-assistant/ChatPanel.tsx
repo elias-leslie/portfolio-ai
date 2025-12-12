@@ -211,6 +211,14 @@ export default function ChatPanel({ sessionId, serverUrl = 'ws://localhost:9999'
     }));
   };
 
+  // Stop/interrupt current response
+  const stopResponse = () => {
+    if (!wsRef.current || !isLoading) return;
+
+    wsRef.current.send(JSON.stringify({ type: 'interrupt' }));
+    setIsLoading(false);
+  };
+
   // Handle key press
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -269,13 +277,22 @@ export default function ChatPanel({ sessionId, serverUrl = 'ws://localhost:9999'
             disabled={!isConnected || isLoading}
             className="flex-1 bg-gray-800 border border-gray-600 rounded px-3 py-2 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500 disabled:opacity-50"
           />
-          <button
-            onClick={sendMessage}
-            disabled={!isConnected || isLoading || !input.trim()}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Send
-          </button>
+          {isLoading ? (
+            <button
+              onClick={stopResponse}
+              className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+            >
+              Stop
+            </button>
+          ) : (
+            <button
+              onClick={sendMessage}
+              disabled={!isConnected || !input.trim()}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Send
+            </button>
+          )}
         </div>
       </div>
     </div>
