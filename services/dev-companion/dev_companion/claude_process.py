@@ -49,6 +49,7 @@ class ClaudeSession:
         self._client: ClaudeSDKClient | None = None
         self._options: ClaudeAgentOptions | None = None
         self._connected = False
+        self._sdk_session_id: str | None = None  # Track SDK's internal session ID
 
     async def start(self) -> None:
         """Start the session by initializing the SDK client."""
@@ -74,16 +75,32 @@ class ClaudeSession:
         Yields:
             StreamMessage objects from Claude's response
         """
-        if not self._client:
+        if not self._options:
             raise ClaudeProcessError("Session not started")
 
         logger.info(f"Sending message to Claude: {message[:100]}...")
 
         try:
-            async with self._client as client:
+            # Create options with resume if we have a previous SDK session
+            options = ClaudeAgentOptions(
+                cwd=str(self.working_dir),
+                permission_mode="default",
+                setting_sources=["user"],
+                cli_path="/home/kasadis/.local/bin/claude",
+                # Resume previous conversation if we have a session ID
+                resume=self._sdk_session_id,
+            )
+
+            client = ClaudeSDKClient(options=options)
+            async with client:
                 await client.query(message)
 
                 async for msg in client.receive_response():
+                    # Capture SDK session ID from init message
+                    if isinstance(msg, SystemMessage) and msg.subtype == 'init':
+                        self._sdk_session_id = msg.data.get('session_id')
+                        logger.info(f"SDK session ID: {self._sdk_session_id}")
+
                     stream_msg = self._convert_message(msg)
                     if stream_msg:
                         yield stream_msg
@@ -158,19 +175,12 @@ class ClaudeSession:
                     content=content_blocks,
                 )
 
-        # Handle ResultMessage
+        # Handle ResultMessage - don't duplicate the text, it's already been streamed
+        # Just return a result marker without the text content
         elif isinstance(msg, ResultMessage):
-            result_text = msg.result
-            if result_text:
-                content_blocks.append(ContentBlock(
-                    type=ContentType.TEXT,
-                    text=str(result_text),
-                ))
-                return StreamMessage(
-                    type=MessageType.RESULT,
-                    content=content_blocks,
-                    stop_reason="end_turn",
-                )
+            # Skip - text was already sent via AssistantMessage
+            # Only useful for metadata like is_error, total_cost, etc.
+            return None
 
         # Handle SystemMessage (init, etc.)
         elif isinstance(msg, SystemMessage):

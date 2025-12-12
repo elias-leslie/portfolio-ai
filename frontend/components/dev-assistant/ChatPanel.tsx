@@ -49,11 +49,39 @@ export default function ChatPanel({ sessionId, serverUrl = 'ws://localhost:9999'
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const currentResponseRef = useRef<ContentBlock[]>([]);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const httpBaseUrl = serverUrl.replace('ws://', 'http://').replace('wss://', 'https://');
 
   // Keep ref in sync with state
   useEffect(() => {
     currentResponseRef.current = currentResponse;
   }, [currentResponse]);
+
+  // Load history when session changes
+  useEffect(() => {
+    const loadHistory = async () => {
+      try {
+        const res = await fetch(`${httpBaseUrl}/sessions/${sessionId}/history`);
+        if (res.ok) {
+          const data = await res.json();
+          const loadedMessages: ChatMessage[] = data.messages.map((msg: { role: string; content: string; created_at: string }) => ({
+            role: msg.role as 'user' | 'assistant' | 'system',
+            content: msg.content,
+            timestamp: new Date(msg.created_at),
+          }));
+          setMessages(loadedMessages);
+        }
+      } catch (err) {
+        console.error('Failed to load history:', err);
+      }
+    };
+
+    // Reset state for new session
+    setMessages([]);
+    setCurrentResponse([]);
+    setIsLoading(false);
+
+    loadHistory();
+  }, [sessionId, httpBaseUrl]);
 
   // Scroll to bottom when messages change
   useEffect(() => {

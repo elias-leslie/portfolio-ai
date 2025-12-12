@@ -264,11 +264,25 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
                 # Stream response
                 try:
+                    response_text_parts = []
                     async for stream_msg in session.send(content):
+                        msg_dict = message_to_dict(stream_msg)
                         await websocket.send_json({
                             "type": "stream",
-                            "data": message_to_dict(stream_msg),
+                            "data": msg_dict,
                         })
+                        # Collect text for storage
+                        for block in msg_dict.get("content", []):
+                            if block.get("type") == "text" and block.get("text"):
+                                response_text_parts.append(block["text"])
+
+                    # Store assistant response
+                    if response_text_parts:
+                        await bridge.db.add_message(
+                            session_id=session_id,
+                            role="assistant",
+                            content="".join(response_text_parts),
+                        )
 
                     await websocket.send_json({"type": "done"})
 
