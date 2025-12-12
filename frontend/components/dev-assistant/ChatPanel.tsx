@@ -44,6 +44,7 @@ export default function ChatPanel({ sessionId, serverUrl = 'ws://localhost:9999'
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [currentResponse, setCurrentResponse] = useState<ContentBlock[]>([]);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -107,19 +108,21 @@ export default function ChatPanel({ sessionId, serverUrl = 'ws://localhost:9999'
 
     ws.onopen = () => {
       setIsConnected(true);
-      console.log('WebSocket connected');
+      setConnectionError(null);
+      console.log('WebSocket connected to:', ws.url);
     };
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       setIsConnected(false);
-      console.log('WebSocket disconnected');
+      console.log('WebSocket disconnected:', event.code, event.reason);
       wsRef.current = null;
       // Attempt reconnect after 3 seconds
       reconnectTimeoutRef.current = setTimeout(connect, 3000);
     };
 
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
+    ws.onerror = () => {
+      // Note: onerror doesn't provide useful info, the error details come in onclose
+      setConnectionError(`Failed to connect to ${ws.url}`);
     };
 
     ws.onmessage = (event) => {
@@ -225,6 +228,11 @@ export default function ChatPanel({ sessionId, serverUrl = 'ws://localhost:9999'
           <span className="text-sm text-gray-400">
             Session: {sessionId}
           </span>
+          {connectionError && (
+            <span className="text-xs text-red-400" title={connectionError}>
+              (reconnecting...)
+            </span>
+          )}
         </div>
         {isLoading && (
           <span className="text-sm text-blue-400 animate-pulse">Claude is thinking...</span>
