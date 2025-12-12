@@ -6,7 +6,15 @@ from pathlib import Path
 from typing import AsyncIterator
 
 from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
-from claude_agent_sdk.types import AssistantMessage, TextBlock, ToolUseBlock, ToolResultBlock
+from claude_agent_sdk.types import (
+    AssistantMessage,
+    UserMessage,
+    SystemMessage,
+    ResultMessage,
+    TextBlock,
+    ToolUseBlock,
+    ToolResultBlock,
+)
 
 from .stream_parser import StreamMessage, ContentBlock, MessageType, ContentType
 
@@ -119,22 +127,56 @@ class ClaudeSession:
                     stop_reason=msg.stop_reason if hasattr(msg, 'stop_reason') else None,
                 )
 
-        # Handle other message types
-        elif hasattr(msg, 'type'):
-            msg_type = getattr(msg, 'type', 'system')
-            if msg_type == 'result':
-                # Final result message
-                result_text = getattr(msg, 'result', None)
-                if result_text:
-                    content_blocks.append(ContentBlock(
-                        type=ContentType.TEXT,
-                        text=str(result_text),
-                    ))
-                    return StreamMessage(
-                        type=MessageType.RESULT,
-                        content=content_blocks,
-                        stop_reason="end_turn",
-                    )
+        # Handle UserMessage (slash command output, tool results echoed back)
+        elif isinstance(msg, UserMessage):
+            content = msg.content
+            # Content can be a string (e.g., <local-command-stdout>...</local-command-stdout>)
+            # or a list of content blocks
+            if isinstance(content, str):
+                # Extract content from local-command-stdout tags if present
+                import re
+                stdout_match = re.search(r'<local-command-stdout>(.*?)</local-command-stdout>', content, re.DOTALL)
+                if stdout_match:
+                    text = stdout_match.group(1).strip()
+                else:
+                    text = content
+                content_blocks.append(ContentBlock(
+                    type=ContentType.TEXT,
+                    text=text,
+                ))
+            elif isinstance(content, list):
+                for block in content:
+                    if isinstance(block, TextBlock):
+                        content_blocks.append(ContentBlock(
+                            type=ContentType.TEXT,
+                            text=block.text,
+                        ))
+
+            if content_blocks:
+                return StreamMessage(
+                    type=MessageType.SYSTEM,  # Use SYSTEM type for slash command output
+                    content=content_blocks,
+                )
+
+        # Handle ResultMessage
+        elif isinstance(msg, ResultMessage):
+            result_text = msg.result
+            if result_text:
+                content_blocks.append(ContentBlock(
+                    type=ContentType.TEXT,
+                    text=str(result_text),
+                ))
+                return StreamMessage(
+                    type=MessageType.RESULT,
+                    content=content_blocks,
+                    stop_reason="end_turn",
+                )
+
+        # Handle SystemMessage (init, etc.)
+        elif isinstance(msg, SystemMessage):
+            # Skip init messages, they're not useful to display
+            if msg.subtype == 'init':
+                return None
 
         return None
 
