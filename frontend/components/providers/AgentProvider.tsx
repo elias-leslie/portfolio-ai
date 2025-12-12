@@ -2,7 +2,8 @@
 
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
-import { AgentPanel, AgentPanelTrigger } from '@/components/agents/AgentPanel';
+import { AgentPanel } from '@/components/agents/AgentPanel';
+import { cn } from '@/lib/utils';
 
 interface PageContext {
   path: string;
@@ -43,13 +44,20 @@ export function AgentProvider({ children }: { children: ReactNode }) {
 
   return (
     <AgentContext.Provider value={{ isOpen, openPanel, closePanel, togglePanel, setPageData }}>
-      {children}
+      {/* Main content wrapper - shrinks when Agent Hub is open (FEAT-220) */}
+      <div
+        className={cn(
+          "transition-[margin] duration-300 ease-in-out",
+          isOpen && "mr-[500px]"
+        )}
+      >
+        {children}
+      </div>
       <AgentPanel
         open={isOpen}
         onOpenChange={setIsOpen}
         pageContext={pageContext}
       />
-      {/* FAB removed per FEAT-220 - use nav Bot icon instead */}
     </AgentContext.Provider>
   );
 }
