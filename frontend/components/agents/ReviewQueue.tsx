@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
+import { DisagreementPanel, DisagreementReason, ResolutionType } from './DisagreementPanel';
 
 interface ValidationResult {
   id: string;
@@ -93,6 +94,16 @@ export function ReviewQueue({ className }: ReviewQueueProps) {
 
   const handleSaveEdit = (id: string) => {
     handleResolve(id, true, editedOutput);
+  };
+
+  const handleDisagreementResolve = (
+    id: string,
+    resolution: ResolutionType,
+    finalOutput?: string
+  ) => {
+    // Map resolution type to approved status
+    const approved = resolution !== 'escalate';
+    handleResolve(id, approved, finalOutput);
   };
 
   const formatDate = (dateStr: string) => {
@@ -250,86 +261,84 @@ export function ReviewQueue({ className }: ReviewQueueProps) {
                   </div>
                 </div>
 
-                {/* Disagreement Details */}
-                {validation.has_disagreement && validation.disagreement_reasons.length > 0 && (
-                  <div className="bg-amber-500/10 border border-amber-500/30 rounded-md p-3">
-                    <p className="text-sm font-medium text-amber-700 dark:text-amber-400 mb-2">
-                      Disagreement Reasons:
-                    </p>
-                    <div className="flex flex-wrap gap-1">
-                      {validation.disagreement_reasons.map(reason => (
-                        <Badge key={reason} variant="outline" className="text-xs">
-                          {reason}
-                        </Badge>
-                      ))}
-                    </div>
-                    {validation.disagreement_details && (
-                      <p className="text-sm text-muted-foreground mt-2">
-                        {validation.disagreement_details}
-                      </p>
+                {/* Disagreement Panel or Standard Actions */}
+                {validation.has_disagreement && validation.disagreement_reasons.length > 0 ? (
+                  <DisagreementPanel
+                    validationId={validation.id}
+                    generatorProvider={validation.generator_provider}
+                    generatorOutput={validation.generator_output}
+                    generatorConfidence={validation.generator_confidence}
+                    validatorProvider={validation.validator_provider}
+                    validatorReview={validation.validator_review}
+                    validatorConfidence={validation.validator_confidence}
+                    disagreementReasons={validation.disagreement_reasons as DisagreementReason[]}
+                    disagreementDetails={validation.disagreement_details}
+                    onResolve={(resolution, finalOutput) =>
+                      handleDisagreementResolve(validation.id, resolution, finalOutput)
+                    }
+                    resolving={resolving === validation.id}
+                  />
+                ) : (
+                  /* Standard Actions for non-disagreement validations */
+                  <div className="flex items-center gap-2 pt-2 border-t">
+                    {editingId === validation.id ? (
+                      <>
+                        <Button
+                          size="sm"
+                          onClick={() => handleSaveEdit(validation.id)}
+                          disabled={resolving === validation.id}
+                        >
+                          <Check className="h-4 w-4 mr-1" />
+                          Save & Accept
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setEditingId(null);
+                            setEditedOutput('');
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="bg-green-600 hover:bg-green-700"
+                          onClick={() => handleResolve(validation.id, true)}
+                          disabled={resolving === validation.id}
+                        >
+                          <Check className="h-4 w-4 mr-1" />
+                          Accept
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleEdit(validation)}
+                          disabled={resolving === validation.id}
+                        >
+                          <Edit className="h-4 w-4 mr-1" />
+                          Modify
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleResolve(validation.id, false)}
+                          disabled={resolving === validation.id}
+                        >
+                          <X className="h-4 w-4 mr-1" />
+                          Reject
+                        </Button>
+                      </>
+                    )}
+                    {resolving === validation.id && (
+                      <RefreshCw className="h-4 w-4 animate-spin ml-2" />
                     )}
                   </div>
                 )}
-
-                {/* Actions */}
-                <div className="flex items-center gap-2 pt-2 border-t">
-                  {editingId === validation.id ? (
-                    <>
-                      <Button
-                        size="sm"
-                        onClick={() => handleSaveEdit(validation.id)}
-                        disabled={resolving === validation.id}
-                      >
-                        <Check className="h-4 w-4 mr-1" />
-                        Save & Accept
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setEditingId(null);
-                          setEditedOutput('');
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <Button
-                        size="sm"
-                        variant="default"
-                        className="bg-green-600 hover:bg-green-700"
-                        onClick={() => handleResolve(validation.id, true)}
-                        disabled={resolving === validation.id}
-                      >
-                        <Check className="h-4 w-4 mr-1" />
-                        Accept
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleEdit(validation)}
-                        disabled={resolving === validation.id}
-                      >
-                        <Edit className="h-4 w-4 mr-1" />
-                        Modify
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => handleResolve(validation.id, false)}
-                        disabled={resolving === validation.id}
-                      >
-                        <X className="h-4 w-4 mr-1" />
-                        Reject
-                      </Button>
-                    </>
-                  )}
-                  {resolving === validation.id && (
-                    <RefreshCw className="h-4 w-4 animate-spin ml-2" />
-                  )}
-                </div>
               </CardContent>
             )}
           </Card>
