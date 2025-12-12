@@ -348,11 +348,16 @@ function ContentBlockView({ block }: { block: ContentBlock }) {
 
     case 'tool_use':
       return (
-        <div className="my-2 p-2 bg-gray-700/50 rounded border border-gray-600">
-          <div className="text-xs text-blue-400 mb-1">Tool: {block.tool_name}</div>
+        <div className="my-2 p-2 bg-gray-700/50 rounded border border-gray-600 animate-pulse">
+          <div className="text-xs text-blue-400 mb-1 flex items-center gap-2">
+            <span className="inline-block w-2 h-2 bg-blue-400 rounded-full animate-ping" />
+            Running: {block.tool_name}
+          </div>
           {block.tool_input && (
-            <pre className="text-xs text-gray-400 overflow-x-auto">
-              {JSON.stringify(block.tool_input, null, 2)}
+            <pre className="text-xs text-gray-400 overflow-x-auto max-h-20">
+              {typeof block.tool_input === 'object'
+                ? JSON.stringify(block.tool_input, null, 2).slice(0, 200)
+                : String(block.tool_input).slice(0, 200)}
             </pre>
           )}
         </div>
