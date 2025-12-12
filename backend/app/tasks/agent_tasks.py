@@ -27,6 +27,7 @@ from app.portfolio.price_fetcher import PriceDataFetcher
 from app.services import NewsService
 from app.sources.fred import FREDSource
 from app.storage import get_storage
+from app.tasks.triggers import emit_event
 
 if TYPE_CHECKING:
     from celery import Task
@@ -115,6 +116,18 @@ def run_discovery_agent(self: Task) -> str:
         # Update agent_runs with celery_task_id
         _update_celery_task_id(storage, task_id, run_id)
 
+        # Emit insight_generated event for cross-validation (FEAT-219)
+        agent_response = result.get("response", "")
+        if agent_response and len(agent_response) > 50:  # Skip trivial outputs
+            emit_event(
+                "insight_generated",
+                {
+                    "output": agent_response,
+                    "context_type": "discovery_analysis",
+                    "confidence": 0.8,  # Discovery agent default confidence
+                },
+            )
+
         logger.info(
             "discovery_agent_task_completed",
             task_id=task_id,
@@ -159,6 +172,18 @@ def run_portfolio_analyzer(self: Task) -> str:
 
         # Update agent_runs with celery_task_id
         _update_celery_task_id(storage, task_id, run_id)
+
+        # Emit insight_generated event for cross-validation (FEAT-219)
+        agent_response = result.get("response", "")
+        if agent_response and len(agent_response) > 50:  # Skip trivial outputs
+            emit_event(
+                "insight_generated",
+                {
+                    "output": agent_response,
+                    "context_type": "portfolio_analysis",
+                    "confidence": 0.85,  # Portfolio analyzer default confidence
+                },
+            )
 
         logger.info(
             "portfolio_analyzer_task_completed",

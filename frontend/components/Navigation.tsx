@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 import { MarketStatusBadge } from "@/components/market/MarketStatusBadge";
+import { useAgent } from "@/components/providers/AgentProvider";
 import { cn } from "@/lib/utils";
 
 const mainLinks = [
@@ -65,11 +66,6 @@ const mainLinks = [
 
 const utilityLinks = [
   {
-    href: "/agents",
-    label: "Agents",
-    icon: Bot,
-  },
-  {
     href: "/status",
     label: "Status",
     icon: Activity,
@@ -88,6 +84,7 @@ const utilityLinks = [
 
 export function Navigation() {
   const pathname = usePathname();
+  const { togglePanel, isOpen } = useAgent();
 
   return (
     <nav className="sticky top-0 z-50 border-b border-border/50 bg-surface/80 backdrop-blur-md supports-[backdrop-filter]:bg-surface/60">
@@ -135,6 +132,20 @@ export function Navigation() {
           {/* Utility Items */}
           <div className="flex items-center gap-1 sm:gap-2">
             <div className="flex items-center gap-0.5 rounded-full bg-surface-muted/50 border border-border/50 p-1 shadow-sm backdrop-blur-sm">
+              {/* Agent Hub Button (FEAT-220) */}
+              <button
+                onClick={togglePanel}
+                aria-label="Agent Hub"
+                title="Agent Hub"
+                className={cn(
+                  "group flex items-center justify-center rounded-full p-2 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus",
+                  isOpen
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-text-muted hover:bg-surface hover:text-text hover:shadow-sm"
+                )}
+              >
+                <Bot className="size-4" aria-hidden suppressHydrationWarning />
+              </button>
               {utilityLinks.map((link) => {
                 const Icon = link.icon;
                 const isActive = pathname === link.href;

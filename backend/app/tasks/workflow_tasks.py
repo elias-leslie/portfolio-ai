@@ -17,6 +17,7 @@ from app.portfolio.price_fetcher import PriceDataFetcher
 from app.services import NewsService
 from app.sources.fred import FREDSource
 from app.storage.facade import PortfolioStorage
+from app.tasks.triggers import emit_event
 from app.utils.git_automation import commit_workflow_results
 
 logger = get_logger(__name__)
@@ -279,7 +280,7 @@ def paper_trade_validation_workflow(  # noqa: PLR0911
         if data_min is None:
             logger.warning(f"No historical data for {symbol}, triggering backfill")
             # Trigger historical data fetch
-            from app.tasks.ingestion.price_ingestion import ingest_historical_ohlcv  # noqa: PLC0415
+            from app.tasks.ingestion.price_ingestion import ingest_historical_ohlcv
 
             ingest_historical_ohlcv.delay([symbol], days=1300)  # ~5 years
             return {
@@ -289,7 +290,7 @@ def paper_trade_validation_workflow(  # noqa: PLR0911
             }
 
         # Adjust start_date to available data if needed
-        from datetime import date as date_type  # noqa: PLC0415
+        from datetime import date as date_type
 
         data_min_date = date_type.fromisoformat(data_min)
         if requested_start < data_min_date:
@@ -303,7 +304,7 @@ def paper_trade_validation_workflow(  # noqa: PLR0911
 
         # Execute REAL backtest using AgentTools
         # Check for custom strategy (NEW: Task 4.7)
-        from app.strategies.storage import get_strategy_storage  # noqa: PLC0415
+        from app.strategies.storage import get_strategy_storage
 
         backtest_result: dict[str, object] | None = None
         backtest_metrics: dict[str, object] | None = None
@@ -461,6 +462,18 @@ Respond with JSON: {{"decision": "APPROVE|REJECT", "confidence": <0-100>, "reaso
             )
             strategy_output = strategy_response.content
             logger.info(f"Strategy agent analysis: {len(strategy_output)} chars")
+
+            # Emit insight_generated event for cross-validation (FEAT-219)
+            if strategy_output and len(strategy_output) > 50:
+                emit_event(
+                    "insight_generated",
+                    {
+                        "output": strategy_output,
+                        "context_type": "strategy_validation",
+                        "symbol": symbol,
+                        "confidence": 0.75,
+                    },
+                )
 
         except Exception as e:
             logger.error(f"Strategy agent failed: {e}")

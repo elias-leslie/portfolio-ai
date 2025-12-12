@@ -17,7 +17,7 @@ interface StatusModalProps {
 export function StatusModal({ open, onOpenChange }: StatusModalProps) {
   const [days, setDays] = useState(7);
   const { data: summary, isLoading: summaryLoading } = useTelemetrySummary(days);
-  const { data: historyData, isLoading: historyLoading } = useRunHistory({ limit: 5 });
+  const { data: historyData, isLoading: historyLoading } = useRunHistory({ limit: 20 });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

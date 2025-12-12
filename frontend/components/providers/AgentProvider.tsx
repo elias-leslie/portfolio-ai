@@ -49,7 +49,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         onOpenChange={setIsOpen}
         pageContext={pageContext}
       />
-      {!isOpen && <AgentPanelTrigger onClick={openPanel} />}
+      {/* FAB removed per FEAT-220 - use nav Bot icon instead */}
     </AgentContext.Provider>
   );
 }

@@ -9,6 +9,7 @@ Event Types:
 - seed_created: After Discovery Agent stores high-confidence seed
 - price_alert_triggered: After price crosses threshold
 - earnings_released: After earnings date passes
+- insight_generated: After AI generates insight (triggers cross-validation)
 
 Usage:
     from app.tasks.triggers import emit_event
@@ -62,6 +63,8 @@ def emit_event(event_type: str, payload: dict[str, Any]) -> bool:
         _on_price_alert_triggered(payload)
     elif event_type == "earnings_released":
         _on_earnings_released(payload)
+    elif event_type == "insight_generated":
+        _on_insight_generated(payload)
     else:
         logger.warning("unknown_event_type", event_type=event_type)
         return False
@@ -196,6 +199,93 @@ def _on_earnings_released(payload: dict[str, Any]) -> None:
         symbol=symbol,
         earnings_date=earnings_date,
     )
+
+
+def _on_insight_generated(payload: dict[str, Any]) -> None:
+    """Handle insight generation event.
+
+    Triggers:
+    - Cross-validation of the generated insight (Gemini -> Claude validation)
+
+    Expected payload:
+    - output: The generated insight text
+    - context_type: Type of insight (e.g., "analysis", "recommendation")
+    - symbol: Stock symbol (optional)
+    - confidence: Generator's confidence (optional)
+    """
+    output = payload.get("output")
+    context_type = payload.get("context_type", "insight")
+    symbol = payload.get("symbol")
+    confidence = payload.get("confidence")
+
+    if not output:
+        logger.warning("insight_generated_event_missing_output", payload_keys=list(payload.keys()))
+        return
+
+    # Trigger cross-validation asynchronously
+    cross_validate_insight_task.delay(
+        output=output,
+        context_type=context_type,
+        symbol=symbol,
+        confidence=confidence,
+    )
+    logger.info(
+        "triggered_cross_validation_from_insight",
+        context_type=context_type,
+        symbol=symbol,
+        output_length=len(output),
+    )
+
+
+@celery_app.task(name="app.tasks.triggers.cross_validate_insight")
+def cross_validate_insight_task(
+    output: str,
+    context_type: str = "insight",
+    symbol: str | None = None,
+    confidence: float | None = None,
+) -> dict[str, Any]:
+    """Cross-validate an AI-generated insight using Claude.
+
+    Args:
+        output: The generated insight text to validate
+        context_type: Type of content (insight, recommendation, analysis)
+        symbol: Stock symbol if applicable
+        confidence: Generator's confidence (0-1)
+
+    Returns:
+        Dict with validation result status
+    """
+    from app.services.cross_validation import CrossValidationService
+
+    try:
+        service = CrossValidationService()
+        result = service.validate(
+            generator_output=output,
+            context_type=context_type,
+            context_symbol=symbol,
+            generator_confidence=confidence,
+        )
+
+        logger.info(
+            "cross_validation_complete",
+            validation_id=result.id,
+            approved=result.validator_approved,
+            has_disagreement=result.has_disagreement,
+            status=result.status.value,
+        )
+
+        return {
+            "status": "completed",
+            "validation_id": result.id,
+            "approved": result.validator_approved,
+            "has_disagreement": result.has_disagreement,
+        }
+    except Exception as e:
+        logger.error("cross_validation_failed", error=str(e), exc_info=True)
+        return {
+            "status": "failed",
+            "error": str(e),
+        }
 
 
 # Celery task wrapper for async event emission (allows .delay() call)

@@ -10,7 +10,7 @@ Provides REST API for:
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query
@@ -919,7 +919,7 @@ async def get_strategy_evolution(strategy_id: str) -> dict[str, Any]:
             # Get recent signals
             signal_rows = conn.execute(
                 """
-                SELECT id, action, strength, confidence_score, entry_price, target_price, created_at
+                SELECT id, signal_type, signal_strength, signal_date, reasons, created_at
                 FROM strategy_signals
                 WHERE strategy_id = %s
                 ORDER BY created_at DESC
@@ -928,33 +928,35 @@ async def get_strategy_evolution(strategy_id: str) -> dict[str, Any]:
                 [strategy_id],
             ).fetchall()
 
-            signals = []
+            signals: list[dict[str, Any]] = []
             for row in signal_rows:
-                sig_created = row[6]
+                sig_created = row[5]
                 sig_created_str = (
                     sig_created.isoformat() if isinstance(sig_created, datetime) else None
+                )
+                sig_date = row[3]
+                sig_date_str = (
+                    sig_date.isoformat() if isinstance(sig_date, (datetime, date)) else None
                 )
                 signals.append(
                     {
                         "id": str(row[0]),
-                        "action": str(row[1]),
-                        "strength": int(row[2]) if row[2] else None,
-                        "confidence_score": float(row[3]) if row[3] is not None else None,
-                        "entry_price": float(row[4]) if row[4] is not None else None,
-                        "target_price": float(row[5]) if row[5] is not None else None,
+                        "signal_type": str(row[1]),
+                        "signal_strength": int(row[2]) if row[2] else None,
+                        "signal_date": sig_date_str,
+                        "reasons": row[4] if row[4] else [],
                         "created_at": sig_created_str,
                     }
                 )
 
             # Get recent trades (paper trades linked to this strategy)
-            # This assumes idea_outcomes are linked via strategy-generated signals
             trade_rows = conn.execute(
                 """
-                SELECT io.id, io.symbol, io.entry_price, io.exit_price,
-                       io.current_return_pct, io.status, io.created_at
+                SELECT io.idea_id, io.symbol, io.entry_price, io.exit_price,
+                       io.current_return_pct, io.status, io.entry_date
                 FROM idea_outcomes io
                 WHERE io.symbol = %s
-                ORDER BY io.created_at DESC
+                ORDER BY io.entry_date DESC
                 LIMIT 10
                 """,
                 [strategy.symbol],
@@ -962,10 +964,8 @@ async def get_strategy_evolution(strategy_id: str) -> dict[str, Any]:
 
             trades = []
             for row in trade_rows:
-                trade_created = row[6]
-                trade_created_str = (
-                    trade_created.isoformat() if isinstance(trade_created, datetime) else None
-                )
+                entry_date = row[6]
+                entry_date_str = str(entry_date) if entry_date else None
                 trades.append(
                     {
                         "id": str(row[0]),
@@ -974,7 +974,7 @@ async def get_strategy_evolution(strategy_id: str) -> dict[str, Any]:
                         "exit_price": float(row[3]) if row[3] is not None else None,
                         "return_pct": float(row[4]) if row[4] is not None else None,
                         "status": str(row[5]),
-                        "created_at": trade_created_str,
+                        "entry_date": entry_date_str,
                     }
                 )
 

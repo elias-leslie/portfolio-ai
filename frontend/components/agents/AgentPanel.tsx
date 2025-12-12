@@ -2,13 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { MessageSquare, X, Plus, Trash2, Settings, Activity, User, Code } from 'lucide-react';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from '@/components/ui/sheet';
+// Note: We use a custom side panel instead of Sheet to allow non-overlay behavior (FEAT-220)
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { SettingsModal, useAgentSettings, LLMProvider } from './SettingsModal';
@@ -409,14 +403,29 @@ export function AgentPanel({ open, onOpenChange, pageContext }: AgentPanelProps)
     }
   };
 
+  // Don't render anything if closed (FEAT-220: side panel behavior)
+  if (!open) return (
+    <>
+      <SettingsModal open={showSettings} onOpenChange={setShowSettings} />
+      <StatusModal open={showStatus} onOpenChange={setShowStatus} />
+    </>
+  );
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-[500px] sm:max-w-[500px] p-0 flex flex-col bg-gray-900 text-gray-100 border-gray-700">
+    <>
+      {/* Side Panel - No overlay, attached to right (FEAT-220) */}
+      <div
+        className={cn(
+          "fixed top-16 right-0 z-40 h-[calc(100vh-4rem)] w-[500px] flex flex-col bg-gray-900 text-gray-100 border-l border-gray-700 shadow-2xl",
+          "transition-transform duration-300 ease-in-out",
+          open ? "translate-x-0" : "translate-x-full"
+        )}
+      >
         {/* Header */}
-        <SheetHeader className="p-4 border-b border-gray-700 space-y-0">
+        <div className="p-4 border-b border-gray-700 space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <SheetTitle className="text-gray-100">Agent Hub</SheetTitle>
+              <h2 className="text-lg font-semibold text-gray-100">Agent Hub</h2>
               <span className={cn(
                 "w-2 h-2 rounded-full",
                 isConnected ? "bg-green-500" : "bg-red-500"
@@ -460,14 +469,23 @@ export function AgentPanel({ open, onOpenChange, pageContext }: AgentPanelProps)
               >
                 <Settings className="h-4 w-4" />
               </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onOpenChange(false)}
+                className="h-8 w-8 p-0 text-gray-400 hover:text-gray-100"
+                title="Close"
+              >
+                <X className="h-4 w-4" />
+              </Button>
             </div>
           </div>
-          <SheetDescription className="text-gray-500 text-xs">
+          <p className="text-gray-500 text-xs">
             {currentSessionId ? `Session: ${currentSessionId}` : 'No session'}
-          </SheetDescription>
+          </p>
 
           {/* Role Toggle */}
-          <div className="flex gap-1 mt-2 bg-gray-800 rounded-md p-1">
+          <div className="flex gap-1 bg-gray-800 rounded-md p-1">
             <button
               onClick={() => setRole('dev')}
               className={cn(
@@ -493,7 +511,7 @@ export function AgentPanel({ open, onOpenChange, pageContext }: AgentPanelProps)
               Financial
             </button>
           </div>
-        </SheetHeader>
+        </div>
 
         {/* Sessions Dropdown */}
         {showSessions && (
@@ -645,14 +663,14 @@ export function AgentPanel({ open, onOpenChange, pageContext }: AgentPanelProps)
             )}
           </div>
         </div>
-      </SheetContent>
+      </div>
 
       {/* Settings Modal */}
       <SettingsModal open={showSettings} onOpenChange={setShowSettings} />
 
       {/* Status Modal */}
       <StatusModal open={showStatus} onOpenChange={setShowStatus} />
-    </Sheet>
+    </>
   );
 }
 
