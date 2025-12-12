@@ -33,7 +33,7 @@ Requires-Dist: click==8.3.1
 Requires-Dist: pandas-ta==0.4.71b0
 Requires-Dist: numba==0.61.2
 Requires-Dist: transformers==4.57.3
-Requires-Dist: torch==2.5.1
+Requires-Dist: torch==2.9.1
 Requires-Dist: huggingface-hub==0.34.0
 Provides-Extra: dev
 Requires-Dist: python-dotenv==1.2.1; extra == "dev"
