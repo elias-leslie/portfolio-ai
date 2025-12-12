@@ -20,6 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronDown, Archive, CheckCircle, TrendingUp, TrendingDown } from "lucide-react";
 import { useState } from "react";
 import { useStrategy, useUpdateStrategyStatus } from "@/lib/hooks/useStrategies";
+import { SeedEvolution } from "./SeedEvolution";
 
 interface StrategyDetailModalProps {
   strategyId: string | null;
@@ -127,6 +128,9 @@ export function StrategyDetailModal({
                 value={strategy.live_trades_count.toString()}
               />
             </div>
+
+            {/* Seed Evolution Timeline (FEAT-218) */}
+            <SeedEvolution strategyId={strategy.id} />
 
             {/* Generation Reasoning */}
             <Card>

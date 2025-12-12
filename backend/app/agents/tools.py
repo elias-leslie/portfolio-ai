@@ -35,6 +35,7 @@ from .tool_definitions import (
     get_run_backtest_tool_definition,
     get_send_message_tool_definition,
     get_store_idea_tool_definition,
+    get_store_strategy_seed_tool_definition,
     get_vote_decision_tool_definition,
     get_wait_response_tool_definition,
 )
@@ -58,6 +59,7 @@ __all__ = [
     "get_run_backtest_tool_definition",
     "get_send_message_tool_definition",
     "get_store_idea_tool_definition",
+    "get_store_strategy_seed_tool_definition",
     "get_vote_decision_tool_definition",
     "get_wait_response_tool_definition",
 ]
@@ -123,8 +125,21 @@ class AgentTools:
 
     # Trading tools - delegate to TradingTools
     def execute_store_idea(self, agent_run_id: str, **idea_data: object) -> dict[str, object]:
-        """Execute store_idea tool."""
+        """Execute store_idea tool (DEPRECATED - use execute_store_strategy_seed)."""
         return self.trading.execute_store_idea(agent_run_id, **idea_data)
+
+    def execute_store_strategy_seed(
+        self,
+        agent_run_id: str,
+        symbol: str,
+        thesis: str,
+        confidence: float,
+        source_data: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        """Execute store_strategy_seed tool."""
+        return self.trading.execute_store_strategy_seed(
+            agent_run_id, symbol, thesis, confidence, source_data
+        )
 
     def execute_add_symbol(
         self,

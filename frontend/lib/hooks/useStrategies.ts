@@ -11,6 +11,9 @@ import {
   generateStrategiesBatch,
   updateStrategyStatus,
   getStrategyPerformance,
+  getStrategySeeds,
+  getStrategySeed,
+  getStrategyEvolution,
   type GenerateStrategyRequest,
   type GenerateBatchRequest,
   type UpdateStrategyStatusRequest,
@@ -29,6 +32,12 @@ export const strategyKeys = {
   detail: (strategyId: string) => [...strategyKeys.details(), strategyId] as const,
   performance: (strategyId: string) =>
     [...strategyKeys.all, "performance", strategyId] as const,
+  evolution: (strategyId: string) =>
+    [...strategyKeys.all, "evolution", strategyId] as const,
+  seeds: () => [...strategyKeys.all, "seeds"] as const,
+  seedList: (params?: { status?: string; symbol?: string }) =>
+    [...strategyKeys.seeds(), "list", params] as const,
+  seed: (seedId: string) => [...strategyKeys.seeds(), seedId] as const,
 };
 
 // ============================================================================
@@ -165,5 +174,36 @@ export function useUpdateStrategyStatus() {
         `Failed to update strategy: ${error instanceof Error ? error.message : "Unknown error"}`
       );
     },
+  });
+}
+
+// ============================================================================
+// Strategy Seeds Hooks (FEAT-218)
+// ============================================================================
+
+export function useStrategySeeds(params?: { status?: string; symbol?: string; limit?: number }) {
+  return useQuery({
+    queryKey: strategyKeys.seedList(params),
+    queryFn: () => getStrategySeeds(params),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+}
+
+export function useStrategySeed(seedId: string | null) {
+  return useQuery({
+    queryKey: strategyKeys.seed(seedId || ""),
+    queryFn: () => getStrategySeed(seedId!),
+    enabled: !!seedId,
+    staleTime: 30_000,
+  });
+}
+
+export function useStrategyEvolution(strategyId: string | null) {
+  return useQuery({
+    queryKey: strategyKeys.evolution(strategyId || ""),
+    queryFn: () => getStrategyEvolution(strategyId!),
+    enabled: !!strategyId,
+    staleTime: 30_000,
   });
 }

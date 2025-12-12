@@ -145,6 +145,96 @@ class TradingTools:
         logger.warning(f"Failed to create paper trade for idea {idea_id}")
         return {"idea_id": idea_id, "status": "stored", "paper_trade_created": False}
 
+    def execute_store_strategy_seed(
+        self,
+        agent_run_id: str,
+        symbol: str,
+        thesis: str,
+        confidence: float,
+        source_data: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        """Execute store_strategy_seed tool to create a strategy seed.
+
+        Seeds are AI-generated investment ideas with required symbol. High-confidence
+        seeds (>=7) automatically trigger strategy_research_workflow.
+
+        Args:
+            agent_run_id: ID of the agent run
+            symbol: Stock symbol (REQUIRED - fixes broken Ideas system)
+            thesis: Investment thesis explaining the opportunity
+            confidence: Confidence score (1-10 scale)
+            source_data: Optional context data (news, economic indicators)
+
+        Returns:
+            Result dictionary with seed ID, status, and workflow trigger info
+        """
+        # Normalize symbol
+        symbol = symbol.upper().strip()
+        if not symbol:
+            return {"status": "error", "error": "Symbol is required"}
+
+        # Normalize confidence to 1-10 scale
+        if confidence > 10:
+            confidence = confidence / 10.0  # Handle 0-100 input
+        confidence = max(1.0, min(10.0, confidence))
+
+        seed_id = str(uuid.uuid4())
+        now = datetime.now(UTC)
+
+        # Store seed in strategy_seeds table
+        self.storage.insert_dict(
+            "strategy_seeds",
+            {
+                "id": seed_id,
+                "symbol": symbol,
+                "thesis": thesis,
+                "confidence": confidence,
+                "agent_run_id": agent_run_id,
+                "source_type": "discovery",
+                "source_data": str(source_data) if source_data else None,
+                "status": "pending",
+                "created_at": now.isoformat(),
+            },
+        )
+
+        logger.info(f"Stored strategy seed {seed_id}: {symbol} (confidence: {confidence})")
+
+        # Auto-trigger strategy workflow for high-confidence seeds
+        workflow_triggered = False
+        if confidence >= 7.0:
+            try:
+                # Lazy import to avoid circular dependency
+                from app.tasks.strategy_monitoring_tasks import trigger_strategy_from_seed
+
+                # Update seed status to processing
+                with self.storage.connection() as conn:
+                    conn.execute(
+                        "UPDATE strategy_seeds SET status = 'processing', processed_at = %s WHERE id = %s",
+                        [now.isoformat(), seed_id],
+                    )
+                    conn.commit()
+
+                # Trigger async workflow
+                trigger_strategy_from_seed.delay(seed_id=seed_id, symbol=symbol)
+                workflow_triggered = True
+                logger.info(
+                    f"Triggered strategy workflow for seed {seed_id} (confidence: {confidence})"
+                )
+
+            except Exception as e:
+                logger.warning(f"Failed to trigger strategy workflow for seed {seed_id}: {e}")
+
+        return {
+            "seed_id": seed_id,
+            "symbol": symbol,
+            "confidence": confidence,
+            "status": "stored",
+            "workflow_triggered": workflow_triggered,
+            "message": (
+                f"Seed stored. Strategy workflow {'triggered' if workflow_triggered else 'not triggered (confidence < 7)'}."
+            ),
+        }
+
     def execute_add_symbol(
         self,
         agent_run_id: str,

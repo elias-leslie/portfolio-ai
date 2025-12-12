@@ -189,3 +189,98 @@ export async function getStrategyPerformance(
 ): Promise<StrategyPerformance> {
   return apiRequest<StrategyPerformance>(`/api/strategies/${strategyId}/performance`);
 }
+
+// ============================================================================
+// Strategy Seeds API (FEAT-218)
+// ============================================================================
+
+export interface StrategySeed {
+  id: string;
+  symbol: string;
+  thesis: string;
+  confidence: number;
+  status: "pending" | "processing" | "converted" | "rejected";
+  strategy_id: string | null;
+  created_at: string;
+  processed_at: string | null;
+}
+
+export interface StrategySeedsListResponse {
+  seeds: StrategySeed[];
+  total: number;
+}
+
+export interface StrategyEvolution {
+  strategy_id: string;
+  name: string;
+  symbol: string;
+  status: string;
+  seed: {
+    id: string;
+    thesis: string;
+    confidence: number;
+    created_at: string;
+  } | null;
+  backtests: Array<{
+    id: string;
+    start_date: string | null;
+    end_date: string | null;
+    sharpe_ratio: number | null;
+    total_return_pct: number | null;
+    max_drawdown_pct: number | null;
+    win_rate: number | null;
+    num_trades: number;
+    status: string;
+    created_at: string | null;
+  }>;
+  signals: Array<{
+    id: string;
+    action: string;
+    strength: number | null;
+    confidence_score: number | null;
+    entry_price: number | null;
+    target_price: number | null;
+    created_at: string | null;
+  }>;
+  trades: Array<{
+    id: string;
+    symbol: string;
+    entry_price: number | null;
+    exit_price: number | null;
+    return_pct: number | null;
+    status: string;
+    created_at: string | null;
+  }>;
+  performance: {
+    expected_sharpe: number | null;
+    live_sharpe: number | null;
+    live_win_rate: number | null;
+    total_trades: number;
+  };
+}
+
+export async function getStrategySeeds(params?: {
+  status?: string;
+  symbol?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<StrategySeedsListResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.status) searchParams.set("status", params.status);
+  if (params?.symbol) searchParams.set("symbol", params.symbol);
+  if (params?.limit) searchParams.set("limit", params.limit.toString());
+  if (params?.offset) searchParams.set("offset", params.offset.toString());
+
+  const query = searchParams.toString();
+  return apiRequest<StrategySeedsListResponse>(
+    `/api/strategy-seeds/${query ? `?${query}` : ""}`
+  );
+}
+
+export async function getStrategySeed(seedId: string): Promise<StrategySeed> {
+  return apiRequest<StrategySeed>(`/api/strategy-seeds/${seedId}`);
+}
+
+export async function getStrategyEvolution(strategyId: string): Promise<StrategyEvolution> {
+  return apiRequest<StrategyEvolution>(`/api/strategies/${strategyId}/evolution`);
+}

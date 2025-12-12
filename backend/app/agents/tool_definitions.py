@@ -86,10 +86,10 @@ def get_price_data_tool_definition() -> dict[str, object]:
 
 
 def get_store_idea_tool_definition() -> dict[str, object]:
-    """Get store idea tool definition."""
+    """Get store idea tool definition (DEPRECATED - use store_strategy_seed)."""
     return {
         "name": "store_idea",
-        "description": "Store an investment idea in the database",
+        "description": "[DEPRECATED] Store an investment idea. Use store_strategy_seed instead for better tracking.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -135,6 +135,34 @@ def get_store_idea_tool_definition() -> dict[str, object]:
                 "confidence_score",
                 "risk_level",
             ],
+        },
+    }
+
+
+def get_store_strategy_seed_tool_definition() -> dict[str, object]:
+    """Get store_strategy_seed tool definition for AI-generated investment ideas."""
+    return {
+        "name": "store_strategy_seed",
+        "description": "Store a strategy seed - an AI-generated investment idea with a REQUIRED symbol. "
+        "High-confidence seeds (>=7/10) automatically trigger strategy research and backtesting. "
+        "Seeds evolve into full strategies: Seed -> Backtest -> Strategy -> Signals -> Trades.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "symbol": {
+                    "type": "string",
+                    "description": "Stock symbol (REQUIRED, e.g., 'AAPL', 'NVDA'). Must be a valid ticker.",
+                },
+                "thesis": {
+                    "type": "string",
+                    "description": "Detailed investment thesis explaining why this opportunity exists",
+                },
+                "confidence": {
+                    "type": "number",
+                    "description": "Confidence score 1-10 (>=7 triggers automatic strategy workflow)",
+                },
+            },
+            "required": ["symbol", "thesis", "confidence"],
         },
     }
 
@@ -408,6 +436,7 @@ __all__ = [
     "get_run_backtest_tool_definition",
     "get_send_message_tool_definition",
     "get_store_idea_tool_definition",
+    "get_store_strategy_seed_tool_definition",
     "get_vote_decision_tool_definition",
     "get_wait_response_tool_definition",
 ]

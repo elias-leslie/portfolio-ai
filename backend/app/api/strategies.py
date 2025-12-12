@@ -703,3 +703,308 @@ async def generate_strategy_signal(strategy_id: str) -> dict[str, Any]:
         raise HTTPException(
             status_code=500, detail=f"Failed to generate strategy signal: {e!s}"
         ) from e
+
+
+# ============================================================================
+# Strategy Seeds Endpoints (separate router to avoid path conflicts)
+# ============================================================================
+
+seeds_router = APIRouter(prefix="/api/strategy-seeds", tags=["strategy-seeds"])
+
+
+class StrategySeedItem(BaseModel):
+    """Strategy seed item."""
+
+    id: str
+    symbol: str
+    thesis: str
+    confidence: float
+    status: Literal["pending", "processing", "converted", "rejected"]
+    strategy_id: str | None = None
+    created_at: str
+    processed_at: str | None = None
+
+
+class StrategySeedList(BaseModel):
+    """List of strategy seeds."""
+
+    seeds: list[StrategySeedItem]
+    total: int
+
+
+@seeds_router.get("/", response_model=StrategySeedList)
+async def list_strategy_seeds(
+    status: str | None = Query(default=None, description="Filter by status"),
+    symbol: str | None = Query(default=None, description="Filter by symbol"),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> StrategySeedList:
+    """List strategy seeds with optional filtering.
+
+    Seeds are AI-generated investment ideas that can evolve into strategies.
+    High-confidence seeds (>=7/10) automatically trigger strategy workflows.
+    """
+    try:
+        conn_mgr = get_connection_manager()
+        with conn_mgr.connection() as conn:
+            # Build query with filters
+            conditions = []
+            params: list[Any] = []
+
+            if status:
+                conditions.append(f"status = ${len(params) + 1}")
+                params.append(status)
+            if symbol:
+                conditions.append(f"symbol = ${len(params) + 1}")
+                params.append(symbol.upper())
+
+            where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+
+            # Get total count
+            count_query = f"SELECT COUNT(*) FROM strategy_seeds {where_clause}"
+            count_row = conn.execute(count_query, params).fetchone()
+            total_val = count_row[0] if count_row else 0
+            total = int(total_val) if isinstance(total_val, (int, float, str)) else 0
+
+            # Get seeds with pagination
+            query = f"""
+                SELECT id, symbol, thesis, confidence, status, strategy_id,
+                       created_at, processed_at
+                FROM strategy_seeds
+                {where_clause}
+                ORDER BY created_at DESC
+                LIMIT ${len(params) + 1} OFFSET ${len(params) + 2}
+            """
+            params.extend([limit, offset])
+            rows = conn.execute(query, params).fetchall()
+
+            seeds = []
+            for row in rows:
+                created = row[6]
+                processed = row[7]
+                created_str = (
+                    created.isoformat() if isinstance(created, datetime) else str(created or "")
+                )
+                processed_str = processed.isoformat() if isinstance(processed, datetime) else None
+                seeds.append(
+                    StrategySeedItem(
+                        id=str(row[0]),
+                        symbol=str(row[1]),
+                        thesis=str(row[2]),
+                        confidence=float(row[3]) if row[3] is not None else 0.0,
+                        status=str(row[4]),  # type: ignore[arg-type]
+                        strategy_id=str(row[5]) if row[5] else None,
+                        created_at=created_str,
+                        processed_at=processed_str,
+                    )
+                )
+
+            return StrategySeedList(seeds=seeds, total=total)
+
+    except Exception as e:
+        logger.exception("Failed to list strategy seeds", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to list strategy seeds: {e!s}") from e
+
+
+@seeds_router.get("/{seed_id}", response_model=StrategySeedItem)
+async def get_strategy_seed(seed_id: str) -> StrategySeedItem:
+    """Get a specific strategy seed by ID."""
+    try:
+        conn_mgr = get_connection_manager()
+        with conn_mgr.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT id, symbol, thesis, confidence, status, strategy_id,
+                       created_at, processed_at
+                FROM strategy_seeds
+                WHERE id = %s
+                """,
+                [seed_id],
+            ).fetchone()
+
+            if not row:
+                raise HTTPException(status_code=404, detail=f"Seed {seed_id} not found")
+
+            created = row[6]
+            processed = row[7]
+            created_str = (
+                created.isoformat() if isinstance(created, datetime) else str(created or "")
+            )
+            processed_str = processed.isoformat() if isinstance(processed, datetime) else None
+            return StrategySeedItem(
+                id=str(row[0]),
+                symbol=str(row[1]),
+                thesis=str(row[2]),
+                confidence=float(row[3]) if row[3] is not None else 0.0,
+                status=str(row[4]),  # type: ignore[arg-type]
+                strategy_id=str(row[5]) if row[5] else None,
+                created_at=created_str,
+                processed_at=processed_str,
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Failed to get strategy seed", seed_id=seed_id, error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to get strategy seed: {e!s}") from e
+
+
+@router.get("/{strategy_id}/evolution", response_model=dict[str, Any])
+async def get_strategy_evolution(strategy_id: str) -> dict[str, Any]:
+    """Get the full evolution timeline for a strategy.
+
+    Shows: Seed -> Backtest -> Strategy -> Signals -> Trades -> Performance
+    """
+    try:
+        storage = get_strategy_storage()
+        strategy = storage.get_strategy_by_id(strategy_id)
+
+        if not strategy:
+            raise HTTPException(status_code=404, detail=f"Strategy {strategy_id} not found")
+
+        conn_mgr = get_connection_manager()
+        with conn_mgr.connection() as conn:
+            # Get seed info if strategy originated from a seed
+            seed_info = None
+            seed_row = conn.execute(
+                "SELECT id, thesis, confidence, created_at FROM strategy_seeds WHERE strategy_id = %s",
+                [strategy_id],
+            ).fetchone()
+            if seed_row:
+                seed_created = seed_row[3]
+                seed_created_str = (
+                    seed_created.isoformat() if isinstance(seed_created, datetime) else None
+                )
+                seed_info = {
+                    "id": str(seed_row[0]),
+                    "thesis": str(seed_row[1]),
+                    "confidence": float(seed_row[2]) if seed_row[2] is not None else 0.0,
+                    "created_at": seed_created_str,
+                }
+
+            # Get backtest runs for this strategy
+            backtest_rows = conn.execute(
+                """
+                SELECT id, start_date, end_date, sharpe_ratio, total_return_pct,
+                       max_drawdown_pct, win_rate, num_trades, status, created_at
+                FROM backtest_runs
+                WHERE strategy_definition_id = %s
+                ORDER BY created_at DESC
+                LIMIT 5
+                """,
+                [strategy_id],
+            ).fetchall()
+
+            backtests = []
+            for row in backtest_rows:
+                bt_created = row[9]
+                bt_created_str = (
+                    bt_created.isoformat() if isinstance(bt_created, datetime) else None
+                )
+                backtests.append(
+                    {
+                        "id": str(row[0]),
+                        "start_date": str(row[1]) if row[1] else None,
+                        "end_date": str(row[2]) if row[2] else None,
+                        "sharpe_ratio": float(row[3]) if row[3] is not None else None,
+                        "total_return_pct": float(row[4]) if row[4] is not None else None,
+                        "max_drawdown_pct": float(row[5]) if row[5] is not None else None,
+                        "win_rate": float(row[6]) if row[6] is not None else None,
+                        "num_trades": int(row[7]) if row[7] else 0,
+                        "status": str(row[8]),
+                        "created_at": bt_created_str,
+                    }
+                )
+
+            # Get recent signals
+            signal_rows = conn.execute(
+                """
+                SELECT id, action, strength, confidence_score, entry_price, target_price, created_at
+                FROM strategy_signals
+                WHERE strategy_id = %s
+                ORDER BY created_at DESC
+                LIMIT 10
+                """,
+                [strategy_id],
+            ).fetchall()
+
+            signals = []
+            for row in signal_rows:
+                sig_created = row[6]
+                sig_created_str = (
+                    sig_created.isoformat() if isinstance(sig_created, datetime) else None
+                )
+                signals.append(
+                    {
+                        "id": str(row[0]),
+                        "action": str(row[1]),
+                        "strength": int(row[2]) if row[2] else None,
+                        "confidence_score": float(row[3]) if row[3] is not None else None,
+                        "entry_price": float(row[4]) if row[4] is not None else None,
+                        "target_price": float(row[5]) if row[5] is not None else None,
+                        "created_at": sig_created_str,
+                    }
+                )
+
+            # Get recent trades (paper trades linked to this strategy)
+            # This assumes idea_outcomes are linked via strategy-generated signals
+            trade_rows = conn.execute(
+                """
+                SELECT io.id, io.symbol, io.entry_price, io.exit_price,
+                       io.current_return_pct, io.status, io.created_at
+                FROM idea_outcomes io
+                WHERE io.symbol = %s
+                ORDER BY io.created_at DESC
+                LIMIT 10
+                """,
+                [strategy.symbol],
+            ).fetchall()
+
+            trades = []
+            for row in trade_rows:
+                trade_created = row[6]
+                trade_created_str = (
+                    trade_created.isoformat() if isinstance(trade_created, datetime) else None
+                )
+                trades.append(
+                    {
+                        "id": str(row[0]),
+                        "symbol": str(row[1]),
+                        "entry_price": float(row[2]) if row[2] is not None else None,
+                        "exit_price": float(row[3]) if row[3] is not None else None,
+                        "return_pct": float(row[4]) if row[4] is not None else None,
+                        "status": str(row[5]),
+                        "created_at": trade_created_str,
+                    }
+                )
+
+            return {
+                "strategy_id": strategy_id,
+                "name": strategy.name,
+                "symbol": strategy.symbol,
+                "status": strategy.status,
+                "seed": seed_info,
+                "backtests": backtests,
+                "signals": signals,
+                "trades": trades,
+                "performance": {
+                    "expected_sharpe": float(strategy.expected_sharpe)
+                    if strategy.expected_sharpe
+                    else None,
+                    "live_sharpe": float(strategy.live_sharpe_ratio)
+                    if strategy.live_sharpe_ratio
+                    else None,
+                    "live_win_rate": float(strategy.live_win_rate)
+                    if strategy.live_win_rate
+                    else None,
+                    "total_trades": strategy.live_trades_count or 0,
+                },
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Failed to get strategy evolution", strategy_id=strategy_id, error=str(e))
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get strategy evolution: {e!s}"
+        ) from e

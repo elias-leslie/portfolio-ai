@@ -1,4 +1,11 @@
-"""Ideas API router."""
+"""Ideas API router.
+
+DEPRECATED: This API is deprecated in favor of /api/strategy-seeds/.
+Ideas have been merged into the Strategy Seed Pipeline (FEAT-218).
+Use /api/strategy-seeds/ for AI-generated investment ideas with evolution tracking.
+
+This API remains for backwards compatibility but will be removed in a future release.
+"""
 
 from __future__ import annotations
 
@@ -99,7 +106,7 @@ class UpdateIdeaStatusRequest(BaseModel):
     )
 
 
-@router.get("/", response_model=IdeasListResponse)
+@router.get("/", response_model=IdeasListResponse, deprecated=True)
 @cache_response(ttl=60)  # 1 minute cache for ideas list
 async def get_ideas(
     request: Request,
@@ -107,7 +114,11 @@ async def get_ideas(
     status: str | None = None,
     limit: int = 50,
 ) -> IdeasListResponse:
-    """Get investment ideas with optional filtering."""
+    """Get investment ideas with optional filtering.
+
+    DEPRECATED: Use /api/strategy-seeds/ instead.
+    This endpoint returns ideas from the legacy agent_ideas table.
+    """
     logger.info(
         "get_ideas_request",
         idea_type=idea_type,
@@ -173,9 +184,13 @@ async def get_ideas(
     return IdeasListResponse(ideas=ideas, count=len(ideas))
 
 
-@router.post("/generate", response_model=GenerateIdeasResponse)
+@router.post("/generate", response_model=GenerateIdeasResponse, deprecated=True)
 async def generate_ideas(request: GenerateIdeasRequest) -> GenerateIdeasResponse:
-    """Generate new investment ideas by running an agent in the background."""
+    """Generate new investment ideas by running an agent in the background.
+
+    DEPRECATED: Discovery Agent now generates strategy seeds via store_strategy_seed.
+    High-confidence seeds (>=7) auto-trigger strategy_research_workflow.
+    """
     logger.info(
         "generate_ideas_request",
         agent_type=request.agent_type,

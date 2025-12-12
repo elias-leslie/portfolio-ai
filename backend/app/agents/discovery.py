@@ -23,7 +23,7 @@ from .tools import (
     AgentTools,
     get_economic_data_tool_definition,
     get_news_tool_definition,
-    get_store_idea_tool_definition,
+    get_store_strategy_seed_tool_definition,
 )
 
 logger = get_logger(__name__)
@@ -70,31 +70,34 @@ Focus on high-conviction opportunities that justify trading costs.
 
         return f"""You are a Discovery Agent for an investment intelligence platform.
 
-Your role is to scan market news and economic indicators to identify 5 high-quality general investment ideas.
+Your role is to scan market news and economic indicators to identify 5 high-quality strategy seeds.
 {perf_context}
 {fee_warning}
 Guidelines:
-- Generate ideas that would be interesting to active investors
+- Generate seeds that would be interesting to active investors
 - Consider both long and short opportunities
 - Look for themes in news and economic data
-- Each idea should be actionable and specific
-- Assess confidence (0-100) and risk level (low/medium/high) for each idea
-- Provide clear thesis and specific action for each idea
+- Each seed MUST have a specific stock symbol (e.g., AAPL, NVDA, MSFT)
+- Assess confidence (1-10) - seeds with confidence >= 7 auto-trigger strategy backtesting
+- Provide clear thesis explaining why this opportunity exists
 
 Process:
 1. Use get_news to fetch recent market headlines
 2. Use get_economic_data to check key indicators (VIX, rates, etc.)
 3. Analyze the data to identify 5 distinct investment opportunities
-4. For each idea, use store_idea to save it with full details
+4. For each opportunity, use store_strategy_seed with:
+   - symbol: The specific stock ticker (REQUIRED)
+   - thesis: Your investment thesis
+   - confidence: Score 1-10 (>=7 triggers automatic strategy workflow)
 
-Generate exactly 5 ideas, then stop."""
+Generate exactly 5 strategy seeds with specific symbols, then stop."""
 
     def get_tools(self) -> list[dict[str, object]]:
         """Get tool definitions for Discovery Agent."""
         return [
             get_news_tool_definition(),
             get_economic_data_tool_definition(),
-            get_store_idea_tool_definition(),
+            get_store_strategy_seed_tool_definition(),
         ]
 
     def execute_tool(self, tool_name: str, tool_input: dict[str, object]) -> object:  # type: ignore[override]
@@ -120,6 +123,21 @@ Generate exactly 5 ideas, then stop."""
             )
             return self.tools.execute_get_economic_data(indicators)
 
+        if tool_name == "store_strategy_seed":
+            if not self.current_run_id:
+                raise ValueError("No active run_id for storing seeds")
+            confidence_raw = tool_input.get("confidence", 5)
+            confidence_val = (
+                float(confidence_raw) if isinstance(confidence_raw, (int, float, str)) else 5.0
+            )
+            return self.tools.execute_store_strategy_seed(
+                agent_run_id=self.current_run_id,
+                symbol=str(tool_input.get("symbol", "")),
+                thesis=str(tool_input.get("thesis", "")),
+                confidence=confidence_val,
+            )
+
+        # Legacy support for store_idea (deprecated)
         if tool_name == "store_idea":
             if not self.current_run_id:
                 raise ValueError("No active run_id for storing ideas")

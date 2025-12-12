@@ -769,3 +769,125 @@ def weekly_strategy_evolution() -> dict[str, Any]:
     except Exception as e:
         logger.exception("Weekly strategy evolution failed", error=str(e))
         return {"status": "failed", "error": str(e)}
+
+
+@celery_app.task(name="app.tasks.strategy_monitoring_tasks.trigger_strategy_from_seed")  # type: ignore[misc]
+def trigger_strategy_from_seed(seed_id: str, symbol: str) -> dict[str, Any]:
+    """Generate strategy from a high-confidence seed.
+
+    Triggered automatically when Discovery Agent stores a seed with confidence >= 7.
+    Runs strategy_research_workflow and links the resulting strategy back to the seed.
+
+    Args:
+        seed_id: UUID of the strategy_seed that triggered this
+        symbol: Stock symbol for strategy generation
+
+    Returns:
+        Summary dict with generation result
+    """
+    logger.info(f"Generating strategy from seed {seed_id} for {symbol}")
+
+    # Import here to avoid circular dependency
+    from app.agents.workflows.strategy_research_workflow import strategy_research_workflow
+
+    try:
+        with get_connection_manager().connection() as conn:
+            # Get seed details
+            seed_row = conn.execute(
+                "SELECT thesis, confidence FROM strategy_seeds WHERE id = %s",
+                [seed_id],
+            ).fetchone()
+
+            if not seed_row:
+                logger.error(f"Seed {seed_id} not found")
+                return {"status": "failed", "error": f"Seed {seed_id} not found"}
+
+            seed_thesis = str(seed_row[0]) if seed_row[0] else ""
+            seed_confidence = float(seed_row[1]) if seed_row[1] is not None else 0.0
+
+            logger.info(
+                f"Processing seed: symbol={symbol}, confidence={seed_confidence}, "
+                f"thesis={seed_thesis[:100] if seed_thesis else ''}..."
+            )
+
+            # Run strategy workflow
+            result = asyncio.run(strategy_research_workflow(symbol=symbol, force_regenerate=False))
+
+            if result["status"] == "completed":
+                strategy_id = result.get("strategy_id")
+
+                # Link strategy back to seed
+                if strategy_id:
+                    conn.execute(
+                        """
+                        UPDATE strategy_definitions
+                        SET seed_id = %s, seed_thesis = %s, seed_confidence = %s
+                        WHERE id = %s
+                        """,
+                        [seed_id, seed_thesis, seed_confidence, strategy_id],
+                    )
+
+                    # Update seed status to converted
+                    conn.execute(
+                        """
+                        UPDATE strategy_seeds
+                        SET status = 'converted', strategy_id = %s, processed_at = NOW()
+                        WHERE id = %s
+                        """,
+                        [strategy_id, seed_id],
+                    )
+                    conn.commit()
+
+                    logger.info(
+                        f"Strategy {strategy_id} generated from seed {seed_id}",
+                        symbol=symbol,
+                        seed_confidence=seed_confidence,
+                    )
+
+                return {
+                    "status": "completed",
+                    "seed_id": seed_id,
+                    "strategy_id": strategy_id,
+                    "symbol": symbol,
+                    "message": f"Strategy generated from seed (confidence: {seed_confidence})",
+                }
+
+            # Strategy not generated (blocked, skipped, etc.)
+            conn.execute(
+                """
+                UPDATE strategy_seeds
+                SET status = 'rejected', processed_at = NOW()
+                WHERE id = %s
+                """,
+                [seed_id],
+            )
+            conn.commit()
+
+            logger.info(
+                f"Seed {seed_id} rejected: {result.get('message', 'unknown reason')}",
+                symbol=symbol,
+                workflow_status=result["status"],
+            )
+
+            return {
+                "status": "rejected",
+                "seed_id": seed_id,
+                "symbol": symbol,
+                "reason": result.get("message", result["status"]),
+            }
+
+    except Exception as e:
+        logger.exception("Strategy generation from seed failed", seed_id=seed_id, error=str(e))
+
+        # Mark seed as failed but don't crash
+        try:
+            with get_connection_manager().connection() as conn:
+                conn.execute(
+                    "UPDATE strategy_seeds SET status = 'rejected', processed_at = NOW() WHERE id = %s",
+                    [seed_id],
+                )
+                conn.commit()
+        except Exception:
+            pass
+
+        return {"status": "failed", "seed_id": seed_id, "error": str(e)}
