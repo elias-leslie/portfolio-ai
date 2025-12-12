@@ -22,6 +22,7 @@ from app.api import (
     capabilities,
     celery_endpoints,
     claude_progress,
+    cross_validation,
     disagreements,
     # gaps removed - migrated to [DEBT] subtasks on features
     health,
@@ -193,6 +194,7 @@ app.include_router(qa.router)  # QA system - issue tracking, trends, scanning
 app.include_router(claude_progress.router)  # Claude session progress logging
 app.include_router(test_feature.router)  # FEAT-123: E2E test feature endpoint
 app.include_router(backup.router)  # Backup management API
+app.include_router(cross_validation.router)  # FEAT-219: Multi-agent cross-validation
 
 
 @app.get("/")
