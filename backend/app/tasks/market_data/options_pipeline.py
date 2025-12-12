@@ -260,7 +260,7 @@ def _get_putcall_ratio_with_fallbacks() -> dict[str, Any]:
     retry_backoff=True,
     retry_backoff_max=600,
     retry_jitter=True,
-)  # type: ignore[misc]
+)
 def fetch_putcall_ratio(  # type: ignore[no-untyped-def]
     self,
     as_of_date: str | None = None,
@@ -361,7 +361,7 @@ def fetch_putcall_ratio(  # type: ignore[no-untyped-def]
         }
 
 
-@celery_app.task(name="fetch_options_activity_metrics", bind=True)  # type: ignore[misc]
+@celery_app.task(name="fetch_options_activity_metrics", bind=True)
 def fetch_options_activity_metrics(  # type: ignore[no-untyped-def]
     self,
 ) -> dict[str, Any]:

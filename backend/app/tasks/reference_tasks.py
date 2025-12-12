@@ -315,7 +315,7 @@ def _process_cache_entries() -> tuple[int, int]:
     return entries_processed, entries_updated
 
 
-@celery_app.task(name="parse_valuation_metrics", bind=True)  # type: ignore[misc]
+@celery_app.task(name="parse_valuation_metrics", bind=True)
 def parse_valuation_metrics(self: Task) -> dict[str, int | str]:
     """Parse valuation metrics from cached JSON payloads.
 
@@ -391,7 +391,7 @@ def parse_valuation_metrics(self: Task) -> dict[str, int | str]:
     retry_backoff=True,
     retry_backoff_max=600,
     retry_jitter=True,
-)  # type: ignore[misc]
+)
 def refresh_yfinance_reference_data(self: Task) -> dict[str, int | str]:
     """Fetch reference data (including valuation metrics) from yfinance for watchlist symbols.
 
@@ -558,7 +558,7 @@ def _store_alphavantage_payload(symbols: list[str]) -> int:
     return symbols_stored
 
 
-@celery_app.task(name="refresh_alphavantage_reference_backup", bind=True)  # type: ignore[misc]
+@celery_app.task(name="refresh_alphavantage_reference_backup", bind=True)
 def refresh_alphavantage_reference_backup(self: Task) -> dict[str, int | str]:
     """Fetch Alpha Vantage reference data for symbols with missing/stale yfinance data.
 
@@ -619,7 +619,7 @@ def refresh_alphavantage_reference_backup(self: Task) -> dict[str, int | str]:
         raise
 
 
-@celery_app.task(name="refresh_analyst_revisions", bind=True)  # type: ignore[misc]
+@celery_app.task(name="refresh_analyst_revisions", bind=True)
 def refresh_analyst_revisions(self: Task) -> dict[str, int | str]:
     """Fetch analyst estimate revisions for watchlist symbols (GAP-005).
 
@@ -689,7 +689,7 @@ def refresh_analyst_revisions(self: Task) -> dict[str, int | str]:
         raise
 
 
-@celery_app.task(name="refresh_financial_health_scores", bind=True)  # type: ignore[misc]
+@celery_app.task(name="refresh_financial_health_scores", bind=True)
 def refresh_financial_health_scores(self: Task) -> dict[str, int | str]:
     """Calculate Piotroski F-Score and Altman Z-Score for watchlist symbols.
 
@@ -832,7 +832,7 @@ def refresh_financial_health_scores(self: Task) -> dict[str, int | str]:
         raise
 
 
-@celery_app.task(name="refresh_risk_metrics", bind=True)  # type: ignore[misc]
+@celery_app.task(name="refresh_risk_metrics", bind=True)
 def refresh_risk_metrics(self: Task) -> dict[str, int | str]:
     """Calculate VaR, CVaR, and extended betas for watchlist symbols.
 

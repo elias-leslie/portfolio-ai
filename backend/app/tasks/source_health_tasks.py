@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-@celery_app.task(bind=True, name="check_data_source_health", max_retries=1)  # type: ignore[misc]
+@celery_app.task(bind=True, name="check_data_source_health", max_retries=1)
 def check_data_source_health(self: Task) -> dict[str, Any]:
     """Periodically test each configured data source.
 

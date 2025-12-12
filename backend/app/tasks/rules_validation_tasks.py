@@ -20,7 +20,7 @@ from app.storage.connection import get_connection_manager
 logger = get_logger(__name__)
 
 
-@celery_app.task(name="daily_rules_validation")  # type: ignore[misc]
+@celery_app.task(name="daily_rules_validation")
 def daily_rules_validation() -> dict[str, Any]:
     """Validate trading rules configuration daily.
 
@@ -175,7 +175,7 @@ def daily_rules_validation() -> dict[str, Any]:
         }
 
 
-@celery_app.task(name="weekly_optimization_review")  # type: ignore[misc]
+@celery_app.task(name="weekly_optimization_review")
 def weekly_optimization_review() -> dict[str, Any]:
     """Generate optimization recommendations based on recent performance.
 

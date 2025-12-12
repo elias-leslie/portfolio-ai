@@ -55,13 +55,13 @@ def _update_progress(
     conn.commit()
 
 
-@celery.task(name="retrain_article_quality_model_manual")  # type: ignore[misc]
+@celery.task(name="retrain_article_quality_model_manual")
 def retrain_article_quality_model_manual(session_id: str) -> dict[str, str | float | int]:
     """Manually triggered model retraining with progress tracking."""
     return _retrain_article_quality_model_impl(session_id=session_id)
 
 
-@celery.task(name="retrain_article_quality_model")  # type: ignore[misc]
+@celery.task(name="retrain_article_quality_model")
 def retrain_article_quality_model() -> dict[str, str | float | int]:
     """Scheduled daily model retraining (no progress tracking)."""
     return _retrain_article_quality_model_impl(session_id=None)

@@ -6,6 +6,11 @@ like RSI, MACD, SMA, EMA, Bollinger Bands, ATR, and Stochastic indicators.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from celery import Task
+
 from app.analytics.indicators import calculate_indicators
 from app.celery_app import celery_app
 from app.logging_config import get_logger
@@ -24,10 +29,8 @@ logger = get_logger(__name__)
     retry_backoff=True,
     retry_backoff_max=600,
     retry_jitter=True,
-)  # type: ignore[misc]
-def update_technical_indicators(  # type: ignore[no-untyped-def]
-    self, symbols: list[str]
-) -> TechnicalIndicatorResultDict:
+)
+def update_technical_indicators(self: Task, symbols: list[str]) -> TechnicalIndicatorResultDict:
     """Calculate and cache technical indicators for given symbols.
 
     This task calculates RSI, MACD, Bollinger Bands, moving averages (SMA/EMA),
@@ -123,9 +126,9 @@ def update_technical_indicators(  # type: ignore[no-untyped-def]
     retry_backoff=True,
     retry_backoff_max=600,
     retry_jitter=True,
-)  # type: ignore[misc]
-def backfill_technical_indicators(  # type: ignore[no-untyped-def]
-    self, symbols: list[str] | None = None, batch_size: int = 50
+)
+def backfill_technical_indicators(
+    self: Task, symbols: list[str] | None = None, batch_size: int = 50
 ) -> dict[str, int]:
     """Backfill technical indicators for all historical dates with OHLCV data.
 

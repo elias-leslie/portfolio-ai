@@ -86,7 +86,7 @@ def _update_celery_task_id(storage: PortfolioStorage, task_id: str, run_id: str)
         conn.commit()
 
 
-@celery_app.task(name="run_discovery_agent", bind=True)  # type: ignore[misc]
+@celery_app.task(name="run_discovery_agent", bind=True)
 def run_discovery_agent(self: Task) -> str:
     """Run discovery agent as a background task.
 
@@ -131,7 +131,7 @@ def run_discovery_agent(self: Task) -> str:
         raise
 
 
-@celery_app.task(name="run_portfolio_analyzer", bind=True)  # type: ignore[misc]
+@celery_app.task(name="run_portfolio_analyzer", bind=True)
 def run_portfolio_analyzer(self: Task) -> str:
     """Run portfolio analyzer agent as a background task.
 
@@ -176,7 +176,7 @@ def run_portfolio_analyzer(self: Task) -> str:
         raise
 
 
-@celery_app.task(name="update_paper_trades_task", bind=True)  # type: ignore[misc]
+@celery_app.task(name="update_paper_trades_task", bind=True)
 def update_paper_trades_task(  # type: ignore[no-untyped-def]
     self, max_holding_days: int = 60
 ):

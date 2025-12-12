@@ -53,9 +53,24 @@ async def get_test_feature_status() -> dict[str, Any]:
 
         if result:
             last_verified = result[2]
-            last_run_str = last_verified.isoformat() if last_verified else None
+            last_run_str = (
+                last_verified.isoformat()
+                if last_verified and hasattr(last_verified, "isoformat")
+                else str(last_verified)
+                if last_verified
+                else None
+            )
             total_runs = run_count[0] if run_count else 0
-            criteria = result[4] if result[4] else []
+            criteria: list[Any] = result[4] if result[4] else []  # type: ignore[assignment]
+
+            created_at = result[3]
+            created_at_str = (
+                created_at.isoformat()
+                if created_at and hasattr(created_at, "isoformat")
+                else str(created_at)
+                if created_at
+                else None
+            )
 
             return {
                 "status": "active",
@@ -64,7 +79,7 @@ async def get_test_feature_status() -> dict[str, Any]:
                 "last_run": last_run_str,
                 "execution_count": total_runs,
                 "criteria_count": len(criteria) if isinstance(criteria, list) else 0,
-                "created_at": result[3].isoformat() if result[3] else None,
+                "created_at": created_at_str,
                 "message": "E2E test feature is operational",
             }
 

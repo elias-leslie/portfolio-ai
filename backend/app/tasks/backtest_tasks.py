@@ -168,7 +168,7 @@ def _save_backtest_results(
     )
 
 
-@celery_app.task(  # type: ignore[misc]
+@celery_app.task(
     bind=True,
     max_retries=2,  # Retry after data backfill
     default_retry_delay=120,  # Wait 2 minutes for data to be fetched

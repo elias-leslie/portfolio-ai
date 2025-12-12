@@ -97,7 +97,7 @@ def _get_all_symbols() -> list[str]:
     retry_backoff=True,
     retry_backoff_max=600,
     retry_jitter=True,
-)  # type: ignore[misc]
+)
 def maintain_historical_market_data(  # type: ignore[no-untyped-def]
     self,
 ) -> dict[str, int | str | float]:

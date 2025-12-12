@@ -157,5 +157,9 @@ module = ["celery", "celery.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
+module = ["app.tasks", "app.tasks.*"]
+disable_error_code = ["misc"]  # celery.task decorator has no type stubs
+
+[[tool.mypy.overrides]]
 module = ["yfinance", "yfinance.*"]
 ignore_missing_imports = true

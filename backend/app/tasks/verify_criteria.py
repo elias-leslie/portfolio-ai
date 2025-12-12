@@ -22,7 +22,7 @@ from ..storage.connection import get_connection_manager
 logger = get_logger(__name__)
 
 
-@celery_app.task(bind=True, name="verify_all_acceptance_criteria")  # type: ignore[misc]
+@celery_app.task(bind=True, name="verify_all_acceptance_criteria")
 def verify_all_acceptance_criteria(
     self: Task, type_filter: str | None = None, limit: int | None = None
 ) -> dict[str, Any]:
@@ -67,7 +67,7 @@ def verify_all_acceptance_criteria(
         return {"error": str(e), "status": "failed"}
 
 
-@celery_app.task(bind=True, name="verify_feature_criteria")  # type: ignore[misc]
+@celery_app.task(bind=True, name="verify_feature_criteria")
 def verify_feature_criteria(self: Task, feature_id: str) -> dict[str, Any]:
     """Verify all criteria for a single feature.
 
@@ -118,7 +118,7 @@ def verify_feature_criteria(self: Task, feature_id: str) -> dict[str, Any]:
         return {"feature_id": feature_id, "error": str(e), "status": "failed"}
 
 
-@celery_app.task(bind=True, name="verify_criteria_batch")  # type: ignore[misc]
+@celery_app.task(bind=True, name="verify_criteria_batch")
 def verify_criteria_batch(self: Task, feature_ids: list[str]) -> dict[str, Any]:
     """Verify criteria for multiple features.
 

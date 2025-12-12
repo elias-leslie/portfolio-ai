@@ -353,7 +353,7 @@ def remove_symbol_from_watchlist(
 # =============================================================================
 
 
-@shared_task(name="discover_watchlist_candidates", bind=True)  # type: ignore[misc]
+@shared_task(name="discover_watchlist_candidates", bind=True)
 def discover_watchlist_candidates_task(
     self: Any,
 ) -> dict[str, Any]:
@@ -450,7 +450,7 @@ def discover_watchlist_candidates_task(
         return {"status": "error", "error": str(e)}
 
 
-@shared_task(name="trim_underperforming_watchlist", bind=True)  # type: ignore[misc]
+@shared_task(name="trim_underperforming_watchlist", bind=True)
 def trim_underperforming_watchlist_task(
     self: Any,
 ) -> dict[str, Any]:
@@ -515,7 +515,7 @@ def trim_underperforming_watchlist_task(
         return {"status": "error", "error": str(e)}
 
 
-@shared_task(name="generate_daily_watchlist_report", bind=True)  # type: ignore[misc]
+@shared_task(name="generate_daily_watchlist_report", bind=True)
 def generate_daily_watchlist_report_task(
     self: Any,
 ) -> dict[str, Any]:

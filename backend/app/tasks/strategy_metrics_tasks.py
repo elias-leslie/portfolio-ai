@@ -15,7 +15,7 @@ from ..storage import get_storage
 logger = get_logger(__name__)
 
 
-@celery_app.task(name="strategy_metrics.daily_collection")  # type: ignore[misc]
+@celery_app.task(name="strategy_metrics.daily_collection")
 def collect_daily_strategy_metrics() -> dict[str, object]:
     """Collect strategy performance metrics for the previous day.
 

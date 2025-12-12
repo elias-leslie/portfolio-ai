@@ -318,7 +318,7 @@ def _invalidate_redis_cache() -> None:
     retry_backoff=True,
     retry_backoff_max=600,
     retry_jitter=True,
-)  # type: ignore[misc]
+)
 def calculate_fear_greed(self: Task, as_of_date: str | None = None) -> FearGreedCalculationDict:
     """Calculate Fear & Greed Index from inputs table.
 

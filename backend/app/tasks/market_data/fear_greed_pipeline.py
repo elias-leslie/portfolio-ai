@@ -489,7 +489,7 @@ def _process_and_return_results(
     retry_backoff=True,
     retry_backoff_max=600,
     retry_jitter=True,
-)  # type: ignore[misc]
+)
 def populate_fear_greed_inputs(self: Task, days: int = 7) -> FearGreedPipelineResultDict:
     """Populate fear_greed_inputs table with latest market data.
 

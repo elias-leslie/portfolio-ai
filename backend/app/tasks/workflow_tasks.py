@@ -53,7 +53,7 @@ def _get_available_data_range(
     return str(min_date), str(max_date)
 
 
-@celery_app.task(name="app.tasks.workflow_tasks.daily_gap_analysis_workflow")  # type: ignore[misc]
+@celery_app.task(name="app.tasks.workflow_tasks.daily_gap_analysis_workflow")
 def daily_gap_analysis_workflow() -> dict[str, object]:
     """Daily multi-agent gap analysis workflow.
 
@@ -215,7 +215,7 @@ Validate gaps, add missed insights, refine priorities, provide final recommendat
         return {"status": "error", "error": str(e)}
 
 
-@celery_app.task(name="app.tasks.workflow_tasks.paper_trade_validation_workflow")  # type: ignore[misc]
+@celery_app.task(name="app.tasks.workflow_tasks.paper_trade_validation_workflow")
 def paper_trade_validation_workflow(  # noqa: PLR0911
     strategy_id: str, symbol: str, action: str, thesis: str
 ) -> dict[str, object]:
@@ -689,7 +689,7 @@ Respond with JSON: {{"decision": "APPROVE|REJECT", "confidence": <0-100>, "reaso
         return {"status": "error", "error": str(e)}
 
 
-@celery_app.task(name="app.tasks.workflow_tasks.research_corroboration_workflow")  # type: ignore[misc]
+@celery_app.task(name="app.tasks.workflow_tasks.research_corroboration_workflow")
 def research_corroboration_workflow(topic: str, sources: list[str]) -> dict[str, object]:
     """Multi-agent research corroboration workflow (placeholder for future implementation)."""
     logger.info(f"Research corroboration workflow placeholder: {topic}")

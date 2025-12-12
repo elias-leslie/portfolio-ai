@@ -23,7 +23,7 @@ from .types import CapabilityResultDict
 logger = get_logger(__name__)
 
 
-@celery_app.task(name="scan_system_capabilities")  # type: ignore[misc]
+@celery_app.task(name="scan_system_capabilities")
 def scan_system_capabilities() -> CapabilityResultDict:
     """Scan system capabilities (database tables, Celery tasks, API endpoints).
 
@@ -125,7 +125,7 @@ def scan_system_capabilities() -> CapabilityResultDict:
 # See tasks/tasks-tech-debt-to-feature-subtasks-migration.md
 
 
-@celery_app.task(name="scan_feature_capabilities")  # type: ignore[misc]
+@celery_app.task(name="scan_feature_capabilities")
 def scan_feature_capabilities() -> CapabilityResultDict:
     """Scan and validate features in feature_capabilities table.
 

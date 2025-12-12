@@ -27,7 +27,7 @@ logger = get_logger(__name__)
     retry_backoff=True,
     retry_backoff_max=300,
     retry_jitter=True,
-)  # type: ignore[misc]
+)
 def update_portfolio_covariance(  # type: ignore[no-untyped-def]
     self,
     symbols: list[str] | None = None,
@@ -123,7 +123,7 @@ def update_portfolio_covariance(  # type: ignore[no-untyped-def]
     retry_backoff=True,
     retry_backoff_max=600,
     retry_jitter=True,
-)  # type: ignore[misc]
+)
 def update_earnings_surprises(  # type: ignore[no-untyped-def]
     self,
     symbols: list[str] | None = None,

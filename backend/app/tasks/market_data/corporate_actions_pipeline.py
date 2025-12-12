@@ -30,7 +30,7 @@ def _get_watchlist_symbols() -> list[str]:
     return [str(r[0]) for r in result]
 
 
-@celery_app.task(  # type: ignore[misc]
+@celery_app.task(
     bind=True,
     name="tasks.fetch_corporate_actions",
     max_retries=2,

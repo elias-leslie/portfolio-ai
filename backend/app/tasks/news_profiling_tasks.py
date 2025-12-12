@@ -264,7 +264,7 @@ def _store_metrics(metrics: list[tuple[str, dict[str, Any]]]) -> None:
         conn.commit()
 
 
-@celery_app.task(name="profile_news_sources", bind=True)  # type: ignore[misc]
+@celery_app.task(name="profile_news_sources", bind=True)
 def profile_news_sources_task(self: Task, user_id: str = "default") -> NewsProfilingResultDict:
     """Profile all active news sources and calculate quality metrics.
 
@@ -339,7 +339,7 @@ def profile_news_sources_task(self: Task, user_id: str = "default") -> NewsProfi
     return result
 
 
-@celery_app.task(name="reset_source_metrics")  # type: ignore[misc]
+@celery_app.task(name="reset_source_metrics")
 def reset_source_metrics_task() -> NewsProfilingResultDict:
     """Reset all source metrics and user feedback.
 

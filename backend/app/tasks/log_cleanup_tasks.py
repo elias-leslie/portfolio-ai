@@ -107,7 +107,7 @@ def _check_disk_space_impl() -> dict[str, Any]:
     }
 
 
-@celery_app.task(name="rotate_logs_task", bind=True)  # type: ignore[misc]
+@celery_app.task(name="rotate_logs_task", bind=True)
 def rotate_logs_task(self: Task) -> dict[str, int | str | float]:
     """Rotate logs in /tmp and /var/log/portfolio-ai directories.
 
@@ -184,7 +184,7 @@ def rotate_logs_task(self: Task) -> dict[str, int | str | float]:
         }
 
 
-@celery_app.task(name="cleanup_old_logs_task", bind=True)  # type: ignore[misc]
+@celery_app.task(name="cleanup_old_logs_task", bind=True)
 def cleanup_old_logs_task(self: Task, days: int = 7) -> dict[str, int | str | float]:
     """Delete log files older than specified days.
 
@@ -284,7 +284,7 @@ def cleanup_old_logs_task(self: Task, days: int = 7) -> dict[str, int | str | fl
         }
 
 
-@celery_app.task(name="cleanup_temp_files_task", bind=True)  # type: ignore[misc]
+@celery_app.task(name="cleanup_temp_files_task", bind=True)
 def cleanup_temp_files_task(self: Task, hours: int = 24) -> dict[str, int | str | float]:
     """Delete temporary files older than specified hours.
 
@@ -383,7 +383,7 @@ def cleanup_temp_files_task(self: Task, hours: int = 24) -> dict[str, int | str 
         }
 
 
-@celery_app.task(name="check_disk_space_task", bind=True)  # type: ignore[misc]
+@celery_app.task(name="check_disk_space_task", bind=True)
 def check_disk_space_task(self: Task) -> dict[str, int | str | float | list[dict[str, Any]]]:
     """Check disk space usage and alert if >85%.
 

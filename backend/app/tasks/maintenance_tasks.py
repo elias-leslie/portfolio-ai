@@ -90,7 +90,7 @@ def _get_database_size_impl() -> dict[str, Any]:
     }
 
 
-@celery_app.task(name="vacuum_database_task", bind=True)  # type: ignore[misc]
+@celery_app.task(name="vacuum_database_task", bind=True)
 def vacuum_database_task(
     self: Task, tables: list[str] | None = None
 ) -> dict[str, int | str | float | bool]:
@@ -183,7 +183,7 @@ def vacuum_database_task(
         }
 
 
-@celery_app.task(name="cleanup_old_news_task", bind=True)  # type: ignore[misc]
+@celery_app.task(name="cleanup_old_news_task", bind=True)
 def cleanup_old_news_task(self: Task, days: int = 90) -> dict[str, int | str | float]:
     """Delete news articles older than specified days.
 
@@ -247,7 +247,7 @@ def cleanup_old_news_task(self: Task, days: int = 90) -> dict[str, int | str | f
         }
 
 
-@celery_app.task(name="cleanup_old_agent_runs_task", bind=True)  # type: ignore[misc]
+@celery_app.task(name="cleanup_old_agent_runs_task", bind=True)
 def cleanup_old_agent_runs_task(self: Task, days: int = 30) -> dict[str, int | str | float]:
     """Delete agent run history older than specified days.
 
@@ -337,7 +337,7 @@ def cleanup_old_agent_runs_task(self: Task, days: int = 30) -> dict[str, int | s
         }
 
 
-@celery_app.task(name="cleanup_orphaned_data_task", bind=True)  # type: ignore[misc]
+@celery_app.task(name="cleanup_orphaned_data_task", bind=True)
 def cleanup_orphaned_data_task(self: Task) -> dict[str, int | str | float]:
     """Remove orphaned records (ideas without runs, etc.).
 
@@ -425,7 +425,7 @@ def cleanup_orphaned_data_task(self: Task) -> dict[str, int | str | float]:
         }
 
 
-@celery_app.task(name="get_database_size_task", bind=True)  # type: ignore[misc]
+@celery_app.task(name="get_database_size_task", bind=True)
 def get_database_size_task(self: Task) -> dict[str, int | str | float | list[dict[str, Any]]]:
     """Get database size and table sizes for monitoring.
 
@@ -467,7 +467,7 @@ def get_database_size_task(self: Task) -> dict[str, int | str | float | list[dic
         }
 
 
-@celery_app.task(name="refresh_sec_cik_cache", bind=True)  # type: ignore[misc]
+@celery_app.task(name="refresh_sec_cik_cache", bind=True)
 def refresh_sec_cik_cache(self: Task) -> dict[str, Any]:
     """Refresh SEC CIK cache from SEC EDGAR.
 

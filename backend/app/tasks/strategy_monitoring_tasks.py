@@ -19,7 +19,7 @@ from app.strategies.storage import get_strategy_storage
 logger = get_logger(__name__)
 
 
-@celery_app.task(name="app.tasks.strategy_monitoring_tasks.evaluate_strategy_performance")  # type: ignore[misc]
+@celery_app.task(name="app.tasks.strategy_monitoring_tasks.evaluate_strategy_performance")
 def evaluate_strategy_performance() -> dict[str, Any]:
     """Evaluate all active strategies and archive underperformers.
 
@@ -277,7 +277,7 @@ def _calculate_rolling_metrics(
     }
 
 
-@celery_app.task(name="app.tasks.strategy_monitoring_tasks.auto_promote_strategies")  # type: ignore[misc]
+@celery_app.task(name="app.tasks.strategy_monitoring_tasks.auto_promote_strategies")
 def auto_promote_strategies(
     min_days: int = 3,
     min_sharpe: float = 1.0,
@@ -389,7 +389,7 @@ def auto_promote_strategies(
         return {"status": "failed", "error": str(e)}
 
 
-@celery_app.task(name="app.tasks.strategy_monitoring_tasks.weekly_strategy_generation")  # type: ignore[misc]
+@celery_app.task(name="app.tasks.strategy_monitoring_tasks.weekly_strategy_generation")
 def weekly_strategy_generation() -> dict[str, Any]:
     """Generate new strategies for top watchlist symbols.
 
@@ -510,7 +510,7 @@ def weekly_strategy_generation() -> dict[str, Any]:
         }
 
 
-@celery_app.task(name="app.tasks.strategy_monitoring_tasks.daily_strategy_refresh")  # type: ignore[misc]
+@celery_app.task(name="app.tasks.strategy_monitoring_tasks.daily_strategy_refresh")
 def daily_strategy_refresh(max_symbols: int = 5) -> dict[str, Any]:
     """Daily strategy refresh - regenerate strategies for underperformers.
 
@@ -638,7 +638,7 @@ def daily_strategy_refresh(max_symbols: int = 5) -> dict[str, Any]:
         return {"status": "failed", "error": str(e)}
 
 
-@celery_app.task(name="app.tasks.strategy_monitoring_tasks.weekly_strategy_evolution")  # type: ignore[misc]
+@celery_app.task(name="app.tasks.strategy_monitoring_tasks.weekly_strategy_evolution")
 def weekly_strategy_evolution() -> dict[str, Any]:
     """Weekly strategy evolution - evolve underperforming strategies via LLM.
 
@@ -771,7 +771,7 @@ def weekly_strategy_evolution() -> dict[str, Any]:
         return {"status": "failed", "error": str(e)}
 
 
-@celery_app.task(name="app.tasks.strategy_monitoring_tasks.trigger_strategy_from_seed")  # type: ignore[misc]
+@celery_app.task(name="app.tasks.strategy_monitoring_tasks.trigger_strategy_from_seed")
 def trigger_strategy_from_seed(seed_id: str, symbol: str) -> dict[str, Any]:
     """Generate strategy from a high-confidence seed.
 

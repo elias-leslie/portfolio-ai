@@ -58,7 +58,7 @@ def _ensure_symbol_exists(storage: PortfolioStorage, symbol: str) -> None:
     )
 
 
-@celery_app.task(bind=True, max_retries=2)  # type: ignore[misc]
+@celery_app.task(bind=True, max_retries=2)
 def ingest_fundamental_data(self: Task, symbols: list[str] | None = None) -> dict[str, Any]:
     """Ingest fundamental data for watchlist symbols.
 
@@ -341,7 +341,7 @@ def _insert_short_interest(
     )
 
 
-@celery_app.task(bind=True, max_retries=2)  # type: ignore[misc]
+@celery_app.task(bind=True, max_retries=2)
 def ingest_macro_indicators(self: Task) -> dict[str, Any]:
     """Ingest macro economic indicators from FRED.
 

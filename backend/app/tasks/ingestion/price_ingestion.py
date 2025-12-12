@@ -321,7 +321,7 @@ def _ingest_historical_ohlcv_impl(
     retry_backoff=True,
     retry_backoff_max=600,
     retry_jitter=True,
-)  # type: ignore[misc]
+)
 def refresh_daily_ohlcv(  # type: ignore[no-untyped-def]
     self, symbols: list[str] | None = None
 ) -> dict[str, int | str | float]:
@@ -382,7 +382,7 @@ def refresh_daily_ohlcv(  # type: ignore[no-untyped-def]
     retry_backoff=True,
     retry_backoff_max=600,
     retry_jitter=True,
-)  # type: ignore[misc]
+)
 def refresh_watchlist_ohlcv(  # type: ignore[no-untyped-def]
     self,
 ) -> dict[str, int | str | float]:
@@ -525,7 +525,7 @@ def refresh_watchlist_ohlcv(  # type: ignore[no-untyped-def]
     retry_backoff=True,
     retry_backoff_max=600,
     retry_jitter=True,
-)  # type: ignore[misc]
+)
 def ingest_historical_ohlcv(  # type: ignore[no-untyped-def]
     self, symbols: list[str], days: int = 252
 ) -> dict[str, int | str | float]:

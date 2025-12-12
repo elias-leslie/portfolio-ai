@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-@celery_app.task(bind=True, name="tasks.daily_qa_scan")  # type: ignore[misc]
+@celery_app.task(bind=True, name="tasks.daily_qa_scan")
 def daily_qa_scan(self: Task) -> dict[str, Any]:
     """Run daily QA scan at 04:00 UTC, after capability scans.
 

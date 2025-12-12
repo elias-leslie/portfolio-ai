@@ -20,7 +20,7 @@ from app.storage import PortfolioStorage
 logger = get_logger(__name__)
 
 
-@shared_task(  # type: ignore[misc]  # celery decorator lacks type stubs
+@shared_task(  # celery decorator lacks type stubs
     name="save_portfolio_snapshots",
     bind=True,
     max_retries=3,

@@ -249,7 +249,7 @@ class PostgreSQLConnectionWrapper:
 
         # Convert DataFrame to list of tuples for executemany
         # Replace NaN with None for SQL NULL
-        data = pdf.where(pd.notnull(pdf), None).values.tolist()
+        data = pdf.where(pd.notnull(pdf), None).values.tolist()  # type: ignore[call-overload]
 
         # Execute bulk insert using raw cursor
         try:
