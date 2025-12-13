@@ -196,13 +196,36 @@ async def get_session_history(session_id: str, limit: int = 100):
     return {"messages": messages}
 
 
+# Disagreement keywords for roundtable auto-discussion
+DISAGREEMENT_KEYWORDS = [
+    "disagree", "incorrect", "wrong", "mistake", "error",
+    "actually", "however", "but i think", "not quite",
+    "missing", "overlooked", "failed to consider",
+    "inaccurate", "misleading", "contrary to",
+    "i would argue", "that's not", "flaw", "omission",
+    "hallucination", "incorrect assumption",
+]
+
+
+def detect_disagreement(response: str) -> bool:
+    """Check if a response contains disagreement indicators."""
+    response_lower = response.lower()
+    return any(kw in response_lower for kw in DISAGREEMENT_KEYWORDS)
+
+
 # WebSocket endpoint for real-time communication
 @app.websocket("/ws/{session_id}")
-async def websocket_endpoint(websocket: WebSocket, session_id: str, provider: str = "claude"):
+async def websocket_endpoint(
+    websocket: WebSocket,
+    session_id: str,
+    provider: str = "claude",
+    order: str = "claude-first",
+):
     """WebSocket endpoint for real-time LLM communication.
 
     Query params:
-    - provider: "claude" (default) or "gemini"
+    - provider: "claude" (default), "gemini", or "both" (roundtable mode)
+    - order: "claude-first" (default) or "gemini-first" (only for roundtable)
 
     Protocol:
     - Client sends: {"type": "message", "content": "user message"}
@@ -211,20 +234,29 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str, provider: st
     - Server sends: {"type": "permission_request", "tool_name": "...", "tool_input": {...}}
     - Server sends: {"type": "done"} when response complete
     - Server sends: {"type": "error", "message": "error details"}
-    - Server sends: {"type": "provider", "name": "claude"|"gemini"} on connect
+    - Server sends: {"type": "provider", "name": "claude"|"gemini"|"both"} on connect
+    - Server sends: {"type": "agent_start", "agent": "claude"|"gemini"} (roundtable)
+    - Server sends: {"type": "agent_done", "agent": "claude"|"gemini"} (roundtable)
+    - Server sends: {"type": "discussion_start", "reason": "..."} (roundtable)
+    - Server sends: {"type": "discussion_round", "round": 1|2} (roundtable)
     """
     if not bridge:
         await websocket.close(code=1011, reason="Service not ready")
         return
 
     await websocket.accept()
-    logger.info(f"WebSocket connected for session {session_id}, provider={provider}")
+    logger.info(f"WebSocket connected for session {session_id}, provider={provider}, order={order}")
 
     # Validate and normalize provider
     provider = provider.lower() if provider else "claude"
-    if provider not in ("claude", "gemini"):
+    if provider not in ("claude", "gemini", "both"):
         logger.warning(f"Unknown provider '{provider}', defaulting to claude")
         provider = "claude"
+
+    # Validate order for roundtable
+    order = order.lower() if order else "claude-first"
+    if order not in ("claude-first", "gemini-first"):
+        order = "claude-first"
 
     # Send provider confirmation to client
     await websocket.send_json({"type": "provider", "name": provider})
@@ -303,7 +335,27 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str, provider: st
                     })
                     continue
 
-                # Get or start session based on provider
+                # Store user message
+                await bridge.db.add_message(
+                    session_id=session_id,
+                    role="user",
+                    content=content,
+                )
+
+                # Handle roundtable mode (both agents)
+                if provider == "both":
+                    await handle_roundtable_message(
+                        bridge=bridge,
+                        session_id=session_id,
+                        content=content,
+                        order=order,
+                        safe_send_json=safe_send_json,
+                        permission_callback=permission_callback,
+                        ws_closed_check=lambda: ws_closed,
+                    )
+                    continue
+
+                # Single provider mode
                 if provider == "gemini":
                     session = await get_or_create_gemini_session(
                         bridge, session_id
@@ -318,13 +370,6 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str, provider: st
                         "message": f"Failed to start {provider} session",
                     })
                     continue
-
-                # Store user message
-                await bridge.db.add_message(
-                    session_id=session_id,
-                    role="user",
-                    content=content,
-                )
 
                 # Stream response
                 try:
@@ -504,6 +549,204 @@ async def get_or_create_session_with_permissions(
 
     bridge._active_sessions[session_id] = session
     return session
+
+
+async def stream_agent_response(
+    session: ClaudeSession | GeminiSession,
+    content: str,
+    safe_send_json,
+    ws_closed_check,
+    agent_name: str,
+) -> str:
+    """Stream a single agent's response and return the full text.
+
+    Args:
+        session: The agent session (Claude or Gemini)
+        content: The prompt to send
+        safe_send_json: Function to send JSON to WebSocket
+        ws_closed_check: Function to check if WebSocket is closed
+        agent_name: "claude" or "gemini" for attribution
+
+    Returns:
+        The complete response text
+    """
+    response_text_parts = []
+
+    async for stream_msg in session.send(content):
+        if ws_closed_check():
+            break
+        msg_dict = message_to_dict(stream_msg)
+        # Add agent attribution to stream messages
+        if not await safe_send_json({
+            "type": "stream",
+            "data": msg_dict,
+            "agent": agent_name,
+        }):
+            break
+        # Collect text
+        for block in msg_dict.get("content", []):
+            if block.get("type") == "text" and block.get("text"):
+                response_text_parts.append(block["text"])
+
+    return "".join(response_text_parts)
+
+
+async def handle_roundtable_message(
+    bridge: SessionBridge,
+    session_id: str,
+    content: str,
+    order: str,
+    safe_send_json,
+    permission_callback,
+    ws_closed_check,
+    max_discussion_rounds: int = 2,
+) -> None:
+    """Handle a roundtable message with both Claude and Gemini.
+
+    Both agents respond sequentially, with the second agent seeing the first's response.
+    If disagreement is detected, they can have a brief discussion (up to max_discussion_rounds).
+    """
+    # Determine agent order
+    if order == "gemini-first":
+        first_agent = "gemini"
+        second_agent = "claude"
+    else:
+        first_agent = "claude"
+        second_agent = "gemini"
+
+    logger.info(f"Roundtable: {first_agent} first, then {second_agent}")
+
+    try:
+        # Get or create first agent session
+        if first_agent == "gemini":
+            first_session = await get_or_create_gemini_session(bridge, session_id)
+        else:
+            first_session = await get_or_create_session_with_permissions(
+                bridge, session_id, permission_callback
+            )
+
+        if not first_session:
+            await safe_send_json({
+                "type": "error",
+                "message": f"Failed to start {first_agent} session",
+            })
+            return
+
+        # First agent responds
+        await safe_send_json({"type": "agent_start", "agent": first_agent})
+        first_response = await stream_agent_response(
+            first_session, content, safe_send_json, ws_closed_check, first_agent
+        )
+        await safe_send_json({"type": "agent_done", "agent": first_agent})
+
+        if ws_closed_check():
+            return
+
+        # Store first response
+        await bridge.db.add_message(
+            session_id=session_id,
+            role="assistant",
+            content=f"[{first_agent.upper()}] {first_response}",
+        )
+
+        # Get or create second agent session
+        if second_agent == "gemini":
+            second_session = await get_or_create_gemini_session(bridge, session_id)
+        else:
+            second_session = await get_or_create_session_with_permissions(
+                bridge, session_id, permission_callback
+            )
+
+        if not second_session:
+            await safe_send_json({
+                "type": "error",
+                "message": f"Failed to start {second_agent} session",
+            })
+            await safe_send_json({"type": "done"})
+            return
+
+        # Second agent responds with context of first agent's response
+        context_prompt = f"""The user asked: {content}
+
+{first_agent.capitalize()} responded:
+{first_response}
+
+Now provide your perspective. If you agree with {first_agent.capitalize()}'s response, say so briefly and add any additional insights. If you disagree or see any flaws, omissions, incorrect assumptions, or potential hallucinations in the response, clearly explain your concerns."""
+
+        await safe_send_json({"type": "agent_start", "agent": second_agent})
+        second_response = await stream_agent_response(
+            second_session, context_prompt, safe_send_json, ws_closed_check, second_agent
+        )
+        await safe_send_json({"type": "agent_done", "agent": second_agent})
+
+        if ws_closed_check():
+            return
+
+        # Store second response
+        await bridge.db.add_message(
+            session_id=session_id,
+            role="assistant",
+            content=f"[{second_agent.upper()}] {second_response}",
+        )
+
+        # Check for disagreement and start discussion if needed
+        if detect_disagreement(second_response):
+            await safe_send_json({
+                "type": "discussion_start",
+                "reason": "disagreement_detected",
+            })
+
+            responses = {first_agent: first_response, second_agent: second_response}
+            sessions = {first_agent: first_session, second_agent: second_session}
+            agents = [first_agent, second_agent]
+
+            for round_num in range(1, max_discussion_rounds + 1):
+                if ws_closed_check():
+                    break
+
+                # The agent who wasn't last to speak responds
+                speaker = agents[(round_num - 1) % 2]
+                other = agents[round_num % 2]
+
+                discussion_prompt = f"""The other agent ({other.capitalize()}) said:
+{responses[other]}
+
+Respond to their points. If you now agree, say so. If you still have concerns, explain briefly (2-3 sentences max)."""
+
+                await safe_send_json({"type": "discussion_round", "round": round_num})
+                await safe_send_json({"type": "agent_start", "agent": speaker})
+
+                discussion_response = await stream_agent_response(
+                    sessions[speaker],
+                    discussion_prompt,
+                    safe_send_json,
+                    ws_closed_check,
+                    speaker,
+                )
+                await safe_send_json({"type": "agent_done", "agent": speaker})
+
+                # Store discussion turn
+                await bridge.db.add_message(
+                    session_id=session_id,
+                    role="assistant",
+                    content=f"[{speaker.upper()} - Discussion Round {round_num}] {discussion_response}",
+                )
+
+                responses[speaker] = discussion_response
+
+                # Check if they now agree (no more disagreement keywords)
+                if not detect_disagreement(discussion_response):
+                    logger.info(f"Roundtable: Agents reached agreement at round {round_num}")
+                    break
+
+        await safe_send_json({"type": "done"})
+
+    except Exception as e:
+        logger.error(f"Roundtable error: {e}")
+        await safe_send_json({
+            "type": "error",
+            "message": f"Roundtable error: {str(e)}",
+        })
 
 
 def main():

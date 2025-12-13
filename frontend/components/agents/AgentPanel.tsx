@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { MessageSquare, X, Plus, Trash2, Settings, Activity, Clock } from 'lucide-react';
+import { MessageSquare, X, Plus, Trash2, Settings, Activity, Clock, Diamond, Star } from 'lucide-react';
 // Note: We use a custom side panel instead of Sheet to allow non-overlay behavior (FEAT-220)
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { SettingsModal, useAgentSettings, LLMProvider } from './SettingsModal';
 import { StatusModal } from './StatusModal';
-import { AgentSelector, AgentProvider } from './AgentSelector';
+import { AgentSelector, AgentProvider, RoundtableOrder } from './AgentSelector';
 import { ModeSelector, AgentMode } from './ModeSelector';
 import { TokenSummaryCards } from './TokenSummaryCards';
 import { SessionsList } from './SessionsList';
@@ -37,13 +37,16 @@ interface PermissionRequest {
 }
 
 interface WebSocketMessage {
-  type: 'stream' | 'done' | 'error' | 'pong' | 'permission_request' | 'interrupt_ack' | 'provider';
+  type: 'stream' | 'done' | 'error' | 'pong' | 'permission_request' | 'interrupt_ack' | 'provider' | 'agent_start' | 'agent_done' | 'discussion_start' | 'discussion_round';
   data?: StreamMessage;
   message?: string;
   tool_name?: string;
   tool_input?: Record<string, unknown>;
   success?: boolean;
   name?: string;  // For provider confirmation
+  agent?: 'claude' | 'gemini';  // Which agent is responding (roundtable mode)
+  round?: number;  // Discussion round number
+  reason?: string;  // Reason for discussion (e.g., 'disagreement_detected')
 }
 
 interface ChatMessage {
@@ -51,6 +54,7 @@ interface ChatMessage {
   content: string;
   blocks?: ContentBlock[];
   timestamp: Date;
+  agent?: 'claude' | 'gemini';  // Which agent produced this response (roundtable mode)
 }
 
 interface Session {
@@ -108,6 +112,8 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
   // FEAT-223: Agent and mode selectors
   const [agentProvider, setAgentProvider] = useState<AgentProvider>('claude');
   const [agentMode, setAgentMode] = useState<AgentMode>('dev');
+  const [roundtableOrder, setRoundtableOrder] = useState<RoundtableOrder>('claude-first');
+  const [currentRespondingAgent, setCurrentRespondingAgent] = useState<'claude' | 'gemini' | null>(null);
 
   // UI state
   const [showSessions, setShowSessions] = useState(false);
@@ -206,7 +212,10 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
       return;
     }
 
-    const ws = new WebSocket(`${wsUrl}/ws/${currentSessionId}?provider=${settings.llmProvider}`);
+    // Use agentProvider from selector (claude/gemini/both), with order for roundtable
+    const providerParam = agentProvider === 'both' ? 'both' : agentProvider;
+    const orderParam = agentProvider === 'both' ? `&order=${roundtableOrder}` : '';
+    const ws = new WebSocket(`${wsUrl}/ws/${currentSessionId}?provider=${providerParam}${orderParam}`);
 
     ws.onopen = () => {
       setIsConnected(true);
@@ -235,6 +244,59 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
           }
           break;
 
+        case 'agent_start':
+          // Roundtable: Track which agent is now responding
+          if (msg.agent) {
+            setCurrentRespondingAgent(msg.agent);
+          }
+          break;
+
+        case 'agent_done': {
+          // Roundtable: Save current agent's response with attribution
+          const blocks = currentResponseRef.current;
+          if (blocks.length > 0) {
+            setMessages(prev => [
+              ...prev,
+              {
+                role: 'assistant',
+                content: blocksToText(blocks),
+                blocks: blocks,
+                timestamp: new Date(),
+                agent: msg.agent,  // Attribution for roundtable mode
+              },
+            ]);
+          }
+          setCurrentResponse([]);
+          setCurrentRespondingAgent(null);
+          break;
+        }
+
+        case 'discussion_start':
+          // Roundtable: Show system message that discussion is starting
+          setMessages(prev => [
+            ...prev,
+            {
+              role: 'system',
+              content: `Agents disagree — starting discussion...`,
+              timestamp: new Date(),
+            },
+          ]);
+          break;
+
+        case 'discussion_round':
+          // Roundtable: Show which round we're in
+          if (msg.round) {
+            setMessages(prev => [
+              ...prev,
+              {
+                role: 'system',
+                content: `Discussion round ${msg.round}`,
+                timestamp: new Date(),
+              },
+            ]);
+          }
+          break;
+
         case 'done': {
           const blocks = currentResponseRef.current;
           if (blocks.length > 0) {
@@ -245,10 +307,12 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
                 content: blocksToText(blocks),
                 blocks: blocks,
                 timestamp: new Date(),
+                agent: currentRespondingAgent || undefined,  // Include agent if in roundtable
               },
             ]);
           }
           setCurrentResponse([]);
+          setCurrentRespondingAgent(null);
           setIsLoading(false);
           break;
         }
@@ -264,6 +328,7 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
           ]);
           setIsLoading(false);
           setPendingPermission(null);
+          setCurrentRespondingAgent(null);
           break;
 
         case 'permission_request':
@@ -289,7 +354,7 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
     };
 
     wsRef.current = ws;
-  }, [wsUrl, currentSessionId, open, settings.llmProvider]);
+  }, [wsUrl, currentSessionId, open, agentProvider, roundtableOrder]);
 
   // Connect/disconnect based on panel state
   useEffect(() => {
@@ -457,6 +522,8 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
                 value={agentProvider}
                 onChange={setAgentProvider}
                 disabled={!isConnected}
+                roundtableOrder={roundtableOrder}
+                onRoundtableOrderChange={setRoundtableOrder}
               />
               {/* Mode Selector (Financial/Dev) */}
               <ModeSelector
@@ -524,8 +591,9 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
                   ? "bg-green-600/30 text-green-300 border border-green-600"
                   : "bg-blue-600/30 text-blue-300 border border-blue-600"
               )}>
-                {activeProvider === 'gemini' ? 'Gemini' : 'Claude'}
-                {agentProvider === 'both' && ' + Roundtable'}
+                {agentProvider === 'both'
+                  ? 'Claude + Gemini'
+                  : activeProvider === 'gemini' ? 'Gemini' : 'Claude'}
               </span>
             )}
           </div>
@@ -633,6 +701,17 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
 
           {currentResponse.length > 0 && (
             <div className="text-gray-300">
+              {/* Show which agent is currently responding in roundtable mode */}
+              {currentRespondingAgent && (
+                <span
+                  className="inline-block mb-1 mr-1"
+                  title={currentRespondingAgent === 'claude' ? 'Claude' : 'Gemini'}
+                >
+                  {currentRespondingAgent === 'claude'
+                    ? <Diamond className="h-4 w-4 text-blue-400 inline" />
+                    : <Star className="h-4 w-4 text-green-400 inline" />}
+                </span>
+              )}
               {currentResponse.map((block, i) => (
                 <ContentBlockView key={i} block={block} />
               ))}
@@ -759,6 +838,17 @@ function MessageBubble({ message }: { message: ChatMessage }) {
             : 'bg-gray-800 text-gray-100'
         )}
       >
+        {/* Agent attribution icon for roundtable mode */}
+        {message.agent && !isUser && (
+          <span
+            className="inline-block mb-1 mr-1"
+            title={message.agent === 'claude' ? 'Claude' : 'Gemini'}
+          >
+            {message.agent === 'claude'
+              ? <Diamond className="h-4 w-4 text-blue-400 inline" />
+              : <Star className="h-4 w-4 text-green-400 inline" />}
+          </span>
+        )}
         {message.blocks ? (
           message.blocks.map((block, i) => <ContentBlockView key={i} block={block} />)
         ) : (
