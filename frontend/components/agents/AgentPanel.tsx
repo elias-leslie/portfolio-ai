@@ -202,10 +202,11 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
         const res = await fetch(`${serverUrl}/sessions/${currentSessionId}/history`);
         if (res.ok) {
           const data = await res.json();
-          const loadedMessages: ChatMessage[] = data.messages.map((msg: { role: string; content: string; created_at: string }) => ({
+          const loadedMessages: ChatMessage[] = data.messages.map((msg: { role: string; content: string; created_at: string; agent?: string }) => ({
             role: msg.role as 'user' | 'assistant' | 'system',
             content: msg.content,
             timestamp: new Date(msg.created_at),
+            agent: msg.agent as 'claude' | 'gemini' | undefined,
           }));
           setMessages(loadedMessages);
         }

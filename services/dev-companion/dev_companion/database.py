@@ -64,6 +64,7 @@ class Database:
                 content TEXT NOT NULL,
                 created_at TEXT NOT NULL,
                 metadata TEXT DEFAULT '{}',
+                agent TEXT,
                 FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
             );
 
@@ -86,8 +87,9 @@ class Database:
         """)
         await self._conn.commit()
 
-        # Add columns to existing sessions table if they don't exist (migration)
+        # Add columns to existing tables if they don't exist (migrations)
         await self._migrate_sessions_table()
+        await self._migrate_messages_table()
 
     async def create_session(
         self,
@@ -261,6 +263,7 @@ class Database:
         role: str,
         content: str,
         metadata: dict[str, Any] | None = None,
+        agent: str | None = None,
     ) -> int:
         """Add a message to a session.
 
@@ -269,6 +272,7 @@ class Database:
             role: Message role (user, assistant, system)
             content: Message content (JSON string for complex content)
             metadata: Optional message metadata
+            agent: Which agent produced this message (claude, gemini)
 
         Returns:
             Message ID
@@ -280,10 +284,10 @@ class Database:
 
         cursor = await self._conn.execute(
             """
-            INSERT INTO messages (session_id, role, content, created_at, metadata)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO messages (session_id, role, content, created_at, metadata, agent)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (session_id, role, content, now, json.dumps(metadata or {})),
+            (session_id, role, content, now, json.dumps(metadata or {}), agent),
         )
         await self._conn.commit()
 
@@ -327,6 +331,7 @@ class Database:
                     "content": row["content"],
                     "created_at": row["created_at"],
                     "metadata": json.loads(row["metadata"]),
+                    "agent": row["agent"],
                 })
         return messages
 
@@ -356,6 +361,27 @@ class Database:
                     logger.info(f"Added column {col_name} to sessions table")
                 except Exception as e:
                     logger.warning(f"Could not add column {col_name}: {e}")
+
+        await self._conn.commit()
+
+    async def _migrate_messages_table(self) -> None:
+        """Add agent column to existing messages table if it doesn't exist."""
+        if not self._conn:
+            return
+
+        # Check existing columns
+        async with self._conn.execute("PRAGMA table_info(messages)") as cursor:
+            existing_cols = {row[1] async for row in cursor}
+
+        # Add agent column if missing
+        if "agent" not in existing_cols:
+            try:
+                await self._conn.execute(
+                    "ALTER TABLE messages ADD COLUMN agent TEXT"
+                )
+                logger.info("Added column agent to messages table")
+            except Exception as e:
+                logger.warning(f"Could not add column agent: {e}")
 
         await self._conn.commit()
 

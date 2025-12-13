@@ -432,6 +432,7 @@ async def websocket_endpoint(
                             session_id=session_id,
                             role="assistant",
                             content="".join(response_text_parts),
+                            agent=provider,
                         )
 
                     # Set original_provider on first message (only if not already set)
@@ -809,6 +810,7 @@ You are {first_agent.upper()}. Respond to the user's message, considering the fu
             session_id=session_id,
             role="assistant",
             content=f"[{first_agent.upper()}] {first_response}",
+            agent=first_agent,
         )
 
         # Set original_provider on first message (for roundtable: "both")
@@ -876,6 +878,7 @@ Now provide your perspective. If you agree with {first_agent.capitalize()}'s res
             session_id=session_id,
             role="assistant",
             content=f"[{second_agent.upper()}] {second_response}",
+            agent=second_agent,
         )
 
         # Track participants and message count for second agent
@@ -938,6 +941,7 @@ Respond to their points. If you now agree, say so. If you still have concerns, e
                     session_id=session_id,
                     role="assistant",
                     content=f"[{speaker.upper()} - Discussion Round {round_num}] {discussion_response}",
+                    agent=speaker,
                 )
 
                 responses[speaker] = discussion_response
