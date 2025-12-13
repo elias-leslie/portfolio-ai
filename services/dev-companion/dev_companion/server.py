@@ -356,10 +356,12 @@ async def websocket_endpoint(
                     continue
 
                 # Single provider mode
+                logger.info(f"Single provider mode: {provider}")
                 if provider == "gemini":
                     session = await get_or_create_gemini_session(
                         bridge, session_id
                     )
+                    logger.info(f"Gemini session created: {session is not None}")
                 else:
                     session = await get_or_create_session_with_permissions(
                         bridge, session_id, permission_callback
