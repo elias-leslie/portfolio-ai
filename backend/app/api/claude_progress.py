@@ -221,8 +221,8 @@ async def get_handoff() -> dict[str, Any]:
                        p.feature_id, p.task_file, p.details, p.git_commit,
                        p.context_percent, f.name as feature_name
                 FROM claude_progress_log p
-                LEFT JOIN feature_capabilities f ON p.feature_id = f.id
-                WHERE p.action_type IN ('session_context', 'context_snapshot', 'session_end')
+                LEFT JOIN feature_capabilities f ON p.feature_id = f.feature_id
+                WHERE p.action_type IN ('session_context', 'context_snapshot', 'session_end', 'commit')
                 ORDER BY p.logged_at DESC
                 LIMIT 1
                 """
