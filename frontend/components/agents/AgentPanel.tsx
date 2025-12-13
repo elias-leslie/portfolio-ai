@@ -563,22 +563,8 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
                 isConnected ? "bg-green-500" : "bg-red-500"
               )} />
             </div>
-            {/* Header Icons: Agent, Mode, Status, Settings */}
+            {/* Header Icons: Status, Settings */}
             <div className="flex items-center gap-1">
-              {/* Agent Selector (Claude/Gemini/Both) */}
-              <AgentSelector
-                value={agentProvider}
-                onChange={setAgentProvider}
-                disabled={!isConnected}
-                roundtableOrder={roundtableOrder}
-                onRoundtableOrderChange={setRoundtableOrder}
-              />
-              {/* Mode Selector (Financial/Dev) */}
-              <ModeSelector
-                value={agentMode}
-                onChange={setAgentMode}
-                disabled={!isConnected}
-              />
               {/* Status */}
               <Button
                 variant="ghost"
@@ -845,7 +831,7 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
 
         {/* Input */}
         <div className="border-t border-gray-700 p-4">
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
             <input
               type="text"
               value={input}
@@ -862,6 +848,19 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
               }
               disabled={!isConnected || isLoading || !!pendingPermission || !currentSessionId}
               className="flex-1 bg-gray-800 border border-gray-600 rounded px-3 py-2 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500 disabled:opacity-50 text-sm"
+            />
+            {/* Agent & Mode selectors - always visible for quick toggle */}
+            <AgentSelector
+              value={agentProvider}
+              onChange={setAgentProvider}
+              disabled={!isConnected}
+              roundtableOrder={roundtableOrder}
+              onRoundtableOrderChange={setRoundtableOrder}
+            />
+            <ModeSelector
+              value={agentMode}
+              onChange={setAgentMode}
+              disabled={!isConnected}
             />
             {isLoading ? (
               <Button onClick={stopResponse} variant="destructive" size="sm">
