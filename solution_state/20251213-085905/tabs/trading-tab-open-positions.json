@@ -1,0 +1,91 @@
+{
+  "url": "http://192.168.8.233:3000/trading",
+  "pageName": "trading-tab-open-positions",
+  "capturedAt": "2025-12-13T14:01:24.359Z",
+  "durationMs": 4436,
+  "interaction": {
+    "type": "click-tab",
+    "target": "Open Positions",
+    "success": true
+  },
+  "console": {
+    "errors": [
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "timestamp": "2025-12-13T14:01:20.391Z"
+      },
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "timestamp": "2025-12-13T14:01:20.392Z"
+      },
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "timestamp": "2025-12-13T14:01:21.396Z"
+      },
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "timestamp": "2025-12-13T14:01:21.396Z"
+      },
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "timestamp": "2025-12-13T14:01:23.402Z"
+      },
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "timestamp": "2025-12-13T14:01:23.402Z"
+      }
+    ],
+    "warnings": [],
+    "errorCount": 6,
+    "warningCount": 0
+  },
+  "network": {
+    "failures": [
+      {
+        "url": "http://192.168.8.233:8000/api/paper-trades?status=open&limit=100",
+        "status": 500,
+        "statusText": "Internal Server Error"
+      },
+      {
+        "url": "http://192.168.8.233:8000/api/paper-trades?status=closed&limit=100",
+        "status": 500,
+        "statusText": "Internal Server Error"
+      },
+      {
+        "url": "http://192.168.8.233:8000/api/paper-trades?status=open&limit=100",
+        "status": 500,
+        "statusText": "Internal Server Error"
+      },
+      {
+        "url": "http://192.168.8.233:8000/api/paper-trades?status=closed&limit=100",
+        "status": 500,
+        "statusText": "Internal Server Error"
+      },
+      {
+        "url": "http://192.168.8.233:8000/api/paper-trades?status=open&limit=100",
+        "status": 500,
+        "statusText": "Internal Server Error"
+      },
+      {
+        "url": "http://192.168.8.233:8000/api/paper-trades?status=closed&limit=100",
+        "status": 500,
+        "statusText": "Internal Server Error"
+      }
+    ],
+    "failureCount": 6
+  },
+  "pageState": {
+    "title": "Portfolio AI Platform",
+    "hasContent": true,
+    "tables": 0,
+    "charts": 0,
+    "errorElements": 0,
+    "loadingElements": 0
+  }
+}
