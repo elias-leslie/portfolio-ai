@@ -127,6 +127,7 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const currentResponseRef = useRef<ContentBlock[]>([]);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isInitialMountRef = useRef(true);
 
   // Initialize URLs on client
   useEffect(() => {
@@ -373,8 +374,12 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
     };
   }, [open, currentSessionId, connect]);
 
-  // Force reconnect when provider or order changes
+  // Force reconnect when provider or order changes (skip initial mount)
   useEffect(() => {
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      return;
+    }
     if (open && currentSessionId && wsRef.current) {
       // Close existing connection to force reconnect with new provider/order
       wsRef.current.close();
