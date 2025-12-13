@@ -38,7 +38,7 @@ ALLOWED_URL_PATTERNS = [
     r"^http://192\.168\.\d+\.\d+:\d+/",  # Local network
 ]
 
-MAX_API_TIMEOUT = 10  # seconds
+MAX_API_TIMEOUT = 30  # seconds (increased from 10 to reduce timeouts)
 MAX_TEST_TIMEOUT = 60  # seconds
 MAX_UI_TIMEOUT = 30  # seconds
 MAX_CONCURRENT = 10  # parallel verifications
@@ -820,21 +820,28 @@ class CriteriaVerifier:
         return parts if parts else None
 
     def _parse_screenshot_command(self, verification: str) -> str | None:
-        """Parse a screenshot command to extract URL path.
+        """Parse a screenshot command or URL to extract URL path.
 
         Examples:
             screenshot /dashboard and verify gauge visible
             screenshot /watchlist showing expanded row
             screenshot / and verify gauge visible
+            http://192.168.8.233:3000/agents
+            http://192.168.8.233:3000/
 
         Returns:
             URL path (e.g., /dashboard, /) or None if parsing fails
         """
-        # Look for /path pattern (allow just / for root path)
+        # First check for full URL format (http://host:port/path)
+        url_match = re.match(r"https?://[^/]+(/[^\s]*)?", verification.strip())
+        if url_match:
+            path = url_match.group(1) or "/"
+            return path
+
+        # Legacy: Look for screenshot /path pattern
         match = re.search(r"screenshot\s+(/[^\s]*)", verification, re.IGNORECASE)
         if match:
             path = match.group(1)
-            # If path is just / or /?, return /
             return path if path else "/"
         return None
 
