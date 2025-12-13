@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { MessageSquare, Users, RefreshCw, Bot, ChevronRight } from 'lucide-react';
+import { MessageSquare, Users, RefreshCw, Bot, ChevronRight, Diamond, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface SessionInfo {
@@ -18,6 +18,43 @@ interface SessionInfo {
   token_count: number;
   parent_run_id: string | null;
   summary: string | null;
+}
+
+// Dev Companion session format
+interface DevCompanionSession {
+  id: string;
+  working_dir: string;
+  created_at: string;
+  updated_at: string;
+  is_active: boolean;
+  metadata: Record<string, unknown>;
+  original_provider?: string | null;
+  message_count?: number;
+  description?: string | null;
+  participants?: string[];
+}
+
+// Provider badge component for session attribution
+function ProviderBadge({ provider, size = 'sm' }: { provider: string | null | undefined; size?: 'sm' | 'xs' }) {
+  if (!provider) return null;
+
+  const iconClass = size === 'xs' ? 'h-3 w-3' : 'h-4 w-4';
+
+  if (provider === 'claude') {
+    return <span title="Claude"><Diamond className={`${iconClass} text-blue-400`} /></span>;
+  }
+  if (provider === 'gemini') {
+    return <span title="Gemini"><Star className={`${iconClass} text-green-400`} /></span>;
+  }
+  if (provider === 'both') {
+    return (
+      <span className="flex -space-x-1" title="Claude + Gemini">
+        <Diamond className={`${iconClass} text-blue-400`} />
+        <Star className={`${iconClass} text-green-400`} />
+      </span>
+    );
+  }
+  return null;
 }
 
 function formatTokenCount(tokens: number): string {
@@ -180,6 +217,137 @@ export function SessionsList({
               session.status === 'error' ? "bg-red-500" : "bg-gray-500"
             )} />
             <span className="text-[10px] text-gray-600">{session.status}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
+// Dev Companion Sessions List (for Agent Hub session history)
+interface DevCompanionSessionsListProps {
+  serverUrl?: string;
+  onSelectSession?: (session: DevCompanionSession) => void;
+  maxHeight?: string;
+}
+
+export function DevCompanionSessionsList({
+  serverUrl = 'http://localhost:9999',
+  onSelectSession,
+  maxHeight = '300px'
+}: DevCompanionSessionsListProps) {
+  const [sessions, setSessions] = useState<DevCompanionSession[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchSessions = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(`${serverUrl}/sessions?limit=20`);
+        if (!res.ok) throw new Error('Failed to fetch sessions');
+        const data = await res.json();
+        setSessions(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load sessions');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchSessions();
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchSessions, 30 * 1000);
+    return () => clearInterval(interval);
+  }, [serverUrl]);
+
+  if (isLoading) {
+    return (
+      <div className="p-4 text-center text-gray-500 text-sm">
+        Loading sessions...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 text-center text-red-400 text-sm">
+        {error}
+      </div>
+    );
+  }
+
+  if (sessions.length === 0) {
+    return (
+      <div className="p-4 text-center text-gray-500 text-sm">
+        No sessions yet
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-y-auto" style={{ maxHeight }}>
+      {sessions.map((session) => (
+        <div
+          key={session.id}
+          className={cn(
+            "p-3 border-b border-gray-700 hover:bg-gray-800/50 cursor-pointer transition-colors",
+            onSelectSession && "group"
+          )}
+          onClick={() => onSelectSession?.(session)}
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              {/* Session ID + Provider Badge */}
+              <div className="flex items-center gap-2 mb-1">
+                <span className="font-mono text-sm text-gray-300">
+                  {session.id.slice(0, 8)}
+                </span>
+                <ProviderBadge provider={session.original_provider} size="xs" />
+                {session.is_active && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                )}
+              </div>
+              {/* Description or "No messages yet" */}
+              <div className="text-xs text-gray-400 truncate">
+                {session.description || (session.message_count ? 'No description' : '(No messages yet)')}
+              </div>
+              {/* Participants row */}
+              {session.participants && session.participants.length > 0 && (
+                <div className="flex items-center gap-1 mt-1">
+                  <span className="text-[10px] text-gray-600">Participants:</span>
+                  {session.participants.map((p) => (
+                    <ProviderBadge key={p} provider={p} size="xs" />
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex flex-col items-end gap-1 text-right">
+              {/* Message count */}
+              {session.message_count != null && session.message_count > 0 && (
+                <span className="text-xs text-gray-400">
+                  {session.message_count} msgs
+                </span>
+              )}
+              {/* Relative time */}
+              <span className="text-[10px] text-gray-500">
+                {formatRelativeTime(session.updated_at)}
+              </span>
+              {/* Created date */}
+              <span className="text-[10px] text-gray-600">
+                {new Date(session.created_at).toLocaleDateString(undefined, {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                })}
+              </span>
+              {onSelectSession && (
+                <ChevronRight className="h-4 w-4 text-gray-600 group-hover:text-gray-400 transition-colors" />
+              )}
+            </div>
           </div>
         </div>
       ))}

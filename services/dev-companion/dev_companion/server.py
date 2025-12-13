@@ -94,6 +94,10 @@ class SessionResponse(BaseModel):
     updated_at: str
     is_active: bool = False
     metadata: dict[str, Any] = {}
+    original_provider: str | None = None
+    message_count: int = 0
+    description: str | None = None
+    participants: list[str] = []
 
 
 class MessageRequest(BaseModel):
@@ -130,6 +134,10 @@ async def create_session(request: CreateSessionRequest):
         created_at=session["created_at"],
         updated_at=session["updated_at"],
         metadata=session.get("metadata", {}),
+        original_provider=session.get("original_provider"),
+        message_count=session.get("message_count", 0),
+        description=session.get("description"),
+        participants=session.get("participants", []),
     )
 
 
@@ -148,6 +156,10 @@ async def list_sessions(limit: int = 50):
             updated_at=s["updated_at"],
             is_active=s.get("is_active", False),
             metadata=s.get("metadata", {}),
+            original_provider=s.get("original_provider"),
+            message_count=s.get("message_count", 0),
+            description=s.get("description"),
+            participants=s.get("participants", []),
         )
         for s in sessions
     ]
@@ -170,6 +182,10 @@ async def get_session(session_id: str):
         updated_at=session["updated_at"],
         is_active=session_id in bridge._active_sessions,
         metadata=session.get("metadata", {}),
+        original_provider=session.get("original_provider"),
+        message_count=session.get("message_count", 0),
+        description=session.get("description"),
+        participants=session.get("participants", []),
     )
 
 
@@ -373,10 +389,29 @@ async def websocket_endpoint(
                     })
                     continue
 
+                # Check if this is a new agent joining an existing session
+                # If so, inject handoff context
+                prompt_to_send = content
+                session_data = await bridge.db.get_session(session_id)
+                if session_data:
+                    participants = session_data.get("participants", [])
+                    message_count = session_data.get("message_count", 0)
+                    # Inject context if session has history and this agent is new
+                    if message_count > 0 and provider not in participants:
+                        handoff_ctx = await build_handoff_context(bridge.db, session_id)
+                        if handoff_ctx:
+                            prompt_to_send = f"""{handoff_ctx}
+
+---
+
+**New message from user:**
+{content}"""
+                            logger.info(f"Injected handoff context for {provider} joining session")
+
                 # Stream response
                 try:
                     response_text_parts = []
-                    async for stream_msg in session.send(content):
+                    async for stream_msg in session.send(prompt_to_send):
                         if ws_closed:
                             logger.info(f"WebSocket closed during streaming for {session_id}")
                             break
@@ -398,6 +433,13 @@ async def websocket_endpoint(
                             role="assistant",
                             content="".join(response_text_parts),
                         )
+
+                    # Set original_provider on first message (only if not already set)
+                    await bridge.db.set_original_provider(session_id, provider)
+
+                    # Increment message count and add participant
+                    await bridge.db.increment_message_count(session_id)
+                    await bridge.db.add_participant(session_id, provider)
 
                     # Persist SDK/Gemini session ID for conversation continuity
                     sdk_id = getattr(session, "sdk_session_id", None) or getattr(
@@ -593,6 +635,65 @@ async def build_roundtable_context(db, session_id: str) -> str:
     return "\n\n".join(context_parts)
 
 
+async def build_handoff_context(db: Database, session_id: str) -> str:
+    """Build concise handoff context from session logs for agent switching.
+
+    This provides the new agent with essential context about what was
+    accomplished in the session, without replaying full message history.
+
+    Args:
+        db: Database instance
+        session_id: Session identifier
+
+    Returns:
+        Formatted handoff context string
+    """
+    session = await db.get_session(session_id)
+    if not session:
+        return ""
+
+    logs = await db.get_session_logs(session_id, limit=20)
+
+    # Build worklog-style summary
+    parts = []
+    parts.append(f"## Session Context (ID: {session_id[:8]})")
+    parts.append(f"**Topic**: {session.get('description') or 'No description'}")
+    parts.append(f"**Started by**: {session.get('original_provider') or 'Unknown'}")
+
+    participants = session.get("participants", [])
+    if participants:
+        parts.append(f"**Participants**: {', '.join(participants)}")
+
+    parts.append(f"**Messages**: {session.get('message_count', 0)}")
+    parts.append("")
+
+    if logs:
+        parts.append("## Recent Activity (worklog)")
+        for log in logs:
+            agent_icon = "◈" if log["agent"] == "claude" else "★"
+            if log.get("log_entry"):
+                parts.append(f"- [{agent_icon}] {log['log_entry']}")
+                if log.get("key_files"):
+                    try:
+                        files = json.loads(log["key_files"])
+                        if files:
+                            parts.append(f"  Files: {', '.join(files)}")
+                    except json.JSONDecodeError:
+                        pass
+                if log.get("learnings"):
+                    parts.append(f"  Learning: {log['learnings']}")
+        parts.append("")
+
+        # Collect learnings
+        learnings = [log["learnings"] for log in logs if log.get("learnings")]
+        if learnings:
+            parts.append("## Learnings from Session")
+            for learning in learnings[-5:]:  # Last 5 learnings
+                parts.append(f"- {learning}")
+
+    return "\n".join(parts)
+
+
 async def stream_agent_response(
     session: ClaudeSession | GeminiSession,
     content: str,
@@ -710,6 +811,13 @@ You are {first_agent.upper()}. Respond to the user's message, considering the fu
             content=f"[{first_agent.upper()}] {first_response}",
         )
 
+        # Set original_provider on first message (for roundtable: "both")
+        await bridge.db.set_original_provider(session_id, "both")
+
+        # Track participants and message count for first agent
+        await bridge.db.increment_message_count(session_id)
+        await bridge.db.add_participant(session_id, first_agent)
+
         # Get or create second agent session
         logger.info(f"Roundtable: Getting session for {second_agent}")
         if second_agent == "gemini":
@@ -769,6 +877,10 @@ Now provide your perspective. If you agree with {first_agent.capitalize()}'s res
             role="assistant",
             content=f"[{second_agent.upper()}] {second_response}",
         )
+
+        # Track participants and message count for second agent
+        await bridge.db.increment_message_count(session_id)
+        await bridge.db.add_participant(session_id, second_agent)
 
         # Check for disagreement and start discussion if needed
         if detect_disagreement(second_response):

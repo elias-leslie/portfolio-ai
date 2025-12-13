@@ -11,7 +11,7 @@ import { StatusModal } from './StatusModal';
 import { AgentSelector, AgentProvider, RoundtableOrder } from './AgentSelector';
 import { ModeSelector, AgentMode } from './ModeSelector';
 import { TokenSummaryCards } from './TokenSummaryCards';
-import { SessionsList } from './SessionsList';
+import { DevCompanionSessionsList } from './SessionsList';
 
 // Types from ChatPanel
 interface ContentBlock {
@@ -64,6 +64,33 @@ interface Session {
   updated_at: string;
   is_active: boolean;
   metadata: Record<string, unknown>;
+  original_provider?: string | null;
+  message_count?: number;
+  description?: string | null;
+  participants?: string[];
+}
+
+// Provider badge component for session attribution
+function ProviderBadge({ provider, size = 'sm' }: { provider: string | null | undefined; size?: 'sm' | 'xs' }) {
+  if (!provider) return null;
+
+  const iconClass = size === 'xs' ? 'h-3 w-3' : 'h-4 w-4';
+
+  if (provider === 'claude') {
+    return <span title="Claude"><Diamond className={`${iconClass} text-blue-400`} /></span>;
+  }
+  if (provider === 'gemini') {
+    return <span title="Gemini"><Star className={`${iconClass} text-green-400`} /></span>;
+  }
+  if (provider === 'both') {
+    return (
+      <span className="flex -space-x-1" title="Claude + Gemini">
+        <Diamond className={`${iconClass} text-blue-400`} />
+        <Star className={`${iconClass} text-green-400`} />
+      </span>
+    );
+  }
+  return null;
 }
 
 // AgentRole is now handled by ModeSelector
@@ -412,6 +439,11 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
       if (!response.ok) {
         throw new Error(`Server returned ${response.status}`);
       }
+      // Clear chat if deleting current session BEFORE updating session ID
+      if (currentSessionId === sessionId) {
+        setMessages([]);
+        setCurrentResponse([]);
+      }
       // Only update local state after confirmed deletion
       setSessions(prev => prev.filter(s => s.id !== sessionId));
       if (currentSessionId === sessionId) {
@@ -592,22 +624,44 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
               title="Click to manage sessions"
             >
               {currentSessionId ? `Session: ${currentSessionId.slice(0, 8)}...` : 'No session'}
+              {/* Show original provider badge if session has one */}
+              {(() => {
+                const currentSession = sessions.find(s => s.id === currentSessionId);
+                return currentSession?.original_provider && (
+                  <ProviderBadge provider={currentSession.original_provider} size="xs" />
+                );
+              })()}
               <Plus className="h-3 w-3" />
             </button>
-            {isConnected && (
-              <span className={cn(
-                "text-xs px-1.5 py-0.5 rounded font-medium",
-                agentProvider === 'both'
-                  ? "bg-purple-600/30 text-purple-300 border border-purple-600"
-                  : agentProvider === 'gemini'
-                    ? "bg-green-600/30 text-green-300 border border-green-600"
-                    : "bg-blue-600/30 text-blue-300 border border-blue-600"
-              )}>
-                {agentProvider === 'both'
-                  ? 'Claude + Gemini'
-                  : agentProvider === 'gemini' ? 'Gemini' : 'Claude'}
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {/* Show "Started with: X" if current agent differs from original */}
+              {(() => {
+                const currentSession = sessions.find(s => s.id === currentSessionId);
+                const originalProvider = currentSession?.original_provider;
+                if (originalProvider && originalProvider !== 'both' && originalProvider !== agentProvider) {
+                  return (
+                    <span className="text-xs text-gray-500 flex items-center gap-1">
+                      Started with: <ProviderBadge provider={originalProvider} size="xs" />
+                    </span>
+                  );
+                }
+                return null;
+              })()}
+              {isConnected && (
+                <span className={cn(
+                  "text-xs px-1.5 py-0.5 rounded font-medium",
+                  agentProvider === 'both'
+                    ? "bg-purple-600/30 text-purple-300 border border-purple-600"
+                    : agentProvider === 'gemini'
+                      ? "bg-green-600/30 text-green-300 border border-green-600"
+                      : "bg-blue-600/30 text-blue-300 border border-blue-600"
+                )}>
+                  {agentProvider === 'both'
+                    ? 'Claude + Gemini'
+                    : agentProvider === 'gemini' ? 'Gemini' : 'Claude'}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -630,9 +684,13 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
                 {showTokenSummary ? 'Hide Tokens' : 'Show Tokens'}
               </Button>
             </div>
-            <SessionsList
-              serverUrl={serverUrl || 'http://localhost:8000'}
+            <DevCompanionSessionsList
+              serverUrl={serverUrl || 'http://localhost:9999'}
               maxHeight="200px"
+              onSelectSession={(session) => {
+                setCurrentSessionId(session.id);
+                setShowHistory(false);
+              }}
             />
           </div>
         )}
@@ -668,7 +726,11 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
                       "w-2 h-2 rounded-full",
                       session.is_active ? "bg-green-500" : "bg-gray-600"
                     )} />
-                    <span className="text-sm font-mono text-gray-300">{session.id}</span>
+                    <span className="text-sm font-mono text-gray-300">{session.id.slice(0, 8)}</span>
+                    <ProviderBadge provider={session.original_provider} size="xs" />
+                    {session.message_count != null && session.message_count > 0 && (
+                      <span className="text-xs text-gray-500">{session.message_count} msgs</span>
+                    )}
                   </div>
                   <Button
                     variant="ghost"

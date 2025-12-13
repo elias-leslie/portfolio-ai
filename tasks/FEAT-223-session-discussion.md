@@ -1,222 +1,177 @@
-# Session Discussion & History Enhancement
+# Session Management & Agent Association
 
-**Implements**: FEAT-223 (subtasks: schema-004, backend-006, backend-007, backend-008, ui-007, ui-008, fix-shared-history)
-**Status**: planning
+**Implements**: FEAT-223 (subtasks: fix-session-delete, fix-agent-badges, schema-004, schema-005, backend-006, backend-007, backend-008, backend-009, backend-010, ui-007, ui-008)
+**Status**: in_progress
 **Effort**: MEDIUM
-**Priority**: P2
+**Priority**: P1
 
 ## Context
 
-The Agent Hub needs enhanced session management:
-1. **Roundtable shared history** - Both agents must see full conversation with proper attribution
-2. **Session History UI** - List sessions with metadata (type, description, dates)
-3. **Discuss Any Session** - Open any historical session for agent discussion
+Fix session management issues in Agent Hub:
+1. **Session deletion bug** - Chat stays visible after delete, returns on refresh
+2. **No agent association visible** - Sessions don't show which agent(s) they started with
+3. **Crash-resilient context** - Need incremental logging that survives abrupt session ends
+4. **Discuss mode** - Inject session context when switching agents
 
-## Session Types
+## Design Decisions
 
-| Type | Description |
-|------|-------------|
-| `single:claude` | Single-agent chat with Claude |
-| `single:gemini` | Single-agent chat with Gemini |
-| `roundtable` | Multi-agent roundtable discussion |
-| `automated` | System-triggered agent run (strategy review, etc.) |
-| `discuss` | Follow-up discussion on a previous session |
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Agent switching | Seamless, allow mixed | User can switch agents freely within a session |
+| Original agent tracking | Store `original_provider` | Track who started the session (first message) |
+| Context capture | JSON response wrapper | Reliable parsing, incremental saves, crash-resilient |
+| Badge locations | 3 places | Sessions dropdown, chat header, Session History panel |
 
 ## Schema Changes
 
 **File**: `services/dev-companion/dev_companion/database.py`
 
-Add columns to `sessions` table:
 ```sql
-ALTER TABLE sessions ADD COLUMN session_type TEXT DEFAULT 'single:claude';
+-- Session metadata columns
+ALTER TABLE sessions ADD COLUMN original_provider TEXT;  -- 'claude', 'gemini', 'both', NULL
+ALTER TABLE sessions ADD COLUMN message_count INTEGER DEFAULT 0;
 ALTER TABLE sessions ADD COLUMN description TEXT;
-ALTER TABLE sessions ADD COLUMN discussed_at TEXT;
+ALTER TABLE sessions ADD COLUMN participants TEXT;  -- JSON array: ["claude", "gemini"]
+
+-- Incremental log storage (crash-resilient)
+CREATE TABLE session_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    timestamp TEXT NOT NULL,
+    agent TEXT NOT NULL,  -- 'claude' or 'gemini'
+    log_entry TEXT,       -- Terse worklog-style entry
+    key_files TEXT,       -- JSON array of file:line references
+    learnings TEXT,       -- Any lessons learned
+    FOREIGN KEY (session_id) REFERENCES sessions(id)
+);
+CREATE INDEX idx_session_logs_session ON session_logs(session_id);
 ```
 
-**Migration strategy**:
-- Run ALTER TABLE on existing DB
-- Infer type from metadata or default to 'single:claude'
-- Description initially NULL, populated by LLM summarization
+## JSON Response Wrapper
 
-## Session Description Generation
-
-### Recommended Approach: Inline Agent Summarization
-
-**Why**: The responding agent(s) have full context and can summarize as they go - zero extra API calls.
-
-**Implementation**:
-1. Add instruction to agent system prompt to include hidden session summary
-2. Parse `<!-- SESSION: ... -->` from each response
-3. Strip before displaying to user
-4. Update session description in DB on each response
-5. Dynamic updates as conversation topic evolves
-
-**System prompt addition** (for both Claude and Gemini):
-```
-At the end of every response, include a hidden session summary tag:
-<!-- SESSION: 5-10 word description of this conversation so far -->
-
-Update this each response to reflect the current topic/focus. Examples:
-<!-- SESSION: Debugging WebSocket reconnection issues -->
-<!-- SESSION: Roundtable debate on JWT vs session auth -->
-<!-- SESSION: 20 questions game - thinking of a fruit -->
-<!-- SESSION: Portfolio rebalancing strategy discussion -->
+**Format** (agents wrap responses):
+```json
+{
+  "message": "The actual response to show user...",
+  "meta": {
+    "description": "Debugging WebSocket reconnection issues",
+    "log_entry": "Fixed provider switch race condition in AgentPanel",
+    "key_files": ["AgentPanel.tsx:226", "server.py:150"],
+    "learnings": "Gemini CLI requires -p flag when resuming sessions"
+  }
+}
 ```
 
-**Parsing logic**:
+**Processing** (`server.py`):
 ```python
-import re
+async def process_agent_response(session_id: str, agent: str, response: str, db: Database):
+    try:
+        data = json.loads(response)
+        message = data.get("message", response)
+        meta = data.get("meta", {})
+    except json.JSONDecodeError:
+        message = response
+        meta = {}
 
-def extract_session_summary(response: str) -> tuple[str, str | None]:
-    """Extract and strip session summary from response.
+    # Save log entry immediately (crash-resilient)
+    if meta.get("log_entry"):
+        await db.add_session_log(
+            session_id=session_id,
+            agent=agent,
+            log_entry=meta.get("log_entry"),
+            key_files=json.dumps(meta.get("key_files", [])),
+            learnings=meta.get("learnings")
+        )
 
-    Returns: (cleaned_response, summary_or_none)
-    """
-    pattern = r'<!-- SESSION: (.+?) -->'
-    match = re.search(pattern, response)
+    # Update session metadata
+    if meta.get("description"):
+        await db.update_session(session_id, description=meta["description"])
+    await db.increment_message_count(session_id)
+    await db.add_participant(session_id, agent)
 
-    if match:
-        summary = match.group(1).strip()
-        cleaned = re.sub(pattern, '', response).strip()
-        return cleaned, summary
-
-    return response, None
+    return message  # Return clean message for display
 ```
 
-**Benefits**:
-- Zero extra API calls (piggybacks on existing responses)
-- Agent with full context is the summarizer (most accurate)
-- Dynamic updates as topic evolves
-- No threshold/trigger logic needed
-- For roundtable: both agents contribute, most recent wins
+## System Prompt Addition
 
-### Alternative Approaches (Not Recommended)
-
-| Approach | Issues |
-|----------|--------|
-| Separate LLM call | Extra cost, latency, complexity |
-| Keyword extraction | Poor quality, requires NLP pipeline |
-| First message truncation | Misses context, often just "hi" |
-| Word count thresholds | Edge cases, still needs LLM call |
-
-## Session History UI
-
-**Location**: Top-right corner button in Agent Hub header
-
-**Panel Design**:
+Add to both Claude and Gemini system prompts:
 ```
-┌─────────────────────────────────────────────┐
-│ Session History                        [×] │
-├─────────────────────────────────────────────┤
-│ ┌─────────────────────────────────────────┐ │
-│ │ abc12345  roundtable                    │ │
-│ │ "Claude vs Gemini on auth approaches"  │ │
-│ │ Created: 12/12 20:30  Discussed: -      │ │
-│ │                              [Discuss]  │ │
-│ └─────────────────────────────────────────┘ │
-│ ┌─────────────────────────────────────────┐ │
-│ │ def67890  single:claude                 │ │
-│ │ "Debugging WebSocket reconnection"      │ │
-│ │ Created: 12/12 19:15  Discussed: -      │ │
-│ │                              [Discuss]  │ │
-│ └─────────────────────────────────────────┘ │
-│ ... (max 10 visible, scrollbar if more)    │
-└─────────────────────────────────────────────┘
+When responding, wrap your response in JSON format:
+{"message": "your response here", "meta": {"description": "brief topic", "log_entry": "what you did", "key_files": ["file:line"], "learnings": "any insights"}}
+If you cannot provide meta fields, just respond normally.
 ```
 
-**Fields per session**:
-- Session ID (short, like `abc12345`)
-- Session type badge (color-coded)
-- Description (auto-generated or "(No description)")
-- Created timestamp
-- Discussed timestamp (if ever opened for discussion)
-- [Discuss] button
+## Handoff Context Injection
 
-## Discuss Session Flow
+When user switches agents, inject session context from logs:
 
-1. User clicks [Discuss] on a session
-2. Frontend calls `POST /api/agents/sessions/{id}/discuss`
-3. Backend loads full message history
-4. Creates new session of type `discuss` with `parent_session_id` in metadata
-5. Injects history as context:
-   ```
-   You are about to discuss a previous conversation session.
-
-   Session type: roundtable
-   Created: 2024-12-12 20:30:00
-
-   Conversation history:
-   [USER] How should we implement auth?
-   [CLAUDE] I recommend JWT because...
-   [GEMINI] I agree with Claude but would add...
-   [USER] What about refresh tokens?
-   ...
-
-   The user wants to continue this discussion. Respond naturally.
-   ```
-6. Opens chat with the selected agent(s)
-7. Updates `discussed_at` on original session
-
-## Roundtable Shared History Fix
-
-**Current problem**: Each agent only sees their own previous turns, not the full conversation.
-
-**Fix in `server.py`**:
 ```python
-async def build_roundtable_context(db: Database, session_id: str) -> str:
-    """Build full conversation context for roundtable mode."""
-    messages = await db.get_messages(session_id)
+async def build_handoff_context(db: Database, session_id: str) -> str:
+    session = await db.get_session(session_id)
+    logs = await db.get_session_logs(session_id, limit=20)
 
-    context_parts = []
-    for msg in messages:
-        # Parse agent from content prefix like "[CLAUDE] response"
-        if msg["role"] == "assistant":
-            if msg["content"].startswith("[CLAUDE]"):
-                context_parts.append(f"Claude: {msg['content'][9:]}")
-            elif msg["content"].startswith("[GEMINI]"):
-                context_parts.append(f"Gemini: {msg['content'][9:]}")
-            else:
-                context_parts.append(f"Assistant: {msg['content']}")
-        elif msg["role"] == "user":
-            context_parts.append(f"User: {msg['content']}")
+    parts = []
+    parts.append(f"## Session Context (ID: {session_id[:8]})")
+    parts.append(f"**Topic**: {session.get('description', 'No description')}")
+    parts.append(f"**Started by**: {session.get('original_provider', 'Unknown')}")
+    parts.append(f"**Participants**: {', '.join(json.loads(session.get('participants', '[]')))}")
+    parts.append(f"**Messages**: {session.get('message_count', 0)}")
+    parts.append("")
+    parts.append("## Recent Activity (worklog)")
+    for log in logs:
+        agent_icon = "diamond" if log["agent"] == "claude" else "star"
+        parts.append(f"- [{agent_icon}] {log['log_entry']}")
+        if log.get("key_files"):
+            files = json.loads(log["key_files"])
+            if files:
+                parts.append(f"  Files: {', '.join(files)}")
+        if log.get("learnings"):
+            parts.append(f"  Learning: {log['learnings']}")
+    parts.append("")
+    parts.append("## Learnings from Session")
+    learnings = [l["learnings"] for l in logs if l.get("learnings")]
+    for learning in learnings[-5:]:
+        parts.append(f"- {learning}")
 
-    return "\n\n".join(context_parts)
+    return "\n".join(parts)
 ```
 
-Then inject this context when starting roundtable responses:
-```python
-# In handle_roundtable_message:
-history_context = await build_roundtable_context(bridge.db, session_id)
+## Files to Modify
 
-if history_context:
-    full_prompt = f"""Previous conversation:
-{history_context}
-
-User's new message: {content}
-
-Respond to the user's new message, considering the conversation history."""
-else:
-    full_prompt = content
-```
+| File | Changes |
+|------|---------|
+| `frontend/components/agents/AgentPanel.tsx` | Fix delete clearing, add badges, show original provider |
+| `frontend/components/agents/SessionsList.tsx` | Show all session fields with badges |
+| `services/dev-companion/dev_companion/database.py` | Add columns + session_logs table |
+| `services/dev-companion/dev_companion/server.py` | JSON parsing, set/return fields, build handoff context |
+| `services/dev-companion/dev_companion/claude_process.py` | Add JSON wrapper system prompt |
+| `services/dev-companion/dev_companion/gemini_process.py` | Add JSON wrapper system prompt |
 
 ## Steps
 
-- [ ] **Step 1**: Add session_type, description, discussed_at columns to DB
-- [ ] **Step 2**: Fix roundtable shared history (inject full context)
-- [ ] **Step 3**: Implement session description generation (Gemini Flash summarization)
-- [ ] **Step 4**: Add GET /api/agents/sessions endpoint
-- [ ] **Step 5**: Add POST /api/agents/sessions/{id}/discuss endpoint
-- [ ] **Step 6**: Build Session History panel UI
-- [ ] **Step 7**: Wire up Discuss button to open session in chat
+- [ ] **Step 1**: Fix deletion bug - clear messages when deleting current session in AgentPanel.tsx
+- [ ] **Step 2**: Add DB schema - columns + session_logs table
+- [ ] **Step 3**: Add DB methods - add_session_log(), get_session_logs(), increment_message_count(), add_participant()
+- [ ] **Step 4**: Set original_provider on first message
+- [ ] **Step 5**: JSON response processing - parse wrapper, extract meta, save log entry
+- [ ] **Step 6**: Return new fields in API (SessionResponse model)
+- [ ] **Step 7**: Add ProviderBadge component - show in dropdown, header, Session History
+- [ ] **Step 8**: Update Session History panel - created, last activity, count, description, participants
+- [ ] **Step 9**: Context injection - build handoff context when agent switches
 
 ## Verification
 
-- [ ] Roundtable: Both agents see full conversation history with proper attribution
-- [ ] Session History shows 10 sessions with scrollbar
-- [ ] Each session shows ID, type badge, description, timestamps
-- [ ] Clicking Discuss opens session context in chat
-- [ ] Session descriptions auto-generate after 3+ messages
-- [ ] discussed_at updates when session is opened for discussion
+- [ ] Delete session -> chat clears immediately, doesn't return on refresh
+- [ ] New session shows no badge until first message sent
+- [ ] After first message, session shows Claude/Gemini/Both badge
+- [ ] Badge visible in: dropdown, chat header, Session History
+- [ ] Switching agents in existing session shows "Started with: X"
+- [ ] Session History shows: created time, "X ago", message count, description
+- [ ] Participants shows all agents who responded
+- [ ] JSON response parsing extracts description and stores in DB
+- [ ] Log entries saved to session_logs immediately (check DB)
+- [ ] Sending message with different agent gets handoff context injected
+- [ ] Session survives simulated crash (logs persist)
 
 ## Rollback
 
