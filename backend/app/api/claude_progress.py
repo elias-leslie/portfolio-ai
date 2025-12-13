@@ -182,6 +182,83 @@ async def get_progress(
         return {"entries": [], "limit": limit, "offset": offset, "error": str(e)}
 
 
+@router.get("/progress/handoff", response_model=dict[str, Any])
+async def get_handoff() -> dict[str, Any]:
+    """Get session context for resumption.
+
+    Returns the most recent session context combining:
+    - session_context (captured at session start)
+    - context_snapshot (captured at 85%+ threshold)
+    - session_end (captured at graceful exit)
+
+    Joins with feature_capabilities to get feature name.
+
+    Returns:
+        {
+            "handoff": {
+                "feature_id": "FEAT-XXX",
+                "feature_name": "Feature Name",
+                "current_tasks": ["fix-001", "task-002"],
+                "task_file": "~/.claude/tasks/FEAT-XXX.md",
+                "plan_file": "~/.claude/plans/xxx.md",
+                "user_request": "...",  # For informal work
+                "recent_user_messages": [...],  # Conversation trail
+                "last_commit": "abc1234",
+                "uncommitted_count": 3,
+                "logged_at": "ISO timestamp",
+                "session_id": "..."
+            }
+        }
+    """
+    conn_mgr = get_connection_manager()
+
+    try:
+        with conn_mgr.connection() as conn:
+            # Get most recent session context entry
+            row = conn.execute(
+                """
+                SELECT p.id, p.session_id, p.logged_at, p.action, p.action_type,
+                       p.feature_id, p.task_file, p.details, p.git_commit,
+                       p.context_percent, f.name as feature_name
+                FROM claude_progress_log p
+                LEFT JOIN feature_capabilities f ON p.feature_id = f.id
+                WHERE p.action_type IN ('session_context', 'context_snapshot', 'session_end')
+                ORDER BY p.logged_at DESC
+                LIMIT 1
+                """
+            ).fetchone()
+
+            if not row:
+                return {"handoff": None}
+
+            details: dict[str, Any] = row[7] if isinstance(row[7], dict) else {}
+
+            return {
+                "handoff": {
+                    "id": row[0],
+                    "session_id": row[1],
+                    "logged_at": cast(datetime, row[2]).isoformat() if row[2] else None,
+                    "action": row[3],
+                    "action_type": row[4],
+                    "feature_id": row[5],
+                    "feature_name": row[10],
+                    "task_file": row[6],
+                    "git_commit": row[8],
+                    "context_percent": row[9],
+                    # Fields from details JSONB
+                    "current_tasks": details.get("current_tasks"),
+                    "plan_file": details.get("plan_file"),
+                    "user_request": details.get("user_request"),
+                    "recent_user_messages": details.get("recent_user_messages"),
+                    "uncommitted_count": details.get("uncommitted_count"),
+                }
+            }
+
+    except Exception as e:
+        logger.error("get_handoff_failed", error=str(e))
+        return {"handoff": None, "error": str(e)}
+
+
 @router.get("/progress/latest", response_model=dict[str, Any])
 async def get_latest_session() -> dict[str, Any]:
     """Get the most recent session's progress.
