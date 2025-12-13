@@ -127,6 +127,7 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const currentResponseRef = useRef<ContentBlock[]>([]);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const intentionalCloseRef = useRef(false); // Prevent reconnect on provider switch
 
   // Initialize URLs on client
   useEffect(() => {
@@ -225,7 +226,8 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
     ws.onclose = () => {
       setIsConnected(false);
       wsRef.current = null;
-      if (open) {
+      // Only reconnect if this wasn't an intentional close (e.g., provider switch)
+      if (open && !intentionalCloseRef.current) {
         reconnectTimeoutRef.current = setTimeout(connect, 3000);
       }
     };
@@ -361,6 +363,9 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
 
   // Connect/disconnect based on panel state
   useEffect(() => {
+    // Reset intentional close flag before connecting
+    intentionalCloseRef.current = false;
+
     if (open && currentSessionId) {
       connect();
     }
@@ -370,6 +375,8 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
         clearTimeout(reconnectTimeoutRef.current);
       }
       if (wsRef.current) {
+        // Mark as intentional close to prevent reconnect with stale provider
+        intentionalCloseRef.current = true;
         wsRef.current.close();
         wsRef.current = null;
       }

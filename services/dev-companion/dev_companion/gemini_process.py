@@ -80,26 +80,29 @@ class GeminiSession:
             ]
 
             # Resume previous conversation if we have a session ID
+            # NOTE: When resuming, Gemini CLI requires -p flag, stdin doesn't work
             if self._gemini_session_id:
                 cmd.extend(["--resume", self._gemini_session_id])
+                cmd.extend(["-p", message])  # Must use -p when resuming
 
             # Auto-approve for chat context (user already consented by sending message)
             cmd.extend(["--approval-mode", "auto_edit"])
 
-            logger.debug(f"Gemini command: {' '.join(cmd)}")
+            logger.info(f"Gemini command: {' '.join(cmd)}")
+            logger.info(f"Session ID for resume: {self._gemini_session_id}")
 
-            # Start process with stdin pipe
+            # Start process - use stdin only for first message (no resume)
             process = await asyncio.create_subprocess_exec(
                 *cmd,
-                stdin=asyncio.subprocess.PIPE,
+                stdin=asyncio.subprocess.PIPE if not self._gemini_session_id else None,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=str(self.working_dir),
             )
             self._active_process = process
 
-            # Send message via stdin
-            if process.stdin:
+            # Send message via stdin only for first message (no session ID yet)
+            if not self._gemini_session_id and process.stdin:
                 process.stdin.write(f"{message}\n".encode())
                 await process.stdin.drain()
                 process.stdin.close()
@@ -108,6 +111,7 @@ class GeminiSession:
             accumulated_text = ""
 
             # Read and parse stream-json output
+            logger.info("Starting to read Gemini stdout...")
             if process.stdout:
                 async for line in process.stdout:
                     line_str = line.decode("utf-8", errors="replace").strip()
@@ -179,16 +183,22 @@ class GeminiSession:
                         # Non-JSON output - treat as system message
                         logger.debug(f"Non-JSON line: {line_str[:100]}")
                         continue
+            logger.info("Finished reading Gemini stdout")
 
             # Wait for process to complete
             await process.wait()
             self._active_process = None
+            logger.info(f"Gemini process exited with code: {process.returncode}")
+
+            # Always read stderr for debugging
+            stderr = ""
+            if process.stderr:
+                stderr = (await process.stderr.read()).decode("utf-8", errors="replace")
+                if stderr:
+                    logger.info(f"Gemini stderr: {stderr[:500]}")
 
             # Check for errors
             if process.returncode not in (0, 1):
-                stderr = ""
-                if process.stderr:
-                    stderr = (await process.stderr.read()).decode("utf-8", errors="replace")
                 logger.error(f"Gemini process failed: {stderr[:500]}")
                 yield StreamMessage(
                     type=MessageType.SYSTEM,
