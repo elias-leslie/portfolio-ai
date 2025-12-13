@@ -637,10 +637,10 @@ async def build_roundtable_context(db, session_id: str) -> str:
 
 
 async def build_handoff_context(db: Database, session_id: str) -> str:
-    """Build concise handoff context from session logs for agent switching.
+    """Build handoff context for agent switching.
 
-    This provides the new agent with essential context about what was
-    accomplished in the session, without replaying full message history.
+    Includes actual conversation history so the new agent understands
+    what was discussed. Falls back to session metadata if no messages.
 
     Args:
         db: Database instance
@@ -653,44 +653,43 @@ async def build_handoff_context(db: Database, session_id: str) -> str:
     if not session:
         return ""
 
-    logs = await db.get_session_logs(session_id, limit=20)
-
-    # Build worklog-style summary
+    # Build header with session info
     parts = []
     parts.append(f"## Session Context (ID: {session_id[:8]})")
-    parts.append(f"**Topic**: {session.get('description') or 'No description'}")
     parts.append(f"**Started by**: {session.get('original_provider') or 'Unknown'}")
 
     participants = session.get("participants", [])
     if participants:
-        parts.append(f"**Participants**: {', '.join(participants)}")
-
-    parts.append(f"**Messages**: {session.get('message_count', 0)}")
+        parts.append(f"**Participants so far**: {', '.join(participants)}")
     parts.append("")
 
-    if logs:
-        parts.append("## Recent Activity (worklog)")
-        for log in logs:
-            agent_icon = "◈" if log["agent"] == "claude" else "★"
-            if log.get("log_entry"):
-                parts.append(f"- [{agent_icon}] {log['log_entry']}")
-                if log.get("key_files"):
-                    try:
-                        files = json.loads(log["key_files"])
-                        if files:
-                            parts.append(f"  Files: {', '.join(files)}")
-                    except json.JSONDecodeError:
-                        pass
-                if log.get("learnings"):
-                    parts.append(f"  Learning: {log['learnings']}")
+    # Include actual conversation history (most important for context)
+    messages = await db.get_messages(session_id, limit=20)
+    if messages:
+        parts.append("## Conversation History")
+        for msg in messages:
+            role = msg["role"]
+            content = msg["content"]
+            agent = msg.get("agent")
+
+            if role == "user":
+                parts.append(f"[USER] {content}")
+            elif role == "assistant":
+                # Use agent field if available, else parse from content
+                if agent:
+                    agent_label = agent.upper()
+                elif content.startswith("[CLAUDE]"):
+                    agent_label = "CLAUDE"
+                    content = content[8:].strip()
+                elif content.startswith("[GEMINI]"):
+                    agent_label = "GEMINI"
+                    content = content[8:].strip()
+                else:
+                    agent_label = "ASSISTANT"
+                parts.append(f"[{agent_label}] {content}")
         parts.append("")
 
-        # Collect learnings
-        learnings = [log["learnings"] for log in logs if log.get("learnings")]
-        if learnings:
-            parts.append("## Learnings from Session")
-            for learning in learnings[-5:]:  # Last 5 learnings
-                parts.append(f"- {learning}")
+    parts.append("You are now joining this conversation. Continue naturally from where it left off.")
 
     return "\n".join(parts)
 

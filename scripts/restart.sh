@@ -27,6 +27,8 @@ log_time "Restarting beat..."
 systemctl --user restart portfolio-celery-beat.service
 log_time "Restarting frontend..."
 systemctl --user restart portfolio-frontend.service
+log_time "Restarting dev-companion..."
+systemctl --user restart portfolio-dev-companion.service
 
 log_time "Waiting for backend health..."
 for i in {1..10}; do
@@ -57,14 +59,17 @@ echo "  Backend:      $(systemctl --user is-active portfolio-backend.service && 
 echo "  Celery Worker:$(systemctl --user is-active portfolio-celery.service && echo '✓ Running' || echo '✗ Stopped')"
 echo "  Celery Beat:  $(systemctl --user is-active portfolio-celery-beat.service && echo '✓ Running' || echo '✗ Stopped')"
 echo "  Frontend:     $(systemctl --user is-active portfolio-frontend.service && echo '✓ Running' || echo '✗ Stopped')"
+echo "  Dev Companion:$(systemctl --user is-active portfolio-dev-companion.service && echo '✓ Running' || echo '✗ Stopped')"
 echo ""
 echo "Port Status:"
 echo "  Frontend:     $(ss -tlnp | grep -q ':3000' && echo '✓ Port 3000' || echo '✗ Port 3000 not bound')"
 echo "  Backend:      $(ss -tlnp | grep -q ':8000' && echo '✓ Port 8000' || echo '✗ Port 8000 not bound')"
+echo "  Dev Companion:$(ss -tlnp | grep -q ':9999' && echo '✓ Port 9999' || echo '✗ Port 9999 not bound')"
 echo ""
 echo "Logs (Unified via Journal):"
 echo "  Backend:      journalctl --user -u portfolio-backend -f"
 echo "  Celery Worker:journalctl --user -u portfolio-celery -f"
 echo "  Celery Beat:  journalctl --user -u portfolio-celery-beat -f"
 echo "  Frontend:     journalctl --user -u portfolio-frontend -f"
+echo "  Dev Companion:journalctl --user -u portfolio-dev-companion -f"
 echo ""
