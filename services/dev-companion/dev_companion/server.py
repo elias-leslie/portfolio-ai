@@ -551,6 +551,46 @@ async def get_or_create_session_with_permissions(
     return session
 
 
+async def build_roundtable_context(db, session_id: str) -> str:
+    """Build full conversation context for roundtable mode.
+
+    Parses message history and formats with clear attribution so both
+    agents understand who said what in previous exchanges.
+
+    Args:
+        db: Database instance
+        session_id: Session identifier
+
+    Returns:
+        Formatted conversation history string, empty if no history
+    """
+    messages = await db.get_messages(session_id)
+
+    if not messages:
+        return ""
+
+    context_parts = []
+    for msg in messages:
+        role = msg["role"]
+        content = msg["content"]
+
+        if role == "user":
+            context_parts.append(f"[USER] {content}")
+        elif role == "assistant":
+            # Parse agent attribution from content prefix
+            if content.startswith("[CLAUDE]"):
+                context_parts.append(f"[CLAUDE] {content[8:].strip()}")
+            elif content.startswith("[GEMINI]"):
+                context_parts.append(f"[GEMINI] {content[8:].strip()}")
+            elif " - Discussion Round " in content:
+                # Handle discussion round format: [CLAUDE - Discussion Round 1]
+                context_parts.append(content)
+            else:
+                context_parts.append(f"[ASSISTANT] {content}")
+
+    return "\n\n".join(context_parts)
+
+
 async def stream_agent_response(
     session: ClaudeSession | GeminiSession,
     content: str,
@@ -617,6 +657,11 @@ async def handle_roundtable_message(
     logger.info(f"Roundtable: {first_agent} first, then {second_agent}")
 
     try:
+        # Build conversation history context for multi-turn awareness
+        history_context = await build_roundtable_context(bridge.db, session_id)
+        if history_context:
+            logger.info(f"Roundtable: Loaded {len(history_context)} chars of history context")
+
         # Get or create first agent session
         if first_agent == "gemini":
             first_session = await get_or_create_gemini_session(bridge, session_id)
@@ -632,10 +677,24 @@ async def handle_roundtable_message(
             })
             return
 
+        # Build first agent prompt with history context
+        if history_context:
+            first_prompt = f"""This is a roundtable discussion. Previous conversation:
+
+{history_context}
+
+---
+
+User's new message: {content}
+
+You are {first_agent.upper()}. Respond to the user's message, considering the full conversation history above."""
+        else:
+            first_prompt = content
+
         # First agent responds
         await safe_send_json({"type": "agent_start", "agent": first_agent})
         first_response = await stream_agent_response(
-            first_session, content, safe_send_json, ws_closed_check, first_agent
+            first_session, first_prompt, safe_send_json, ws_closed_check, first_agent
         )
         await safe_send_json({"type": "agent_done", "agent": first_agent})
 
@@ -665,8 +724,24 @@ async def handle_roundtable_message(
             await safe_send_json({"type": "done"})
             return
 
-        # Second agent responds with context of first agent's response
-        context_prompt = f"""The user asked: {content}
+        # Second agent responds with full history context + first agent's response
+        if history_context:
+            context_prompt = f"""This is a roundtable discussion. Previous conversation:
+
+{history_context}
+
+---
+
+User's new message: {content}
+
+{first_agent.upper()} just responded:
+{first_response}
+
+---
+
+You are {second_agent.upper()}. Provide your perspective on the user's message, considering the full conversation history. If you agree with {first_agent.upper()}'s response, say so briefly and add any additional insights. If you disagree or see any flaws, omissions, incorrect assumptions, or potential hallucinations in their response, clearly explain your concerns."""
+        else:
+            context_prompt = f"""The user asked: {content}
 
 {first_agent.capitalize()} responded:
 {first_response}
@@ -708,7 +783,22 @@ Now provide your perspective. If you agree with {first_agent.capitalize()}'s res
                 speaker = agents[(round_num - 1) % 2]
                 other = agents[round_num % 2]
 
-                discussion_prompt = f"""The other agent ({other.capitalize()}) said:
+                # Include history context in discussion rounds too
+                if history_context:
+                    discussion_prompt = f"""This is a roundtable discussion. Previous conversation:
+
+{history_context}
+
+---
+
+The original user message was: {content}
+
+You are {speaker.upper()}. The other agent ({other.upper()}) just said:
+{responses[other]}
+
+Respond to their points briefly (2-3 sentences max). If you now agree, say so. If you still have concerns, explain."""
+                else:
+                    discussion_prompt = f"""The other agent ({other.capitalize()}) said:
 {responses[other]}
 
 Respond to their points. If you now agree, say so. If you still have concerns, explain briefly (2-3 sentences max)."""
