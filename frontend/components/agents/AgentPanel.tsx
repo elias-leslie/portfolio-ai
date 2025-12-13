@@ -373,6 +373,16 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
     };
   }, [open, currentSessionId, connect]);
 
+  // Force reconnect when provider or order changes
+  useEffect(() => {
+    if (open && currentSessionId && wsRef.current) {
+      // Close existing connection to force reconnect with new provider/order
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentProvider, roundtableOrder]);
+
   // Create session
   const createSession = async () => {
     if (!serverUrl) return;
