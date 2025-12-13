@@ -1017,8 +1017,10 @@ async def update_feature_acceptance_criteria(
 class AcceptanceCriterionPassedUpdate(BaseModel):
     """Request model for updating a single criterion's passed status."""
 
-    passed: bool | None  # true, false, or null to reset
+    passed: bool | None = None  # true, false, or null to reset
     evidence: str | None = None  # Evidence for the pass/fail decision
+    criterion_type: str | None = None  # ui, api, db, backend
+    verification_url: str | None = None  # URL for verification
 
 
 @router.patch("/{feature_id}/acceptance-criteria/{criterion_id}", response_model=dict[str, Any])
@@ -1057,9 +1059,14 @@ async def update_acceptance_criterion_passed(
             found = False
             for c in criteria:
                 if isinstance(c, dict) and c.get("id") == criterion_id:
-                    c["passed"] = update.passed
-                    if update.evidence:
+                    if update.passed is not None:
+                        c["passed"] = update.passed
+                    if update.evidence is not None:
                         c["evidence"] = update.evidence
+                    if update.criterion_type is not None:
+                        c["type"] = update.criterion_type
+                    if update.verification_url is not None:
+                        c["verification"] = update.verification_url
                     found = True
                     break
 
