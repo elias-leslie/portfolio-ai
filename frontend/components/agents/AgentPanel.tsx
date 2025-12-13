@@ -5,6 +5,7 @@ import { MessageSquare, X, Plus, Trash2, Settings, Activity, Clock } from 'lucid
 // Note: We use a custom side panel instead of Sheet to allow non-overlay behavior (FEAT-220)
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 import { SettingsModal, useAgentSettings, LLMProvider } from './SettingsModal';
 import { StatusModal } from './StatusModal';
 import { AgentSelector, AgentProvider } from './AgentSelector';
@@ -332,13 +333,18 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
   const deleteSession = async (sessionId: string) => {
     if (!serverUrl) return;
     try {
-      await fetch(`${serverUrl}/sessions/${sessionId}`, { method: 'DELETE' });
+      const response = await fetch(`${serverUrl}/sessions/${sessionId}`, { method: 'DELETE' });
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}`);
+      }
+      // Only update local state after confirmed deletion
       setSessions(prev => prev.filter(s => s.id !== sessionId));
       if (currentSessionId === sessionId) {
         setCurrentSessionId(sessions.find(s => s.id !== sessionId)?.id || null);
       }
     } catch (err) {
       console.error('Failed to delete session:', err);
+      toast.error('Failed to delete session');
     }
   };
 
