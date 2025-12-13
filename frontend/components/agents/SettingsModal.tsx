@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Save, RotateCcw } from 'lucide-react';
+import { Save, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
@@ -70,7 +70,7 @@ interface SettingsModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
-type SettingsTab = 'prompts' | 'cross-validation' | 'llm';
+type SettingsTab = 'prompts' | 'cross-validation';
 
 export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const [settings, setSettings] = useState<AgentSettings>(DEFAULT_SETTINGS);
@@ -100,24 +100,13 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const tabs: { id: SettingsTab; label: string }[] = [
     { id: 'prompts', label: 'Role Prompts' },
     { id: 'cross-validation', label: 'Cross-Validation' },
-    { id: 'llm', label: 'LLM Settings' },
   ];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col bg-gray-900 text-gray-100 border-gray-700">
         <DialogHeader className="border-b border-gray-700 pb-4">
-          <DialogTitle className="flex items-center justify-between">
-            Agent Settings
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onOpenChange(false)}
-              className="h-8 w-8 p-0"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </DialogTitle>
+          <DialogTitle>Agent Settings</DialogTitle>
         </DialogHeader>
 
         {/* Tabs */}
@@ -234,68 +223,6 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
             </>
           )}
 
-          {activeTab === 'llm' && (
-            <>
-              <p className="text-sm text-gray-400 mb-4">
-                Select your preferred LLM provider for Agent Hub conversations.
-              </p>
-              <div className="space-y-3">
-                <button
-                  onClick={() => handleChange('llmProvider', 'claude')}
-                  className={cn(
-                    "w-full p-4 rounded border text-left transition-colors",
-                    settings.llmProvider === 'claude'
-                      ? "bg-blue-900/30 border-blue-600"
-                      : "bg-gray-800 border-gray-700 hover:border-gray-600"
-                  )}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className={cn(
-                      "w-2 h-2 rounded-full",
-                      settings.llmProvider === 'claude' ? "bg-green-500" : "bg-gray-500"
-                    )} />
-                    <span className="text-sm font-medium">Claude</span>
-                    {settings.llmProvider === 'claude' && (
-                      <span className="text-xs bg-blue-600 px-2 py-0.5 rounded">Active</span>
-                    )}
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    Claude Agent SDK via Dev Companion service (port 9999)
-                  </p>
-                </button>
-                <button
-                  onClick={() => handleChange('llmProvider', 'gemini')}
-                  className={cn(
-                    "w-full p-4 rounded border text-left transition-colors",
-                    settings.llmProvider === 'gemini'
-                      ? "bg-green-900/30 border-green-600"
-                      : "bg-gray-800 border-gray-700 hover:border-gray-600"
-                  )}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className={cn(
-                      "w-2 h-2 rounded-full",
-                      settings.llmProvider === 'gemini' ? "bg-green-500" : "bg-gray-500"
-                    )} />
-                    <span className="text-sm font-medium">Gemini</span>
-                    {settings.llmProvider === 'gemini' && (
-                      <span className="text-xs bg-green-600 px-2 py-0.5 rounded">Active</span>
-                    )}
-                    <span className="text-xs bg-green-600/50 px-2 py-0.5 rounded text-green-200">Free</span>
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    Free via local Gemini CLI with cached OAuth credentials
-                  </p>
-                </button>
-              </div>
-              {settings.llmProvider === 'gemini' && (
-                <div className="mt-4 p-3 bg-blue-900/30 border border-blue-700 rounded text-sm text-blue-200">
-                  <strong>Note:</strong> Gemini uses local CLI with cached OAuth credentials.
-                  Free tier, no API costs.
-                </div>
-              )}
-            </>
-          )}
         </div>
 
         {/* Footer */}

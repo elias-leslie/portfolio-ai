@@ -497,11 +497,20 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
               </Button>
             </div>
           </div>
-          {/* Active Provider Badge + Session ID */}
+          {/* Active Provider Badge + Session ID (clickable for session management) */}
           <div className="flex items-center justify-between">
-            <p className="text-gray-500 text-xs">
+            <button
+              onClick={() => {
+                setShowSessions(!showSessions);
+                setShowHistory(false);
+                setShowTokenSummary(false);
+              }}
+              className="text-gray-500 text-xs hover:text-gray-300 transition-colors flex items-center gap-1"
+              title="Click to manage sessions"
+            >
               {currentSessionId ? `Session: ${currentSessionId.slice(0, 8)}...` : 'No session'}
-            </p>
+              <Plus className="h-3 w-3" />
+            </button>
             {isConnected && (
               <span className={cn(
                 "text-xs px-1.5 py-0.5 rounded font-medium",

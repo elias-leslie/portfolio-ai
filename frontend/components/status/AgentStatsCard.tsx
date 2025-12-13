@@ -152,11 +152,11 @@ export function AgentStatsCard({ stats }: AgentStatsCardProps) {
           )}
         </div>
 
-        {/* Link to full telemetry dashboard */}
+        {/* Link to Agent Hub */}
         <div className="mt-4 pt-4 border-t">
-          <Link href="/agents">
+          <Link href="/agent-hub">
             <Button variant="outline" size="sm" className="w-full">
-              View Full Telemetry
+              Open Agent Hub
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </Link>

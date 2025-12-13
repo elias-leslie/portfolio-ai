@@ -1,13 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Activity, Cpu, Clock, CheckCircle2, XCircle, ExternalLink } from 'lucide-react';
+import { Activity, Cpu, Clock, CheckCircle2, XCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { useTelemetrySummary, useRunHistory } from '@/lib/hooks/useAgentTelemetry';
 import { cn } from '@/lib/utils';
-import Link from 'next/link';
 
 interface StatusModalProps {
   open: boolean;
@@ -23,14 +21,7 @@ export function StatusModal({ open, onOpenChange }: StatusModalProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[80vh] overflow-hidden flex flex-col bg-gray-900 text-gray-100 border-gray-700">
         <DialogHeader className="border-b border-gray-700 pb-4">
-          <DialogTitle className="flex items-center justify-between">
-            <span>Agent Status</span>
-            <Link href="/agents" onClick={() => onOpenChange(false)}>
-              <Button variant="ghost" size="sm" className="text-gray-400 text-xs">
-                Full Dashboard <ExternalLink className="h-3 w-3 ml-1" />
-              </Button>
-            </Link>
-          </DialogTitle>
+          <DialogTitle>Agent Status</DialogTitle>
         </DialogHeader>
 
         {/* Period selector */}
