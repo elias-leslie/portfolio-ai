@@ -1,12 +1,16 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { MessageSquare, X, Plus, Trash2, Settings, Activity, User, Code } from 'lucide-react';
+import { MessageSquare, X, Plus, Trash2, Settings, Activity, Clock } from 'lucide-react';
 // Note: We use a custom side panel instead of Sheet to allow non-overlay behavior (FEAT-220)
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { SettingsModal, useAgentSettings, LLMProvider } from './SettingsModal';
 import { StatusModal } from './StatusModal';
+import { AgentSelector, AgentProvider } from './AgentSelector';
+import { ModeSelector, AgentMode } from './ModeSelector';
+import { TokenSummaryCards } from './TokenSummaryCards';
+import { SessionsList } from './SessionsList';
 
 // Types from ChatPanel
 interface ContentBlock {
@@ -57,7 +61,7 @@ interface Session {
   metadata: Record<string, unknown>;
 }
 
-export type AgentRole = 'dev' | 'financial';
+// AgentRole is now handled by ModeSelector
 
 interface AgentPanelProps {
   open: boolean;
@@ -100,13 +104,16 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
   const [currentResponse, setCurrentResponse] = useState<ContentBlock[]>([]);
   const [pendingPermission, setPendingPermission] = useState<PermissionRequest | null>(null);
 
-  // Role state
-  const [role, setRole] = useState<AgentRole>('dev');
+  // FEAT-223: Agent and mode selectors
+  const [agentProvider, setAgentProvider] = useState<AgentProvider>('claude');
+  const [agentMode, setAgentMode] = useState<AgentMode>('dev');
 
   // UI state
   const [showSessions, setShowSessions] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showStatus, setShowStatus] = useState(false);
+  const [showTokenSummary, setShowTokenSummary] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   // Refs
   const wsRef = useRef<WebSocket | null>(null);
@@ -343,7 +350,7 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
 
     // Inject page context if in financial mode
     let contextPrefix = '';
-    if (role === 'financial' && pageContext) {
+    if (agentMode === 'financial' && pageContext) {
       contextPrefix = `[Page: ${pageContext.path}]\n`;
       if (pageContext.data) {
         contextPrefix += `[Context: ${JSON.stringify(pageContext.data)}]\n\n`;
@@ -427,7 +434,7 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
     <>
       {/* Side Panel or Standalone Content (FEAT-220) */}
       <div className={wrapperClasses}>
-        {/* Header */}
+        {/* Header - FEAT-223: 5 icons layout */}
         <div className="p-4 border-b border-gray-700 space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -436,27 +443,39 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
                 "w-2 h-2 rounded-full",
                 isConnected ? "bg-green-500" : "bg-red-500"
               )} />
-              {isConnected && (
-                <span className={cn(
-                  "text-xs px-1.5 py-0.5 rounded font-medium",
-                  activeProvider === 'gemini'
-                    ? "bg-green-600/30 text-green-300 border border-green-600"
-                    : "bg-blue-600/30 text-blue-300 border border-blue-600"
-                )}>
-                  {activeProvider === 'gemini' ? 'Gemini' : 'Claude'}
-                </span>
-              )}
             </div>
+            {/* 5 Header Icons: Agent, Mode, Sessions, Status, Settings */}
             <div className="flex items-center gap-1">
+              {/* Agent Selector (Claude/Gemini/Both) */}
+              <AgentSelector
+                value={agentProvider}
+                onChange={setAgentProvider}
+                disabled={!isConnected}
+              />
+              {/* Mode Selector (Financial/Dev) */}
+              <ModeSelector
+                value={agentMode}
+                onChange={setAgentMode}
+                disabled={!isConnected}
+              />
+              {/* Sessions History */}
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setShowSessions(!showSessions)}
-                className="h-8 w-8 p-0 text-gray-400 hover:text-gray-100"
-                title="Sessions"
+                onClick={() => {
+                  setShowHistory(!showHistory);
+                  setShowSessions(false);
+                  setShowTokenSummary(false);
+                }}
+                className={cn(
+                  "h-8 w-8 p-0 text-gray-400 hover:text-gray-100",
+                  showHistory && "bg-gray-700 text-gray-100"
+                )}
+                title="Session History"
               >
-                <MessageSquare className="h-4 w-4" />
+                <Clock className="h-4 w-4" />
               </Button>
+              {/* Status */}
               <Button
                 variant="ghost"
                 size="sm"
@@ -466,6 +485,7 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
               >
                 <Activity className="h-4 w-4" />
               </Button>
+              {/* Settings */}
               <Button
                 variant="ghost"
                 size="sm"
@@ -475,52 +495,52 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
               >
                 <Settings className="h-4 w-4" />
               </Button>
-              {/* Hide close button in standalone/popup mode - user closes window directly */}
-              {!standalone && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onOpenChange(false)}
-                  className="h-8 w-8 p-0 text-gray-400 hover:text-gray-100"
-                  title="Close"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
             </div>
           </div>
-          <p className="text-gray-500 text-xs">
-            {currentSessionId ? `Session: ${currentSessionId}` : 'No session'}
-          </p>
-
-          {/* Role Toggle */}
-          <div className="flex gap-1 bg-gray-800 rounded-md p-1">
-            <button
-              onClick={() => setRole('dev')}
-              className={cn(
-                "flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors",
-                role === 'dev'
-                  ? "bg-blue-600 text-white"
-                  : "text-gray-400 hover:text-gray-200"
-              )}
-            >
-              <Code className="h-3 w-3" />
-              Dev
-            </button>
-            <button
-              onClick={() => setRole('financial')}
-              className={cn(
-                "flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors",
-                role === 'financial'
-                  ? "bg-green-600 text-white"
-                  : "text-gray-400 hover:text-gray-200"
-              )}
-            >
-              <User className="h-3 w-3" />
-              Financial
-            </button>
+          {/* Active Provider Badge + Session ID */}
+          <div className="flex items-center justify-between">
+            <p className="text-gray-500 text-xs">
+              {currentSessionId ? `Session: ${currentSessionId.slice(0, 8)}...` : 'No session'}
+            </p>
+            {isConnected && (
+              <span className={cn(
+                "text-xs px-1.5 py-0.5 rounded font-medium",
+                activeProvider === 'gemini'
+                  ? "bg-green-600/30 text-green-300 border border-green-600"
+                  : "bg-blue-600/30 text-blue-300 border border-blue-600"
+              )}>
+                {activeProvider === 'gemini' ? 'Gemini' : 'Claude'}
+                {agentProvider === 'both' && ' + Roundtable'}
+              </span>
+            )}
           </div>
         </div>
+
+        {/* Token Summary Cards - Toggleable */}
+        {showTokenSummary && (
+          <TokenSummaryCards serverUrl={serverUrl || 'http://localhost:8000'} />
+        )}
+
+        {/* Session History Panel */}
+        {showHistory && (
+          <div className="border-b border-gray-700 bg-gray-800/30">
+            <div className="p-2 flex items-center justify-between border-b border-gray-700">
+              <span className="text-xs text-gray-400 font-medium">Session History</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowTokenSummary(!showTokenSummary)}
+                className="h-6 px-2 text-xs text-gray-400 hover:text-gray-100"
+              >
+                {showTokenSummary ? 'Hide Tokens' : 'Show Tokens'}
+              </Button>
+            </div>
+            <SessionsList
+              serverUrl={serverUrl || 'http://localhost:8000'}
+              maxHeight="200px"
+            />
+          </div>
+        )}
 
         {/* Sessions Dropdown */}
         {showSessions && (
@@ -651,7 +671,7 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
                   : !currentSessionId
                   ? "Create a session first..."
                   : isConnected
-                  ? `Ask ${role === 'dev' ? 'for code help' : 'about markets'}...`
+                  ? `Ask ${agentMode === 'dev' ? 'for code help' : 'about markets'}...`
                   : "Connecting..."
               }
               disabled={!isConnected || isLoading || !!pendingPermission || !currentSessionId}

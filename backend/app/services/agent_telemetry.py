@@ -414,3 +414,67 @@ class AgentTelemetryService:
         """
         summary = self.get_summary(days=days)
         return summary.by_provider
+
+    def get_token_summary(self, days: int = 7) -> dict[str, Any]:
+        """Get token usage summary for the UI.
+
+        Args:
+            days: Number of days to include (7, 14, or 30)
+
+        Returns:
+            Dict with total_tokens, by_provider breakdown, by_agent breakdown
+        """
+        now = datetime.now(UTC)
+        start_date = now - timedelta(days=days)
+
+        with self.conn_mgr.connection() as conn:
+            # Get total tokens
+            result = conn.execute(
+                """
+                SELECT COALESCE(SUM((token_usage->>'total_tokens')::int), 0) as total_tokens
+                FROM agent_runs
+                WHERE started_at >= %s AND token_usage IS NOT NULL
+                """,
+                [start_date],
+            )
+            row = result.fetchone()
+            total_tokens = int(row[0] or 0) if row else 0
+
+            # Get by provider
+            result = conn.execute(
+                """
+                SELECT
+                    COALESCE(provider, 'unknown') as provider,
+                    COALESCE(SUM((token_usage->>'total_tokens')::int), 0) as total_tokens
+                FROM agent_runs
+                WHERE started_at >= %s AND token_usage IS NOT NULL
+                GROUP BY provider
+                ORDER BY total_tokens DESC
+                """,
+                [start_date],
+            )
+            by_provider = {str(r[0]): int(r[1] or 0) for r in result.fetchall()}
+
+            # Get by agent type
+            result = conn.execute(
+                """
+                SELECT
+                    COALESCE(agent_type, 'unknown') as agent_type,
+                    COALESCE(SUM((token_usage->>'total_tokens')::int), 0) as total_tokens
+                FROM agent_runs
+                WHERE started_at >= %s AND token_usage IS NOT NULL
+                GROUP BY agent_type
+                ORDER BY total_tokens DESC
+                """,
+                [start_date],
+            )
+            by_agent = {str(r[0]): int(r[1] or 0) for r in result.fetchall()}
+
+            return {
+                "total_tokens": total_tokens,
+                "by_provider": by_provider,
+                "by_agent": by_agent,
+                "period_days": days,
+                "period_start": start_date.isoformat(),
+                "period_end": now.isoformat(),
+            }

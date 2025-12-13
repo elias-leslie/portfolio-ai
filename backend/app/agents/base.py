@@ -300,6 +300,12 @@ class Agent(ABC):
             "total_tokens": 0,
         }
 
+        # Store system prompt
+        self._store_conversation_message(run_id, "system", self.get_system_prompt())
+
+        # Store initial user message
+        self._store_conversation_message(run_id, "user", user_prompt)
+
         for iteration in range(max_iterations):
             # Generate with tools
             response = self.llm_client.generate_with_tools(  # type: ignore[union-attr]
@@ -327,6 +333,11 @@ class Agent(ABC):
                     conn.commit()
 
             if response.stop_reason == "end_turn":
+                # Store assistant's final response
+                output_tokens = response.usage.get("completion_tokens") if response.usage else None
+                self._store_conversation_message(
+                    run_id, "assistant", response.content, token_count=output_tokens
+                )
                 # Agent finished - provide final answer
                 return self._handle_completion(
                     run_id,
@@ -338,17 +349,47 @@ class Agent(ABC):
                 )
 
             if response.stop_reason == "tool_use":
+                # Store assistant's response with tool calls
+                output_tokens = response.usage.get("completion_tokens") if response.usage else None
+                self._store_conversation_message(
+                    run_id,
+                    "assistant",
+                    response.content,
+                    token_count=output_tokens,
+                    metadata={"has_tool_calls": True},
+                )
+
                 # Agent wants to call tools
                 tool_results = []
 
                 for tool_call in response.tool_calls:
                     tool_start = datetime.now(UTC)
 
+                    # Store tool call message
+                    self._store_conversation_message(
+                        run_id,
+                        "tool_call",
+                        json.dumps(
+                            {"name": tool_call["name"], "parameters": tool_call["parameters"]},
+                            default=self._json_serializer,
+                        ),
+                        metadata={"tool_name": tool_call["name"]},
+                    )
+
                     # Execute tool
                     result = self.execute_tool(tool_call["name"], tool_call["parameters"])
 
                     tool_end = datetime.now(UTC)
                     duration_ms = int((tool_end - tool_start).total_seconds() * 1000)
+
+                    # Store tool result message
+                    result_str = json.dumps(result, default=self._json_serializer)
+                    self._store_conversation_message(
+                        run_id,
+                        "tool_result",
+                        result_str[:10000],  # Truncate very long results
+                        metadata={"tool_name": tool_call["name"], "duration_ms": duration_ms},
+                    )
 
                     # Record tool call
                     self._record_tool_call(
@@ -525,6 +566,10 @@ class Agent(ABC):
         started_at: datetime,
         provider: str | None = None,
         model: str | None = None,
+        run_type: str = "automated",
+        parent_run_id: str | None = None,
+        workflow_id: str | None = None,
+        user_id: str | None = None,
     ) -> None:
         """Record agent run start in database.
 
@@ -533,6 +578,10 @@ class Agent(ABC):
             started_at: Run start timestamp
             provider: LLM provider (gemini, claude, anthropic_api)
             model: Model identifier
+            run_type: Type of run (automated, user_chat, cross_validation)
+            parent_run_id: Parent run ID for linked runs (e.g., follow-up discussions)
+            workflow_id: Associated workflow ID
+            user_id: User ID for multi-user support
         """
         self.storage.insert_dict(
             "agent_runs",
@@ -554,8 +603,15 @@ class Agent(ABC):
                 "duration_ms": None,
                 "token_usage": None,
                 "session_id": None,
+                "run_type": run_type,
+                "parent_run_id": parent_run_id,
+                "workflow_id": workflow_id,
+                "user_id": user_id,
             },
         )
+        # Track message sequence for this run
+        self._message_sequence: dict[str, int] = getattr(self, "_message_sequence", {})
+        self._message_sequence[run_id] = 0
 
     def _record_run_complete(
         self,
@@ -630,5 +686,42 @@ class Agent(ABC):
                 "response_summary": result_summary,
                 "duration_ms": duration_ms,
                 "called_at": datetime.now(UTC).isoformat(),
+            },
+        )
+
+    def _store_conversation_message(
+        self,
+        run_id: str,
+        role: str,
+        content: str,
+        token_count: int | None = None,
+        metadata: dict[str, object] | None = None,
+    ) -> None:
+        """Store a conversation message for the agent run.
+
+        Args:
+            run_id: Agent run ID
+            role: Message role (user, assistant, system, tool_call, tool_result)
+            content: Message content
+            token_count: Optional token count for this message
+            metadata: Optional metadata (e.g., tool name, tool_use_id)
+        """
+        # Get and increment sequence number
+        self._message_sequence = getattr(self, "_message_sequence", {})
+        if run_id not in self._message_sequence:
+            self._message_sequence[run_id] = 0
+
+        sequence_num = self._message_sequence[run_id]
+        self._message_sequence[run_id] = sequence_num + 1
+
+        self.storage.insert_dict(
+            "agent_conversation_messages",
+            {
+                "agent_run_id": run_id,
+                "sequence_num": sequence_num,
+                "role": role,
+                "content": content,
+                "token_count": token_count,
+                "metadata": json.dumps(metadata) if metadata else None,
             },
         )
