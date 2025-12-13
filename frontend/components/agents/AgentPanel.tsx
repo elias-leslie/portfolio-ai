@@ -563,7 +563,7 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
                 isConnected ? "bg-green-500" : "bg-red-500"
               )} />
             </div>
-            {/* 5 Header Icons: Agent, Mode, Sessions, Status, Settings */}
+            {/* Header Icons: Agent, Mode, Status, Settings */}
             <div className="flex items-center gap-1">
               {/* Agent Selector (Claude/Gemini/Both) */}
               <AgentSelector
@@ -579,22 +579,6 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
                 onChange={setAgentMode}
                 disabled={!isConnected}
               />
-              {/* Sessions Button */}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setShowSessions(!showSessions);
-                  setShowTokenSummary(false);
-                }}
-                className={cn(
-                  "h-8 w-8 p-0 text-gray-400 hover:text-gray-100",
-                  showSessions && "bg-gray-700 text-gray-100"
-                )}
-                title="Sessions"
-              >
-                <MessageSquare className="h-4 w-4" />
-              </Button>
               {/* Status */}
               <Button
                 variant="ghost"
@@ -617,18 +601,38 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
               </Button>
             </div>
           </div>
-          {/* Active Provider Badge + Session ID (clickable for session management) */}
+          {/* Sessions button (left) + Session ID + Provider info (right) */}
           <div className="flex items-center justify-between">
-            <span className="text-gray-500 text-xs flex items-center gap-1">
-              {currentSessionId ? `Session: ${currentSessionId.slice(0, 8)}...` : 'No session'}
-              {/* Show original provider badge if session has one */}
-              {(() => {
-                const currentSession = sessions.find(s => s.id === currentSessionId);
-                return currentSession?.original_provider && (
-                  <ProviderBadge provider={currentSession.original_provider} size="xs" />
-                );
-              })()}
-            </span>
+            <div className="flex items-center gap-2">
+              {/* Sessions Button - left side */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowSessions(!showSessions);
+                  setShowTokenSummary(false);
+                }}
+                className={cn(
+                  "h-7 px-2 text-gray-400 hover:text-gray-100 text-xs",
+                  showSessions && "bg-gray-700 text-gray-100"
+                )}
+                title="Sessions"
+              >
+                <MessageSquare className="h-3.5 w-3.5 mr-1" />
+                Sessions
+              </Button>
+              <span className="text-gray-600">|</span>
+              <span className="text-gray-500 text-xs flex items-center gap-1">
+                {currentSessionId ? `${currentSessionId.slice(0, 8)}...` : 'No session'}
+                {/* Show original provider badge if session has one */}
+                {(() => {
+                  const currentSession = sessions.find(s => s.id === currentSessionId);
+                  return currentSession?.original_provider && (
+                    <ProviderBadge provider={currentSession.original_provider} size="xs" />
+                  );
+                })()}
+              </span>
+            </div>
             <div className="flex items-center gap-2">
               {/* Show "Started with: X" if current agent differs from original */}
               {(() => {
