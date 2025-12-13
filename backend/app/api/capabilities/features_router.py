@@ -84,28 +84,8 @@ class FeatureLayerResultUpdate(BaseModel):
     evidence: str | None = None
 
 
-class TaskResponse(BaseModel):
-    """Response model for a single subtask."""
-
-    id: int | None = None
-    task_id: str
-    description: str
-    completed: bool
-    order_num: int
-    completed_at: str | None = None
-    completed_by: str | None = None
-    created_at: str | None = None
-    updated_at: str | None = None
-    # Enhanced fields for task file replacement
-    files: list[str] = []  # Files this subtask modifies
-    notes: str | None = None  # Free-form notes ("DEFERRED - optional", etc.)
-    status: str = "pending"  # pending, in_progress, deferred, blocked, complete
-    effort: str | None = None  # trivial, low, medium, high
-    task_type: str = "implementation"  # implementation, fix, task_file, discovery
-
-
-# Task mutation models REMOVED - use Beads CLI for task management.
-# TaskResponse kept for reading existing tasks during migration.
+# Task models REMOVED - use Beads CLI for task management.
+# All task tracking now via: bd ready, bd create, bd update, bd close
 
 
 class AcceptanceCriterion(BaseModel):
@@ -140,7 +120,7 @@ class FeatureResponse(BaseModel):
     last_verified_at: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
-    tasks: list[TaskResponse] = []  # Subtasks from DB
+    # tasks field removed - use Beads CLI (bd ready, bd list)
     # Spec-driven fields
     priority: int | None = None  # User override (1-5), null = auto
     effective_priority: int = 5  # Calculated priority (1-5)
@@ -167,26 +147,7 @@ class FeatureSummaryResponse(BaseModel):
 # Helper functions
 def _feature_to_response(f: dict[str, Any]) -> FeatureResponse:
     """Convert feature dict from scanner to response model."""
-    # Convert task dicts to TaskResponse
-    tasks = [
-        TaskResponse(
-            id=t.get("id"),
-            task_id=t["task_id"],
-            description=t["description"],
-            completed=t["completed"],
-            order_num=t["order_num"],
-            completed_at=t["completed_at"].isoformat() if t.get("completed_at") else None,
-            completed_by=t.get("completed_by"),
-            created_at=t["created_at"].isoformat() if t.get("created_at") else None,
-            updated_at=t["updated_at"].isoformat() if t.get("updated_at") else None,
-            files=t.get("files", []),
-            notes=t.get("notes"),
-            status=t.get("status", "pending"),
-            effort=t.get("effort"),
-            task_type=t.get("task_type", "implementation"),
-        )
-        for t in f.get("tasks", [])
-    ]
+    # Tasks removed - use Beads CLI (bd ready, bd list)
 
     # Convert acceptance_criteria from JSONB to list of AcceptanceCriterion
     raw_criteria = f.get("acceptance_criteria", [])
@@ -219,7 +180,6 @@ def _feature_to_response(f: dict[str, Any]) -> FeatureResponse:
         last_verified_at=(f["last_verified_at"].isoformat() if f.get("last_verified_at") else None),
         created_at=f["created_at"].isoformat() if f.get("created_at") else None,
         updated_at=f["updated_at"].isoformat() if f.get("updated_at") else None,
-        tasks=tasks,
         priority=f.get("priority"),
         effective_priority=f.get("effective_priority", 5),
         acceptance_criteria=acceptance_criteria,
@@ -1337,48 +1297,15 @@ async def remove_feature_dependency(feature_id: str, depends_on_feature_id: str)
 
 
 # =========================================================================
-# Subtask Endpoints (all-in-DB approach)
+# Subtask Endpoints REMOVED - Use Beads CLI instead:
 # =========================================================================
-
-
-@router.get("/{feature_id}/tasks", response_model=list[TaskResponse])
-async def get_feature_tasks(feature_id: str) -> list[TaskResponse]:
-    """Get all subtasks for a feature.
-
-    Args:
-        feature_id: Feature ID (e.g., FEAT-001)
-    """
-    conn_mgr = get_connection_manager()
-    scanner = FeatureScanner(conn_mgr)
-
-    try:
-        tasks = scanner.get_tasks(feature_id)
-
-        return [
-            TaskResponse(
-                id=t.get("id"),
-                task_id=t["task_id"],
-                description=t["description"],
-                completed=t["completed"],
-                order_num=t["order_num"],
-                completed_at=t["completed_at"].isoformat() if t.get("completed_at") else None,
-                completed_by=t.get("completed_by"),
-                created_at=t["created_at"].isoformat() if t.get("created_at") else None,
-                updated_at=t["updated_at"].isoformat() if t.get("updated_at") else None,
-                files=t.get("files", []),
-                notes=t.get("notes"),
-                status=t.get("status", "pending"),
-                effort=t.get("effort"),
-                task_type=t.get("task_type", "implementation"),
-            )
-            for t in tasks
-        ]
-
-    except Exception as e:
-        logger.error("get_feature_tasks_failed", feature_id=feature_id, error=str(e))
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-
+#
+# Task management moved to Beads:
+#   bd ready --json              # Find work
+#   bd create "task" -t task     # Create
+#   bd update <id> --status ...  # Update
+#   bd close <id> --reason "..." # Complete
+#
 # Task mutation endpoints REMOVED - use Beads CLI instead:
 # - bd create "task" -t task -p 1 --deps discovered-from:<feature-issue>
 # - bd update <id> --status in_progress|closed
