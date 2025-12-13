@@ -1,6 +1,6 @@
 'use client';
 
-import { Diamond, Star, ChevronDown } from 'lucide-react';
+import { Diamond, Star, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useRef, useEffect } from 'react';
 
@@ -13,6 +13,8 @@ interface AgentSelectorProps {
   disabled?: boolean;
   roundtableOrder?: RoundtableOrder;
   onRoundtableOrderChange?: (order: RoundtableOrder) => void;
+  maxTurns?: number;
+  onMaxTurnsChange?: (turns: number) => void;
 }
 
 const providers: AgentProvider[] = ['claude', 'gemini', 'both'];
@@ -41,6 +43,8 @@ export function AgentSelector({
   disabled = false,
   roundtableOrder = 'claude-first',
   onRoundtableOrderChange,
+  maxTurns = 10,
+  onMaxTurnsChange,
 }: AgentSelectorProps) {
   const [showOrderMenu, setShowOrderMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -98,14 +102,14 @@ export function AgentSelector({
             className="h-6 w-6 flex items-center justify-center rounded text-gray-400 hover:text-gray-200 hover:bg-gray-700/50 transition-colors"
             title="Change response order"
           >
-            <ChevronDown className="h-3 w-3" />
+            <ChevronUp className="h-3 w-3" />
           </button>
         )}
       </div>
 
-      {/* Order selection dropdown */}
+      {/* Order selection dropdown - drops UP to avoid expanding window */}
       {showOrderMenu && value === 'both' && onRoundtableOrderChange && (
-        <div className="absolute top-full left-0 mt-1 w-48 bg-gray-800 border border-gray-700 rounded-md shadow-lg z-50">
+        <div className="absolute bottom-full left-0 mb-1 w-48 bg-gray-800 border border-gray-700 rounded-md shadow-lg z-50">
           <div className="py-1">
             <button
               onClick={() => {
@@ -136,6 +140,28 @@ export function AgentSelector({
               {roundtableOrder === 'gemini-first' && <span className="ml-auto text-xs">✓</span>}
             </button>
           </div>
+          {/* Max turns selector */}
+          {onMaxTurnsChange && (
+            <div className="border-t border-gray-700 px-3 py-2">
+              <label className="text-xs text-gray-400 block mb-1">Max turns</label>
+              <div className="flex items-center gap-2">
+                {[3, 5, 10, 20, 50].map((turns) => (
+                  <button
+                    key={turns}
+                    onClick={() => onMaxTurnsChange(turns)}
+                    className={cn(
+                      "px-2 py-1 text-xs rounded transition-colors",
+                      maxTurns === turns
+                        ? "bg-purple-600 text-white"
+                        : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                    )}
+                  >
+                    {turns}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

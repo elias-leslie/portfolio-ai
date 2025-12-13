@@ -140,6 +140,7 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
   const [agentProvider, setAgentProvider] = useState<AgentProvider>('claude');
   const [agentMode, setAgentMode] = useState<AgentMode>('dev');
   const [roundtableOrder, setRoundtableOrder] = useState<RoundtableOrder>('claude-first');
+  const [maxTurns, setMaxTurns] = useState<number>(10);
   const [currentRespondingAgent, setCurrentRespondingAgent] = useState<'claude' | 'gemini' | null>(null);
 
   // UI state
@@ -246,9 +247,9 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
     // Increment generation to invalidate stale onclose handlers
     const thisGeneration = ++connectionGenRef.current;
 
-    // Use agentProvider from selector (claude/gemini/both), with order for roundtable
+    // Use agentProvider from selector (claude/gemini/both), with order and maxTurns for roundtable
     const providerParam = agentProvider === 'both' ? 'both' : agentProvider;
-    const orderParam = agentProvider === 'both' ? `&order=${roundtableOrder}` : '';
+    const orderParam = agentProvider === 'both' ? `&order=${roundtableOrder}&max_turns=${maxTurns}` : '';
     const ws = new WebSocket(`${wsUrl}/ws/${currentSessionId}?provider=${providerParam}${orderParam}`);
 
     ws.onopen = () => {
@@ -404,7 +405,7 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
     };
 
     wsRef.current = ws;
-  }, [wsUrl, currentSessionId, open, agentProvider, roundtableOrder]);
+  }, [wsUrl, currentSessionId, open, agentProvider, roundtableOrder, maxTurns]);
 
   // Connect/disconnect based on panel state
   useEffect(() => {
@@ -876,6 +877,8 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
               disabled={!isConnected}
               roundtableOrder={roundtableOrder}
               onRoundtableOrderChange={setRoundtableOrder}
+              maxTurns={maxTurns}
+              onMaxTurnsChange={setMaxTurns}
             />
             <ModeSelector
               value={agentMode}

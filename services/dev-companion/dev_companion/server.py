@@ -236,12 +236,14 @@ async def websocket_endpoint(
     session_id: str,
     provider: str = "claude",
     order: str = "claude-first",
+    max_turns: int = 10,
 ):
     """WebSocket endpoint for real-time LLM communication.
 
     Query params:
     - provider: "claude" (default), "gemini", or "both" (roundtable mode)
     - order: "claude-first" (default) or "gemini-first" (only for roundtable)
+    - max_turns: maximum back-and-forth turns in roundtable (default 10)
 
     Protocol:
     - Client sends: {"type": "message", "content": "user message"}
@@ -273,6 +275,9 @@ async def websocket_endpoint(
     order = order.lower() if order else "claude-first"
     if order not in ("claude-first", "gemini-first"):
         order = "claude-first"
+
+    # Validate max_turns (clamp to reasonable range)
+    max_turns = max(1, min(100, max_turns))
 
     # Send provider confirmation to client
     await websocket.send_json({"type": "provider", "name": provider})
@@ -368,6 +373,7 @@ async def websocket_endpoint(
                         safe_send_json=safe_send_json,
                         permission_callback=permission_callback,
                         ws_closed_check=lambda: ws_closed,
+                        max_turns=max_turns,
                     )
                     continue
 
@@ -389,15 +395,13 @@ async def websocket_endpoint(
                     })
                     continue
 
-                # Check if this is a new agent joining an existing session
-                # If so, inject handoff context
+                # Always inject conversation context if session has history
+                # This ensures continuity across mode switches (roundtable -> single)
                 prompt_to_send = content
                 session_data = await bridge.db.get_session(session_id)
                 if session_data:
-                    participants = session_data.get("participants", [])
                     message_count = session_data.get("message_count", 0)
-                    # Inject context if session has history and this agent is new
-                    if message_count > 0 and provider not in participants:
+                    if message_count > 0:
                         handoff_ctx = await build_handoff_context(bridge.db, session_id)
                         if handoff_ctx:
                             prompt_to_send = f"""{handoff_ctx}
@@ -406,7 +410,7 @@ async def websocket_endpoint(
 
 **New message from user:**
 {content}"""
-                            logger.info(f"Injected handoff context for {provider} joining session")
+                            logger.info(f"Injected conversation context for {provider}")
 
                 # Stream response
                 try:
@@ -734,6 +738,100 @@ async def stream_agent_response(
     return "".join(response_text_parts)
 
 
+def parse_agent_response(response: str) -> tuple[str, str, str]:
+    """Parse agent response to extract message and addressing.
+
+    Agents should wrap responses in JSON:
+    {"message": "...", "addressing": "user|claude|gemini", "action": "respond|pass|correct"}
+
+    Returns:
+        Tuple of (message_text, addressing, action)
+        - addressing: "user", "claude", or "gemini"
+        - action: "respond", "pass", or "correct"
+    """
+    # Try to parse JSON wrapper
+    try:
+        # Handle case where response is just JSON
+        data = json.loads(response.strip())
+        return (
+            data.get("message", response),
+            data.get("addressing", "user"),
+            data.get("action", "respond"),
+        )
+    except json.JSONDecodeError:
+        pass
+
+    # Try to extract JSON from end of response (agent might include message then JSON)
+    import re
+    json_match = re.search(r'\{[^{}]*"addressing"[^{}]*\}\s*$', response)
+    if json_match:
+        try:
+            data = json.loads(json_match.group())
+            message = response[:json_match.start()].strip()
+            return (
+                message or data.get("message", response),
+                data.get("addressing", "user"),
+                data.get("action", "respond"),
+            )
+        except json.JSONDecodeError:
+            pass
+
+    # No JSON found - default to addressing user
+    return (response, "user", "respond")
+
+
+def build_roundtable_prompt(
+    agent_name: str,
+    other_agent: str,
+    history_context: str,
+    user_message: str,
+    is_review: bool = False,
+    previous_response: str | None = None,
+) -> str:
+    """Build a prompt for roundtable mode with JSON addressing instructions."""
+
+    json_instructions = f"""
+IMPORTANT: End your response with a JSON block indicating who you're addressing next:
+{{"addressing": "user"}} - if you're done and waiting for the user
+{{"addressing": "{other_agent}"}} - if you're asking {other_agent.upper()} a question or passing to them
+{{"addressing": "{agent_name}"}} - only if someone asked you directly
+
+Examples:
+- "Here's my answer to your question. {{"addressing": "user"}}"
+- "What do you think, {other_agent.upper()}? {{"addressing": "{other_agent}"}}"
+"""
+
+    if is_review:
+        # Silent review mode - only respond if correction needed
+        return f"""You are {agent_name.upper()} in a roundtable with {other_agent.upper()} and a user.
+
+{other_agent.upper()} just responded to the user:
+{previous_response}
+
+Review their response for accuracy. You have two options:
+1. If the response is accurate and complete, respond ONLY with: {{"action": "pass"}}
+2. If you see errors, omissions, or important additions needed, provide your correction.
+
+If correcting, keep it brief and factual. End with {{"addressing": "user"}} or {{"addressing": "{other_agent}"}} if asking them to clarify.
+
+DO NOT repeat what {other_agent.upper()} said correctly. Only speak up if there's something to add or correct.
+"""
+
+    # Regular response prompt
+    parts = [f"You are {agent_name.upper()} in a roundtable discussion with {other_agent.upper()} and a user."]
+
+    if history_context:
+        parts.append(f"\nConversation history:\n{history_context}\n")
+
+    if previous_response:
+        parts.append(f"\n{other_agent.upper()} just said:\n{previous_response}\n")
+
+    parts.append(f"\nUser's message: {user_message}")
+    parts.append(json_instructions)
+
+    return "\n".join(parts)
+
+
 async def handle_roundtable_message(
     bridge: SessionBridge,
     session_id: str,
@@ -742,12 +840,14 @@ async def handle_roundtable_message(
     safe_send_json,
     permission_callback,
     ws_closed_check,
-    max_discussion_rounds: int = 2,
+    max_turns: int = 10,
 ) -> None:
-    """Handle a roundtable message with both Claude and Gemini.
+    """Handle a roundtable message with shared-channel model.
 
-    Both agents respond sequentially, with the second agent seeing the first's response.
-    If disagreement is detected, they can have a brief discussion (up to max_discussion_rounds).
+    Features:
+    - JSON addressing: agents indicate who they're talking to
+    - Silent review: second agent only speaks if they have corrections
+    - Automatic continuation: agents can address each other directly
     """
     # Determine agent order
     if order == "gemini-first":
@@ -757,198 +857,145 @@ async def handle_roundtable_message(
         first_agent = "claude"
         second_agent = "gemini"
 
-    logger.info(f"Roundtable: {first_agent} first, then {second_agent}")
+    logger.info(f"Roundtable: {first_agent} first, {second_agent} reviews")
 
     try:
-        # Build conversation history context for multi-turn awareness
+        # Build conversation history
         history_context = await build_roundtable_context(bridge.db, session_id)
         if history_context:
-            logger.info(f"Roundtable: Loaded {len(history_context)} chars of history context")
+            logger.info(f"Roundtable: Loaded {len(history_context)} chars of history")
 
-        # Get or create first agent session
-        if first_agent == "gemini":
-            first_session = await get_or_create_gemini_session(bridge, session_id)
-        else:
-            first_session = await get_or_create_session_with_permissions(
-                bridge, session_id, permission_callback
-            )
+        # Get sessions for both agents
+        sessions = {}
+        for agent in [first_agent, second_agent]:
+            if agent == "gemini":
+                sessions[agent] = await get_or_create_gemini_session(bridge, session_id)
+            else:
+                sessions[agent] = await get_or_create_session_with_permissions(
+                    bridge, session_id, permission_callback
+                )
+            if not sessions[agent]:
+                await safe_send_json({
+                    "type": "error",
+                    "message": f"Failed to start {agent} session",
+                })
+                return
 
-        if not first_session:
-            await safe_send_json({
-                "type": "error",
-                "message": f"Failed to start {first_agent} session",
-            })
-            return
-
-        # Build first agent prompt with history context
-        if history_context:
-            first_prompt = f"""This is a roundtable discussion. Previous conversation:
-
-{history_context}
-
----
-
-User's new message: {content}
-
-You are {first_agent.upper()}. Respond to the user's message, considering the full conversation history above."""
-        else:
-            first_prompt = content
+        # Set original_provider for roundtable
+        await bridge.db.set_original_provider(session_id, "both")
 
         # First agent responds
+        first_prompt = build_roundtable_prompt(
+            agent_name=first_agent,
+            other_agent=second_agent,
+            history_context=history_context,
+            user_message=content,
+        )
+
         await safe_send_json({"type": "agent_start", "agent": first_agent})
-        first_response = await stream_agent_response(
-            first_session, first_prompt, safe_send_json, ws_closed_check, first_agent
+        first_response_raw = await stream_agent_response(
+            sessions[first_agent], first_prompt, safe_send_json, ws_closed_check, first_agent
         )
         await safe_send_json({"type": "agent_done", "agent": first_agent})
 
         if ws_closed_check():
             return
 
-        # Store first response
+        # Parse first response
+        first_message, addressing, _ = parse_agent_response(first_response_raw)
+
+        # Store first response (use clean message for display)
         await bridge.db.add_message(
             session_id=session_id,
             role="assistant",
-            content=f"[{first_agent.upper()}] {first_response}",
+            content=first_message,
             agent=first_agent,
         )
-
-        # Set original_provider on first message (for roundtable: "both")
-        await bridge.db.set_original_provider(session_id, "both")
-
-        # Track participants and message count for first agent
         await bridge.db.increment_message_count(session_id)
         await bridge.db.add_participant(session_id, first_agent)
 
-        # Get or create second agent session
-        logger.info(f"Roundtable: Getting session for {second_agent}")
-        if second_agent == "gemini":
-            second_session = await get_or_create_gemini_session(bridge, session_id)
-        else:
-            second_session = await get_or_create_session_with_permissions(
-                bridge, session_id, permission_callback
+        logger.info(f"Roundtable: {first_agent} addressing: {addressing}")
+
+        # Track current state
+        current_agent = first_agent
+        current_response = first_message
+        turn_count = 1
+
+        # Conversation loop
+        while turn_count < max_turns and not ws_closed_check():
+            other_agent = second_agent if current_agent == first_agent else first_agent
+
+            # Determine next action based on addressing
+            if addressing == other_agent:
+                # Agent addressed the other agent - they should respond
+                next_agent = other_agent
+                is_review = False
+                logger.info(f"Roundtable: {current_agent} addressed {other_agent}")
+            elif addressing == "user":
+                # Agent addressed user - other agent does silent review
+                next_agent = other_agent
+                is_review = True
+                logger.info(f"Roundtable: {other_agent} doing silent review")
+            else:
+                # Addressed self or unknown - end turn
+                logger.info(f"Roundtable: Ending, addressing={addressing}")
+                break
+
+            # Build prompt for next agent
+            next_prompt = build_roundtable_prompt(
+                agent_name=next_agent,
+                other_agent=current_agent,
+                history_context=history_context,
+                user_message=content,
+                is_review=is_review,
+                previous_response=current_response,
             )
-        logger.info(f"Roundtable: {second_agent} session: {second_session is not None}")
 
-        if not second_session:
-            await safe_send_json({
-                "type": "error",
-                "message": f"Failed to start {second_agent} session",
-            })
-            await safe_send_json({"type": "done"})
-            return
+            await safe_send_json({"type": "agent_start", "agent": next_agent})
+            next_response_raw = await stream_agent_response(
+                sessions[next_agent], next_prompt, safe_send_json, ws_closed_check, next_agent
+            )
+            await safe_send_json({"type": "agent_done", "agent": next_agent})
 
-        # Second agent responds with full history context + first agent's response
-        if history_context:
-            context_prompt = f"""This is a roundtable discussion. Previous conversation:
+            if ws_closed_check():
+                return
 
-{history_context}
+            # Parse response
+            next_message, next_addressing, action = parse_agent_response(next_response_raw)
 
----
+            # Handle silent review pass
+            if is_review and action == "pass":
+                logger.info(f"Roundtable: {next_agent} passed (no corrections)")
+                # Send a signal that review passed (no visible message)
+                await safe_send_json({"type": "review_pass", "agent": next_agent})
+                break
 
-User's new message: {content}
-
-{first_agent.upper()} just responded:
-{first_response}
-
----
-
-You are {second_agent.upper()}. Provide your perspective on the user's message, considering the full conversation history. If you agree with {first_agent.upper()}'s response, say so briefly and add any additional insights. If you disagree or see any flaws, omissions, incorrect assumptions, or potential hallucinations in their response, clearly explain your concerns."""
-        else:
-            context_prompt = f"""The user asked: {content}
-
-{first_agent.capitalize()} responded:
-{first_response}
-
-Now provide your perspective. If you agree with {first_agent.capitalize()}'s response, say so briefly and add any additional insights. If you disagree or see any flaws, omissions, incorrect assumptions, or potential hallucinations in the response, clearly explain your concerns."""
-
-        await safe_send_json({"type": "agent_start", "agent": second_agent})
-        logger.info(f"Roundtable: Starting {second_agent} stream, prompt length: {len(context_prompt)}")
-        second_response = await stream_agent_response(
-            second_session, context_prompt, safe_send_json, ws_closed_check, second_agent
-        )
-        logger.info(f"Roundtable: {second_agent} response length: {len(second_response)}")
-        await safe_send_json({"type": "agent_done", "agent": second_agent})
-
-        if ws_closed_check():
-            return
-
-        # Store second response
-        await bridge.db.add_message(
-            session_id=session_id,
-            role="assistant",
-            content=f"[{second_agent.upper()}] {second_response}",
-            agent=second_agent,
-        )
-
-        # Track participants and message count for second agent
-        await bridge.db.increment_message_count(session_id)
-        await bridge.db.add_participant(session_id, second_agent)
-
-        # Check for disagreement and start discussion if needed
-        if detect_disagreement(second_response):
-            await safe_send_json({
-                "type": "discussion_start",
-                "reason": "disagreement_detected",
-            })
-
-            responses = {first_agent: first_response, second_agent: second_response}
-            sessions = {first_agent: first_session, second_agent: second_session}
-            agents = [first_agent, second_agent]
-
-            for round_num in range(1, max_discussion_rounds + 1):
-                if ws_closed_check():
-                    break
-
-                # The agent who wasn't last to speak responds
-                speaker = agents[(round_num - 1) % 2]
-                other = agents[round_num % 2]
-
-                # Include history context in discussion rounds too
-                if history_context:
-                    discussion_prompt = f"""This is a roundtable discussion. Previous conversation:
-
-{history_context}
-
----
-
-The original user message was: {content}
-
-You are {speaker.upper()}. The other agent ({other.upper()}) just said:
-{responses[other]}
-
-Respond to their points briefly (2-3 sentences max). If you now agree, say so. If you still have concerns, explain."""
-                else:
-                    discussion_prompt = f"""The other agent ({other.capitalize()}) said:
-{responses[other]}
-
-Respond to their points. If you now agree, say so. If you still have concerns, explain briefly (2-3 sentences max)."""
-
-                await safe_send_json({"type": "discussion_round", "round": round_num})
-                await safe_send_json({"type": "agent_start", "agent": speaker})
-
-                discussion_response = await stream_agent_response(
-                    sessions[speaker],
-                    discussion_prompt,
-                    safe_send_json,
-                    ws_closed_check,
-                    speaker,
-                )
-                await safe_send_json({"type": "agent_done", "agent": speaker})
-
-                # Store discussion turn
+            # Store response if not a pass
+            if action != "pass":
                 await bridge.db.add_message(
                     session_id=session_id,
                     role="assistant",
-                    content=f"[{speaker.upper()} - Discussion Round {round_num}] {discussion_response}",
-                    agent=speaker,
+                    content=next_message,
+                    agent=next_agent,
                 )
+                await bridge.db.increment_message_count(session_id)
+                await bridge.db.add_participant(session_id, next_agent)
 
-                responses[speaker] = discussion_response
+            # If review resulted in correction, end (user got both perspectives)
+            if is_review and action == "correct":
+                logger.info(f"Roundtable: {next_agent} provided correction")
+                break
 
-                # Check if they now agree (no more disagreement keywords)
-                if not detect_disagreement(discussion_response):
-                    logger.info(f"Roundtable: Agents reached agreement at round {round_num}")
-                    break
+            # Update state for next iteration
+            current_agent = next_agent
+            current_response = next_message
+            addressing = next_addressing
+            turn_count += 1
+
+            # If now addressing user, end
+            if addressing == "user":
+                logger.info(f"Roundtable: {current_agent} addressing user, ending")
+                break
 
         await safe_send_json({"type": "done"})
 
