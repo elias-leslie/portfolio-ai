@@ -163,10 +163,12 @@ class GeminiSession:
                                     {"role": "assistant", "content": accumulated_text}
                                 )
 
-                        # Handle tool use (if Gemini supports it)
+                        # Handle tool use - Gemini CLI uses tool_name/parameters fields
                         elif msg_type == "tool_use":
-                            tool_name = data.get("name", "unknown")
-                            tool_input = data.get("input", {})
+                            tool_name = data.get("tool_name", "unknown")
+                            tool_input = data.get("parameters", {})
+                            tool_id = data.get("tool_id")
+                            logger.info(f"Gemini tool_use: {tool_name}")
                             yield StreamMessage(
                                 type=MessageType.ASSISTANT,
                                 content=[
@@ -174,10 +176,31 @@ class GeminiSession:
                                         type=ContentType.TOOL_USE,
                                         tool_name=tool_name,
                                         tool_input=tool_input,
-                                        tool_use_id=data.get("id"),
+                                        tool_use_id=tool_id,
                                     )
                                 ],
                             )
+
+                        # Handle tool result
+                        elif msg_type == "tool_result":
+                            tool_id = data.get("tool_id")
+                            status = data.get("status", "unknown")
+                            output = data.get("output", "")
+                            logger.info(f"Gemini tool_result: {status}")
+                            yield StreamMessage(
+                                type=MessageType.ASSISTANT,
+                                content=[
+                                    ContentBlock(
+                                        type=ContentType.TOOL_RESULT,
+                                        text=f"[{status}] {output}",
+                                        tool_use_id=tool_id,
+                                    )
+                                ],
+                            )
+
+                        # Log any unhandled message types for debugging
+                        elif msg_type and msg_type not in ("init", "message", "result"):
+                            logger.info(f"Gemini unhandled msg_type: {msg_type}, data: {data}")
 
                     except json.JSONDecodeError:
                         # Non-JSON output - treat as system message
