@@ -1,1 +1,4 @@
 *.png !text !filter !merge !diff
+
+# Use bd merge for beads JSONL files
+.beads/issues.jsonl merge=beads
