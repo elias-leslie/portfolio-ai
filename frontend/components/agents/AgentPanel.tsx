@@ -300,6 +300,9 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
         case 'done': {
           const blocks = currentResponseRef.current;
           if (blocks.length > 0) {
+            // Determine agent: roundtable uses currentRespondingAgent, single-mode uses agentProvider
+            const agent = currentRespondingAgent
+              || (agentProvider !== 'both' ? agentProvider : undefined);
             setMessages(prev => [
               ...prev,
               {
@@ -307,7 +310,7 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
                 content: blocksToText(blocks),
                 blocks: blocks,
                 timestamp: new Date(),
-                agent: currentRespondingAgent || undefined,  // Include agent if in roundtable
+                agent,
               },
             ]);
           }
@@ -587,13 +590,15 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
             {isConnected && (
               <span className={cn(
                 "text-xs px-1.5 py-0.5 rounded font-medium",
-                activeProvider === 'gemini'
-                  ? "bg-green-600/30 text-green-300 border border-green-600"
-                  : "bg-blue-600/30 text-blue-300 border border-blue-600"
+                agentProvider === 'both'
+                  ? "bg-purple-600/30 text-purple-300 border border-purple-600"
+                  : agentProvider === 'gemini'
+                    ? "bg-green-600/30 text-green-300 border border-green-600"
+                    : "bg-blue-600/30 text-blue-300 border border-blue-600"
               )}>
                 {agentProvider === 'both'
                   ? 'Claude + Gemini'
-                  : activeProvider === 'gemini' ? 'Gemini' : 'Claude'}
+                  : agentProvider === 'gemini' ? 'Gemini' : 'Claude'}
               </span>
             )}
           </div>
@@ -838,7 +843,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
             : 'bg-gray-800 text-gray-100'
         )}
       >
-        {/* Agent attribution icon for roundtable mode */}
+        {/* Agent attribution icon */}
         {message.agent && !isUser && (
           <span
             className="inline-block mb-1 mr-1"

@@ -709,12 +709,14 @@ You are {first_agent.upper()}. Respond to the user's message, considering the fu
         )
 
         # Get or create second agent session
+        logger.info(f"Roundtable: Getting session for {second_agent}")
         if second_agent == "gemini":
             second_session = await get_or_create_gemini_session(bridge, session_id)
         else:
             second_session = await get_or_create_session_with_permissions(
                 bridge, session_id, permission_callback
             )
+        logger.info(f"Roundtable: {second_agent} session: {second_session is not None}")
 
         if not second_session:
             await safe_send_json({
@@ -749,9 +751,11 @@ You are {second_agent.upper()}. Provide your perspective on the user's message, 
 Now provide your perspective. If you agree with {first_agent.capitalize()}'s response, say so briefly and add any additional insights. If you disagree or see any flaws, omissions, incorrect assumptions, or potential hallucinations in the response, clearly explain your concerns."""
 
         await safe_send_json({"type": "agent_start", "agent": second_agent})
+        logger.info(f"Roundtable: Starting {second_agent} stream, prompt length: {len(context_prompt)}")
         second_response = await stream_agent_response(
             second_session, context_prompt, safe_send_json, ws_closed_check, second_agent
         )
+        logger.info(f"Roundtable: {second_agent} response length: {len(second_response)}")
         await safe_send_json({"type": "agent_done", "agent": second_agent})
 
         if ws_closed_check():
