@@ -209,12 +209,11 @@ async def list_paper_trades(
                 END as holding_days,
                 io.max_favorable_pct,
                 io.max_adverse_pct,
-                ai.thesis,
-                ai.confidence_score,
-                ai.risk_level,
+                NULL as thesis,
+                NULL as confidence_score,
+                NULL as risk_level,
                 io.strategy_id
             FROM idea_outcomes io
-            LEFT JOIN agent_ideas ai ON io.idea_id = ai.id
             {status_filter}
             ORDER BY
                 CASE WHEN io.status = 'open' THEN 0 ELSE 1 END,
@@ -437,11 +436,10 @@ async def get_paper_trade(trade_id: str) -> PaperTradeResponse:
                 io.holding_days,
                 io.max_favorable_pct,
                 io.max_adverse_pct,
-                ai.thesis,
-                ai.confidence_score,
-                ai.risk_level
+                NULL as thesis,
+                NULL as confidence_score,
+                NULL as risk_level
             FROM idea_outcomes io
-            LEFT JOIN agent_ideas ai ON io.idea_id = ai.id
             WHERE io.idea_id = ?
         """
 

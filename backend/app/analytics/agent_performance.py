@@ -47,12 +47,11 @@ def _fetch_agent_trades(
             io.realized_return_pct,
             io.current_return_pct,
             io.holding_days,
-            ai.agent_run_id,
+            io.agent_run_id,
             ar.agent_type,
             ar.started_at
         FROM idea_outcomes io
-        JOIN agent_ideas ai ON io.idea_id = ai.id
-        JOIN agent_runs ar ON ai.agent_run_id = ar.id
+        JOIN agent_runs ar ON io.agent_run_id = ar.id
         WHERE ar.agent_type = ?
           AND io.created_at >= ?
         ORDER BY io.created_at DESC

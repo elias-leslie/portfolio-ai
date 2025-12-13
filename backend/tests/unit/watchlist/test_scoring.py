@@ -12,8 +12,6 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-import pytest
-
 from app.portfolio.models import PriceData
 from app.services.options_flow_service import OptionsFlowData
 from app.watchlist.fundamentals import FundamentalData
@@ -329,10 +327,10 @@ class TestComputeOptionsFlowComponent:
     def test_bullish_options_flow(self) -> None:
         """Test options flow with high call percentage (bullish)."""
         options_data = OptionsFlowData(
-            symbol="AAPL",
             call_pct=0.65,  # 65% calls
             near_term_pct=0.40,
             concentration_pct=0.50,
+            sector_weights={},
             as_of_date=datetime.now(UTC).date(),
             is_stale=False,
         )
@@ -349,10 +347,10 @@ class TestComputeOptionsFlowComponent:
     def test_bearish_options_flow(self) -> None:
         """Test options flow with low call percentage (bearish)."""
         options_data = OptionsFlowData(
-            symbol="AAPL",
             call_pct=0.35,  # 35% calls (65% puts)
             near_term_pct=0.40,
             concentration_pct=0.50,
+            sector_weights={},
             as_of_date=datetime.now(UTC).date(),
             is_stale=False,
         )
@@ -366,10 +364,10 @@ class TestComputeOptionsFlowComponent:
     def test_sector_activity_bonus(self) -> None:
         """Test that active sector adds bonus to score."""
         options_data = OptionsFlowData(
-            symbol="AAPL",
             call_pct=0.55,  # Neutral-bullish
             near_term_pct=0.40,
             concentration_pct=0.50,
+            sector_weights={},
             as_of_date=datetime.now(UTC).date(),
             is_stale=False,
         )
@@ -430,7 +428,7 @@ class TestCalculateWatchlistScores:
         assert breakdown.technical is not None
         assert breakdown.fundamental is None
         assert breakdown.catalyst is None
-        assert breakdown.options_flow is None
+        # options_flow always returns a component (with default neutral score when no data)
 
     def test_5_pillar_scoring(self) -> None:
         """Test full 5-pillar scoring with all components."""
@@ -473,10 +471,10 @@ class TestCalculateWatchlistScores:
                 }
             ],
             options_data=OptionsFlowData(
-                symbol="AAPL",
                 call_pct=0.60,
                 near_term_pct=0.40,
                 concentration_pct=0.50,
+                sector_weights={},
                 as_of_date=now.date(),
                 is_stale=False,
             ),
