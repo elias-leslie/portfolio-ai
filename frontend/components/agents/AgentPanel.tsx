@@ -251,17 +251,28 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
     const ws = new WebSocket(`${wsUrl}/ws/${currentSessionId}?provider=${providerParam}${orderParam}`);
 
     ws.onopen = () => {
-      setIsConnected(true);
-      setConnectionError(null);
+      // Only update state if this is still the current connection generation
+      // This prevents race conditions when rapidly switching providers
+      if (thisGeneration === connectionGenRef.current) {
+        setIsConnected(true);
+        setConnectionError(null);
+        console.log('WebSocket opened, generation:', thisGeneration);
+      }
     };
 
     ws.onclose = () => {
-      setIsConnected(false);
-      wsRef.current = null;
-      // Only reconnect if this wasn't an intentional close AND this is still the current generation
-      // The generation check prevents stale onclose handlers from reconnecting with old provider
-      if (open && !intentionalCloseRef.current && thisGeneration === connectionGenRef.current) {
-        reconnectTimeoutRef.current = setTimeout(connect, 3000);
+      // Only update state if this is still the current connection generation
+      // This prevents stale onclose from old connections affecting the new connection
+      if (thisGeneration === connectionGenRef.current) {
+        setIsConnected(false);
+        wsRef.current = null;
+        console.log('WebSocket closed, generation:', thisGeneration);
+        // Only reconnect if this wasn't an intentional close
+        if (open && !intentionalCloseRef.current) {
+          reconnectTimeoutRef.current = setTimeout(connect, 3000);
+        }
+      } else {
+        console.log('Ignoring stale onclose for generation:', thisGeneration, 'current:', connectionGenRef.current);
       }
     };
 
@@ -463,6 +474,14 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
 
   // Send message
   const sendMessage = () => {
+    console.log('sendMessage called:', {
+      hasInput: !!input.trim(),
+      hasWs: !!wsRef.current,
+      wsState: wsRef.current?.readyState,
+      isLoading,
+      isConnected,
+      agentProvider
+    });
     if (!input.trim() || !wsRef.current || isLoading) return;
 
     const message = input.trim();
@@ -868,7 +887,10 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
               </Button>
             ) : (
               <Button
-                onClick={sendMessage}
+                onClick={() => {
+                  console.log('Send button clicked, isConnected:', isConnected, 'input:', input, 'sessionId:', currentSessionId);
+                  sendMessage();
+                }}
                 disabled={!isConnected || !input.trim() || !!pendingPermission || !currentSessionId}
                 size="sm"
               >
