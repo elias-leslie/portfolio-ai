@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { MessageSquare, X, Plus, Trash2, Settings, Activity, Clock, Diamond, Star } from 'lucide-react';
+import { MessageSquare, X, Plus, Trash2, Settings, Activity, Diamond, Star } from 'lucide-react';
 // Note: We use a custom side panel instead of Sheet to allow non-overlay behavior (FEAT-220)
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -147,7 +147,6 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
   const [showSettings, setShowSettings] = useState(false);
   const [showStatus, setShowStatus] = useState(false);
   const [showTokenSummary, setShowTokenSummary] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
 
   // Refs
   const wsRef = useRef<WebSocket | null>(null);
@@ -226,6 +225,9 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, currentResponse]);
 
+  // Track connection generation to prevent stale reconnects
+  const connectionGenRef = useRef(0);
+
   // Connect WebSocket
   const connect = useCallback(() => {
     if (!wsUrl || !currentSessionId || !open) return;
@@ -240,6 +242,9 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
       return;
     }
 
+    // Increment generation to invalidate stale onclose handlers
+    const thisGeneration = ++connectionGenRef.current;
+
     // Use agentProvider from selector (claude/gemini/both), with order for roundtable
     const providerParam = agentProvider === 'both' ? 'both' : agentProvider;
     const orderParam = agentProvider === 'both' ? `&order=${roundtableOrder}` : '';
@@ -253,8 +258,9 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
     ws.onclose = () => {
       setIsConnected(false);
       wsRef.current = null;
-      // Only reconnect if this wasn't an intentional close (e.g., provider switch)
-      if (open && !intentionalCloseRef.current) {
+      // Only reconnect if this wasn't an intentional close AND this is still the current generation
+      // The generation check prevents stale onclose handlers from reconnecting with old provider
+      if (open && !intentionalCloseRef.current && thisGeneration === connectionGenRef.current) {
         reconnectTimeoutRef.current = setTimeout(connect, 3000);
       }
     };
@@ -573,22 +579,21 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
                 onChange={setAgentMode}
                 disabled={!isConnected}
               />
-              {/* Sessions History */}
+              {/* Sessions Button */}
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  setShowHistory(!showHistory);
-                  setShowSessions(false);
+                  setShowSessions(!showSessions);
                   setShowTokenSummary(false);
                 }}
                 className={cn(
                   "h-8 w-8 p-0 text-gray-400 hover:text-gray-100",
-                  showHistory && "bg-gray-700 text-gray-100"
+                  showSessions && "bg-gray-700 text-gray-100"
                 )}
-                title="Session History"
+                title="Sessions"
               >
-                <Clock className="h-4 w-4" />
+                <MessageSquare className="h-4 w-4" />
               </Button>
               {/* Status */}
               <Button
@@ -614,15 +619,7 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
           </div>
           {/* Active Provider Badge + Session ID (clickable for session management) */}
           <div className="flex items-center justify-between">
-            <button
-              onClick={() => {
-                setShowSessions(!showSessions);
-                setShowHistory(false);
-                setShowTokenSummary(false);
-              }}
-              className="text-gray-500 text-xs hover:text-gray-300 transition-colors flex items-center gap-1"
-              title="Click to manage sessions"
-            >
+            <span className="text-gray-500 text-xs flex items-center gap-1">
               {currentSessionId ? `Session: ${currentSessionId.slice(0, 8)}...` : 'No session'}
               {/* Show original provider badge if session has one */}
               {(() => {
@@ -631,8 +628,7 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
                   <ProviderBadge provider={currentSession.original_provider} size="xs" />
                 );
               })()}
-              <Plus className="h-3 w-3" />
-            </button>
+            </span>
             <div className="flex items-center gap-2">
               {/* Show "Started with: X" if current agent differs from original */}
               {(() => {
@@ -670,81 +666,99 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
           <TokenSummaryCards serverUrl={serverUrl || 'http://localhost:8000'} />
         )}
 
-        {/* Session History Panel */}
-        {showHistory && (
+
+        {/* Sessions Panel (unified: create/delete + history) */}
+        {showSessions && (
           <div className="border-b border-gray-700 bg-gray-800/30">
             <div className="p-2 flex items-center justify-between border-b border-gray-700">
-              <span className="text-xs text-gray-400 font-medium">Session History</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowTokenSummary(!showTokenSummary)}
-                className="h-6 px-2 text-xs text-gray-400 hover:text-gray-100"
-              >
-                {showTokenSummary ? 'Hide Tokens' : 'Show Tokens'}
-              </Button>
-            </div>
-            <DevCompanionSessionsList
-              serverUrl={serverUrl || 'http://localhost:9999'}
-              maxHeight="200px"
-              onSelectSession={(session) => {
-                setCurrentSessionId(session.id);
-                setShowHistory(false);
-              }}
-            />
-          </div>
-        )}
-
-        {/* Sessions Dropdown */}
-        {showSessions && (
-          <div className="border-b border-gray-700 bg-gray-800/50 max-h-48 overflow-y-auto">
-            <div className="p-2 flex items-center justify-between border-b border-gray-700">
-              <span className="text-xs text-gray-400">Sessions</span>
-              <Button size="sm" variant="ghost" onClick={createSession} className="h-6 px-2 text-xs">
-                <Plus className="h-3 w-3 mr-1" /> New
-              </Button>
+              <span className="text-xs text-gray-400 font-medium">Sessions</span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowTokenSummary(!showTokenSummary)}
+                  className="h-6 px-2 text-xs text-gray-400 hover:text-gray-100"
+                >
+                  {showTokenSummary ? 'Hide Tokens' : 'Show Tokens'}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={createSession} className="h-6 px-2 text-xs text-green-400 hover:text-green-300">
+                  <Plus className="h-3 w-3 mr-1" /> New
+                </Button>
+              </div>
             </div>
             {isLoadingSessions ? (
               <div className="p-4 text-center text-gray-500 text-sm">Loading...</div>
             ) : sessions.length === 0 ? (
-              <div className="p-4 text-center text-gray-500 text-sm">No sessions</div>
+              <div className="p-4 text-center text-gray-500 text-sm">No sessions yet</div>
             ) : (
-              sessions.map(session => (
-                <div
-                  key={session.id}
-                  className={cn(
-                    "px-3 py-2 cursor-pointer flex items-center justify-between",
-                    currentSessionId === session.id ? "bg-gray-700" : "hover:bg-gray-700/50"
-                  )}
-                  onClick={() => {
-                    setCurrentSessionId(session.id);
-                    setShowSessions(false);
-                  }}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className={cn(
-                      "w-2 h-2 rounded-full",
-                      session.is_active ? "bg-green-500" : "bg-gray-600"
-                    )} />
-                    <span className="text-sm font-mono text-gray-300">{session.id.slice(0, 8)}</span>
-                    <ProviderBadge provider={session.original_provider} size="xs" />
-                    {session.message_count != null && session.message_count > 0 && (
-                      <span className="text-xs text-gray-500">{session.message_count} msgs</span>
+              <div className="overflow-y-auto" style={{ maxHeight: '250px' }}>
+                {sessions.map(session => (
+                  <div
+                    key={session.id}
+                    className={cn(
+                      "p-3 border-b border-gray-700 hover:bg-gray-800/50 cursor-pointer transition-colors",
+                      currentSessionId === session.id && "bg-gray-700"
                     )}
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deleteSession(session.id);
+                    onClick={() => {
+                      setCurrentSessionId(session.id);
+                      setShowSessions(false);
                     }}
-                    className="h-6 w-6 p-0 text-gray-500 hover:text-red-400"
                   >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-              ))
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        {/* Session ID + Provider Badge */}
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={cn(
+                            "w-2 h-2 rounded-full",
+                            session.is_active ? "bg-green-500" : "bg-gray-600"
+                          )} />
+                          <span className="font-mono text-sm text-gray-300">
+                            {session.id.slice(0, 8)}
+                          </span>
+                          <ProviderBadge provider={session.original_provider} size="xs" />
+                        </div>
+                        {/* Description or placeholder */}
+                        <div className="text-xs text-gray-400 truncate">
+                          {session.description || (session.message_count ? 'No description' : '(No messages yet)')}
+                        </div>
+                        {/* Participants row */}
+                        {session.participants && session.participants.length > 0 && (
+                          <div className="flex items-center gap-1 mt-1">
+                            <span className="text-[10px] text-gray-600">Participants:</span>
+                            {session.participants.map((p) => (
+                              <ProviderBadge key={p} provider={p} size="xs" />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-end gap-1 text-right">
+                        {/* Message count */}
+                        {session.message_count != null && session.message_count > 0 && (
+                          <span className="text-xs text-gray-400">
+                            {session.message_count} msgs
+                          </span>
+                        )}
+                        {/* Relative time */}
+                        <span className="text-[10px] text-gray-500">
+                          {formatRelativeTime(session.updated_at)}
+                        </span>
+                        {/* Delete button */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteSession(session.id);
+                          }}
+                          className="h-6 w-6 p-0 text-gray-500 hover:text-red-400"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         )}
@@ -885,6 +899,22 @@ export function AgentPanelTrigger({ onClick }: { onClick: () => void }) {
 }
 
 // Helper functions
+function formatRelativeTime(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffMins < 1) return 'just now';
+  if (diffMins < 60) return `${diffMins} min ago`;
+  if (diffHours < 24) return `${diffHours} hr ago`;
+  if (diffDays === 1) return 'yesterday';
+  if (diffDays < 7) return `${diffDays} days ago`;
+  return date.toLocaleDateString();
+}
+
 function blocksToText(blocks: ContentBlock[]): string {
   return blocks
     .map(block => {
