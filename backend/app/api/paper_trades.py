@@ -183,7 +183,17 @@ async def list_paper_trades(
         elif status == "closed":
             status_filter = "WHERE io.status IN ('closed', 'target_hit', 'stop_hit', 'expired')"
 
+        # For open trades: use live price from price_cache and calculate P&L dynamically
+        # For closed trades: use stored exit prices
         query = f"""
+            WITH latest_prices AS (
+                SELECT DISTINCT ON (symbol)
+                    symbol,
+                    price
+                FROM price_cache
+                WHERE cached_at >= NOW() - INTERVAL '1 hour'
+                ORDER BY symbol, cached_at DESC
+            )
             SELECT
                 io.idea_id,
                 io.agent_run_id,
@@ -195,8 +205,22 @@ async def list_paper_trades(
                 io.entry_date,
                 io.target_price,
                 io.stop_loss_price,
-                io.current_price,
-                io.current_return_pct,
+                -- For open trades: use live price from cache, fallback to stored
+                CASE
+                    WHEN io.status = 'open' THEN COALESCE(lp.price, io.current_price)
+                    ELSE io.current_price
+                END as current_price,
+                -- For open trades: calculate P&L dynamically from live price
+                CASE
+                    WHEN io.status = 'open' AND io.entry_price > 0 THEN
+                        CASE
+                            WHEN io.idea_type = 'sell' THEN
+                                ((io.entry_price - COALESCE(lp.price, io.current_price)) / io.entry_price) * 100
+                            ELSE
+                                ((COALESCE(lp.price, io.current_price) - io.entry_price) / io.entry_price) * 100
+                        END
+                    ELSE io.current_return_pct
+                END as current_return_pct,
                 io.status,
                 io.exit_price,
                 io.exit_date,
@@ -214,6 +238,7 @@ async def list_paper_trades(
                 NULL as risk_level,
                 io.strategy_id
             FROM idea_outcomes io
+            LEFT JOIN latest_prices lp ON lp.symbol = io.symbol
             {status_filter}
             ORDER BY
                 CASE WHEN io.status = 'open' THEN 0 ELSE 1 END,
@@ -350,12 +375,23 @@ async def get_paper_trade_summary() -> PaperTradeSummaryResponse:
                 float(account_row[1]) if account_row and account_row[1] is not None else None
             )
 
-            # Calculate positions value from open trades
+            # Calculate positions value from open trades using live prices from price_cache
             positions_value_row = conn.execute(
                 """
-                SELECT COALESCE(SUM(shares * COALESCE(current_price, entry_price)), 0)
-                FROM idea_outcomes
-                WHERE status = 'open' AND shares IS NOT NULL
+                WITH latest_prices AS (
+                    SELECT DISTINCT ON (symbol)
+                        symbol,
+                        price
+                    FROM price_cache
+                    WHERE cached_at >= NOW() - INTERVAL '1 hour'
+                    ORDER BY symbol, cached_at DESC
+                )
+                SELECT COALESCE(SUM(
+                    io.shares * COALESCE(lp.price, io.current_price, io.entry_price)
+                ), 0)
+                FROM idea_outcomes io
+                LEFT JOIN latest_prices lp ON lp.symbol = io.symbol
+                WHERE io.status = 'open' AND io.shares IS NOT NULL
                 """
             ).fetchone()
             # Type narrow: positions_value_row[0] is a DB value (str | int | float | bool | None)
@@ -416,7 +452,16 @@ async def get_paper_trade(trade_id: str) -> PaperTradeResponse:
         Complete trade details including AI reasoning and backtest metrics
     """
     try:
+        # Use live prices from price_cache for open trades
         query = """
+            WITH latest_prices AS (
+                SELECT DISTINCT ON (symbol)
+                    symbol,
+                    price
+                FROM price_cache
+                WHERE cached_at >= NOW() - INTERVAL '1 hour'
+                ORDER BY symbol, cached_at DESC
+            )
             SELECT
                 io.idea_id,
                 io.agent_run_id,
@@ -426,8 +471,22 @@ async def get_paper_trade(trade_id: str) -> PaperTradeResponse:
                 io.entry_date,
                 io.target_price,
                 io.stop_loss_price,
-                io.current_price,
-                io.current_return_pct,
+                -- For open trades: use live price from cache
+                CASE
+                    WHEN io.status = 'open' THEN COALESCE(lp.price, io.current_price)
+                    ELSE io.current_price
+                END as current_price,
+                -- For open trades: calculate P&L dynamically
+                CASE
+                    WHEN io.status = 'open' AND io.entry_price > 0 THEN
+                        CASE
+                            WHEN io.idea_type = 'sell' THEN
+                                ((io.entry_price - COALESCE(lp.price, io.current_price)) / io.entry_price) * 100
+                            ELSE
+                                ((COALESCE(lp.price, io.current_price) - io.entry_price) / io.entry_price) * 100
+                        END
+                    ELSE io.current_return_pct
+                END as current_return_pct,
                 io.status,
                 io.exit_price,
                 io.exit_date,
@@ -440,6 +499,7 @@ async def get_paper_trade(trade_id: str) -> PaperTradeResponse:
                 NULL as confidence_score,
                 NULL as risk_level
             FROM idea_outcomes io
+            LEFT JOIN latest_prices lp ON lp.symbol = io.symbol
             WHERE io.idea_id = ?
         """
 
@@ -509,12 +569,26 @@ async def close_paper_trade(
     """
     try:
         with storage.connection() as conn:
-            # Get trade info
+            # Get trade info with live price from price_cache
             trade_row = conn.execute(
                 """
-                SELECT symbol, entry_price, current_price, status, shares
-                FROM idea_outcomes
-                WHERE idea_id = ?
+                WITH latest_prices AS (
+                    SELECT DISTINCT ON (symbol)
+                        symbol,
+                        price
+                    FROM price_cache
+                    WHERE cached_at >= NOW() - INTERVAL '1 hour'
+                    ORDER BY symbol, cached_at DESC
+                )
+                SELECT
+                    io.symbol,
+                    io.entry_price,
+                    COALESCE(lp.price, io.current_price) as current_price,
+                    io.status,
+                    io.shares
+                FROM idea_outcomes io
+                LEFT JOIN latest_prices lp ON lp.symbol = io.symbol
+                WHERE io.idea_id = ?
                 """,
                 [trade_id],
             ).fetchone()
@@ -533,7 +607,7 @@ async def close_paper_trade(
                     detail=f"Trade is already {status}, cannot close",
                 )
 
-            # Determine exit price
+            # Determine exit price - use live price from cache if not explicitly provided
             exit_price = request.exit_price if request.exit_price is not None else current_price
 
             if exit_price is None or entry_price is None:
