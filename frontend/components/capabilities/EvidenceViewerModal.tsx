@@ -415,14 +415,12 @@ export function EvidenceViewerModal({
               </div>
 
               <div className="flex-1 overflow-hidden relative bg-muted/10">
-                <TabsContent value="screenshot" className="m-0 absolute inset-0 overflow-y-auto overflow-x-hidden p-4">
-                  <div className="border border-border shadow-sm bg-background">
-                    <img
-                      src={data?.screenshot_url}
-                      alt="Page screenshot"
-                      className="w-full h-auto"
-                    />
-                  </div>
+                <TabsContent value="screenshot" className="m-0 absolute inset-0 overflow-auto p-4">
+                  <img
+                    src={data?.screenshot_url}
+                    alt="Page screenshot"
+                    className="border border-border shadow-sm"
+                  />
                 </TabsContent>
 
                 <TabsContent value="console" className="m-0 absolute inset-0 overflow-auto p-4">
