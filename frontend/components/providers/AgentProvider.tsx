@@ -46,8 +46,16 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         setIsOpen(false);
         popupRef.current = null;
       } else if (event.data.type === 'POPUP_READY') {
-        // Send initial context when popup is ready
-        sendContext();
+        // Send initial context when popup is ready (regardless of isOpen state)
+        // This handles the case where popup was opened directly via URL
+        setIsOpen(true);
+        channelRef.current?.postMessage({
+          type: 'PAGE_CONTEXT',
+          payload: {
+            path: window.location.pathname,
+            data: {},
+          },
+        });
       }
     };
 

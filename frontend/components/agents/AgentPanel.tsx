@@ -637,6 +637,18 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
               </Button>
             </div>
           </div>
+          {/* Page context indicator */}
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-gray-500">Tracking:</span>
+            <span className={cn(
+              "font-mono px-1.5 py-0.5 rounded",
+              pageContext?.path
+                ? "bg-blue-500/20 text-blue-300"
+                : "bg-gray-700 text-gray-500"
+            )}>
+              {pageContext?.path || "No page"}
+            </span>
+          </div>
           {/* Sessions button (left) + Session ID + Provider info (right) */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
