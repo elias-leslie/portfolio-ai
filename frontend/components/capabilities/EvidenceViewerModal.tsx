@@ -415,7 +415,7 @@ export function EvidenceViewerModal({
               </div>
 
               <div className="flex-1 overflow-hidden relative bg-muted/10">
-                <TabsContent value="screenshot" className="m-0 h-full w-full overflow-auto p-4">
+                <TabsContent value="screenshot" className="m-0 absolute inset-0 overflow-auto p-4">
                   <div className="inline-block border border-border shadow-sm bg-background">
                     <img
                       src={data?.screenshot_url}
@@ -425,7 +425,7 @@ export function EvidenceViewerModal({
                   </div>
                 </TabsContent>
 
-                <TabsContent value="console" className="m-0 h-full overflow-auto p-4">
+                <TabsContent value="console" className="m-0 absolute inset-0 overflow-auto p-4">
                   <div className="space-y-4 max-w-4xl mx-auto">
                     <div className="flex gap-4 text-sm font-medium">
                       <span className="text-red-400 flex items-center gap-1">
@@ -490,7 +490,7 @@ export function EvidenceViewerModal({
                   </div>
                 </TabsContent>
 
-                <TabsContent value="network" className="m-0 h-full overflow-auto p-4">
+                <TabsContent value="network" className="m-0 absolute inset-0 overflow-auto p-4">
                   <div className="space-y-6 max-w-4xl mx-auto">
                     <div className="grid grid-cols-3 gap-4">
                       <div className="p-4 rounded border border-border bg-background">
@@ -560,7 +560,7 @@ export function EvidenceViewerModal({
                   </div>
                 </TabsContent>
 
-                <TabsContent value="page" className="m-0 h-full overflow-auto p-4">
+                <TabsContent value="page" className="m-0 absolute inset-0 overflow-auto p-4">
                   <div className="space-y-6 max-w-4xl mx-auto">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="p-4 rounded border border-border bg-background">
