@@ -110,7 +110,38 @@ export interface TriggerTaskResponse {
   message: string;
 }
 
+export interface BackupRequirementCheck {
+  backup_exists: boolean;
+  backup_recent: boolean;
+  backup_verified: boolean;
+  backup_name: string | null;
+  backup_age_hours: number | null;
+  can_proceed: boolean;
+  blocking_reason: string | null;
+  warnings: string[];
+}
+
 // API Functions
+
+/**
+ * Check if backup requirements are met for maintenance operations.
+ *
+ * @param maxAgeHours - Maximum age of backup in hours (default: 24)
+ * @param requireVerification - Whether backup must be verified (default: true)
+ * @returns Backup requirement check result
+ */
+export async function checkBackupRequirements(
+  maxAgeHours: number = 24,
+  requireVerification: boolean = true
+): Promise<BackupRequirementCheck> {
+  const params = new URLSearchParams({
+    max_age_hours: maxAgeHours.toString(),
+    require_verification: requireVerification.toString(),
+  });
+  return get<BackupRequirementCheck>(
+    `/api/backup/check-requirements?${params.toString()}`
+  );
+}
 
 /**
  * Get maintenance schedule for all tasks.

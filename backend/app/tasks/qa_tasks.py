@@ -59,7 +59,19 @@ def daily_qa_scan(self: Task) -> dict[str, Any]:
 
         try:
             # Import here to avoid circular imports and ensure DB models are loaded
-            from app.services.qa_scanner import QAScanner  # noqa: PLC0415
+            try:
+                from app.services.qa_scanner import QAScanner  # type: ignore[import-not-found]
+            except ImportError:
+                logger.warning(
+                    "daily_qa_scan_skipped",
+                    task_id=task_id,
+                    reason="qa_scanner_module_not_implemented",
+                )
+                return {
+                    "status": "skipped",
+                    "reason": "qa_scanner module not yet implemented",
+                    "task_id": task_id,
+                }
 
             # Initialize scanner
             scanner = QAScanner()

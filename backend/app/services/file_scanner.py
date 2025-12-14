@@ -294,13 +294,33 @@ class FileScanner:
                 """
             ).fetchall()
 
+            # Handle case where no data exists yet
+            if not totals:
+                return {
+                    "total_files": 0,
+                    "total_directories": 0,
+                    "total_loc": 0,
+                    "bloat_warnings": 0,
+                    "bloat_critical": 0,
+                    "last_scan": None,
+                    "by_extension": [],
+                }
+
+            # Extract values with proper type handling
+            last_scan = totals[5]
+            last_scan_str = (
+                last_scan.isoformat()
+                if last_scan and hasattr(last_scan, "isoformat")
+                else None
+            )
+
             return {
-                "total_files": totals[0] or 0,
-                "total_directories": totals[1] or 0,
-                "total_loc": totals[2] or 0,
-                "bloat_warnings": totals[3] or 0,
-                "bloat_critical": totals[4] or 0,
-                "last_scan": totals[5].isoformat() if totals[5] else None,
+                "total_files": int(totals[0] or 0),
+                "total_directories": int(totals[1] or 0),
+                "total_loc": int(totals[2] or 0),
+                "bloat_warnings": int(totals[3] or 0),
+                "bloat_critical": int(totals[4] or 0),
+                "last_scan": last_scan_str,
                 "by_extension": [
                     {"extension": row[0], "count": row[1], "loc": row[2]} for row in by_extension
                 ],
@@ -371,8 +391,11 @@ class FileScanner:
                 params,
             ).fetchall()
 
-            items = [
-                {
+            items = []
+            for row in results:
+                last_mod = row[8]
+                scanned = row[9]
+                items.append({
                     "path": row[0],
                     "is_directory": row[1],
                     "extension": row[2],
@@ -381,11 +404,17 @@ class FileScanner:
                     "file_count": row[5],
                     "total_loc": row[6],
                     "bloat_level": row[7],
-                    "last_modified": row[8].isoformat() if row[8] else None,
-                    "scanned_at": row[9].isoformat() if row[9] else None,
-                }
-                for row in results
-            ]
+                    "last_modified": (
+                        last_mod.isoformat()
+                        if last_mod and hasattr(last_mod, "isoformat")
+                        else None
+                    ),
+                    "scanned_at": (
+                        scanned.isoformat()
+                        if scanned and hasattr(scanned, "isoformat")
+                        else None
+                    ),
+                })
 
             return {"items": items, "total": total, "limit": limit, "offset": offset}
 
@@ -448,7 +477,7 @@ class FileScanner:
             # Count immediate subdirectories for each result
             subdir_counts: dict[str, int] = {}
             for row in results:
-                path = row[0]
+                path_val = str(row[0]) if row[0] is not None else ""
                 count_result = conn.execute(
                     """
                     SELECT COUNT(*)
@@ -457,17 +486,20 @@ class FileScanner:
                       AND path LIKE $1
                       AND path NOT LIKE $2
                     """,
-                    [f"{path}/%", f"{path}/%/%"],
+                    [f"{path_val}/%", f"{path_val}/%/%"],
                 ).fetchone()
-                subdir_counts[path] = count_result[0] if count_result else 0
+                count_val = count_result[0] if count_result else 0
+                subdir_counts[path_val] = int(count_val) if count_val else 0
 
             return [
                 {
-                    "path": row[0],
+                    "path": str(row[0]) if row[0] is not None else "",
                     "file_count": row[1],
                     "total_loc": row[2],
                     "bloat_level": row[3],
-                    "subdir_count": subdir_counts.get(row[0], 0),
+                    "subdir_count": subdir_counts.get(
+                        str(row[0]) if row[0] is not None else "", 0
+                    ),
                 }
                 for row in results
             ]
@@ -542,11 +574,19 @@ class FileScanner:
             # Get subdir counts for directories
             children = []
             for row in results:
-                item_path = row[0]
-                is_dir = row[1]
-                name = item_path.split("/")[-1]
+                item_path = str(row[0]) if row[0] is not None else ""
+                is_dir = bool(row[1])
+                name = item_path.split("/")[-1] if item_path else ""
 
-                item = {
+                # Handle last_modified datetime
+                last_mod = row[8]
+                last_mod_str = (
+                    last_mod.isoformat()
+                    if last_mod and hasattr(last_mod, "isoformat")
+                    else None
+                )
+
+                item: dict[str, Any] = {
                     "path": item_path,
                     "name": name,
                     "is_directory": is_dir,
@@ -556,7 +596,7 @@ class FileScanner:
                     "file_count": row[5],
                     "total_loc": row[6],
                     "bloat_level": row[7],
-                    "last_modified": row[8].isoformat() if row[8] else None,
+                    "last_modified": last_mod_str,
                 }
 
                 if is_dir:
@@ -571,9 +611,11 @@ class FileScanner:
                         """,
                         [f"{item_path}/%", f"{item_path}/%/%"],
                     ).fetchone()
-                    item["subdir_count"] = counts[0] if counts else 0
-                    item["direct_file_count"] = counts[1] if counts else 0
-                    item["has_children"] = item["subdir_count"] > 0 or item["direct_file_count"] > 0
+                    subdir_count = int(counts[0]) if counts and counts[0] else 0
+                    direct_file_count = int(counts[1]) if counts and counts[1] else 0
+                    item["subdir_count"] = subdir_count
+                    item["direct_file_count"] = direct_file_count
+                    item["has_children"] = subdir_count > 0 or direct_file_count > 0
                 else:
                     item["subdir_count"] = 0
                     item["direct_file_count"] = 0

@@ -53,7 +53,7 @@ def update_portfolio_covariance(  # type: ignore[no-untyped-def]
         >>> update_portfolio_covariance.delay()  # Updates all watchlist/portfolio symbols
         >>> update_portfolio_covariance.delay(["AAPL", "MSFT", "GOOGL"])  # Custom list
     """
-    from app.analytics.covariance import update_covariance_matrix  # noqa: PLC0415
+    from app.analytics.covariance import update_covariance_matrix
 
     task_id = self.request.id
     logger.info(
@@ -145,7 +145,7 @@ def update_earnings_surprises(  # type: ignore[no-untyped-def]
         - records_saved: Number of earnings records saved
         - status: success or error
     """
-    from app.analytics.earnings_surprise import fetch_and_store_earnings_surprises  # noqa: PLC0415
+    from app.analytics.earnings_surprise import fetch_and_store_earnings_surprises
 
     task_id = self.request.id or str(uuid.uuid4())
 

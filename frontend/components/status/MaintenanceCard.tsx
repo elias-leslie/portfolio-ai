@@ -12,6 +12,9 @@ import {
   RefreshCw,
   AlertCircle,
   PlayCircle,
+  ShieldCheck,
+  ShieldAlert,
+  Loader2,
 } from "lucide-react";
 import { ServiceActionDialog } from "./ServiceActionDialog";
 import { ExpandableCard } from "@/components/status/ExpandableCard";
@@ -20,8 +23,10 @@ import {
   vacuumDatabase,
   validateIntegrity,
   getMaintenanceLastRun,
+  checkBackupRequirements,
   type MaintenanceResult,
   type LastRunSummary,
+  type BackupRequirementCheck,
 } from "@/lib/api/maintenance";
 import { toast } from "sonner";
 
@@ -206,6 +211,10 @@ export function MaintenanceCard() {
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
   const [dryRun, setDryRun] = useState(true);
+  const [backupCheck, setBackupCheck] = useState<BackupRequirementCheck | null>(
+    null
+  );
+  const [isCheckingBackup, setIsCheckingBackup] = useState(false);
   const [actionDialogOpen, setActionDialogOpen] = useState(false);
   const [actionDialogConfig, setActionDialogConfig] = useState<{
     title: string;
@@ -213,12 +222,52 @@ export function MaintenanceCard() {
     actionLabel: string;
     onConfirm: () => void;
     storageKey?: string;
+    isDestructive?: boolean;
   } | null>(null);
 
   // Fetch last run data on mount
   useEffect(() => {
     fetchLastRunData();
   }, []);
+
+  // Check backup status when dry-run is toggled off
+  useEffect(() => {
+    if (!dryRun) {
+      checkBackupStatus();
+    } else {
+      setBackupCheck(null);
+    }
+  }, [dryRun]);
+
+  const checkBackupStatus = async () => {
+    setIsCheckingBackup(true);
+    try {
+      // For maintenance, require backup within 24h and verified
+      const check = await checkBackupRequirements(24, true);
+      setBackupCheck(check);
+      if (!check.can_proceed) {
+        toast.warning(
+          `Backup check: ${check.blocking_reason || "Requirements not met"}`,
+          { duration: 6000 }
+        );
+      }
+    } catch (error) {
+      console.error("Failed to check backup requirements:", error);
+      toast.error("Could not verify backup status");
+      setBackupCheck({
+        backup_exists: false,
+        backup_recent: false,
+        backup_verified: false,
+        backup_name: null,
+        backup_age_hours: null,
+        can_proceed: false,
+        blocking_reason: "Could not verify backup status",
+        warnings: [],
+      });
+    } finally {
+      setIsCheckingBackup(false);
+    }
+  };
 
   const fetchLastRunData = async () => {
     setIsFetching(true);
@@ -233,8 +282,11 @@ export function MaintenanceCard() {
   };
 
   // Check if user has disabled confirmation dialogs
-  const shouldShowDialog = (storageKey: string) => {
+  // IMPORTANT: For live (non-dry-run) operations, ALWAYS show dialog - no localStorage bypass
+  const shouldShowDialog = (storageKey: string, isLiveOperation: boolean) => {
     if (typeof window === "undefined") return true;
+    // Live operations always require confirmation - safety first
+    if (isLiveOperation) return true;
     return !localStorage.getItem(storageKey);
   };
 
@@ -274,16 +326,29 @@ export function MaintenanceCard() {
   };
 
   const triggerCleanupNews = () => {
+    // For live operations, check backup requirements first
+    if (!dryRun && backupCheck && !backupCheck.can_proceed) {
+      toast.error(
+        `Cannot run live cleanup: ${backupCheck.blocking_reason || "Backup requirements not met"}`,
+        { duration: 8000 }
+      );
+      return;
+    }
+
     const storageKey = "status.confirm.cleanupNews";
-    if (shouldShowDialog(storageKey)) {
+    const isLiveOperation = !dryRun;
+
+    if (shouldShowDialog(storageKey, isLiveOperation)) {
       setActionDialogConfig({
         title: "Cleanup Old News",
         description: dryRun
           ? "This will preview articles that would be deleted (older than 90 days). No actual deletion will occur."
-          : "This will permanently delete news articles older than 90 days. This action cannot be undone.",
+          : "⚠️ DESTRUCTIVE: This will permanently delete news articles older than 90 days. This action cannot be undone. Backup verified: ✓",
         actionLabel: dryRun ? "Preview Cleanup" : "Delete Articles",
         onConfirm: handleCleanupNews,
-        storageKey,
+        // Only allow "don't ask again" for dry-run operations
+        storageKey: dryRun ? storageKey : undefined,
+        isDestructive: !dryRun,
       });
       setActionDialogOpen(true);
     } else {
@@ -313,16 +378,29 @@ export function MaintenanceCard() {
   };
 
   const triggerVacuumDatabase = () => {
+    // Vacuum is generally safe, but still check backup for live mode
+    if (!dryRun && backupCheck && !backupCheck.can_proceed) {
+      toast.error(
+        `Cannot run live vacuum: ${backupCheck.blocking_reason || "Backup requirements not met"}`,
+        { duration: 8000 }
+      );
+      return;
+    }
+
     const storageKey = "status.confirm.vacuumDatabase";
-    if (shouldShowDialog(storageKey)) {
+    const isLiveOperation = !dryRun;
+
+    if (shouldShowDialog(storageKey, isLiveOperation)) {
       setActionDialogConfig({
         title: "Vacuum Database",
         description: dryRun
           ? "This will analyze database tables and show potential space savings without making changes."
-          : "This will optimize all database tables using VACUUM ANALYZE. This is a safe operation but may take a few minutes.",
+          : "This will optimize all database tables using VACUUM ANALYZE. This is a safe operation but may take a few minutes. Backup verified: ✓",
         actionLabel: dryRun ? "Analyze Tables" : "Vacuum Database",
         onConfirm: handleVacuumDatabase,
-        storageKey,
+        // Only allow "don't ask again" for dry-run operations
+        storageKey: dryRun ? storageKey : undefined,
+        isDestructive: !dryRun,
       });
       setActionDialogOpen(true);
     } else {
@@ -355,16 +433,29 @@ export function MaintenanceCard() {
   };
 
   const triggerValidateIntegrity = () => {
+    // For fix mode, require backup
+    if (!dryRun && backupCheck && !backupCheck.can_proceed) {
+      toast.error(
+        `Cannot run live fix: ${backupCheck.blocking_reason || "Backup requirements not met"}`,
+        { duration: 8000 }
+      );
+      return;
+    }
+
     const storageKey = "status.confirm.validateIntegrity";
-    if (shouldShowDialog(storageKey)) {
+    const isLiveOperation = !dryRun;
+
+    if (shouldShowDialog(storageKey, isLiveOperation)) {
       setActionDialogConfig({
         title: "Validate Data Integrity",
         description: dryRun
           ? "This will check for orphaned records, missing relationships, and data consistency issues without making changes."
-          : "This will check for integrity issues and attempt to fix them automatically. Use with caution.",
+          : "⚠️ DESTRUCTIVE: This will check for integrity issues and attempt to fix them automatically. Use with caution. Backup verified: ✓",
         actionLabel: dryRun ? "Check Integrity" : "Fix Issues",
         onConfirm: handleValidateIntegrity,
-        storageKey,
+        // Only allow "don't ask again" for dry-run operations
+        storageKey: dryRun ? storageKey : undefined,
+        isDestructive: !dryRun,
       });
       setActionDialogOpen(true);
     } else {
@@ -387,6 +478,27 @@ export function MaintenanceCard() {
                 Dry Run
               </Label>
             </div>
+            {/* Backup status indicator - only shown when dry-run is OFF */}
+            {!dryRun && (
+              <div className="flex items-center gap-1.5">
+                {isCheckingBackup ? (
+                  <Badge variant="secondary" className="flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Checking backup...
+                  </Badge>
+                ) : backupCheck?.can_proceed ? (
+                  <Badge variant="default" className="flex items-center gap-1 bg-green-600">
+                    <ShieldCheck className="h-3 w-3" />
+                    Backup OK
+                  </Badge>
+                ) : (
+                  <Badge variant="destructive" className="flex items-center gap-1">
+                    <ShieldAlert className="h-3 w-3" />
+                    {backupCheck?.blocking_reason?.split(".")[0] || "No backup"}
+                  </Badge>
+                )}
+              </div>
+            )}
             <Button
               variant="outline"
               size="sm"

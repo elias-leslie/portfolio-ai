@@ -324,9 +324,9 @@ def _get_portfolio_data(symbol: str) -> dict[str, Any]:
                 [symbol],
             )
             pos_row = pos_result.fetchone()
-            if pos_row:
+            if pos_row and pos_result.description:
                 pos_cols = [desc[0] for desc in pos_result.description]
-                position = dict(zip(pos_cols, pos_row))
+                position = dict(zip(pos_cols, pos_row, strict=True))
 
             # Get portfolio summary
             summary_result = conn.execute(
@@ -339,9 +339,9 @@ def _get_portfolio_data(symbol: str) -> dict[str, Any]:
                 """
             )
             sum_row = summary_result.fetchone()
-            if sum_row:
+            if sum_row and summary_result.description:
                 sum_cols = [desc[0] for desc in summary_result.description]
-                summary = dict(zip(sum_cols, sum_row))
+                summary = dict(zip(sum_cols, sum_row, strict=True))
     except Exception as e:
         logger.warning(f"Failed to get portfolio data for {symbol}: {e}")
 
@@ -368,9 +368,9 @@ def _get_paper_trades_data(symbol: str) -> dict[str, Any]:
                 [symbol],
             )
             rows = result.fetchall()
-            if rows:
+            if rows and result.description:
                 cols = [desc[0] for desc in result.description]
-                trades = [dict(zip(cols, r)) for r in rows]
+                trades = [dict(zip(cols, r, strict=True)) for r in rows]
     except Exception as e:
         logger.warning(f"Failed to get paper trades data for {symbol}: {e}")
 
@@ -378,10 +378,10 @@ def _get_paper_trades_data(symbol: str) -> dict[str, Any]:
     closed = [t for t in trades if t.get("status") == "closed"]
     open_trade = next((t for t in trades if t.get("status") == "open"), None)
 
-    wins = [t for t in closed if (t.get("realized_return_pct") or 0) > 0]
+    wins = [t for t in closed if float(t.get("realized_return_pct") or 0) > 0]
     win_rate = (len(wins) / len(closed) * 100) if closed else None
     avg_return = (
-        sum(t.get("realized_return_pct") or 0 for t in closed) / len(closed) if closed else None
+        sum(float(t.get("realized_return_pct") or 0) for t in closed) / len(closed) if closed else None
     )
 
     return {
@@ -412,9 +412,9 @@ def _get_strategies_data(symbol: str) -> dict[str, Any]:
                 [symbol],
             )
             rows = result.fetchall()
-            if rows:
+            if rows and result.description:
                 cols = [desc[0] for desc in result.description]
-                strategies = [dict(zip(cols, r)) for r in rows]
+                strategies = [dict(zip(cols, r, strict=True)) for r in rows]
     except Exception as e:
         logger.warning(f"Failed to get strategies data for {symbol}: {e}")
 
@@ -441,9 +441,9 @@ def _get_news_data(symbol: str) -> dict[str, Any]:
                 [symbol],
             )
             row = result.fetchone()
-            if row:
+            if row and result.description:
                 cols = [desc[0] for desc in result.description]
-                return dict(zip(cols, row))
+                return dict(zip(cols, row, strict=True))
     except Exception as e:
         logger.warning(f"Failed to get news data for {symbol}: {e}")
     return {}
@@ -466,9 +466,9 @@ def _get_market_data() -> dict[str, Any]:
                 """
             )
             fg_row = fg_result.fetchone()
-            if fg_row:
+            if fg_row and fg_result.description:
                 fg_cols = [desc[0] for desc in fg_result.description]
-                fear_greed = dict(zip(fg_cols, fg_row))
+                fear_greed = dict(zip(fg_cols, fg_row, strict=True))
     except Exception as e:
         logger.warning(f"Failed to get fear/greed data: {e}")
 
@@ -487,10 +487,10 @@ def _get_market_data() -> dict[str, Any]:
                 """
             )
             rows = ind_result.fetchall()
-            if rows:
+            if rows and ind_result.description:
                 cols = [desc[0] for desc in ind_result.description]
                 for row in rows:
-                    r = dict(zip(cols, row))
+                    r = dict(zip(cols, row, strict=True))
                     if r["symbol"] not in indicators:
                         indicators[r["symbol"]] = r
     except Exception as e:
@@ -504,7 +504,9 @@ def _get_market_data() -> dict[str, Any]:
 
 
 def _generate_recommendation(
-    watchlist: dict | None, portfolio: dict | None, market: dict | None
+    watchlist: dict[str, Any] | None,
+    portfolio: dict[str, Any] | None,
+    market: dict[str, Any] | None,
 ) -> dict[str, Any]:
     """Generate personalized recommendation based on all data."""
     portfolio = portfolio or {}
@@ -603,11 +605,11 @@ def _build_response(
             "options_flow": 0.08,
             "performance": 0.05,
         }
-        for pillar in pillar_weights:
+        for pillar, weight in pillar_weights.items():
             score_key = f"{pillar}_score"
             pillars[pillar] = PillarScore(
                 score=watchlist.get(score_key),
-                weight=pillar_weights[pillar],
+                weight=weight,
                 sub_scores=watchlist.get(f"{pillar}_sub_scores"),
                 metadata=watchlist.get(f"{pillar}_metadata"),
                 stale=watchlist.get(f"{pillar}_stale", False) or False,

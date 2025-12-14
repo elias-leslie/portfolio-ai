@@ -323,7 +323,7 @@ def run_backtest_task(  # type: ignore[no-untyped-def]
         )
 
         # Trigger historical data backfill
-        from app.tasks.ingestion.price_ingestion import (  # noqa: PLC0415
+        from app.tasks.ingestion.price_ingestion import (
             ingest_historical_ohlcv,
         )
 

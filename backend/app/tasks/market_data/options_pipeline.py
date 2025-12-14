@@ -403,7 +403,7 @@ def fetch_options_activity_metrics(  # type: ignore[no-untyped-def]
         storage = get_storage()
 
         # Import here to avoid circular dependency
-        from app.sources.cboe_most_active import get_cboe_most_active_source  # noqa: PLC0415
+        from app.sources.cboe_most_active import get_cboe_most_active_source
 
         # Fetch from CBOE Most Active source (with metrics tracking enabled)
         cboe_most_active = get_cboe_most_active_source(storage=storage)

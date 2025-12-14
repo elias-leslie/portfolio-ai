@@ -102,6 +102,19 @@ class BackupJobStatus(BaseModel):
     error: str | None
 
 
+class BackupRequirementCheck(BaseModel):
+    """Result of checking if backup requirements are met for maintenance ops."""
+
+    backup_exists: bool = Field(..., description="Whether any backup exists")
+    backup_recent: bool = Field(..., description="Whether backup is within max_age_hours")
+    backup_verified: bool = Field(..., description="Whether latest backup passed verification")
+    backup_name: str | None = Field(None, description="Name of latest backup")
+    backup_age_hours: float | None = Field(None, description="Age of latest backup in hours")
+    can_proceed: bool = Field(..., description="Whether maintenance can proceed")
+    blocking_reason: str | None = Field(None, description="Reason if can_proceed is False")
+    warnings: list[str] = Field(default_factory=list, description="Non-blocking warnings")
+
+
 def _read_backup_index() -> dict[str, Any]:
     """Read and parse the backup index file."""
     if not BACKUP_INDEX_PATH.exists():
@@ -348,4 +361,99 @@ async def get_backup_job_status(job_id: str) -> BackupJobStatus:
         completed_at=job.get("completed_at"),
         output=job.get("output"),
         error=job.get("error"),
+    )
+
+
+@router.get("/check-requirements", response_model=BackupRequirementCheck)
+async def check_backup_requirements(
+    max_age_hours: float = 24.0,
+    require_verification: bool = True,
+) -> BackupRequirementCheck:
+    """Check if backup requirements are met for maintenance operations.
+
+    This endpoint should be called before any destructive maintenance operation
+    to ensure a recent, verified backup exists.
+
+    Args:
+        max_age_hours: Maximum age of backup in hours (default: 24)
+        require_verification: Whether backup must be verified (default: True)
+
+    Returns:
+        BackupRequirementCheck with can_proceed flag and details
+    """
+    index = _read_backup_index()
+    backups = index.get("backups", [])
+
+    # No backups at all
+    if not backups:
+        return BackupRequirementCheck(
+            backup_exists=False,
+            backup_recent=False,
+            backup_verified=False,
+            backup_name=None,
+            backup_age_hours=None,
+            can_proceed=False,
+            blocking_reason="No backups exist. Create a backup before running maintenance.",
+            warnings=[],
+        )
+
+    latest = backups[0]
+    backup_name = latest.get("name")
+    latest_ts = latest.get("timestamp")
+    verification = latest.get("verification", {})
+    is_verified = verification.get("verified", False) if verification else False
+
+    # Calculate age
+    backup_age_hours: float | None = None
+    backup_recent = False
+    warnings: list[str] = []
+
+    if latest_ts:
+        try:
+            backup_time = datetime.fromisoformat(latest_ts.replace("Z", "+00:00"))
+            backup_age_hours = (datetime.now(backup_time.tzinfo or None) - backup_time).total_seconds() / 3600
+            backup_recent = backup_age_hours <= max_age_hours
+
+            if not backup_recent:
+                warnings.append(f"Backup is {backup_age_hours:.1f} hours old (limit: {max_age_hours}h)")
+        except Exception:
+            warnings.append("Could not parse backup timestamp")
+
+    # Check verification status
+    if require_verification and not is_verified:
+        warnings.append("Latest backup has not been verified")
+
+    # Determine if we can proceed
+    can_proceed = True
+    blocking_reason = None
+
+    if not backup_recent:
+        can_proceed = False
+        blocking_reason = f"No recent backup. Latest backup is {backup_age_hours:.1f}h old (requires <{max_age_hours}h)."
+
+    if require_verification and not is_verified:
+        # Verification is a strong requirement - block if missing
+        can_proceed = False
+        if blocking_reason:
+            blocking_reason += " Also, backup is not verified."
+        else:
+            blocking_reason = "Latest backup has not been verified."
+
+    logger.info(
+        "backup_requirements_checked",
+        backup_name=backup_name,
+        backup_age_hours=backup_age_hours,
+        is_verified=is_verified,
+        can_proceed=can_proceed,
+    )
+
+    return BackupRequirementCheck(
+        backup_exists=True,
+        backup_recent=backup_recent,
+        backup_verified=is_verified,
+        backup_name=backup_name,
+        backup_age_hours=backup_age_hours,
+        can_proceed=can_proceed,
+        blocking_reason=blocking_reason,
+        warnings=warnings,
     )

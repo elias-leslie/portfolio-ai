@@ -114,3 +114,13 @@ class DatabaseConnection(Protocol):
             Raw connection object for cases needing direct access.
         """
         ...
+
+    @property
+    def description(self) -> list[tuple[str, Any, ...]] | None:
+        """Get column metadata from last query.
+
+        Returns:
+            List of column description tuples (name, type_code, ...) or None.
+            Each tuple has at least (name, type_code) but may include more fields.
+        """
+        ...

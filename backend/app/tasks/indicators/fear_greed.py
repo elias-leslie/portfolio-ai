@@ -296,7 +296,7 @@ def _invalidate_redis_cache() -> None:
 
     # Also invalidate FastAPI response cache for market endpoints
     try:
-        from app.middleware.cache import invalidate_fear_greed_cache  # noqa: PLC0415
+        from app.middleware.cache import invalidate_fear_greed_cache
 
         invalidated = invalidate_fear_greed_cache()
         logger.info(

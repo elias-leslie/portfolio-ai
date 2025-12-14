@@ -339,7 +339,7 @@ class WorkflowOrchestrator:
             logger.error(f"Failed to collect agent outputs: {e}")
             return {}
 
-    def resolve_conflicts(  # noqa: PLR0911
+    def resolve_conflicts(
         self,
         workflow_id: str,
         conflicting_outputs: dict[str, object],

@@ -110,6 +110,40 @@ journalctl --user -u portfolio-celery -f
 
 ---
 
+## MANDATORY: Track Discovered Issues
+
+**When you encounter ANY pre-existing bug, error, or issue during your work, you MUST:**
+
+1. **Review ALL open Beads** (do NOT filter by keywords - you might miss matches):
+   ```bash
+   bd list --status open --json | jq -r '.[] | "\(.id) \(.title)"'
+   ```
+2. **If no bead exists, CREATE + LINK IMMEDIATELY**:
+   ```bash
+   # Create the bug
+   bd create --title "Fix: <clear description>" \
+     --description "Error: <exact error message>
+
+   Location: <file:line>
+
+   Found during: <parent-bead-id> <task name>" \
+     --priority 2 --type bug --json
+
+   # MANDATORY: Link with discovered-from dependency
+   bd dep add <new-id> <parent-bead-id> --type discovered-from
+   ```
+3. **If bead exists, UPDATE with new info**: `bd update <id> --notes "Additional context..."`
+
+**This is MANDATORY. Do NOT:**
+- Mention bugs in summaries without creating beads
+- Say "pre-existing issue, not related to this task" and move on
+- Leave issues undocumented for future discovery
+- Filter beads by keywords (scan the FULL list)
+
+**Every discovered issue = immediate bead creation + dependency link. No exceptions.**
+
+---
+
 ## Anti-Patterns
 
 | Don't | Do Instead |
@@ -122,6 +156,7 @@ journalctl --user -u portfolio-celery -f
 | `git stash` with uncommitted changes | Commit first |
 | Hardcode version numbers | Reference STACK.md |
 | Skip pre-commit (`--no-verify`) | Fix the issues |
+| Note bugs without creating beads | Create bead IMMEDIATELY |
 
 ---
 
@@ -133,11 +168,48 @@ bd ready --json                              # Find work
 bd update <id> --status in_progress --json   # Claim it
 ```
 
-### End
+### End ("Landing the Plane") - MANDATORY
+
+**All steps must complete before session ends. The plane hasn't landed until `git push` succeeds.**
+
+#### 1. File/Update Issues for Remaining Work
+- Create beads for any discovered bugs (see MANDATORY section above)
+- Create beads for follow-up tasks and TODOs
+- Close completed issues: `bd close <id> --reason "Done" --json`
+- Update in-progress work: `bd update <id> --notes "Progress..." --json`
+
+#### 2. Run Quality Gates (if code changed)
 ```bash
-bd close <id> --reason "Description" --json  # Mark done
-bd sync                                       # Force commit/push
+cd backend && .venv/bin/ruff check app/ --fix
+cd backend && .venv/bin/mypy app/ --no-error-summary
+cd backend && .venv/bin/pytest tests/ -x --tb=short -q
 ```
+- If builds/tests broken, file P0 issue before continuing
+
+#### 3. Sync Issue Tracker (NON-NEGOTIABLE)
+```bash
+git pull --rebase
+bd sync
+git push
+git status  # MUST show "up to date with origin/main"
+```
+- If push fails, resolve and retry until successful
+- Never say "ready to push when you are"—YOU must push
+- Unpushed work breaks multi-agent coordination
+
+#### 4. Verify Clean State
+- All changes committed AND pushed
+- No untracked files remain
+- `git status` shows clean working tree
+
+#### 5. Choose Next Work
+- Run `bd ready --json` to identify next task
+- Provide context for next session if needed
+
+**Critical Rules:**
+- Never stop before pushing—that leaves work stranded locally
+- `bd sync` at end of EVERY session, not just when you remember
+- Lost issues = lost work = unacceptable
 
 ---
 
