@@ -28,6 +28,7 @@ export interface TradeRecommendation {
   expected_sharpe: number | null;
   signal_date: string;
   generated_at: string | null;
+  validation_type: "thesis" | "backtest" | "both";
 }
 
 export interface RecommendationsSummary {

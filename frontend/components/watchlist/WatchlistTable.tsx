@@ -44,15 +44,13 @@ interface WatchlistTableProps {
   items: WatchlistItem[];
 }
 
-type SortField = "symbol" | "overall" | "price" | "technical" | "news" | "updated" | "style" | "risk";
+type SortField = "symbol" | "overall" | "price" | "technical" | "news" | "updated" | "risk";
 type SortDirection = "asc" | "desc";
 
 type WatchlistSnapshot = {
   price: number | null;
   score: number | null;
-  signal: WatchlistItem["signal_type"];
   risk: WatchlistItem["risk_level"];
-  style: WatchlistItem["recommended_style"];
   updatedAt: string | null;
 };
 
@@ -85,9 +83,7 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
         ? item.current_score.price.metadata.price
         : null,
     score: item.current_score?.overall ?? null,
-    signal: item.signal_type ?? null,
     risk: item.risk_level ?? null,
-    style: item.recommended_style ?? null,
     updatedAt: item.current_score?.price?.updated_at ?? item.updated_at,
   });
 
@@ -147,10 +143,6 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
       case "news":
         aVal = a.news_sentiment_score ?? -2;
         bVal = b.news_sentiment_score ?? -2;
-        break;
-      case "style":
-        aVal = a.recommended_style ?? "";
-        bVal = b.recommended_style ?? "";
         break;
       case "risk":
         aVal = a.risk_level ?? "";
@@ -237,79 +229,6 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
     return score >= 0 ? `+${rounded}` : rounded;
   };
 
-  // Get signal badge variant and icon
-  const getSignalDisplay = (signalType?: "BUY" | "HOLD" | "AVOID" | null) => {
-    switch (signalType) {
-      case "BUY":
-        return {
-          icon: "🟢",
-          color: "bg-green-500/10 text-green-600 border-green-500/20",
-          label: "BUY",
-        };
-      case "HOLD":
-        return {
-          icon: "🟡",
-          color: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
-          label: "HOLD",
-        };
-      case "AVOID":
-        return {
-          icon: "🔴",
-          color: "bg-red-500/10 text-red-600 border-red-500/20",
-          label: "AVOID",
-        };
-      default:
-        return null;
-    }
-  };
-
-  // Get catalyst indicator (show when catalyst score is significant)
-  const getCatalystIndicator = (catalystScore?: number, catalystMetadata?: Record<string, unknown>) => {
-    if (!catalystScore || catalystScore < 30) return null;
-
-    // Positive catalyst (score >= 60)
-    if (catalystScore >= 60) {
-      const eventCategory = catalystMetadata?.event_category as string | undefined;
-      const categoryLabel = eventCategory?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Positive catalyst';
-      return {
-        icon: "🚀",
-        tooltip: `${categoryLabel} (Impact: ${catalystScore.toFixed(0)}/100)`,
-        color: "text-green-600",
-      };
-    }
-
-    // Negative catalyst (score <= 40)
-    if (catalystScore <= 40) {
-      const eventCategory = catalystMetadata?.event_category as string | undefined;
-      const categoryLabel = eventCategory?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Negative catalyst';
-      return {
-        icon: "⚠️",
-        tooltip: `${categoryLabel} (Impact: ${catalystScore.toFixed(0)}/100)`,
-        color: "text-red-600",
-      };
-    }
-
-    return null;
-  };
-
-  // Get trading style display
-  const getStyleDisplay = (style?: "Index" | "Trend" | "Value" | "Swing" | "Event" | null) => {
-    switch (style) {
-      case "Index":
-        return { icon: "📈", color: "bg-blue-500/10 text-blue-600 border-blue-500/20" };
-      case "Trend":
-        return { icon: "🔥", color: "bg-orange-500/10 text-orange-600 border-orange-500/20" };
-      case "Value":
-        return { icon: "💎", color: "bg-purple-500/10 text-purple-600 border-purple-500/20" };
-      case "Swing":
-        return { icon: "⚡", color: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20" };
-      case "Event":
-        return { icon: "📅", color: "bg-red-500/10 text-red-600 border-red-500/20" };
-      default:
-        return null;
-    }
-  };
-
   // Get data quality color based on percentage
   const getDataQualityColor = (pct: number): string => {
     if (pct >= 80) return "text-gain"; // Green
@@ -387,9 +306,7 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
       const fieldChanges: Record<string, boolean> = {};
       if (snapshot.price !== previous.price) fieldChanges.price = true;
       if (snapshot.score !== previous.score) fieldChanges.score = true;
-      if (snapshot.signal !== previous.signal) fieldChanges.signal = true;
       if (snapshot.risk !== previous.risk) fieldChanges.risk = true;
-      if (snapshot.style !== previous.style) fieldChanges.style = true;
       if (snapshot.updatedAt !== previous.updatedAt) fieldChanges.updatedAt = true;
 
       if (Object.keys(fieldChanges).length > 0) {
@@ -473,34 +390,8 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                 onClick={() => handleSort("overall")}
                 className="flex items-center gap-1 font-medium hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
               >
-                Signal
-                {sortField === "overall" && (
-                  <span className="text-xs">
-                    {sortDirection === "asc" ? "↑" : "↓"}
-                  </span>
-                )}
-              </button>
-            </TableHead>
-            <TableHead>
-              <button
-                onClick={() => handleSort("overall")}
-                className="flex items-center gap-1 font-medium hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-              >
                 Score
                 {sortField === "overall" && (
-                  <span className="text-xs">
-                    {sortDirection === "asc" ? "↑" : "↓"}
-                  </span>
-                )}
-              </button>
-            </TableHead>
-            <TableHead>
-              <button
-                onClick={() => handleSort("style")}
-                className="flex items-center gap-1 font-medium hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-              >
-                Style
-                {sortField === "style" && (
                   <span className="text-xs">
                     {sortDirection === "asc" ? "↑" : "↓"}
                   </span>
@@ -669,68 +560,6 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                   </TableCell>
                   <TableCell
                     data-slot="table-cell"
-                    data-changed={changedCells[item.id]?.signal ? "true" : undefined}
-                  >
-                    {item.signal_type ? (
-                      (() => {
-                        const signalDisplay = getSignalDisplay(item.signal_type);
-                        const catalystIndicator = getCatalystIndicator(
-                          item.current_score?.catalyst?.score,
-                          item.current_score?.catalyst?.metadata
-                        );
-                        return signalDisplay ? (
-                          <div className="flex items-center gap-1">
-                            {/* Signal Badge */}
-                            <div
-                              className={cn(
-                                "inline-flex items-center gap-1 rounded-md border px-2.5 py-0.5 text-xs font-semibold",
-                                signalDisplay.color
-                              )}
-                            >
-                              <span>{signalDisplay.icon}</span>
-                              <span>{signalDisplay.label}</span>
-                              {item.signal_strength !== null && item.signal_strength !== undefined && (
-                                <span className="ml-1 text-xs opacity-75">
-                                  {item.signal_strength}/10
-                                </span>
-                              )}
-                            </div>
-
-                            {/* Catalyst Indicator (direct score display) */}
-                            {catalystIndicator && (
-                              <span
-                                className={cn("text-base cursor-help", catalystIndicator.color)}
-                                title={catalystIndicator.tooltip}
-                              >
-                                {catalystIndicator.icon}
-                              </span>
-                            )}
-
-                            {/* Priority Indicators (NO CAP - show all) */}
-                            {item.priority_indicators && item.priority_indicators.length > 0 && (
-                              <div className="flex gap-0.5 ml-1">
-                                {item.priority_indicators.map((indicator, idx) => (
-                                  <span
-                                    key={`${item.id}-${indicator.label}-${idx}`}
-                                    className="text-base cursor-help"
-                                    title={indicator.tooltip}
-                                  >
-                                    {indicator.icon}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-text-muted">—</span>
-                        );
-                      })()
-                    ) : (
-                      <span className="text-text-muted">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell
-                    data-slot="table-cell"
                     data-changed={changedCells[item.id]?.score ? "true" : undefined}
                   >
                     {hasScore ? (
@@ -747,21 +576,6 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                             style={{ width: `${overall}%` }}
                           />
                         </div>
-                      </div>
-                    ) : (
-                      <span className="text-text-muted">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell
-                    data-slot="table-cell"
-                    data-changed={changedCells[item.id]?.style ? "true" : undefined}
-                  >
-                    {item.recommended_style ? (
-                      <div className="text-xs">
-                        <div className="font-medium">{item.recommended_style}</div>
-                        {item.optimal_holding_period && (
-                          <div className="text-text-muted">({item.optimal_holding_period})</div>
-                        )}
                       </div>
                     ) : (
                       <span className="text-text-muted">—</span>
@@ -865,7 +679,7 @@ export function WatchlistTable({ items }: WatchlistTableProps) {
                 </TableRow>
                 {isExpanded && (
                   <TableRow id={`watchlist-row-${item.id}`} data-state="open">
-                    <TableCell colSpan={11} className="bg-surface-muted/20 p-4">
+                    <TableCell colSpan={9} className="bg-surface-muted/20 p-4">
                       <ExpandedRow item={item} refreshStatus={refreshStatus} />
                     </TableCell>
                   </TableRow>

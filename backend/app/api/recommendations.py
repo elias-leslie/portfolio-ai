@@ -65,6 +65,9 @@ class TradeRecommendation(BaseModel):
     expected_sharpe: float | None
     signal_date: str
     generated_at: str | None
+    validation_type: Literal["thesis", "backtest", "both"] = Field(
+        ..., description="Type of validation (thesis, backtest, or both)"
+    )
 
 
 class RecommendationsResponse(BaseModel):
@@ -177,11 +180,18 @@ async def get_recommendations(
     position_pct: float = Query(
         DEFAULT_POSITION_PCT, ge=0.01, le=0.25, description="Position size %"
     ),
+    validation_filter: Literal["thesis", "backtest", "both", "all"] | None = Query(
+        None, description="Filter by validation type"
+    ),
 ) -> RecommendationsResponse:
     """Get top trade recommendations from active strategies.
 
     Returns BUY signals from today with signal_strength >= min_strength,
     sorted by strength descending. Includes position sizing calculations.
+
+    Only includes symbols validated through EITHER:
+    - Path A (Event-Driven): Active thesis with cross_validation_score >= 0.7
+    - Path B (Technical): Active strategy with expected_sharpe >= 1.0
 
     Args:
         min_strength: Minimum signal strength (0-10)
@@ -189,6 +199,7 @@ async def get_recommendations(
         signal_type: Filter for BUY, SELL, or all signals
         portfolio_size: Portfolio value for position sizing
         position_pct: Position size as percentage of portfolio
+        validation_filter: Filter by validation type (thesis, backtest, both, all)
 
     Returns:
         List of trade recommendations with full details
@@ -202,6 +213,11 @@ async def get_recommendations(
             if signal_type != "all":
                 signal_filter = "AND ss.signal_type = %s"
 
+            # Either/Or validation logic:
+            # Include if:
+            #   - Path A: thesis.status = 'active' AND thesis.cross_validation_score >= 0.7
+            #   - Path B: sd.expected_sharpe >= 1.0
+            # Exclude if NEITHER condition is met
             query = f"""
                 SELECT
                     ss.symbol,
@@ -214,13 +230,24 @@ async def get_recommendations(
                     ss.market_data,
                     ss.signal_date,
                     ss.created_at,
-                    sd.expected_sharpe
+                    sd.expected_sharpe,
+                    wt.status as thesis_status,
+                    wt.cross_validation_score
                 FROM strategy_signals ss
                 JOIN strategy_definitions sd ON ss.strategy_id = sd.id
+                LEFT JOIN watchlist_thesis wt ON ss.symbol = wt.symbol
+                    AND wt.status = 'active'
                 WHERE sd.status = 'active'
                   AND ss.signal_strength >= %s
                   AND ss.signal_date >= CURRENT_DATE - INTERVAL '1 day'
                   {signal_filter}
+                  AND (
+                    -- Path A: Event-Driven (thesis-based)
+                    (wt.status = 'active' AND wt.cross_validation_score >= 0.7)
+                    OR
+                    -- Path B: Technical (backtest-based)
+                    (sd.expected_sharpe >= 1.0)
+                  )
                 ORDER BY ss.signal_strength DESC, ss.created_at DESC
                 LIMIT %s
             """
@@ -308,6 +335,33 @@ async def get_recommendations(
             signal_date_raw = row[8]
             created_at_raw = row[9]
             expected_sharpe = float(row[10]) if row[10] else None
+            thesis_status_raw = row[11]
+            cross_validation_score_raw = row[12]
+
+            # Determine validation type based on what criteria are met
+            has_thesis = (
+                thesis_status_raw == "active"
+                and cross_validation_score_raw is not None
+                and float(cross_validation_score_raw) >= 0.7
+            )
+            has_backtest = expected_sharpe is not None and expected_sharpe >= 1.0
+
+            if has_thesis and has_backtest:
+                validation_type: Literal["thesis", "backtest", "both"] = "both"
+            elif has_thesis:
+                validation_type = "thesis"
+            else:  # has_backtest (must be true due to WHERE clause)
+                validation_type = "backtest"
+
+            # Apply validation filter if specified
+            # "all" or None = no filtering
+            # "thesis"/"backtest"/"both" = exact match only
+            if (
+                validation_filter
+                and validation_filter != "all"
+                and validation_type != validation_filter
+            ):
+                continue
 
             # Get entry price from market data (when signal was generated)
             # market_data is guaranteed to be dict at this point
@@ -372,6 +426,7 @@ async def get_recommendations(
                     expected_sharpe=expected_sharpe,
                     signal_date=signal_date_str,
                     generated_at=generated_at_str,
+                    validation_type=validation_type,
                 )
             )
 

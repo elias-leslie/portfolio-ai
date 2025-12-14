@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Target, TrendingUp, TrendingDown, AlertCircle, DollarSign, Briefcase, LineChart, Sparkles, AlertTriangle } from "lucide-react";
+import { Target, TrendingUp, TrendingDown, AlertCircle, DollarSign, Briefcase, LineChart, Sparkles, AlertTriangle, FileText, BarChart3, Star } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -73,6 +73,32 @@ function SignalStatusBadge({ status }: { status: string }) {
   }
 }
 
+function ValidationBadge({ validationType }: { validationType: "thesis" | "backtest" | "both" }) {
+  switch (validationType) {
+    case "thesis":
+      return (
+        <Badge className="bg-purple-500/90 text-white" title="Event-Driven: Validated by investment thesis">
+          <FileText className="mr-1 h-3 w-3" />
+          Thesis
+        </Badge>
+      );
+    case "backtest":
+      return (
+        <Badge className="bg-blue-500/90 text-white" title="Technical: Validated by backtest (Sharpe >= 1.0)">
+          <BarChart3 className="mr-1 h-3 w-3" />
+          Technical
+        </Badge>
+      );
+    case "both":
+      return (
+        <Badge className="bg-yellow-500/90 text-white" title="Highest confidence: Both thesis AND backtest validated">
+          <Star className="mr-1 h-3 w-3" />
+          Both
+        </Badge>
+      );
+  }
+}
+
 function RecommendationCard({
   rec,
   onPaperTrade,
@@ -100,6 +126,7 @@ function RecommendationCard({
             <CardTitle className="flex flex-wrap items-center gap-2 text-xl">
               {rec.symbol}
               <SignalBadge type={rec.signal_type} strength={rec.signal_strength} />
+              <ValidationBadge validationType={rec.validation_type} />
               <SignalStatusBadge status={rec.signal_status} />
             </CardTitle>
             <p className="mt-1 text-sm text-text-muted">
@@ -496,10 +523,16 @@ export default function RecommendationsPage() {
         <Card>
           <CardContent className="py-12 text-center">
             <Target className="mx-auto h-12 w-12 text-text-muted" />
-            <h3 className="mt-4 text-lg font-medium">No Recommendations</h3>
+            <h3 className="mt-4 text-lg font-medium">No Validated Picks</h3>
             <p className="mt-2 text-text-muted">
-              No active BUY signals with strength {">"}= {minStrength}. Try lowering the threshold or
-              wait for new signals (generated daily at 21:30 UTC).
+              No validated picks found. Picks require EITHER:
+            </p>
+            <ul className="mt-2 text-sm text-text-muted">
+              <li>• Active investment thesis (cross-validation score ≥ 0.7)</li>
+              <li>• OR strong backtest performance (Sharpe ratio ≥ 1.0)</li>
+            </ul>
+            <p className="mt-4 text-sm text-text-muted">
+              Generate a thesis or run backtests for watchlist symbols to see recommendations.
             </p>
           </CardContent>
         </Card>
