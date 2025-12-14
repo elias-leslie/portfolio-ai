@@ -215,13 +215,14 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
   // Evidence persistence helpers
   const getEvidenceStorageKey = (sessionId: string) => `agent-hub-evidence-${sessionId}`;
 
-  const saveEvidenceToStorage = useCallback((sessionId: string, evidenceMsg: ChatMessage) => {
+  const saveEvidenceToStorage = useCallback((sessionId: string, evidenceMsg: ChatMessage, messageIndex: number) => {
     if (!sessionId) return;
     const key = getEvidenceStorageKey(sessionId);
     const existing = JSON.parse(localStorage.getItem(key) || '[]');
     existing.push({
       ...evidenceMsg,
       timestamp: evidenceMsg.timestamp.toISOString(),
+      _originalIndex: messageIndex,
     });
     localStorage.setItem(key, JSON.stringify(existing));
   }, []);
@@ -255,10 +256,22 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
           // Also load evidence messages from localStorage
           const evidenceMessages = loadEvidenceFromStorage(currentSessionId);
 
-          // Merge and sort by timestamp
-          const allMessages = [...loadedMessages, ...evidenceMessages].sort(
-            (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
-          );
+          // Merge messages - if server history is empty, keep evidence in order
+          // Otherwise sort by timestamp
+          let allMessages: ChatMessage[];
+          if (loadedMessages.length === 0) {
+            // No server history - sort evidence by original index
+            allMessages = [...evidenceMessages].sort((a, b) => {
+              const aIdx = (a as ChatMessage & { _originalIndex?: number })._originalIndex ?? 0;
+              const bIdx = (b as ChatMessage & { _originalIndex?: number })._originalIndex ?? 0;
+              return aIdx - bIdx;
+            });
+          } else {
+            // Has server history - merge by timestamp
+            allMessages = [...loadedMessages, ...evidenceMessages].sort(
+              (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
+            );
+          }
 
           setMessages(allMessages);
         }
@@ -1020,13 +1033,15 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
             },
           };
 
-          // Add to chat
-          setMessages((prev) => [...prev, evidenceMsg]);
-
-          // Persist to localStorage for session recovery
-          if (currentSessionId) {
-            saveEvidenceToStorage(currentSessionId, evidenceMsg);
-          }
+          // Add to chat and persist
+          setMessages((prev) => {
+            const newMessages = [...prev, evidenceMsg];
+            // Persist to localStorage for session recovery
+            if (currentSessionId) {
+              saveEvidenceToStorage(currentSessionId, evidenceMsg, newMessages.length - 1);
+            }
+            return newMessages;
+          });
         }}
       />
 
