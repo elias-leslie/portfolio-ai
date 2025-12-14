@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { MessageSquare, X, Plus, Trash2, Settings, Activity, Diamond, Star } from 'lucide-react';
+import { MessageSquare, X, Plus, Trash2, Settings, Activity, Diamond, Star, Camera, Eye } from 'lucide-react';
 // Note: We use a custom side panel instead of Sheet to allow non-overlay behavior (FEAT-220)
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -12,6 +12,8 @@ import { AgentSelector, AgentProvider, RoundtableOrder } from './AgentSelector';
 import { ModeSelector, AgentMode } from './ModeSelector';
 import { TokenSummaryCards } from './TokenSummaryCards';
 import { DevCompanionSessionsList } from './SessionsList';
+import { EvidenceCaptureModal } from './EvidenceCaptureModal';
+import { EvidenceViewerModal } from '../capabilities/EvidenceViewerModal';
 
 // Types from ChatPanel
 interface ContentBlock {
@@ -49,12 +51,22 @@ interface WebSocketMessage {
   reason?: string;  // Reason for discussion (e.g., 'disagreement_detected')
 }
 
+interface EvidenceData {
+  feature_id: string;
+  criterion_id: string;
+  version: number;
+  console_errors: number;
+  network_failures: number;
+  url: string;
+}
+
 interface ChatMessage {
-  role: 'user' | 'assistant' | 'system';
+  role: 'user' | 'assistant' | 'system' | 'evidence';
   content: string;
   blocks?: ContentBlock[];
   timestamp: Date;
   agent?: 'claude' | 'gemini';  // Which agent produced this response (roundtable mode)
+  evidence?: EvidenceData;  // Evidence capture data
 }
 
 interface Session {
@@ -148,6 +160,12 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
   const [showSettings, setShowSettings] = useState(false);
   const [showStatus, setShowStatus] = useState(false);
   const [showTokenSummary, setShowTokenSummary] = useState(false);
+  const [showEvidenceCapture, setShowEvidenceCapture] = useState(false);
+  const [evidenceViewer, setEvidenceViewer] = useState<{
+    open: boolean;
+    featureId: string;
+    criterionId: string;
+  }>({ open: false, featureId: '', criterionId: '' });
 
   // Refs
   const wsRef = useRef<WebSocket | null>(null);
@@ -584,8 +602,19 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
                 isConnected ? "bg-green-500" : "bg-red-500"
               )} />
             </div>
-            {/* Header Icons: Status, Settings */}
+            {/* Header Icons: Evidence, Status, Settings */}
             <div className="flex items-center gap-1">
+              {/* Evidence Capture */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowEvidenceCapture(true)}
+                disabled={!pageContext?.path}
+                className="h-8 w-8 p-0 text-gray-400 hover:text-gray-100 disabled:opacity-50"
+                title={pageContext?.path ? "Capture page evidence" : "No page context"}
+              >
+                <Camera className="h-4 w-4" />
+              </Button>
               {/* Status */}
               <Button
                 variant="ghost"
@@ -795,7 +824,21 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 font-mono text-sm">
           {messages.map((msg, i) => (
-            <MessageBubble key={i} message={msg} />
+            msg.role === 'evidence' && msg.evidence ? (
+              <EvidenceMessageBubble
+                key={i}
+                message={msg}
+                onViewEvidence={() => {
+                  setEvidenceViewer({
+                    open: true,
+                    featureId: msg.evidence!.feature_id,
+                    criterionId: msg.evidence!.criterion_id,
+                  });
+                }}
+              />
+            ) : (
+              <MessageBubble key={i} message={msg} />
+            )
           ))}
 
           {currentResponse.length > 0 && (
@@ -910,6 +953,40 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
 
       {/* Status Modal */}
       <StatusModal open={showStatus} onOpenChange={setShowStatus} />
+
+      {/* Evidence Capture Modal */}
+      <EvidenceCaptureModal
+        open={showEvidenceCapture}
+        onClose={() => setShowEvidenceCapture(false)}
+        pageUrl={pageContext?.path ? `http://${typeof window !== 'undefined' ? window.location.hostname : '192.168.8.233'}:3000${pageContext.path}` : ''}
+        onCaptured={(result) => {
+          // Add evidence message to chat
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: 'evidence',
+              content: `Evidence captured for ${result.feature_id}`,
+              timestamp: new Date(),
+              evidence: {
+                feature_id: result.feature_id,
+                criterion_id: result.criterion_id,
+                version: result.version,
+                console_errors: result.evidence?.console?.errorCount ?? 0,
+                network_failures: result.evidence?.network?.failedRequests ?? 0,
+                url: result.evidence?.metadata?.url ?? '',
+              },
+            },
+          ]);
+        }}
+      />
+
+      {/* Evidence Viewer Modal */}
+      <EvidenceViewerModal
+        open={evidenceViewer.open}
+        onOpenChange={(open) => setEvidenceViewer((prev) => ({ ...prev, open }))}
+        featureId={evidenceViewer.featureId}
+        criterionId={evidenceViewer.criterionId}
+      />
     </>
   );
 }
@@ -987,6 +1064,61 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         ) : (
           <div className="whitespace-pre-wrap">{message.content}</div>
         )}
+        <div className="text-xs opacity-50 mt-1">
+          {message.timestamp.toLocaleTimeString()}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EvidenceMessageBubble({
+  message,
+  onViewEvidence
+}: {
+  message: ChatMessage;
+  onViewEvidence: () => void;
+}) {
+  const evidence = message.evidence!;
+  const hasErrors = evidence.console_errors > 0 || evidence.network_failures > 0;
+
+  return (
+    <div className="flex justify-start">
+      <div
+        className={cn(
+          "max-w-[85%] rounded-lg px-3 py-2 text-sm cursor-pointer transition-colors",
+          "bg-gray-800 hover:bg-gray-700 border",
+          hasErrors ? "border-red-500/50" : "border-blue-500/50"
+        )}
+        onClick={onViewEvidence}
+      >
+        <div className="flex items-center gap-2 mb-1">
+          <Camera className="h-4 w-4 text-blue-400" />
+          <span className="font-medium">Evidence Captured</span>
+          <span className="text-xs text-gray-500">v{evidence.version}</span>
+        </div>
+        <div className="text-xs text-gray-400 mb-2">
+          {evidence.feature_id} / {evidence.criterion_id}
+        </div>
+        <div className="flex items-center gap-3 text-xs">
+          {evidence.console_errors > 0 && (
+            <span className="text-red-400">
+              {evidence.console_errors} console error{evidence.console_errors !== 1 ? 's' : ''}
+            </span>
+          )}
+          {evidence.network_failures > 0 && (
+            <span className="text-red-400">
+              {evidence.network_failures} network failure{evidence.network_failures !== 1 ? 's' : ''}
+            </span>
+          )}
+          {!hasErrors && (
+            <span className="text-green-400">No issues detected</span>
+          )}
+        </div>
+        <div className="flex items-center gap-1 mt-2 text-xs text-blue-400">
+          <Eye className="h-3 w-3" />
+          Click to view evidence
+        </div>
         <div className="text-xs opacity-50 mt-1">
           {message.timestamp.toLocaleTimeString()}
         </div>

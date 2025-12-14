@@ -49,7 +49,7 @@ from datetime import datetime
 from typing import Any, cast
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from ...logging_config import get_logger
 from ...services.capability_feature_scanner import FeatureScanner
@@ -68,6 +68,28 @@ class FeatureCreate(BaseModel):
     name: str
     category: str
     description: str | None = None
+
+
+class QuickFeatureCreate(BaseModel):
+    """Request model for creating a quick debug feature from Agent Hub."""
+
+    url: str  # The page URL being captured
+    description: str | None = None  # Optional description
+
+    @field_validator("url")
+    @classmethod
+    def validate_url(cls, v: str) -> str:
+        """Validate URL format."""
+        from urllib.parse import urlparse  # noqa: PLC0415
+
+        if not v:
+            raise ValueError("URL is required")
+        parsed = urlparse(v)
+        if not parsed.scheme or not parsed.netloc:
+            raise ValueError("Invalid URL format")
+        if parsed.scheme not in ("http", "https"):
+            raise ValueError("URL must be http or https")
+        return v
 
 
 class FeatureLayersUpdate(BaseModel):
@@ -600,6 +622,82 @@ async def create_feature(feature: FeatureCreate) -> dict[str, Any]:
         raise
     except Exception as e:
         logger.error("create_feature_failed", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.post("/quick", response_model=dict[str, Any])
+async def create_quick_feature(request: QuickFeatureCreate) -> dict[str, Any]:
+    """Create a quick debug feature for Agent Hub evidence capture.
+
+    This endpoint auto-creates a feature with:
+    - ID: FEAT-DEBUG-YYYYMMDD-HHMMSS
+    - Category: Debug
+    - Single acceptance criterion: "Evidence capture from {url}"
+
+    Args:
+        request: URL and optional description
+
+    Returns:
+        feature_id, criterion_id, and name for immediate use
+    """
+    import json  # noqa: PLC0415
+
+    conn_mgr = get_connection_manager()
+
+    try:
+        # Generate timestamp-based feature ID (short format to fit varchar(20))
+        now = datetime.now()
+        feature_id = f"DBG-{now.strftime('%m%d-%H%M%S')}"
+
+        # Extract path from URL for display name
+        from urllib.parse import urlparse  # noqa: PLC0415
+
+        parsed = urlparse(request.url)
+        path = parsed.path or "/"
+        name = f"Debug: {path}"
+
+        # Create single acceptance criterion
+        criterion_id = "ac-001"
+        acceptance_criteria = [
+            {
+                "id": criterion_id,
+                "criterion": f"Evidence capture from {path}",
+                "verification": f"screenshot {path}",
+                "type": "ui",
+                "passed": None,
+            }
+        ]
+
+        description = (
+            request.description or f"Quick debug feature created from Agent Hub for {path}"
+        )
+
+        with conn_mgr.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO feature_capabilities
+                    (feature_id, name, category, description, acceptance_criteria, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s::jsonb, NOW(), NOW())
+                """,
+                (feature_id, name, "Debug", description, json.dumps(acceptance_criteria)),
+            )
+            conn.commit()
+
+        logger.info(
+            "quick_feature_created",
+            feature_id=feature_id,
+            url=request.url,
+        )
+
+        return {
+            "feature_id": feature_id,
+            "criterion_id": criterion_id,
+            "name": name,
+            "created": True,
+        }
+
+    except Exception as e:
+        logger.error("create_quick_feature_failed", error=str(e), url=request.url)
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 

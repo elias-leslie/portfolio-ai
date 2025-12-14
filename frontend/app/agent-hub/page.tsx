@@ -12,7 +12,8 @@ interface PageContext {
 }
 
 export default function AgentHubPage() {
-  const [pageContext, setPageContext] = useState<PageContext>({ path: '/' });
+  // Default to /watchlist for standalone testing, will be overridden by BroadcastChannel
+  const [pageContext, setPageContext] = useState<PageContext>({ path: '/watchlist' });
   const channelRef = useRef<BroadcastChannel | null>(null);
 
   useEffect(() => {
