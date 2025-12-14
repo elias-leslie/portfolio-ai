@@ -212,30 +212,23 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
     }
   }, [serverUrl, open, fetchSessions]);
 
-  // Evidence persistence helpers
-  const getEvidenceStorageKey = (sessionId: string) => `agent-hub-evidence-${sessionId}`;
-
-  const saveEvidenceToStorage = useCallback((sessionId: string, evidenceMsg: ChatMessage, messageIndex: number) => {
-    if (!sessionId) return;
-    const key = getEvidenceStorageKey(sessionId);
-    const existing = JSON.parse(localStorage.getItem(key) || '[]');
-    existing.push({
-      ...evidenceMsg,
-      timestamp: evidenceMsg.timestamp.toISOString(),
-      _originalIndex: messageIndex,
-    });
-    localStorage.setItem(key, JSON.stringify(existing));
-  }, []);
-
-  const loadEvidenceFromStorage = useCallback((sessionId: string): ChatMessage[] => {
-    if (!sessionId) return [];
-    const key = getEvidenceStorageKey(sessionId);
-    const stored = JSON.parse(localStorage.getItem(key) || '[]');
-    return stored.map((msg: ChatMessage & { timestamp: string }) => ({
-      ...msg,
-      timestamp: new Date(msg.timestamp),
-    }));
-  }, []);
+  // Save evidence message to server
+  const saveEvidenceToServer = useCallback(async (sessionId: string, evidenceMsg: ChatMessage) => {
+    if (!sessionId || !serverUrl) return;
+    try {
+      await fetch(`${serverUrl}/sessions/${sessionId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          role: 'evidence',
+          content: evidenceMsg.content,
+          metadata: { evidence: evidenceMsg.evidence },
+        }),
+      });
+    } catch (err) {
+      console.error('Failed to save evidence to server:', err);
+    }
+  }, [serverUrl]);
 
   // Load history when session changes
   useEffect(() => {
@@ -246,34 +239,15 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
         const res = await fetch(`${serverUrl}/sessions/${currentSessionId}/history`);
         if (res.ok) {
           const data = await res.json();
-          const loadedMessages: ChatMessage[] = data.messages.map((msg: { role: string; content: string; created_at: string; agent?: string }) => ({
-            role: msg.role as 'user' | 'assistant' | 'system',
+          const loadedMessages: ChatMessage[] = data.messages.map((msg: { role: string; content: string; created_at: string; agent?: string; metadata?: { evidence?: EvidenceData } }) => ({
+            role: msg.role as 'user' | 'assistant' | 'system' | 'evidence',
             content: msg.content,
             timestamp: new Date(msg.created_at),
             agent: msg.agent as 'claude' | 'gemini' | undefined,
+            evidence: msg.metadata?.evidence,
           }));
 
-          // Also load evidence messages from localStorage
-          const evidenceMessages = loadEvidenceFromStorage(currentSessionId);
-
-          // Merge messages - if server history is empty, keep evidence in order
-          // Otherwise sort by timestamp
-          let allMessages: ChatMessage[];
-          if (loadedMessages.length === 0) {
-            // No server history - sort evidence by original index
-            allMessages = [...evidenceMessages].sort((a, b) => {
-              const aIdx = (a as ChatMessage & { _originalIndex?: number })._originalIndex ?? 0;
-              const bIdx = (b as ChatMessage & { _originalIndex?: number })._originalIndex ?? 0;
-              return aIdx - bIdx;
-            });
-          } else {
-            // Has server history - merge by timestamp
-            allMessages = [...loadedMessages, ...evidenceMessages].sort(
-              (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
-            );
-          }
-
-          setMessages(allMessages);
+          setMessages(loadedMessages);
         }
       } catch (err) {
         console.error('Failed to load history:', err);
@@ -284,7 +258,7 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
     setCurrentResponse([]);
     setIsLoading(false);
     loadHistory();
-  }, [currentSessionId, serverUrl, loadEvidenceFromStorage]);
+  }, [currentSessionId, serverUrl]);
 
   // Scroll to bottom
   useEffect(() => {
@@ -1033,15 +1007,11 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
             },
           };
 
-          // Add to chat and persist
-          setMessages((prev) => {
-            const newMessages = [...prev, evidenceMsg];
-            // Persist to localStorage for session recovery
-            if (currentSessionId) {
-              saveEvidenceToStorage(currentSessionId, evidenceMsg, newMessages.length - 1);
-            }
-            return newMessages;
-          });
+          // Add to chat and persist to server
+          setMessages((prev) => [...prev, evidenceMsg]);
+          if (currentSessionId) {
+            saveEvidenceToServer(currentSessionId, evidenceMsg);
+          }
         }}
       />
 

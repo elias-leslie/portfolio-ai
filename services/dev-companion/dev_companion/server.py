@@ -212,6 +212,30 @@ async def get_session_history(session_id: str, limit: int = 100):
     return {"messages": messages}
 
 
+class MessageCreate(BaseModel):
+    """Request body for adding a message."""
+
+    role: str  # user, assistant, system, evidence
+    content: str
+    metadata: dict | None = None
+
+
+@app.post("/sessions/{session_id}/messages")
+async def add_message(session_id: str, msg: MessageCreate):
+    """Add a message to session history (for evidence, system messages, etc)."""
+    if not bridge:
+        raise HTTPException(status_code=503, detail="Service not ready")
+
+    await bridge.db.add_message(
+        session_id=session_id,
+        role=msg.role,
+        content=msg.content,
+        metadata=msg.metadata or {},
+    )
+
+    return {"added": True}
+
+
 # Disagreement keywords for roundtable auto-discussion
 DISAGREEMENT_KEYWORDS = [
     "disagree", "incorrect", "wrong", "mistake", "error",
