@@ -54,7 +54,7 @@ const mainLinks = [
   },
   {
     href: "/recommendations",
-    label: "Recs",
+    label: "Picks",
     icon: Target,
   },
   {

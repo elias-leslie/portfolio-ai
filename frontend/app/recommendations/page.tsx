@@ -381,8 +381,8 @@ export default function RecommendationsPage() {
     <PageContainer className="space-y-10 py-10">
       {/* Page Header */}
       <PageHeader
-        title="Trade Recommendations"
-        description="Top trades from active strategies with position sizing"
+        title="Trade Picks"
+        description="Top picks from active strategies with position sizing"
         size="md"
       />
 
@@ -392,7 +392,7 @@ export default function RecommendationsPage() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-text-muted">Active Signals</p>
+                <p className="text-sm font-medium text-text-muted">Active Picks</p>
                 <p className="text-3xl font-bold text-green-600">
                   {summary?.buy_signals || 0}
                 </p>

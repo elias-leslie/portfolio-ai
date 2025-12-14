@@ -561,7 +561,7 @@ export function FeaturesTab() {
     "Trading": { bg: "#f59e0b20", text: "#fbbf24", border: "#f59e0b40" },
     "Backtest": { bg: "#ec489920", text: "#f472b6", border: "#ec489940" },
     "Strategies": { bg: "#10b98120", text: "#34d399", border: "#10b98140" },
-    "Recs": { bg: "#6366f120", text: "#818cf8", border: "#6366f140" },
+    "Picks": { bg: "#6366f120", text: "#818cf8", border: "#6366f140" },
     "Agents": { bg: "#ef444420", text: "#f87171", border: "#ef444440" },
     "Status": { bg: "#14b8a620", text: "#2dd4bf", border: "#14b8a640" },
     "Settings": { bg: "#78716c20", text: "#a8a29e", border: "#78716c40" },
