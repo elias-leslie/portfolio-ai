@@ -1,8 +1,13 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import type { WatchlistItem } from "@/lib/api/watchlist";
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@/components/ui/accordion";
+import type { WatchlistItem, ScoreComponent } from "@/lib/api/watchlist";
 import { getScoreBadgeVariant, formatTimestamp } from "./ExpandedRowUtils";
 
 interface ExpandedRowScoreBreakdownProps {
@@ -10,289 +15,196 @@ interface ExpandedRowScoreBreakdownProps {
     userTimezone: string;
 }
 
+// Pillar configuration with labels and display settings
+const PILLAR_CONFIG = {
+    price: { label: "Price", icon: "💰", defaultWeight: 22 },
+    technical: { label: "Technical", icon: "📊", defaultWeight: 22 },
+    fundamental: { label: "Fundamental", icon: "🏢", defaultWeight: 26 },
+    catalyst: { label: "Catalyst", icon: "📰", defaultWeight: 17 },
+    options_flow: { label: "Options Flow", icon: "📈", defaultWeight: 8 },
+    performance_factor: { label: "Performance", icon: "🎯", defaultWeight: 5 },
+} as const;
+
+type PillarKey = keyof typeof PILLAR_CONFIG;
+
+// Format metadata key for display
+function formatMetadataKey(key: string): string {
+    return key
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase())
+        .replace(/Pct/g, "%")
+        .replace(/Rsi/g, "RSI")
+        .replace(/Macd/g, "MACD")
+        .replace(/Bb /g, "BB ");
+}
+
+// Format value based on type
+function formatValue(value: unknown): string {
+    if (typeof value === "number") {
+        // Percentages
+        if (Math.abs(value) <= 1 && value !== 0) {
+            return `${(value * 100).toFixed(1)}%`;
+        }
+        return value.toFixed(2);
+    }
+    if (typeof value === "boolean") {
+        return value ? "Yes" : "No";
+    }
+    return String(value ?? "—");
+}
+
+interface PillarCardProps {
+    pillarKey: PillarKey;
+    pillar: ScoreComponent;
+    userTimezone: string;
+}
+
+function PillarCard({ pillarKey, pillar, userTimezone }: PillarCardProps) {
+    const config = PILLAR_CONFIG[pillarKey];
+    const hasSubScores = pillar.sub_scores && Object.keys(pillar.sub_scores).length > 0;
+    const hasMetadata = pillar.metadata && Object.keys(pillar.metadata).length > 0;
+
+    return (
+        <AccordionItem value={pillarKey} className="border-border">
+            <AccordionTrigger className="hover:no-underline px-3 py-2">
+                <div className="flex items-center gap-3 flex-1">
+                    <span className="text-lg">{config.icon}</span>
+                    <span className="font-medium">{config.label}</span>
+                    <Badge
+                        variant={getScoreBadgeVariant(pillar.score)}
+                        className="ml-auto mr-2"
+                    >
+                        {pillar.score.toFixed(0)}
+                    </Badge>
+                    <span className="text-xs text-text-muted">
+                        {((pillar.weight ?? config.defaultWeight / 100) * 100).toFixed(0)}%
+                    </span>
+                    {pillar.stale && (
+                        <Badge variant="outline" className="text-xs font-normal">
+                            Stale
+                        </Badge>
+                    )}
+                </div>
+            </AccordionTrigger>
+            <AccordionContent className="px-3">
+                <div className="space-y-3 pt-2">
+                    {/* Sub-scores */}
+                    {hasSubScores && (
+                        <div className="space-y-2">
+                            <p className="text-xs font-medium text-text">Sub-scores:</p>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                {Object.entries(pillar.sub_scores!).map(([key, value]) => (
+                                    <div
+                                        key={key}
+                                        className="bg-surface-muted/50 rounded px-2 py-1"
+                                    >
+                                        <p className="text-xs text-text-muted">
+                                            {formatMetadataKey(key)}
+                                        </p>
+                                        <p className="text-sm font-medium">
+                                            {typeof value === "number" ? value.toFixed(1) : value}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Metadata */}
+                    {hasMetadata && (
+                        <div className="space-y-2">
+                            <p className="text-xs font-medium text-text">Details:</p>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 text-xs">
+                                {Object.entries(pillar.metadata!)
+                                    .filter(([key]) => !["source", "cached_at", "formula"].includes(key))
+                                    .map(([key, value]) => (
+                                        <div key={key} className="flex justify-between">
+                                            <span className="text-text-muted">
+                                                {formatMetadataKey(key)}:
+                                            </span>
+                                            <span className="font-medium">
+                                                {formatValue(value)}
+                                            </span>
+                                        </div>
+                                    ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Updated timestamp */}
+                    {pillar.updated_at && (
+                        <p className="text-xs text-text-muted pt-1 border-t border-border">
+                            Updated: {formatTimestamp(pillar.updated_at, userTimezone)}
+                        </p>
+                    )}
+                </div>
+            </AccordionContent>
+        </AccordionItem>
+    );
+}
+
 /**
- * Score breakdown cards for watchlist expanded row
+ * Score breakdown with expandable pillar cards
  *
- * Displays detailed score breakdown for:
- * - Price Score - Price momentum and volatility metrics
- * - Technical Score - Technical indicator metrics
- * - Fundamental Score - Financial health metrics (optional)
- * - Catalyst Score - News sentiment and events (optional)
+ * Displays all 6 scoring pillars:
+ * - Price (22%) - Price momentum and volatility
+ * - Technical (22%) - Technical indicators
+ * - Fundamental (26%) - Financial health (optional)
+ * - Catalyst (17%) - News sentiment (optional)
+ * - Options Flow (8%) - Options activity (optional)
+ * - Performance Factor (5%) - Strategy performance (optional)
  *
- * Each card shows:
- * - Overall score with color-coded badge
- * - Weight in overall calculation
- * - Last updated timestamp
- * - Detailed metrics breakdown
+ * Each pillar shows:
+ * - Score badge with color coding
+ * - Weight percentage
  * - Stale indicator if data is outdated
- *
- * Extracted from ExpandedRow.tsx to reduce file size.
+ * - Expandable details with sub-scores and metadata
  */
 export function ExpandedRowScoreBreakdown({
     item,
     userTimezone,
 }: ExpandedRowScoreBreakdownProps) {
-    const hasScore = !!item.current_score;
-    const priceScore = item.current_score?.price;
-    const techScore = item.current_score?.technical;
-    const fundamentalScore = item.current_score?.fundamental;
-    const catalystScore = item.current_score?.catalyst;
+    const score = item.current_score;
 
-    if (!hasScore) {
+    if (!score) {
         return null;
     }
 
-    // Count how many pillars we have to display
-    const pillarCount = [priceScore, techScore, fundamentalScore, catalystScore].filter(Boolean).length;
-    const gridCols = pillarCount === 4 ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-2";
+    // Build list of available pillars
+    const pillars: { key: PillarKey; data: ScoreComponent }[] = [];
+
+    // Always present pillars
+    if (score.price) pillars.push({ key: "price", data: score.price });
+    if (score.technical) pillars.push({ key: "technical", data: score.technical });
+
+    // Optional pillars
+    if (score.fundamental) pillars.push({ key: "fundamental", data: score.fundamental });
+    if (score.catalyst) pillars.push({ key: "catalyst", data: score.catalyst });
+    if (score.options_flow) pillars.push({ key: "options_flow", data: score.options_flow });
+    if (score.performance_factor) pillars.push({ key: "performance_factor", data: score.performance_factor });
+
+    if (pillars.length === 0) {
+        return null;
+    }
 
     return (
-        <div className={`grid gap-4 ${gridCols}`}>
-            {/* Price Score Card */}
-            <Card className="border-border">
-                <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center justify-between">
-                        Price Score
-                        {priceScore?.stale && (
-                            <Badge
-                                variant="outline"
-                                className="text-xs font-normal"
-                            >
-                                Stale
-                            </Badge>
-                        )}
-                    </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                    <div>
-                        <Badge
-                            variant={getScoreBadgeVariant(
-                                priceScore?.score ?? 0,
-                            )}
-                        >
-                            {priceScore?.score.toFixed(1) ?? "—"}
-                        </Badge>
-                        <p className="mt-2 text-xs text-text-muted">
-                            Weight:{" "}
-                            {((priceScore?.weight ?? 0) * 100).toFixed(0)}%
-                        </p>
-                    </div>
-                    {priceScore?.updated_at && (
-                        <p className="text-xs text-text-muted">
-                            Updated:{" "}
-                            {formatTimestamp(
-                                priceScore.updated_at,
-                                userTimezone,
-                            )}
-                        </p>
-                    )}
-                    {priceScore?.metadata &&
-                        Object.keys(priceScore.metadata).length > 0 && (
-                            <div className="space-y-1 text-xs">
-                                <p className="font-medium text-text">
-                                    Metrics:
-                                </p>
-                                {Object.entries(priceScore.metadata).map(
-                                    ([key, value]) => (
-                                        <p
-                                            key={key}
-                                            className="text-text-muted"
-                                        >
-                                            {key}:{" "}
-                                            {typeof value === "number"
-                                                ? value.toFixed(2)
-                                                : String(value)}
-                                        </p>
-                                    ),
-                                )}
-                            </div>
-                        )}
-                </CardContent>
-            </Card>
-
-            {/* Technical Score Card */}
-            <Card className="border-border">
-                <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center justify-between">
-                        Technical Score
-                        {techScore?.stale && (
-                            <Badge
-                                variant="outline"
-                                className="text-xs font-normal"
-                            >
-                                Stale
-                            </Badge>
-                        )}
-                    </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                    <div>
-                        <Badge
-                            variant={getScoreBadgeVariant(
-                                techScore?.score ?? 0,
-                            )}
-                        >
-                            {techScore?.score.toFixed(1) ?? "—"}
-                        </Badge>
-                        <p className="mt-2 text-xs text-text-muted">
-                            Weight:{" "}
-                            {((techScore?.weight ?? 0) * 100).toFixed(0)}%
-                        </p>
-                    </div>
-                    {techScore?.updated_at && (
-                        <p className="text-xs text-text-muted">
-                            Updated:{" "}
-                            {formatTimestamp(
-                                techScore.updated_at,
-                                userTimezone,
-                            )}
-                        </p>
-                    )}
-                    {techScore?.metadata &&
-                        Object.keys(techScore.metadata).length > 0 && (
-                            <div className="space-y-1 text-xs">
-                                <p className="font-medium text-text">Metrics:</p>
-                                {Object.entries(techScore.metadata).map(
-                                    ([key, value]) => (
-                                        <p
-                                            key={key}
-                                            className="text-text-muted"
-                                        >
-                                            {key}:{" "}
-                                            {typeof value === "number"
-                                                ? value.toFixed(2)
-                                                : String(value)}
-                                        </p>
-                                    ),
-                                )}
-                            </div>
-                        )}
-                </CardContent>
-            </Card>
-
-            {/* Fundamental Score Card */}
-            {fundamentalScore && (
-                <Card className="border-border">
-                    <CardHeader className="pb-3">
-                        <CardTitle className="text-base flex items-center justify-between">
-                            Fundamental Score
-                            {fundamentalScore.stale && (
-                                <Badge
-                                    variant="outline"
-                                    className="text-xs font-normal"
-                                >
-                                    Stale
-                                </Badge>
-                            )}
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                        <div>
-                            <Badge
-                                variant={getScoreBadgeVariant(
-                                    fundamentalScore.score,
-                                )}
-                            >
-                                {fundamentalScore.score.toFixed(1)}
-                            </Badge>
-                            <p className="mt-2 text-xs text-text-muted">
-                                Weight:{" "}
-                                {(fundamentalScore.weight * 100).toFixed(0)}%
-                            </p>
-                        </div>
-                        {fundamentalScore.updated_at && (
-                            <p className="text-xs text-text-muted">
-                                Updated:{" "}
-                                {formatTimestamp(
-                                    fundamentalScore.updated_at,
-                                    userTimezone,
-                                )}
-                            </p>
-                        )}
-                        {fundamentalScore.metadata &&
-                            Object.keys(fundamentalScore.metadata).length > 0 && (
-                                <div className="space-y-1 text-xs">
-                                    <p className="font-medium text-text">Metrics:</p>
-                                    {Object.entries(fundamentalScore.metadata).map(
-                                        ([key, value]) => (
-                                            <p
-                                                key={key}
-                                                className="text-text-muted"
-                                            >
-                                                {key}:{" "}
-                                                {typeof value === "number"
-                                                    ? value.toFixed(2)
-                                                    : String(value)}
-                                            </p>
-                                        ),
-                                    )}
-                                </div>
-                            )}
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* Catalyst Score Card */}
-            {catalystScore && (
-                <Card className="border-border">
-                    <CardHeader className="pb-3">
-                        <CardTitle className="text-base flex items-center justify-between">
-                            Catalyst Score
-                            {catalystScore.stale && (
-                                <Badge
-                                    variant="outline"
-                                    className="text-xs font-normal"
-                                >
-                                    Stale
-                                </Badge>
-                            )}
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                        <div>
-                            <Badge
-                                variant={getScoreBadgeVariant(
-                                    catalystScore.score,
-                                )}
-                            >
-                                {catalystScore.score.toFixed(1)}
-                            </Badge>
-                            <p className="mt-2 text-xs text-text-muted">
-                                Weight:{" "}
-                                {(catalystScore.weight * 100).toFixed(0)}%
-                            </p>
-                        </div>
-                        {catalystScore.updated_at && (
-                            <p className="text-xs text-text-muted">
-                                Updated:{" "}
-                                {formatTimestamp(
-                                    catalystScore.updated_at,
-                                    userTimezone,
-                                )}
-                            </p>
-                        )}
-                        {catalystScore.metadata &&
-                            Object.keys(catalystScore.metadata).length > 0 && (
-                                <div className="space-y-1 text-xs">
-                                    <p className="font-medium text-text">Metrics:</p>
-                                    {Object.entries(catalystScore.metadata).map(
-                                        ([key, value]) => (
-                                            <p
-                                                key={key}
-                                                className="text-text-muted"
-                                            >
-                                                {key}:{" "}
-                                                {typeof value === "number"
-                                                    ? value.toFixed(2)
-                                                    : String(value)}
-                                            </p>
-                                        ),
-                                    )}
-                                </div>
-                            )}
-                    </CardContent>
-                </Card>
-            )}
+        <div className="border border-border rounded-lg bg-surface">
+            <div className="px-3 py-2 border-b border-border flex items-center justify-between">
+                <h3 className="text-sm font-medium">Score Breakdown</h3>
+                <Badge variant={getScoreBadgeVariant(score.overall)}>
+                    Overall: {score.overall.toFixed(0)}
+                </Badge>
+            </div>
+            <Accordion type="multiple" className="divide-y divide-border">
+                {pillars.map(({ key, data }) => (
+                    <PillarCard
+                        key={key}
+                        pillarKey={key}
+                        pillar={data}
+                        userTimezone={userTimezone}
+                    />
+                ))}
+            </Accordion>
         </div>
     );
 }

@@ -1,23 +1,11 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { ScoreComponent, WatchlistItem } from "@/lib/api/watchlist";
+import type { WatchlistItem } from "@/lib/api/watchlist";
 import { getSignalDisplay, sanitizeText } from "./ExpandedRowUtils";
 
 type RecommendedStyle = Exclude<WatchlistItem["recommended_style"], null | undefined>;
 type SignalType = Exclude<WatchlistItem["signal_type"], null | undefined>;
-
-type FundamentalMetadata = {
-    pe_ratio?: number | string | null;
-    peg_ratio?: number | string | null;
-    revenue_growth?: number | string | null;
-    eps_growth?: number | string | null;
-    gross_margin?: number | string | null;
-    operating_margin?: number | string | null;
-    roic?: number | string | null;
-    institutional_ownership?: number | string | null;
-    analyst_rating?: string | null;
-};
 
 interface ExpandedRowNarrativeProps {
     item: WatchlistItem;
@@ -44,8 +32,6 @@ export function ExpandedRowNarrative({ item }: ExpandedRowNarrativeProps) {
                 <TradeLevels item={item} />
                 <PositionSizing item={item} />
                 <WhyThisWorks item={item} />
-                <InlineScoreBreakdown item={item} />
-                <RiskDisclaimer />
             </CardContent>
         </Card>
     );
@@ -213,177 +199,6 @@ function WhyThisWorks({ item }: { item: WatchlistItem }) {
     );
 }
 
-function InlineScoreBreakdown({ item }: { item: WatchlistItem }) {
-    const breakdown = item.current_score;
-    if (!breakdown) {
-        return null;
-    }
-
-    const priceScore = breakdown.price;
-    const techScore = breakdown.technical;
-    const fundamentalScore = breakdown.fundamental ?? null;
-
-    return (
-        <div className="border-t border-border pt-3">
-            <h5 className="text-xs font-semibold text-text mb-3">📊 Score Breakdown</h5>
-            <div className="space-y-2">
-                <ScoreBar
-                    label="Overall"
-                    value={breakdown.overall}
-                    labelSize="text-sm"
-                    barHeight="h-2"
-                />
-                {priceScore && (
-                    <ScoreBar
-                        label={`💰 Price (${(priceScore.weight * 100).toFixed(0)}%)`}
-                        value={priceScore.score}
-                        barClass="bg-gain"
-                    />
-                )}
-                {techScore && (
-                    <>
-                        <ScoreBar
-                            label={`📊 Technical (${(techScore.weight * 100).toFixed(0)}%)`}
-                            value={techScore.score}
-                        />
-                        {techScore.sub_scores && (
-                            <div className="ml-4 mt-1 text-[10px] text-text-muted">
-                                {Object.entries(techScore.sub_scores).map(([key, value]) => (
-                                    <div key={key}>
-                                        • {key.replace("_", " ").toUpperCase()}: {formatSubScore(value)}
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </>
-                )}
-                {fundamentalScore && (
-                    <>
-                        <ScoreBar
-                            label={`🏢 Fundamental (${(fundamentalScore.weight * 100).toFixed(0)}%)`}
-                            value={fundamentalScore.score}
-                            barClass="bg-gain"
-                        />
-                        <FundamentalMetadataDetails component={fundamentalScore} />
-                    </>
-                )}
-            </div>
-        </div>
-    );
-}
-
-function FundamentalMetadataDetails({ component }: { component: ScoreComponent }) {
-    const metadata = component.metadata as FundamentalMetadata | undefined;
-    const subScores = (component.sub_scores ?? {}) as Record<string, number | null | undefined>;
-
-    return (
-        <div className="ml-4 mt-1 text-[10px] text-text-muted space-y-1">
-            <FundamentalSection
-                title="VALUATION"
-                value={subScores.valuation}
-                metadataLines={[
-                    formatMetric(metadata?.pe_ratio, "P/E", { decimals: 1 }),
-                    formatMetric(metadata?.peg_ratio, "PEG", { decimals: 2 }),
-                ]}
-            />
-            <FundamentalSection
-                title="GROWTH"
-                value={subScores.growth}
-                metadataLines={[
-                    formatMetric(metadata?.revenue_growth, "Revenue", { percent: true, suffix: " YoY" }),
-                    formatMetric(metadata?.eps_growth, "EPS", { percent: true, suffix: " YoY" }),
-                ]}
-            />
-            <FundamentalSection
-                title="HEALTH"
-                value={subScores.health}
-                metadataLines={[
-                    formatMetric(metadata?.gross_margin, "Gross", { percent: true }),
-                    formatMetric(metadata?.operating_margin, "Operating", { percent: true }),
-                    formatMetric(metadata?.roic, "ROIC", { percent: true }),
-                ]}
-            />
-            <FundamentalSection
-                title="SENTIMENT"
-                value={subScores.sentiment}
-                metadataLines={[
-                    formatMetric(metadata?.institutional_ownership, "Institutional", { percent: true }),
-                    metadata?.analyst_rating
-                        ? `Rating: ${metadata.analyst_rating}`
-                        : null,
-                ]}
-            />
-        </div>
-    );
-}
-
-interface FundamentalSectionProps {
-    title: string;
-    value?: number | null;
-    metadataLines?: Array<string | null>;
-}
-
-function FundamentalSection({ title, value, metadataLines = [] }: FundamentalSectionProps) {
-    return (
-        <div>
-            <div className="font-medium text-text">
-                • {title}: {formatScoreValue(value)}
-            </div>
-            {metadataLines
-                .filter((line): line is string => Boolean(line))
-                .map((line, index) => (
-                    <div key={`${title}-${index}`} className="ml-3 text-text-muted">
-                        {line}
-                    </div>
-                ))}
-        </div>
-    );
-}
-
-interface ScoreBarProps {
-    label: string;
-    value?: number | null;
-    barClass?: string;
-    barHeight?: string;
-    labelSize?: "text-xs" | "text-sm";
-}
-
-function ScoreBar({
-    label,
-    value,
-    barClass = "bg-primary",
-    barHeight = "h-1.5",
-    labelSize = "text-xs",
-}: ScoreBarProps) {
-    if (!isNumber(value)) {
-        return null;
-    }
-
-    return (
-        <div>
-            <div className={`flex items-center justify-between ${labelSize} mb-1`}>
-                <span className="text-text-muted">{label}</span>
-                <span className="font-medium">{value.toFixed(0)}</span>
-            </div>
-            <div className={`${barHeight} bg-surface-muted rounded-full overflow-hidden`}>
-                <div
-                    className={`h-full ${barClass}`}
-                    style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
-                />
-            </div>
-        </div>
-    );
-}
-
-function RiskDisclaimer() {
-    return (
-        <div className="text-xs text-text-muted italic bg-surface-muted/20 rounded p-2">
-            ⚠️ This is automated analysis. Always do your own research and consider your risk tolerance
-            before trading.
-        </div>
-    );
-}
-
 const STYLE_BADGES: Record<RecommendedStyle, { icon: string; color: string }> = {
     Index: { icon: "📈", color: "bg-blue-500/10 text-blue-600 border-blue-500/20" },
     Trend: { icon: "🔥", color: "bg-orange-500/10 text-orange-600 border-orange-500/20" },
@@ -445,43 +260,6 @@ function describeStyle(style?: WatchlistItem["recommended_style"] | null) {
         default:
             return null;
     }
-}
-
-function formatSubScore(value: number | string | undefined) {
-    if (typeof value === "number") {
-        return value.toFixed(1);
-    }
-    if (value === undefined) {
-        return "N/A";
-    }
-    return String(value);
-}
-
-function formatScoreValue(value?: number | null) {
-    if (value === undefined || value === null) {
-        return "N/A";
-    }
-    return Number(value).toFixed(0);
-}
-
-interface FormatMetricOptions {
-    percent?: boolean;
-    decimals?: number;
-    suffix?: string;
-}
-
-function formatMetric(value: number | string | null | undefined, label: string, options?: FormatMetricOptions) {
-    if (value === null || value === undefined || value === "") {
-        return null;
-    }
-
-    const decimals = options?.decimals ?? (options?.percent ? 1 : 2);
-    const suffix = `${options?.percent ? "%" : ""}${options?.suffix ?? ""}`;
-    if (typeof value === "number") {
-        const scaled = options?.percent ? value * 100 : value;
-        return `${label}: ${scaled.toFixed(decimals)}${suffix}`;
-    }
-    return `${label}: ${value}${suffix}`;
 }
 
 function isNumber(value: unknown): value is number {

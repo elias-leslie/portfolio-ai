@@ -17,8 +17,10 @@ export interface ScoreComponent {
 export interface ScoreBreakdown {
     price: ScoreComponent;
     technical: ScoreComponent;
-    fundamental?: ScoreComponent | null; // NEW: Fundamental pillar (optional)
-    catalyst?: ScoreComponent | null; // NEW: Fourth pillar (optional)
+    fundamental?: ScoreComponent | null;
+    catalyst?: ScoreComponent | null;
+    options_flow?: ScoreComponent | null;
+    performance_factor?: ScoreComponent | null;
     overall: number;
 }
 
