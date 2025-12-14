@@ -59,7 +59,7 @@ def cleanup_old_news(days: int = 90, dry_run: bool = True) -> dict[str, Any]:
                     MIN(published_at) as oldest,
                     MAX(published_at) as newest,
                     COUNT(*) as count
-                FROM news_headlines
+                FROM news_cache
                 WHERE published_at < ?
                 """,
                 [cutoff_date],
@@ -92,7 +92,7 @@ def cleanup_old_news(days: int = 90, dry_run: bool = True) -> dict[str, Any]:
                 # Delete articles older than cutoff date
                 conn.execute(
                     """
-                    DELETE FROM news_headlines
+                    DELETE FROM news_cache
                     WHERE published_at < ?
                     """,
                     [cutoff_date],

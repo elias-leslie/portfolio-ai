@@ -47,7 +47,7 @@ def check_orphaned_watchlist_snapshots(conn: DatabaseConnection) -> dict[str, An
         FROM watchlist_snapshots ws
         WHERE NOT EXISTS (
             SELECT 1 FROM watchlist_items wi
-            WHERE wi.symbol = ws.symbol
+            WHERE wi.id = ws.item_id
         )
         """
     ).fetchone()
@@ -156,11 +156,11 @@ def check_null_timestamps(conn: DatabaseConnection) -> dict[str, Any]:
     """
     issues: list[dict[str, str | int]] = []
 
-    # Check watchlist_snapshots.last_updated_at
+    # Check watchlist_snapshots.fetched_at
     result = conn.execute(
         """
         SELECT COUNT(*) FROM watchlist_snapshots
-        WHERE last_updated_at IS NULL
+        WHERE fetched_at IS NULL
         """
     ).fetchone()
 
@@ -168,15 +168,15 @@ def check_null_timestamps(conn: DatabaseConnection) -> dict[str, Any]:
         issues.append(
             {
                 "table": "watchlist_snapshots",
-                "column": "last_updated_at",
+                "column": "fetched_at",
                 "null_count": result[0],
             }
         )
 
-    # Check news_headlines.published_at
+    # Check news_cache.published_at
     result = conn.execute(
         """
-        SELECT COUNT(*) FROM news_headlines
+        SELECT COUNT(*) FROM news_cache
         WHERE published_at IS NULL
         """
     ).fetchone()
@@ -184,7 +184,7 @@ def check_null_timestamps(conn: DatabaseConnection) -> dict[str, Any]:
     if result and isinstance(result[0], int) and result[0] > 0:
         issues.append(
             {
-                "table": "news_headlines",
+                "table": "news_cache",
                 "column": "published_at",
                 "null_count": result[0],
             }
