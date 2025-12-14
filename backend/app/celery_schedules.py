@@ -875,4 +875,42 @@ def get_beat_schedule() -> dict[str, object]:
             # - Keeps last 5 versions per feature/criterion
             # - Runs after refresh task completes
         },
+        # ============================================================================
+        # THESIS MONITORING & AUTOMATION (Task portfolio-ai-1ub)
+        # ============================================================================
+        # Automated thesis health monitoring, invalidation, and watchlist management
+        # Thesis invalidation drives strategy lifecycle (not the other way around)
+        # ============================================================================
+        "monitor-thesis-health-daily": {
+            "task": "monitor_thesis_health",
+            "schedule": crontab(hour=3, minute=0),  # Daily at 03:00 UTC
+            "options": {"expires": 1800},  # 30-minute expiry
+            # Notes:
+            # - Evaluates invalidation triggers for all active theses
+            # - Critical triggers (signal change, low cross-val): Invalidate thesis
+            # - Non-critical triggers (sentiment shift): Flag for review
+            # - Logs all actions to maintenance_log for audit trail
+            # - Runs after fear/greed calculation (02:45-03:00)
+        },
+        "process-invalidated-theses-daily": {
+            "task": "process_invalidated_theses",
+            "schedule": crontab(hour=3, minute=15),  # Daily at 03:15 UTC (after health check)
+            "options": {"expires": 1800},
+            # Notes:
+            # - Processes recently invalidated theses (last 24 hours)
+            # - Respects rules.yaml: auto_remove_on_invalidation (true/false)
+            # - Excludes portfolio holdings (exclude_portfolio_holdings: true)
+            # - Daily removal limit: max_daily_removals (default 3)
+            # - Uses existing remove_symbol_from_watchlist (triggers deletion_audit)
+        },
+        "archive-strategies-for-invalidated-theses": {
+            "task": "archive_strategies_for_invalidated_theses",
+            "schedule": crontab(hour=3, minute=30),  # Daily at 03:30 UTC (after processing)
+            "options": {"expires": 1800},
+            # Notes:
+            # - Archives all active strategies for invalidated thesis symbols
+            # - Design: Thesis invalidation TRIGGERS strategy archival (not vice versa)
+            # - Uses existing strategy archive pattern (sets status='archived')
+            # - Logs strategy archival to maintenance_log for audit trail
+        },
     }

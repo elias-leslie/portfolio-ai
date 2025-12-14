@@ -24,6 +24,7 @@ from app.rules.models import (
     ScoringRules,
     SignalThresholds,
     TechnicalThresholds,
+    ThesisManagementRules,
     TradingRules,
     WatchlistManagementRules,
 )
@@ -274,6 +275,25 @@ def _load_watchlist_management(data: dict[str, Any]) -> WatchlistManagementRules
     )
 
 
+def _load_thesis_management(data: dict[str, Any]) -> ThesisManagementRules:
+    """Parse thesis_management section."""
+    section = data.get("thesis_management", {})
+    return ThesisManagementRules(
+        thesis_generation_enabled=section.get("thesis_generation_enabled", True),
+        thesis_cache_ttl_hours=section.get("thesis_cache_ttl_hours", 24),
+        max_tokens_per_generation=section.get("max_tokens_per_generation", 4096),
+        max_tokens_per_validation=section.get("max_tokens_per_validation", 2048),
+        cross_validation_enabled=section.get("cross_validation_enabled", True),
+        min_cross_validation_score=section.get("min_cross_validation_score", 0.5),
+        auto_flag_low_confidence=section.get("auto_flag_low_confidence", True),
+        auto_remove_on_invalidation=section.get("auto_remove_on_invalidation", True),
+        version_retention_days=section.get("version_retention_days", 365),
+        max_versions_per_symbol=section.get("max_versions_per_symbol", 50),
+        max_generations_per_day=section.get("max_generations_per_day", 10),
+        generation_cooldown_seconds=section.get("generation_cooldown_seconds", 60),
+    )
+
+
 def _load_rules_from_yaml(path: Path) -> TradingRules:
     """Load and parse trading rules from YAML file."""
     if not path.exists():
@@ -303,6 +323,7 @@ def _load_rules_from_yaml(path: Path) -> TradingRules:
         paper_trading=_load_paper_trading(data),
         catalyst_impacts=_load_catalyst_impacts(data),
         watchlist_management=_load_watchlist_management(data),
+        thesis_management=_load_thesis_management(data),
     )
 
 

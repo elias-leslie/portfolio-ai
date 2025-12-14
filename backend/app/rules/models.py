@@ -277,6 +277,31 @@ class WatchlistManagementRules:
     exclude_portfolio_holdings: bool = True
 
 
+@dataclass(frozen=True)
+class ThesisManagementRules:
+    """Thesis generation, validation, and invalidation configuration."""
+
+    # Generation settings
+    thesis_generation_enabled: bool = True
+    thesis_cache_ttl_hours: int = 24
+    max_tokens_per_generation: int = 4096
+    max_tokens_per_validation: int = 2048
+
+    # Cross-validation settings
+    cross_validation_enabled: bool = True
+    min_cross_validation_score: float = 0.5
+    auto_flag_low_confidence: bool = True
+
+    # Invalidation behavior
+    auto_remove_on_invalidation: bool = True
+    version_retention_days: int = 365
+    max_versions_per_symbol: int = 50
+
+    # Rate limiting
+    max_generations_per_day: int = 10
+    generation_cooldown_seconds: int = 60
+
+
 @dataclass
 class TradingRules:
     """Root configuration containing all trading rules."""
@@ -297,3 +322,4 @@ class TradingRules:
     paper_trading: PaperTradingRules = field(default_factory=PaperTradingRules)
     catalyst_impacts: dict[str, CatalystImpact] = field(default_factory=dict)
     watchlist_management: WatchlistManagementRules = field(default_factory=WatchlistManagementRules)
+    thesis_management: ThesisManagementRules = field(default_factory=ThesisManagementRules)

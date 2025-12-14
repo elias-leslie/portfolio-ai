@@ -360,7 +360,7 @@ thesis_management:
     days_without_catalyst: 90         # Flag if no catalyst triggers in 90 days
 
   # Invalidation behavior
-  auto_remove_on_invalidation: false  # false = flag for review, true = auto-remove
+  auto_remove_on_invalidation: true   # true = auto-remove, false = flag for review only
   version_retention_days: 365         # Keep version history for 1 year
   max_versions_per_symbol: 50         # Limit versions per symbol
 
