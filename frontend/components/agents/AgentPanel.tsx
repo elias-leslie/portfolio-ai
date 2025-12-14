@@ -212,6 +212,30 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
     }
   }, [serverUrl, open, fetchSessions]);
 
+  // Evidence persistence helpers
+  const getEvidenceStorageKey = (sessionId: string) => `agent-hub-evidence-${sessionId}`;
+
+  const saveEvidenceToStorage = useCallback((sessionId: string, evidenceMsg: ChatMessage) => {
+    if (!sessionId) return;
+    const key = getEvidenceStorageKey(sessionId);
+    const existing = JSON.parse(localStorage.getItem(key) || '[]');
+    existing.push({
+      ...evidenceMsg,
+      timestamp: evidenceMsg.timestamp.toISOString(),
+    });
+    localStorage.setItem(key, JSON.stringify(existing));
+  }, []);
+
+  const loadEvidenceFromStorage = useCallback((sessionId: string): ChatMessage[] => {
+    if (!sessionId) return [];
+    const key = getEvidenceStorageKey(sessionId);
+    const stored = JSON.parse(localStorage.getItem(key) || '[]');
+    return stored.map((msg: ChatMessage & { timestamp: string }) => ({
+      ...msg,
+      timestamp: new Date(msg.timestamp),
+    }));
+  }, []);
+
   // Load history when session changes
   useEffect(() => {
     if (!serverUrl || !currentSessionId) return;
@@ -227,7 +251,16 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
             timestamp: new Date(msg.created_at),
             agent: msg.agent as 'claude' | 'gemini' | undefined,
           }));
-          setMessages(loadedMessages);
+
+          // Also load evidence messages from localStorage
+          const evidenceMessages = loadEvidenceFromStorage(currentSessionId);
+
+          // Merge and sort by timestamp
+          const allMessages = [...loadedMessages, ...evidenceMessages].sort(
+            (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
+          );
+
+          setMessages(allMessages);
         }
       } catch (err) {
         console.error('Failed to load history:', err);
@@ -238,7 +271,7 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
     setCurrentResponse([]);
     setIsLoading(false);
     loadHistory();
-  }, [currentSessionId, serverUrl]);
+  }, [currentSessionId, serverUrl, loadEvidenceFromStorage]);
 
   // Scroll to bottom
   useEffect(() => {
@@ -972,23 +1005,28 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
         onClose={() => setShowEvidenceCapture(false)}
         pageUrl={pageContext?.path ? `http://${typeof window !== 'undefined' ? window.location.hostname : '192.168.8.233'}:3000${pageContext.path}` : ''}
         onCaptured={(result) => {
-          // Add evidence message to chat
-          setMessages((prev) => [
-            ...prev,
-            {
-              role: 'evidence',
-              content: `Evidence captured for ${result.feature_id}`,
-              timestamp: new Date(),
-              evidence: {
-                feature_id: result.feature_id,
-                criterion_id: result.criterion_id,
-                version: result.version,
-                console_errors: result.evidence?.console?.errorCount ?? 0,
-                network_failures: result.evidence?.network?.failedRequests ?? 0,
-                url: result.evidence?.metadata?.url ?? '',
-              },
+          // Create evidence message
+          const evidenceMsg: ChatMessage = {
+            role: 'evidence',
+            content: `Evidence captured for ${result.feature_id}`,
+            timestamp: new Date(),
+            evidence: {
+              feature_id: result.feature_id,
+              criterion_id: result.criterion_id,
+              version: result.version,
+              console_errors: result.evidence?.console?.errorCount ?? 0,
+              network_failures: result.evidence?.network?.failedRequests ?? 0,
+              url: result.evidence?.metadata?.url ?? '',
             },
-          ]);
+          };
+
+          // Add to chat
+          setMessages((prev) => [...prev, evidenceMsg]);
+
+          // Persist to localStorage for session recovery
+          if (currentSessionId) {
+            saveEvidenceToStorage(currentSessionId, evidenceMsg);
+          }
         }}
       />
 
