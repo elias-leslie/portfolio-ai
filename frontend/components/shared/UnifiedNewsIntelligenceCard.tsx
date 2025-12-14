@@ -292,6 +292,75 @@ export function UnifiedNewsIntelligenceCard({
         </div>
       </CardHeader>
 
+      {/* Sentiment Breakdown - ALWAYS VISIBLE when summary exists */}
+      {showSentimentBreakdown && summary && (
+        <div className={`flex flex-wrap items-start justify-between gap-4 px-6 py-3 ${isExpanded ? "border-b border-border" : ""}`}>
+          <div>
+            <p className="text-xs uppercase tracking-wide text-text-muted">Sentiment Score</p>
+            <div className="mt-1 flex items-center gap-2">
+              <Badge variant={getSentimentBadgeVariant(summary.score)}>
+                {formatSentimentScore(summary.score)}
+              </Badge>
+              {summary.score_change !== null && summary.score_change !== undefined && (
+                <span
+                  className={`inline-flex items-center text-xs font-medium ${
+                    summary.score_change >= 0 ? "text-gain" : "text-loss"
+                  }`}
+                >
+                  {summary.score_change >= 0 ? "▲" : "▼"}
+                  {Math.abs(summary.score_change).toFixed(2)}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-6 text-xs text-text-muted">
+            <div>
+              <p className="font-semibold text-text">Headline Mix</p>
+              <p>
+                Positive: <span className="font-medium text-gain">{summary.positive_count}</span>
+              </p>
+              <p>
+                Neutral: <span className="font-medium text-text">{summary.neutral_count}</span>
+              </p>
+              <p>
+                Negative: <span className="font-medium text-loss">{summary.negative_count}</span>
+              </p>
+            </div>
+            <div>
+              <p className="font-semibold text-text">Model Coverage</p>
+              {(() => {
+                const totalCoverage = Object.values(summary.model_breakdown || {}).reduce(
+                  (sum, val) => sum + val,
+                  0
+                );
+                const finbertCoverage = summary.model_breakdown?.finbert ?? 0;
+                const fallbackCoverage = Math.max(totalCoverage - finbertCoverage, 0);
+
+                if (totalCoverage === 0) {
+                  return <p>No articles scored</p>;
+                }
+                if (finbertCoverage === totalCoverage) {
+                  return <p>FinBERT coverage</p>;
+                }
+                if (finbertCoverage === 0) {
+                  return <p>Fallback sentiment (VADER)</p>;
+                }
+                return (
+                  <>
+                    <p>FinBERT {finbertCoverage}/{totalCoverage}</p>
+                    {fallbackCoverage > 0 && (
+                      <p className="text-xs text-text-muted">
+                        {fallbackCoverage} fallback
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
       {isExpanded && (
       <CardContent className={isMarketNews ? "p-0" : "space-y-4"}>
         {/* Headline Summary (symbol-specific only, when showHeader=true) */}
@@ -332,75 +401,6 @@ export function UnifiedNewsIntelligenceCard({
                   </div>
                 </div>
               ))}
-            </div>
-          </div>
-        )}
-
-        {/* Sentiment Breakdown (all sections) */}
-        {showSentimentBreakdown && summary && (
-          <div className="flex flex-wrap items-start justify-between gap-4 pb-3 border-b border-border">
-            <div>
-              <p className="text-xs uppercase tracking-wide text-text-muted">Sentiment Score</p>
-              <div className="mt-1 flex items-center gap-2">
-                <Badge variant={getSentimentBadgeVariant(summary.score)}>
-                  {formatSentimentScore(summary.score)}
-                </Badge>
-                {summary.score_change !== null && summary.score_change !== undefined && (
-                  <span
-                    className={`inline-flex items-center text-xs font-medium ${
-                      summary.score_change >= 0 ? "text-gain" : "text-loss"
-                    }`}
-                  >
-                    {summary.score_change >= 0 ? "▲" : "▼"}
-                    {Math.abs(summary.score_change).toFixed(2)}
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-6 text-xs text-text-muted">
-              <div>
-                <p className="font-semibold text-text">Headline Mix</p>
-                <p>
-                  Positive: <span className="font-medium text-gain">{summary.positive_count}</span>
-                </p>
-                <p>
-                  Neutral: <span className="font-medium text-text">{summary.neutral_count}</span>
-                </p>
-                <p>
-                  Negative: <span className="font-medium text-loss">{summary.negative_count}</span>
-                </p>
-              </div>
-              <div>
-                <p className="font-semibold text-text">Model Coverage</p>
-                {(() => {
-                  const totalCoverage = Object.values(summary.model_breakdown || {}).reduce(
-                    (sum, val) => sum + val,
-                    0
-                  );
-                  const finbertCoverage = summary.model_breakdown?.finbert ?? 0;
-                  const fallbackCoverage = Math.max(totalCoverage - finbertCoverage, 0);
-
-                  if (totalCoverage === 0) {
-                    return <p>No articles scored</p>;
-                  }
-                  if (finbertCoverage === totalCoverage) {
-                    return <p>FinBERT coverage</p>;
-                  }
-                  if (finbertCoverage === 0) {
-                    return <p>Fallback sentiment (VADER)</p>;
-                  }
-                  return (
-                    <>
-                      <p>FinBERT {finbertCoverage}/{totalCoverage}</p>
-                      {fallbackCoverage > 0 && (
-                        <p className="text-xs text-text-muted">
-                          {fallbackCoverage} fallback
-                        </p>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
             </div>
           </div>
         )}
