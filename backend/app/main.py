@@ -51,6 +51,7 @@ from app.api import (
     strategies,
     symbols,
     test_feature,
+    thesis,
     valuation,
     watchlist,
     workflow_graph,
@@ -199,6 +200,7 @@ app.include_router(cross_validation.router)  # FEAT-219: Multi-agent cross-valid
 app.include_router(db_inspect.router)  # Database schema inspection for development
 app.include_router(symbols.router)  # Symbol intelligence API for agents
 app.include_router(files.router)  # File audit for codebase complexity
+app.include_router(thesis.router)  # Investment thesis generation and management
 
 
 @app.get("/")

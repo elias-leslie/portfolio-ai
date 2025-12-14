@@ -21,6 +21,7 @@ import { ExpandedRowRefreshStatus } from "./ExpandedRowRefreshStatus";
 import { ExpandedRowNarrative } from "./ExpandedRowNarrative";
 import { ExpandedRowScoreBreakdown } from "./ExpandedRowScoreBreakdown";
 import { ExpandedRowNotes } from "./ExpandedRowNotes";
+import { ThesisSection } from "./ThesisSection";
 
 interface ExpandedRowProps {
     item: WatchlistItem;
@@ -50,6 +51,12 @@ export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
             {/* Score Breakdown */}
             <ExpandedRowScoreBreakdown
                 item={item}
+                userTimezone={userTimezone}
+            />
+
+            {/* Investment Thesis */}
+            <ThesisSection
+                symbol={item.symbol}
                 userTimezone={userTimezone}
             />
 

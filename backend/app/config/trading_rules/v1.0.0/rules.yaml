@@ -333,3 +333,37 @@ watchlist_management:
   min_days_watched: 7               # Minimum 7 days before removal
   min_score_threshold: 4.0          # Below 4.0 = underperformer
   exclude_portfolio_holdings: true  # Don't trim owned tickers
+
+# =============================================================================
+# THESIS MANAGEMENT
+# Source: services/thesis_service.py, tasks/thesis_tasks.py
+# Controls investment thesis generation, validation, and invalidation
+# =============================================================================
+thesis_management:
+  # Generation settings
+  thesis_generation_enabled: true     # Enable/disable thesis generation
+  thesis_cache_ttl_hours: 24          # Cache thesis for 24 hours before allowing regeneration
+  max_tokens_per_generation: 4096     # Max tokens for thesis LLM call
+  max_tokens_per_validation: 2048     # Max tokens for validation LLM call
+
+  # Cross-validation settings
+  cross_validation_enabled: true      # Require dual-provider (Gemini+Claude) validation
+  min_cross_validation_score: 0.5     # Minimum score to consider thesis valid
+  auto_flag_low_confidence: true      # Auto-flag for review if score < 0.7
+
+  # Invalidation triggers (evaluated in real-time and daily audit)
+  invalidation_triggers:
+    signal_type_change: true          # Invalidate if BUY → AVOID or SELL → BUY
+    price_drop_pct: -15.0             # Invalidate if price drops 15%+ from entry
+    sentiment_reversal_threshold: 0.3 # Invalidate if sentiment shifts > 0.3
+    cross_validation_below: 0.5       # Invalidate if cross-val drops below 0.5
+    days_without_catalyst: 90         # Flag if no catalyst triggers in 90 days
+
+  # Invalidation behavior
+  auto_remove_on_invalidation: false  # false = flag for review, true = auto-remove
+  version_retention_days: 365         # Keep version history for 1 year
+  max_versions_per_symbol: 50         # Limit versions per symbol
+
+  # Rate limiting (to prevent agent spiraling)
+  max_generations_per_day: 10         # Max thesis generations per day (all symbols)
+  generation_cooldown_seconds: 60     # Min seconds between generations for same symbol
