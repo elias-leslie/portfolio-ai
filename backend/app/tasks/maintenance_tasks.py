@@ -205,11 +205,11 @@ def cleanup_old_news_task(self: Task, days: int = 90) -> dict[str, int | str | f
         cutoff_date = dt.datetime.now(dt.UTC) - dt.timedelta(days=days)
 
         with storage.connection() as conn:
-            # Delete old news articles
+            # Delete old news articles (by publication date, not fetch date)
             conn.execute(
                 """
                 DELETE FROM news_cache
-                WHERE fetched_at < %s
+                WHERE published_at < %s
                 """,
                 [cutoff_date],
             )
@@ -255,7 +255,7 @@ def cleanup_old_agent_runs_task(self: Task, days: int = 30) -> dict[str, int | s
         days: Delete agent runs older than N days (default: 30)
 
     Returns:
-        Dict with task_id, runs_deleted, ideas_deleted, duration_seconds, success status
+        Dict with task_id, runs_deleted, duration_seconds, success status
     """
     task_id = self.request.id
     start_time = dt.datetime.now(dt.UTC)
@@ -280,17 +280,7 @@ def cleanup_old_agent_runs_task(self: Task, days: int = 30) -> dict[str, int | s
             run_ids = [row[0] for row in result]
 
             if run_ids:
-                # Delete associated ideas first (FK constraint)
-                conn.execute(
-                    """
-                    DELETE FROM agent_ideas
-                    WHERE run_id = ANY(%s)
-                    """,
-                    [run_ids],
-                )
-                ideas_deleted = conn._cursor.rowcount
-
-                # Delete agent runs
+                # Delete agent runs (agent_ideas table was dropped in migration 109)
                 conn.execute(
                     """
                     DELETE FROM agent_runs
@@ -302,7 +292,6 @@ def cleanup_old_agent_runs_task(self: Task, days: int = 30) -> dict[str, int | s
 
                 conn.commit()
             else:
-                ideas_deleted = 0
                 runs_deleted = 0
 
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
@@ -310,7 +299,6 @@ def cleanup_old_agent_runs_task(self: Task, days: int = 30) -> dict[str, int | s
         result_dict = {
             "task_id": task_id,
             "runs_deleted": runs_deleted,
-            "ideas_deleted": ideas_deleted,
             "cutoff_date": cutoff_date.isoformat(),
             "retention_days": days,
             "duration_seconds": round(duration, 2),
@@ -339,10 +327,10 @@ def cleanup_old_agent_runs_task(self: Task, days: int = 30) -> dict[str, int | s
 
 @celery_app.task(name="cleanup_orphaned_data_task", bind=True)
 def cleanup_orphaned_data_task(self: Task) -> dict[str, int | str | float]:
-    """Remove orphaned records (ideas without runs, etc.).
+    """Remove orphaned records and fix zombie runs.
 
     Returns:
-        Dict with task_id, orphaned_ideas_deleted, duration_seconds, success status
+        Dict with task_id, orphaned_insights_deleted, zombie_runs_fixed, duration_seconds, success status
     """
     task_id = self.request.id
     start_time = dt.datetime.now(dt.UTC)
@@ -353,14 +341,7 @@ def cleanup_orphaned_data_task(self: Task) -> dict[str, int | str | float]:
         storage = get_connection_manager()
 
         with storage.connection() as conn:
-            # Delete ideas with non-existent agent_run_ids
-            conn.execute(
-                """
-                DELETE FROM agent_ideas
-                WHERE agent_run_id NOT IN (SELECT id FROM agent_runs)
-                """
-            )
-            orphaned_ideas = conn._cursor.rowcount
+            # Note: agent_ideas table was dropped in migration 109
 
             # Delete capabilities insights with non-existent capability_id
             conn.execute(
@@ -398,7 +379,6 @@ def cleanup_orphaned_data_task(self: Task) -> dict[str, int | str | float]:
 
         result_dict = {
             "task_id": task_id,
-            "orphaned_ideas_deleted": orphaned_ideas,
             "orphaned_insights_deleted": orphaned_insights,
             "zombie_runs_fixed": zombie_runs_fixed,
             "duration_seconds": round(duration, 2),
