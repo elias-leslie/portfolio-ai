@@ -60,13 +60,25 @@ def calculate_trade_return(entry_price: float, current_price: float, idea_type: 
     """Calculate return percentage for trade.
 
     Args:
-        entry_price: Entry price
+        entry_price: Entry price (must be positive)
         current_price: Current price
         idea_type: 'buy', 'sell', or 'hold'
 
     Returns:
         Return percentage (positive = profit, negative = loss)
+
+    Raises:
+        ValueError: If entry_price is <= 0
     """
+    if entry_price <= 0:
+        logger.error(
+            "calculate_trade_return_invalid_entry_price",
+            entry_price=entry_price,
+            current_price=current_price,
+            idea_type=idea_type,
+        )
+        raise ValueError(f"Invalid entry_price: {entry_price} - must be positive")
+
     if idea_type == "sell":
         # Short position: profit when price goes down
         return ((entry_price - current_price) / entry_price) * 100
@@ -244,9 +256,20 @@ def process_single_trade(
     # Calculate returns and metrics
     price_obj: PriceData = price_data[symbol]
     current_price = price_obj.price
-    current_return_pct = calculate_trade_return(
-        trade["entry_price"], current_price, trade["idea_type"]
-    )
+    try:
+        current_return_pct = calculate_trade_return(
+            trade["entry_price"], current_price, trade["idea_type"]
+        )
+    except ValueError:
+        # Skip trades with invalid entry price (logged in calculate_trade_return)
+        logger.warning(
+            "paper_trade_update_skipped",
+            idea_id=trade["idea_id"],
+            symbol=symbol,
+            entry_price=trade["entry_price"],
+            reason="invalid_entry_price",
+        )
+        return
     max_favorable_pct, max_adverse_pct = update_trade_excursions(trade, current_return_pct)
     entry_date = trade["entry_date"]
     # Convert to date if it's a datetime
