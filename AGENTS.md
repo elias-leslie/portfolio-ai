@@ -191,13 +191,7 @@ bd update <id> --status in_progress --json   # Claim it
 
 **All steps must complete before session ends. The plane hasn't landed until `git push` succeeds.**
 
-#### 1. File/Update Issues for Remaining Work
-- Create beads for any discovered bugs (see MANDATORY section above)
-- Create beads for follow-up tasks and TODOs
-- Close completed issues: `bd close <id> --reason "Done" --json`
-- Update in-progress work: `bd update <id> --notes "Progress..." --json`
-
-#### 2. Run Quality Gates (if code changed)
+#### 1. Run Quality Gates (if code changed)
 ```bash
 cd backend && .venv/bin/ruff check app/ --fix
 cd backend && .venv/bin/mypy app/ --no-error-summary
@@ -205,29 +199,67 @@ cd backend && .venv/bin/pytest tests/ -x --tb=short -q
 ```
 - If builds/tests broken, file P0 issue before continuing
 
-#### 3. Sync Issue Tracker (NON-NEGOTIABLE)
+#### 2. Commit Your Implementation Changes FIRST
 ```bash
-git pull --rebase
-bd sync
-git push
+git add <your-changed-files>
+git commit -m "feat/fix/chore: <title>
+
+<WHY this change was needed - 1-2 sentences>
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
+```
+**IMPORTANT:** Commit message must be 100+ chars with reasoning (pre-commit hook enforces this).
+
+#### 3. Update Beads State (AFTER implementation commit)
+```bash
+# Close completed issues
+bd close <id> --reason "Completed: <summary>"
+
+# Update in-progress work
+bd update <id> --notes "Progress: <what was done>"
+
+# Create beads for discovered bugs (see MANDATORY section above)
+```
+
+#### 4. Commit Beads Changes Separately
+`bd close` and `bd update` modify `.beads/issues.jsonl`. Commit this BEFORE pulling:
+```bash
+git add .beads/issues.jsonl
+git commit -m "chore: Update beads state after <task-id>
+
+Closes/updates beads for: <brief description of what was completed>
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
+```
+
+#### 5. Push to Remote (NON-NEGOTIABLE)
+```bash
+git pull --rebase && git push
 git status  # MUST show "up to date with origin/main"
 ```
-- If push fails, resolve and retry until successful
+- If pull/push fails, resolve and retry until successful
 - Never say "ready to push when you are"—YOU must push
 - Unpushed work breaks multi-agent coordination
 
-#### 4. Verify Clean State
-- All changes committed AND pushed
-- No untracked files remain
-- `git status` shows clean working tree
+**NOTE:** Skip `bd sync` - it has worktree bugs. The manual commit pattern above is more reliable.
 
-#### 5. Choose Next Work
+#### 6. Verify Clean State
+```bash
+git status  # Should show: "nothing to commit, working tree clean"
+```
+
+#### 7. Choose Next Work
 - Run `bd ready --json` to identify next task
 - Provide context for next session if needed
 
 **Critical Rules:**
+- Commit implementation BEFORE closing beads (order matters!)
+- Commit beads changes BEFORE `git pull --rebase` (avoids unstaged changes error)
 - Never stop before pushing—that leaves work stranded locally
-- `bd sync` at end of EVERY session, not just when you remember
 - Lost issues = lost work = unacceptable
 
 ---
