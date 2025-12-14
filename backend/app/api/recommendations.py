@@ -355,13 +355,17 @@ async def get_recommendations(
 
             # Apply validation filter if specified
             # "all" or None = no filtering
-            # "thesis"/"backtest"/"both" = exact match only
-            if (
-                validation_filter
-                and validation_filter != "all"
-                and validation_type != validation_filter
-            ):
-                continue
+            # "thesis" = include thesis OR both (inclusive)
+            # "backtest" = include backtest OR both (inclusive)
+            # "both" = only include both (highest confidence filter)
+            if validation_filter and validation_filter != "all":
+                if validation_filter == "both":
+                    # Only show items with BOTH validations
+                    if validation_type != "both":
+                        continue
+                elif validation_type not in (validation_filter, "both"):
+                    # Inclusive: show matching type OR "both" (which includes both types)
+                    continue
 
             # Get entry price from market data (when signal was generated)
             # market_data is guaranteed to be dict at this point
