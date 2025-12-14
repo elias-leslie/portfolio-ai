@@ -154,6 +154,7 @@ journalctl --user -u portfolio-celery -f
 | `localhost:3000` for screenshots | `192.168.8.233:3000` |
 | Manual `systemctl` | Use scripts |
 | `git stash` with uncommitted changes | Commit first |
+| Start work with dirty working tree | Commit previous changes FIRST |
 | Hardcode version numbers | Reference STACK.md |
 | Skip pre-commit (`--no-verify`) | Fix the issues |
 | Note bugs without creating beads | Create bead IMMEDIATELY |
@@ -162,11 +163,29 @@ journalctl --user -u portfolio-celery -f
 
 ## Session Protocol
 
-### Start
+### Start - MANDATORY
+
+**Before starting ANY new work, verify clean working tree:**
+
+#### 1. Check for Uncommitted Changes (MANDATORY)
+```bash
+git status --short
+```
+- If output shows files: **STOP** - you have uncommitted changes from a previous session
+- **You MUST commit these BEFORE proceeding:**
+  ```bash
+  git diff --stat                    # Review what changed
+  git add -A && git commit -m "WIP: Previous session changes"
+  git push
+  ```
+
+#### 2. Find and Claim Work
 ```bash
 bd ready --json                              # Find work
 bd update <id> --status in_progress --json   # Claim it
 ```
+
+**Critical:** Uncommitted changes break multi-agent coordination. Never start new work on a dirty tree.
 
 ### End ("Landing the Plane") - MANDATORY
 
