@@ -25,6 +25,8 @@
   --color-gain-strong: var(--gain-strong);
   --color-loss: var(--loss);
   --color-loss-strong: var(--loss-strong);
+  --color-warning: var(--warning);
+  --color-warning-strong: var(--warning-strong);
   --color-neutral: var(--neutral);
   --color-viz-0: var(--viz-0);
   --color-viz-1: var(--viz-1);
@@ -145,6 +147,8 @@
   --gain-strong: oklch(0.78 0.21 149);
   --loss: oklch(0.62 0.21 27);
   --loss-strong: oklch(0.54 0.24 27);
+  --warning: oklch(0.75 0.18 85);
+  --warning-strong: oklch(0.68 0.2 85);
   --neutral: oklch(0.68 0.01 262);
 
   --viz-0: oklch(0.38 0.03 264);

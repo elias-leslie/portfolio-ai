@@ -33,12 +33,12 @@ export default function RootLayout({
         className={cn(
           geistSans.variable,
           geistMono.variable,
-          "bg-bg text-text antialiased"
+          "bg-bg text-text antialiased h-screen overflow-hidden flex flex-col"
         )}
       >
         <Providers>
           <Navigation />
-          <main>{children}</main>
+          <main className="flex-1 overflow-auto">{children}</main>
           <Toaster position="top-right" richColors />
         </Providers>
       </body>

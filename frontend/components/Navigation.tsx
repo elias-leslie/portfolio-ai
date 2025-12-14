@@ -59,7 +59,7 @@ const mainLinks = [
   },
   {
     href: "/capabilities",
-    label: "Capabilities",
+    label: "System",
     icon: Database,
   },
 ];

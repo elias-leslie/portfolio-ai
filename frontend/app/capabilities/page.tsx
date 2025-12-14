@@ -15,15 +15,16 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { CapabilitiesTable } from "@/components/capabilities/CapabilitiesTable";
-import { CapabilitiesDashboard } from "@/components/capabilities/CapabilitiesDashboard";
 // GapsOverview removed - trading requirements now in Features tab as "Data - *" categories
+// CapabilitiesDashboard removed - Vision tab replaces it
 import { ApiSourcesOverview } from "@/components/capabilities/ApiSourcesOverview";
 import { FeaturesTab } from "@/components/capabilities/FeaturesTab";
 import { VisionGoalsTab } from "@/components/capabilities/VisionGoalsTab";
-import { LogTab } from "@/components/capabilities/LogTab";
+// LogTab removed - Beads handles session tracking
 import { RulesViewer } from "@/components/rules/RulesViewer";
 import { WorkflowCanvas } from "@/components/workflows/WorkflowCanvas";
-import { QATab } from "@/components/qa/QATab";
+// QATab removed - issues disconnected from workflow
+import { FilesTab } from "@/components/capabilities/FilesTab";
 import {
   RefreshCw,
   Search,
@@ -38,8 +39,7 @@ import {
   CheckSquare,
   Target,
   GitBranch,
-  ShieldCheck,
-  Clock,
+  FolderTree,
 } from "lucide-react";
 import {
   fetchCapabilities,
@@ -50,7 +50,7 @@ import {
 import { toast } from "sonner";
 import { PageContainer } from "@/components/shared/PageContainer";
 
-type TabValue = "dashboard" | "workflows" | "qa" | "database" | "celery" | "api" | "sources" | "rules" | "features" | "vision" | "log";
+type TabValue = "workflows" | "database" | "celery" | "api" | "sources" | "rules" | "files" | "features" | "vision";
 
 function CapabilitiesPageContent() {
   const queryClient = useQueryClient();
@@ -59,7 +59,7 @@ function CapabilitiesPageContent() {
 
   // Get initial values from URL
   const initialHealthFilter = searchParams.get("health") || "all";
-  const initialTab = (searchParams.get("tab") as TabValue) || "dashboard";
+  const initialTab = (searchParams.get("tab") as TabValue) || "vision";
 
   // Tab state
   const [activeTab, setActiveTab] = useState<TabValue>(initialTab);
@@ -252,7 +252,7 @@ function CapabilitiesPageContent() {
   // Render loading state
   if (capabilitiesLoading && !capabilitiesData) {
     return (
-      <PageContainer className="min-h-screen space-y-10 py-10">
+      <PageContainer className="space-y-6 py-4">
         <PageHeader
           title="System Capabilities"
           description="Loading capability registry..."
@@ -281,10 +281,10 @@ function CapabilitiesPageContent() {
     : 0;
 
   return (
-    <PageContainer className="min-h-screen space-y-6 py-6">
+    <PageContainer className="space-y-6 py-4">
       {/* Header */}
       <PageHeader
-        title="System Capabilities Registry"
+        title="System Registry"
         size="md"
         actions={
           <Button onClick={() => scanMutation.mutate()} disabled={scanMutation.isPending}>
@@ -298,12 +298,9 @@ function CapabilitiesPageContent() {
         }
       />
 
-      {/* Tabs - order: Dashboard, Vision, Features, Workflows, QA, Sources, Rules, DB, Log, Tasks, API */}
+      {/* Tabs - order: Vision, Features, Workflows, Sources, Rules, Files, DB, Tasks, API */}
       <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as TabValue)}>
-        <TabsList className="grid w-full grid-cols-11">
-          <TabsTrigger value="dashboard">
-            Dashboard
-          </TabsTrigger>
+        <TabsList className="grid w-full grid-cols-9">
           <TabsTrigger value="vision">
             <Target className="mr-2 h-4 w-4" />
             Vision
@@ -316,10 +313,6 @@ function CapabilitiesPageContent() {
             <GitBranch className="mr-2 h-4 w-4" />
             Workflows
           </TabsTrigger>
-          <TabsTrigger value="qa">
-            <ShieldCheck className="mr-2 h-4 w-4" />
-            QA
-          </TabsTrigger>
           <TabsTrigger value="sources">
             <Cloud className="mr-2 h-4 w-4" />
             Sources
@@ -328,16 +321,16 @@ function CapabilitiesPageContent() {
             <BookOpen className="mr-2 h-4 w-4" />
             Rules
           </TabsTrigger>
+          <TabsTrigger value="files">
+            <FolderTree className="mr-2 h-4 w-4" />
+            Files
+          </TabsTrigger>
           <TabsTrigger value="database">
             <Database className="mr-2 h-4 w-4" />
             DB
             <span className="ml-1 rounded-full bg-surface-muted px-1.5 py-0.5 text-xs">
               {dbCount}
             </span>
-          </TabsTrigger>
-          <TabsTrigger value="log">
-            <Clock className="mr-2 h-4 w-4" />
-            Log
           </TabsTrigger>
           <TabsTrigger value="celery">
             <Zap className="mr-2 h-4 w-4" />
@@ -356,7 +349,7 @@ function CapabilitiesPageContent() {
         </TabsList>
 
         {/* Filters (for capability tabs) */}
-        {activeTab !== "dashboard" && activeTab !== "workflows" && activeTab !== "sources" && activeTab !== "rules" && activeTab !== "features" && activeTab !== "vision" && activeTab !== "qa" && activeTab !== "log" && (
+        {activeTab !== "workflows" && activeTab !== "sources" && activeTab !== "rules" && activeTab !== "files" && activeTab !== "features" && activeTab !== "vision" && (
           <div className="space-y-3">
             <div className="flex flex-wrap gap-3">
               {/* Search */}
@@ -444,21 +437,11 @@ function CapabilitiesPageContent() {
           </div>
         )}
 
-        {/* Dashboard Tab */}
-        <TabsContent value="dashboard">
-          <CapabilitiesDashboard onTabChange={(tab) => setActiveTab(tab)} />
-        </TabsContent>
-
         {/* Workflows Tab */}
         <TabsContent value="workflows" className="mt-0">
           <div className="h-[calc(100vh-240px)] min-h-[400px]">
             <WorkflowCanvas fullHeight />
           </div>
-        </TabsContent>
-
-        {/* QA Tab */}
-        <TabsContent value="qa">
-          <QATab />
         </TabsContent>
 
         {/* Database Tab */}
@@ -488,6 +471,11 @@ function CapabilitiesPageContent() {
           <RulesViewer />
         </TabsContent>
 
+        {/* Files Audit Tab */}
+        <TabsContent value="files">
+          <FilesTab />
+        </TabsContent>
+
         {/* Features Tab */}
         <TabsContent value="features">
           <FeaturesTab />
@@ -498,21 +486,15 @@ function CapabilitiesPageContent() {
           <VisionGoalsTab />
         </TabsContent>
 
-        {/* Claude Session Log Tab */}
-        <TabsContent value="log">
-          <LogTab />
-        </TabsContent>
       </Tabs>
 
       {/* Pagination */}
-      {activeTab !== "dashboard" &&
-        activeTab !== "workflows" &&
+      {activeTab !== "workflows" &&
         activeTab !== "sources" &&
         activeTab !== "rules" &&
+        activeTab !== "files" &&
         activeTab !== "features" &&
         activeTab !== "vision" &&
-        activeTab !== "qa" &&
-        activeTab !== "log" &&
         capabilitiesData &&
         capabilitiesData.total > pageSize && (
           <div className="flex items-center justify-between">

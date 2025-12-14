@@ -21,10 +21,11 @@ from app.api import (
     backup,
     capabilities,
     celery_endpoints,
-    claude_progress,
+    # claude_progress removed - Beads handles session tracking
     cross_validation,
     db_inspect,
     disagreements,
+    files,
     # gaps removed - migrated to [DEBT] subtasks on features
     health,
     ideas,
@@ -39,15 +40,16 @@ from app.api import (
     paper_trading,
     portfolio,
     preferences,
-    qa,
+    # qa removed - issues disconnected from workflow
     recommendations,
     rules,
     settings_profiles,
-    solution_map,
+    # solution_map removed - Vision tab replaces Dashboard
     sources,
     status,
     status_stream,
     strategies,
+    symbols,
     test_feature,
     valuation,
     watchlist,
@@ -190,13 +192,13 @@ app.include_router(
     vision_content_router, prefix="/api"
 )  # Vision content (mission, principles, roadmap)
 app.include_router(workflow_graph.router)  # Workflow visualization graph API
-app.include_router(solution_map.router)  # Solution architecture map API
-app.include_router(qa.router)  # QA system - issue tracking, trends, scanning
-app.include_router(claude_progress.router)  # Claude session progress logging
+# solution_map, qa, claude_progress routers removed
 app.include_router(test_feature.router)  # FEAT-123: E2E test feature endpoint
 app.include_router(backup.router)  # Backup management API
 app.include_router(cross_validation.router)  # FEAT-219: Multi-agent cross-validation
 app.include_router(db_inspect.router)  # Database schema inspection for development
+app.include_router(symbols.router)  # Symbol intelligence API for agents
+app.include_router(files.router)  # File audit for codebase complexity
 
 
 @app.get("/")

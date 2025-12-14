@@ -16,6 +16,7 @@ from __future__ import annotations
 from . import (
     agent_tasks,
     capability_tasks,
+    file_scan,
     ingestion,
     log_cleanup_tasks,
     maintenance_tasks,
@@ -49,6 +50,7 @@ __all__ = [
     "backfill_technical_indicators",
     "calculate_fear_greed",
     "capability_tasks",
+    "file_scan",
     "ingest_historical_ohlcv",
     "ingestion",
     "log_cleanup_tasks",
