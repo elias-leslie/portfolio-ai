@@ -33,13 +33,14 @@ class MaintenanceScheduleResponseDict(TypedDict):
     total_count: int
 
 
-class TaskTriggerResponseDict(TypedDict):
+class TaskTriggerResponseDict(TypedDict, total=False):
     """Response from trigger_maintenance_task endpoint."""
 
-    task_id: str
-    task_name: str
-    status: str
-    message: str
+    task_id: str  # Required
+    task_name: str  # Required
+    status: str  # Required: triggered, completed, timeout
+    message: str  # Required
+    result: dict[str, object] | None  # Optional: task result (if wait_for_result)
 
 
 class TaskStatusResponseDict(TypedDict, total=False):

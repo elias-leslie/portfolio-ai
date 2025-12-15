@@ -106,8 +106,9 @@ export interface MaintenanceStatsResponse {
 export interface TriggerTaskResponse {
   task_id: string;
   task_name: string;
-  status: string;
+  status: "triggered" | "completed" | "timeout";
   message: string;
+  result?: Record<string, unknown> | null;
 }
 
 export interface BackupRequirementCheck {
@@ -135,6 +136,20 @@ export interface FileCleanupStatusResponse {
   models: FileCleanupInfo;
   solution_state: FileCleanupInfo;
   total_size_mb: number;
+}
+
+export interface CacheDirectoryInfo {
+  name: string;
+  path: string;
+  size_mb: number;
+  file_count: number;
+  description: string;
+}
+
+export interface CacheStatusResponse {
+  directories: CacheDirectoryInfo[];
+  total_size_mb: number;
+  total_file_count: number;
 }
 
 // API Functions
@@ -218,12 +233,26 @@ export async function getMaintenanceStats(
  * Trigger a maintenance task by name.
  *
  * @param taskName - The name of the maintenance task to trigger
- * @returns Task trigger response with status and ID
+ * @param options - Optional trigger options
+ * @param options.dryRun - Preview changes without executing
+ * @param options.waitForResult - Wait for task completion and return result
+ * @param options.timeout - Max seconds to wait (default: 30)
+ * @returns Task trigger response with status, ID, and optionally result
  */
 export async function triggerMaintenanceTask(
-  taskName: string
+  taskName: string,
+  options?: { dryRun?: boolean; waitForResult?: boolean; timeout?: number }
 ): Promise<TriggerTaskResponse> {
-  return post<TriggerTaskResponse>(`/api/maintenance/trigger/${taskName}`, {});
+  const params = new URLSearchParams();
+  if (options?.dryRun) params.append("dry_run", "true");
+  if (options?.waitForResult) params.append("wait_for_result", "true");
+  if (options?.timeout) params.append("timeout", options.timeout.toString());
+
+  const url = params.toString()
+    ? `/api/maintenance/trigger/${taskName}?${params.toString()}`
+    : `/api/maintenance/trigger/${taskName}`;
+
+  return post<TriggerTaskResponse>(url, {});
 }
 
 /**
@@ -312,4 +341,15 @@ export async function getMaintenanceHistory(
  */
 export async function getFileCleanupStatus(): Promise<FileCleanupStatusResponse> {
   return get<FileCleanupStatusResponse>("/api/maintenance/file-cleanup-status");
+}
+
+/**
+ * Get cache directory status for optional cleanup.
+ *
+ * These caches regenerate automatically and are safe to delete.
+ *
+ * @returns Cache directory sizes and info
+ */
+export async function getCacheStatus(): Promise<CacheStatusResponse> {
+  return get<CacheStatusResponse>("/api/maintenance/cache-status");
 }

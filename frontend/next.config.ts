@@ -6,6 +6,15 @@ const nextConfig: NextConfig = {
     // Next.js server will proxy requests to the backend
     // Note: We handle both with and without trailing slashes to avoid FastAPI redirects
     return [
+      // Health endpoints (not under /api prefix on backend)
+      {
+        source: "/health",
+        destination: "http://127.0.0.1:8000/health",
+      },
+      {
+        source: "/health/:path*",
+        destination: "http://127.0.0.1:8000/health/:path*",
+      },
       // Routes that need trailing slash (list endpoints)
       {
         source: "/api/capabilities/features",

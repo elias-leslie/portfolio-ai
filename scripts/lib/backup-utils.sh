@@ -25,16 +25,45 @@ export MAX_BACKUPS=30
 export DB_NAME="${DB_NAME:-portfolio_ai}"
 export DB_USER="${DB_USER:-portfolio_ai_user}"
 
-# Exclusions - only things that should NEVER be backed up (reproducible/cached)
+# Exclusions - things that should NEVER be backed up (reproducible/cached/redundant)
 BACKUP_EXCLUDES=(
+    # Virtual environments (reproducible via pip install)
     "backend/.venv"
+    "services/*/.venv"
+
+    # Frontend build artifacts (reproducible via npm install/build)
     "frontend/node_modules"
     "frontend/.next"
+    "frontend/playwright-report"
+    "frontend/test-results"
+
+    # Git (already version controlled separately)
     ".git"
+
+    # Python caches (regenerated automatically)
     ".mypy_cache"
+    "backend/.mypy_cache"
     "__pycache__"
     "*.pyc"
     "*.pyo"
+    "backend/.ruff_cache"
+    ".ruff_cache"
+    "backend/.pytest_cache"
+    ".pytest_cache"
+    "services/*/.pytest_cache"
+    "backend/pytestdebug.log"
+
+    # Redundant database backups (main backup already has database.sql.gz)
+    "./backups"
+    "./data/backups"
+    "backend/data/*.backup*"
+
+    # Claude transient data (memory snapshots not needed)
+    ".claude/backups/memory"
+    ".claude/plans"
+
+    # Evidence screenshots (6700+ files, 500MB - regenerable via /verify_it)
+    "data/artifacts"
 )
 
 # Logging functions

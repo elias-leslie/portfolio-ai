@@ -22,14 +22,22 @@ router = APIRouter(prefix="/api/maintenance", tags=["maintenance"])
 
 
 @router.post("/trigger/{task_name}")
-async def trigger_maintenance_task(task_name: str) -> TaskTriggerResponseDict:
+async def trigger_maintenance_task(
+    task_name: str,
+    dry_run: bool = False,
+    wait_for_result: bool = False,
+    timeout: int = 30,
+) -> TaskTriggerResponseDict:
     """Manually trigger a specific maintenance task.
 
     Args:
         task_name: Name of the task to trigger (e.g., 'cleanup_old_logs_task')
+        dry_run: If True, preview changes without executing (tasks that support it)
+        wait_for_result: If True, wait for task to complete and return result
+        timeout: Max seconds to wait for result (only if wait_for_result=True)
 
     Returns:
-        Dict with task_id and status
+        Dict with task_id, status, and optionally result (if wait_for_result)
 
     Raises:
         HTTPException: If task name is invalid or trigger fails
@@ -45,6 +53,9 @@ async def trigger_maintenance_task(task_name: str) -> TaskTriggerResponseDict:
         "cleanup_old_backups_task",
         "cleanup_old_models_task",
         "cleanup_solution_state_task",
+        "cleanup_cache_directories_task",  # Manual-only: Python/Next.js/Claude caches
+        "cleanup_old_versions",  # Artifact version cleanup (keep 5 per criterion)
+        "cleanup_debug_captures",  # Debug screenshot cleanup (>7 days)
         "check_disk_space_task",
         "get_database_size_task",
         "rotate_logs_task",
@@ -56,22 +67,48 @@ async def trigger_maintenance_task(task_name: str) -> TaskTriggerResponseDict:
             detail=f"Invalid task name. Valid tasks: {', '.join(valid_tasks)}",
         )
 
+    # Only these tasks support dry_run parameter
+    tasks_with_dry_run = {
+        "cleanup_cache_directories_task",
+        "cleanup_old_versions",
+        "cleanup_debug_captures",
+    }
+
     try:
-        # Trigger the Celery task
-        task = celery_app.send_task(task_name)
+        # Build kwargs for task - only pass dry_run for tasks that support it
+        kwargs = {}
+        if dry_run and task_name in tasks_with_dry_run:
+            kwargs["dry_run"] = True
+
+        # Trigger the Celery task with optional kwargs
+        task = celery_app.send_task(task_name, kwargs=kwargs if kwargs else None)
 
         logger.info(
             "maintenance_task_triggered",
             task_name=task_name,
             task_id=task.id,
+            dry_run=dry_run,
         )
 
-        return {
+        response: TaskTriggerResponseDict = {
             "task_id": task.id,
             "task_name": task_name,
             "status": "triggered",
-            "message": f"Task {task_name} has been triggered successfully",
+            "message": f"Task {task_name} has been triggered{' (dry run)' if dry_run else ''}",
         }
+
+        # Optionally wait for result (useful for dry-run previews)
+        if wait_for_result:
+            try:
+                result = task.get(timeout=timeout)
+                response["status"] = "completed"
+                response["result"] = result
+                response["message"] = f"Task {task_name} completed{' (dry run)' if dry_run else ''}"
+            except TimeoutError:
+                response["status"] = "timeout"
+                response["message"] = f"Task {task_name} is still running after {timeout}s"
+
+        return response
 
     except Exception as e:
         logger.error(

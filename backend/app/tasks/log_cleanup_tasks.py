@@ -780,3 +780,210 @@ def cleanup_solution_state_task(self: Task, keep_days: int = 14) -> dict[str, in
             "success": False,
             "duration_seconds": round(duration, 2),
         }
+
+
+@celery_app.task(name="cleanup_cache_directories_task", bind=True)
+def cleanup_cache_directories_task(self: Task, dry_run: bool = False) -> dict[str, Any]:
+    """Clean up development cache directories to free disk space.
+
+    This is an OPTIONAL manual task - not scheduled by default.
+    Safe to run anytime as caches regenerate automatically.
+
+    Targets:
+    - backend/__pycache__ (recursive)
+    - backend/.ruff_cache
+    - backend/.pytest_cache
+    - backend/.mypy_cache
+    - frontend/.next/cache (NOT .next/server)
+    - .claude/backups/memory (Claude transient memory)
+    - services/*/__pycache__ (recursive)
+
+    Args:
+        dry_run: If True, only report what would be deleted
+
+    Returns:
+        Dict with directories_cleaned, files_deleted, bytes_freed, duration_seconds
+    """
+    task_id = self.request.id
+    start_time = dt.datetime.now(dt.UTC)
+
+    logger.info("cleanup_cache_directories_started", task_id=task_id, dry_run=dry_run)
+
+    try:
+        directories_cleaned = 0
+        files_deleted = 0
+        bytes_freed = 0
+        details: list[dict[str, Any]] = []
+
+        # Project root
+        project_root = Path(__file__).parent.parent.parent.parent
+
+        # Define cache targets with their cleanup strategy
+        cache_targets = [
+            # Python caches (recursive __pycache__ cleanup)
+            {
+                "name": "Python bytecode cache",
+                "path": project_root / "backend",
+                "pattern": "__pycache__",
+                "recursive": True,
+            },
+            {
+                "name": "Services Python cache",
+                "path": project_root / "services",
+                "pattern": "__pycache__",
+                "recursive": True,
+            },
+            # Linter/test caches (single directories)
+            {
+                "name": "Ruff cache",
+                "path": project_root / "backend" / ".ruff_cache",
+                "pattern": None,
+                "recursive": False,
+            },
+            {
+                "name": "Pytest cache",
+                "path": project_root / "backend" / ".pytest_cache",
+                "pattern": None,
+                "recursive": False,
+            },
+            {
+                "name": "Mypy cache",
+                "path": project_root / "backend" / ".mypy_cache",
+                "pattern": None,
+                "recursive": False,
+            },
+            # Frontend cache (only .next/cache, not server)
+            {
+                "name": "Next.js cache",
+                "path": project_root / "frontend" / ".next" / "cache",
+                "pattern": None,
+                "recursive": False,
+            },
+            # Claude transient memory
+            {
+                "name": "Claude memory backups",
+                "path": project_root / ".claude" / "backups" / "memory",
+                "pattern": None,
+                "recursive": False,
+            },
+        ]
+
+        for target in cache_targets:
+            target_name = str(target["name"])
+            target_path: Path = target["path"]  # type: ignore[assignment]
+            pattern = target["pattern"]
+            recursive = target["recursive"]
+
+            if not target_path.exists():
+                logger.debug("cache_target_not_found", target=target_name, path=str(target_path))
+                continue
+
+            try:
+                if recursive and pattern:
+                    # Find all matching directories recursively
+                    dirs_to_clean = list(target_path.rglob(pattern))
+                else:
+                    # Single directory
+                    dirs_to_clean = [target_path] if target_path.is_dir() else []
+
+                for cache_dir in dirs_to_clean:
+                    if not cache_dir.is_dir():
+                        continue
+
+                    # Calculate size before deletion
+                    dir_size = sum(f.stat().st_size for f in cache_dir.rglob("*") if f.is_file())
+                    file_count = sum(1 for f in cache_dir.rglob("*") if f.is_file())
+
+                    if dry_run:
+                        details.append({
+                            "name": target_name,
+                            "path": str(cache_dir),
+                            "size_bytes": dir_size,
+                            "file_count": file_count,
+                            "action": "would_delete",
+                        })
+                    else:
+                        # Delete directory
+                        shutil.rmtree(cache_dir)
+                        details.append({
+                            "name": target_name,
+                            "path": str(cache_dir),
+                            "size_bytes": dir_size,
+                            "file_count": file_count,
+                            "action": "deleted",
+                        })
+                        logger.info(
+                            "cache_directory_cleaned",
+                            name=target_name,
+                            path=str(cache_dir),
+                            size_bytes=dir_size,
+                            file_count=file_count,
+                        )
+
+                    directories_cleaned += 1
+                    files_deleted += file_count
+                    bytes_freed += dir_size
+
+            except Exception as target_error:
+                logger.error(
+                    "cache_cleanup_target_failed",
+                    target=target_name,
+                    path=str(target_path),
+                    error=str(target_error),
+                )
+                details.append({
+                    "name": target_name,
+                    "path": str(target_path),
+                    "action": "error",
+                    "error": str(target_error),
+                })
+
+        # Store metric in maintenance_stats (only if not dry run)
+        if bytes_freed > 0 and not dry_run:
+            storage = get_connection_manager()
+            with storage.connection() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO maintenance_stats (metric_name, metric_value, metric_unit)
+                    VALUES (%s, %s, %s)
+                    """,
+                    ["cache_cleanup_bytes_freed", bytes_freed, "bytes"],
+                )
+                conn.commit()
+
+        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+
+        result: dict[str, Any] = {
+            "task_id": task_id,
+            "dry_run": dry_run,
+            "directories_cleaned": directories_cleaned,
+            "files_deleted": files_deleted,
+            "bytes_freed": bytes_freed,
+            "bytes_freed_mb": round(bytes_freed / (1024 * 1024), 2),
+            "details": details,
+            "duration_seconds": round(duration, 2),
+            "success": True,
+        }
+
+        logger.info(
+            "cleanup_cache_directories_completed",
+            **{k: v for k, v in result.items() if k != "details"},
+        )
+        return result
+
+    except Exception as e:
+        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        logger.error(
+            "cleanup_cache_directories_failed",
+            task_id=task_id,
+            error=str(e),
+            error_type=type(e).__name__,
+            duration_seconds=round(duration, 2),
+        )
+        return {
+            "task_id": task_id,
+            "dry_run": dry_run,
+            "error": str(e),
+            "success": False,
+            "duration_seconds": round(duration, 2),
+        }

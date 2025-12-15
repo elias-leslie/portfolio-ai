@@ -36,7 +36,7 @@ import { APIQuotasCard } from "@/components/status/APIQuotasCard";
 import { LogsCard } from "@/components/status/LogsCard";
 import { SourceQualityCard } from "@/components/status/SourceQualityCard";
 import { MLModelCard } from "@/components/status/MLModelCard";
-import { UnifiedMaintenanceCard } from "@/components/status/UnifiedMaintenanceCard";
+import { MaintenanceTable } from "@/components/status/MaintenanceTable";
 import { TableFreshnessCard } from "@/components/status/TableFreshnessCard";
 import { APIKeysCard } from "@/components/status/APIKeysCard";
 import { ExpandableCard } from "@/components/status/ExpandableCard";
@@ -619,7 +619,7 @@ export default function StatusPage() {
                 </div>
             </SectionCard>
 
-            <UnifiedMaintenanceCard />
+            <MaintenanceTable />
 
             <SectionCard
                 variant="surface"

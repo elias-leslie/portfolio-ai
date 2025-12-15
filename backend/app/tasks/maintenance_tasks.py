@@ -273,7 +273,7 @@ def cleanup_old_agent_runs_task(self: Task, days: int = 30) -> dict[str, int | s
             result = conn.execute(
                 """
                 SELECT id FROM agent_runs
-                WHERE created_at < %s
+                WHERE started_at < %s
                 """,
                 [cutoff_date],
             ).fetchall()

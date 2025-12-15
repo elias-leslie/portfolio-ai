@@ -126,3 +126,105 @@ def cleanup_old_versions(
     )
 
     return result
+
+
+@shared_task(name="cleanup_debug_captures")
+def cleanup_debug_captures(
+    max_age_days: int = 7, dry_run: bool = False
+) -> dict[str, int | str | bool]:
+    """Delete old debug capture directories (DBG-* pattern).
+
+    These are ad-hoc screenshot captures that don't need long retention.
+
+    Args:
+        max_age_days: Delete captures older than N days (default: 7)
+        dry_run: If True, only report what would be deleted
+
+    Returns:
+        Summary dict with deleted count and size
+    """
+    import re
+    import shutil
+    from datetime import datetime, timedelta
+    from pathlib import Path
+
+    logger.info(
+        "cleanup_debug_captures_started",
+        max_age_days=max_age_days,
+        dry_run=dry_run,
+    )
+
+    artifacts_dir = Path("/home/kasadis/portfolio-ai/data/artifacts")
+    cutoff_date = datetime.now() - timedelta(days=max_age_days)
+
+    deleted_count = 0
+    deleted_size = 0
+    errors = []
+
+    # Match directory names like DBG-1213-222150 (MMDD-HHMMSS format)
+    dbg_pattern = re.compile(r"^DBG-(\d{4})-(\d{4,6})$")
+
+    for entry in artifacts_dir.iterdir():
+        if not entry.is_dir():
+            continue
+
+        match = dbg_pattern.match(entry.name)
+        if not match:
+            continue
+
+        # Parse date from directory name (format: DBG-MMDD-HHMMSS)
+        mmdd = match.group(1)
+        try:
+            # Assume current year
+            year = datetime.now().year
+            month = int(mmdd[:2])
+            day = int(mmdd[2:4])
+            capture_date = datetime(year, month, day)
+
+            # Handle year boundary (December captures in January)
+            if capture_date > datetime.now():
+                capture_date = datetime(year - 1, month, day)
+
+            if capture_date < cutoff_date:
+                # Calculate size
+                dir_size = sum(
+                    f.stat().st_size for f in entry.rglob("*") if f.is_file()
+                )
+
+                if dry_run:
+                    logger.info(
+                        "would_delete_debug_capture",
+                        path=str(entry),
+                        size_bytes=dir_size,
+                        capture_date=capture_date.isoformat(),
+                    )
+                else:
+                    shutil.rmtree(entry)
+                    logger.info(
+                        "deleted_debug_capture",
+                        path=str(entry),
+                        size_bytes=dir_size,
+                        capture_date=capture_date.isoformat(),
+                    )
+
+                deleted_count += 1
+                deleted_size += dir_size
+
+        except (ValueError, OSError) as e:
+            errors.append({"path": str(entry), "error": str(e)})
+            logger.error("cleanup_debug_capture_error", path=str(entry), error=str(e))
+
+    logger.info(
+        "cleanup_debug_captures_completed",
+        deleted_count=deleted_count,
+        deleted_size_bytes=deleted_size,
+        dry_run=dry_run,
+        error_count=len(errors),
+    )
+
+    return {
+        "deleted_count": deleted_count,
+        "deleted_size_bytes": deleted_size,
+        "dry_run": dry_run,
+        "errors": errors,
+    }

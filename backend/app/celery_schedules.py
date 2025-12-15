@@ -910,6 +910,16 @@ def get_beat_schedule() -> dict[str, object]:
             # - Keeps last 5 versions per feature/criterion
             # - Runs after refresh task completes
         },
+        "cleanup-debug-captures": {
+            "task": "cleanup_debug_captures",
+            "schedule": crontab(hour=6, minute=15),  # Daily at 06:15 UTC
+            "options": {"expires": 3600},
+            "kwargs": {"max_age_days": 7, "dry_run": False},
+            # Notes:
+            # - Deletes DBG-* debug capture directories older than 7 days
+            # - These are ad-hoc screenshots that don't need long retention
+            # - Runs after artifact version cleanup
+        },
         # ============================================================================
         # THESIS MONITORING & AUTOMATION (Task portfolio-ai-1ub)
         # ============================================================================

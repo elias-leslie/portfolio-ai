@@ -25,6 +25,13 @@ import {
   Download,
   Calendar,
   Clock,
+  Zap,
+  Cpu,
+  MemoryStick,
+  Camera,
+  Users,
+  ServerCrash,
+  FileX,
 } from "lucide-react";
 import { ExpandableCard } from "@/components/status/ExpandableCard";
 import { ServiceActionDialog } from "./ServiceActionDialog";
@@ -39,6 +46,7 @@ import {
   getMaintenanceDatabaseSize,
   getMaintenanceSchedule,
   checkBackupRequirements,
+  getCacheStatus,
   type FileCleanupStatusResponse,
   type FileCleanupInfo,
   type MaintenanceResult,
@@ -47,6 +55,7 @@ import {
   type DatabaseSizeResponse,
   type MaintenanceScheduleResponse,
   type BackupRequirementCheck,
+  type CacheStatusResponse,
 } from "@/lib/api/maintenance";
 import { toast } from "sonner";
 
@@ -166,6 +175,7 @@ export function UnifiedMaintenanceCard() {
   const [dbSize, setDbSize] = useState<DatabaseSizeResponse | null>(null);
   const [schedule, setSchedule] = useState<MaintenanceScheduleResponse | null>(null);
   const [backupCheck, setBackupCheck] = useState<BackupRequirementCheck | null>(null);
+  const [cacheStatus, setCacheStatus] = useState<CacheStatusResponse | null>(null);
 
   // UI state
   const [isLoading, setIsLoading] = useState(true);
@@ -187,18 +197,20 @@ export function UnifiedMaintenanceCard() {
   // Fetch all data
   const fetchAllData = useCallback(async () => {
     try {
-      const [fileData, lastRun, diskData, dbData, scheduleData] = await Promise.all([
+      const [fileData, lastRun, diskData, dbData, scheduleData, cacheData] = await Promise.all([
         getFileCleanupStatus(),
         getMaintenanceLastRun(),
         getMaintenanceDiskSpace(),
         getMaintenanceDatabaseSize(),
         getMaintenanceSchedule(),
+        getCacheStatus(),
       ]);
       setFileCleanup(fileData);
       setLastRunSummary(lastRun);
       setDiskSpace(diskData);
       setDbSize(dbData);
       setSchedule(scheduleData);
+      setCacheStatus(cacheData);
     } catch (error) {
       console.error("Failed to fetch maintenance data:", error);
       toast.error("Failed to load maintenance data");
@@ -251,13 +263,46 @@ export function UnifiedMaintenanceCard() {
     fetchAllData();
   };
 
-  // File cleanup trigger handler
+  // State for task results dialog
+  const [taskResultOpen, setTaskResultOpen] = useState(false);
+  const [taskResult, setTaskResult] = useState<{
+    taskName: string;
+    dryRun: boolean;
+    result: Record<string, unknown> | null;
+  } | null>(null);
+
+  // File cleanup trigger handler with dry-run support
   const handleFileCleanupTrigger = async (taskName: string) => {
     setTriggeringTask(taskName);
     try {
-      const result = await triggerMaintenanceTask(taskName);
-      toast.success(result.message);
-      setTimeout(fetchAllData, 2000);
+      const result = await triggerMaintenanceTask(taskName, {
+        dryRun,
+        waitForResult: true,
+        timeout: 60,
+      });
+
+      if (result.result) {
+        // Show results dialog for dry-run or completed tasks
+        setTaskResult({
+          taskName,
+          dryRun,
+          result: result.result as Record<string, unknown>,
+        });
+        setTaskResultOpen(true);
+      }
+
+      const isDry = dryRun ? " (dry run)" : "";
+      if (result.status === "completed") {
+        toast.success(`${taskName}${isDry}: ${result.message}`);
+      } else if (result.status === "timeout") {
+        toast.warning(`${taskName}${isDry}: Still running...`);
+      } else {
+        toast.success(result.message);
+      }
+
+      if (!dryRun) {
+        setTimeout(fetchAllData, 2000);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to trigger task";
       toast.error(`Failed to trigger ${taskName}: ${message}`);
@@ -410,14 +455,11 @@ export function UnifiedMaintenanceCard() {
     return `${mb.toFixed(2)} MB`;
   };
 
-  // Summary text
+  // Summary text - simplified since System Status shows details
   const getSummary = () => {
     if (isLoading) return "Loading...";
-    const parts = [];
-    if (fileCleanup) parts.push(`Files: ${formatSize(fileCleanup.total_size_mb)}`);
-    if (dbSize) parts.push(`DB: ${formatSize(dbSize.database_size_mb)}`);
-    if (diskSpace?.alerts?.length) parts.push(`⚠️ ${diskSpace.alerts.length} disk alert(s)`);
-    return parts.join(" • ") || "Ready";
+    if (diskSpace?.alerts?.length) return `⚠️ ${diskSpace.alerts.length} disk alert(s)`;
+    return "Ready";
   };
 
   const getDiskStatusVariant = (percentage: number): "default" | "secondary" | "destructive" => {
@@ -499,50 +541,30 @@ export function UnifiedMaintenanceCard() {
           </div>
         ) : (
           <div className="space-y-2">
-            {/* System Status Section */}
+            {/* System Status Section - Overview */}
             <SectionHeader title="System Status" icon={<HardDrive className="h-4 w-4 text-muted-foreground" />} />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Disk Usage */}
-              <Card className="p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-medium">Disk Usage</span>
-                  {diskSpace?.alerts && diskSpace.alerts.length > 0 && (
-                    <Badge variant="destructive" className="text-xs">
-                      {diskSpace.alerts.length} alert(s)
-                    </Badge>
-                  )}
+            <Card className="p-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold">{formatSize(fileCleanup?.total_size_mb || 0)}</div>
+                  <div className="text-xs text-muted-foreground">Managed Files</div>
                 </div>
-                <div className="space-y-2">
-                  {diskSpace?.partitions.slice(0, 2).map((p) => (
-                    <div key={p.path} className="space-y-1">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">{p.path}</span>
-                        <Badge variant={getDiskStatusVariant(p.used_percentage)} className="text-xs">
-                          {p.used_percentage.toFixed(0)}%
-                        </Badge>
-                      </div>
-                      <Progress value={p.used_percentage} className="h-1.5" />
-                    </div>
-                  ))}
+                <div className="text-center">
+                  <div className="text-2xl font-bold">{formatSize(dbSize?.database_size_mb || 0)}</div>
+                  <div className="text-xs text-muted-foreground">Database</div>
                 </div>
-              </Card>
-
-              {/* Database Size */}
-              <Card className="p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-medium">Database</span>
-                  <span className="text-lg font-bold">{formatSize(dbSize?.database_size_mb || 0)}</span>
+                <div className="text-center">
+                  <div className="text-2xl font-bold">{formatSize(cacheStatus?.total_size_mb || 0)}</div>
+                  <div className="text-xs text-muted-foreground">Dev Caches</div>
                 </div>
-                <div className="space-y-1 text-sm">
-                  {dbSize?.top_tables.slice(0, 3).map((t) => (
-                    <div key={t.table} className="flex justify-between text-muted-foreground">
-                      <span className="truncate">{t.table}</span>
-                      <span className="font-mono">{t.size_pretty}</span>
-                    </div>
-                  ))}
+                <div className="text-center">
+                  <div className="text-2xl font-bold">
+                    {diskSpace?.partitions?.[0]?.used_percentage?.toFixed(0) || "—"}%
+                  </div>
+                  <div className="text-xs text-muted-foreground">Disk Used</div>
                 </div>
-              </Card>
-            </div>
+              </div>
+            </Card>
 
             {/* File Cleanup Section */}
             <SectionHeader title="File Cleanup" icon={<FolderOpen className="h-4 w-4 text-muted-foreground" />} />
@@ -594,6 +616,109 @@ export function UnifiedMaintenanceCard() {
                 schedule={fileCleanup?.solution_state?.schedule}
                 onTrigger={() => handleFileCleanupTrigger("cleanup_solution_state_task")}
                 isTriggering={triggeringTask === "cleanup_solution_state_task"}
+              />
+            </div>
+
+            {/* Cache Cleanup Section (Optional/Manual) */}
+            <SectionHeader title="Cache Cleanup (Optional)" icon={<Zap className="h-4 w-4 text-muted-foreground" />} />
+            <Card className="p-4">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Zap className="h-5 w-5 text-yellow-500" />
+                    <span className="font-medium">Development Caches</span>
+                    <Badge variant="outline" className="text-xs">Manual only</Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Python bytecode, linter caches, and build caches. Safe to delete - they regenerate automatically.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleFileCleanupTrigger("cleanup_cache_directories_task")}
+                  disabled={triggeringTask === "cleanup_cache_directories_task"}
+                  title="Clean all development caches"
+                >
+                  {triggeringTask === "cleanup_cache_directories_task" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+              {cacheStatus && cacheStatus.directories.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm font-medium border-b pb-2">
+                    <span>Total: {formatSize(cacheStatus.total_size_mb)}</span>
+                    <span>{cacheStatus.total_file_count.toLocaleString()} files</span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {cacheStatus.directories.filter(d => d.size_mb > 0).map((dir) => (
+                      <div key={dir.path} className="text-xs border rounded p-2">
+                        <div className="font-medium truncate" title={dir.name}>{dir.name}</div>
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>{formatSize(dir.size_mb)}</span>
+                          <span>{dir.file_count.toLocaleString()} files</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {cacheStatus.directories.every(d => d.size_mb === 0) && (
+                    <div className="text-sm text-muted-foreground text-center py-2">
+                      All caches are empty
+                    </div>
+                  )}
+                </div>
+              )}
+            </Card>
+
+            {/* Data Cleanup Section */}
+            <SectionHeader title="Data Cleanup" icon={<Trash2 className="h-4 w-4 text-muted-foreground" />} />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <MaintenanceItem
+                title="Old Agent Runs"
+                icon={<Users className="h-5 w-5 text-indigo-500" />}
+                metrics={[
+                  { label: "Retention", value: "30 days" },
+                ]}
+                badge={{ text: "Weekly" }}
+                schedule="Sunday 04:15 UTC"
+                onTrigger={() => handleFileCleanupTrigger("cleanup_old_agent_runs_task")}
+                isTriggering={triggeringTask === "cleanup_old_agent_runs_task"}
+              />
+              <MaintenanceItem
+                title="Orphaned Data"
+                icon={<ServerCrash className="h-5 w-5 text-red-500" />}
+                metrics={[
+                  { label: "Type", value: "Integrity fix" },
+                ]}
+                badge={{ text: "Weekly" }}
+                schedule="Sunday 04:30 UTC"
+                onTrigger={() => handleFileCleanupTrigger("cleanup_orphaned_data_task")}
+                isTriggering={triggeringTask === "cleanup_orphaned_data_task"}
+              />
+              <MaintenanceItem
+                title="Temp Files"
+                icon={<FileX className="h-5 w-5 text-gray-500" />}
+                metrics={[
+                  { label: "Retention", value: "24 hours" },
+                ]}
+                badge={{ text: "Daily" }}
+                schedule="Daily 02:15 UTC"
+                onTrigger={() => handleFileCleanupTrigger("cleanup_temp_files_task")}
+                isTriggering={triggeringTask === "cleanup_temp_files_task"}
+              />
+              <MaintenanceItem
+                title="Evidence Artifacts"
+                icon={<Camera className="h-5 w-5 text-cyan-500" />}
+                metrics={[
+                  { label: "Keep", value: "5 versions" },
+                ]}
+                badge={{ text: "Daily" }}
+                schedule="Daily 06:00 UTC"
+                onTrigger={() => handleFileCleanupTrigger("cleanup_old_versions")}
+                isTriggering={triggeringTask === "cleanup_old_versions"}
               />
             </div>
 
@@ -684,6 +809,59 @@ export function UnifiedMaintenanceCard() {
           onConfirm={actionDialogConfig.onConfirm}
           storageKey={actionDialogConfig.storageKey}
         />
+      )}
+
+      {/* Task Results Dialog */}
+      {taskResult && (
+        <ServiceActionDialog
+          open={taskResultOpen}
+          onOpenChange={setTaskResultOpen}
+          title={`${taskResult.dryRun ? "Dry Run Preview" : "Task Complete"}: ${taskResult.taskName.replace(/_/g, " ")}`}
+          description={taskResult.dryRun ? "No changes were made. Review what would happen below." : "Task completed. See results below."}
+          actionLabel="Done"
+          onConfirm={() => setTaskResultOpen(false)}
+        >
+          <div className="my-4 max-h-80 overflow-auto border rounded p-3 bg-muted/30">
+            <div className="space-y-2 text-sm">
+              {taskResult.result && Object.entries(taskResult.result).map(([key, value]) => {
+                // Skip task_id and internal fields
+                if (key === "task_id" || key === "success") return null;
+                // Handle details array specially
+                if (key === "details" && Array.isArray(value) && value.length > 0) {
+                  return (
+                    <details key={key} className="border rounded p-2 bg-background">
+                      <summary className="cursor-pointer font-medium">
+                        Details ({value.length} items)
+                      </summary>
+                      <div className="mt-2 space-y-1 pl-2 max-h-40 overflow-auto">
+                        {value.slice(0, 50).map((item, idx) => (
+                          <div key={idx} className="text-xs text-muted-foreground font-mono truncate">
+                            {typeof item === "object" ? JSON.stringify(item) : String(item)}
+                          </div>
+                        ))}
+                        {value.length > 50 && (
+                          <div className="text-xs text-muted-foreground italic">
+                            ... and {value.length - 50} more
+                          </div>
+                        )}
+                      </div>
+                    </details>
+                  );
+                }
+                // Skip empty details arrays
+                if (key === "details" && Array.isArray(value) && value.length === 0) return null;
+                return (
+                  <div key={key} className="flex justify-between py-1 border-b border-border/30 last:border-0">
+                    <span className="text-muted-foreground capitalize">{key.replace(/_/g, " ")}:</span>
+                    <span className="font-mono font-medium">
+                      {typeof value === "boolean" ? (value ? "Yes" : "No") : String(value)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </ServiceActionDialog>
       )}
     </>
   );

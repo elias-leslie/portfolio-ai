@@ -203,3 +203,42 @@ export async function fetchServiceLogs(
 export async function fetchTableFreshness(): Promise<TableFreshnessResponse> {
   return get<TableFreshnessResponse>("/api/status/table-freshness");
 }
+
+// System Resources Types
+export interface ResourceUsage {
+  total_gb: number;
+  used_gb: number;
+  free_gb?: number;
+  available_gb?: number;
+  percent_used: number;
+  status: "ok" | "warning" | "critical";
+}
+
+export interface CpuUsage {
+  percent_used: number;
+  cores: number;
+  status: "ok" | "warning" | "critical";
+}
+
+export interface DatabasePoolUsage {
+  pool_size: number;
+  checked_out: number;
+  overflow: number;
+  percent_used: number;
+  status: "ok" | "warning" | "critical";
+}
+
+export interface SystemResourcesResponse {
+  disk: ResourceUsage;
+  memory: ResourceUsage;
+  cpu: CpuUsage;
+  database_pool: DatabasePoolUsage;
+  timestamp: string;
+}
+
+/**
+ * Fetch system resource usage (CPU, memory, disk, database pool)
+ */
+export async function fetchSystemResources(): Promise<SystemResourcesResponse> {
+  return get<SystemResourcesResponse>("/api/status/resources");
+}

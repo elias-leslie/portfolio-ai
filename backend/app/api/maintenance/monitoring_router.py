@@ -353,3 +353,164 @@ async def get_file_cleanup_status() -> FileCleanupStatusResponse:
             status_code=500,
             detail=f"Failed to get file cleanup status: {e!s}",
         ) from e
+
+
+class CacheDirectoryInfo(TypedDict):
+    """Info about a cache directory."""
+
+    name: str
+    path: str
+    size_mb: float
+    file_count: int
+    description: str
+
+
+class CacheStatusResponse(TypedDict):
+    """Response for cache status endpoint."""
+
+    directories: list[CacheDirectoryInfo]
+    total_size_mb: float
+    total_file_count: int
+
+
+def _get_cache_dir_info(path: Path, name: str, description: str) -> CacheDirectoryInfo:
+    """Get info about a cache directory, handling recursive patterns."""
+    if not path.exists():
+        return {
+            "name": name,
+            "path": str(path),
+            "size_mb": 0.0,
+            "file_count": 0,
+            "description": description,
+        }
+
+    total_bytes = 0
+    file_count = 0
+
+    for f in path.rglob("*"):
+        if f.is_file() and not f.is_symlink():
+            try:
+                total_bytes += f.stat().st_size
+                file_count += 1
+            except (OSError, FileNotFoundError):
+                pass  # Skip files we can't access
+
+    return {
+        "name": name,
+        "path": str(path),
+        "size_mb": round(total_bytes / (1024 * 1024), 2),
+        "file_count": file_count,
+        "description": description,
+    }
+
+
+def _count_pycache_recursive(base_path: Path) -> tuple[float, int]:
+    """Count all __pycache__ dirs under a path."""
+    total_bytes = 0
+    file_count = 0
+
+    if not base_path.exists():
+        return 0.0, 0
+
+    for pycache_dir in base_path.rglob("__pycache__"):
+        if pycache_dir.is_dir():
+            for f in pycache_dir.iterdir():
+                if f.is_file():
+                    try:
+                        total_bytes += f.stat().st_size
+                        file_count += 1
+                    except (OSError, FileNotFoundError):
+                        pass
+
+    return round(total_bytes / (1024 * 1024), 2), file_count
+
+
+@router.get("/cache-status")
+async def get_cache_status() -> CacheStatusResponse:
+    """Get sizes for all cache directories that can be cleaned.
+
+    These caches regenerate automatically and are safe to delete.
+
+    Returns:
+        Dict with cache directory info and totals
+
+    Raises:
+        HTTPException: If status retrieval fails
+    """
+    try:
+        project_root = Path(__file__).parent.parent.parent.parent.parent
+        backend_root = Path(__file__).parent.parent.parent.parent
+
+        directories: list[CacheDirectoryInfo] = []
+
+        # Python __pycache__ (backend)
+        backend_pycache_size, backend_pycache_count = _count_pycache_recursive(backend_root)
+        directories.append({
+            "name": "Python Bytecode (backend)",
+            "path": str(backend_root / "__pycache__"),
+            "size_mb": backend_pycache_size,
+            "file_count": backend_pycache_count,
+            "description": "Compiled Python files, regenerate on import",
+        })
+
+        # Python __pycache__ (services)
+        services_path = project_root / "services"
+        services_pycache_size, services_pycache_count = _count_pycache_recursive(services_path)
+        directories.append({
+            "name": "Python Bytecode (services)",
+            "path": str(services_path / "__pycache__"),
+            "size_mb": services_pycache_size,
+            "file_count": services_pycache_count,
+            "description": "Compiled Python files, regenerate on import",
+        })
+
+        # Ruff cache
+        ruff_path = backend_root / ".ruff_cache"
+        directories.append(_get_cache_dir_info(
+            ruff_path, "Ruff Linter Cache", "Ruff analysis cache, regenerates on lint"
+        ))
+
+        # Pytest cache
+        pytest_path = backend_root / ".pytest_cache"
+        directories.append(_get_cache_dir_info(
+            pytest_path, "Pytest Cache", "Test execution cache, regenerates on test run"
+        ))
+
+        # Mypy cache
+        mypy_path = backend_root / ".mypy_cache"
+        directories.append(_get_cache_dir_info(
+            mypy_path, "Mypy Cache", "Type check cache, regenerates on mypy run"
+        ))
+
+        # Next.js cache (only .next/cache, not server)
+        nextjs_cache_path = project_root / "frontend" / ".next" / "cache"
+        directories.append(_get_cache_dir_info(
+            nextjs_cache_path, "Next.js Build Cache", "Webpack/build cache, regenerates on build"
+        ))
+
+        # Claude memory backups
+        claude_memory_path = project_root / ".claude" / "backups" / "memory"
+        directories.append(_get_cache_dir_info(
+            claude_memory_path, "Claude Memory Backups", "Transient Claude memory, not essential"
+        ))
+
+        # Calculate totals
+        total_size = sum(d["size_mb"] for d in directories)
+        total_count = sum(d["file_count"] for d in directories)
+
+        return {
+            "directories": directories,
+            "total_size_mb": round(total_size, 2),
+            "total_file_count": total_count,
+        }
+
+    except Exception as e:
+        logger.error(
+            "get_cache_status_failed",
+            error=str(e),
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get cache status: {e!s}",
+        ) from e

@@ -15,6 +15,7 @@ from __future__ import annotations
 # Import task modules (needed for Celery task registration in celery_app.py)
 from . import (
     agent_tasks,
+    artifact_tasks,  # Evidence capture cleanup
     capability_tasks,
     file_scan,
     ingestion,
@@ -46,6 +47,7 @@ from .watchlist_tasks import refresh_single_symbol_scores_task, refresh_watchlis
 __all__ = [
     # Modules
     "agent_tasks",
+    "artifact_tasks",
     # Individual tasks (backward compatibility)
     "backfill_technical_indicators",
     "calculate_fear_greed",
