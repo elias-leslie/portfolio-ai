@@ -1171,8 +1171,8 @@ export function MaintenanceTable() {
 
       {/* Batch Results Dialog (Run All) */}
       <Dialog open={batchResultsOpen} onOpenChange={setBatchResultsOpen}>
-        <DialogContent className="!max-w-[90vw] !w-[1400px] max-h-[90vh] flex flex-col">
-          <DialogHeader>
+        <DialogContent className="!max-w-[90vw] !w-[1400px] !h-[85vh] flex flex-col overflow-hidden">
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle className="text-xl">
               {dryRun ? "Maintenance Dry Run Report" : "Maintenance Execution Report"}
             </DialogTitle>
@@ -1184,7 +1184,7 @@ export function MaintenanceTable() {
             </DialogDescription>
           </DialogHeader>
 
-          <ScrollArea className="flex-1 min-h-0 pr-4">
+          <div className="flex-1 min-h-0 overflow-y-auto pr-2">
             <div className="space-y-4 py-4">
               {batchResults.map((result, idx) => (
                 <details
@@ -1217,7 +1217,7 @@ export function MaintenanceTable() {
                     )}
                   </summary>
 
-                  <div className="px-4 pb-4 max-h-[50vh] overflow-auto">
+                  <div className="px-4 pb-4">
                     {result.error && (
                       <div className="text-red-400 text-sm mb-2 font-mono">
                         Error: {result.error}
@@ -1231,9 +1231,9 @@ export function MaintenanceTable() {
                 </details>
               ))}
             </div>
-          </ScrollArea>
+          </div>
 
-          <DialogFooter className="border-t pt-4">
+          <DialogFooter className="flex-shrink-0 border-t pt-4">
             <Button variant="outline" onClick={() => setBatchResultsOpen(false)}>
               Close
             </Button>
