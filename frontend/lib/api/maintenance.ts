@@ -121,6 +121,22 @@ export interface BackupRequirementCheck {
   warnings: string[];
 }
 
+export interface FileCleanupInfo {
+  path: string;
+  size_mb: number;
+  file_count: number;
+  retention_policy: string;
+  schedule: string;
+}
+
+export interface FileCleanupStatusResponse {
+  logs: FileCleanupInfo;
+  backups: FileCleanupInfo;
+  models: FileCleanupInfo;
+  solution_state: FileCleanupInfo;
+  total_size_mb: number;
+}
+
 // API Functions
 
 /**
@@ -287,4 +303,13 @@ export async function getMaintenanceHistory(
   params.append("limit", limit.toString());
 
   return get<MaintenanceHistory>(`/api/maintenance/history?${params.toString()}`);
+}
+
+/**
+ * Get file cleanup status for all cleanup directories.
+ *
+ * @returns File cleanup status with sizes and retention policies
+ */
+export async function getFileCleanupStatus(): Promise<FileCleanupStatusResponse> {
+  return get<FileCleanupStatusResponse>("/api/maintenance/file-cleanup-status");
 }

@@ -6,7 +6,9 @@ database size, maintenance statistics, and scheduled task information.
 
 from __future__ import annotations
 
-from typing import Any, cast
+import re
+from pathlib import Path
+from typing import Any, TypedDict, cast
 
 from celery.schedules import (
     crontab as CrontabSchedule,  # noqa: N812 - Using CamelCase for isinstance checks
@@ -26,6 +28,26 @@ from ..maintenance_types import (
     DiskSpaceResponseDict,
     MaintenanceScheduleResponseDict,
 )
+
+
+class FileCleanupInfo(TypedDict):
+    """Info about a file cleanup category."""
+
+    path: str
+    size_mb: float
+    file_count: int
+    retention_policy: str
+    schedule: str
+
+
+class FileCleanupStatusResponse(TypedDict):
+    """Response for file cleanup status endpoint."""
+
+    logs: FileCleanupInfo
+    backups: FileCleanupInfo
+    models: FileCleanupInfo
+    solution_state: FileCleanupInfo
+    total_size_mb: float
 
 logger = get_logger(__name__)
 
@@ -187,4 +209,118 @@ async def get_maintenance_schedule() -> MaintenanceScheduleResponseDict:
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get maintenance schedule: {e!s}",
+        ) from e
+
+
+def _calculate_dir_size(path: Path, pattern: str = "*") -> tuple[float, int]:
+    """Calculate directory size and file count.
+
+    Args:
+        path: Directory path
+        pattern: Glob pattern for files to count
+
+    Returns:
+        Tuple of (size_mb, file_count)
+    """
+    if not path.exists():
+        return 0.0, 0
+
+    total_bytes = 0
+    file_count = 0
+
+    for f in path.glob(pattern):
+        if f.is_file() and not f.is_symlink():
+            total_bytes += f.stat().st_size
+            file_count += 1
+
+    return round(total_bytes / (1024 * 1024), 2), file_count
+
+
+@router.get("/file-cleanup-status")
+async def get_file_cleanup_status() -> FileCleanupStatusResponse:
+    """Get sizes and retention info for file cleanup directories.
+
+    Returns:
+        Dict with file cleanup status for logs, backups, models, solution_state
+
+    Raises:
+        HTTPException: If status retrieval fails
+    """
+    try:
+        # Base paths
+        project_root = Path(__file__).parent.parent.parent.parent.parent
+        backend_root = Path(__file__).parent.parent.parent.parent
+
+        # Logs directory
+        logs_path = backend_root / "logs"
+        logs_size, logs_count = _calculate_dir_size(logs_path, "*.log*")
+
+        # Backups directory
+        backups_path = project_root / "backups"
+        backups_sql_size, backups_sql_count = _calculate_dir_size(backups_path, "*.sql")
+        backups_gz_size, backups_gz_count = _calculate_dir_size(backups_path, "*.sql.gz")
+        backups_size = round(backups_sql_size + backups_gz_size, 2)
+        backups_count = backups_sql_count + backups_gz_count
+
+        # Models directory
+        models_path = backend_root / "models"
+        models_size, models_count = _calculate_dir_size(models_path, "*.joblib")
+
+        # Solution state directory
+        solution_path = project_root / "solution_state"
+        solution_size = 0.0
+        solution_count = 0
+        if solution_path.exists():
+            timestamp_pattern = re.compile(r"^\d{8}-\d{6}$")
+            for entry in solution_path.iterdir():
+                if entry.is_dir() and timestamp_pattern.match(entry.name):
+                    for f in entry.rglob("*"):
+                        if f.is_file():
+                            solution_size += f.stat().st_size / (1024 * 1024)
+                            solution_count += 1
+            solution_size = round(solution_size, 2)
+
+        total_size = round(logs_size + backups_size + models_size + solution_size, 2)
+
+        return {
+            "logs": {
+                "path": str(logs_path),
+                "size_mb": logs_size,
+                "file_count": logs_count,
+                "retention_policy": "Keep 7 days",
+                "schedule": "Daily 02:00 UTC",
+            },
+            "backups": {
+                "path": str(backups_path),
+                "size_mb": backups_size,
+                "file_count": backups_count,
+                "retention_policy": "Keep 5 most recent",
+                "schedule": "Weekly Sunday 04:45 UTC",
+            },
+            "models": {
+                "path": str(models_path),
+                "size_mb": models_size,
+                "file_count": models_count,
+                "retention_policy": "Keep 3 versions per model",
+                "schedule": "Weekly Sunday 05:00 UTC",
+            },
+            "solution_state": {
+                "path": str(solution_path),
+                "size_mb": solution_size,
+                "file_count": solution_count,
+                "retention_policy": "Keep 14 days",
+                "schedule": "Weekly Sunday 05:15 UTC",
+            },
+            "total_size_mb": total_size,
+        }
+
+    except Exception as e:
+        logger.error(
+            "get_file_cleanup_status_failed",
+            error=str(e),
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get file cleanup status: {e!s}",
         ) from e

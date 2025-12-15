@@ -121,9 +121,12 @@ def rotate_logs_task(self: Task) -> dict[str, int | str | float]:
 
     try:
         files_rotated = 0
+        # Backend logs directory (actual log location)
+        backend_logs = Path(__file__).parent.parent.parent / "logs"
         log_dirs = [
-            Path("/tmp"),
-            Path("/var/log/portfolio-ai"),
+            backend_logs,  # Primary: ~/portfolio-ai/backend/logs/
+            Path("/tmp"),  # Secondary: temp logs
+            Path("/var/log/portfolio-ai"),  # Legacy: system logs (if exists)
         ]
 
         for log_dir in log_dirs:
@@ -205,9 +208,12 @@ def cleanup_old_logs_task(self: Task, days: int = 7) -> dict[str, int | str | fl
         cutoff_time = dt.datetime.now(dt.UTC) - dt.timedelta(days=days)
         cutoff_timestamp = cutoff_time.timestamp()
 
+        # Backend logs directory (actual log location)
+        backend_logs = Path(__file__).parent.parent.parent / "logs"
         log_dirs = [
-            Path("/tmp"),
-            Path("/var/log/portfolio-ai"),
+            backend_logs,  # Primary: ~/portfolio-ai/backend/logs/
+            Path("/tmp"),  # Secondary: temp logs
+            Path("/var/log/portfolio-ai"),  # Legacy: system logs (if exists)
         ]
 
         for log_dir in log_dirs:
@@ -412,6 +418,357 @@ def check_disk_space_task(self: Task) -> dict[str, int | str | float | list[dict
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
         logger.error(
             "check_disk_space_failed",
+            task_id=task_id,
+            error=str(e),
+            error_type=type(e).__name__,
+            duration_seconds=round(duration, 2),
+        )
+        return {
+            "task_id": task_id,
+            "error": str(e),
+            "success": False,
+            "duration_seconds": round(duration, 2),
+        }
+
+
+@celery_app.task(name="cleanup_old_backups_task", bind=True)
+def cleanup_old_backups_task(self: Task, keep_count: int = 5) -> dict[str, int | str | float]:
+    """Delete old backup files, keeping N most recent.
+
+    Args:
+        keep_count: Number of recent backups to keep (default: 5)
+
+    Returns:
+        Dict with task_id, files_deleted, bytes_freed, duration_seconds, success status
+    """
+    task_id = self.request.id
+    start_time = dt.datetime.now(dt.UTC)
+
+    logger.info("cleanup_old_backups_started", task_id=task_id, keep_count=keep_count)
+
+    try:
+        files_deleted = 0
+        bytes_freed = 0
+
+        # Backups directory
+        backup_dir = Path(__file__).parent.parent.parent.parent / "backups"
+
+        if not backup_dir.exists():
+            logger.warning("backup_directory_not_found", directory=str(backup_dir))
+            return {
+                "task_id": task_id,
+                "files_deleted": 0,
+                "bytes_freed": 0,
+                "message": "Backup directory not found",
+                "success": True,
+                "duration_seconds": 0.0,
+            }
+
+        # Find all backup files (SQL dumps)
+        backup_patterns = ["*.sql", "*.sql.gz", "*.sql.bz2"]
+        backup_files: list[tuple[Path, float]] = []
+
+        for pattern in backup_patterns:
+            for f in backup_dir.glob(pattern):
+                if f.is_file():
+                    backup_files.append((f, f.stat().st_mtime))
+
+        # Sort by modification time (newest first)
+        backup_files.sort(key=lambda x: x[1], reverse=True)
+
+        # Delete files beyond keep_count
+        for file_path, _ in backup_files[keep_count:]:
+            try:
+                file_size = file_path.stat().st_size
+                file_path.unlink()
+                files_deleted += 1
+                bytes_freed += file_size
+                logger.info(
+                    "backup_file_deleted",
+                    file=str(file_path),
+                    size_bytes=file_size,
+                )
+            except Exception as file_error:
+                logger.error(
+                    "backup_deletion_failed",
+                    file=str(file_path),
+                    error=str(file_error),
+                )
+
+        # Store metric in maintenance_stats
+        if bytes_freed > 0:
+            storage = get_connection_manager()
+            with storage.connection() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO maintenance_stats (metric_name, metric_value, metric_unit)
+                    VALUES (%s, %s, %s)
+                    """,
+                    ["backup_cleanup_bytes_freed", bytes_freed, "bytes"],
+                )
+                conn.commit()
+
+        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+
+        result = {
+            "task_id": task_id,
+            "files_deleted": files_deleted,
+            "bytes_freed": bytes_freed,
+            "bytes_freed_mb": round(bytes_freed / (1024 * 1024), 2),
+            "keep_count": keep_count,
+            "total_backups": len(backup_files),
+            "duration_seconds": round(duration, 2),
+            "success": True,
+        }
+
+        logger.info("cleanup_old_backups_completed", **result)
+        return result
+
+    except Exception as e:
+        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        logger.error(
+            "cleanup_old_backups_failed",
+            task_id=task_id,
+            error=str(e),
+            error_type=type(e).__name__,
+            duration_seconds=round(duration, 2),
+        )
+        return {
+            "task_id": task_id,
+            "error": str(e),
+            "success": False,
+            "duration_seconds": round(duration, 2),
+        }
+
+
+@celery_app.task(name="cleanup_old_models_task", bind=True)
+def cleanup_old_models_task(self: Task, keep_count: int = 3) -> dict[str, int | str | float]:
+    """Delete old ML model versions, keeping N most recent per model type.
+
+    Args:
+        keep_count: Number of recent versions to keep per model type (default: 3)
+
+    Returns:
+        Dict with task_id, files_deleted, bytes_freed, duration_seconds, success status
+    """
+    task_id = self.request.id
+    start_time = dt.datetime.now(dt.UTC)
+
+    logger.info("cleanup_old_models_started", task_id=task_id, keep_count=keep_count)
+
+    try:
+        files_deleted = 0
+        bytes_freed = 0
+
+        # Models directory
+        models_dir = Path(__file__).parent.parent.parent / "models"
+
+        if not models_dir.exists():
+            logger.warning("models_directory_not_found", directory=str(models_dir))
+            return {
+                "task_id": task_id,
+                "files_deleted": 0,
+                "bytes_freed": 0,
+                "message": "Models directory not found",
+                "success": True,
+                "duration_seconds": 0.0,
+            }
+
+        # Group model files by base name (e.g., article_quality_v*.joblib)
+        # Pattern: {model_name}_v{date}.joblib
+        import re
+
+        model_groups: dict[str, list[tuple[Path, str]]] = {}
+        model_pattern = re.compile(r"^(.+)_v(\d{8})\.joblib$")
+
+        for f in models_dir.glob("*.joblib"):
+            if f.is_symlink():
+                # Skip symlinks (like article_quality_v1.joblib -> latest)
+                continue
+            match = model_pattern.match(f.name)
+            if match:
+                model_name = match.group(1)
+                date_str = match.group(2)
+                if model_name not in model_groups:
+                    model_groups[model_name] = []
+                model_groups[model_name].append((f, date_str))
+
+        # For each model group, keep only the N most recent
+        for model_name, versions in model_groups.items():
+            # Sort by date (newest first)
+            versions.sort(key=lambda x: x[1], reverse=True)
+
+            # Delete versions beyond keep_count
+            for file_path, date_str in versions[keep_count:]:
+                try:
+                    file_size = file_path.stat().st_size
+                    file_path.unlink()
+                    files_deleted += 1
+                    bytes_freed += file_size
+                    logger.info(
+                        "model_file_deleted",
+                        file=str(file_path),
+                        model_name=model_name,
+                        version_date=date_str,
+                        size_bytes=file_size,
+                    )
+                except Exception as file_error:
+                    logger.error(
+                        "model_deletion_failed",
+                        file=str(file_path),
+                        error=str(file_error),
+                    )
+
+        # Store metric in maintenance_stats
+        if bytes_freed > 0:
+            storage = get_connection_manager()
+            with storage.connection() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO maintenance_stats (metric_name, metric_value, metric_unit)
+                    VALUES (%s, %s, %s)
+                    """,
+                    ["model_cleanup_bytes_freed", bytes_freed, "bytes"],
+                )
+                conn.commit()
+
+        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+
+        result = {
+            "task_id": task_id,
+            "files_deleted": files_deleted,
+            "bytes_freed": bytes_freed,
+            "bytes_freed_mb": round(bytes_freed / (1024 * 1024), 2),
+            "keep_count": keep_count,
+            "model_groups": len(model_groups),
+            "duration_seconds": round(duration, 2),
+            "success": True,
+        }
+
+        logger.info("cleanup_old_models_completed", **result)
+        return result
+
+    except Exception as e:
+        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        logger.error(
+            "cleanup_old_models_failed",
+            task_id=task_id,
+            error=str(e),
+            error_type=type(e).__name__,
+            duration_seconds=round(duration, 2),
+        )
+        return {
+            "task_id": task_id,
+            "error": str(e),
+            "success": False,
+            "duration_seconds": round(duration, 2),
+        }
+
+
+@celery_app.task(name="cleanup_solution_state_task", bind=True)
+def cleanup_solution_state_task(self: Task, keep_days: int = 14) -> dict[str, int | str | float]:
+    """Delete old solution_state test artifacts, keeping N days of recent data.
+
+    Args:
+        keep_days: Number of days of artifacts to keep (default: 14)
+
+    Returns:
+        Dict with task_id, directories_deleted, bytes_freed, duration_seconds, success status
+    """
+    task_id = self.request.id
+    start_time = dt.datetime.now(dt.UTC)
+
+    logger.info("cleanup_solution_state_started", task_id=task_id, keep_days=keep_days)
+
+    try:
+        directories_deleted = 0
+        bytes_freed = 0
+
+        # Solution state directory
+        solution_dir = Path(__file__).parent.parent.parent.parent / "solution_state"
+
+        if not solution_dir.exists():
+            logger.warning("solution_state_directory_not_found", directory=str(solution_dir))
+            return {
+                "task_id": task_id,
+                "directories_deleted": 0,
+                "bytes_freed": 0,
+                "message": "Solution state directory not found",
+                "success": True,
+                "duration_seconds": 0.0,
+            }
+
+        # Calculate cutoff date
+        cutoff_time = dt.datetime.now(dt.UTC) - dt.timedelta(days=keep_days)
+        cutoff_timestamp = cutoff_time.timestamp()
+
+        # Find directories that look like timestamps (YYYYMMDD-HHMMSS format)
+        import re
+
+        timestamp_pattern = re.compile(r"^\d{8}-\d{6}$")
+
+        for entry in solution_dir.iterdir():
+            if not entry.is_dir():
+                continue
+
+            if not timestamp_pattern.match(entry.name):
+                continue
+
+            try:
+                # Check directory modification time
+                mtime = entry.stat().st_mtime
+                if mtime < cutoff_timestamp:
+                    # Calculate directory size before deletion
+                    dir_size = sum(f.stat().st_size for f in entry.rglob("*") if f.is_file())
+
+                    # Delete directory recursively
+                    shutil.rmtree(entry)
+                    directories_deleted += 1
+                    bytes_freed += dir_size
+                    logger.info(
+                        "solution_state_deleted",
+                        directory=str(entry),
+                        size_bytes=dir_size,
+                    )
+            except Exception as dir_error:
+                logger.error(
+                    "solution_state_deletion_failed",
+                    directory=str(entry),
+                    error=str(dir_error),
+                )
+
+        # Store metric in maintenance_stats
+        if bytes_freed > 0:
+            storage = get_connection_manager()
+            with storage.connection() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO maintenance_stats (metric_name, metric_value, metric_unit)
+                    VALUES (%s, %s, %s)
+                    """,
+                    ["solution_state_cleanup_bytes_freed", bytes_freed, "bytes"],
+                )
+                conn.commit()
+
+        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+
+        result = {
+            "task_id": task_id,
+            "directories_deleted": directories_deleted,
+            "bytes_freed": bytes_freed,
+            "bytes_freed_mb": round(bytes_freed / (1024 * 1024), 2),
+            "keep_days": keep_days,
+            "duration_seconds": round(duration, 2),
+            "success": True,
+        }
+
+        logger.info("cleanup_solution_state_completed", **result)
+        return result
+
+    except Exception as e:
+        duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+        logger.error(
+            "cleanup_solution_state_failed",
             task_id=task_id,
             error=str(e),
             error_type=type(e).__name__,

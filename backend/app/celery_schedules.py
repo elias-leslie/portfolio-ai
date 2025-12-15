@@ -638,6 +638,41 @@ def get_beat_schedule() -> dict[str, object]:
             # - Maintains referential integrity after deletions
             # - Tracks orphaned records deleted in maintenance_stats table
         },
+        "cleanup-old-backups-weekly": {
+            "task": "cleanup_old_backups_task",
+            "schedule": crontab(day_of_week=0, hour=4, minute=45),  # Sunday 04:45 UTC
+            "args": [5],  # Keep 5 most recent backups
+            "options": {"expires": 3600},
+            # Notes:
+            # - Runs weekly on Sunday at 04:45 UTC (after orphaned data cleanup)
+            # - Deletes old SQL backups from backups/ directory
+            # - Keeps 5 most recent backups (configurable via args)
+            # - Tracks bytes freed in maintenance_stats table
+        },
+        "cleanup-old-models-weekly": {
+            "task": "cleanup_old_models_task",
+            "schedule": crontab(day_of_week=0, hour=5, minute=0),  # Sunday 05:00 UTC
+            "args": [3],  # Keep 3 most recent versions per model
+            "options": {"expires": 3600},
+            # Notes:
+            # - Runs weekly on Sunday at 05:00 UTC
+            # - Deletes old ML model versions from backend/models/
+            # - Keeps 3 most recent versions per model type (configurable via args)
+            # - Skips symlinks (active model pointers)
+            # - Tracks bytes freed in maintenance_stats table
+        },
+        "cleanup-solution-state-weekly": {
+            "task": "cleanup_solution_state_task",
+            "schedule": crontab(day_of_week=0, hour=5, minute=15),  # Sunday 05:15 UTC
+            "args": [14],  # Keep 14 days of test artifacts
+            "options": {"expires": 3600},
+            # Notes:
+            # - Runs weekly on Sunday at 05:15 UTC
+            # - Deletes old test artifacts from solution_state/
+            # - Keeps 14 days of artifacts (configurable via args)
+            # - Only deletes directories matching YYYYMMDD-HHMMSS pattern
+            # - Tracks bytes freed in maintenance_stats table
+        },
         "check-disk-space-periodic": {
             "task": "check_disk_space_task",
             "schedule": crontab(hour="*/6"),  # Every 6 hours
@@ -662,10 +697,10 @@ def get_beat_schedule() -> dict[str, object]:
         },
         "get-database-size-daily": {
             "task": "get_database_size_task",
-            "schedule": crontab(hour=5, minute=0),  # Daily at 05:00 UTC
+            "schedule": crontab(hour=5, minute=30),  # Daily at 05:30 UTC
             "options": {"expires": 600},
             # Notes:
-            # - Runs daily at 05:00 UTC (after all cleanup tasks complete)
+            # - Runs daily at 05:30 UTC (after all cleanup tasks complete)
             # - Gets total database size and top 10 largest tables
             # - Tracks database growth trends in maintenance_stats table
             # - Helps identify which tables are growing fastest

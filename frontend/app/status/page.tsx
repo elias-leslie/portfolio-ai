@@ -38,6 +38,7 @@ import { SourceQualityCard } from "@/components/status/SourceQualityCard";
 import { MLModelCard } from "@/components/status/MLModelCard";
 import { MaintenanceCard } from "@/components/status/MaintenanceCard";
 import { MaintenanceStatusCard } from "@/components/status/MaintenanceStatusCard";
+import { FileCleanupCard } from "@/components/status/FileCleanupCard";
 import { TableFreshnessCard } from "@/components/status/TableFreshnessCard";
 import { APIKeysCard } from "@/components/status/APIKeysCard";
 import { ExpandableCard } from "@/components/status/ExpandableCard";
@@ -623,10 +624,13 @@ export default function StatusPage() {
             <SectionCard
                 variant="surface"
                 title="Maintenance"
-                description="Database cleanup, integrity automation, and system monitoring."
+                description="Database cleanup, file management, and system monitoring."
             >
-                <MaintenanceCard />
-                <MaintenanceStatusCard />
+                <div className="space-y-4">
+                    <MaintenanceCard />
+                    <FileCleanupCard />
+                    <MaintenanceStatusCard />
+                </div>
             </SectionCard>
 
             <SectionCard

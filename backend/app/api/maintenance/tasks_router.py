@@ -42,8 +42,12 @@ async def trigger_maintenance_task(task_name: str) -> TaskTriggerResponseDict:
         "cleanup_orphaned_data_task",
         "cleanup_old_logs_task",
         "cleanup_temp_files_task",
+        "cleanup_old_backups_task",
+        "cleanup_old_models_task",
+        "cleanup_solution_state_task",
         "check_disk_space_task",
         "get_database_size_task",
+        "rotate_logs_task",
     }
 
     if task_name not in valid_tasks:
