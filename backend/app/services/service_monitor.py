@@ -193,8 +193,9 @@ def check_frontend() -> ServiceStatus:
 
     if status.status == "running":
         # Additional check: try to connect to port 3000
+        # Use HTTPS with verify=False for self-signed certs
         try:
-            response = httpx.get("http://localhost:3000", timeout=2.0)
+            response = httpx.get("https://localhost:3000", timeout=2.0, verify=False)
             if response.status_code not in [200, 304]:
                 status.status = "degraded"
                 status.message = f"Frontend returned {response.status_code}"

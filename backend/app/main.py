@@ -136,6 +136,8 @@ app = FastAPI(
     description="AI-led investment intelligence platform with portfolio analytics and autonomous agents",
     version="1.0.0",
     lifespan=lifespan,
+    # Disable automatic trailing slash redirects to avoid redirect loops with proxy
+    redirect_slashes=False,
 )
 
 # Configure CORS
@@ -146,6 +148,10 @@ app.add_middleware(
         "http://127.0.0.1:3000",
         "http://192.168.8.233:3000",  # Network access
         "http://100.123.190.81:3000",  # Tailscale access
+        "https://localhost:3000",  # HTTPS dev server
+        "https://127.0.0.1:3000",
+        "https://192.168.8.233:3000",  # HTTPS network access
+        "https://192.168.8.233",  # HTTPS port 443
     ],
     allow_credentials=True,
     allow_methods=["*"],

@@ -23,7 +23,7 @@ export interface ProfileExport {
   version: string;
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://192.168.8.233:8000";
+const API_BASE_URL = ""; // Use relative URLs for Next.js proxy
 
 /**
  * Fetch all profiles

@@ -129,45 +129,77 @@ export function EvidenceCaptureModal({
 
   const currentPath = extractPath(pageUrl);
 
-  // Viewport capture function - captures exactly what user sees
+  // Viewport capture function - uses Screen Capture API for true pixel capture
   const captureViewport = useCallback(async () => {
     setIsCapturingViewport(true);
+    let stream: MediaStream | null = null;
+
     try {
-      // Hide the modal temporarily to capture clean screenshot
-      const modalElement = document.querySelector('[role="dialog"]');
-      if (modalElement) {
-        (modalElement as HTMLElement).style.visibility = "hidden";
+      // Check if Screen Capture API is available (requires secure context)
+      if (!navigator.mediaDevices?.getDisplayMedia) {
+        const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+        const msg = isLocalhost
+          ? "Screen Capture API not available in this browser"
+          : `Screen Capture requires HTTPS or localhost. To enable for ${window.location.hostname}:\n\n` +
+            "Chrome: chrome://flags/#unsafely-treat-insecure-origin-as-secure\n" +
+            `Add: http://${window.location.host}`;
+        throw new Error(msg);
       }
 
-      // Small delay to ensure modal is hidden
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      // Dynamically import dom-to-image-more (client-side only)
-      const domtoimage = (await import("dom-to-image-more")).default;
-
-      // Capture the document body using dom-to-image-more
-      const dataUrl = await domtoimage.toPng(document.body, {
-        width: window.innerWidth,
-        height: window.innerHeight,
-        style: {
-          transform: `translate(-${window.scrollX}px, -${window.scrollY}px)`,
+      // Request screen capture with preference for current tab
+      // Note: User will see a permission popup (unavoidable without enterprise policy)
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+          displaySurface: "browser",
         },
-        filter: (node: Node) => {
-          // Skip noscript and dialog elements
-          if (node instanceof Element) {
-            if (node.tagName === "NOSCRIPT") return false;
-            if (node.getAttribute("role") === "dialog") return false;
-          }
-          return true;
-        },
+        // @ts-expect-error - preferCurrentTab is a newer API not in all TypeScript defs
+        preferCurrentTab: true,
       });
 
-      // Restore modal visibility
-      if (modalElement) {
-        (modalElement as HTMLElement).style.visibility = "visible";
+      const track = stream.getVideoTracks()[0];
+
+      // Use ImageCapture API if available, fallback to video element approach
+      let bitmap: ImageBitmap;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ImageCaptureAPI = (window as any).ImageCapture;
+      if (typeof ImageCaptureAPI !== "undefined") {
+        const imageCapture = new ImageCaptureAPI(track);
+        bitmap = await imageCapture.grabFrame();
+      } else {
+        // Fallback for browsers without ImageCapture
+        const video = document.createElement("video");
+        video.srcObject = stream;
+        video.muted = true;
+        await video.play();
+
+        // Wait for video to have dimensions
+        await new Promise<void>((resolve) => {
+          if (video.videoWidth > 0) {
+            resolve();
+          } else {
+            video.onloadedmetadata = () => resolve();
+          }
+        });
+
+        bitmap = await createImageBitmap(video);
+        video.pause();
+        video.srcObject = null;
       }
 
-      // Convert data URL to base64
+      // Stop the stream immediately after capture
+      track.stop();
+      stream = null;
+
+      // Convert bitmap to canvas to get base64 PNG
+      const canvas = document.createElement("canvas");
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Failed to get canvas context");
+      ctx.drawImage(bitmap, 0, 0);
+      bitmap.close();
+
+      const dataUrl = canvas.toDataURL("image/png");
       const base64 = dataUrl.split(",")[1];
 
       // Generate quick debug feature ID
@@ -205,11 +237,18 @@ export function EvidenceCaptureModal({
       onClose();
     } catch (error) {
       console.error("Viewport capture failed:", error);
-      toast.error("Failed to capture viewport");
-      // Restore modal visibility on error
-      const modalElement = document.querySelector('[role="dialog"]');
-      if (modalElement) {
-        (modalElement as HTMLElement).style.visibility = "visible";
+      // Check if user cancelled the permission dialog
+      if (error instanceof Error && error.name === "NotAllowedError") {
+        toast.error("Screen capture cancelled - permission required");
+      } else if (error instanceof Error && error.message.includes("chrome://flags")) {
+        // Show the helpful instructions for enabling on non-localhost
+        toast.error(error.message, { duration: 10000 });
+      } else {
+        toast.error(error instanceof Error ? error.message : "Failed to capture viewport");
+      }
+      // Clean up stream if it exists
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
       }
     } finally {
       setIsCapturingViewport(false);
@@ -475,16 +514,16 @@ export function EvidenceCaptureModal({
           {mode === "viewport" ? (
             <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm space-y-2">
               <p className="font-medium text-primary">
-                Captures exactly what you see right now
+                Screen Capture - true pixel capture
               </p>
               <ul className="text-muted-foreground text-xs space-y-1">
-                <li>• Your current scroll position</li>
-                <li>• Expanded sections & accordions</li>
-                <li>• Tab selections & form values</li>
-                <li>• Modal states (except this one)</li>
+                <li>• Captures actual rendered pixels</li>
+                <li>• Preserves scroll position & all states</li>
+                <li>• Includes expanded sections, tabs, forms</li>
+                <li>• Works with everything visible on screen</li>
               </ul>
-              <p className="text-xs text-muted-foreground mt-2">
-                No console/network data - just the visual state.
+              <p className="text-xs text-amber-500/80 mt-2">
+                A permission popup will appear - select this tab to capture.
               </p>
             </div>
           ) : mode === "quick" ? (

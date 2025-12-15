@@ -3,50 +3,14 @@
  */
 
 /**
- * Get the correct API base URL based on how the user is accessing the site.
- * - Tailscale (100.123.190.81:3000) → Use Tailscale backend (100.123.190.81:8000)
- * - Local network (192.168.8.233:3000) → Use local backend (192.168.8.233:8000)
- * - Localhost → Use localhost:8000
+ * Get the API base URL.
+ * Returns empty string to use relative URLs - this allows Next.js to proxy
+ * API requests, which is required for HTTPS frontend → HTTP backend.
  */
-let cachedApiBaseUrl: string | null = null;
-
 function getApiBaseUrl(): string {
-  // Return cached value if already computed
-  if (cachedApiBaseUrl) {
-    return cachedApiBaseUrl;
-  }
-
-  // Server-side rendering: use environment variable
-  if (typeof window === "undefined") {
-    return process.env.NEXT_PUBLIC_API_URL || "http://192.168.8.233:8000";
-  }
-
-  // Client-side: detect based on current hostname
-  const hostname = window.location.hostname;
-  const port = 8000; // Backend always on port 8000
-
-  let baseUrl: string;
-
-  // Tailscale access
-  if (hostname === "100.123.190.81") {
-    baseUrl = `http://100.123.190.81:${port}`;
-  }
-  // Local network access
-  else if (hostname === "192.168.8.233") {
-    baseUrl = `http://192.168.8.233:${port}`;
-  }
-  // Localhost/127.0.0.1
-  else if (hostname === "localhost" || hostname === "127.0.0.1") {
-    baseUrl = `http://localhost:${port}`;
-  }
-  // Fallback to environment variable or local network
-  else {
-    baseUrl = process.env.NEXT_PUBLIC_API_URL || `http://${hostname}:${port}`;
-  }
-
-  // Cache for subsequent calls
-  cachedApiBaseUrl = baseUrl;
-  return baseUrl;
+  // Always use relative URLs so Next.js proxy handles the request
+  // This avoids mixed content issues (HTTPS frontend calling HTTP backend)
+  return "";
 }
 
 /**

@@ -86,3 +86,4 @@ backend/models/
 # Beads local cache
 .beads/beads.db
 .beads/bd.sock
+certs/
