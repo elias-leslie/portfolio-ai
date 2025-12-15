@@ -1152,7 +1152,7 @@ export function MaintenanceTable() {
                     )}
                   </summary>
 
-                  <div className="px-4 pb-4">
+                  <div className="px-4 pb-4 max-h-[50vh] overflow-auto">
                     {result.error && (
                       <div className="text-red-400 text-sm mb-2 font-mono">
                         Error: {result.error}
@@ -1224,7 +1224,7 @@ export function MaintenanceTable() {
                               <div className="text-sm font-medium capitalize mb-1">
                                 {key.replace(/_/g, " ")}
                               </div>
-                              <div className="bg-background/50 rounded p-2 overflow-auto">
+                              <div className="bg-background/50 rounded p-2 max-h-72 overflow-auto">
                                 <pre className="text-xs font-mono text-muted-foreground whitespace-pre-wrap break-all">
                                   {JSON.stringify(value, null, 2)}
                                 </pre>
