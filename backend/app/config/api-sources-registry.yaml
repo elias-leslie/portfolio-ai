@@ -1450,6 +1450,68 @@ implementation:
     sec_edgar: "backend/app/sources/sec_edgar_source.py"
     cboe_most_active: "backend/app/sources/cboe_most_active.py"
     rss_feeds: "backend/app/sources/rss_source.py"
+    serpapi: "backend/app/sources/serpapi_source.py"
 
   multi_source: "backend/app/sources/multi_source_fetcher.py"
   rate_limiting: "backend/app/sources/base_http_client.py"
+
+  # ---------------------------------------------------------------------------
+  # SERPAPI (100 searches/month FREE - Google Finance + Google Trends)
+  # ---------------------------------------------------------------------------
+  serpapi:
+    name: "SerpAPI"
+    tier: FREE
+    api_key_required: true
+    env_var: "SERPAPI_API_KEY"
+    db_key: "serpapi.apikey"
+    priority: 15
+    rate_limits:
+      per_month: 100  # Free tier
+      per_day: null
+      notes: "100 searches/month free. $50/month for 5000 searches."
+
+    capabilities:
+      ohlcv: false
+      fundamentals: false
+      news: false
+      trends: true
+      quotes: true
+
+    endpoints:
+      google_finance:
+        path: "/search"
+        method: GET
+        description: "Google Finance quote data for a stock"
+        params:
+          engine: "google_finance"
+          q: "Stock symbol (e.g., AAPL:NASDAQ)"
+        fields_returned:
+          - summary (price, change, change_percent, currency)
+          - graph (historical prices)
+          - financials (market_cap, pe_ratio, dividend_yield, etc.)
+          - news (related news articles)
+        example: "?engine=google_finance&q=AAPL:NASDAQ"
+        notes: "Returns comprehensive quote data from Google Finance"
+
+      google_trends:
+        path: "/search"
+        method: GET
+        description: "Google Trends interest over time for a search term"
+        params:
+          engine: "google_trends"
+          q: "Search term (e.g., AAPL stock, Tesla)"
+          data_type: "TIMESERIES"
+          date: "today 3-m (last 3 months)"
+        fields_returned:
+          - interest_over_time (date, value)
+          - compared_breakdown_by_region
+          - related_topics
+          - related_queries
+        example: "?engine=google_trends&q=AAPL stock&data_type=TIMESERIES"
+        notes: "Search volume as sentiment proxy. Higher interest = more attention"
+
+    use_cases:
+      - "Google Finance: Additional quote data and financials"
+      - "Google Trends: Search volume as sentiment proxy"
+      - "Trend analysis for stocks and market topics"
+      - "Correlate search interest with price movements"

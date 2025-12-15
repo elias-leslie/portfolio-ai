@@ -29,6 +29,8 @@ ENV_VAR_MAPPINGS = {
     ("alpaca", "api_key"): "ALPACA_API_KEY",
     ("alpaca", "key_id"): "ALPACA_KEY_ID",
     ("alpaca", "secret_key"): "ALPACA_SECRET_KEY",
+    ("serpapi", "apikey"): "SERPAPI_API_KEY",
+    ("serpapi", "api_key"): "SERPAPI_API_KEY",  # Case variation
     # Note: yfinance does not use API keys - it's a free/open source library
 }
 
