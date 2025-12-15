@@ -36,9 +36,7 @@ import { APIQuotasCard } from "@/components/status/APIQuotasCard";
 import { LogsCard } from "@/components/status/LogsCard";
 import { SourceQualityCard } from "@/components/status/SourceQualityCard";
 import { MLModelCard } from "@/components/status/MLModelCard";
-import { MaintenanceCard } from "@/components/status/MaintenanceCard";
-import { MaintenanceStatusCard } from "@/components/status/MaintenanceStatusCard";
-import { FileCleanupCard } from "@/components/status/FileCleanupCard";
+import { UnifiedMaintenanceCard } from "@/components/status/UnifiedMaintenanceCard";
 import { TableFreshnessCard } from "@/components/status/TableFreshnessCard";
 import { APIKeysCard } from "@/components/status/APIKeysCard";
 import { ExpandableCard } from "@/components/status/ExpandableCard";
@@ -621,17 +619,7 @@ export default function StatusPage() {
                 </div>
             </SectionCard>
 
-            <SectionCard
-                variant="surface"
-                title="Maintenance"
-                description="Database cleanup, file management, and system monitoring."
-            >
-                <div className="space-y-4">
-                    <MaintenanceCard />
-                    <FileCleanupCard />
-                    <MaintenanceStatusCard />
-                </div>
-            </SectionCard>
+            <UnifiedMaintenanceCard />
 
             <SectionCard
                 variant="surface"

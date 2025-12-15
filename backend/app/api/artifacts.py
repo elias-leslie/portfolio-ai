@@ -43,6 +43,20 @@ class RefreshRequest(BaseModel):
     url: str | None = Field(None, description="URL to capture (overrides default)")
 
 
+class ViewportCaptureRequest(BaseModel):
+    """Request to upload a client-side viewport capture."""
+
+    feature_id: str = Field(..., description="Feature ID")
+    criterion_id: str = Field(..., description="Criterion ID")
+    screenshot_base64: str = Field(..., description="Base64-encoded PNG screenshot")
+    url: str = Field(..., description="URL of the captured page")
+    viewport_width: int = Field(..., description="Viewport width")
+    viewport_height: int = Field(..., description="Viewport height")
+    scroll_x: int = Field(0, description="Horizontal scroll position")
+    scroll_y: int = Field(0, description="Vertical scroll position")
+    page_title: str = Field("", description="Page title")
+
+
 class UserReviewRequest(BaseModel):
     """Request to submit user review."""
 
@@ -75,6 +89,47 @@ async def get_summary() -> ArtifactSummary:
         return ArtifactSummary(**data)
     except Exception as e:
         logger.error("get_summary_failed", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from None
+
+
+@router.get("/latest")
+async def get_latest_artifact(
+    include_evidence: bool = True,
+) -> dict[str, Any]:
+    """Get the most recently captured artifact.
+
+    This is useful for Claude to detect when new evidence has been captured
+    via the header camera button.
+
+    Returns the latest artifact with optional evidence data.
+    """
+    try:
+        artifact = artifact_manager.get_latest_artifact()
+
+        if not artifact:
+            return {
+                "artifact": None,
+                "message": "No artifacts captured yet",
+            }
+
+        # Optionally include evidence data
+        evidence_data = None
+        if include_evidence:
+            evidence_data = artifact_manager.read_evidence_file(
+                artifact["feature_id"],
+                artifact["criterion_id"],
+                artifact.get("version"),
+            )
+
+        return {
+            "artifact": artifact,
+            "evidence": evidence_data,
+            "screenshot_url": f"/api/artifacts/screenshots/{artifact['feature_id']}/{artifact['criterion_id']}/v{artifact['version']}/screenshot.png",
+            "evidence_url": f"/api/artifacts/screenshots/{artifact['feature_id']}/{artifact['criterion_id']}/v{artifact['version']}/evidence.json",
+        }
+
+    except Exception as e:
+        logger.error("get_latest_artifact_failed", error=str(e))
         raise HTTPException(status_code=500, detail=str(e)) from None
 
 
@@ -245,6 +300,122 @@ async def refresh_evidence(request: RefreshRequest) -> dict[str, Any]:
         raise
     except Exception as e:
         logger.error("refresh_evidence_failed", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from None
+
+
+@router.post("/viewport-capture")
+async def viewport_capture(request: ViewportCaptureRequest) -> dict[str, Any]:
+    """Upload a client-side viewport capture.
+
+    This endpoint receives a screenshot captured directly from the user's browser
+    using html2canvas, preserving exact viewport state (scroll position, expanded
+    sections, form values, etc.).
+    """
+    import base64
+    import json
+    from datetime import datetime, timezone
+
+    try:
+        # Decode base64 screenshot
+        try:
+            screenshot_data = base64.b64decode(request.screenshot_base64)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid base64 screenshot data")
+
+        # Create versioned output directory
+        version = artifact_manager.get_next_version(request.feature_id, request.criterion_id)
+        output_dir = ARTIFACTS_BASE_DIR / request.feature_id / request.criterion_id / f"v{version}"
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Save screenshot
+        screenshot_path = output_dir / "screenshot.png"
+        screenshot_path.write_bytes(screenshot_data)
+
+        # Create evidence.json with viewport metadata
+        evidence = {
+            "metadata": {
+                "url": request.url,
+                "featureId": request.feature_id,
+                "criterionId": request.criterion_id,
+                "version": version,
+                "capturedAt": datetime.now(timezone.utc).isoformat(),
+                "pageTitle": request.page_title,
+                "viewport": {
+                    "width": request.viewport_width,
+                    "height": request.viewport_height,
+                },
+                "scroll": {
+                    "x": request.scroll_x,
+                    "y": request.scroll_y,
+                },
+                "captureMethod": "client-side-html2canvas",
+            },
+            "console": {
+                "errorCount": 0,
+                "warningCount": 0,
+                "errors": [],
+                "warnings": [],
+                "note": "Console data not available for client-side captures",
+            },
+            "network": {
+                "totalRequests": 0,
+                "failedRequests": 0,
+                "failures": [],
+                "slowRequests": [],
+                "note": "Network data not available for client-side captures",
+            },
+            "pageState": {
+                "hasContent": True,
+                "visibleTextSample": "",
+                "keyElements": {},
+                "note": "Captured user's exact viewport state",
+            },
+        }
+
+        evidence_path = output_dir / "evidence.json"
+        evidence_path.write_text(json.dumps(evidence, indent=2))
+
+        # Update current symlink
+        current_link = ARTIFACTS_BASE_DIR / request.feature_id / request.criterion_id / "current"
+        if current_link.is_symlink():
+            current_link.unlink()
+        current_link.symlink_to(f"v{version}")
+
+        # Save artifact to database
+        file_size = len(screenshot_data) + len(json.dumps(evidence))
+        artifact_manager.save_artifact(
+            feature_id=request.feature_id,
+            criterion_id=request.criterion_id,
+            version=version,
+            file_path=f"{request.feature_id}/{request.criterion_id}/v{version}",
+            file_size_bytes=file_size,
+            evidence_data=evidence,
+        )
+
+        logger.info(
+            "viewport_capture_saved",
+            feature_id=request.feature_id,
+            criterion_id=request.criterion_id,
+            version=version,
+            scroll_y=request.scroll_y,
+        )
+
+        return {
+            "success": True,
+            "version": version,
+            "feature_id": request.feature_id,
+            "criterion_id": request.criterion_id,
+            "evidence": evidence,
+            "files": [
+                {"name": "screenshot.png", "size": len(screenshot_data)},
+                {"name": "evidence.json", "size": len(json.dumps(evidence))},
+            ],
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("viewport_capture_failed", error=str(e))
         raise HTTPException(status_code=500, detail=str(e)) from None
 
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -15,10 +16,12 @@ import {
   Brain,
   Target,
   HardDrive,
+  Camera,
 } from "lucide-react";
 
 import { MarketStatusBadge } from "@/components/market/MarketStatusBadge";
 import { useAgent } from "@/components/providers/AgentProvider";
+import { EvidenceCaptureModal } from "@/components/agents/EvidenceCaptureModal";
 import { cn } from "@/lib/utils";
 
 const mainLinks = [
@@ -101,6 +104,12 @@ export function Navigation() {
  */
 function NavigationContent({ pathname }: { pathname: string }) {
   const { togglePanel, isOpen } = useAgent();
+  const [showEvidenceCapture, setShowEvidenceCapture] = useState(false);
+
+  // Build current page URL for evidence capture
+  const currentPageUrl = typeof window !== "undefined"
+    ? `http://${window.location.hostname}:3000${pathname}`
+    : `http://192.168.8.233:3000${pathname}`;
 
   return (
     <nav className="sticky top-0 z-50 border-b border-border/50 bg-surface/80 backdrop-blur-md supports-[backdrop-filter]:bg-surface/60">
@@ -162,6 +171,15 @@ function NavigationContent({ pathname }: { pathname: string }) {
               >
                 <Bot className="size-4" aria-hidden suppressHydrationWarning />
               </button>
+              {/* Evidence Capture Button */}
+              <button
+                onClick={() => setShowEvidenceCapture(true)}
+                aria-label="Capture Evidence"
+                title="Capture Evidence (for Claude)"
+                className="group flex items-center justify-center rounded-full p-2 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus text-text-muted hover:bg-surface hover:text-text hover:shadow-sm"
+              >
+                <Camera className="size-4" aria-hidden suppressHydrationWarning />
+              </button>
               {utilityLinks.map((link) => {
                 const Icon = link.icon;
                 const isActive = pathname === link.href;
@@ -191,6 +209,17 @@ function NavigationContent({ pathname }: { pathname: string }) {
           </div>
         </div>
       </div>
+
+      {/* Evidence Capture Modal - reuses Agent Hub modal */}
+      <EvidenceCaptureModal
+        open={showEvidenceCapture}
+        onClose={() => setShowEvidenceCapture(false)}
+        pageUrl={currentPageUrl}
+        onCaptured={(result) => {
+          // Evidence captured - modal handles the toast
+          setShowEvidenceCapture(false);
+        }}
+      />
     </nav>
   );
 }

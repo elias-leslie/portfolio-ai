@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -27,6 +27,7 @@ import {
   ArrowDown,
   Link2,
   CheckCircle2,
+  Crosshair,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -117,15 +118,103 @@ export function EvidenceCaptureModal({
   pageUrl,
   onCaptured,
 }: EvidenceCaptureModalProps) {
-  const [mode, setMode] = useState<"quick" | "existing">("quick");
+  const [mode, setMode] = useState<"viewport" | "quick" | "existing">("viewport");
   const [selectedFeature, setSelectedFeature] = useState<string>("");
   const [selectedCriterion, setSelectedCriterion] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
   const [urlMatchOnly, setUrlMatchOnly] = useState(false);
   const [sortField, setSortField] = useState<SortField>("url_match");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [isCapturingViewport, setIsCapturingViewport] = useState(false);
 
   const currentPath = extractPath(pageUrl);
+
+  // Viewport capture function - captures exactly what user sees
+  const captureViewport = useCallback(async () => {
+    setIsCapturingViewport(true);
+    try {
+      // Hide the modal temporarily to capture clean screenshot
+      const modalElement = document.querySelector('[role="dialog"]');
+      if (modalElement) {
+        (modalElement as HTMLElement).style.visibility = "hidden";
+      }
+
+      // Small delay to ensure modal is hidden
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Dynamically import dom-to-image-more (client-side only)
+      const domtoimage = (await import("dom-to-image-more")).default;
+
+      // Capture the document body using dom-to-image-more
+      const dataUrl = await domtoimage.toPng(document.body, {
+        width: window.innerWidth,
+        height: window.innerHeight,
+        style: {
+          transform: `translate(-${window.scrollX}px, -${window.scrollY}px)`,
+        },
+        filter: (node: Node) => {
+          // Skip noscript and dialog elements
+          if (node instanceof Element) {
+            if (node.tagName === "NOSCRIPT") return false;
+            if (node.getAttribute("role") === "dialog") return false;
+          }
+          return true;
+        },
+      });
+
+      // Restore modal visibility
+      if (modalElement) {
+        (modalElement as HTMLElement).style.visibility = "visible";
+      }
+
+      // Convert data URL to base64
+      const base64 = dataUrl.split(",")[1];
+
+      // Generate quick debug feature ID
+      const timestamp = new Date()
+        .toISOString()
+        .replace(/[-:T]/g, "")
+        .slice(0, 12);
+      const featureId = `DBG-${timestamp.slice(4, 8)}-${timestamp.slice(8, 14)}`;
+      const criterionId = "viewport";
+
+      // Send to backend
+      const response = await fetch("/api/artifacts/viewport-capture", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          feature_id: featureId,
+          criterion_id: criterionId,
+          screenshot_base64: base64,
+          url: pageUrl,
+          viewport_width: window.innerWidth,
+          viewport_height: window.innerHeight,
+          scroll_x: window.scrollX,
+          scroll_y: window.scrollY,
+          page_title: document.title,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to upload screenshot");
+      }
+
+      const result = await response.json();
+      toast.success(`Viewport captured (v${result.version}) - exactly what you see!`);
+      onCaptured(result);
+      onClose();
+    } catch (error) {
+      console.error("Viewport capture failed:", error);
+      toast.error("Failed to capture viewport");
+      // Restore modal visibility on error
+      const modalElement = document.querySelector('[role="dialog"]');
+      if (modalElement) {
+        (modalElement as HTMLElement).style.visibility = "visible";
+      }
+    } finally {
+      setIsCapturingViewport(false);
+    }
+  }, [pageUrl, onCaptured, onClose]);
 
   // Fetch existing features
   const { data: featuresData, isLoading: loadingFeatures } = useQuery<{
@@ -289,7 +378,10 @@ export function EvidenceCaptureModal({
 
   // Handle capture
   const handleCapture = async () => {
-    if (mode === "quick") {
+    if (mode === "viewport") {
+      // Use client-side html2canvas capture
+      await captureViewport();
+    } else if (mode === "quick") {
       try {
         const quickResult = await quickFeatureMutation.mutateAsync();
         await captureMutation.mutateAsync({
@@ -329,7 +421,7 @@ export function EvidenceCaptureModal({
     );
   };
 
-  const isCapturing = quickFeatureMutation.isPending || captureMutation.isPending;
+  const isCapturing = isCapturingViewport || quickFeatureMutation.isPending || captureMutation.isPending;
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -352,13 +444,22 @@ export function EvidenceCaptureModal({
           {/* Mode selector */}
           <div className="flex gap-2">
             <Button
+              variant={mode === "viewport" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setMode("viewport")}
+              className="flex-1"
+            >
+              <Crosshair className="h-4 w-4 mr-2" />
+              Viewport
+            </Button>
+            <Button
               variant={mode === "quick" ? "default" : "outline"}
               size="sm"
               onClick={() => setMode("quick")}
               className="flex-1"
             >
               <Zap className="h-4 w-4 mr-2" />
-              Quick Capture
+              Quick
             </Button>
             <Button
               variant={mode === "existing" ? "default" : "outline"}
@@ -367,11 +468,26 @@ export function EvidenceCaptureModal({
               className="flex-1"
             >
               <FolderOpen className="h-4 w-4 mr-2" />
-              Link to Feature
+              Feature
             </Button>
           </div>
 
-          {mode === "quick" ? (
+          {mode === "viewport" ? (
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm space-y-2">
+              <p className="font-medium text-primary">
+                Captures exactly what you see right now
+              </p>
+              <ul className="text-muted-foreground text-xs space-y-1">
+                <li>• Your current scroll position</li>
+                <li>• Expanded sections & accordions</li>
+                <li>• Tab selections & form values</li>
+                <li>• Modal states (except this one)</li>
+              </ul>
+              <p className="text-xs text-muted-foreground mt-2">
+                No console/network data - just the visual state.
+              </p>
+            </div>
+          ) : mode === "quick" ? (
             <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
               <p>
                 Creates a debug feature (

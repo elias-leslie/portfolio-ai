@@ -252,6 +252,58 @@ def get_artifact(
         return _row_to_artifact(row)
 
 
+def get_latest_artifact() -> dict[str, Any] | None:
+    """Get the most recently captured artifact.
+
+    Returns:
+        Most recent artifact record or None
+    """
+    storage = get_connection_manager()
+
+    with storage.connection() as conn:
+        row = conn.execute(
+            """
+            SELECT id, artifact_id, feature_id, criterion_id, artifact_type,
+                   file_path, file_size_bytes, version, is_current,
+                   captured_at, expires_at, quality_status, quality_issues,
+                   confidence, ai_reviewed_at, ai_reviewed_by, ai_evidence,
+                   user_reviewed_at, user_approved, user_notes
+            FROM artifacts
+            WHERE is_current = TRUE
+            ORDER BY captured_at DESC
+            LIMIT 1
+            """,
+        ).fetchone()
+
+        if not row:
+            return None
+
+        return _row_to_artifact(row)
+
+
+def get_next_version(feature_id: str, criterion_id: str) -> int:
+    """Get the next version number for a feature/criterion pair.
+
+    Returns:
+        Next version number (1 if no existing versions)
+    """
+    storage = get_connection_manager()
+
+    with storage.connection() as conn:
+        row = conn.execute(
+            """
+            SELECT MAX(version) as max_version
+            FROM artifacts
+            WHERE feature_id = %s AND criterion_id = %s
+            """,
+            (feature_id, criterion_id),
+        ).fetchone()
+
+        if row and row[0]:
+            return row[0] + 1
+        return 1
+
+
 def get_artifact_versions(
     feature_id: str,
     criterion_id: str,
