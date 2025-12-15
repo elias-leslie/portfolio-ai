@@ -516,6 +516,25 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
     }
   };
 
+  // Build evidence context from recent captures (last 5)
+  const buildEvidenceContext = useCallback(() => {
+    const evidenceMessages = messages
+      .filter((msg): msg is ChatMessage & { evidence: EvidenceData } =>
+        msg.role === 'evidence' && !!msg.evidence
+      )
+      .slice(-5); // Last 5 evidence captures
+
+    if (evidenceMessages.length === 0) return '';
+
+    const evidenceLines = evidenceMessages.map((msg) => {
+      const e = msg.evidence;
+      const screenshotUrl = `/api/artifacts/${e.feature_id}/${e.criterion_id}/screenshot`;
+      return `[Evidence: ${e.feature_id}/${e.criterion_id} v${e.version} - ${e.console_errors} console errors, ${e.network_failures} network failures - screenshot: ${screenshotUrl}]`;
+    });
+
+    return `\n--- Available Evidence ---\n${evidenceLines.join('\n')}\n---\n\n`;
+  }, [messages]);
+
   // Send message
   const sendMessage = () => {
     console.log('sendMessage called:', {
@@ -539,6 +558,9 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
       }
     }
 
+    // Inject evidence context if any captures exist in the conversation
+    const evidenceContext = buildEvidenceContext();
+
     setInput('');
     setIsLoading(true);
 
@@ -553,7 +575,7 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
 
     wsRef.current.send(JSON.stringify({
       type: 'message',
-      content: contextPrefix + message,
+      content: contextPrefix + evidenceContext + message,
     }));
   };
 
