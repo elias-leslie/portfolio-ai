@@ -80,6 +80,103 @@ import { toast } from "sonner";
 // Task category types
 type TaskCategory = "file" | "cache" | "data" | "database" | "system";
 
+// Reusable component for rendering task results as clean tables
+function TaskResultDisplay({ result }: { result: Record<string, unknown> }) {
+  // Skip internal/meta fields
+  const skipFields = ["task_id", "success", "dry_run", "duration_seconds"];
+  // Detail array fields (render as table at bottom)
+  const detailFields = ["details", "checks", "would_delete", "would_rotate", "tables_to_vacuum", "partitions"];
+
+  // Separate summary fields from detail arrays
+  const summaryEntries = Object.entries(result).filter(
+    ([k, v]) => !skipFields.includes(k) && !detailFields.includes(k) && !Array.isArray(v)
+  );
+  const detailEntry = Object.entries(result).find(
+    ([k, v]) => detailFields.includes(k) && Array.isArray(v) && (v as unknown[]).length > 0
+  );
+
+  return (
+    <div className="space-y-3">
+      {/* Summary table - key/value pairs */}
+      {summaryEntries.length > 0 && (
+        <div className="bg-background/50 rounded overflow-hidden">
+          <table className="w-full text-sm">
+            <tbody>
+              {summaryEntries.map(([key, value]) => (
+                <tr key={key} className="border-b border-border/20 last:border-0">
+                  <td className="p-2 text-muted-foreground capitalize w-1/3">
+                    {key.replace(/_/g, " ")}
+                  </td>
+                  <td className="p-2 font-mono font-medium">
+                    {typeof value === "boolean"
+                      ? (value ? "Yes" : "No")
+                      : typeof value === "number"
+                      ? value.toLocaleString()
+                      : String(value)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Details table - array data */}
+      {detailEntry && (() => {
+        const [, items] = detailEntry;
+        const arr = items as Array<Record<string, unknown>>;
+        const firstItem = arr[0];
+        const isObjectArray = typeof firstItem === "object" && firstItem !== null;
+        const columns = isObjectArray ? Object.keys(firstItem) : null;
+
+        return (
+          <div>
+            <div className="text-sm font-medium mb-2">
+              Details ({arr.length} items)
+            </div>
+            <div className="bg-background/50 rounded max-h-64 overflow-auto">
+              {isObjectArray && columns ? (
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-background border-b">
+                    <tr>
+                      {columns.map(col => (
+                        <th key={col} className="text-left p-2 font-medium capitalize whitespace-nowrap">
+                          {col.replace(/_/g, " ")}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {arr.map((item, i) => (
+                      <tr key={i} className="border-b border-border/20 last:border-0 hover:bg-white/5">
+                        {columns.map(col => (
+                          <td key={col} className="p-2 font-mono text-muted-foreground">
+                            {typeof item[col] === "number"
+                              ? (item[col] as number).toLocaleString()
+                              : String(item[col] ?? "")}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="p-2 space-y-1">
+                  {arr.map((item, i) => (
+                    <div key={i} className="text-xs font-mono text-muted-foreground py-1 border-b border-border/20 last:border-0">
+                      {String(item)}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
 // Unified task interface
 interface MaintenanceTask {
   id: string;
@@ -1065,41 +1162,9 @@ export function MaintenanceTable() {
           onConfirm={() => setTaskResultOpen(false)}
         >
           <div className="my-4 max-h-80 overflow-auto border rounded p-3 bg-muted/30">
-            <div className="space-y-2 text-sm">
-              {taskResult.result && Object.entries(taskResult.result).map(([key, value]) => {
-                if (key === "task_id" || key === "success") return null;
-                if (key === "details" && Array.isArray(value) && value.length > 0) {
-                  return (
-                    <details key={key} className="border rounded p-2 bg-background">
-                      <summary className="cursor-pointer font-medium">
-                        Details ({value.length} items)
-                      </summary>
-                      <div className="mt-2 space-y-1 pl-2 max-h-40 overflow-auto">
-                        {value.slice(0, 50).map((item, idx) => (
-                          <div key={idx} className="text-xs text-muted-foreground font-mono truncate">
-                            {typeof item === "object" ? JSON.stringify(item) : String(item)}
-                          </div>
-                        ))}
-                        {value.length > 50 && (
-                          <div className="text-xs text-muted-foreground italic">
-                            ... and {value.length - 50} more
-                          </div>
-                        )}
-                      </div>
-                    </details>
-                  );
-                }
-                if (key === "details" && Array.isArray(value) && value.length === 0) return null;
-                return (
-                  <div key={key} className="flex justify-between py-1 border-b border-border/30 last:border-0">
-                    <span className="text-muted-foreground capitalize">{key.replace(/_/g, " ")}:</span>
-                    <span className="font-mono font-medium">
-                      {typeof value === "boolean" ? (value ? "Yes" : "No") : String(value)}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+            {taskResult.result && (
+              <TaskResultDisplay result={taskResult.result} />
+            )}
           </div>
         </ServiceActionDialog>
       )}
@@ -1159,102 +1224,9 @@ export function MaintenanceTable() {
                       </div>
                     )}
 
-                    {result.result && (() => {
-                      const data = result.result as Record<string, unknown>;
-                      // Skip internal/meta fields
-                      const skipFields = ["task_id", "success", "dry_run", "duration_seconds"];
-                      // Detail array fields (render as table at bottom)
-                      const detailFields = ["details", "checks", "would_delete", "would_rotate", "tables_to_vacuum", "partitions"];
-
-                      // Separate summary fields from detail arrays
-                      const summaryEntries = Object.entries(data).filter(
-                        ([k, v]) => !skipFields.includes(k) && !detailFields.includes(k) && !Array.isArray(v)
-                      );
-                      const detailEntry = Object.entries(data).find(
-                        ([k, v]) => detailFields.includes(k) && Array.isArray(v) && v.length > 0
-                      );
-
-                      return (
-                        <div className="space-y-3">
-                          {/* Summary table - key/value pairs */}
-                          {summaryEntries.length > 0 && (
-                            <div className="bg-background/50 rounded overflow-hidden">
-                              <table className="w-full text-sm">
-                                <tbody>
-                                  {summaryEntries.map(([key, value]) => (
-                                    <tr key={key} className="border-b border-border/20 last:border-0">
-                                      <td className="p-2 text-muted-foreground capitalize w-1/3">
-                                        {key.replace(/_/g, " ")}
-                                      </td>
-                                      <td className="p-2 font-mono font-medium">
-                                        {typeof value === "boolean"
-                                          ? (value ? "Yes" : "No")
-                                          : typeof value === "number"
-                                          ? value.toLocaleString()
-                                          : String(value)}
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          )}
-
-                          {/* Details table - array data */}
-                          {detailEntry && (() => {
-                            const [, items] = detailEntry;
-                            const arr = items as Array<Record<string, unknown>>;
-                            const firstItem = arr[0];
-                            const isObjectArray = typeof firstItem === "object" && firstItem !== null;
-                            const columns = isObjectArray ? Object.keys(firstItem) : null;
-
-                            return (
-                              <div>
-                                <div className="text-sm font-medium mb-2">
-                                  Details ({arr.length} items)
-                                </div>
-                                <div className="bg-background/50 rounded max-h-64 overflow-auto">
-                                  {isObjectArray && columns ? (
-                                    <table className="w-full text-xs">
-                                      <thead className="sticky top-0 bg-background border-b">
-                                        <tr>
-                                          {columns.map(col => (
-                                            <th key={col} className="text-left p-2 font-medium capitalize whitespace-nowrap">
-                                              {col.replace(/_/g, " ")}
-                                            </th>
-                                          ))}
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {arr.map((item, i) => (
-                                          <tr key={i} className="border-b border-border/20 last:border-0 hover:bg-white/5">
-                                            {columns.map(col => (
-                                              <td key={col} className="p-2 font-mono text-muted-foreground">
-                                                {typeof item[col] === "number"
-                                                  ? (item[col] as number).toLocaleString()
-                                                  : String(item[col] ?? "")}
-                                              </td>
-                                            ))}
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  ) : (
-                                    <div className="p-2 space-y-1">
-                                      {arr.map((item, i) => (
-                                        <div key={i} className="text-xs font-mono text-muted-foreground py-1 border-b border-border/20 last:border-0">
-                                          {String(item)}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      );
-                    })()}
+                    {result.result && (
+                      <TaskResultDisplay result={result.result as Record<string, unknown>} />
+                    )}
                   </div>
                 </details>
               ))}
