@@ -29,6 +29,8 @@ import {
   ArrowDown,
   X,
   GitCommit as GitCommitIcon,
+  Copy,
+  CheckSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -421,6 +423,31 @@ export function FilesTab() {
   );
   const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set());
   const [currentPath, setCurrentPath] = useState<string[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set()); // Selected files for review
+
+  // Selection handlers
+  const toggleFileSelection = useCallback((path: string, isDir: boolean) => {
+    if (isDir) return; // Don't select directories
+    setSelectedFiles((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+      return next;
+    });
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedFiles(new Set());
+  }, []);
+
+  const copySelectionToClipboard = useCallback(() => {
+    const paths = Array.from(selectedFiles).sort().join("\n");
+    navigator.clipboard.writeText(paths);
+    toast.success(`${selectedFiles.size} file paths copied to clipboard`);
+  }, [selectedFiles]);
 
   // Queries
   const { data: summary, isLoading: summaryLoading } = useQuery({
@@ -626,6 +653,23 @@ export function FilesTab() {
               )
             ) : null}
           </div>
+
+          {/* Selection checkbox (files only) */}
+          {!node.is_directory && (
+            <div
+              className="w-5 h-5 flex items-center justify-center flex-shrink-0"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleFileSelection(node.path, node.is_directory);
+              }}
+            >
+              <Checkbox
+                checked={selectedFiles.has(node.path)}
+                className="h-3.5 w-3.5"
+              />
+            </div>
+          )}
+          {node.is_directory && <div className="w-5 flex-shrink-0" />}
 
           {/* Icon */}
           <div className="w-5 flex-shrink-0">
@@ -909,6 +953,34 @@ export function FilesTab() {
         </Select>
 
         <div className="flex-1" />
+
+        {/* Selection indicator and actions */}
+        {selectedFiles.size > 0 && (
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="flex items-center gap-1">
+              <CheckSquare className="h-3 w-3" />
+              {selectedFiles.size} selected
+            </Badge>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2"
+              onClick={copySelectionToClipboard}
+              title="Copy file paths"
+            >
+              <Copy className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2"
+              onClick={clearSelection}
+              title="Clear selection"
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
 
         {/* Scan button */}
         <Button
