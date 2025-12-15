@@ -21,6 +21,46 @@ from .models import MaintenanceResult
 logger = get_logger(__name__)
 
 
+def _extract_json_from_output(output: str) -> dict:
+    """Extract JSON object from script output that may contain log lines.
+
+    Scripts output log lines followed by a JSON summary. This function
+    finds and parses just the JSON portion.
+
+    Args:
+        output: Raw stdout from script (logs + JSON)
+
+    Returns:
+        Parsed JSON dict, or {"raw_output": output} if parsing fails
+    """
+    # Try parsing the whole output first (clean output)
+    try:
+        return json.loads(output)
+    except json.JSONDecodeError:
+        pass
+
+    # Look for JSON object at end of output (after log lines)
+    # Find the last occurrence of '{' that starts a complete JSON object
+    lines = output.strip().split("\n")
+
+    # Try to find JSON by looking for lines starting with '{'
+    json_start_idx = -1
+    for i, line in enumerate(lines):
+        if line.strip().startswith("{"):
+            json_start_idx = i
+            break
+
+    if json_start_idx >= 0:
+        json_text = "\n".join(lines[json_start_idx:])
+        try:
+            return json.loads(json_text)
+        except json.JSONDecodeError:
+            pass
+
+    # Fallback: return raw output
+    return {"raw_output": output}
+
+
 async def run_maintenance_script(
     script_name: str,
     args: list[str],
@@ -72,11 +112,9 @@ async def run_maintenance_script(
 
         stdout, stderr = await result.communicate()
 
-        # Parse JSON output from script
-        try:
-            summary = json.loads(stdout.decode())
-        except json.JSONDecodeError:
-            summary = {"raw_output": stdout.decode()}
+        # Parse JSON output from script (may be mixed with log lines)
+        stdout_text = stdout.decode()
+        summary = _extract_json_from_output(stdout_text)
 
         # Check exit code
         if result.returncode == 0:
