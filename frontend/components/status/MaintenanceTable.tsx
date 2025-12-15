@@ -1159,92 +1159,102 @@ export function MaintenanceTable() {
                       </div>
                     )}
 
-                    {result.result && (
-                      <div className="space-y-2">
-                      {Object.entries(result.result).map(([key, value]) => {
-                        // Skip internal fields
-                        if (key === "task_id" || key === "success" || key === "dry_run") return null;
+                    {result.result && (() => {
+                      const data = result.result as Record<string, unknown>;
+                      // Skip internal/meta fields
+                      const skipFields = ["task_id", "success", "dry_run", "duration_seconds"];
+                      // Detail array fields (render as table at bottom)
+                      const detailFields = ["details", "checks", "would_delete", "would_rotate", "tables_to_vacuum", "partitions"];
 
-                        // Handle arrays (like file lists) - render as table
-                        if (Array.isArray(value)) {
-                          if (value.length === 0) return null;
+                      // Separate summary fields from detail arrays
+                      const summaryEntries = Object.entries(data).filter(
+                        ([k, v]) => !skipFields.includes(k) && !detailFields.includes(k) && !Array.isArray(v)
+                      );
+                      const detailEntry = Object.entries(data).find(
+                        ([k, v]) => detailFields.includes(k) && Array.isArray(v) && v.length > 0
+                      );
 
-                          // Get columns from first object item, or just show values
-                          const firstItem = value[0];
-                          const isObjectArray = typeof firstItem === "object" && firstItem !== null;
-                          const columns = isObjectArray ? Object.keys(firstItem) : null;
+                      return (
+                        <div className="space-y-3">
+                          {/* Summary table - key/value pairs */}
+                          {summaryEntries.length > 0 && (
+                            <div className="bg-background/50 rounded overflow-hidden">
+                              <table className="w-full text-sm">
+                                <tbody>
+                                  {summaryEntries.map(([key, value]) => (
+                                    <tr key={key} className="border-b border-border/20 last:border-0">
+                                      <td className="p-2 text-muted-foreground capitalize w-1/3">
+                                        {key.replace(/_/g, " ")}
+                                      </td>
+                                      <td className="p-2 font-mono font-medium">
+                                        {typeof value === "boolean"
+                                          ? (value ? "Yes" : "No")
+                                          : typeof value === "number"
+                                          ? value.toLocaleString()
+                                          : String(value)}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
 
-                          return (
-                            <div key={key} className="border-t border-border/30 pt-2">
-                              <div className="text-sm font-medium capitalize mb-2">
-                                {key.replace(/_/g, " ")} ({value.length} items)
-                              </div>
-                              <div className="bg-background/50 rounded max-h-72 overflow-auto">
-                                {isObjectArray && columns ? (
-                                  <table className="w-full text-xs">
-                                    <thead className="sticky top-0 bg-background border-b">
-                                      <tr>
-                                        {columns.map(col => (
-                                          <th key={col} className="text-left p-2 font-medium capitalize">
-                                            {col.replace(/_/g, " ")}
-                                          </th>
-                                        ))}
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {value.map((item, i) => (
-                                        <tr key={i} className="border-b border-border/20 last:border-0">
+                          {/* Details table - array data */}
+                          {detailEntry && (() => {
+                            const [, items] = detailEntry;
+                            const arr = items as Array<Record<string, unknown>>;
+                            const firstItem = arr[0];
+                            const isObjectArray = typeof firstItem === "object" && firstItem !== null;
+                            const columns = isObjectArray ? Object.keys(firstItem) : null;
+
+                            return (
+                              <div>
+                                <div className="text-sm font-medium mb-2">
+                                  Details ({arr.length} items)
+                                </div>
+                                <div className="bg-background/50 rounded max-h-64 overflow-auto">
+                                  {isObjectArray && columns ? (
+                                    <table className="w-full text-xs">
+                                      <thead className="sticky top-0 bg-background border-b">
+                                        <tr>
                                           {columns.map(col => (
-                                            <td key={col} className="p-2 font-mono text-muted-foreground">
-                                              {String((item as Record<string, unknown>)[col] ?? "")}
-                                            </td>
+                                            <th key={col} className="text-left p-2 font-medium capitalize whitespace-nowrap">
+                                              {col.replace(/_/g, " ")}
+                                            </th>
                                           ))}
                                         </tr>
+                                      </thead>
+                                      <tbody>
+                                        {arr.map((item, i) => (
+                                          <tr key={i} className="border-b border-border/20 last:border-0 hover:bg-white/5">
+                                            {columns.map(col => (
+                                              <td key={col} className="p-2 font-mono text-muted-foreground">
+                                                {typeof item[col] === "number"
+                                                  ? (item[col] as number).toLocaleString()
+                                                  : String(item[col] ?? "")}
+                                              </td>
+                                            ))}
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  ) : (
+                                    <div className="p-2 space-y-1">
+                                      {arr.map((item, i) => (
+                                        <div key={i} className="text-xs font-mono text-muted-foreground py-1 border-b border-border/20 last:border-0">
+                                          {String(item)}
+                                        </div>
                                       ))}
-                                    </tbody>
-                                  </table>
-                                ) : (
-                                  <div className="p-2 space-y-1">
-                                    {value.map((item, i) => (
-                                      <div key={i} className="text-xs font-mono text-muted-foreground py-1 border-b border-border/20 last:border-0">
-                                        {String(item)}
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          );
-                        }
-
-                        // Handle objects
-                        if (typeof value === "object" && value !== null) {
-                          return (
-                            <div key={key} className="border-t border-border/30 pt-2">
-                              <div className="text-sm font-medium capitalize mb-1">
-                                {key.replace(/_/g, " ")}
-                              </div>
-                              <div className="bg-background/50 rounded p-2 max-h-72 overflow-auto">
-                                <pre className="text-xs font-mono text-muted-foreground whitespace-pre-wrap break-all">
-                                  {JSON.stringify(value, null, 2)}
-                                </pre>
-                              </div>
-                            </div>
-                          );
-                        }
-
-                        // Handle primitives
-                        return (
-                          <div key={key} className="grid grid-cols-[auto_1fr] gap-2 text-sm py-1">
-                            <span className="text-muted-foreground capitalize">{key.replace(/_/g, " ")}:</span>
-                            <span className="font-mono font-medium break-all">
-                              {typeof value === "boolean" ? (value ? "Yes" : "No") : String(value)}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                            );
+                          })()}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </details>
               ))}
