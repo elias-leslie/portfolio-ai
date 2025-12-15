@@ -92,12 +92,13 @@ def _get_database_size_impl() -> dict[str, Any]:
 
 @celery_app.task(name="vacuum_database_task", bind=True)
 def vacuum_database_task(
-    self: Task, tables: list[str] | None = None
-) -> dict[str, int | str | float | bool]:
+    self: Task, tables: list[str] | None = None, dry_run: bool = False
+) -> dict[str, Any]:
     """VACUUM ANALYZE database tables to reclaim space and update statistics.
 
     Args:
         tables: Specific tables to vacuum (None = all tables)
+        dry_run: If True, only report which tables would be vacuumed
 
     Returns:
         Dict with task_id, tables_processed, duration_seconds, success status
@@ -105,7 +106,7 @@ def vacuum_database_task(
     task_id = self.request.id
     start_time = dt.datetime.now(dt.UTC)
 
-    logger.info("vacuum_database_started", task_id=task_id, tables=tables)
+    logger.info("vacuum_database_started", task_id=task_id, tables=tables, dry_run=dry_run)
 
     try:
         storage = get_connection_manager()
@@ -124,6 +125,19 @@ def vacuum_database_task(
                 tables_to_vacuum: list[str] = [str(row[0]) for row in rows]
         else:
             tables_to_vacuum = tables
+
+        if dry_run:
+            # In dry run mode, just report which tables would be vacuumed
+            duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+            return {
+                "task_id": task_id,
+                "dry_run": True,
+                "tables_to_vacuum": tables_to_vacuum,
+                "total_tables": len(tables_to_vacuum),
+                "message": f"Would vacuum {len(tables_to_vacuum)} tables",
+                "duration_seconds": round(duration, 2),
+                "success": True,
+            }
 
         # VACUUM ANALYZE each table
         # Note: VACUUM cannot run inside transaction block, so we do each table separately
@@ -155,8 +169,9 @@ def vacuum_database_task(
 
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
 
-        result: dict[str, int | str | float | bool] = {
+        result: dict[str, Any] = {
             "task_id": task_id,
+            "dry_run": False,
             "tables_processed": tables_processed,
             "total_tables": len(tables_to_vacuum),
             "duration_seconds": round(duration, 2),
@@ -177,6 +192,7 @@ def vacuum_database_task(
         )
         return {
             "task_id": task_id,
+            "dry_run": dry_run,
             "error": str(e),
             "success": False,
             "duration_seconds": round(duration, 2),
@@ -184,11 +200,14 @@ def vacuum_database_task(
 
 
 @celery_app.task(name="cleanup_old_news_task", bind=True)
-def cleanup_old_news_task(self: Task, days: int = 90) -> dict[str, int | str | float]:
+def cleanup_old_news_task(
+    self: Task, days: int = 90, dry_run: bool = False
+) -> dict[str, Any]:
     """Delete news articles older than specified days.
 
     Args:
         days: Delete news older than N days (default: 90)
+        dry_run: If True, only report how many rows would be deleted
 
     Returns:
         Dict with task_id, rows_deleted, duration_seconds, success status
@@ -196,7 +215,7 @@ def cleanup_old_news_task(self: Task, days: int = 90) -> dict[str, int | str | f
     task_id = self.request.id
     start_time = dt.datetime.now(dt.UTC)
 
-    logger.info("cleanup_old_news_started", task_id=task_id, days=days)
+    logger.info("cleanup_old_news_started", task_id=task_id, days=days, dry_run=dry_run)
 
     try:
         storage = get_connection_manager()
@@ -205,6 +224,29 @@ def cleanup_old_news_task(self: Task, days: int = 90) -> dict[str, int | str | f
         cutoff_date = dt.datetime.now(dt.UTC) - dt.timedelta(days=days)
 
         with storage.connection() as conn:
+            if dry_run:
+                # In dry run mode, just count how many would be deleted
+                result = conn.execute(
+                    """
+                    SELECT COUNT(*) FROM news_cache
+                    WHERE published_at < %s
+                    """,
+                    [cutoff_date],
+                ).fetchone()
+                rows_to_delete = result[0] if result else 0
+
+                duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+                return {
+                    "task_id": task_id,
+                    "dry_run": True,
+                    "rows_to_delete": rows_to_delete,
+                    "cutoff_date": cutoff_date.isoformat(),
+                    "retention_days": days,
+                    "message": f"Would delete {rows_to_delete} news articles",
+                    "duration_seconds": round(duration, 2),
+                    "success": True,
+                }
+
             # Delete old news articles (by publication date, not fetch date)
             conn.execute(
                 """
@@ -218,8 +260,9 @@ def cleanup_old_news_task(self: Task, days: int = 90) -> dict[str, int | str | f
 
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
 
-        result_dict = {
+        result_dict: dict[str, Any] = {
             "task_id": task_id,
+            "dry_run": False,
             "rows_deleted": rows_deleted,
             "cutoff_date": cutoff_date.isoformat(),
             "retention_days": days,
@@ -241,6 +284,7 @@ def cleanup_old_news_task(self: Task, days: int = 90) -> dict[str, int | str | f
         )
         return {
             "task_id": task_id,
+            "dry_run": dry_run,
             "error": str(e),
             "success": False,
             "duration_seconds": round(duration, 2),
@@ -248,11 +292,14 @@ def cleanup_old_news_task(self: Task, days: int = 90) -> dict[str, int | str | f
 
 
 @celery_app.task(name="cleanup_old_agent_runs_task", bind=True)
-def cleanup_old_agent_runs_task(self: Task, days: int = 30) -> dict[str, int | str | float]:
+def cleanup_old_agent_runs_task(
+    self: Task, days: int = 30, dry_run: bool = False
+) -> dict[str, Any]:
     """Delete agent run history older than specified days.
 
     Args:
         days: Delete agent runs older than N days (default: 30)
+        dry_run: If True, only report how many rows would be deleted
 
     Returns:
         Dict with task_id, runs_deleted, duration_seconds, success status
@@ -260,7 +307,7 @@ def cleanup_old_agent_runs_task(self: Task, days: int = 30) -> dict[str, int | s
     task_id = self.request.id
     start_time = dt.datetime.now(dt.UTC)
 
-    logger.info("cleanup_old_agent_runs_started", task_id=task_id, days=days)
+    logger.info("cleanup_old_agent_runs_started", task_id=task_id, days=days, dry_run=dry_run)
 
     try:
         storage = get_connection_manager()
@@ -269,6 +316,29 @@ def cleanup_old_agent_runs_task(self: Task, days: int = 30) -> dict[str, int | s
         cutoff_date = dt.datetime.now(dt.UTC) - dt.timedelta(days=days)
 
         with storage.connection() as conn:
+            if dry_run:
+                # In dry run mode, just count how many would be deleted
+                result = conn.execute(
+                    """
+                    SELECT COUNT(*) FROM agent_runs
+                    WHERE started_at < %s
+                    """,
+                    [cutoff_date],
+                ).fetchone()
+                runs_to_delete = result[0] if result else 0
+
+                duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+                return {
+                    "task_id": task_id,
+                    "dry_run": True,
+                    "runs_to_delete": runs_to_delete,
+                    "cutoff_date": cutoff_date.isoformat(),
+                    "retention_days": days,
+                    "message": f"Would delete {runs_to_delete} agent runs",
+                    "duration_seconds": round(duration, 2),
+                    "success": True,
+                }
+
             # Get agent run IDs to delete
             result = conn.execute(
                 """
@@ -296,8 +366,9 @@ def cleanup_old_agent_runs_task(self: Task, days: int = 30) -> dict[str, int | s
 
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
 
-        result_dict = {
+        result_dict: dict[str, Any] = {
             "task_id": task_id,
+            "dry_run": False,
             "runs_deleted": runs_deleted,
             "cutoff_date": cutoff_date.isoformat(),
             "retention_days": days,
@@ -319,6 +390,7 @@ def cleanup_old_agent_runs_task(self: Task, days: int = 30) -> dict[str, int | s
         )
         return {
             "task_id": task_id,
+            "dry_run": dry_run,
             "error": str(e),
             "success": False,
             "duration_seconds": round(duration, 2),
@@ -326,8 +398,11 @@ def cleanup_old_agent_runs_task(self: Task, days: int = 30) -> dict[str, int | s
 
 
 @celery_app.task(name="cleanup_orphaned_data_task", bind=True)
-def cleanup_orphaned_data_task(self: Task) -> dict[str, int | str | float]:
+def cleanup_orphaned_data_task(self: Task, dry_run: bool = False) -> dict[str, Any]:
     """Remove orphaned records and fix zombie runs.
+
+    Args:
+        dry_run: If True, only report what would be cleaned
 
     Returns:
         Dict with task_id, orphaned_insights_deleted, zombie_runs_fixed, duration_seconds, success status
@@ -335,12 +410,52 @@ def cleanup_orphaned_data_task(self: Task) -> dict[str, int | str | float]:
     task_id = self.request.id
     start_time = dt.datetime.now(dt.UTC)
 
-    logger.info("cleanup_orphaned_data_started", task_id=task_id)
+    logger.info("cleanup_orphaned_data_started", task_id=task_id, dry_run=dry_run)
 
     try:
         storage = get_connection_manager()
 
         with storage.connection() as conn:
+            if dry_run:
+                # In dry run mode, just count what would be affected
+                # Count orphaned insights
+                result = conn.execute(
+                    """
+                    SELECT COUNT(*) FROM capability_insights
+                    WHERE capability_id NOT IN (
+                        SELECT capability_id FROM db_capabilities
+                        UNION
+                        SELECT capability_id FROM celery_capabilities
+                        UNION
+                        SELECT capability_id FROM api_capabilities
+                    )
+                    """
+                ).fetchone()
+                orphaned_insights = result[0] if result else 0
+
+                # Count zombie runs
+                cutoff = dt.datetime.now(dt.UTC) - dt.timedelta(hours=1)
+                result = conn.execute(
+                    """
+                    SELECT COUNT(*) FROM agent_runs
+                    WHERE status IN ('running', 'error')
+                    AND started_at < %s
+                    """,
+                    [cutoff],
+                ).fetchone()
+                zombie_runs = result[0] if result else 0
+
+                duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
+                return {
+                    "task_id": task_id,
+                    "dry_run": True,
+                    "orphaned_insights_to_delete": orphaned_insights,
+                    "zombie_runs_to_fix": zombie_runs,
+                    "message": f"Would delete {orphaned_insights} orphaned insights and fix {zombie_runs} zombie runs",
+                    "duration_seconds": round(duration, 2),
+                    "success": True,
+                }
+
             # Note: agent_ideas table was dropped in migration 109
 
             # Delete capabilities insights with non-existent capability_id
@@ -377,8 +492,9 @@ def cleanup_orphaned_data_task(self: Task) -> dict[str, int | str | float]:
 
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
 
-        result_dict = {
+        result_dict: dict[str, Any] = {
             "task_id": task_id,
+            "dry_run": False,
             "orphaned_insights_deleted": orphaned_insights,
             "zombie_runs_fixed": zombie_runs_fixed,
             "duration_seconds": round(duration, 2),
@@ -399,6 +515,7 @@ def cleanup_orphaned_data_task(self: Task) -> dict[str, int | str | float]:
         )
         return {
             "task_id": task_id,
+            "dry_run": dry_run,
             "error": str(e),
             "success": False,
             "duration_seconds": round(duration, 2),

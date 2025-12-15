@@ -67,18 +67,31 @@ async def trigger_maintenance_task(
             detail=f"Invalid task name. Valid tasks: {', '.join(valid_tasks)}",
         )
 
-    # Only these tasks support dry_run parameter
+    # All tasks now support dry_run parameter
     tasks_with_dry_run = {
+        # File cleanup tasks
+        "cleanup_old_logs_task",
+        "cleanup_temp_files_task",
+        "cleanup_old_backups_task",
+        "cleanup_old_models_task",
+        "cleanup_solution_state_task",
         "cleanup_cache_directories_task",
+        "rotate_logs_task",
+        # Database cleanup tasks
+        "cleanup_old_news_task",
+        "cleanup_old_agent_runs_task",
+        "cleanup_orphaned_data_task",
+        "vacuum_database_task",
+        # Artifact cleanup tasks
         "cleanup_old_versions",
         "cleanup_debug_captures",
     }
 
     try:
-        # Build kwargs for task - only pass dry_run for tasks that support it
+        # Build kwargs for task - pass dry_run for tasks that support it
         kwargs = {}
-        if dry_run and task_name in tasks_with_dry_run:
-            kwargs["dry_run"] = True
+        if task_name in tasks_with_dry_run:
+            kwargs["dry_run"] = dry_run
 
         # Trigger the Celery task with optional kwargs
         task = celery_app.send_task(task_name, kwargs=kwargs if kwargs else None)

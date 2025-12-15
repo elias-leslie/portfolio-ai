@@ -108,8 +108,13 @@ def _check_disk_space_impl() -> dict[str, Any]:
 
 
 @celery_app.task(name="rotate_logs_task", bind=True)
-def rotate_logs_task(self: Task) -> dict[str, int | str | float]:
+def rotate_logs_task(
+    self: Task, dry_run: bool = False
+) -> dict[str, int | str | float | bool]:
     """Rotate logs in /tmp and /var/log/portfolio-ai directories.
+
+    Args:
+        dry_run: If True, only report what would be rotated
 
     Returns:
         Dict with task_id, files_rotated, duration_seconds, success status
@@ -117,10 +122,11 @@ def rotate_logs_task(self: Task) -> dict[str, int | str | float]:
     task_id = self.request.id
     start_time = dt.datetime.now(dt.UTC)
 
-    logger.info("rotate_logs_started", task_id=task_id)
+    logger.info("rotate_logs_started", task_id=task_id, dry_run=dry_run)
 
     try:
         files_rotated = 0
+        would_rotate: list[dict[str, Any]] = []
         # Backend logs directory (actual log location)
         backend_logs = Path(__file__).parent.parent.parent / "logs"
         log_dirs = [
@@ -139,18 +145,27 @@ def rotate_logs_task(self: Task) -> dict[str, int | str | float]:
 
             for log_file in log_files:
                 try:
+                    file_size = log_file.stat().st_size
                     # Check if file size > 10MB
-                    if log_file.stat().st_size > 10 * 1024 * 1024:
-                        # Rotate: rename to .log.1, .log.2, etc.
-                        timestamp = dt.datetime.now(dt.UTC).strftime("%Y%m%d_%H%M%S")
-                        rotated_name = log_file.with_suffix(f".log.{timestamp}")
-                        log_file.rename(rotated_name)
-                        files_rotated += 1
-                        logger.info(
-                            "log_file_rotated",
-                            file=str(log_file),
-                            new_name=str(rotated_name),
-                        )
+                    if file_size > 10 * 1024 * 1024:
+                        if dry_run:
+                            would_rotate.append({
+                                "file": str(log_file),
+                                "size_bytes": file_size,
+                                "size_mb": round(file_size / (1024 * 1024), 2),
+                            })
+                            files_rotated += 1
+                        else:
+                            # Rotate: rename to .log.1, .log.2, etc.
+                            timestamp = dt.datetime.now(dt.UTC).strftime("%Y%m%d_%H%M%S")
+                            rotated_name = log_file.with_suffix(f".log.{timestamp}")
+                            log_file.rename(rotated_name)
+                            files_rotated += 1
+                            logger.info(
+                                "log_file_rotated",
+                                file=str(log_file),
+                                new_name=str(rotated_name),
+                            )
                 except Exception as file_error:
                     logger.error(
                         "log_rotation_failed",
@@ -160,14 +175,17 @@ def rotate_logs_task(self: Task) -> dict[str, int | str | float]:
 
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
 
-        result = {
+        result: dict[str, Any] = {
             "task_id": task_id,
+            "dry_run": dry_run,
             "files_rotated": files_rotated,
             "duration_seconds": round(duration, 2),
             "success": True,
         }
+        if dry_run and would_rotate:
+            result["would_rotate"] = would_rotate
 
-        logger.info("rotate_logs_completed", **result)
+        logger.info("rotate_logs_completed", **{k: v for k, v in result.items() if k != "would_rotate"})
         return result
 
     except Exception as e:
@@ -181,6 +199,7 @@ def rotate_logs_task(self: Task) -> dict[str, int | str | float]:
         )
         return {
             "task_id": task_id,
+            "dry_run": dry_run,
             "error": str(e),
             "success": False,
             "duration_seconds": round(duration, 2),
@@ -188,11 +207,14 @@ def rotate_logs_task(self: Task) -> dict[str, int | str | float]:
 
 
 @celery_app.task(name="cleanup_old_logs_task", bind=True)
-def cleanup_old_logs_task(self: Task, days: int = 7) -> dict[str, int | str | float]:
+def cleanup_old_logs_task(
+    self: Task, days: int = 7, dry_run: bool = False
+) -> dict[str, Any]:
     """Delete log files older than specified days.
 
     Args:
         days: Delete logs older than N days (default: 7)
+        dry_run: If True, only report what would be deleted
 
     Returns:
         Dict with task_id, files_deleted, bytes_freed, duration_seconds, success status
@@ -200,11 +222,12 @@ def cleanup_old_logs_task(self: Task, days: int = 7) -> dict[str, int | str | fl
     task_id = self.request.id
     start_time = dt.datetime.now(dt.UTC)
 
-    logger.info("cleanup_old_logs_started", task_id=task_id, days=days)
+    logger.info("cleanup_old_logs_started", task_id=task_id, days=days, dry_run=dry_run)
 
     try:
         files_deleted = 0
         bytes_freed = 0
+        would_delete: list[dict[str, Any]] = []
         cutoff_time = dt.datetime.now(dt.UTC) - dt.timedelta(days=days)
         cutoff_timestamp = cutoff_time.timestamp()
 
@@ -227,17 +250,29 @@ def cleanup_old_logs_task(self: Task, days: int = 7) -> dict[str, int | str | fl
             for log_file in log_files:
                 try:
                     # Check file modification time
-                    mtime = log_file.stat().st_mtime
+                    stat = log_file.stat()
+                    mtime = stat.st_mtime
                     if mtime < cutoff_timestamp:
-                        file_size = log_file.stat().st_size
-                        log_file.unlink()
-                        files_deleted += 1
-                        bytes_freed += file_size
-                        logger.info(
-                            "log_file_deleted",
-                            file=str(log_file),
-                            size_bytes=file_size,
-                        )
+                        file_size = stat.st_size
+                        age_days = (cutoff_time.timestamp() - mtime) / 86400 + days
+
+                        if dry_run:
+                            would_delete.append({
+                                "file": str(log_file),
+                                "size_bytes": file_size,
+                                "age_days": round(age_days, 1),
+                            })
+                            files_deleted += 1
+                            bytes_freed += file_size
+                        else:
+                            log_file.unlink()
+                            files_deleted += 1
+                            bytes_freed += file_size
+                            logger.info(
+                                "log_file_deleted",
+                                file=str(log_file),
+                                size_bytes=file_size,
+                            )
                 except Exception as file_error:
                     logger.error(
                         "log_deletion_failed",
@@ -245,8 +280,8 @@ def cleanup_old_logs_task(self: Task, days: int = 7) -> dict[str, int | str | fl
                         error=str(file_error),
                     )
 
-        # Store metric in maintenance_stats
-        if bytes_freed > 0:
+        # Store metric in maintenance_stats (only if not dry run)
+        if bytes_freed > 0 and not dry_run:
             storage = get_connection_manager()
             with storage.connection() as conn:
                 conn.execute(
@@ -260,8 +295,9 @@ def cleanup_old_logs_task(self: Task, days: int = 7) -> dict[str, int | str | fl
 
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
 
-        result = {
+        result: dict[str, Any] = {
             "task_id": task_id,
+            "dry_run": dry_run,
             "files_deleted": files_deleted,
             "bytes_freed": bytes_freed,
             "bytes_freed_mb": round(bytes_freed / (1024 * 1024), 2),
@@ -269,8 +305,10 @@ def cleanup_old_logs_task(self: Task, days: int = 7) -> dict[str, int | str | fl
             "duration_seconds": round(duration, 2),
             "success": True,
         }
+        if dry_run and would_delete:
+            result["would_delete"] = would_delete
 
-        logger.info("cleanup_old_logs_completed", **result)
+        logger.info("cleanup_old_logs_completed", **{k: v for k, v in result.items() if k != "would_delete"})
         return result
 
     except Exception as e:
@@ -284,6 +322,7 @@ def cleanup_old_logs_task(self: Task, days: int = 7) -> dict[str, int | str | fl
         )
         return {
             "task_id": task_id,
+            "dry_run": dry_run,
             "error": str(e),
             "success": False,
             "duration_seconds": round(duration, 2),
@@ -291,11 +330,14 @@ def cleanup_old_logs_task(self: Task, days: int = 7) -> dict[str, int | str | fl
 
 
 @celery_app.task(name="cleanup_temp_files_task", bind=True)
-def cleanup_temp_files_task(self: Task, hours: int = 24) -> dict[str, int | str | float]:
+def cleanup_temp_files_task(
+    self: Task, hours: int = 24, dry_run: bool = False
+) -> dict[str, Any]:
     """Delete temporary files older than specified hours.
 
     Args:
         hours: Delete temp files older than N hours (default: 24)
+        dry_run: If True, only report what would be deleted
 
     Returns:
         Dict with task_id, files_deleted, bytes_freed, duration_seconds, success status
@@ -303,11 +345,12 @@ def cleanup_temp_files_task(self: Task, hours: int = 24) -> dict[str, int | str 
     task_id = self.request.id
     start_time = dt.datetime.now(dt.UTC)
 
-    logger.info("cleanup_temp_files_started", task_id=task_id, hours=hours)
+    logger.info("cleanup_temp_files_started", task_id=task_id, hours=hours, dry_run=dry_run)
 
     try:
         files_deleted = 0
         bytes_freed = 0
+        would_delete: list[dict[str, Any]] = []
         cutoff_time = dt.datetime.now(dt.UTC) - dt.timedelta(hours=hours)
         cutoff_timestamp = cutoff_time.timestamp()
 
@@ -331,12 +374,24 @@ def cleanup_temp_files_task(self: Task, hours: int = 24) -> dict[str, int | str 
                         continue
 
                     # Check file modification time
-                    mtime = temp_file.stat().st_mtime
+                    stat = temp_file.stat()
+                    mtime = stat.st_mtime
                     if mtime < cutoff_timestamp:
-                        file_size = temp_file.stat().st_size
-                        temp_file.unlink()
-                        files_deleted += 1
-                        bytes_freed += file_size
+                        file_size = stat.st_size
+                        age_hours = (cutoff_time.timestamp() - mtime) / 3600 + hours
+
+                        if dry_run:
+                            would_delete.append({
+                                "file": str(temp_file),
+                                "size_bytes": file_size,
+                                "age_hours": round(age_hours, 1),
+                            })
+                            files_deleted += 1
+                            bytes_freed += file_size
+                        else:
+                            temp_file.unlink()
+                            files_deleted += 1
+                            bytes_freed += file_size
                 except Exception as file_error:
                     logger.error(
                         "temp_file_deletion_failed",
@@ -344,8 +399,8 @@ def cleanup_temp_files_task(self: Task, hours: int = 24) -> dict[str, int | str 
                         error=str(file_error),
                     )
 
-        # Store metric in maintenance_stats
-        if bytes_freed > 0:
+        # Store metric in maintenance_stats (only if not dry run)
+        if bytes_freed > 0 and not dry_run:
             storage = get_connection_manager()
             with storage.connection() as conn:
                 conn.execute(
@@ -359,8 +414,9 @@ def cleanup_temp_files_task(self: Task, hours: int = 24) -> dict[str, int | str 
 
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
 
-        result = {
+        result: dict[str, Any] = {
             "task_id": task_id,
+            "dry_run": dry_run,
             "files_deleted": files_deleted,
             "bytes_freed": bytes_freed,
             "bytes_freed_mb": round(bytes_freed / (1024 * 1024), 2),
@@ -368,8 +424,10 @@ def cleanup_temp_files_task(self: Task, hours: int = 24) -> dict[str, int | str 
             "duration_seconds": round(duration, 2),
             "success": True,
         }
+        if dry_run and would_delete:
+            result["would_delete"] = would_delete
 
-        logger.info("cleanup_temp_files_completed", **result)
+        logger.info("cleanup_temp_files_completed", **{k: v for k, v in result.items() if k != "would_delete"})
         return result
 
     except Exception as e:
@@ -383,6 +441,7 @@ def cleanup_temp_files_task(self: Task, hours: int = 24) -> dict[str, int | str 
         )
         return {
             "task_id": task_id,
+            "dry_run": dry_run,
             "error": str(e),
             "success": False,
             "duration_seconds": round(duration, 2),
@@ -432,11 +491,14 @@ def check_disk_space_task(self: Task) -> dict[str, int | str | float | list[dict
 
 
 @celery_app.task(name="cleanup_old_backups_task", bind=True)
-def cleanup_old_backups_task(self: Task, keep_count: int = 5) -> dict[str, int | str | float]:
+def cleanup_old_backups_task(
+    self: Task, keep_count: int = 5, dry_run: bool = False
+) -> dict[str, Any]:
     """Delete old backup files, keeping N most recent.
 
     Args:
         keep_count: Number of recent backups to keep (default: 5)
+        dry_run: If True, only report what would be deleted
 
     Returns:
         Dict with task_id, files_deleted, bytes_freed, duration_seconds, success status
@@ -444,11 +506,12 @@ def cleanup_old_backups_task(self: Task, keep_count: int = 5) -> dict[str, int |
     task_id = self.request.id
     start_time = dt.datetime.now(dt.UTC)
 
-    logger.info("cleanup_old_backups_started", task_id=task_id, keep_count=keep_count)
+    logger.info("cleanup_old_backups_started", task_id=task_id, keep_count=keep_count, dry_run=dry_run)
 
     try:
         files_deleted = 0
         bytes_freed = 0
+        would_delete: list[dict[str, Any]] = []
 
         # Backups directory
         backup_dir = Path(__file__).parent.parent.parent.parent / "backups"
@@ -457,6 +520,7 @@ def cleanup_old_backups_task(self: Task, keep_count: int = 5) -> dict[str, int |
             logger.warning("backup_directory_not_found", directory=str(backup_dir))
             return {
                 "task_id": task_id,
+                "dry_run": dry_run,
                 "files_deleted": 0,
                 "bytes_freed": 0,
                 "message": "Backup directory not found",
@@ -466,28 +530,40 @@ def cleanup_old_backups_task(self: Task, keep_count: int = 5) -> dict[str, int |
 
         # Find all backup files (SQL dumps)
         backup_patterns = ["*.sql", "*.sql.gz", "*.sql.bz2"]
-        backup_files: list[tuple[Path, float]] = []
+        backup_files: list[tuple[Path, float, int]] = []
 
         for pattern in backup_patterns:
             for f in backup_dir.glob(pattern):
                 if f.is_file():
-                    backup_files.append((f, f.stat().st_mtime))
+                    stat = f.stat()
+                    backup_files.append((f, stat.st_mtime, stat.st_size))
 
         # Sort by modification time (newest first)
         backup_files.sort(key=lambda x: x[1], reverse=True)
 
         # Delete files beyond keep_count
-        for file_path, _ in backup_files[keep_count:]:
+        now = dt.datetime.now(dt.UTC).timestamp()
+        for file_path, mtime, file_size in backup_files[keep_count:]:
             try:
-                file_size = file_path.stat().st_size
-                file_path.unlink()
-                files_deleted += 1
-                bytes_freed += file_size
-                logger.info(
-                    "backup_file_deleted",
-                    file=str(file_path),
-                    size_bytes=file_size,
-                )
+                age_days = (now - mtime) / 86400
+
+                if dry_run:
+                    would_delete.append({
+                        "file": str(file_path),
+                        "size_bytes": file_size,
+                        "age_days": round(age_days, 1),
+                    })
+                    files_deleted += 1
+                    bytes_freed += file_size
+                else:
+                    file_path.unlink()
+                    files_deleted += 1
+                    bytes_freed += file_size
+                    logger.info(
+                        "backup_file_deleted",
+                        file=str(file_path),
+                        size_bytes=file_size,
+                    )
             except Exception as file_error:
                 logger.error(
                     "backup_deletion_failed",
@@ -495,8 +571,8 @@ def cleanup_old_backups_task(self: Task, keep_count: int = 5) -> dict[str, int |
                     error=str(file_error),
                 )
 
-        # Store metric in maintenance_stats
-        if bytes_freed > 0:
+        # Store metric in maintenance_stats (only if not dry run)
+        if bytes_freed > 0 and not dry_run:
             storage = get_connection_manager()
             with storage.connection() as conn:
                 conn.execute(
@@ -510,8 +586,9 @@ def cleanup_old_backups_task(self: Task, keep_count: int = 5) -> dict[str, int |
 
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
 
-        result = {
+        result: dict[str, Any] = {
             "task_id": task_id,
+            "dry_run": dry_run,
             "files_deleted": files_deleted,
             "bytes_freed": bytes_freed,
             "bytes_freed_mb": round(bytes_freed / (1024 * 1024), 2),
@@ -520,8 +597,10 @@ def cleanup_old_backups_task(self: Task, keep_count: int = 5) -> dict[str, int |
             "duration_seconds": round(duration, 2),
             "success": True,
         }
+        if dry_run and would_delete:
+            result["would_delete"] = would_delete
 
-        logger.info("cleanup_old_backups_completed", **result)
+        logger.info("cleanup_old_backups_completed", **{k: v for k, v in result.items() if k != "would_delete"})
         return result
 
     except Exception as e:
@@ -535,6 +614,7 @@ def cleanup_old_backups_task(self: Task, keep_count: int = 5) -> dict[str, int |
         )
         return {
             "task_id": task_id,
+            "dry_run": dry_run,
             "error": str(e),
             "success": False,
             "duration_seconds": round(duration, 2),
@@ -542,11 +622,14 @@ def cleanup_old_backups_task(self: Task, keep_count: int = 5) -> dict[str, int |
 
 
 @celery_app.task(name="cleanup_old_models_task", bind=True)
-def cleanup_old_models_task(self: Task, keep_count: int = 3) -> dict[str, int | str | float]:
+def cleanup_old_models_task(
+    self: Task, keep_count: int = 3, dry_run: bool = False
+) -> dict[str, Any]:
     """Delete old ML model versions, keeping N most recent per model type.
 
     Args:
         keep_count: Number of recent versions to keep per model type (default: 3)
+        dry_run: If True, only report what would be deleted
 
     Returns:
         Dict with task_id, files_deleted, bytes_freed, duration_seconds, success status
@@ -554,11 +637,12 @@ def cleanup_old_models_task(self: Task, keep_count: int = 3) -> dict[str, int | 
     task_id = self.request.id
     start_time = dt.datetime.now(dt.UTC)
 
-    logger.info("cleanup_old_models_started", task_id=task_id, keep_count=keep_count)
+    logger.info("cleanup_old_models_started", task_id=task_id, keep_count=keep_count, dry_run=dry_run)
 
     try:
         files_deleted = 0
         bytes_freed = 0
+        would_delete: list[dict[str, Any]] = []
 
         # Models directory
         models_dir = Path(__file__).parent.parent.parent / "models"
@@ -567,6 +651,7 @@ def cleanup_old_models_task(self: Task, keep_count: int = 3) -> dict[str, int | 
             logger.warning("models_directory_not_found", directory=str(models_dir))
             return {
                 "task_id": task_id,
+                "dry_run": dry_run,
                 "files_deleted": 0,
                 "bytes_freed": 0,
                 "message": "Models directory not found",
@@ -578,7 +663,7 @@ def cleanup_old_models_task(self: Task, keep_count: int = 3) -> dict[str, int | 
         # Pattern: {model_name}_v{date}.joblib
         import re
 
-        model_groups: dict[str, list[tuple[Path, str]]] = {}
+        model_groups: dict[str, list[tuple[Path, str, int]]] = {}
         model_pattern = re.compile(r"^(.+)_v(\d{8})\.joblib$")
 
         for f in models_dir.glob("*.joblib"):
@@ -589,9 +674,10 @@ def cleanup_old_models_task(self: Task, keep_count: int = 3) -> dict[str, int | 
             if match:
                 model_name = match.group(1)
                 date_str = match.group(2)
+                file_size = f.stat().st_size
                 if model_name not in model_groups:
                     model_groups[model_name] = []
-                model_groups[model_name].append((f, date_str))
+                model_groups[model_name].append((f, date_str, file_size))
 
         # For each model group, keep only the N most recent
         for model_name, versions in model_groups.items():
@@ -599,19 +685,28 @@ def cleanup_old_models_task(self: Task, keep_count: int = 3) -> dict[str, int | 
             versions.sort(key=lambda x: x[1], reverse=True)
 
             # Delete versions beyond keep_count
-            for file_path, date_str in versions[keep_count:]:
+            for file_path, date_str, file_size in versions[keep_count:]:
                 try:
-                    file_size = file_path.stat().st_size
-                    file_path.unlink()
-                    files_deleted += 1
-                    bytes_freed += file_size
-                    logger.info(
-                        "model_file_deleted",
-                        file=str(file_path),
-                        model_name=model_name,
-                        version_date=date_str,
-                        size_bytes=file_size,
-                    )
+                    if dry_run:
+                        would_delete.append({
+                            "file": str(file_path),
+                            "model_name": model_name,
+                            "version_date": date_str,
+                            "size_bytes": file_size,
+                        })
+                        files_deleted += 1
+                        bytes_freed += file_size
+                    else:
+                        file_path.unlink()
+                        files_deleted += 1
+                        bytes_freed += file_size
+                        logger.info(
+                            "model_file_deleted",
+                            file=str(file_path),
+                            model_name=model_name,
+                            version_date=date_str,
+                            size_bytes=file_size,
+                        )
                 except Exception as file_error:
                     logger.error(
                         "model_deletion_failed",
@@ -619,8 +714,8 @@ def cleanup_old_models_task(self: Task, keep_count: int = 3) -> dict[str, int | 
                         error=str(file_error),
                     )
 
-        # Store metric in maintenance_stats
-        if bytes_freed > 0:
+        # Store metric in maintenance_stats (only if not dry run)
+        if bytes_freed > 0 and not dry_run:
             storage = get_connection_manager()
             with storage.connection() as conn:
                 conn.execute(
@@ -634,8 +729,9 @@ def cleanup_old_models_task(self: Task, keep_count: int = 3) -> dict[str, int | 
 
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
 
-        result = {
+        result: dict[str, Any] = {
             "task_id": task_id,
+            "dry_run": dry_run,
             "files_deleted": files_deleted,
             "bytes_freed": bytes_freed,
             "bytes_freed_mb": round(bytes_freed / (1024 * 1024), 2),
@@ -644,8 +740,10 @@ def cleanup_old_models_task(self: Task, keep_count: int = 3) -> dict[str, int | 
             "duration_seconds": round(duration, 2),
             "success": True,
         }
+        if dry_run and would_delete:
+            result["would_delete"] = would_delete
 
-        logger.info("cleanup_old_models_completed", **result)
+        logger.info("cleanup_old_models_completed", **{k: v for k, v in result.items() if k != "would_delete"})
         return result
 
     except Exception as e:
@@ -659,6 +757,7 @@ def cleanup_old_models_task(self: Task, keep_count: int = 3) -> dict[str, int | 
         )
         return {
             "task_id": task_id,
+            "dry_run": dry_run,
             "error": str(e),
             "success": False,
             "duration_seconds": round(duration, 2),
@@ -666,11 +765,14 @@ def cleanup_old_models_task(self: Task, keep_count: int = 3) -> dict[str, int | 
 
 
 @celery_app.task(name="cleanup_solution_state_task", bind=True)
-def cleanup_solution_state_task(self: Task, keep_days: int = 14) -> dict[str, int | str | float]:
+def cleanup_solution_state_task(
+    self: Task, keep_days: int = 14, dry_run: bool = False
+) -> dict[str, Any]:
     """Delete old solution_state test artifacts, keeping N days of recent data.
 
     Args:
         keep_days: Number of days of artifacts to keep (default: 14)
+        dry_run: If True, only report what would be deleted
 
     Returns:
         Dict with task_id, directories_deleted, bytes_freed, duration_seconds, success status
@@ -678,11 +780,12 @@ def cleanup_solution_state_task(self: Task, keep_days: int = 14) -> dict[str, in
     task_id = self.request.id
     start_time = dt.datetime.now(dt.UTC)
 
-    logger.info("cleanup_solution_state_started", task_id=task_id, keep_days=keep_days)
+    logger.info("cleanup_solution_state_started", task_id=task_id, keep_days=keep_days, dry_run=dry_run)
 
     try:
         directories_deleted = 0
         bytes_freed = 0
+        would_delete: list[dict[str, Any]] = []
 
         # Solution state directory
         solution_dir = Path(__file__).parent.parent.parent.parent / "solution_state"
@@ -691,6 +794,7 @@ def cleanup_solution_state_task(self: Task, keep_days: int = 14) -> dict[str, in
             logger.warning("solution_state_directory_not_found", directory=str(solution_dir))
             return {
                 "task_id": task_id,
+                "dry_run": dry_run,
                 "directories_deleted": 0,
                 "bytes_freed": 0,
                 "message": "Solution state directory not found",
@@ -701,6 +805,7 @@ def cleanup_solution_state_task(self: Task, keep_days: int = 14) -> dict[str, in
         # Calculate cutoff date
         cutoff_time = dt.datetime.now(dt.UTC) - dt.timedelta(days=keep_days)
         cutoff_timestamp = cutoff_time.timestamp()
+        now = dt.datetime.now(dt.UTC).timestamp()
 
         # Find directories that look like timestamps (YYYYMMDD-HHMMSS format)
         import re
@@ -718,18 +823,28 @@ def cleanup_solution_state_task(self: Task, keep_days: int = 14) -> dict[str, in
                 # Check directory modification time
                 mtime = entry.stat().st_mtime
                 if mtime < cutoff_timestamp:
-                    # Calculate directory size before deletion
+                    # Calculate directory size
                     dir_size = sum(f.stat().st_size for f in entry.rglob("*") if f.is_file())
+                    age_days = (now - mtime) / 86400
 
-                    # Delete directory recursively
-                    shutil.rmtree(entry)
-                    directories_deleted += 1
-                    bytes_freed += dir_size
-                    logger.info(
-                        "solution_state_deleted",
-                        directory=str(entry),
-                        size_bytes=dir_size,
-                    )
+                    if dry_run:
+                        would_delete.append({
+                            "directory": str(entry),
+                            "size_bytes": dir_size,
+                            "age_days": round(age_days, 1),
+                        })
+                        directories_deleted += 1
+                        bytes_freed += dir_size
+                    else:
+                        # Delete directory recursively
+                        shutil.rmtree(entry)
+                        directories_deleted += 1
+                        bytes_freed += dir_size
+                        logger.info(
+                            "solution_state_deleted",
+                            directory=str(entry),
+                            size_bytes=dir_size,
+                        )
             except Exception as dir_error:
                 logger.error(
                     "solution_state_deletion_failed",
@@ -737,8 +852,8 @@ def cleanup_solution_state_task(self: Task, keep_days: int = 14) -> dict[str, in
                     error=str(dir_error),
                 )
 
-        # Store metric in maintenance_stats
-        if bytes_freed > 0:
+        # Store metric in maintenance_stats (only if not dry run)
+        if bytes_freed > 0 and not dry_run:
             storage = get_connection_manager()
             with storage.connection() as conn:
                 conn.execute(
@@ -752,8 +867,9 @@ def cleanup_solution_state_task(self: Task, keep_days: int = 14) -> dict[str, in
 
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
 
-        result = {
+        result: dict[str, Any] = {
             "task_id": task_id,
+            "dry_run": dry_run,
             "directories_deleted": directories_deleted,
             "bytes_freed": bytes_freed,
             "bytes_freed_mb": round(bytes_freed / (1024 * 1024), 2),
@@ -761,8 +877,10 @@ def cleanup_solution_state_task(self: Task, keep_days: int = 14) -> dict[str, in
             "duration_seconds": round(duration, 2),
             "success": True,
         }
+        if dry_run and would_delete:
+            result["would_delete"] = would_delete
 
-        logger.info("cleanup_solution_state_completed", **result)
+        logger.info("cleanup_solution_state_completed", **{k: v for k, v in result.items() if k != "would_delete"})
         return result
 
     except Exception as e:
@@ -776,6 +894,7 @@ def cleanup_solution_state_task(self: Task, keep_days: int = 14) -> dict[str, in
         )
         return {
             "task_id": task_id,
+            "dry_run": dry_run,
             "error": str(e),
             "success": False,
             "duration_seconds": round(duration, 2),
