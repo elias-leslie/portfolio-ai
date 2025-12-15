@@ -20,10 +20,28 @@ bd sync                                       # MANDATORY at session end
 
 ### Creating Issues
 ```bash
-bd create "Title" -t feature|bug|task -p 0-4 -d "Description" --json
+# Always include complexity and domain labels!
+bd create "Title" -t feature|bug|task -p 0-4 -d "Description" \
+  --labels "complexity:small|medium|large,domains:backend|frontend|database" --json
+
 bd dep add <child> <parent>                  # Link dependencies
-bd create "Found bug" --deps discovered-from:<parent-id> --json
+bd create "Found bug" --deps discovered-from:<parent-id> \
+  --labels "complexity:small,domains:backend" --json
 ```
+
+### Complexity Labels (REQUIRED for /next_it efficiency)
+| Label | Criteria | Agent Strategy |
+|-------|----------|----------------|
+| `complexity:small` | <3 files, <50 lines | Orchestrator direct |
+| `complexity:medium` | 3-10 files, <200 lines | Light agent assist |
+| `complexity:large` | >10 files OR multi-domain | Full specialist agents |
+
+### Domain Labels (REQUIRED)
+| Label | When |
+|-------|------|
+| `domains:backend` | Python/FastAPI changes |
+| `domains:frontend` | React/Next.js changes |
+| `domains:database` | Schema/migration changes |
 
 ### Priority Levels
 | Level | Meaning |
@@ -120,14 +138,16 @@ journalctl --user -u portfolio-celery -f
    ```
 2. **If no bead exists, CREATE + LINK IMMEDIATELY**:
    ```bash
-   # Create the bug
+   # Create the bug with complexity and domain labels
    bd create --title "Fix: <clear description>" \
      --description "Error: <exact error message>
 
    Location: <file:line>
 
    Found during: <parent-bead-id> <task name>" \
-     --priority 2 --type bug --json
+     --priority 2 --type bug \
+     --labels "complexity:<small|medium|large>,domains:<backend|frontend|database>" \
+     --json
 
    # MANDATORY: Link with discovered-from dependency
    bd dep add <new-id> <parent-bead-id> --type discovered-from
