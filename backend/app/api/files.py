@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+import subprocess
+from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Query
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from starlette.concurrency import run_in_threadpool
 
 from app.services.file_scanner import FileScanner
 
 router = APIRouter(prefix="/api/files", tags=["files"])
+
+# Project root for git operations (backend/app/api/files.py -> portfolio-ai/)
+PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 
 
 @router.get("")
@@ -81,3 +86,113 @@ async def trigger_scan(background_tasks: BackgroundTasks) -> dict[str, str]:
 
     scan_files.delay()
     return {"status": "queued", "message": "File scan started in background"}
+
+
+def _get_git_history(file_path: str, limit: int = 10) -> dict[str, Any]:
+    """Get git history for a file using git log --follow."""
+    full_path = PROJECT_ROOT / file_path
+
+    # Validate path exists and is within project
+    try:
+        full_path.resolve().relative_to(PROJECT_ROOT.resolve())
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid file path")
+
+    if not full_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    # Get commit history with --follow to track renames
+    # Format: hash|author|date|lines_added|lines_deleted|subject
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "log",
+                "--follow",
+                f"-{limit}",
+                "--format=%H|%an|%aI|%s",
+                "--numstat",
+                "--",
+                str(full_path),
+            ],
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Git operation timed out")
+
+    if result.returncode != 0:
+        # File might not be tracked
+        return {"commits": [], "total_commits": 0, "error": "File not tracked by git"}
+
+    # Parse output
+    commits = []
+    lines = result.stdout.strip().split("\n")
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        if not line:
+            i += 1
+            continue
+
+        if "|" in line:
+            # This is a commit line
+            parts = line.split("|", 3)
+            if len(parts) >= 4:
+                commit_hash, author, date, subject = parts
+                commit = {
+                    "hash": commit_hash[:8],
+                    "full_hash": commit_hash,
+                    "author": author,
+                    "date": date,
+                    "subject": subject,
+                    "lines_added": 0,
+                    "lines_deleted": 0,
+                }
+
+                # Look for numstat on next line
+                i += 1
+                while i < len(lines) and lines[i].strip() and "|" not in lines[i]:
+                    stat_line = lines[i].strip()
+                    stat_parts = stat_line.split("\t")
+                    if len(stat_parts) >= 2:
+                        try:
+                            added = int(stat_parts[0]) if stat_parts[0] != "-" else 0
+                            deleted = int(stat_parts[1]) if stat_parts[1] != "-" else 0
+                            commit["lines_added"] += added
+                            commit["lines_deleted"] += deleted
+                        except ValueError:
+                            pass
+                    i += 1
+
+                commits.append(commit)
+                continue
+
+        i += 1
+
+    # Get total commit count
+    count_result = subprocess.run(
+        ["git", "rev-list", "--count", "HEAD", "--", str(full_path)],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    total_commits = int(count_result.stdout.strip()) if count_result.returncode == 0 else len(commits)
+
+    return {
+        "commits": commits,
+        "total_commits": total_commits,
+        "file_path": file_path,
+    }
+
+
+@router.get("/history")
+async def get_file_history(
+    path: str = Query(..., description="File path relative to project root"),
+    limit: int = Query(10, ge=1, le=50, description="Number of commits to return"),
+) -> dict[str, Any]:
+    """Get git commit history for a specific file."""
+    return await run_in_threadpool(_get_git_history, path, limit)

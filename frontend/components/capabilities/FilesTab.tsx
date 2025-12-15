@@ -28,6 +28,7 @@ import {
   ArrowUp,
   ArrowDown,
   X,
+  GitCommit as GitCommitIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -112,6 +113,29 @@ async function triggerScan(): Promise<{ status: string; message: string }> {
   return res.json();
 }
 
+interface GitCommit {
+  hash: string;
+  full_hash: string;
+  author: string;
+  date: string;
+  subject: string;
+  lines_added: number;
+  lines_deleted: number;
+}
+
+interface GitHistory {
+  commits: GitCommit[];
+  total_commits: number;
+  file_path: string;
+  error?: string;
+}
+
+async function fetchGitHistory(path: string): Promise<GitHistory> {
+  const res = await fetch(`/api/files/history?path=${encodeURIComponent(path)}&limit=5`);
+  if (!res.ok) return { commits: [], total_commits: 0, file_path: path, error: "Failed to fetch" };
+  return res.json();
+}
+
 interface FilesListResponse {
   items: FileNode[];
   total: number;
@@ -181,6 +205,14 @@ function InlineDetails({
   const loc = isDir ? node.total_loc || 0 : node.lines_of_code;
   const bloatStatus = node.bloat_level;
   const staleStatus = node.stale_status;
+
+  // Fetch git history for files only
+  const { data: gitHistory, isLoading: historyLoading } = useQuery({
+    queryKey: ["files", "history", node.path],
+    queryFn: () => fetchGitHistory(node.path),
+    enabled: !isDir,
+    staleTime: 60000, // Cache for 1 minute
+  });
 
   return (
     <div
@@ -305,6 +337,46 @@ function InlineDetails({
                 {node.reference_count ?? "-"}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Git History section - for files only */}
+        {!isDir && (
+          <div className="mt-3 pt-2 border-t border-border/50">
+            <div className="flex items-center gap-2 mb-2">
+              <GitCommitIcon className="h-3.5 w-3.5 text-text-secondary" />
+              <span className="text-xs font-medium text-text-secondary">
+                Recent Commits
+                {gitHistory?.total_commits ? ` (${gitHistory.total_commits} total)` : ""}
+              </span>
+            </div>
+            {historyLoading ? (
+              <div className="flex items-center gap-2 text-xs text-text-secondary">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                <span>Loading history...</span>
+              </div>
+            ) : gitHistory?.error ? (
+              <div className="text-xs text-text-secondary italic">{gitHistory.error}</div>
+            ) : gitHistory?.commits.length === 0 ? (
+              <div className="text-xs text-text-secondary italic">No git history found</div>
+            ) : (
+              <div className="space-y-1.5">
+                {gitHistory?.commits.slice(0, 3).map((commit) => (
+                  <div
+                    key={commit.full_hash}
+                    className="flex items-start gap-2 text-xs bg-background/50 rounded px-2 py-1.5"
+                  >
+                    <span className="font-mono text-primary/70 flex-shrink-0">{commit.hash}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="truncate" title={commit.subject}>{commit.subject}</div>
+                      <div className="text-text-secondary">
+                        {commit.author} · {new Date(commit.date).toLocaleDateString()}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
