@@ -50,6 +50,9 @@ interface FileSummary {
   total_loc: number;
   bloat_warnings: number;
   bloat_critical: number;
+  stale_files: number;
+  orphan_files: number;
+  fresh_files: number;
   last_scan: string | null;
   by_extension: Array<{ extension: string; count: number; loc: number }>;
 }
@@ -68,6 +71,10 @@ interface FileNode {
   subdir_count: number;
   direct_file_count: number;
   has_children: boolean;
+  // Stale detection fields
+  last_commit_days: number | null;
+  reference_count: number | null;
+  stale_status: "fresh" | "stale" | "orphan" | null;
 }
 
 type SortField = "name" | "loc" | "size" | "files" | "modified";
@@ -172,6 +179,7 @@ function InlineDetails({
   const isDir = node.is_directory;
   const loc = isDir ? node.total_loc || 0 : node.lines_of_code;
   const bloatStatus = node.bloat_level;
+  const staleStatus = node.stale_status;
 
   return (
     <div
@@ -179,7 +187,9 @@ function InlineDetails({
         "mx-2 mb-1 rounded border bg-surface-alt",
         bloatStatus === "critical" && "border-loss/30 bg-loss/5",
         bloatStatus === "warning" && "border-warning/30 bg-warning/5",
-        !bloatStatus && "border-border"
+        staleStatus === "orphan" && !bloatStatus && "border-loss/30 bg-loss/5",
+        staleStatus === "stale" && !bloatStatus && "border-accent/30 bg-accent/5",
+        !bloatStatus && !staleStatus && "border-border"
       )}
       style={{ marginLeft: depth * 20 + 8 }}
     >
@@ -202,6 +212,17 @@ function InlineDetails({
                 )}
               >
                 {bloatStatus}
+              </Badge>
+            )}
+            {staleStatus && staleStatus !== "fresh" && (
+              <Badge
+                variant={staleStatus === "orphan" ? "destructive" : "outline"}
+                className={cn(
+                  "text-xs",
+                  staleStatus === "stale" && "border-accent text-accent"
+                )}
+              >
+                {staleStatus}
               </Badge>
             )}
           </div>
@@ -260,6 +281,30 @@ function InlineDetails({
           )}
         </div>
 
+        {/* Stale info row - only show for files with stale data */}
+        {!isDir && (node.last_commit_days !== null || node.reference_count !== null) && (
+          <div className="grid grid-cols-2 gap-2 text-xs mt-2">
+            <div className="bg-background/50 rounded px-2 py-1.5">
+              <div className="text-text-secondary">Last Commit</div>
+              <div className={cn(
+                "font-semibold",
+                node.last_commit_days !== null && node.last_commit_days >= 90 && "text-accent"
+              )}>
+                {node.last_commit_days !== null ? `${node.last_commit_days} days ago` : "-"}
+              </div>
+            </div>
+            <div className="bg-background/50 rounded px-2 py-1.5">
+              <div className="text-text-secondary">References</div>
+              <div className={cn(
+                "font-semibold",
+                node.reference_count === 0 && "text-accent"
+              )}>
+                {node.reference_count ?? "-"}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Status message */}
         {bloatStatus && (
           <div className="mt-2 text-xs text-text-secondary">
@@ -293,6 +338,7 @@ export function FilesTab() {
   const [filesOnlyAutoSet, setFilesOnlyAutoSet] = useState(false); // Track if auto-set by bloat filter
   const [searchFilter, setSearchFilter] = useState("");
   const [bloatFilter, setBloatFilter] = useState<"all" | "warning" | "critical">("all");
+  const [staleFilter, setStaleFilter] = useState<"all" | "stale" | "orphan">("all");
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set()); // Children expanded
   const [detailsOpenPaths, setDetailsOpenPaths] = useState<Set<string>>(new Set()); // Details expanded
   const [loadedChildren, setLoadedChildren] = useState<Map<string, FileNode[]>>(
@@ -431,9 +477,15 @@ export function FilesTab() {
         if (bloatFilter === "critical" && node.bloat_level !== "critical") return false;
       }
 
+      // Stale filter
+      if (staleFilter !== "all") {
+        if (staleFilter === "stale" && node.stale_status !== "stale") return false;
+        if (staleFilter === "orphan" && node.stale_status !== "orphan") return false;
+      }
+
       return true;
     });
-  }, [rootChildren, allFilesData, filesOnly, searchFilter, bloatFilter]);
+  }, [rootChildren, allFilesData, filesOnly, searchFilter, bloatFilter, staleFilter]);
 
   const isLoading = filesOnly ? allFilesLoading : rootLoading;
 
@@ -463,10 +515,13 @@ export function FilesTab() {
             "flex items-center gap-1 py-1.5 px-2 cursor-pointer transition-colors group",
             "hover:bg-surface-alt",
             isDetailsOpen && "bg-primary/5",
-            // Bloat indicator - left border
+            // Bloat indicator - left border (higher priority)
             node.bloat_level === "critical" && "border-l-2 border-l-loss",
             node.bloat_level === "warning" && "border-l-2 border-l-warning",
-            !node.bloat_level && "border-l-2 border-l-transparent"
+            // Stale indicator - left border (when no bloat)
+            !node.bloat_level && node.stale_status === "orphan" && "border-l-2 border-l-loss",
+            !node.bloat_level && node.stale_status === "stale" && "border-l-2 border-l-accent",
+            !node.bloat_level && !node.stale_status && "border-l-2 border-l-transparent"
           )}
           onClick={() => toggleDetails(node.path)}
         >
@@ -529,7 +584,11 @@ export function FilesTab() {
                     ? "text-loss"
                     : node.bloat_level === "warning"
                       ? "text-warning"
-                      : "text-text-secondary"
+                      : node.stale_status === "orphan"
+                        ? "text-loss"
+                        : node.stale_status === "stale"
+                          ? "text-accent"
+                          : "text-text-secondary"
                 )}
               />
             )}
@@ -541,7 +600,9 @@ export function FilesTab() {
               "flex-1 truncate text-sm",
               node.bloat_level === "critical" && "text-loss",
               node.bloat_level === "warning" && "text-warning",
-              !node.bloat_level && node.is_directory && "text-primary"
+              !node.bloat_level && node.stale_status === "orphan" && "text-loss",
+              !node.bloat_level && node.stale_status === "stale" && "text-accent",
+              !node.bloat_level && !node.stale_status && node.is_directory && "text-primary"
             )}
             title={node.path}
           >
@@ -619,7 +680,7 @@ export function FilesTab() {
   return (
     <div className="flex flex-col h-full">
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-4">
         <div className="bg-surface border border-border rounded-lg p-3">
           <div className="text-xs text-text-secondary">Files</div>
           <div className="text-xl font-semibold">
@@ -648,6 +709,18 @@ export function FilesTab() {
           <div className="text-xs text-text-secondary">Critical</div>
           <div className="text-xl font-semibold text-loss">
             {formatNumber(summary?.bloat_critical || 0)}
+          </div>
+        </div>
+        <div className="bg-surface border border-border rounded-lg p-3">
+          <div className="text-xs text-text-secondary">Stale</div>
+          <div className="text-xl font-semibold text-accent">
+            {formatNumber(summary?.stale_files || 0)}
+          </div>
+        </div>
+        <div className="bg-surface border border-border rounded-lg p-3">
+          <div className="text-xs text-text-secondary">Orphan</div>
+          <div className="text-xl font-semibold text-loss">
+            {formatNumber(summary?.orphan_files || 0)}
           </div>
         </div>
       </div>
@@ -718,6 +791,33 @@ export function FilesTab() {
             <SelectItem value="all">All</SelectItem>
             <SelectItem value="warning">Warning</SelectItem>
             <SelectItem value="critical">Critical</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {/* Stale filter */}
+        <Select
+          value={staleFilter}
+          onValueChange={(v) => {
+            const val = v as "all" | "stale" | "orphan";
+            setStaleFilter(val);
+            if (val !== "all" && !filesOnly) {
+              setFilesOnly(true);
+              setFilesOnlyAutoSet(true);
+              setExpandedPaths(new Set());
+              setDetailsOpenPaths(new Set());
+            } else if (val === "all" && filesOnlyAutoSet && bloatFilter === "all") {
+              setFilesOnly(false);
+              setFilesOnlyAutoSet(false);
+            }
+          }}
+        >
+          <SelectTrigger className="w-28 h-8">
+            <SelectValue placeholder="Stale" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Stale</SelectItem>
+            <SelectItem value="stale">Stale</SelectItem>
+            <SelectItem value="orphan">Orphan</SelectItem>
           </SelectContent>
         </Select>
 

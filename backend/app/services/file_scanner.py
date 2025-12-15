@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import re
+import subprocess
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -12,6 +14,10 @@ from app.logging_config import get_logger
 from app.storage import get_storage
 
 logger = get_logger(__name__)
+
+# Stale detection thresholds (days since last git commit)
+STALE_THRESHOLD_DAYS = 90  # Files older than this are "stale"
+ORPHAN_MIN_DAYS = 30  # Orphans must be at least this old (avoid false positives)
 
 # Directories to skip during scan
 SKIP_DIRS = {
@@ -86,6 +92,10 @@ class FileStats:
     total_loc: int | None  # Only for directories
     bloat_level: str | None  # null, 'warning', 'critical'
     last_modified: datetime
+    # Stale detection fields
+    last_commit_days: int | None = None  # Days since last git commit
+    reference_count: int = 0  # Number of files referencing this file
+    stale_status: str | None = None  # 'fresh', 'stale', 'orphan'
 
 
 class FileScanner:
@@ -127,6 +137,12 @@ class FileScanner:
                 except Exception as e:
                     logger.warning("file_scan_error", path=rel_path, error=str(e))
 
+        # Add stale detection: git commit age and reference tracking
+        logger.info("stale_detection_started", file_count=len(files))
+        self._add_git_commit_ages(files)
+        self._add_reference_counts(files)
+        self._calculate_stale_statuses(files)
+
         # Convert directory aggregates to FileStats
         dir_stats = self._finalize_directories(dirs)
 
@@ -139,6 +155,8 @@ class FileScanner:
             "total_loc": sum(f.lines_of_code for f in files),
             "bloat_warnings": sum(1 for f in files if f.bloat_level == "warning"),
             "bloat_critical": sum(1 for f in files if f.bloat_level == "critical"),
+            "stale_files": sum(1 for f in files if f.stale_status == "stale"),
+            "orphan_files": sum(1 for f in files if f.stale_status == "orphan"),
             "scanned_at": datetime.now(UTC).isoformat(),
         }
 
@@ -189,6 +207,95 @@ class FileScanner:
             return "warning"
         return None
 
+    def _add_git_commit_ages(self, files: list[FileStats]) -> None:
+        """Add git commit age (days) to each file."""
+        now = datetime.now(UTC)
+        for stats in files:
+            try:
+                result = subprocess.run(
+                    ["git", "log", "-1", "--format=%at", "--follow", "--", stats.path],
+                    cwd=str(self.root_path),
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                    check=False,
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    timestamp = int(result.stdout.strip())
+                    commit_time = datetime.fromtimestamp(timestamp, tz=UTC)
+                    stats.last_commit_days = (now - commit_time).days
+                else:
+                    # File not in git or no commits
+                    stats.last_commit_days = None
+            except (subprocess.TimeoutExpired, ValueError, OSError) as e:
+                logger.debug("git_age_error", path=stats.path, error=str(e))
+                stats.last_commit_days = None
+
+    def _add_reference_counts(self, files: list[FileStats]) -> None:
+        """Count how many other files reference each file."""
+        # Build a map of file stems for quick lookup
+        # Only track source files that could be imported
+        source_exts = {".py", ".ts", ".tsx", ".js", ".jsx"}
+        source_files = [f for f in files if f.extension in source_exts]
+
+        # For each source file, search for references in other source files
+        for target in source_files:
+            # Build search pattern based on file type
+            stem = Path(target.path).stem  # filename without extension
+            ref_count = 0
+
+            for source in source_files:
+                if source.path == target.path:
+                    continue
+
+                try:
+                    full_path = self.root_path / source.path
+                    with full_path.open(encoding="utf-8", errors="ignore") as f:
+                        content = f.read()
+
+                    # Check for import patterns that reference this file
+                    # Python: from X import Y, import X
+                    # JS/TS: import X from 'path', require('path')
+                    patterns = [
+                        rf"from\s+['\"].*{re.escape(stem)}['\"]",
+                        rf"import\s+['\"].*{re.escape(stem)}['\"]",
+                        rf"import\s+.*\s+from\s+['\"].*{re.escape(stem)}['\"]",
+                        rf"require\s*\(\s*['\"].*{re.escape(stem)}['\"]",
+                        rf"from\s+\..*{re.escape(stem)}\s+import",
+                    ]
+
+                    for pattern in patterns:
+                        if re.search(pattern, content, re.IGNORECASE):
+                            ref_count += 1
+                            break  # Count each source file only once
+
+                except OSError:
+                    continue
+
+            target.reference_count = ref_count
+
+    def _calculate_stale_statuses(self, files: list[FileStats]) -> None:
+        """Calculate stale status for each file based on commit age and references."""
+        for stats in files:
+            if stats.is_directory:
+                stats.stale_status = None
+                continue
+
+            days = stats.last_commit_days
+            refs = stats.reference_count
+
+            if days is None:
+                # File not tracked by git - consider it fresh (newly added)
+                stats.stale_status = "fresh"
+            elif days >= STALE_THRESHOLD_DAYS and refs == 0 and days >= ORPHAN_MIN_DAYS:
+                # Old file with no references - likely orphaned
+                stats.stale_status = "orphan"
+            elif days >= STALE_THRESHOLD_DAYS:
+                # Old file but still referenced
+                stats.stale_status = "stale"
+            else:
+                stats.stale_status = "fresh"
+
     def _aggregate_to_parents(
         self, rel_path: str, stats: FileStats, dirs: dict[str, dict[str, Any]]
     ) -> None:
@@ -236,14 +343,15 @@ class FileScanner:
             # Clear existing data
             conn.execute("DELETE FROM file_audit")
 
-            # Insert new data
+            # Insert new data with stale detection fields
             for stat in all_stats:
                 conn.execute(
                     """
                     INSERT INTO file_audit (
                         path, is_directory, extension, size_bytes, lines_of_code,
-                        file_count, total_loc, bloat_level, last_modified, scanned_at
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+                        file_count, total_loc, bloat_level, last_modified,
+                        last_commit_days, reference_count, stale_status, scanned_at
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
                     """,
                     [
                         stat.path,
@@ -255,6 +363,9 @@ class FileScanner:
                         stat.total_loc,
                         stat.bloat_level,
                         stat.last_modified,
+                        stat.last_commit_days,
+                        stat.reference_count,
+                        stat.stale_status,
                     ],
                 )
             conn.commit()
@@ -268,7 +379,7 @@ class FileScanner:
     def get_summary(self) -> dict[str, Any]:
         """Get summary statistics from stored audit data."""
         with self.storage.connection() as conn:
-            # Total counts
+            # Total counts including stale stats
             totals = conn.execute(
                 """
                 SELECT
@@ -277,7 +388,10 @@ class FileScanner:
                     SUM(lines_of_code) FILTER (WHERE NOT is_directory) as total_loc,
                     COUNT(*) FILTER (WHERE bloat_level = 'warning') as bloat_warnings,
                     COUNT(*) FILTER (WHERE bloat_level = 'critical') as bloat_critical,
-                    MAX(scanned_at) as last_scan
+                    MAX(scanned_at) as last_scan,
+                    COUNT(*) FILTER (WHERE stale_status = 'stale') as stale_files,
+                    COUNT(*) FILTER (WHERE stale_status = 'orphan') as orphan_files,
+                    COUNT(*) FILTER (WHERE stale_status = 'fresh') as fresh_files
                 FROM file_audit
                 """
             ).fetchone()
@@ -302,6 +416,9 @@ class FileScanner:
                     "total_loc": 0,
                     "bloat_warnings": 0,
                     "bloat_critical": 0,
+                    "stale_files": 0,
+                    "orphan_files": 0,
+                    "fresh_files": 0,
                     "last_scan": None,
                     "by_extension": [],
                 }
@@ -320,6 +437,9 @@ class FileScanner:
                 "total_loc": int(totals[2] or 0),
                 "bloat_warnings": int(totals[3] or 0),
                 "bloat_critical": int(totals[4] or 0),
+                "stale_files": int(totals[6] or 0),
+                "orphan_files": int(totals[7] or 0),
+                "fresh_files": int(totals[8] or 0),
                 "last_scan": last_scan_str,
                 "by_extension": [
                     {"extension": row[0], "count": row[1], "loc": row[2]} for row in by_extension
@@ -331,6 +451,7 @@ class FileScanner:
         path_prefix: str | None = None,
         extension: str | None = None,
         bloat: str | None = None,
+        stale: str | None = None,
         is_directory: bool | None = None,
         sort_by: str = "path",
         sort_dir: str = "asc",
@@ -357,6 +478,11 @@ class FileScanner:
             params.append(bloat)
             param_idx += 1
 
+        if stale:
+            conditions.append(f"stale_status = ${param_idx}")
+            params.append(stale)
+            param_idx += 1
+
         if is_directory is not None:
             conditions.append(f"is_directory = ${param_idx}")
             params.append(is_directory)
@@ -365,7 +491,10 @@ class FileScanner:
         where_clause = " AND ".join(conditions) if conditions else "TRUE"
 
         # Validate sort column
-        valid_sorts = {"path", "lines_of_code", "size_bytes", "file_count", "total_loc"}
+        valid_sorts = {
+            "path", "lines_of_code", "size_bytes", "file_count", "total_loc",
+            "last_commit_days", "reference_count",
+        }
         if sort_by not in valid_sorts:
             sort_by = "path"
         sort_order = "DESC" if sort_dir.lower() == "desc" else "ASC"
@@ -377,12 +506,13 @@ class FileScanner:
             ).fetchone()
             total = count_result[0] if count_result else 0
 
-            # Get paginated results
+            # Get paginated results with stale fields
             params.extend([limit, offset])
             results = conn.execute(
                 f"""
                 SELECT path, is_directory, extension, size_bytes, lines_of_code,
-                       file_count, total_loc, bloat_level, last_modified, scanned_at
+                       file_count, total_loc, bloat_level, last_modified, scanned_at,
+                       last_commit_days, reference_count, stale_status
                 FROM file_audit
                 WHERE {where_clause}
                 ORDER BY {sort_by} {sort_order}
@@ -414,6 +544,9 @@ class FileScanner:
                         if scanned and hasattr(scanned, "isoformat")
                         else None
                     ),
+                    "last_commit_days": row[10],
+                    "reference_count": row[11],
+                    "stale_status": row[12],
                 })
 
             return {"items": items, "total": total, "limit": limit, "offset": offset}
@@ -549,11 +682,12 @@ class FileScanner:
             else:
                 order_by = f"{sort_col} {sort_order}"
 
-            # Query for children
+            # Query for children with stale fields
             if path:
                 query = f"""
                     SELECT path, is_directory, extension, size_bytes, lines_of_code,
-                           file_count, total_loc, bloat_level, last_modified
+                           file_count, total_loc, bloat_level, last_modified,
+                           last_commit_days, reference_count, stale_status
                     FROM file_audit
                     WHERE path LIKE $1 AND path NOT LIKE $2
                     {"AND is_directory = TRUE" if not include_files else ""}
@@ -563,7 +697,8 @@ class FileScanner:
             else:
                 query = f"""
                     SELECT path, is_directory, extension, size_bytes, lines_of_code,
-                           file_count, total_loc, bloat_level, last_modified
+                           file_count, total_loc, bloat_level, last_modified,
+                           last_commit_days, reference_count, stale_status
                     FROM file_audit
                     WHERE path NOT LIKE $1
                     {"AND is_directory = TRUE" if not include_files else ""}
@@ -597,6 +732,9 @@ class FileScanner:
                     "total_loc": row[6],
                     "bloat_level": row[7],
                     "last_modified": last_mod_str,
+                    "last_commit_days": row[9],
+                    "reference_count": row[10],
+                    "stale_status": row[11],
                 }
 
                 if is_dir:
