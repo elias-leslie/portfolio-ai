@@ -239,6 +239,7 @@ export function MaintenanceTable() {
         path: fileCleanup.logs.path,
         description: "Application log files",
         taskName: "cleanup_old_logs_task",
+        supportsDryRun: true,
       });
       taskList.push({
         id: "backups",
@@ -253,6 +254,7 @@ export function MaintenanceTable() {
         path: fileCleanup.backups.path,
         description: "PostgreSQL backup files",
         taskName: "cleanup_old_backups_task",
+        supportsDryRun: true,
       });
       taskList.push({
         id: "models",
@@ -267,6 +269,7 @@ export function MaintenanceTable() {
         path: fileCleanup.models.path,
         description: "Trained ML model files",
         taskName: "cleanup_old_models_task",
+        supportsDryRun: true,
       });
       taskList.push({
         id: "solution_state",
@@ -281,6 +284,7 @@ export function MaintenanceTable() {
         path: fileCleanup.solution_state.path,
         description: "UI regression test artifacts",
         taskName: "cleanup_solution_state_task",
+        supportsDryRun: true,
       });
     }
 
@@ -317,6 +321,7 @@ export function MaintenanceTable() {
       path: null,
       description: "Historical agent execution records",
       taskName: "cleanup_old_agent_runs_task",
+      supportsDryRun: true,
     });
     taskList.push({
       id: "orphaned_data",
@@ -331,6 +336,7 @@ export function MaintenanceTable() {
       path: null,
       description: "Records without valid foreign keys",
       taskName: "cleanup_orphaned_data_task",
+      supportsDryRun: true,
     });
     taskList.push({
       id: "temp_files",
@@ -345,6 +351,7 @@ export function MaintenanceTable() {
       path: null,
       description: "Temporary processing files",
       taskName: "cleanup_temp_files_task",
+      supportsDryRun: true,
     });
     taskList.push({
       id: "evidence",
@@ -392,6 +399,7 @@ export function MaintenanceTable() {
       description: "Delete news articles older than 90 days",
       taskName: "cleanup_old_news_task",
       isDbTask: true,
+      supportsDryRun: true,
     });
     taskList.push({
       id: "vacuum_db",
@@ -407,6 +415,7 @@ export function MaintenanceTable() {
       description: "Reclaim space and update statistics",
       taskName: "vacuum_database_task",
       isDbTask: true,
+      supportsDryRun: true,
     });
     taskList.push({
       id: "validate_integrity",
@@ -422,6 +431,7 @@ export function MaintenanceTable() {
       description: "Check for orphaned records and consistency",
       taskName: "validate_integrity_task",
       isDbTask: true,
+      supportsDryRun: true,
     });
 
     // System tasks
@@ -438,6 +448,7 @@ export function MaintenanceTable() {
       path: null,
       description: "Archive and compress old log files",
       taskName: "rotate_logs_task",
+      supportsDryRun: true,
     });
 
     return taskList;
