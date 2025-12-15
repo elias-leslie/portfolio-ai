@@ -35,11 +35,15 @@ class MaintenanceHistory(BaseModel):
 
 
 class LastRunSummary(BaseModel):
-    """Response model for last-run summary."""
+    """Response model for last-run summary.
 
-    cleanup_news: MaintenanceResult | None = Field(description="Last cleanup run")
-    vacuum_database: MaintenanceResult | None = Field(description="Last vacuum run")
-    validate_integrity: MaintenanceResult | None = Field(description="Last validation run")
+    Uses a dynamic dict to support all maintenance tasks (Celery + script-based).
+    Keys are task names, values are MaintenanceResult or None.
+    """
+
+    tasks: dict[str, MaintenanceResult | None] = Field(
+        description="Last run for each task (task_name -> result)"
+    )
 
 
 # Request Models (Script endpoints)

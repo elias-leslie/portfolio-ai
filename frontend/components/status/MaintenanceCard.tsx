@@ -299,9 +299,9 @@ export function MaintenanceCard() {
   };
 
   const overviewSummary = [
-    formatTaskSummary("Cleanup", lastRunSummary?.cleanup_news),
-    formatTaskSummary("Vacuum", lastRunSummary?.vacuum_database),
-    formatTaskSummary("Integrity", lastRunSummary?.validate_integrity),
+    formatTaskSummary("Cleanup", lastRunSummary?.tasks?.cleanup_old_news_task || lastRunSummary?.tasks?.cleanup_news),
+    formatTaskSummary("Vacuum", lastRunSummary?.tasks?.vacuum_database_task || lastRunSummary?.tasks?.vacuum_database),
+    formatTaskSummary("Integrity", lastRunSummary?.tasks?.validate_integrity_task || lastRunSummary?.tasks?.validate_integrity),
   ].join(" • ");
 
   // Cleanup News handler
@@ -516,7 +516,7 @@ export function MaintenanceCard() {
             title="Cleanup Old News"
             description="Remove news articles older than 90 days"
             icon={<Trash2 className="h-5 w-5 text-orange-500" />}
-            lastRun={lastRunSummary?.cleanup_news || null}
+            lastRun={lastRunSummary?.tasks?.cleanup_old_news_task || lastRunSummary?.tasks?.cleanup_news || null}
             onTrigger={triggerCleanupNews}
             isLoading={isLoading}
           />
@@ -525,7 +525,7 @@ export function MaintenanceCard() {
             title="Vacuum Database"
             description="Optimize tables and reclaim disk space"
             icon={<Database className="h-5 w-5 text-blue-500" />}
-            lastRun={lastRunSummary?.vacuum_database || null}
+            lastRun={lastRunSummary?.tasks?.vacuum_database_task || lastRunSummary?.tasks?.vacuum_database || null}
             onTrigger={triggerVacuumDatabase}
             isLoading={isLoading}
           />
@@ -534,7 +534,7 @@ export function MaintenanceCard() {
             title="Validate Data Integrity"
             description="Check for orphaned records and consistency issues"
             icon={<CheckCircle2 className="h-5 w-5 text-green-500" />}
-            lastRun={lastRunSummary?.validate_integrity || null}
+            lastRun={lastRunSummary?.tasks?.validate_integrity_task || lastRunSummary?.tasks?.validate_integrity || null}
             onTrigger={triggerValidateIntegrity}
             isLoading={isLoading}
           />

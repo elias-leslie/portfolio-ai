@@ -24,9 +24,8 @@ export interface MaintenanceResult {
 }
 
 export interface LastRunSummary {
-  cleanup_news: MaintenanceResult | null;
-  vacuum_database: MaintenanceResult | null;
-  validate_integrity: MaintenanceResult | null;
+  /** Dynamic dict of task_name -> last run result (supports all tasks) */
+  tasks: Record<string, MaintenanceResult | null>;
 }
 
 export interface MaintenanceHistory {

@@ -11,6 +11,7 @@ from celery import shared_task
 
 from ..logging_config import get_logger
 from ..services import artifact_manager
+from .maintenance_logging import log_maintenance_complete, log_maintenance_start
 
 logger = get_logger(__name__)
 
@@ -107,25 +108,39 @@ def cleanup_old_versions(
     Returns:
         Summary dict with deleted count and size
     """
+    log_id = log_maintenance_start("cleanup_old_versions", dry_run)
+
     logger.info(
         "cleanup_old_versions_started",
         max_versions=max_versions,
         dry_run=dry_run,
     )
 
-    result = artifact_manager.cleanup_old_versions(
-        max_versions=max_versions,
-        dry_run=dry_run,
-    )
+    try:
+        result = artifact_manager.cleanup_old_versions(
+            max_versions=max_versions,
+            dry_run=dry_run,
+        )
 
-    logger.info(
-        "cleanup_old_versions_completed",
-        deleted_count=result["deleted_count"],
-        deleted_size_bytes=result["deleted_size_bytes"],
-        dry_run=dry_run,
-    )
+        logger.info(
+            "cleanup_old_versions_completed",
+            deleted_count=result["deleted_count"],
+            deleted_size_bytes=result["deleted_size_bytes"],
+            dry_run=dry_run,
+        )
 
-    return result
+        log_maintenance_complete(log_id, "cleanup_old_versions", True, dict(result))
+        return result
+
+    except Exception as e:
+        logger.error(
+            "cleanup_old_versions_failed",
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+        error_result = {"error": str(e), "success": False, "dry_run": dry_run}
+        log_maintenance_complete(log_id, "cleanup_old_versions", False, error_result, str(e))
+        return error_result
 
 
 @shared_task(name="cleanup_debug_captures")
@@ -148,83 +163,98 @@ def cleanup_debug_captures(
     from datetime import datetime, timedelta
     from pathlib import Path
 
+    log_id = log_maintenance_start("cleanup_debug_captures", dry_run)
+
     logger.info(
         "cleanup_debug_captures_started",
         max_age_days=max_age_days,
         dry_run=dry_run,
     )
 
-    artifacts_dir = Path("/home/kasadis/portfolio-ai/data/artifacts")
-    cutoff_date = datetime.now() - timedelta(days=max_age_days)
+    try:
+        artifacts_dir = Path("/home/kasadis/portfolio-ai/data/artifacts")
+        cutoff_date = datetime.now() - timedelta(days=max_age_days)
 
-    deleted_count = 0
-    deleted_size = 0
-    errors = []
+        deleted_count = 0
+        deleted_size = 0
+        errors = []
 
-    # Match directory names like DBG-1213-222150 (MMDD-HHMMSS format)
-    dbg_pattern = re.compile(r"^DBG-(\d{4})-(\d{4,6})$")
+        # Match directory names like DBG-1213-222150 (MMDD-HHMMSS format)
+        dbg_pattern = re.compile(r"^DBG-(\d{4})-(\d{4,6})$")
 
-    for entry in artifacts_dir.iterdir():
-        if not entry.is_dir():
-            continue
+        for entry in artifacts_dir.iterdir():
+            if not entry.is_dir():
+                continue
 
-        match = dbg_pattern.match(entry.name)
-        if not match:
-            continue
+            match = dbg_pattern.match(entry.name)
+            if not match:
+                continue
 
-        # Parse date from directory name (format: DBG-MMDD-HHMMSS)
-        mmdd = match.group(1)
-        try:
-            # Assume current year
-            year = datetime.now().year
-            month = int(mmdd[:2])
-            day = int(mmdd[2:4])
-            capture_date = datetime(year, month, day)
+            # Parse date from directory name (format: DBG-MMDD-HHMMSS)
+            mmdd = match.group(1)
+            try:
+                # Assume current year
+                year = datetime.now().year
+                month = int(mmdd[:2])
+                day = int(mmdd[2:4])
+                capture_date = datetime(year, month, day)
 
-            # Handle year boundary (December captures in January)
-            if capture_date > datetime.now():
-                capture_date = datetime(year - 1, month, day)
+                # Handle year boundary (December captures in January)
+                if capture_date > datetime.now():
+                    capture_date = datetime(year - 1, month, day)
 
-            if capture_date < cutoff_date:
-                # Calculate size
-                dir_size = sum(
-                    f.stat().st_size for f in entry.rglob("*") if f.is_file()
-                )
-
-                if dry_run:
-                    logger.info(
-                        "would_delete_debug_capture",
-                        path=str(entry),
-                        size_bytes=dir_size,
-                        capture_date=capture_date.isoformat(),
-                    )
-                else:
-                    shutil.rmtree(entry)
-                    logger.info(
-                        "deleted_debug_capture",
-                        path=str(entry),
-                        size_bytes=dir_size,
-                        capture_date=capture_date.isoformat(),
+                if capture_date < cutoff_date:
+                    # Calculate size
+                    dir_size = sum(
+                        f.stat().st_size for f in entry.rglob("*") if f.is_file()
                     )
 
-                deleted_count += 1
-                deleted_size += dir_size
+                    if dry_run:
+                        logger.info(
+                            "would_delete_debug_capture",
+                            path=str(entry),
+                            size_bytes=dir_size,
+                            capture_date=capture_date.isoformat(),
+                        )
+                    else:
+                        shutil.rmtree(entry)
+                        logger.info(
+                            "deleted_debug_capture",
+                            path=str(entry),
+                            size_bytes=dir_size,
+                            capture_date=capture_date.isoformat(),
+                        )
 
-        except (ValueError, OSError) as e:
-            errors.append({"path": str(entry), "error": str(e)})
-            logger.error("cleanup_debug_capture_error", path=str(entry), error=str(e))
+                    deleted_count += 1
+                    deleted_size += dir_size
 
-    logger.info(
-        "cleanup_debug_captures_completed",
-        deleted_count=deleted_count,
-        deleted_size_bytes=deleted_size,
-        dry_run=dry_run,
-        error_count=len(errors),
-    )
+            except (ValueError, OSError) as e:
+                errors.append({"path": str(entry), "error": str(e)})
+                logger.error("cleanup_debug_capture_error", path=str(entry), error=str(e))
 
-    return {
-        "deleted_count": deleted_count,
-        "deleted_size_bytes": deleted_size,
-        "dry_run": dry_run,
-        "errors": errors,
-    }
+        logger.info(
+            "cleanup_debug_captures_completed",
+            deleted_count=deleted_count,
+            deleted_size_bytes=deleted_size,
+            dry_run=dry_run,
+            error_count=len(errors),
+        )
+
+        result = {
+            "deleted_count": deleted_count,
+            "deleted_size_bytes": deleted_size,
+            "dry_run": dry_run,
+            "errors": errors,
+        }
+        log_maintenance_complete(log_id, "cleanup_debug_captures", True, result)
+        return result
+
+    except Exception as e:
+        logger.error(
+            "cleanup_debug_captures_failed",
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+        error_result = {"error": str(e), "success": False, "dry_run": dry_run}
+        log_maintenance_complete(log_id, "cleanup_debug_captures", False, error_result, str(e))
+        return error_result

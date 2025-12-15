@@ -725,55 +725,70 @@ export function UnifiedMaintenanceCard() {
             {/* Database Maintenance Section */}
             <SectionHeader title="Database Maintenance" icon={<Database className="h-4 w-4 text-muted-foreground" />} />
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <MaintenanceItem
-                title="Cleanup News"
-                icon={<Trash2 className="h-5 w-5 text-orange-500" />}
-                metrics={[
-                  {
-                    label: "Deleted",
-                    value: String((lastRunSummary?.cleanup_news?.summary as Record<string, unknown>)?.deleted || "—"),
-                  },
-                ]}
-                badge={{ text: "90 days retention" }}
-                lastRun={lastRunSummary?.cleanup_news}
-                onTrigger={triggerCleanupNews}
-                isTriggering={triggeringTask === "cleanup_news"}
-                disabled={liveBlocked}
-              />
-              <MaintenanceItem
-                title="Vacuum Database"
-                icon={<Database className="h-5 w-5 text-blue-500" />}
-                metrics={[
-                  {
-                    label: "Reclaimed",
-                    value: `${(lastRunSummary?.vacuum_database?.summary as Record<string, unknown>)?.total_reclaimed_mb || "—"} MB`,
-                  },
-                ]}
-                badge={{ text: "Weekly" }}
-                lastRun={lastRunSummary?.vacuum_database}
-                onTrigger={triggerVacuumDatabase}
-                isTriggering={triggeringTask === "vacuum_database"}
-                disabled={liveBlocked}
-              />
-              <MaintenanceItem
-                title="Validate Integrity"
-                icon={<CheckCircle2 className="h-5 w-5 text-green-500" />}
-                metrics={[
-                  {
-                    label: "Errors",
-                    value: String((lastRunSummary?.validate_integrity?.summary as Record<string, unknown>)?.total_errors || "—"),
-                  },
-                  {
-                    label: "Warnings",
-                    value: String((lastRunSummary?.validate_integrity?.summary as Record<string, unknown>)?.total_warnings || "—"),
-                  },
-                ]}
-                badge={{ text: "Daily" }}
-                lastRun={lastRunSummary?.validate_integrity}
-                onTrigger={triggerValidateIntegrity}
-                isTriggering={triggeringTask === "validate_integrity"}
-                disabled={liveBlocked}
-              />
+              {(() => {
+                const cleanupNews = lastRunSummary?.tasks?.cleanup_old_news_task || lastRunSummary?.tasks?.cleanup_news;
+                return (
+                  <MaintenanceItem
+                    title="Cleanup News"
+                    icon={<Trash2 className="h-5 w-5 text-orange-500" />}
+                    metrics={[
+                      {
+                        label: "Deleted",
+                        value: String((cleanupNews?.summary as Record<string, unknown>)?.deleted || "—"),
+                      },
+                    ]}
+                    badge={{ text: "90 days retention" }}
+                    lastRun={cleanupNews || null}
+                    onTrigger={triggerCleanupNews}
+                    isTriggering={triggeringTask === "cleanup_news"}
+                    disabled={liveBlocked}
+                  />
+                );
+              })()}
+              {(() => {
+                const vacuumDb = lastRunSummary?.tasks?.vacuum_database_task || lastRunSummary?.tasks?.vacuum_database;
+                return (
+                  <MaintenanceItem
+                    title="Vacuum Database"
+                    icon={<Database className="h-5 w-5 text-blue-500" />}
+                    metrics={[
+                      {
+                        label: "Reclaimed",
+                        value: `${(vacuumDb?.summary as Record<string, unknown>)?.total_reclaimed_mb || "—"} MB`,
+                      },
+                    ]}
+                    badge={{ text: "Weekly" }}
+                    lastRun={vacuumDb || null}
+                    onTrigger={triggerVacuumDatabase}
+                    isTriggering={triggeringTask === "vacuum_database"}
+                    disabled={liveBlocked}
+                  />
+                );
+              })()}
+              {(() => {
+                const validateIntegrity = lastRunSummary?.tasks?.validate_integrity_task || lastRunSummary?.tasks?.validate_integrity;
+                return (
+                  <MaintenanceItem
+                    title="Validate Integrity"
+                    icon={<CheckCircle2 className="h-5 w-5 text-green-500" />}
+                    metrics={[
+                      {
+                        label: "Errors",
+                        value: String((validateIntegrity?.summary as Record<string, unknown>)?.total_errors || "—"),
+                      },
+                      {
+                        label: "Warnings",
+                        value: String((validateIntegrity?.summary as Record<string, unknown>)?.total_warnings || "—"),
+                      },
+                    ]}
+                    badge={{ text: "Daily" }}
+                    lastRun={validateIntegrity || null}
+                    onTrigger={triggerValidateIntegrity}
+                    isTriggering={triggeringTask === "validate_integrity"}
+                    disabled={liveBlocked}
+                  />
+                );
+              })()}
             </div>
 
             {/* Scheduled Tasks Footer */}

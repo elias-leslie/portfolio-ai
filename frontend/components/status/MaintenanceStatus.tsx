@@ -672,7 +672,7 @@ export function MaintenanceStatus() {
             title="Cleanup Old News"
             description="Remove news articles older than 90 days"
             icon={<AlertCircle className="h-5 w-5 text-orange-500 flex-shrink-0" />}
-            lastRun={lastRunSummary?.cleanup_news || null}
+            lastRun={lastRunSummary?.tasks?.cleanup_old_news_task || lastRunSummary?.tasks?.cleanup_news || null}
             onTrigger={() =>
               triggerTask("cleanup_news", "Cleanup News", () =>
                 handleTriggerTask("cleanup_news")
@@ -685,7 +685,7 @@ export function MaintenanceStatus() {
             title="Vacuum Database"
             description="Optimize tables and reclaim disk space"
             icon={<Database className="h-5 w-5 text-blue-500 flex-shrink-0" />}
-            lastRun={lastRunSummary?.vacuum_database || null}
+            lastRun={lastRunSummary?.tasks?.vacuum_database_task || lastRunSummary?.tasks?.vacuum_database || null}
             onTrigger={() =>
               triggerTask("vacuum_database", "Vacuum Database", () =>
                 handleTriggerTask("vacuum_database")
@@ -698,7 +698,7 @@ export function MaintenanceStatus() {
             title="Validate Data Integrity"
             description="Check for orphaned records and consistency issues"
             icon={<CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />}
-            lastRun={lastRunSummary?.validate_integrity || null}
+            lastRun={lastRunSummary?.tasks?.validate_integrity_task || lastRunSummary?.tasks?.validate_integrity || null}
             onTrigger={() =>
               triggerTask("validate_integrity", "Validate Integrity", () =>
                 handleTriggerTask("validate_integrity")

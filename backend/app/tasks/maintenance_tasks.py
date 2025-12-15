@@ -21,6 +21,7 @@ from app.logging_config import get_logger
 from app.sources.sec_cik_fetcher import fetch_and_save as fetch_cik_mapping
 from app.storage import get_storage
 from app.storage.connection import get_connection_manager
+from app.tasks.maintenance_logging import log_maintenance_complete, log_maintenance_start
 
 if TYPE_CHECKING:
     from celery import Task
@@ -105,6 +106,7 @@ def vacuum_database_task(
     """
     task_id = self.request.id
     start_time = dt.datetime.now(dt.UTC)
+    log_id = log_maintenance_start("vacuum_database_task", dry_run)
 
     logger.info("vacuum_database_started", task_id=task_id, tables=tables, dry_run=dry_run)
 
@@ -129,7 +131,7 @@ def vacuum_database_task(
         if dry_run:
             # In dry run mode, just report which tables would be vacuumed
             duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
-            return {
+            dry_result = {
                 "task_id": task_id,
                 "dry_run": True,
                 "tables_to_vacuum": tables_to_vacuum,
@@ -138,6 +140,8 @@ def vacuum_database_task(
                 "duration_seconds": round(duration, 2),
                 "success": True,
             }
+            log_maintenance_complete(log_id, "vacuum_database_task", True, dry_result)
+            return dry_result
 
         # VACUUM ANALYZE each table
         # Note: VACUUM cannot run inside transaction block, so we do each table separately
@@ -179,6 +183,7 @@ def vacuum_database_task(
         }
 
         logger.info("vacuum_database_completed", **result)
+        log_maintenance_complete(log_id, "vacuum_database_task", True, result)
         return result
 
     except Exception as e:
@@ -190,13 +195,15 @@ def vacuum_database_task(
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
         )
-        return {
+        error_result = {
             "task_id": task_id,
             "dry_run": dry_run,
             "error": str(e),
             "success": False,
             "duration_seconds": round(duration, 2),
         }
+        log_maintenance_complete(log_id, "vacuum_database_task", False, error_result, str(e))
+        return error_result
 
 
 @celery_app.task(name="cleanup_old_news_task", bind=True)
@@ -214,6 +221,7 @@ def cleanup_old_news_task(
     """
     task_id = self.request.id
     start_time = dt.datetime.now(dt.UTC)
+    log_id = log_maintenance_start("cleanup_old_news_task", dry_run)
 
     logger.info("cleanup_old_news_started", task_id=task_id, days=days, dry_run=dry_run)
 
@@ -236,7 +244,7 @@ def cleanup_old_news_task(
                 rows_to_delete = result[0] if result else 0
 
                 duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
-                return {
+                dry_result = {
                     "task_id": task_id,
                     "dry_run": True,
                     "rows_to_delete": rows_to_delete,
@@ -246,6 +254,8 @@ def cleanup_old_news_task(
                     "duration_seconds": round(duration, 2),
                     "success": True,
                 }
+                log_maintenance_complete(log_id, "cleanup_old_news_task", True, dry_result)
+                return dry_result
 
             # Delete old news articles (by publication date, not fetch date)
             conn.execute(
@@ -271,6 +281,7 @@ def cleanup_old_news_task(
         }
 
         logger.info("cleanup_old_news_completed", **result_dict)
+        log_maintenance_complete(log_id, "cleanup_old_news_task", True, result_dict)
         return result_dict
 
     except Exception as e:
@@ -282,13 +293,15 @@ def cleanup_old_news_task(
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
         )
-        return {
+        error_result = {
             "task_id": task_id,
             "dry_run": dry_run,
             "error": str(e),
             "success": False,
             "duration_seconds": round(duration, 2),
         }
+        log_maintenance_complete(log_id, "cleanup_old_news_task", False, error_result, str(e))
+        return error_result
 
 
 @celery_app.task(name="cleanup_old_agent_runs_task", bind=True)
@@ -306,6 +319,7 @@ def cleanup_old_agent_runs_task(
     """
     task_id = self.request.id
     start_time = dt.datetime.now(dt.UTC)
+    log_id = log_maintenance_start("cleanup_old_agent_runs_task", dry_run)
 
     logger.info("cleanup_old_agent_runs_started", task_id=task_id, days=days, dry_run=dry_run)
 
@@ -328,7 +342,7 @@ def cleanup_old_agent_runs_task(
                 runs_to_delete = result[0] if result else 0
 
                 duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
-                return {
+                dry_result = {
                     "task_id": task_id,
                     "dry_run": True,
                     "runs_to_delete": runs_to_delete,
@@ -338,6 +352,8 @@ def cleanup_old_agent_runs_task(
                     "duration_seconds": round(duration, 2),
                     "success": True,
                 }
+                log_maintenance_complete(log_id, "cleanup_old_agent_runs_task", True, dry_result)
+                return dry_result
 
             # Get agent run IDs to delete
             result = conn.execute(
@@ -377,6 +393,7 @@ def cleanup_old_agent_runs_task(
         }
 
         logger.info("cleanup_old_agent_runs_completed", **result_dict)
+        log_maintenance_complete(log_id, "cleanup_old_agent_runs_task", True, result_dict)
         return result_dict
 
     except Exception as e:
@@ -388,13 +405,15 @@ def cleanup_old_agent_runs_task(
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
         )
-        return {
+        error_result = {
             "task_id": task_id,
             "dry_run": dry_run,
             "error": str(e),
             "success": False,
             "duration_seconds": round(duration, 2),
         }
+        log_maintenance_complete(log_id, "cleanup_old_agent_runs_task", False, error_result, str(e))
+        return error_result
 
 
 @celery_app.task(name="cleanup_orphaned_data_task", bind=True)
@@ -409,6 +428,7 @@ def cleanup_orphaned_data_task(self: Task, dry_run: bool = False) -> dict[str, A
     """
     task_id = self.request.id
     start_time = dt.datetime.now(dt.UTC)
+    log_id = log_maintenance_start("cleanup_orphaned_data_task", dry_run)
 
     logger.info("cleanup_orphaned_data_started", task_id=task_id, dry_run=dry_run)
 
@@ -446,7 +466,7 @@ def cleanup_orphaned_data_task(self: Task, dry_run: bool = False) -> dict[str, A
                 zombie_runs = result[0] if result else 0
 
                 duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
-                return {
+                dry_result = {
                     "task_id": task_id,
                     "dry_run": True,
                     "orphaned_insights_to_delete": orphaned_insights,
@@ -455,6 +475,8 @@ def cleanup_orphaned_data_task(self: Task, dry_run: bool = False) -> dict[str, A
                     "duration_seconds": round(duration, 2),
                     "success": True,
                 }
+                log_maintenance_complete(log_id, "cleanup_orphaned_data_task", True, dry_result)
+                return dry_result
 
             # Note: agent_ideas table was dropped in migration 109
 
@@ -502,6 +524,7 @@ def cleanup_orphaned_data_task(self: Task, dry_run: bool = False) -> dict[str, A
         }
 
         logger.info("cleanup_orphaned_data_completed", **result_dict)
+        log_maintenance_complete(log_id, "cleanup_orphaned_data_task", True, result_dict)
         return result_dict
 
     except Exception as e:
@@ -513,13 +536,15 @@ def cleanup_orphaned_data_task(self: Task, dry_run: bool = False) -> dict[str, A
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
         )
-        return {
+        error_result = {
             "task_id": task_id,
             "dry_run": dry_run,
             "error": str(e),
             "success": False,
             "duration_seconds": round(duration, 2),
         }
+        log_maintenance_complete(log_id, "cleanup_orphaned_data_task", False, error_result, str(e))
+        return error_result
 
 
 @celery_app.task(name="get_database_size_task", bind=True)

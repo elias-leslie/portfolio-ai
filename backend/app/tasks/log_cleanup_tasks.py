@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any
 from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.storage.connection import get_connection_manager
+from app.tasks.maintenance_logging import log_maintenance_complete, log_maintenance_start
 
 if TYPE_CHECKING:
     from celery import Task
@@ -121,6 +122,7 @@ def rotate_logs_task(
     """
     task_id = self.request.id
     start_time = dt.datetime.now(dt.UTC)
+    log_id = log_maintenance_start("rotate_logs_task", dry_run)
 
     logger.info("rotate_logs_started", task_id=task_id, dry_run=dry_run)
 
@@ -186,6 +188,7 @@ def rotate_logs_task(
             result["would_rotate"] = would_rotate
 
         logger.info("rotate_logs_completed", **{k: v for k, v in result.items() if k != "would_rotate"})
+        log_maintenance_complete(log_id, "rotate_logs_task", True, result)
         return result
 
     except Exception as e:
@@ -197,13 +200,15 @@ def rotate_logs_task(
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
         )
-        return {
+        error_result = {
             "task_id": task_id,
             "dry_run": dry_run,
             "error": str(e),
             "success": False,
             "duration_seconds": round(duration, 2),
         }
+        log_maintenance_complete(log_id, "rotate_logs_task", False, error_result, str(e))
+        return error_result
 
 
 @celery_app.task(name="cleanup_old_logs_task", bind=True)
@@ -221,6 +226,7 @@ def cleanup_old_logs_task(
     """
     task_id = self.request.id
     start_time = dt.datetime.now(dt.UTC)
+    log_id = log_maintenance_start("cleanup_old_logs_task", dry_run)
 
     logger.info("cleanup_old_logs_started", task_id=task_id, days=days, dry_run=dry_run)
 
@@ -309,6 +315,7 @@ def cleanup_old_logs_task(
             result["would_delete"] = would_delete
 
         logger.info("cleanup_old_logs_completed", **{k: v for k, v in result.items() if k != "would_delete"})
+        log_maintenance_complete(log_id, "cleanup_old_logs_task", True, result)
         return result
 
     except Exception as e:
@@ -320,13 +327,15 @@ def cleanup_old_logs_task(
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
         )
-        return {
+        error_result = {
             "task_id": task_id,
             "dry_run": dry_run,
             "error": str(e),
             "success": False,
             "duration_seconds": round(duration, 2),
         }
+        log_maintenance_complete(log_id, "cleanup_old_logs_task", False, error_result, str(e))
+        return error_result
 
 
 @celery_app.task(name="cleanup_temp_files_task", bind=True)
@@ -344,6 +353,7 @@ def cleanup_temp_files_task(
     """
     task_id = self.request.id
     start_time = dt.datetime.now(dt.UTC)
+    log_id = log_maintenance_start("cleanup_temp_files_task", dry_run)
 
     logger.info("cleanup_temp_files_started", task_id=task_id, hours=hours, dry_run=dry_run)
 
@@ -428,6 +438,7 @@ def cleanup_temp_files_task(
             result["would_delete"] = would_delete
 
         logger.info("cleanup_temp_files_completed", **{k: v for k, v in result.items() if k != "would_delete"})
+        log_maintenance_complete(log_id, "cleanup_temp_files_task", True, result)
         return result
 
     except Exception as e:
@@ -439,13 +450,15 @@ def cleanup_temp_files_task(
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
         )
-        return {
+        error_result = {
             "task_id": task_id,
             "dry_run": dry_run,
             "error": str(e),
             "success": False,
             "duration_seconds": round(duration, 2),
         }
+        log_maintenance_complete(log_id, "cleanup_temp_files_task", False, error_result, str(e))
+        return error_result
 
 
 @celery_app.task(name="check_disk_space_task", bind=True)
@@ -505,6 +518,7 @@ def cleanup_old_backups_task(
     """
     task_id = self.request.id
     start_time = dt.datetime.now(dt.UTC)
+    log_id = log_maintenance_start("cleanup_old_backups_task", dry_run)
 
     logger.info("cleanup_old_backups_started", task_id=task_id, keep_count=keep_count, dry_run=dry_run)
 
@@ -518,7 +532,7 @@ def cleanup_old_backups_task(
 
         if not backup_dir.exists():
             logger.warning("backup_directory_not_found", directory=str(backup_dir))
-            return {
+            early_result = {
                 "task_id": task_id,
                 "dry_run": dry_run,
                 "files_deleted": 0,
@@ -527,6 +541,8 @@ def cleanup_old_backups_task(
                 "success": True,
                 "duration_seconds": 0.0,
             }
+            log_maintenance_complete(log_id, "cleanup_old_backups_task", True, early_result)
+            return early_result
 
         # Find all backup files (SQL dumps)
         backup_patterns = ["*.sql", "*.sql.gz", "*.sql.bz2"]
@@ -601,6 +617,7 @@ def cleanup_old_backups_task(
             result["would_delete"] = would_delete
 
         logger.info("cleanup_old_backups_completed", **{k: v for k, v in result.items() if k != "would_delete"})
+        log_maintenance_complete(log_id, "cleanup_old_backups_task", True, result)
         return result
 
     except Exception as e:
@@ -612,13 +629,15 @@ def cleanup_old_backups_task(
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
         )
-        return {
+        error_result = {
             "task_id": task_id,
             "dry_run": dry_run,
             "error": str(e),
             "success": False,
             "duration_seconds": round(duration, 2),
         }
+        log_maintenance_complete(log_id, "cleanup_old_backups_task", False, error_result, str(e))
+        return error_result
 
 
 @celery_app.task(name="cleanup_old_models_task", bind=True)
@@ -636,6 +655,7 @@ def cleanup_old_models_task(
     """
     task_id = self.request.id
     start_time = dt.datetime.now(dt.UTC)
+    log_id = log_maintenance_start("cleanup_old_models_task", dry_run)
 
     logger.info("cleanup_old_models_started", task_id=task_id, keep_count=keep_count, dry_run=dry_run)
 
@@ -649,7 +669,7 @@ def cleanup_old_models_task(
 
         if not models_dir.exists():
             logger.warning("models_directory_not_found", directory=str(models_dir))
-            return {
+            early_result = {
                 "task_id": task_id,
                 "dry_run": dry_run,
                 "files_deleted": 0,
@@ -658,6 +678,8 @@ def cleanup_old_models_task(
                 "success": True,
                 "duration_seconds": 0.0,
             }
+            log_maintenance_complete(log_id, "cleanup_old_models_task", True, early_result)
+            return early_result
 
         # Group model files by base name (e.g., article_quality_v*.joblib)
         # Pattern: {model_name}_v{date}.joblib
@@ -744,6 +766,7 @@ def cleanup_old_models_task(
             result["would_delete"] = would_delete
 
         logger.info("cleanup_old_models_completed", **{k: v for k, v in result.items() if k != "would_delete"})
+        log_maintenance_complete(log_id, "cleanup_old_models_task", True, result)
         return result
 
     except Exception as e:
@@ -755,13 +778,15 @@ def cleanup_old_models_task(
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
         )
-        return {
+        error_result = {
             "task_id": task_id,
             "dry_run": dry_run,
             "error": str(e),
             "success": False,
             "duration_seconds": round(duration, 2),
         }
+        log_maintenance_complete(log_id, "cleanup_old_models_task", False, error_result, str(e))
+        return error_result
 
 
 @celery_app.task(name="cleanup_solution_state_task", bind=True)
@@ -779,6 +804,7 @@ def cleanup_solution_state_task(
     """
     task_id = self.request.id
     start_time = dt.datetime.now(dt.UTC)
+    log_id = log_maintenance_start("cleanup_solution_state_task", dry_run)
 
     logger.info("cleanup_solution_state_started", task_id=task_id, keep_days=keep_days, dry_run=dry_run)
 
@@ -792,7 +818,7 @@ def cleanup_solution_state_task(
 
         if not solution_dir.exists():
             logger.warning("solution_state_directory_not_found", directory=str(solution_dir))
-            return {
+            early_result = {
                 "task_id": task_id,
                 "dry_run": dry_run,
                 "directories_deleted": 0,
@@ -801,6 +827,8 @@ def cleanup_solution_state_task(
                 "success": True,
                 "duration_seconds": 0.0,
             }
+            log_maintenance_complete(log_id, "cleanup_solution_state_task", True, early_result)
+            return early_result
 
         # Calculate cutoff date
         cutoff_time = dt.datetime.now(dt.UTC) - dt.timedelta(days=keep_days)
@@ -881,6 +909,7 @@ def cleanup_solution_state_task(
             result["would_delete"] = would_delete
 
         logger.info("cleanup_solution_state_completed", **{k: v for k, v in result.items() if k != "would_delete"})
+        log_maintenance_complete(log_id, "cleanup_solution_state_task", True, result)
         return result
 
     except Exception as e:
@@ -892,13 +921,15 @@ def cleanup_solution_state_task(
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
         )
-        return {
+        error_result = {
             "task_id": task_id,
             "dry_run": dry_run,
             "error": str(e),
             "success": False,
             "duration_seconds": round(duration, 2),
         }
+        log_maintenance_complete(log_id, "cleanup_solution_state_task", False, error_result, str(e))
+        return error_result
 
 
 @celery_app.task(name="cleanup_cache_directories_task", bind=True)
@@ -925,6 +956,7 @@ def cleanup_cache_directories_task(self: Task, dry_run: bool = False) -> dict[st
     """
     task_id = self.request.id
     start_time = dt.datetime.now(dt.UTC)
+    log_id = log_maintenance_start("cleanup_cache_directories_task", dry_run)
 
     logger.info("cleanup_cache_directories_started", task_id=task_id, dry_run=dry_run)
 
@@ -1088,6 +1120,7 @@ def cleanup_cache_directories_task(self: Task, dry_run: bool = False) -> dict[st
             "cleanup_cache_directories_completed",
             **{k: v for k, v in result.items() if k != "details"},
         )
+        log_maintenance_complete(log_id, "cleanup_cache_directories_task", True, result)
         return result
 
     except Exception as e:
@@ -1099,10 +1132,12 @@ def cleanup_cache_directories_task(self: Task, dry_run: bool = False) -> dict[st
             error_type=type(e).__name__,
             duration_seconds=round(duration, 2),
         )
-        return {
+        error_result = {
             "task_id": task_id,
             "dry_run": dry_run,
             "error": str(e),
             "success": False,
             "duration_seconds": round(duration, 2),
         }
+        log_maintenance_complete(log_id, "cleanup_cache_directories_task", False, error_result, str(e))
+        return error_result

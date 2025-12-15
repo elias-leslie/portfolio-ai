@@ -24,6 +24,9 @@ router = APIRouter(prefix="/api/maintenance", tags=["maintenance"])
 async def get_last_run() -> LastRunSummary:
     """Get last run details for each maintenance task.
 
+    Returns all maintenance tasks dynamically (Celery + script-based).
+    Task names are stored as-is from the maintenance_log table.
+
     Returns:
         LastRunSummary with most recent run for each task
 
@@ -31,21 +34,17 @@ async def get_last_run() -> LastRunSummary:
         HTTPException: If database query fails
     """
     try:
-        # Query last run for each task type
+        # Query last run for each task type (DISTINCT ON returns all unique task_name)
         result = get_last_run_from_db()
 
-        # Build response
-        last_runs = {}
-
+        # Build response - all tasks, dynamic
+        tasks = {}
         for row in result:
             task_result = row_to_maintenance_result(row)
-            last_runs[row[1]] = task_result
+            task_name = row[1]  # task_name column
+            tasks[task_name] = task_result
 
-        return LastRunSummary(
-            cleanup_news=last_runs.get("cleanup_news"),
-            vacuum_database=last_runs.get("vacuum_database"),
-            validate_integrity=last_runs.get("validate_integrity"),
-        )
+        return LastRunSummary(tasks=tasks)
 
     except Exception as e:
         logger.error("get_last_run_error", error=str(e), exc_info=True)
