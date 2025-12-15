@@ -29,12 +29,12 @@ from .models import SignalInputsDict, SignalType, TechnicalSnapshot, TradingStyl
 from .narrative import (
     classify_signal,
     classify_trading_style,
-    generate_action_plan,
-    generate_company_health_bullets,
     generate_headline,
-    generate_position_sizing_text,
-    generate_special_notes,
 )
+
+# NOTE: Narrative text generation functions removed - no longer displayed in UI
+# generate_action_plan, generate_company_health_bullets, generate_position_sizing_text,
+# generate_special_notes are no longer imported to save CPU/memory costs
 
 logger = get_logger(__name__)
 
@@ -162,109 +162,23 @@ def generate_narrative_texts(
     company_health_str: str | None,
     earnings_days_away: int | None,
     fundamentals_data: FundamentalData | None,
-    technical_snapshot: TechnicalSnapshot | None,  # Added
+    technical_snapshot: TechnicalSnapshot | None,
     gap_result: dict[str, Any] | None = None,
 ) -> tuple[str | None, str | None, list[str] | None, str | None]:
     """Generate all narrative text components.
 
+    NOTE: Narrative text generation has been disabled as these texts are no longer
+    displayed in the UI. This saves CPU cost on every watchlist refresh.
+
     Args:
-        symbol: Stock symbol
-        signal_type: BUY/HOLD/AVOID signal
-        signal_strength: Signal strength (0-10)
-        entry_price: Calculated entry price
-        stop_loss: Calculated stop loss price
-        profit_target: Calculated profit target price
-        position_size: Calculated position size in shares
-        company_health_str: Company health rating
-        earnings_days_away: Days until next earnings
-        fundamentals_data: Fundamental data for company health bullets
-        technical_snapshot: Technical indicators for specific insights
-        gap_result: Optional gap analysis result for data coverage warnings
+        (All args kept for backward compatibility but are ignored)
 
     Returns:
-        Tuple of (action_plan, position_sizing, company_health_bullets, special_notes)
+        Tuple of (None, None, None, None) - all narrative texts disabled
     """
-    action_plan = None
-    position_sizing = None
-    company_health_bullets = None
-    special_notes = None
-
-    # Action plan
-    if entry_price is not None and stop_loss is not None and profit_target is not None:
-        try:
-            action_plan = generate_action_plan(
-                signal_type=signal_type,
-                entry_price=entry_price,
-                stop_loss=stop_loss,
-                profit_target=profit_target,
-            )
-        except Exception as e:
-            logger.warning("action_plan_generation_failed", symbol=symbol, error=str(e))
-
-    # Position sizing text
-    if (
-        position_size is not None
-        and entry_price is not None
-        and profit_target is not None
-        and stop_loss is not None
-    ):
-        try:
-            position_sizing = generate_position_sizing_text(
-                shares=position_size,
-                entry_price=entry_price,
-                stop_loss=stop_loss,
-                profit_target=profit_target,
-            )
-        except Exception as e:
-            logger.warning("position_sizing_text_generation_failed", symbol=symbol, error=str(e))
-
-    # Company health bullets and fundamentals dict construction
-    fundamentals_dict: dict[str, Any] | None = None
-    if fundamentals_data is not None:
-        try:
-            fundamentals_dict = {
-                "revenue_growth": fundamentals_data.revenue_growth,
-                "profit_margin": fundamentals_data.profit_margin,
-                "debt_to_equity": fundamentals_data.debt_to_equity,
-                "cash": None,
-                "analyst_buy_pct": None,
-            }
-
-            if fundamentals_data.recommendation_mean is not None:
-                analyst_buy_pct = (5.0 - fundamentals_data.recommendation_mean) / 4.0
-                fundamentals_dict["analyst_buy_pct"] = max(0.0, min(1.0, analyst_buy_pct))
-
-            company_health_bullets = generate_company_health_bullets(fundamentals_dict)
-        except Exception as e:
-            logger.warning("company_health_bullets_generation_failed", symbol=symbol, error=str(e))
-
-    # Special notes
-    if company_health_str is not None:
-        try:
-            # Prepare technicals dict if snapshot available
-            technicals_dict: dict[str, Any] | None = None
-            if technical_snapshot:
-                technicals_dict = {
-                    "price": technical_snapshot.price
-                    if hasattr(technical_snapshot, "price")
-                    else 0.0,
-                    "ema_20": technical_snapshot.ema_20,
-                    "rsi_14": technical_snapshot.rsi_14,
-                }
-
-            special_notes = generate_special_notes(
-                signal_type=signal_type,
-                signal_strength=signal_strength,
-                earnings_days_away=earnings_days_away,
-                company_health=company_health_str,
-                gap_result=gap_result,
-                technicals=technicals_dict,
-                fundamentals=fundamentals_dict,
-            )
-        except Exception as e:
-            logger.warning("special_notes_generation_failed", symbol=symbol, error=str(e))
-
-    return action_plan, position_sizing, company_health_bullets, special_notes
+    # Narrative text generation disabled - no longer displayed in UI
+    # Previously generated: action_plan, position_sizing, company_health_bullets, special_notes
+    return None, None, None, None
 
 
 def classify_signal_and_style(
