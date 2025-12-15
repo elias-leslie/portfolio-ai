@@ -18,16 +18,18 @@ bd close <id> --reason "Completed" --json    # Mark done
 bd sync                                       # MANDATORY at session end
 ```
 
-### Creating Issues
+### Creating Issues (ENFORCED by pre-push hook)
 ```bash
-# Always include complexity and domain labels!
+# Labels are REQUIRED - pre-push hook blocks if missing!
 bd create "Title" -t feature|bug|task -p 0-4 -d "Description" \
-  --labels "complexity:small|medium|large,domains:backend|frontend|database" --json
+  --set-labels "complexity:small" --set-labels "domains:backend" --json
 
 bd dep add <child> <parent>                  # Link dependencies
 bd create "Found bug" --deps discovered-from:<parent-id> \
-  --labels "complexity:small,domains:backend" --json
+  --set-labels "complexity:small" --set-labels "domains:backend" --json
 ```
+
+**See `.claude/rules/bead-quality.md` for full requirements.**
 
 ### Complexity Labels (REQUIRED for /next_it efficiency)
 | Label | Criteria | Agent Strategy |
@@ -146,7 +148,7 @@ journalctl --user -u portfolio-celery -f
 
    Found during: <parent-bead-id> <task name>" \
      --priority 2 --type bug \
-     --labels "complexity:<small|medium|large>,domains:<backend|frontend|database>" \
+     --set-labels "complexity:small" --set-labels "domains:backend" \
      --json
 
    # MANDATORY: Link with discovered-from dependency
