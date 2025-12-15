@@ -53,6 +53,7 @@ interface FileSummary {
   stale_files: number;
   orphan_files: number;
   fresh_files: number;
+  untracked_files: number;
   last_scan: string | null;
   by_extension: Array<{ extension: string; count: number; loc: number }>;
 }
@@ -74,7 +75,7 @@ interface FileNode {
   // Stale detection fields
   last_commit_days: number | null;
   reference_count: number | null;
-  stale_status: "fresh" | "stale" | "orphan" | null;
+  stale_status: "fresh" | "stale" | "orphan" | "untracked" | null;
 }
 
 type SortField = "name" | "loc" | "size" | "files" | "modified";
@@ -189,7 +190,8 @@ function InlineDetails({
         bloatStatus === "warning" && "border-warning/30 bg-warning/5",
         staleStatus === "orphan" && !bloatStatus && "border-loss/30 bg-loss/5",
         staleStatus === "stale" && !bloatStatus && "border-accent/30 bg-accent/5",
-        !bloatStatus && !staleStatus && "border-border"
+        staleStatus === "untracked" && !bloatStatus && "border-neutral/30 bg-neutral/5",
+        !bloatStatus && (!staleStatus || staleStatus === "fresh") && "border-border"
       )}
       style={{ marginLeft: depth * 20 + 8 }}
     >
@@ -219,7 +221,8 @@ function InlineDetails({
                 variant={staleStatus === "orphan" ? "destructive" : "outline"}
                 className={cn(
                   "text-xs",
-                  staleStatus === "stale" && "border-accent text-accent"
+                  staleStatus === "stale" && "border-accent text-accent",
+                  staleStatus === "untracked" && "border-neutral text-neutral"
                 )}
               >
                 {staleStatus}
@@ -338,7 +341,7 @@ export function FilesTab() {
   const [filesOnlyAutoSet, setFilesOnlyAutoSet] = useState(false); // Track if auto-set by bloat filter
   const [searchFilter, setSearchFilter] = useState("");
   const [bloatFilter, setBloatFilter] = useState<"all" | "warning" | "critical">("all");
-  const [staleFilter, setStaleFilter] = useState<"all" | "stale" | "orphan">("all");
+  const [staleFilter, setStaleFilter] = useState<"all" | "stale" | "orphan" | "untracked">("all");
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set()); // Children expanded
   const [detailsOpenPaths, setDetailsOpenPaths] = useState<Set<string>>(new Set()); // Details expanded
   const [loadedChildren, setLoadedChildren] = useState<Map<string, FileNode[]>>(
@@ -481,6 +484,7 @@ export function FilesTab() {
       if (staleFilter !== "all") {
         if (staleFilter === "stale" && node.stale_status !== "stale") return false;
         if (staleFilter === "orphan" && node.stale_status !== "orphan") return false;
+        if (staleFilter === "untracked" && node.stale_status !== "untracked") return false;
       }
 
       return true;
@@ -521,7 +525,8 @@ export function FilesTab() {
             // Stale indicator - left border (when no bloat)
             !node.bloat_level && node.stale_status === "orphan" && "border-l-2 border-l-loss",
             !node.bloat_level && node.stale_status === "stale" && "border-l-2 border-l-accent",
-            !node.bloat_level && !node.stale_status && "border-l-2 border-l-transparent"
+            !node.bloat_level && node.stale_status === "untracked" && "border-l-2 border-l-neutral",
+            !node.bloat_level && (!node.stale_status || node.stale_status === "fresh") && "border-l-2 border-l-transparent"
           )}
           onClick={() => toggleDetails(node.path)}
         >
@@ -588,7 +593,9 @@ export function FilesTab() {
                         ? "text-loss"
                         : node.stale_status === "stale"
                           ? "text-accent"
-                          : "text-text-secondary"
+                          : node.stale_status === "untracked"
+                            ? "text-neutral"
+                            : "text-text-secondary"
                 )}
               />
             )}
@@ -602,7 +609,8 @@ export function FilesTab() {
               node.bloat_level === "warning" && "text-warning",
               !node.bloat_level && node.stale_status === "orphan" && "text-loss",
               !node.bloat_level && node.stale_status === "stale" && "text-accent",
-              !node.bloat_level && !node.stale_status && node.is_directory && "text-primary"
+              !node.bloat_level && node.stale_status === "untracked" && "text-neutral",
+              !node.bloat_level && (!node.stale_status || node.stale_status === "fresh") && node.is_directory && "text-primary"
             )}
             title={node.path}
           >
@@ -680,7 +688,7 @@ export function FilesTab() {
   return (
     <div className="flex flex-col h-full">
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-4">
         <div className="bg-surface border border-border rounded-lg p-3">
           <div className="text-xs text-text-secondary">Files</div>
           <div className="text-xl font-semibold">
@@ -721,6 +729,12 @@ export function FilesTab() {
           <div className="text-xs text-text-secondary">Orphan</div>
           <div className="text-xl font-semibold text-loss">
             {formatNumber(summary?.orphan_files || 0)}
+          </div>
+        </div>
+        <div className="bg-surface border border-border rounded-lg p-3">
+          <div className="text-xs text-text-secondary">Untracked</div>
+          <div className="text-xl font-semibold text-neutral">
+            {formatNumber(summary?.untracked_files || 0)}
           </div>
         </div>
       </div>
@@ -798,7 +812,7 @@ export function FilesTab() {
         <Select
           value={staleFilter}
           onValueChange={(v) => {
-            const val = v as "all" | "stale" | "orphan";
+            const val = v as "all" | "stale" | "orphan" | "untracked";
             setStaleFilter(val);
             if (val !== "all" && !filesOnly) {
               setFilesOnly(true);
@@ -811,13 +825,14 @@ export function FilesTab() {
             }
           }}
         >
-          <SelectTrigger className="w-28 h-8">
+          <SelectTrigger className="w-32 h-8">
             <SelectValue placeholder="Stale" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Stale</SelectItem>
+            <SelectItem value="all">All Status</SelectItem>
             <SelectItem value="stale">Stale</SelectItem>
             <SelectItem value="orphan">Orphan</SelectItem>
+            <SelectItem value="untracked">Untracked</SelectItem>
           </SelectContent>
         </Select>
 

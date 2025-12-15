@@ -157,6 +157,7 @@ class FileScanner:
             "bloat_critical": sum(1 for f in files if f.bloat_level == "critical"),
             "stale_files": sum(1 for f in files if f.stale_status == "stale"),
             "orphan_files": sum(1 for f in files if f.stale_status == "orphan"),
+            "untracked_files": sum(1 for f in files if f.stale_status == "untracked"),
             "scanned_at": datetime.now(UTC).isoformat(),
         }
 
@@ -285,10 +286,15 @@ class FileScanner:
             refs = stats.reference_count
 
             if days is None:
-                # File not tracked by git - consider it fresh (newly added)
-                stats.stale_status = "fresh"
+                # File not tracked by git
+                if refs == 0:
+                    # Untracked with no references - potential artifact/forgotten file
+                    stats.stale_status = "untracked"
+                else:
+                    # Untracked but referenced - likely intentional (e.g., config)
+                    stats.stale_status = "fresh"
             elif days >= STALE_THRESHOLD_DAYS and refs == 0 and days >= ORPHAN_MIN_DAYS:
-                # Old file with no references - likely orphaned
+                # Old file with no references - likely orphaned code
                 stats.stale_status = "orphan"
             elif days >= STALE_THRESHOLD_DAYS:
                 # Old file but still referenced
@@ -391,7 +397,8 @@ class FileScanner:
                     MAX(scanned_at) as last_scan,
                     COUNT(*) FILTER (WHERE stale_status = 'stale') as stale_files,
                     COUNT(*) FILTER (WHERE stale_status = 'orphan') as orphan_files,
-                    COUNT(*) FILTER (WHERE stale_status = 'fresh') as fresh_files
+                    COUNT(*) FILTER (WHERE stale_status = 'fresh') as fresh_files,
+                    COUNT(*) FILTER (WHERE stale_status = 'untracked') as untracked_files
                 FROM file_audit
                 """
             ).fetchone()
@@ -419,6 +426,7 @@ class FileScanner:
                     "stale_files": 0,
                     "orphan_files": 0,
                     "fresh_files": 0,
+                    "untracked_files": 0,
                     "last_scan": None,
                     "by_extension": [],
                 }
@@ -440,6 +448,7 @@ class FileScanner:
                 "stale_files": int(totals[6] or 0),
                 "orphan_files": int(totals[7] or 0),
                 "fresh_files": int(totals[8] or 0),
+                "untracked_files": int(totals[9] or 0),
                 "last_scan": last_scan_str,
                 "by_extension": [
                     {"extension": row[0], "count": row[1], "loc": row[2]} for row in by_extension
