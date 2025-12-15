@@ -2,18 +2,27 @@
 Trading Rules API Endpoints
 
 GET /api/rules - Returns all trading rules from rules.yaml
+GET /api/rules/export - Export rules in JSON or YAML format
 """
 
 import logging
+from enum import Enum
 from typing import Any
 
+import yaml
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import Response
 
 from app.rules.loader import get_rules
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+class ExportFormat(str, Enum):
+    json = "json"
+    yaml = "yaml"
 
 
 @router.get("/api/rules")
@@ -206,3 +215,49 @@ def get_trading_rules() -> dict[str, Any]:
     except Exception as e:
         logger.error(f"Failed to load trading rules: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to load trading rules: {e!s}")
+
+
+@router.get("/api/rules/export")
+def export_trading_rules(format: ExportFormat = ExportFormat.yaml) -> Response:
+    """
+    Export all trading rules in JSON or YAML format.
+
+    Args:
+        format: Export format - 'yaml' (default) or 'json'
+
+    Returns:
+        Response with rules in requested format as downloadable file
+    """
+    try:
+        # Get rules as dict (reuse existing function logic)
+        rules_dict = get_trading_rules()
+
+        if format == ExportFormat.yaml:
+            # Export as YAML with nice formatting
+            content = yaml.dump(
+                rules_dict,
+                default_flow_style=False,
+                sort_keys=False,
+                allow_unicode=True,
+                indent=2,
+            )
+            media_type = "application/x-yaml"
+            filename = f"trading_rules_v{rules_dict['version']}.yaml"
+        else:
+            # Export as JSON
+            import json
+
+            content = json.dumps(rules_dict, indent=2)
+            media_type = "application/json"
+            filename = f"trading_rules_v{rules_dict['version']}.json"
+
+        return Response(
+            content=content,
+            media_type=media_type,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to export trading rules: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to export trading rules: {e!s}")

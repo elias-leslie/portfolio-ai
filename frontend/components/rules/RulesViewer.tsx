@@ -7,9 +7,17 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useRules } from "@/lib/hooks/useRules";
+import { toast } from "sonner";
 
 interface ExpandedSections {
   [key: string]: boolean;
@@ -18,6 +26,37 @@ interface ExpandedSections {
 export function RulesViewer() {
   const { data: rules, isLoading, error } = useRules();
   const [expandedSections, setExpandedSections] = useState<ExpandedSections>({});
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExport = async (format: "yaml" | "json") => {
+    setIsExporting(true);
+    try {
+      const response = await fetch(`/api/rules/export?format=${format}`);
+      if (!response.ok) {
+        throw new Error("Export failed");
+      }
+
+      // Get the blob and trigger download
+      const blob = await response.blob();
+      const filename = response.headers.get("Content-Disposition")
+        ?.match(/filename="(.+)"/)?.[1] || `trading_rules.${format}`;
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast.success(`Rules exported as ${format.toUpperCase()}`);
+    } catch {
+      toast.error("Failed to export rules");
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const toggleSection = (section: string) => {
     setExpandedSections((prev) => ({
@@ -203,6 +242,26 @@ export function RulesViewer() {
             Version {rules.version} - Updated {rules.updated} by {rules.updated_by}
           </p>
         </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" disabled={isExporting}>
+              {isExporting ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-2" />
+              )}
+              Export
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => handleExport("yaml")}>
+              Export as YAML
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleExport("json")}>
+              Export as JSON
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Summary Cards */}
