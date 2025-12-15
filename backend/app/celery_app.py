@@ -76,6 +76,7 @@ from app.tasks import (  # noqa: E402, F401
     qa_tasks,  # NEW: QA system daily scans
     reference_tasks,
     rules_validation_tasks,  # NEW: Rules validation and optimization
+    sitemap_tasks,  # NEW: Sitemap health monitoring
     source_health_tasks,
     strategy_metrics_tasks,
     strategy_monitoring_tasks,

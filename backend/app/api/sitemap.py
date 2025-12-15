@@ -1,0 +1,236 @@
+"""Sitemap API - Dynamic endpoint discovery and health monitoring.
+
+Endpoints:
+- GET /api/sitemap/entries - List all entries with filters
+- GET /api/sitemap/entries/{id} - Get single entry detail
+- POST /api/sitemap/discover - Trigger discovery scan
+- POST /api/sitemap/check/{id} - Check single entry health
+- POST /api/sitemap/check-all - Check all entries health (manual trigger)
+- GET /api/sitemap/health-summary - Aggregate health stats
+- POST /api/sitemap/register - Manually register entry
+- DELETE /api/sitemap/entries/{id} - Remove entry
+- GET /api/sitemap/history-stats - Get history stats for maintenance
+- POST /api/sitemap/cleanup-history - Trigger history cleanup
+"""
+
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field
+
+from ..logging_config import get_logger
+from ..services.sitemap_service import SitemapService
+
+logger = get_logger(__name__)
+router = APIRouter(prefix="/api/sitemap", tags=["sitemap"])
+
+
+# =========================================================================
+# Request/Response Models
+# =========================================================================
+
+
+class SitemapEntry(BaseModel):
+    """Sitemap entry response model."""
+
+    id: int
+    port: int
+    path: str
+    method: str
+    entry_type: str
+    source: str | None
+    title: str | None
+    parent_path: str | None
+    health_status: str
+    console_errors: int
+    console_warnings: int
+    http_status: int | None
+    response_time_ms: int | None
+    last_error_message: str | None
+    artifact_id: int | None
+    last_checked_at: str | None
+    discovered_at: str | None
+
+
+class SitemapListResponse(BaseModel):
+    """Response for listing sitemap entries."""
+
+    total: int
+    entries: list[SitemapEntry]
+
+
+class HealthSummaryResponse(BaseModel):
+    """Response for health summary."""
+
+    total: int
+    healthy: int
+    warning: int
+    error: int
+    unknown: int
+    by_port: dict[str, dict[str, int]]
+
+
+class RegisterRequest(BaseModel):
+    """Request to manually register an entry."""
+
+    port: int = Field(..., description="Port number (3000, 8000, etc.)")
+    path: str = Field(..., description="URL path")
+    method: str = Field("GET", description="HTTP method")
+    entry_type: str = Field("manual", description="Entry type")
+    title: str | None = None
+
+
+class DiscoveryResponse(BaseModel):
+    """Response from discovery scan."""
+
+    backend_discovered: int
+    frontend_discovered: int
+    api_imported: int
+    total_saved: int
+
+
+class HealthCheckResponse(BaseModel):
+    """Response from health check."""
+
+    success: bool
+    entry_id: int | None = None
+    health_status: str | None = None
+    console_errors: int | None = None
+    console_warnings: int | None = None
+    http_status: int | None = None
+    response_time_ms: int | None = None
+    error: str | None = None
+
+
+class HistoryStatsResponse(BaseModel):
+    """Response for history statistics."""
+
+    total_rows: int
+    oldest_entry: str | None
+    storage_size: str
+
+
+class CleanupResponse(BaseModel):
+    """Response from cleanup operation."""
+
+    deleted: int
+    retention_days: int
+
+
+# =========================================================================
+# Endpoints
+# =========================================================================
+
+
+@router.get("/entries", response_model=SitemapListResponse)
+def list_entries(
+    port: int | None = Query(None, description="Filter by port"),
+    health_status: str | None = Query(None, description="Filter by health status"),
+    entry_type: str | None = Query(None, description="Filter by entry type"),
+    limit: int = Query(100, ge=1, le=500, description="Max results"),
+    offset: int = Query(0, ge=0, description="Pagination offset"),
+) -> SitemapListResponse:
+    """List sitemap entries with optional filters."""
+    service = SitemapService()
+    entries, total = service.get_entries(
+        port=port,
+        health_status=health_status,
+        entry_type=entry_type,
+        limit=limit,
+        offset=offset,
+    )
+    return SitemapListResponse(total=total, entries=entries)  # type: ignore
+
+
+@router.get("/entries/{entry_id}", response_model=SitemapEntry)
+def get_entry(entry_id: int) -> SitemapEntry:
+    """Get a single sitemap entry by ID."""
+    service = SitemapService()
+    entry = service.get_entry(entry_id)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    return SitemapEntry(**entry)
+
+
+@router.post("/discover", response_model=DiscoveryResponse)
+async def trigger_discovery() -> DiscoveryResponse:
+    """Trigger discovery scan for new endpoints.
+
+    Runs OpenAPI scan for backend + crawler for frontend + imports from api_capabilities.
+    """
+    service = SitemapService()
+    result = await service.run_discovery()
+    return DiscoveryResponse(**result)
+
+
+@router.post("/check/{entry_id}", response_model=HealthCheckResponse)
+async def check_entry_health(entry_id: int) -> HealthCheckResponse:
+    """Check health of a single sitemap entry."""
+    service = SitemapService()
+    result = await service.check_entry_health(entry_id)
+    return HealthCheckResponse(**result)
+
+
+@router.post("/check-all")
+async def check_all_health() -> dict:
+    """Check health of all sitemap entries.
+
+    This is a manual trigger - normally runs via Celery task hourly.
+    """
+    service = SitemapService()
+    result = await service.check_all_health()
+    return {"status": "success", **result}
+
+
+@router.get("/health-summary", response_model=HealthSummaryResponse)
+def get_health_summary() -> HealthSummaryResponse:
+    """Get aggregate health statistics."""
+    service = SitemapService()
+    summary = service.get_health_summary()
+    return HealthSummaryResponse(**summary)
+
+
+@router.post("/register", response_model=SitemapEntry)
+def register_entry(request: RegisterRequest) -> SitemapEntry:
+    """Manually register a new sitemap entry."""
+    service = SitemapService()
+    try:
+        entry = service.register_entry(
+            port=request.port,
+            path=request.path,
+            method=request.method,
+            entry_type=request.entry_type,
+            title=request.title,
+        )
+        return SitemapEntry(**entry)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.delete("/entries/{entry_id}")
+def delete_entry(entry_id: int) -> dict:
+    """Delete a sitemap entry."""
+    service = SitemapService()
+    deleted = service.delete_entry(entry_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    return {"success": True, "deleted_id": entry_id}
+
+
+# =========================================================================
+# Maintenance Endpoints (for Status page)
+# =========================================================================
+
+
+@router.get("/history-stats", response_model=HistoryStatsResponse)
+def get_history_stats() -> HistoryStatsResponse:
+    """Get health history statistics for maintenance UI."""
+    service = SitemapService()
+    stats = service.get_history_stats()
+    return HistoryStatsResponse(**stats)
+
+
+@router.post("/cleanup-history", response_model=CleanupResponse)
+def cleanup_history(days: int = Query(7, ge=1, le=30, description="Days to retain")) -> CleanupResponse:
+    """Manually trigger cleanup of old health history."""
+    service = SitemapService()
+    deleted = service.cleanup_old_history(days=days)
+    return CleanupResponse(deleted=deleted, retention_days=days)

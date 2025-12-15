@@ -958,4 +958,38 @@ def get_beat_schedule() -> dict[str, object]:
             # - Uses existing strategy archive pattern (sets status='archived')
             # - Logs strategy archival to maintenance_log for audit trail
         },
+        # ============================================================================
+        # SITEMAP HEALTH MONITORING
+        # ============================================================================
+        # Dynamic endpoint discovery and health monitoring for all URLs
+        # ============================================================================
+        "check-sitemap-health": {
+            "task": "check_sitemap_health",
+            "schedule": 3600.0,  # Every 1 hour
+            "options": {"expires": 3000},  # 50-minute expiry
+            # Notes:
+            # - Checks HTTP status and console errors for all sitemap entries
+            # - Frontend pages: Uses console.js for console error capture
+            # - API endpoints: Simple HTTP status check
+            # - Updates health_status in sitemap_entries table
+            # - Records history in sitemap_health_history (7-day retention)
+        },
+        "discover-sitemap-entries-daily": {
+            "task": "discover_sitemap_entries",
+            "schedule": crontab(hour=3, minute=30),  # Daily at 03:30 UTC
+            "options": {"expires": 1800},  # 30-minute expiry
+            # Notes:
+            # - Discovers new endpoints from OpenAPI (/openapi.json) and frontend crawler
+            # - Imports from existing api_capabilities table
+            # - Runs daily to catch new pages/endpoints after deploys
+        },
+        "cleanup-sitemap-history-daily": {
+            "task": "cleanup_sitemap_history",
+            "schedule": crontab(hour=4, minute=0),  # Daily at 04:00 UTC
+            "options": {"expires": 600},  # 10-minute expiry
+            # Notes:
+            # - Deletes health history older than 7 days
+            # - Keeps sitemap_health_history table size manageable
+            # - Can also be triggered manually from Status page maintenance section
+        },
     }

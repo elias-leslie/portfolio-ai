@@ -25,13 +25,13 @@ import { RulesViewer } from "@/components/rules/RulesViewer";
 import { WorkflowCanvas } from "@/components/workflows/WorkflowCanvas";
 // QATab removed - issues disconnected from workflow
 import { FilesTab } from "@/components/capabilities/FilesTab";
+import { SitemapTab } from "@/components/capabilities/SitemapTab";
 import {
   RefreshCw,
   Search,
   Filter,
   Database,
   Zap,
-  Globe,
   Loader2,
   X,
   Cloud,
@@ -40,17 +40,19 @@ import {
   Target,
   GitBranch,
   FolderTree,
+  Map,
 } from "lucide-react";
 import {
   fetchCapabilities,
   triggerScan,
   type CapabilityType,
 } from "@/lib/api/capabilities";
+import { fetchHealthSummary as fetchSitemapHealthSummary } from "@/lib/api/sitemap";
 // fetchGapSummary removed - trading requirements now in Features tab
 import { toast } from "sonner";
 import { PageContainer } from "@/components/shared/PageContainer";
 
-type TabValue = "workflows" | "database" | "celery" | "api" | "sources" | "rules" | "files" | "features" | "vision";
+type TabValue = "workflows" | "database" | "celery" | "sitemap" | "sources" | "rules" | "files" | "features" | "vision";
 
 function CapabilitiesPageContent() {
   const queryClient = useQueryClient();
@@ -94,6 +96,12 @@ function CapabilitiesPageContent() {
     },
   });
 
+  // Sitemap health summary for error badge on tab
+  const { data: sitemapSummary } = useQuery({
+    queryKey: ["sitemap", "health-summary"],
+    queryFn: fetchSitemapHealthSummary,
+  });
+
   // Handle health filter change with URL sync
   const handleHealthFilterChange = (value: string) => {
     setHealthFilter(value);
@@ -115,9 +123,7 @@ function CapabilitiesPageContent() {
       ? "db"
       : activeTab === "celery"
         ? "celery"
-        : activeTab === "api"
-          ? "api"
-          : "all";
+        : "all";
 
   // Fetch capabilities
   const {
@@ -141,7 +147,7 @@ function CapabilitiesPageContent() {
         limit: pageSize,
         offset: page * pageSize,
       }),
-    enabled: activeTab !== "dashboard" && activeTab !== "workflows" && activeTab !== "sources" && activeTab !== "rules" && activeTab !== "qa",
+    enabled: activeTab !== "workflows" && activeTab !== "sources" && activeTab !== "rules" && activeTab !== "files" && activeTab !== "features" && activeTab !== "vision" && activeTab !== "sitemap",
   });
 
   // Trigger scan mutation
@@ -268,16 +274,12 @@ function CapabilitiesPageContent() {
   // Count capabilities by type from health summary (always available)
   const dbStats = healthSummary?.by_type?.database;
   const celeryStats = healthSummary?.by_type?.celery;
-  const apiStats = healthSummary?.by_type?.api;
 
   const dbCount = dbStats
     ? dbStats.active + dbStats.orphaned + dbStats.legacy + dbStats.suspect
     : 0;
   const celeryCount = celeryStats
     ? celeryStats.active + celeryStats.orphaned + celeryStats.legacy + celeryStats.suspect
-    : 0;
-  const apiCount = apiStats
-    ? apiStats.active + apiStats.orphaned + apiStats.legacy + apiStats.suspect
     : 0;
 
   return (
@@ -339,17 +341,23 @@ function CapabilitiesPageContent() {
               {celeryCount}
             </span>
           </TabsTrigger>
-          <TabsTrigger value="api">
-            <Globe className="mr-2 h-4 w-4" />
-            API
-            <span className="ml-1 rounded-full bg-surface-muted px-1.5 py-0.5 text-xs">
-              {apiCount}
-            </span>
+          <TabsTrigger value="sitemap">
+            <Map className="mr-2 h-4 w-4" />
+            Sitemap
+            {sitemapSummary?.error && sitemapSummary.error > 0 ? (
+              <span className="ml-1 rounded-full bg-loss px-1.5 py-0.5 text-xs text-white">
+                {sitemapSummary.error}
+              </span>
+            ) : (
+              <span className="ml-1 rounded-full bg-surface-muted px-1.5 py-0.5 text-xs">
+                {sitemapSummary?.total || 0}
+              </span>
+            )}
           </TabsTrigger>
         </TabsList>
 
-        {/* Filters (for capability tabs) */}
-        {activeTab !== "workflows" && activeTab !== "sources" && activeTab !== "rules" && activeTab !== "files" && activeTab !== "features" && activeTab !== "vision" && (
+        {/* Filters (for capability tabs - not sitemap which has its own filters) */}
+        {activeTab !== "workflows" && activeTab !== "sources" && activeTab !== "rules" && activeTab !== "files" && activeTab !== "features" && activeTab !== "vision" && activeTab !== "sitemap" && (
           <div className="space-y-3">
             <div className="flex flex-wrap gap-3">
               {/* Search */}
@@ -454,9 +462,9 @@ function CapabilitiesPageContent() {
           <CapabilitiesTable capabilities={filteredCapabilities} />
         </TabsContent>
 
-        {/* API Endpoints Tab */}
-        <TabsContent value="api">
-          <CapabilitiesTable capabilities={filteredCapabilities} />
+        {/* Sitemap Tab (replaces API tab) */}
+        <TabsContent value="sitemap">
+          <SitemapTab />
         </TabsContent>
 
         {/* Tech Debt Tab removed - migrated to [DEBT] subtasks on features */}
@@ -495,6 +503,7 @@ function CapabilitiesPageContent() {
         activeTab !== "files" &&
         activeTab !== "features" &&
         activeTab !== "vision" &&
+        activeTab !== "sitemap" &&
         capabilitiesData &&
         capabilitiesData.total > pageSize && (
           <div className="flex items-center justify-between">

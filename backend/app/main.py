@@ -44,6 +44,7 @@ from app.api import (
     recommendations,
     rules,
     settings_profiles,
+    sitemap,
     # solution_map removed - Vision tab replaces Dashboard
     sources,
     status,
@@ -174,6 +175,7 @@ app.include_router(news.router)
 app.include_router(news_profiling.router)
 app.include_router(preferences.router)
 app.include_router(settings_profiles.router)
+app.include_router(sitemap.router)
 app.include_router(analytics.router)
 app.include_router(indicators.router)
 app.include_router(valuation.router)
