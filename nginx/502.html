@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Service Temporarily Unavailable - Portfolio AI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #e4e4e7;
+        }
+
+        .container {
+            text-align: center;
+            padding: 2rem;
+            max-width: 500px;
+        }
+
+        .icon {
+            font-size: 4rem;
+            margin-bottom: 1.5rem;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.6; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.05); }
+        }
+
+        h1 {
+            font-size: 1.75rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: #f4f4f5;
+        }
+
+        .subtitle {
+            font-size: 1rem;
+            color: #a1a1aa;
+            margin-bottom: 2rem;
+            line-height: 1.6;
+        }
+
+        .status-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0;
+        }
+
+        .status-label {
+            color: #71717a;
+            font-size: 0.875rem;
+        }
+
+        .status-value {
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            font-size: 0.875rem;
+        }
+
+        .status-checking {
+            color: #fbbf24;
+        }
+
+        .status-online {
+            color: #4ade80;
+        }
+
+        .status-offline {
+            color: #f87171;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(251, 191, 36, 0.3);
+            border-top-color: #fbbf24;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .retry-info {
+            font-size: 0.8rem;
+            color: #71717a;
+            margin-top: 1rem;
+        }
+
+        .countdown {
+            color: #a1a1aa;
+            font-family: 'SF Mono', Monaco, monospace;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: 0.5rem;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .attempts {
+            font-size: 0.75rem;
+            color: #52525b;
+            margin-top: 1rem;
+        }
+
+        .success-message {
+            display: none;
+            background: rgba(74, 222, 128, 0.1);
+            border: 1px solid rgba(74, 222, 128, 0.3);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+            color: #4ade80;
+        }
+
+        .success-message.show {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">🔄</div>
+        <h1>Service Temporarily Unavailable</h1>
+        <p class="subtitle">
+            Portfolio AI is restarting or updating.
+            This page will automatically reconnect when the service is ready.
+        </p>
+
+        <div class="status-card">
+            <div class="status-row">
+                <span class="status-label">Service Status</span>
+                <span id="status" class="status-value status-checking">
+                    <span class="spinner"></span>Checking...
+                </span>
+            </div>
+            <div class="status-row">
+                <span class="status-label">Next Check</span>
+                <span id="countdown" class="status-value countdown">5s</span>
+            </div>
+        </div>
+
+        <button class="btn" onclick="checkNow()">Check Now</button>
+
+        <div id="success-message" class="success-message">
+            Service is back online! Redirecting...
+        </div>
+
+        <p class="retry-info">
+            Auto-retry: <span id="retry-interval">5</span>s interval
+        </p>
+        <p class="attempts" id="attempts">Attempts: 0</p>
+    </div>
+
+    <script>
+        let attempts = 0;
+        let countdown = 5;
+        let checkInterval = 5000; // Start with 5 seconds
+        let maxInterval = 30000;  // Max 30 seconds between checks
+        let countdownTimer;
+        let checkTimer;
+
+        function updateCountdown() {
+            document.getElementById('countdown').textContent = countdown + 's';
+            if (countdown > 0) {
+                countdown--;
+            }
+        }
+
+        async function checkService() {
+            attempts++;
+            document.getElementById('attempts').textContent = 'Attempts: ' + attempts;
+            document.getElementById('status').innerHTML = '<span class="spinner"></span>Checking...';
+            document.getElementById('status').className = 'status-value status-checking';
+
+            try {
+                // Try to fetch a lightweight endpoint
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+                const response = await fetch('/health', {
+                    method: 'HEAD',
+                    cache: 'no-store',
+                    signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+
+                if (response.ok || response.status === 200) {
+                    // Service is back!
+                    document.getElementById('status').textContent = 'Online';
+                    document.getElementById('status').className = 'status-value status-online';
+                    document.getElementById('success-message').classList.add('show');
+
+                    // Clear timers
+                    clearInterval(countdownTimer);
+                    clearTimeout(checkTimer);
+
+                    // Redirect after a brief moment
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                    return;
+                }
+            } catch (e) {
+                // Still offline
+            }
+
+            // Update status to offline
+            document.getElementById('status').textContent = 'Offline';
+            document.getElementById('status').className = 'status-value status-offline';
+
+            // Increase interval with backoff (max 30s)
+            if (attempts > 5 && checkInterval < maxInterval) {
+                checkInterval = Math.min(checkInterval + 5000, maxInterval);
+                document.getElementById('retry-interval').textContent = (checkInterval / 1000);
+            }
+
+            // Schedule next check
+            countdown = Math.floor(checkInterval / 1000);
+            scheduleNextCheck();
+        }
+
+        function scheduleNextCheck() {
+            clearTimeout(checkTimer);
+            clearInterval(countdownTimer);
+
+            countdownTimer = setInterval(updateCountdown, 1000);
+            checkTimer = setTimeout(checkService, checkInterval);
+        }
+
+        function checkNow() {
+            clearTimeout(checkTimer);
+            clearInterval(countdownTimer);
+            checkService();
+        }
+
+        // Initial check after 2 seconds (give time for page to render)
+        setTimeout(() => {
+            checkService();
+        }, 2000);
+
+        // Also check when page becomes visible again (user switches back to tab)
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                checkNow();
+            }
+        });
+    </script>
+</body>
+</html>
