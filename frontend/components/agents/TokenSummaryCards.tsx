@@ -68,7 +68,7 @@ interface TokenSummaryCardsProps {
   serverUrl?: string;
 }
 
-export function TokenSummaryCards({ serverUrl = 'http://localhost:8000' }: TokenSummaryCardsProps) {
+export function TokenSummaryCards({ serverUrl = '' }: TokenSummaryCardsProps) {
   const [data7d, setData7d] = useState<TokenSummary | null>(null);
   const [data14d, setData14d] = useState<TokenSummary | null>(null);
   const [data30d, setData30d] = useState<TokenSummary | null>(null);

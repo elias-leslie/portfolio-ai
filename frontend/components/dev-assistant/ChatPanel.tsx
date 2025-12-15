@@ -46,7 +46,16 @@ interface ChatPanelProps {
   serverUrl?: string;
 }
 
-export default function ChatPanel({ sessionId, serverUrl = 'ws://localhost:9999' }: ChatPanelProps) {
+// Get default WebSocket URL based on protocol
+const getDefaultWsUrl = () => {
+  if (typeof window === 'undefined') return 'ws://localhost:9999';
+  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${wsProtocol}//${window.location.hostname}:9999`;
+};
+
+export default function ChatPanel({ sessionId, serverUrl }: ChatPanelProps) {
+  // Use provided serverUrl or derive from current protocol
+  const effectiveServerUrl = serverUrl || getDefaultWsUrl();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isConnected, setIsConnected] = useState(false);
@@ -59,7 +68,7 @@ export default function ChatPanel({ sessionId, serverUrl = 'ws://localhost:9999'
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const currentResponseRef = useRef<ContentBlock[]>([]);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const httpBaseUrl = serverUrl.replace('ws://', 'http://').replace('wss://', 'https://');
+  const httpBaseUrl = effectiveServerUrl.replace('ws://', 'http://').replace('wss://', 'https://');
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -112,8 +121,8 @@ export default function ChatPanel({ sessionId, serverUrl = 'ws://localhost:9999'
       return;
     }
 
-    console.log(`Connecting to ${serverUrl}/ws/${sessionId}`);
-    const ws = new WebSocket(`${serverUrl}/ws/${sessionId}`);
+    console.log(`Connecting to ${effectiveServerUrl}/ws/${sessionId}`);
+    const ws = new WebSocket(`${effectiveServerUrl}/ws/${sessionId}`);
 
     ws.onopen = () => {
       setIsConnected(true);
@@ -194,7 +203,7 @@ export default function ChatPanel({ sessionId, serverUrl = 'ws://localhost:9999'
     };
 
     wsRef.current = ws;
-  }, [sessionId, serverUrl]);
+  }, [sessionId, effectiveServerUrl]);
 
   // Connect on mount, cleanup on unmount
   useEffect(() => {

@@ -118,11 +118,15 @@ interface AgentPanelProps {
   standalone?: boolean;
 }
 
-// Get server URL based on current hostname
+// Get server URL based on current hostname (protocol-aware for HTTPS)
 const getServerUrl = () => {
   if (typeof window === 'undefined') return null;
+  if (process.env.NEXT_PUBLIC_DEV_COMPANION_URL) {
+    return process.env.NEXT_PUBLIC_DEV_COMPANION_URL;
+  }
+  const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
   const host = window.location.hostname;
-  return process.env.NEXT_PUBLIC_DEV_COMPANION_URL || `http://${host}:9999`;
+  return `${protocol}//${host}:9999`;
 };
 
 export function AgentPanel({ open, onOpenChange, pageContext, standalone = false }: AgentPanelProps) {
@@ -735,7 +739,7 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
 
         {/* Token Summary Cards - Toggleable */}
         {showTokenSummary && (
-          <TokenSummaryCards serverUrl={serverUrl || 'http://localhost:8000'} />
+          <TokenSummaryCards serverUrl={serverUrl || ''} />
         )}
 
 
@@ -990,7 +994,7 @@ export function AgentPanel({ open, onOpenChange, pageContext, standalone = false
       <EvidenceCaptureModal
         open={showEvidenceCapture}
         onClose={() => setShowEvidenceCapture(false)}
-        pageUrl={pageContext?.path ? `http://${typeof window !== 'undefined' ? window.location.hostname : '192.168.8.233'}:3000${pageContext.path}` : ''}
+        pageUrl={pageContext?.path ? `${typeof window !== 'undefined' ? window.location.origin : ''}${pageContext.path}` : ''}
         onCaptured={(result) => {
           // Create evidence message
           const evidenceMsg: ChatMessage = {

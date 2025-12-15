@@ -108,8 +108,8 @@ function NavigationContent({ pathname }: { pathname: string }) {
 
   // Build current page URL for evidence capture
   const currentPageUrl = typeof window !== "undefined"
-    ? `http://${window.location.hostname}:3000${pathname}`
-    : `http://192.168.8.233:3000${pathname}`;
+    ? `${window.location.origin}${pathname}`
+    : "";
 
   return (
     <nav className="sticky top-0 z-50 border-b border-border/50 bg-surface/80 backdrop-blur-md supports-[backdrop-filter]:bg-surface/60">

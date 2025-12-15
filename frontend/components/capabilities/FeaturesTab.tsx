@@ -263,7 +263,8 @@ export function FeaturesTab() {
   const parseVerificationUrl = (verification: string): string => {
     const match = verification.match(/screenshot\s+(\/[^\s]+)/i);
     if (match) {
-      return `http://192.168.8.233:3000${match[1]}`;
+      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      return `${origin}${match[1]}`;
     }
     return "";
   };

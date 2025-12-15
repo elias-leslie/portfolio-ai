@@ -242,3 +242,83 @@ export interface SystemResourcesResponse {
 export async function fetchSystemResources(): Promise<SystemResourcesResponse> {
   return get<SystemResourcesResponse>("/api/status/resources");
 }
+
+/**
+ * Unified log entry from all services
+ */
+export interface UnifiedLogEntry {
+  timestamp: string;
+  service: string;
+  level: "CRITICAL" | "ERROR" | "WARN" | "INFO" | "DEBUG" | "UNKNOWN";
+  message: string;
+}
+
+/**
+ * Unified logs response
+ */
+export interface UnifiedLogsResponse {
+  logs: UnifiedLogEntry[];
+  total_entries: number;
+  level_counts: Record<string, number>;
+  timestamp: string;
+}
+
+/**
+ * Log level configuration
+ */
+export interface LogLevelConfig {
+  current_level: string;
+  available_levels: string[];
+}
+
+/**
+ * Fetch unified logs from all services
+ */
+export async function fetchUnifiedLogs(params: {
+  lines?: number;
+  since?: string;
+  level?: string;
+  service?: string;
+}): Promise<UnifiedLogsResponse> {
+  const searchParams = new URLSearchParams();
+  if (params.lines) searchParams.append("lines", params.lines.toString());
+  if (params.since) searchParams.append("since", params.since);
+  if (params.level) searchParams.append("level", params.level);
+  if (params.service) searchParams.append("service", params.service);
+  return get<UnifiedLogsResponse>(`/api/status/unified-logs?${searchParams}`);
+}
+
+/**
+ * Fetch current log level configuration
+ */
+export async function fetchLogLevelConfig(): Promise<LogLevelConfig> {
+  return get<LogLevelConfig>("/api/status/log-level");
+}
+
+/**
+ * Set log level for all services
+ */
+export async function setLogLevel(level: string): Promise<void> {
+  const response = await fetch("/api/status/log-level", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ level }),
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || "Failed to change log level");
+  }
+}
+
+/**
+ * Restart all services
+ */
+export async function restartAllServices(): Promise<void> {
+  const response = await fetch("/api/status/restart-services", {
+    method: "POST",
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || "Failed to restart services");
+  }
+}

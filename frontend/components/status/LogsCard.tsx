@@ -26,23 +26,17 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@/components/ui/tooltip";
-import useSWR from "swr";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ExpandableCard } from "@/components/status/ExpandableCard";
-
-interface UnifiedLogEntry {
-    timestamp: string;
-    service: string;
-    level: "CRITICAL" | "ERROR" | "WARN" | "INFO" | "DEBUG" | "UNKNOWN";
-    message: string;
-}
-
-interface UnifiedLogsResponse {
-    logs: UnifiedLogEntry[];
-    total_entries: number;
-    level_counts: Record<string, number>;
-    timestamp: string;
-}
+import {
+    fetchUnifiedLogs,
+    fetchLogLevelConfig,
+    setLogLevel,
+    restartAllServices,
+    type UnifiedLogsResponse,
+    type LogLevelConfig,
+} from "@/lib/api/status";
 
 const SERVICE_DISPLAY_NAMES: Record<string, string> = {
     backend: "Backend",
@@ -53,50 +47,70 @@ const SERVICE_DISPLAY_NAMES: Record<string, string> = {
     postgresql: "PostgreSQL",
 };
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
-
 export function LogsCard() {
+    const queryClient = useQueryClient();
     const [levelFilter, setLevelFilter] = useState<string | undefined>(undefined);
     const [serviceFilter, setServiceFilter] = useState<string | undefined>(undefined);
     const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
     const [copied, setCopied] = useState(false);
-    const [changingLogLevel, setChangingLogLevel] = useState(false);
     const [restartRequired, setRestartRequired] = useState(false);
-    const [restarting, setRestarting] = useState(false);
     const [refreshInterval, setRefreshInterval] = useState<number>(30000);
     const [timeRange, setTimeRange] = useState<string>("5 minutes ago");
 
-    const apiUrl = useMemo(() => {
-        const params = new URLSearchParams({
-            lines: "500",
+    // Unified logs query
+    const { data, error, isLoading } = useQuery<UnifiedLogsResponse>({
+        queryKey: ["unified-logs", levelFilter, serviceFilter, timeRange],
+        queryFn: () => fetchUnifiedLogs({
+            lines: 500,
             since: timeRange,
-        });
-        if (levelFilter && levelFilter !== "ALL") params.append("level", levelFilter);
-        if (serviceFilter && serviceFilter !== "ALL") params.append("service", serviceFilter);
-        const backendUrl = typeof window !== 'undefined'
-            ? `http://${window.location.hostname}:8000`
-            : 'http://localhost:8000';
-        return `${backendUrl}/api/status/unified-logs?${params}`;
-    }, [levelFilter, serviceFilter, timeRange]);
+            level: levelFilter && levelFilter !== "ALL" ? levelFilter : undefined,
+            service: serviceFilter && serviceFilter !== "ALL" ? serviceFilter : undefined,
+        }),
+        refetchInterval: refreshInterval || false,
+        refetchOnWindowFocus: false,
+        staleTime: 0,
+    });
 
-    const { data, error, isLoading } = useSWR<UnifiedLogsResponse>(
-        apiUrl,
-        fetcher,
-        {
-            refreshInterval: refreshInterval,
-            revalidateOnFocus: false,
-        }
-    );
+    // Log level config query
+    const { data: logLevelConfig } = useQuery<LogLevelConfig>({
+        queryKey: ["log-level-config"],
+        queryFn: fetchLogLevelConfig,
+        refetchInterval: false,
+        staleTime: 60000, // Cache for 1 minute
+    });
 
-    const backendUrl = typeof window !== 'undefined'
-        ? `http://${window.location.hostname}:8000`
-        : 'http://localhost:8000';
+    // Mutation for changing log level
+    const logLevelMutation = useMutation({
+        mutationFn: setLogLevel,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["log-level-config"] });
+            setRestartRequired(true);
+        },
+        onError: (error) => {
+            toast.error(
+                `Failed to change log level: ${
+                    error instanceof Error ? error.message : "Unknown error"
+                }`,
+            );
+        },
+    });
 
-    const { data: logLevelConfig, mutate: mutateLogLevel } = useSWR(
-        `${backendUrl}/api/status/log-level`,
-        fetcher,
-        { refreshInterval: 0 }
-    );
+    // Mutation for restarting services
+    const restartMutation = useMutation({
+        mutationFn: restartAllServices,
+        onSuccess: () => {
+            setRestartRequired(false);
+            queryClient.invalidateQueries({ queryKey: ["log-level-config"] });
+            toast.success("Services restarted successfully!");
+        },
+        onError: (error) => {
+            toast.error(
+                `Failed to restart services: ${
+                    error instanceof Error ? error.message : "Unknown error"
+                }`,
+            );
+        },
+    });
 
     const sortedLogs = useMemo(() => {
         if (!data?.logs) return [];
@@ -150,64 +164,14 @@ export function LogsCard() {
         setSortOrder(sortOrder === "asc" ? "desc" : "asc");
     };
 
-    const handleLogLevelChange = async (newLevel: string) => {
-        if (changingLogLevel) return;
-
-        setChangingLogLevel(true);
-        try {
-            const response = await fetch(`${backendUrl}/api/status/log-level`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ level: newLevel }),
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.detail || 'Failed to change log level');
-            }
-
-            await mutateLogLevel();
-            setRestartRequired(true);
-        } catch (error) {
-            console.error('Failed to change log level:', error);
-            toast.error(
-                `Failed to change log level: ${
-                    error instanceof Error ? error.message : "Unknown error"
-                }`,
-            );
-        } finally {
-            setChangingLogLevel(false);
-        }
+    const handleLogLevelChange = (newLevel: string) => {
+        if (logLevelMutation.isPending) return;
+        logLevelMutation.mutate(newLevel);
     };
 
-    const handleRestartServices = async () => {
-        if (restarting) return;
-
-        setRestarting(true);
-        try {
-            const response = await fetch(`${backendUrl}/api/status/restart-services`, {
-                method: 'POST',
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.detail || 'Failed to restart services');
-            }
-
-            setRestartRequired(false);
-            await mutateLogLevel();
-            toast.success("Services restarted successfully!");
-
-        } catch (error) {
-            console.error('Failed to restart services:', error);
-            toast.error(
-                `Failed to restart services: ${
-                    error instanceof Error ? error.message : "Unknown error"
-                }`,
-            );
-        } finally {
-            setRestarting(false);
-        }
+    const handleRestartServices = () => {
+        if (restartMutation.isPending) return;
+        restartMutation.mutate();
     };
 
     const summary = [
@@ -305,7 +269,7 @@ export function LogsCard() {
                                     <Select
                                         value={logLevelConfig?.current_level || "INFO"}
                                         onValueChange={handleLogLevelChange}
-                                        disabled={changingLogLevel}
+                                        disabled={logLevelMutation.isPending}
                                     >
                                         <SelectTrigger className="h-8 min-w-[120px]">
                                             <SelectValue />
@@ -325,7 +289,7 @@ export function LogsCard() {
                             </TooltipContent>
                         </Tooltip>
 
-                        {changingLogLevel && <RefreshCw className="h-4 w-4 animate-spin shrink-0" />}
+                        {logLevelMutation.isPending && <RefreshCw className="h-4 w-4 animate-spin shrink-0" />}
 
                         <Tooltip>
                             <TooltipTrigger asChild>
@@ -379,7 +343,7 @@ export function LogsCard() {
                     </div>
                 </TooltipProvider>
 
-                {restartRequired && !restarting && (
+                {restartRequired && !restartMutation.isPending && (
                     <Alert className="mb-0">
                         <AlertDescription>
                             <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -401,7 +365,7 @@ export function LogsCard() {
                     </Alert>
                 )}
 
-                {restarting && (
+                {restartMutation.isPending && (
                     <Alert className="mb-0">
                         <AlertDescription>
                             <div className="flex items-center gap-2">

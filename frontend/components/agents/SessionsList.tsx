@@ -108,7 +108,7 @@ interface SessionsListProps {
 }
 
 export function SessionsList({
-  serverUrl = 'http://localhost:8000',
+  serverUrl = '',
   onSelectSession,
   maxHeight = '300px'
 }: SessionsListProps) {
@@ -232,11 +232,20 @@ interface DevCompanionSessionsListProps {
   maxHeight?: string;
 }
 
+// Get default server URL based on protocol
+const getDefaultServerUrl = () => {
+  if (typeof window === 'undefined') return 'http://localhost:9999';
+  const protocol = window.location.protocol;
+  return `${protocol}//${window.location.hostname}:9999`;
+};
+
 export function DevCompanionSessionsList({
-  serverUrl = 'http://localhost:9999',
+  serverUrl,
   onSelectSession,
   maxHeight = '300px'
 }: DevCompanionSessionsListProps) {
+  // Use provided serverUrl or derive from current protocol
+  const effectiveServerUrl = serverUrl || getDefaultServerUrl();
   const [sessions, setSessions] = useState<DevCompanionSession[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -246,7 +255,7 @@ export function DevCompanionSessionsList({
       setIsLoading(true);
       setError(null);
       try {
-        const res = await fetch(`${serverUrl}/sessions?limit=20`);
+        const res = await fetch(`${effectiveServerUrl}/sessions?limit=20`);
         if (!res.ok) throw new Error('Failed to fetch sessions');
         const data = await res.json();
         setSessions(data);
@@ -261,7 +270,7 @@ export function DevCompanionSessionsList({
     // Refresh every 30 seconds
     const interval = setInterval(fetchSessions, 30 * 1000);
     return () => clearInterval(interval);
-  }, [serverUrl]);
+  }, [effectiveServerUrl]);
 
   if (isLoading) {
     return (
