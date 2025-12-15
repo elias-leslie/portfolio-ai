@@ -854,3 +854,185 @@ async def get_market_movers(
         source=result.source,
         last_updated=result.last_updated,
     )
+
+
+# =============================================================================
+# MARKET EVENTS (FOMC, CPI, NFP)
+# =============================================================================
+
+
+@router.get("/events")
+async def get_market_events(
+    start_date: str | None = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: str | None = Query(None, description="End date (YYYY-MM-DD)"),
+    event_types: str | None = Query(None, description="Comma-separated event types"),
+    limit: int = Query(100, ge=1, le=500),
+) -> dict[str, Any]:
+    """Get market events (FOMC, CPI, NFP, etc.) with optional filtering.
+
+    Args:
+        start_date: Filter events from this date (inclusive)
+        end_date: Filter events until this date (inclusive)
+        event_types: Comma-separated list of event types to filter
+        limit: Maximum number of events to return
+
+    Returns:
+        MarketEventsResponse with list of events
+    """
+    from app.services.market_events_service import get_market_events as svc_get_events
+
+    # Parse dates
+    start = date.fromisoformat(start_date) if start_date else None
+    end = date.fromisoformat(end_date) if end_date else None
+
+    # Parse event types
+    types_list = event_types.split(",") if event_types else None
+
+    response = svc_get_events(
+        start_date=start,
+        end_date=end,
+        event_types=types_list,
+        limit=limit,
+    )
+
+    return response.model_dump()
+
+
+@router.get("/events/chart")
+@cache_response(ttl=300)  # 5 minutes cache
+async def get_market_events_for_chart(
+    request: Request,
+    days: int = Query(365, ge=7, le=730, description="Number of days of history"),
+) -> dict[str, Any]:
+    """Get market events formatted for chart overlay.
+
+    Returns events with UI metadata (color, label) for display on sentiment charts.
+
+    Args:
+        days: Number of days of history to return
+
+    Returns:
+        List of events with UI metadata
+    """
+    from app.services.market_events_service import get_events_for_chart
+
+    end = date.today()
+    start = end - timedelta(days=days)
+
+    events = get_events_for_chart(start_date=start, end_date=end)
+
+    return {
+        "events": events,
+        "total": len(events),
+        "start_date": start.isoformat(),
+        "end_date": end.isoformat(),
+    }
+
+
+@router.get("/events/types")
+async def get_market_event_types() -> dict[str, Any]:
+    """Get metadata for all market event types.
+
+    Returns:
+        List of event types with labels, colors, and frequency info
+    """
+    from app.services.market_events_service import get_event_type_info
+
+    types = get_event_type_info()
+    return {
+        "types": [t.model_dump() for t in types],
+    }
+
+
+@router.get("/events/upcoming")
+async def get_upcoming_market_events(
+    days: int = Query(30, ge=1, le=90, description="Days to look ahead"),
+) -> dict[str, Any]:
+    """Get upcoming market events.
+
+    Args:
+        days: Number of days to look ahead
+
+    Returns:
+        List of upcoming events
+    """
+    from app.services.market_events_service import get_upcoming_events
+
+    events = get_upcoming_events(days=days)
+    return {
+        "events": [e.model_dump() for e in events],
+        "total": len(events),
+        "days_ahead": days,
+    }
+
+
+@router.post("/events")
+async def create_market_event(
+    event_type: str = Query(..., description="Event type"),
+    event_date: str = Query(..., description="Event date (YYYY-MM-DD)"),
+    title: str = Query(..., description="Event title"),
+    event_time: str | None = Query(None, description="Event time (HH:MM:SS)"),
+    description: str | None = Query(None, description="Event description"),
+    expected_value: float | None = Query(None, description="Expected/consensus value"),
+    actual_value: float | None = Query(None, description="Actual released value"),
+    prior_value: float | None = Query(None, description="Prior period value"),
+    impact_score: int | None = Query(None, ge=-5, le=5, description="Impact score"),
+    source: str = Query("manual", description="Data source"),
+) -> dict[str, Any]:
+    """Create a new market event.
+
+    Returns:
+        Created event with ID
+    """
+    from app.models.market_events import MarketEventCreate
+    from app.services.market_events_service import create_market_event as svc_create
+
+    event = MarketEventCreate(
+        event_type=event_type,
+        event_date=event_date,
+        event_time=event_time,
+        title=title,
+        description=description,
+        expected_value=expected_value,
+        actual_value=actual_value,
+        prior_value=prior_value,
+        impact_score=impact_score,
+        source=source,
+    )
+
+    created = svc_create(event)
+    return created.model_dump()
+
+
+@router.patch("/events/{event_id}")
+async def update_market_event(
+    event_id: int,
+    actual_value: float | None = Query(None, description="Actual released value"),
+    surprise_pct: float | None = Query(None, description="Surprise percentage"),
+    impact_score: int | None = Query(None, ge=-5, le=5, description="Impact score"),
+    spy_change_1h: float | None = Query(None, description="SPY % change 1 hour after"),
+    spy_change_1d: float | None = Query(None, description="SPY % change end of day"),
+) -> dict[str, Any]:
+    """Update a market event with actual values and market reaction.
+
+    Returns:
+        Updated event or 404 if not found
+    """
+    from fastapi import HTTPException
+
+    from app.models.market_events import MarketEventUpdate
+    from app.services.market_events_service import update_market_event as svc_update
+
+    update = MarketEventUpdate(
+        actual_value=actual_value,
+        surprise_pct=surprise_pct,
+        impact_score=impact_score,
+        spy_change_1h=spy_change_1h,
+        spy_change_1d=spy_change_1d,
+    )
+
+    updated = svc_update(event_id, update)
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Event {event_id} not found")
+
+    return updated.model_dump()

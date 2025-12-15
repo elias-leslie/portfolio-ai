@@ -129,3 +129,19 @@ export function useMarketStatus(): UseQueryResult<MarketStatusResponse> {
     refetchOnWindowFocus: true,
   });
 }
+
+/**
+ * Hook to fetch market events for chart overlays (FOMC, CPI, NFP)
+ * Cached for 5 minutes - events don't change frequently
+ */
+export function useMarketEvents(
+  days: number = 365
+): UseQueryResult<import("../api/market").MarketEventsChartResponse> {
+  const { fetchMarketEventsForChart } = require("../api/market");
+  return useQuery({
+    queryKey: ["market", "events", days],
+    queryFn: () => fetchMarketEventsForChart(days),
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    refetchOnWindowFocus: false, // Events rarely change
+  });
+}

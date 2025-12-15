@@ -388,3 +388,59 @@ export interface MarketStatusResponse {
 export async function fetchMarketStatus(): Promise<MarketStatusResponse> {
   return apiRequest<MarketStatusResponse>("/api/market/status");
 }
+
+// =============================================================================
+// Market Events (FOMC, CPI, NFP, etc.)
+// =============================================================================
+
+export interface MarketEvent {
+  id: number;
+  date: string;
+  time: string | null;
+  type: string;
+  title: string;
+  label: string;
+  color: string;
+  impact_score: number | null;
+  actual_value: number | null;
+  expected_value: number | null;
+  surprise_pct: number | null;
+}
+
+export interface MarketEventsChartResponse {
+  events: MarketEvent[];
+  total: number;
+  start_date: string;
+  end_date: string;
+}
+
+export interface MarketEventType {
+  event_type: string;
+  label: string;
+  short_label: string;
+  color: string;
+  frequency: string;
+  impact: string;
+}
+
+export interface MarketEventTypesResponse {
+  types: MarketEventType[];
+}
+
+/**
+ * Fetch market events formatted for chart overlays
+ */
+export async function fetchMarketEventsForChart(
+  days: number = 365
+): Promise<MarketEventsChartResponse> {
+  return apiRequest<MarketEventsChartResponse>(
+    `/api/market/events/chart?days=${days}`
+  );
+}
+
+/**
+ * Fetch market event type metadata
+ */
+export async function fetchMarketEventTypes(): Promise<MarketEventTypesResponse> {
+  return apiRequest<MarketEventTypesResponse>("/api/market/events/types");
+}
