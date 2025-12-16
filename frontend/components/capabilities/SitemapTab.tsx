@@ -40,6 +40,7 @@ import { toast } from "sonner";
 import {
   fetchSitemapEntries,
   fetchHealthSummary,
+  fetchDiscoveredPorts,
   triggerDiscovery,
   checkAllHealth,
   type SitemapEntry,
@@ -72,6 +73,12 @@ export function SitemapTab() {
     queryKey: ["sitemap", "health-summary"],
     queryFn: fetchHealthSummary,
     refetchInterval: 60000,
+  });
+
+  const { data: discoveredPorts } = useQuery({
+    queryKey: ["sitemap", "ports"],
+    queryFn: fetchDiscoveredPorts,
+    staleTime: 300000, // 5 minutes - ports don't change often
   });
 
   // Mutations
@@ -165,16 +172,18 @@ export function SitemapTab() {
           </TabsList>
         </Tabs>
 
-        {/* Port filter */}
+        {/* Port filter - dynamically populated from discovered ports */}
         <Select value={portFilter} onValueChange={setPortFilter}>
-          <SelectTrigger className="w-40 h-8 text-xs">
+          <SelectTrigger className="w-44 h-8 text-xs">
             <SelectValue placeholder="Port" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Ports</SelectItem>
-            <SelectItem value="3000">:3000 (Frontend)</SelectItem>
-            <SelectItem value="8000">:8000 (Backend)</SelectItem>
-            <SelectItem value="9999">:9999 (Dev Companion)</SelectItem>
+            {discoveredPorts?.ports.map((p) => (
+              <SelectItem key={p.port} value={String(p.port)}>
+                :{p.port} ({p.service_name.replace("portfolio-", "")})
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
 

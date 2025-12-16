@@ -65,6 +65,20 @@ export interface SitemapFilters {
   offset?: number;
 }
 
+export interface DiscoveredPort {
+  port: number;
+  service_name: string;
+  service_type: string;
+  source: string;
+  description: string | null;
+}
+
+export interface DiscoveredPortsResponse {
+  ports: DiscoveredPort[];
+  backend_port: number;
+  frontend_port: number;
+}
+
 export interface DiscoveryResponse {
   openapi_discovered: number;
   frontend_discovered: number;
@@ -152,6 +166,13 @@ export async function checkEntryHealth(id: number): Promise<HealthCheckResponse>
  */
 export async function checkAllHealth(): Promise<{ status: string; task_id: string; message: string }> {
   return post("/api/sitemap/check-all");
+}
+
+/**
+ * Get discovered ports from systemd services
+ */
+export async function fetchDiscoveredPorts(): Promise<DiscoveredPortsResponse> {
+  return get<DiscoveredPortsResponse>("/api/sitemap/ports");
 }
 
 /**
