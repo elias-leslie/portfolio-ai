@@ -273,7 +273,7 @@ export function ApiSourcesOverview() {
                           Best For
                         </h4>
                         <div className="flex flex-wrap gap-2">
-                          {detail.useCases.map((useCase, i) => (
+                          {(detail.useCases ?? []).map((useCase, i) => (
                             <Badge key={i} variant="secondary" className="text-xs">
                               {useCase}
                             </Badge>
@@ -304,10 +304,10 @@ export function ApiSourcesOverview() {
                       {/* Endpoints */}
                       <div>
                         <h4 className="text-sm font-medium text-foreground mb-2">
-                          Endpoints ({Object.keys(detail.endpoints).length})
+                          Endpoints ({Object.keys(detail.endpoints ?? {}).length})
                         </h4>
                         <div className="grid gap-2">
-                          {Object.entries(detail.endpoints).map(([name, endpoint]) => (
+                          {Object.entries(detail.endpoints ?? {}).map(([name, endpoint]) => (
                             <div
                               key={name}
                               className="rounded border border-border bg-surface p-3"
@@ -341,13 +341,13 @@ export function ApiSourcesOverview() {
                       </div>
 
                       {/* Premium Only */}
-                      {detail.premiumOnly.length > 0 && (
+                      {(detail.premiumOnly?.length ?? 0) > 0 && (
                         <div>
                           <h4 className="text-sm font-medium text-muted-foreground mb-2">
                             Premium Only (Not Available)
                           </h4>
                           <div className="flex flex-wrap gap-2">
-                            {detail.premiumOnly.map((endpoint, i) => (
+                            {(detail.premiumOnly ?? []).map((endpoint, i) => (
                               <Badge
                                 key={i}
                                 variant="outline"
