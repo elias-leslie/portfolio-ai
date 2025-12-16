@@ -2,7 +2,7 @@
  * System resources API client
  */
 
-import { API_BASE_URL } from "./client";
+import { apiRequest } from "./client";
 
 export interface DiskUsage {
   totalGb: number;
@@ -43,11 +43,5 @@ export interface SystemResources {
 }
 
 export async function getSystemResources(): Promise<SystemResources> {
-  const response = await fetch(`${API_BASE_URL}/api/status/resources`);
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch system resources: ${response.statusText}`);
-  }
-
-  return response.json();
+  return apiRequest<SystemResources>("/api/status/resources");
 }
