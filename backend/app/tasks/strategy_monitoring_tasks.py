@@ -14,6 +14,7 @@ from typing import Any, Literal
 from app.celery_app import celery_app
 from app.logging_config import get_logger
 from app.storage.connection import get_connection_manager
+from app.storage.credential_loader import load_credentials_from_database
 from app.strategies.storage import get_strategy_storage
 
 logger = get_logger(__name__)
@@ -418,6 +419,9 @@ def weekly_strategy_generation() -> dict[str, Any]:
     Returns:
         Summary dict with generation results
     """
+    # Load LLM credentials (e.g., GEMINI_API_KEY) from database
+    load_credentials_from_database()
+
     logger.info("Starting weekly strategy generation")
 
     # Import here to avoid circular dependency

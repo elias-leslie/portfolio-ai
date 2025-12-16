@@ -31,6 +31,9 @@ ENV_VAR_MAPPINGS = {
     ("alpaca", "secret_key"): "ALPACA_SECRET_KEY",
     ("serpapi", "apikey"): "SERPAPI_API_KEY",
     ("serpapi", "api_key"): "SERPAPI_API_KEY",  # Case variation
+    # LLM providers
+    ("gemini", "api_key"): "GEMINI_API_KEY",
+    ("gemini", "apikey"): "GEMINI_API_KEY",  # Case variation
     # Note: yfinance does not use API keys - it's a free/open source library
 }
 

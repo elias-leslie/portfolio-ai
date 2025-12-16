@@ -85,8 +85,9 @@ class GeminiSession:
                 cmd.extend(["--resume", self._gemini_session_id])
                 cmd.extend(["-p", message])  # Must use -p when resuming
 
-            # Auto-approve for chat context (user already consented by sending message)
-            cmd.extend(["--approval-mode", "auto_edit"])
+            # Auto-approve ALL tools (user consented by sending message)
+            # Note: auto_edit only approves file edits, not save_memory etc.
+            cmd.extend(["--approval-mode", "yolo"])
 
             logger.info(f"Gemini command: {' '.join(cmd)}")
             logger.info(f"Session ID for resume: {self._gemini_session_id}")
